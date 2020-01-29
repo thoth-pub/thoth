@@ -6,7 +6,10 @@ pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
 fn init_pool(database_url: &str) -> Result<PgPool, PoolError> {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
-    Pool::builder().build(manager)
+    let pool = Pool::builder()
+        .build(manager)
+        .expect("Failed to create database pool.");
+    Ok(pool)
 }
 
 pub fn establish_connection() -> PgPool {
