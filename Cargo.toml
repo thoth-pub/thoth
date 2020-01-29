@@ -5,7 +5,8 @@ authors = ["Javier Arias <javier@arias.re>"]
 edition = "2018"
 
 [dependencies]
-actix-web = "1.0.0"
+actix-web = "2.0.0"
+actix-rt = "1.0.0"
 chrono = "0.4"
 diesel = { version = "1.4.0", features = ["postgres", "uuidv07", "chrono", "r2d2"] }
 diesel-derive-enum = { version = "0.4", features = ["postgres"] }
