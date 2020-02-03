@@ -41,6 +41,7 @@ CREATE TABLE contributor (
 CREATE UNIQUE INDEX orcid_uniq_idx on contributor(lower(orcid));
 
 CREATE TYPE contribution_type AS ENUM ('author', 'editor', 'translator', 'photographer', 'ilustrator', 'foreword-by', 'introduction-by', 'afterword-by', 'preface-by');
+
 CREATE TABLE contribution (
     work_id             UUID NOT NULL REFERENCES work(work_id),
     contributor_id      UUID NOT NULL REFERENCES contributor(contributor_id),

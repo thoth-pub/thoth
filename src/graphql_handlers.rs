@@ -47,6 +47,15 @@ impl QueryRoot {
       .load::<Publisher>(&connection)
       .expect("Error loading publishers")
   }
+
+  fn contributors(context: &Context) -> Vec<Contributor> {
+    use crate::schema::contributor::dsl::*;
+    let connection = context.db.get().unwrap();
+    contributor
+        .limit(100)
+        .load::<Contributor>(&connection)
+        .expect("Error loading contributors")
+  }
 }
 
 pub struct MutationRoot;
@@ -72,18 +81,22 @@ impl Work {
         &self.work_type
     }
 
+    #[graphql(description="Concatenation of title and subtitle with punctuation mark")]
     pub fn full_title(&self) -> &str {
         self.full_title.as_str()
     }
 
+    #[graphql(description="Main title of the work (excluding subtitle)")]
     pub fn title(&self) -> &str {
         self.title.as_str()
     }
 
+    #[graphql(description="Secondary title of the work (excluding main title)")]
     pub fn subtitle(&self) -> Option<&String> {
         self.subtitle.as_ref()
     }
 
+    #[graphql(description="Digital Object Identifier of the work as full URL. It must use the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.11647/obp.0001)")]
     pub fn doi(&self) -> Option<&String> {
         self.doi.as_ref()
     }
@@ -96,9 +109,18 @@ impl Work {
         use crate::schema::publisher::dsl::*;
         let connection = context.db.get().unwrap();
         publisher
-            .find(publisher_id)
+            .find(self.publisher_id)
             .first(&connection)
             .expect("Error loading publisher")
+    }
+
+    pub fn contributions(&self, context: &Context) -> Vec<Contribution> {
+        use crate::schema::contribution::dsl::*;
+        let connection = context.db.get().unwrap();
+        contribution
+            .filter(work_id.eq(self.work_id))
+            .load::<Contribution>(&connection)
+            .expect("Error loading contributions")
     }
 
     pub fn publications(&self, context: &Context) -> Vec<Publication> {
@@ -150,6 +172,87 @@ impl Publisher {
 
     pub fn publisher_url(&self) -> Option<&String> {
         self.publisher_url.as_ref()
+    }
+}
+
+#[juniper::object(Context = Context, description = "A person who has been involved in the production of a written text.")]
+impl Contributor {
+    pub fn contributor_id(&self) -> Uuid {
+        self.contributor_id
+    }
+
+    pub fn first_name(&self) -> Option<&String> {
+        self.first_name.as_ref()
+    }
+
+    pub fn last_name(&self) -> &String {
+        &self.last_name
+    }
+
+    pub fn full_name(&self) -> &String {
+        &self.full_name
+    }
+
+    pub fn orcid(&self) -> Option<&String> {
+        self.orcid.as_ref()
+    }
+
+    pub fn website(&self) -> Option<&String> {
+        self.website.as_ref()
+    }
+
+    pub fn contributions(&self, context: &Context) -> Vec<Contribution> {
+        use crate::schema::contribution::dsl::*;
+        let connection = context.db.get().unwrap();
+        contribution
+            .filter(contributor_id.eq(self.contributor_id))
+            .load::<Contribution>(&connection)
+            .expect("Error loading contributions")
+    }
+}
+
+#[juniper::object(Context = Context, description = "A person's involvement in the production of a written text.")]
+impl Contribution {
+    pub fn contributor_id(&self) -> Uuid {
+        self.contributor_id
+    }
+
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
+    }
+
+    pub fn contribution_type(&self) -> &ContributionType {
+        &self.contribution_type
+    }
+
+    pub fn main_contribution(&self) -> bool{
+        self.main_contribution
+    }
+
+    pub fn biography(&self) -> Option<&String> {
+        self.biography.as_ref()
+    }
+
+    pub fn institution(&self) -> Option<&String> {
+        self.institution.as_ref()
+    }
+
+    pub fn work(&self, context: &Context) -> Work {
+        use crate::schema::work::dsl::*;
+        let connection = context.db.get().unwrap();
+        work
+            .find(self.work_id)
+            .first(&connection)
+            .expect("Error loading work")
+    }
+
+    pub fn contributor(&self, context: &Context) -> Contributor {
+        use crate::schema::contributor::dsl::*;
+        let connection = context.db.get().unwrap();
+        contributor
+            .find(self.contributor_id)
+            .first(&connection)
+            .expect("Error loading contributions")
     }
 }
 

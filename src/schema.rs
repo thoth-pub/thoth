@@ -14,7 +14,6 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::models::*;
 
     contributor (contributor_id) {
         contributor_id -> Uuid,
@@ -41,7 +40,6 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::models::*;
 
     publisher (publisher_id) {
         publisher_id -> Uuid,
