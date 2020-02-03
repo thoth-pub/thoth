@@ -130,7 +130,6 @@ impl Work {
         let connection = context.db.get().unwrap();
         publication
             .filter(work_id.eq(self.work_id))
-            .limit(100)
             .load::<Publication>(&connection)
             .expect("Error loading publications")
     }
