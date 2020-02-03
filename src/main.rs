@@ -16,7 +16,6 @@ use juniper::http::GraphQLRequest;
 mod db;
 mod graphql_handlers;
 mod schema;
-pub mod enumerations;
 pub mod models;
 
 use crate::db::establish_connection;
