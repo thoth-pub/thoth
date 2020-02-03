@@ -1,15 +1,26 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-------------------- Publisher
+CREATE TABLE publisher (
+    publisher_id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    publisher_name      TEXT NOT NULL CHECK (octet_length(publisher_name) >= 1), -- UNIQ below
+    publisher_shortname TEXT CHECK (octet_length(publisher_shortname) >= 1),
+    publisher_url       TEXT CHECK (publisher_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)')
+);
+-- case-insensitive UNIQ index on publisher_name
+CREATE UNIQUE INDEX publisher_uniq_idx on publisher(lower(publisher_name));
+
 -------------------- Work
 
-CREATE TYPE work_type AS ENUM ('book-chapter', 'book');
+CREATE TYPE work_type AS ENUM ('book-chapter', 'monograph', 'edited-book', 'textbook', 'journal-issue');
 
 CREATE TABLE work (
     work_id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     work_type           work_type NOT NULL,
-    title               TEXT NOT NULL CHECK(octet_length(title) >= 1),
+    full_title          TEXT NOT NULL CHECK (octet_length(full_title) >= 1),
+    title               TEXT NOT NULL CHECK (octet_length(title) >= 1),
     subtitle            TEXT CHECK (octet_length(subtitle) >= 1),
-    publisher           TEXT check (octet_length(publisher) >= 1),
+    publisher_id        UUID NOT NULL REFERENCES publisher(publisher_id),
     doi                 TEXT CHECK (doi ~* 'https:\/\/doi.org\/10.\d{4,9}\/[-._\;\(\)\/:a-zA-Z0-9]+$'), -- UNIQ below
     publication_date    DATE
 );
@@ -20,9 +31,9 @@ CREATE UNIQUE INDEX doi_uniq_idx on work(lower(doi));
 
 CREATE TABLE contributor (
     contributor_id      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    first_name          TEXT CHECK(octet_length(first_name) >= 1),
-    last_name           TEXT NOT NULL CHECK(octet_length(last_name) >= 1),
-    full_name           TEXT NOT NULL CHECK(octet_length(full_name) >= 1),
+    first_name          TEXT CHECK (octet_length(first_name) >= 1),
+    last_name           TEXT NOT NULL CHECK (octet_length(last_name) >= 1),
+    full_name           TEXT NOT NULL CHECK (octet_length(full_name) >= 1),
     orcid               TEXT CHECK (orcid ~* '0000-000(1-[5-9]|2-[0-9]|3-[0-4])\d{3}-\d{3}[\dX]'), -- UNIQ below
     website             TEXT CHECK (octet_length(website) >= 1)
 );
@@ -35,8 +46,8 @@ CREATE TABLE contribution (
     contributor_id      UUID NOT NULL REFERENCES contributor(contributor_id),
     contribution_type   contribution_type NOT NULL,
     main_contribution   BOOLEAN NOT NULL DEFAULT False,
-    biography           TEXT CHECK(octet_length(biography) >= 1),
-    institution         TEXT CHECK(octet_length(institution) >= 1),
+    biography           TEXT CHECK (octet_length(biography) >= 1),
+    institution         TEXT CHECK (octet_length(institution) >= 1),
     PRIMARY KEY (work_id, contributor_id, contribution_type)
 );
 
@@ -49,16 +60,20 @@ CREATE TABLE publication (
     publication_type    publication_type NOT NULL,
     work_id             UUID NOT NULL REFERENCES work(work_id),
     isbn                TEXT CHECK (octet_length(isbn) = 17),
-    publication_url     TEXT CHECK (octet_length(publication_url) >= 1)
+    publication_url     TEXT CHECK (publication_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)')
 );
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
 
+INSERT INTO publisher VALUES
+('00000000-0000-0000-DDDD-000000000001', 'Open Book Publishers', 'OBP', 'https://www.openbookpublishers.com'),
+('00000000-0000-0000-DDDD-000000000002', 'punctum books', null, 'https://punctumbooks.com');
+
 INSERT INTO work VALUES
-('00000000-0000-0000-AAAA-000000000001', 'book', 'That Greece Might Still Be Free', 'The Philhellenes in the War of Independence', 'Open Book Publishers', 'https://doi.org/10.11647/obp.0001', '2008-11-01'),
-('00000000-0000-0000-AAAA-000000000002', 'book', 'Conservation Biology in Sub-Saharan Africa', null, 'Open Book Publishers', 'https://doi.org/10.11647/obp.0177', '2019-09-09');
+('00000000-0000-0000-AAAA-000000000001', 'monograph', 'That Greece Might Still Be Free: The Philhellenes in the War of Independence', 'That Greece Might Still Be Free', 'The Philhellenes in the War of Independence', '00000000-0000-0000-DDDD-000000000001', 'https://doi.org/10.11647/obp.0001', '2008-11-01'),
+('00000000-0000-0000-AAAA-000000000002', 'textbook', 'Conservation Biology in Sub-Saharan Africa', 'Conservation Biology in Sub-Saharan Africa', null, '00000000-0000-0000-DDDD-000000000001', 'https://doi.org/10.11647/obp.0177', '2019-09-09');
 
 INSERT INTO contributor VALUES
 ('00000000-0000-0000-CCCC-000000000001', 'William', 'St Clair', 'William St Clair', null, 'https://research.sas.ac.uk/search/fellow/158'),

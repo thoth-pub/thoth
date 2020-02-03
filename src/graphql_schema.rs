@@ -33,9 +33,18 @@ impl QueryRoot {
     use crate::schema::publication::dsl::*;
     let connection = context.db.get().unwrap();
     publication
-      .limit(10)
+      .limit(100)
       .load::<Publication>(&connection)
       .expect("Error loading publications")
+  }
+
+  fn publishers(context: &Context) -> Vec<Publisher> {
+    use crate::schema::publisher::dsl::*;
+    let connection = context.db.get().unwrap();
+    publisher
+      .limit(100)
+      .load::<Publisher>(&connection)
+      .expect("Error loading publishers")
   }
 }
 
@@ -56,9 +65,10 @@ impl MutationRoot {
 struct Work {
     work_id: Uuid,
     work_type: WorkType,
+    full_title: String,
     title: String,
     subtitle: Option<String>,
-    publisher: Option<String>,
+    publisher_id: Uuid,
     doi: Option<String>,
     publication_date: Option<NaiveDate>,
 }
@@ -68,9 +78,10 @@ struct Work {
 pub struct NewWork {
     work_id: Uuid,
     work_type: WorkType,
+    full_title: String,
     title: String,
     subtitle: Option<String>,
-    publisher: Option<String>,
+    publisher_id: Uuid,
     doi: Option<String>,
     publication_date: Option<NaiveDate>,
 }
@@ -85,6 +96,10 @@ impl Work {
         &self.work_type
     }
 
+    pub fn full_title(&self) -> &str {
+        self.full_title.as_str()
+    }
+
     pub fn title(&self) -> &str {
         self.title.as_str()
     }
@@ -93,16 +108,21 @@ impl Work {
         self.subtitle.as_ref()
     }
 
-    pub fn publisher(&self) -> Option<&String> {
-        self.publisher.as_ref()
-    }
-
     pub fn doi(&self) -> Option<&String> {
         self.doi.as_ref()
     }
 
     pub fn publication_date(&self) -> Option<NaiveDate> {
         self.publication_date
+    }
+
+    pub fn publisher(&self, context: &Context) -> Publisher {
+        use crate::schema::publisher::dsl::*;
+        let connection = context.db.get().unwrap();
+        publisher
+            .find(publisher_id)
+            .first(&connection)
+            .expect("Error loading publisher")
     }
 
     pub fn publications(&self, context: &Context) -> Vec<Publication> {
@@ -145,6 +165,33 @@ impl Publication {
 
     pub fn publication_url(&self) -> Option<&String> {
         self.publication_url.as_ref()
+    }
+}
+
+#[derive(Queryable)]
+struct Publisher {
+    publisher_id: Uuid,
+    publisher_name: String,
+    publisher_shortname: Option<String>,
+    publisher_url: Option<String>,
+}
+
+#[juniper::object(description = "An organisation that produces and distributes written texts.")]
+impl Publisher {
+    pub fn publisher_id(&self) -> Uuid {
+        self.publisher_id
+    }
+
+    pub fn publisher_name(&self) -> &String {
+        &self.publisher_name
+    }
+
+    pub fn publisher_shortname(&self) -> Option<&String> {
+        self.publisher_shortname.as_ref()
+    }
+
+    pub fn publisher_url(&self) -> Option<&String> {
+        self.publisher_url.as_ref()
     }
 }
 
