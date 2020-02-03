@@ -18,7 +18,10 @@ pub enum ContributionType {
 #[DieselType = "Work_type"]
 pub enum WorkType {
     BookChapter,
-    Book,
+    Monograph,
+    EditedBook,
+    Textbook,
+    JournalIssue,
 }
 
 #[derive(Debug, PartialEq, DbEnum)]
