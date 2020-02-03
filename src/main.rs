@@ -14,12 +14,13 @@ use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 
 mod db;
-mod graphql_schema;
+mod graphql_handlers;
 mod schema;
-pub mod sql_types;
+pub mod enumerations;
+pub mod models;
 
 use crate::db::establish_connection;
-use crate::graphql_schema::{create_schema, Context, Schema};
+use crate::graphql_handlers::{create_schema, Context, Schema};
 
 async fn graphiql() -> HttpResponse {
     let html = graphiql_source("http://localhost:8080/graphql");

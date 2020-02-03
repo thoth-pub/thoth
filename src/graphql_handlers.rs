@@ -7,7 +7,9 @@ use chrono::naive::NaiveDate;
 
 use crate::db::PgPool;
 use crate::schema::work;
-use crate::sql_types::*;
+use crate::enumerations::*;
+
+use crate::models::*;
 
 #[derive(Clone)]
 pub struct Context {
@@ -61,31 +63,6 @@ impl MutationRoot {
   }
 }
 
-#[derive(Queryable)]
-struct Work {
-    work_id: Uuid,
-    work_type: WorkType,
-    full_title: String,
-    title: String,
-    subtitle: Option<String>,
-    publisher_id: Uuid,
-    doi: Option<String>,
-    publication_date: Option<NaiveDate>,
-}
-
-#[derive(juniper::GraphQLInputObject, Insertable)]
-#[table_name = "work"]
-pub struct NewWork {
-    work_id: Uuid,
-    work_type: WorkType,
-    full_title: String,
-    title: String,
-    subtitle: Option<String>,
-    publisher_id: Uuid,
-    doi: Option<String>,
-    publication_date: Option<NaiveDate>,
-}
-
 #[juniper::object(Context = Context, description = "A written text that can be published")]
 impl Work {
     pub fn work_id(&self) -> &Uuid {
@@ -135,15 +112,6 @@ impl Work {
     }
 }
 
-#[derive(Queryable)]
-struct Publication {
-    publication_id: Uuid,
-    publication_type: PublicationType,
-    work_id: Uuid,
-    isbn: Option<String>,
-    publication_url: Option<String>,
-}
-
 #[juniper::object(description = "A manifestation of a written text")]
 impl Publication {
     pub fn publication_id(&self) -> Uuid {
@@ -165,14 +133,6 @@ impl Publication {
     pub fn publication_url(&self) -> Option<&String> {
         self.publication_url.as_ref()
     }
-}
-
-#[derive(Queryable)]
-struct Publisher {
-    publisher_id: Uuid,
-    publisher_name: String,
-    publisher_shortname: Option<String>,
-    publisher_url: Option<String>,
 }
 
 #[juniper::object(description = "An organisation that produces and distributes written texts.")]

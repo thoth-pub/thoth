@@ -1,6 +1,6 @@
 table! {
     use diesel::sql_types::*;
-    use crate::sql_types::*;
+    use crate::enumerations::*;
 
     contribution (work_id, contributor_id, contribution_type) {
         work_id -> Uuid,
@@ -14,7 +14,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::sql_types::*;
+    use crate::enumerations::*;
 
     contributor (contributor_id) {
         contributor_id -> Uuid,
@@ -28,7 +28,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::sql_types::*;
+    use crate::enumerations::*;
 
     publication (publication_id) {
         publication_id -> Uuid,
@@ -41,7 +41,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::sql_types::*;
+    use crate::enumerations::*;
 
     publisher (publisher_id) {
         publisher_id -> Uuid,
@@ -53,7 +53,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::sql_types::*;
+    use crate::enumerations::*;
 
     work (work_id) {
         work_id -> Uuid,
