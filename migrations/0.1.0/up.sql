@@ -11,7 +11,7 @@ CREATE TABLE publisher (
 CREATE UNIQUE INDEX publisher_uniq_idx on publisher(lower(publisher_name));
 
 -------------------- Work
-Concatenation of title and subtitle with punctuation mark
+
 CREATE TYPE work_type AS ENUM (
   'book-chapter',
   'monograph',
