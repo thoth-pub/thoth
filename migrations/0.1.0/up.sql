@@ -11,8 +11,14 @@ CREATE TABLE publisher (
 CREATE UNIQUE INDEX publisher_uniq_idx on publisher(lower(publisher_name));
 
 -------------------- Work
-
-CREATE TYPE work_type AS ENUM ('book-chapter', 'monograph', 'edited-book', 'textbook', 'journal-issue');
+Concatenation of title and subtitle with punctuation mark
+CREATE TYPE work_type AS ENUM (
+  'book-chapter',
+  'monograph',
+  'edited-book',
+  'textbook',
+  'journal-issue'
+);
 
 CREATE TABLE work (
     work_id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -40,7 +46,17 @@ CREATE TABLE contributor (
 -- case-insensitive UNIQ index on orcid
 CREATE UNIQUE INDEX orcid_uniq_idx on contributor(lower(orcid));
 
-CREATE TYPE contribution_type AS ENUM ('author', 'editor', 'translator', 'photographer', 'ilustrator', 'foreword-by', 'introduction-by', 'afterword-by', 'preface-by');
+CREATE TYPE contribution_type AS ENUM (
+  'author',
+  'editor',
+  'translator',
+  'photographer',
+  'ilustrator',
+  'foreword-by',
+  'introduction-by',
+  'afterword-by',
+  'preface-by'
+);
 
 CREATE TABLE contribution (
     work_id             UUID NOT NULL REFERENCES work(work_id),
@@ -54,7 +70,15 @@ CREATE TABLE contribution (
 
 -------------------- Publication
 
-CREATE TYPE publication_type AS ENUM ('Paperback', 'Hardback', 'PDF', 'HTML', 'XML', 'Epub', 'Mobi');
+CREATE TYPE publication_type AS ENUM (
+  'Paperback',
+  'Hardback',
+  'PDF',
+  'HTML',
+  'XML',
+  'Epub',
+  'Mobi'
+);
 
 CREATE TABLE publication (
     publication_id      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
