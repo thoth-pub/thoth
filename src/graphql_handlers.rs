@@ -56,6 +56,24 @@ impl QueryRoot {
         .load::<Contributor>(&connection)
         .expect("Error loading contributors")
   }
+
+  fn series(context: &Context) -> Vec<Series> {
+    use crate::schema::series::dsl::*;
+    let connection = context.db.get().unwrap();
+    series
+        .limit(100)
+        .load::<Series>(&connection)
+        .expect("Error loading series")
+  }
+
+  fn issues(context: &Context) -> Vec<Issue> {
+    use crate::schema::issue::dsl::*;
+    let connection = context.db.get().unwrap();
+    issue
+        .limit(100)
+        .load::<Issue>(&connection)
+        .expect("Error loading issues")
+  }
 }
 
 pub struct MutationRoot;
@@ -253,6 +271,76 @@ impl Contribution {
             .find(self.contributor_id)
             .first(&connection)
             .expect("Error loading contributions")
+    }
+}
+
+#[juniper::object(Context = Context, description = "A periodical of publications about a particular subject.")]
+impl Series {
+    pub fn series_id(&self) -> Uuid {
+        self.series_id
+    }
+
+    pub fn series_type(&self) -> &SeriesType {
+        &self.series_type
+    }
+
+    pub fn series_name(&self) -> &String {
+        &self.series_name
+    }
+
+    pub fn issn_print(&self) -> &String {
+        &self.issn_print
+    }
+
+    pub fn issn_digital(&self) -> &String {
+        &self.issn_digital
+    }
+
+    pub fn series_url(&self) -> Option<&String> {
+        self.series_url.as_ref()
+    }
+
+    pub fn publisher(&self, context: &Context) -> Publisher {
+        use crate::schema::publisher::dsl::*;
+        let connection = context.db.get().unwrap();
+        publisher
+            .find(self.publisher_id)
+            .first(&connection)
+            .expect("Error loading publisher")
+    }
+
+    pub fn issues(&self, context: &Context) -> Vec<Issue> {
+        use crate::schema::issue::dsl::*;
+        let connection = context.db.get().unwrap();
+        issue
+            .filter(series_id.eq(self.series_id))
+            .load::<Issue>(&connection)
+            .expect("Error loading issues")
+    }
+}
+
+#[juniper::object(Context = Context, description = "A work published as a number in a periodical.")]
+impl Issue {
+    pub fn issue_ordinal(&self) -> &i32 {
+        &self.issue_ordinal
+    }
+
+    pub fn series(&self, context: &Context) -> Series {
+        use crate::schema::series::dsl::*;
+        let connection = context.db.get().unwrap();
+        series
+            .find(self.series_id)
+            .first(&connection)
+            .expect("Error loading series")
+    }
+
+    pub fn work(&self, context: &Context) -> Work {
+        use crate::schema::work::dsl::*;
+        let connection = context.db.get().unwrap();
+        work
+            .find(self.work_id)
+            .first(&connection)
+            .expect("Error loading work")
     }
 }
 

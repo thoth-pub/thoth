@@ -14,6 +14,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use crate::models::*;
 
     contributor (contributor_id) {
         contributor_id -> Uuid,
@@ -22,6 +23,17 @@ table! {
         full_name -> Text,
         orcid -> Nullable<Text>,
         website -> Nullable<Text>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use crate::models::*;
+
+    issue (series_id, work_id) {
+        series_id -> Uuid,
+        work_id -> Uuid,
+        issue_ordinal -> Int4,
     }
 }
 
@@ -40,12 +52,28 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use crate::models::*;
 
     publisher (publisher_id) {
         publisher_id -> Uuid,
         publisher_name -> Text,
         publisher_shortname -> Nullable<Text>,
         publisher_url -> Nullable<Text>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use crate::models::*;
+
+    series (series_id) {
+        series_id -> Uuid,
+        series_type -> Series_type,
+        series_name -> Text,
+        issn_print -> Text,
+        issn_digital -> Text,
+        series_url -> Nullable<Text>,
+        publisher_id -> Uuid,
     }
 }
 
@@ -67,13 +95,18 @@ table! {
 
 joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
+joinable!(issue -> series (series_id));
+joinable!(issue -> work (work_id));
 joinable!(publication -> work (work_id));
+joinable!(series -> publisher (publisher_id));
 joinable!(work -> publisher (publisher_id));
 
 allow_tables_to_appear_in_same_query!(
     contribution,
     contributor,
+    issue,
     publication,
     publisher,
+    series,
     work,
 );

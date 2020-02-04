@@ -8,7 +8,7 @@ CREATE TABLE publisher (
     publisher_url       TEXT CHECK (publisher_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)')
 );
 -- case-insensitive UNIQ index on publisher_name
-CREATE UNIQUE INDEX publisher_uniq_idx on publisher(lower(publisher_name));
+CREATE UNIQUE INDEX publisher_uniq_idx ON publisher(lower(publisher_name));
 
 -------------------- Work
 
@@ -17,7 +17,8 @@ CREATE TYPE work_type AS ENUM (
   'monograph',
   'edited-book',
   'textbook',
-  'journal-issue'
+  'journal-issue',
+  'book-set'
 );
 
 CREATE TABLE work (
@@ -31,7 +32,38 @@ CREATE TABLE work (
     publication_date    DATE
 );
 -- case-insensitive UNIQ index on doi
-CREATE UNIQUE INDEX doi_uniq_idx on work(lower(doi));
+CREATE UNIQUE INDEX doi_uniq_idx ON work(lower(doi));
+
+-------------------- Series
+
+CREATE TYPE series_type AS ENUM (
+  'journal',
+  'book-series'
+);
+
+CREATE TABLE series (
+    series_id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    series_type         series_type NOT NULL,
+    series_name         TEXT NOT NULL CHECK (octet_length(series_name) >= 1),
+    issn_print          TEXT NOT NULL CHECK (issn_print ~* '\d{4}\-\d{3}(\d|X)'), -- UNIQ below
+    issn_digital        TEXT NOT NULL CHECK (issn_digital ~* '\d{4}\-\d{3}(\d|X)'), -- UNIQ below
+    series_url          TEXT CHECK (series_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'),
+    publisher_id        UUID NOT NULL REFERENCES publisher(publisher_id)
+);
+
+--  UNIQ index on ISSNs
+CREATE UNIQUE INDEX series_issn_print_idx ON series(issn_print);
+CREATE UNIQUE INDEX series_issn_digital_idx ON series(issn_digital);
+
+CREATE TABLE issue (
+    series_id           UUID NOT NULL REFERENCES series(series_id),
+    work_id             UUID NOT NULL REFERENCES work(work_id),
+    issue_ordinal       INTEGER NOT NULL CHECK (issue_ordinal > 0), -- UNIQ below
+    PRIMARY KEY (series_id, work_id)
+);
+
+-- UNIQ index on issue_ordinal and series_id
+CREATE UNIQUE INDEX issue_uniq_ord_in_series_idx ON issue(series_id, issue_ordinal);
 
 -------------------- Contributor
 
@@ -44,7 +76,7 @@ CREATE TABLE contributor (
     website             TEXT CHECK (octet_length(website) >= 1)
 );
 -- case-insensitive UNIQ index on orcid
-CREATE UNIQUE INDEX orcid_uniq_idx on contributor(lower(orcid));
+CREATE UNIQUE INDEX orcid_uniq_idx ON contributor(lower(orcid));
 
 CREATE TYPE contribution_type AS ENUM (
   'author',
@@ -98,19 +130,23 @@ INSERT INTO publisher VALUES
 
 INSERT INTO work VALUES
 ('00000000-0000-0000-AAAA-000000000001', 'monograph', 'That Greece Might Still Be Free: The Philhellenes in the War of Independence', 'That Greece Might Still Be Free', 'The Philhellenes in the War of Independence', '00000000-0000-0000-DDDD-000000000001', 'https://doi.org/10.11647/obp.0001', '2008-11-01'),
-('00000000-0000-0000-AAAA-000000000002', 'textbook', 'Conservation Biology in Sub-Saharan Africa', 'Conservation Biology in Sub-Saharan Africa', null, '00000000-0000-0000-DDDD-000000000001', 'https://doi.org/10.11647/obp.0177', '2019-09-09');
+('00000000-0000-0000-AAAA-000000000002', 'textbook', 'Conservation Biology in Sub-Saharan Africa', 'Conservation Biology in Sub-Saharan Africa', null, '00000000-0000-0000-DDDD-000000000001', 'https://doi.org/10.11647/obp.0177', '2019-09-09'),
+('00000000-0000-0000-AAAA-000000000003', 'journal-issue', 'What Works in Conservation 2015', 'What Works in Conservation', '2015', '00000000-0000-0000-DDDD-000000000001', 'https://doi.org/10.11647/obp.0060', '2015-07-01');
 
 INSERT INTO contributor VALUES
 ('00000000-0000-0000-CCCC-000000000001', 'William', 'St Clair', 'William St Clair', null, 'https://research.sas.ac.uk/search/fellow/158'),
 ('00000000-0000-0000-CCCC-000000000002', 'Roderick', 'Beaton', 'Roderick Beaton', null, null),
 ('00000000-0000-0000-CCCC-000000000003', 'John W.', 'Wilson', 'John W. Wilson', '0000-0002-7230-1449', 'https://johnnybirder.com/index.html'),
-('00000000-0000-0000-CCCC-000000000004', 'Richard B.', 'Primack', 'Richard B. Primack', '0000-0002-3748-9853', 'https://www.rprimacklab.com');
+('00000000-0000-0000-CCCC-000000000004', 'Richard B.', 'Primack', 'Richard B. Primack', '0000-0002-3748-9853', 'https://www.rprimacklab.com'),
+('00000000-0000-0000-CCCC-000000000005', 'William J.', 'Sutherland', 'William J. Sutherland', null, null);
+
 
 INSERT INTO contribution VALUES
 ('00000000-0000-0000-AAAA-000000000001', '00000000-0000-0000-CCCC-000000000001', 'author', True, 'William St Clair is a Senior Research Fellow at the Institute of English Studies, School of Advanced Study, University of London, and of the Centre for History and Economics, University of Cambridge. His works include <i>Lord Elgin and the Marbles</i> and <i>The Reading Nation in the Romantic Period</i>. He is a Fellow of the British Academy and of the Royal Society of Literature.', null),
 ('00000000-0000-0000-AAAA-000000000001', '00000000-0000-0000-CCCC-000000000002', 'introduction-by', False, null, null),
 ('00000000-0000-0000-AAAA-000000000002', '00000000-0000-0000-CCCC-000000000003', 'author', True, 'John W. Wilson is a conservation biologist interested in solving the dynamic challenges of a changing world. He received his BSc and MSc from Pretoria University, and his PhD from North Carolina State University. He has over 15 years of experience with conservation across Africa. As a NASA Earth and Space Science Fellow, he studied interactions between habitat loss and climate change in West Africa. He also spent 13 months on uninhabited Gough Island, a World Heritage Site in the South Atlantic, where he combatted invasive species. Beyond that, he has studied individual organisms, populations, and natural communities across Southern, East, Central, and West Africa. His work has covered pertinent topics such as conservation planning, population monitoring, protected areas management, translocations, ecological restoration, and movement ecology in savannahs, grasslands, forests, wetlands, and agricultural systems. His love for nature also dominates his free time; he has contributed over 50,000 observation records to the citizen science platforms eBird and iNaturalist, which he also helps curate.', null),
-('00000000-0000-0000-AAAA-000000000002', '00000000-0000-0000-CCCC-000000000004', 'author', True, 'Richard B. Primack is a Professor of Biology, specializing in plant ecology, conservation biology, and tropical ecology. He is the author of three widely used conservation biology textbooks; local co-authors have helped to produce 36 translations of these books with local examples. He has been Editor-in-Chief of the journal <i>Biological Conservation</i>, and served as President of the <i>Association for Tropical Biology and Conservation</i>. His research documents the effects of climate change on plants and animals in the Eastern U.S.A., and is often featured in the popular press.', 'Boston University');
+('00000000-0000-0000-AAAA-000000000002', '00000000-0000-0000-CCCC-000000000004', 'author', True, 'Richard B. Primack is a Professor of Biology, specializing in plant ecology, conservation biology, and tropical ecology. He is the author of three widely used conservation biology textbooks; local co-authors have helped to produce 36 translations of these books with local examples. He has been Editor-in-Chief of the journal <i>Biological Conservation</i>, and served as President of the <i>Association for Tropical Biology and Conservation</i>. His research documents the effects of climate change on plants and animals in the Eastern U.S.A., and is often featured in the popular press.', 'Boston University'),
+('00000000-0000-0000-AAAA-000000000003', '00000000-0000-0000-CCCC-000000000005', 'editor', True, null, null);
 
 INSERT INTO publication VALUES
 ('00000000-0000-0000-BBBB-000000000001', 'Paperback', '00000000-0000-0000-AAAA-000000000001', '978-1-906924-00-3', null),
@@ -119,3 +155,9 @@ INSERT INTO publication VALUES
 ('00000000-0000-0000-BBBB-000000000004', 'Paperback', '00000000-0000-0000-AAAA-000000000002', '978-1-78374-750-4', null),
 ('00000000-0000-0000-BBBB-000000000005', 'Hardback', '00000000-0000-0000-AAAA-000000000002', '978-1-78374-751-1', null),
 ('00000000-0000-0000-BBBB-000000000006', 'PDF', '00000000-0000-0000-AAAA-000000000002', '978-1-78374-752-8', null);
+
+INSERT INTO series VALUES
+('00000000-0000-0000-EEEE-000000000001', 'journal', 'What Works in Conservation', '2059-4232', '2059-4240', null, '00000000-0000-0000-DDDD-000000000001');
+
+INSERT INTO issue VALUES
+('00000000-0000-0000-EEEE-000000000001', '00000000-0000-0000-AAAA-000000000003', 1);
