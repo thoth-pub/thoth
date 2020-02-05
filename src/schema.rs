@@ -39,6 +39,19 @@ table! {
     use diesel::sql_types::*;
     use crate::models::*;
 
+    language (language_id) {
+        language_id -> Uuid,
+        work_id -> Uuid,
+        language_code -> Language_code,
+        language_relation -> Language_relation,
+        main_language -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use crate::models::*;
+
     publication (publication_id) {
         publication_id -> Uuid,
         publication_type -> Publication_type,
@@ -94,6 +107,7 @@ joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
 joinable!(issue -> series (series_id));
 joinable!(issue -> work (work_id));
+joinable!(language -> work (work_id));
 joinable!(publication -> work (work_id));
 joinable!(series -> publisher (publisher_id));
 joinable!(work -> publisher (publisher_id));
@@ -102,6 +116,7 @@ allow_tables_to_appear_in_same_query!(
     contribution,
     contributor,
     issue,
+    language,
     publication,
     publisher,
     series,

@@ -74,6 +74,15 @@ impl QueryRoot {
         .load::<Issue>(&connection)
         .expect("Error loading issues")
   }
+
+  fn languages(context: &Context) -> Vec<Language> {
+    use crate::schema::language::dsl::*;
+    let connection = context.db.get().unwrap();
+    language
+        .limit(100)
+        .load::<Language>(&connection)
+        .expect("Error loading languages")
+  }
 }
 
 pub struct MutationRoot;
@@ -139,6 +148,15 @@ impl Work {
             .filter(work_id.eq(self.work_id))
             .load::<Contribution>(&connection)
             .expect("Error loading contributions")
+    }
+
+    pub fn languages(&self, context: &Context) -> Vec<Language> {
+        use crate::schema::language::dsl::*;
+        let connection = context.db.get().unwrap();
+        language
+            .filter(work_id.eq(self.work_id))
+            .load::<Language>(&connection)
+            .expect("Error loading languages")
     }
 
     pub fn publications(&self, context: &Context) -> Vec<Publication> {
@@ -332,6 +350,34 @@ impl Issue {
             .find(self.series_id)
             .first(&connection)
             .expect("Error loading series")
+    }
+
+    pub fn work(&self, context: &Context) -> Work {
+        use crate::schema::work::dsl::*;
+        let connection = context.db.get().unwrap();
+        work
+            .find(self.work_id)
+            .first(&connection)
+            .expect("Error loading work")
+    }
+}
+
+#[juniper::object(Context = Context, description = "Description of a work's language.")]
+impl Language {
+    pub fn language_id(&self) -> Uuid {
+        self.language_id
+    }
+
+    pub fn language_code(&self) -> &LanguageCode {
+        &self.language_code
+    }
+
+    pub fn language_relation(&self) -> &LanguageRelation {
+        &self.language_relation
+    }
+
+    pub fn main_language(&self) -> bool{
+        self.main_language
     }
 
     pub fn work(&self, context: &Context) -> Work {
