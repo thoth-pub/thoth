@@ -12,6 +12,10 @@ DROP TYPE IF EXISTS series_type;
 DROP TABLE IF EXISTS work;
 DROP TYPE IF EXISTS work_type;
 
+DROP TABLE IF EXISTS language;
+DROP TYPE IF EXISTS language_code;
+DROP TYPE IF EXISTS language_relation;
+
 DROP TABLE IF EXISTS publisher;
 
 DROP EXTENSION IF EXISTS "uuid-ossp";
