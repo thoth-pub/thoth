@@ -21,15 +21,54 @@ CREATE TYPE work_type AS ENUM (
   'book-set'
 );
 
+CREATE TYPE work_status AS ENUM (
+  'unspecified',
+  'cancelled',
+  'forthcoming',
+  'postponed-indefinitely',
+  'active',
+  'no-longer-our-product',
+  'out-of-stock-indefinitely',
+  'out-of-print',
+  'inactive',
+  'unknown',
+  'remaindered',
+  'withdrawn-from-sale',
+  'recalled'
+);
+
 CREATE TABLE work (
     work_id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     work_type           work_type NOT NULL,
+    work_status         work_status NOT NULL,
     full_title          TEXT NOT NULL CHECK (octet_length(full_title) >= 1),
     title               TEXT NOT NULL CHECK (octet_length(title) >= 1),
     subtitle            TEXT CHECK (octet_length(subtitle) >= 1),
+    reference           TEXT CHECK (octet_length(reference) >= 1),
+    edition             INTEGER NOT NULL CHECK (edition > 0),
     publisher_id        UUID NOT NULL REFERENCES publisher(publisher_id),
     doi                 TEXT CHECK (doi ~* 'https:\/\/doi.org\/10.\d{4,9}\/[-._\;\(\)\/:a-zA-Z0-9]+$'),
-    publication_date    DATE
+    publication_date    DATE,
+    place               TEXT CHECK (octet_length(reference) >= 1),
+    width               INTEGER CHECK (width > 0),
+    height              INTEGER CHECK (height > 0),
+    page_count          INTEGER CHECK (page_count > 0),
+    page_breakdown      TEXT CHECK(octet_length(page_breakdown) >=1),
+    image_count         INTEGER CHECK (image_count >= 0),
+    table_count         INTEGER CHECK (table_count >= 0),
+    audio_count         INTEGER CHECK (audio_count >= 0),
+    video_count         INTEGER CHECK (video_count >= 0),
+    license             TEXT CHECK (license ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'),
+    copyright_holder    TEXT NOT NULL CHECK (octet_length(copyright_holder) >= 1),
+    landing_page        TEXT CHECK (landing_page ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'),
+    lccn                INTEGER CHECK(lccn > 0),
+    oclc                INTEGER CHECK (oclc > 0),
+    short_abstract      TEXT CHECK (octet_length(short_abstract) >= 1),
+    long_abstract       TEXT CHECK (octet_length(long_abstract) >= 1),
+    general_note        TEXT CHECK (octet_length(general_note) >= 1),
+    toc                 TEXT CHECK (octet_length(toc) >= 1),
+    cover_url           TEXT CHECK (cover_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'),
+    cover_caption       TEXT CHECK (octet_length(cover_caption) >= 1)
 );
 -- case-insensitive UNIQ index on doi
 CREATE UNIQUE INDEX doi_uniq_idx ON work(lower(doi));
@@ -638,9 +677,10 @@ INSERT INTO publisher VALUES
 ('00000000-0000-0000-DDDD-000000000002', 'punctum books', null, 'https://punctumbooks.com');
 
 INSERT INTO work VALUES
-('00000000-0000-0000-AAAA-000000000001', 'monograph', 'That Greece Might Still Be Free: The Philhellenes in the War of Independence', 'That Greece Might Still Be Free', 'The Philhellenes in the War of Independence', '00000000-0000-0000-DDDD-000000000001', 'https://doi.org/10.11647/obp.0001', '2008-11-01'),
-('00000000-0000-0000-AAAA-000000000002', 'textbook', 'Conservation Biology in Sub-Saharan Africa', 'Conservation Biology in Sub-Saharan Africa', null, '00000000-0000-0000-DDDD-000000000001', 'https://doi.org/10.11647/obp.0177', '2019-09-09'),
-('00000000-0000-0000-AAAA-000000000003', 'journal-issue', 'What Works in Conservation 2015', 'What Works in Conservation', '2015', '00000000-0000-0000-DDDD-000000000001', 'https://doi.org/10.11647/obp.0060', '2015-07-01');
+('00000000-0000-0000-AAAA-000000000001', 'monograph', 'active', 'That Greece Might Still Be Free: The Philhellenes in the War of Independence', 'That Greece Might Still Be Free', 'The Philhellenes in the War of Independence', null, 1, '00000000-0000-0000-DDDD-000000000001', 'https://doi.org/10.11647/obp.0001', '2008-11-01', 'Cambridge, UK', 156, 234, 440, 'xxi + 419', 41, 2, 0, 0, 'http://creativecommons.org/licenses/by-nc-nd/2.0/', 'William St Clair', 'https://www.openbookpublishers.com/product/3', null, 849917874, 'When in 1821, the Greeks rose in violent revolution against Ottoman rule, waves of sympathy spread across western Europe and the USA. Inspired by a belief that Greece had a unique claim on the sympathy of the world, more than a thousand Philhellenes set out to fight for the cause. This meticulously researched and highly readable account of their aspirations and experiences has long been the standard account of the Philhellenic movement and essential reading for students of the Greek War of Independence, Byron and European Romanticism. Its relevance to more modern conflicts is also becoming increasingly appreciated.', 'When in 1821, the Greeks rose in violent revolution against Ottoman rule, waves of sympathy spread across western Europe and the USA. Inspired by a belief that Greece had a unique claim on the sympathy of the world, more than a thousand Philhellenes set out to fight for the cause. This meticulously researched and highly readable account of their aspirations and experiences has long been the standard account of the Philhellenic movement and essential reading for students of the Greek War of Independence, Byron and European Romanticism. Its relevance to more modern conflicts is also becoming increasingly appreciated.', null, null, 'https://www.openbookpublishers.com/shopimages/products/cover/3.jpg', null),
+('00000000-0000-0000-AAAA-000000000002', 'textbook', 'active', 'Conservation Biology in Sub-Saharan Africa', 'Conservation Biology in Sub-Saharan Africa', null, null, 1, '00000000-0000-0000-DDDD-000000000001', 'https://doi.org/10.11647/obp.0177', '2019-09-09', 'Cambridge, UK', 156, 234, 320, 'vi + 314', 32, 5, 0, 0, 'http://creativecommons.org/licenses/by/4.0/', 'John W. Wilson, Richard B. Primack', 'https://www.openbookpublishers.com/product/1013', null, null, null, null, null, null, 'https://www.openbookpublishers.com/shopimages/products/cover/1013.jpg', null),
+('00000000-0000-0000-AAAA-000000000003', 'journal-issue', 'out-of-print', 'What Works in Conservation 2015', 'What Works in Conservation', '2015', null, 1, '00000000-0000-0000-DDDD-000000000001', 'https://doi.org/10.11647/obp.0060', '2015-07-01', 'Cambridge, UK', 156, 234, 198, 'xii + 176', 23, 46, 0, 0, 'http://creativecommons.org/licenses/by/4.0/', 'William J. Sutherland', 'https://www.openbookpublishers.com/product/347', null, null, 'What Works in Conservation has been created to provide practitioners with answers to these and many other questions about practical conservation. This book provides an assessment of the effectiveness of 648 conservation interventions based on summarized scientific evidence relevant to the practical global conservation of amphibians, reducing the risk of predation for birds, conservation of European farmland biodiversity and some aspects of enhancing natural pest control and soil fertility.', 'Is planting grass margins around fields beneficial for wildlife? Which management interventions increase bee numbers in farmland? Does helping migrating toads across roads increase populations? How do you reduce predation on bird populations? What Works in Conservation has been created to provide practitioners with answers to these and many other questions about practical conservation.
+This book provides an assessment of the effectiveness of over 200 conservation interventions based on summarized scientific evidence relevant to the practical global conservation of amphibians, reducing the risk of predation for birds, conservation of European farmland biodiversity and some aspects of enhancing natural pest control and soil fertility. It contains key results from the summarized evidence for each conservation intervention and an assessment of the effectiveness of each by international expert panels. The volume is published in partnership with the Conservation Evidence project and is fully linked to the project''s website where background papers such as abstracts and published journal articles can be freely accessed.', null, null, 'http://www.openbookpublishers.com/shopimages/products/cover/347.jpg', null);
 
 INSERT INTO language VALUES
 ('00000000-0000-0000-FFFF-000000000001', '00000000-0000-0000-AAAA-000000000001', 'eng', 'original', True),
