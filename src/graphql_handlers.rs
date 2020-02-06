@@ -108,6 +108,10 @@ impl Work {
         &self.work_type
     }
 
+    pub fn work_status(&self) -> &WorkStatus {
+        &self.work_status
+    }
+
     #[graphql(description="Concatenation of title and subtitle with punctuation mark")]
     pub fn full_title(&self) -> &str {
         self.full_title.as_str()
@@ -123,6 +127,15 @@ impl Work {
         self.subtitle.as_ref()
     }
 
+    #[graphql(description="Internal reference code")]
+    pub fn reference(&self) -> Option<&String> {
+        self.reference.as_ref()
+    }
+
+    pub fn edition(&self) -> &i32 {
+        &self.edition
+    }
+
     #[graphql(description="Digital Object Identifier of the work as full URL. It must use the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.11647/obp.0001)")]
     pub fn doi(&self) -> Option<&String> {
         self.doi.as_ref()
@@ -130,6 +143,86 @@ impl Work {
 
     pub fn publication_date(&self) -> Option<NaiveDate> {
         self.publication_date
+    }
+
+    pub fn place(&self) -> Option<&String> {
+        self.place.as_ref()
+    }
+
+    pub fn width(&self) -> Option<&i32> {
+        self.width.as_ref()
+    }
+
+    pub fn height(&self) -> Option<&i32> {
+        self.height.as_ref()
+    }
+
+    pub fn page_count(&self) -> Option<&i32> {
+        self.page_count.as_ref()
+    }
+
+    pub fn page_breakdown(&self) -> Option<&String> {
+        self.page_breakdown.as_ref()
+    }
+
+    pub fn image_count(&self) -> Option<&i32> {
+        self.image_count.as_ref()
+    }
+
+    pub fn table_count(&self) -> Option<&i32> {
+        self.table_count.as_ref()
+    }
+
+    pub fn audio_count(&self) -> Option<&i32> {
+        self.audio_count.as_ref()
+    }
+
+    pub fn video_count(&self) -> Option<&i32> {
+        self.video_count.as_ref()
+    }
+
+    pub fn license(&self) -> Option<&String> {
+        self.license.as_ref()
+    }
+
+    pub fn copyright_holder(&self) -> &str {
+        self.copyright_holder.as_str()
+    }
+
+    pub fn landing_page(&self) -> Option<&String> {
+        self.landing_page.as_ref()
+    }
+
+    pub fn lccn(&self) -> Option<&i32> {
+        self.lccn.as_ref()
+    }
+
+    pub fn oclc(&self) -> Option<&i32> {
+        self.oclc.as_ref()
+    }
+
+    pub fn short_abstract(&self) -> Option<&String> {
+        self.short_abstract.as_ref()
+    }
+
+    pub fn long_abstract(&self) -> Option<&String> {
+        self.long_abstract.as_ref()
+    }
+
+    pub fn general_note(&self) -> Option<&String> {
+        self.general_note.as_ref()
+    }
+
+    pub fn toc(&self) -> Option<&String> {
+        self.toc.as_ref()
+    }
+
+    pub fn cover_url(&self) -> Option<&String> {
+        self.cover_url.as_ref()
+    }
+
+    pub fn cover_caption(&self) -> Option<&String> {
+        self.cover_caption.as_ref()
     }
 
     pub fn publisher(&self, context: &Context) -> Publisher {
