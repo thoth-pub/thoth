@@ -1,6 +1,6 @@
 table! {
     use diesel::sql_types::*;
-    use crate::models::*;
+    use crate::models::contributor::Contribution_type;
 
     contribution (work_id, contributor_id, contribution_type) {
         work_id -> Uuid,
@@ -37,7 +37,8 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::models::*;
+    use crate::models::language::Language_relation;
+    use crate::models::language::Language_code;
 
     language (language_id) {
         language_id -> Uuid,
@@ -50,7 +51,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::models::*;
+    use crate::models::publication::Publication_type;
 
     publication (publication_id) {
         publication_id -> Uuid,
@@ -74,7 +75,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::models::*;
+    use crate::models::series::Series_type;
 
     series (series_id) {
         series_id -> Uuid,
@@ -89,7 +90,8 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::models::*;
+    use crate::models::work::Work_type;
+    use crate::models::work::Work_status;
 
     work (work_id) {
         work_id -> Uuid,

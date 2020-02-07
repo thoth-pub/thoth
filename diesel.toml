@@ -3,4 +3,13 @@
 
 [print_schema]
 file = "src/schema.rs"
-import_types = ["diesel::sql_types::*", "crate::models::*"]
+import_types = [
+  "diesel::sql_types::*",
+  "crate::models::contributor::Contribution_type",
+  "crate::models::work::Work_type",
+  "crate::models::work::Work_status",
+  "crate::models::publication::Publication_type",
+  "crate::models::language::Language_relation",
+  "crate::models::language::Language_code",
+  "crate::models::series::Series_type"
+]
