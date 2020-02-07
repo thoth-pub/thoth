@@ -1,10 +1,3 @@
-#[macro_use]
-extern crate diesel;
-extern crate dotenv;
-extern crate juniper;
-#[macro_use]
-extern crate diesel_derive_enum;
-
 use std::io;
 use std::sync::Arc;
 
@@ -13,13 +6,8 @@ use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 
-mod db;
-mod graphql_handlers;
-mod schema;
-pub mod models;
-
-use crate::db::establish_connection;
-use crate::graphql_handlers::{create_schema, Context, Schema};
+use thoth::db::establish_connection;
+use thoth::graphql_handlers::{create_schema, Context, Schema};
 
 async fn graphiql() -> HttpResponse {
     let html = graphiql_source("http://localhost:8080/graphql");
@@ -45,7 +33,7 @@ async fn graphql(
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
-     dotenv().ok();
+    dotenv().ok();
     let pool = establish_connection();
     let schema_context = Context { db: pool.clone() };
     let schema = std::sync::Arc::new(create_schema());
