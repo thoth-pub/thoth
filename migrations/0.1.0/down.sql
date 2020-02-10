@@ -1,3 +1,6 @@
+DROP TABLE IF EXISTS price;
+DROP TYPE IF EXISTS currency_code;
+
 DROP TABLE IF EXISTS publication;
 DROP TYPE IF EXISTS publication_type;
 
