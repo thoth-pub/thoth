@@ -991,6 +991,27 @@ CREATE TABLE keyword (
     keyword_ordinal     INTEGER NOT NULL CHECK (keyword_ordinal > 0)
 );
 
+-------------------- Funder
+
+CREATE TABLE funder (
+    funder_id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    funder_name         TEXT NOT NULL CHECK (octet_length(funder_name) >= 1),
+    funder_doi          TEXT CHECK (funder_doi ~* 'https:\/\/doi.org\/10.\d{4,9}\/[-._\;\(\)\/:a-zA-Z0-9]+$')
+);
+-- case-insensitive UNIQ index on funder_doi
+CREATE UNIQUE INDEX funder_doi_uniq_idx ON funder(lower(funder_doi));
+
+CREATE TABLE funding (
+    funding_id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    work_id             UUID NOT NULL REFERENCES work(work_id),
+    funder_id           UUID NOT NULL REFERENCES funder(funder_id),
+    program             TEXT CHECK (octet_length(program) >= 1),
+    project_name        TEXT CHECK (octet_length(project_name) >= 1),
+    project_shortname   TEXT CHECK (octet_length(project_shortname) >= 1),
+    grant_number        TEXT CHECK (octet_length(grant_number) >= 1),
+    jurisdiction        TEXT CHECK (octet_length(jurisdiction) >= 1)
+);
+
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
