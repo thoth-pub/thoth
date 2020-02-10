@@ -15,6 +15,7 @@ use crate::models::series::*;
 use crate::models::contributor::*;
 use crate::models::publication::*;
 use crate::models::price::*;
+use crate::models::keyword::*;
 
 #[derive(Clone)]
 pub struct Context {
@@ -97,6 +98,15 @@ impl QueryRoot {
         .limit(100)
         .load::<Price>(&connection)
         .expect("Error loading prices")
+  }
+
+  fn keywords(context: &Context) -> Vec<Keyword> {
+    use crate::schema::keyword::dsl::*;
+    let connection = context.db.get().unwrap();
+    keyword
+        .limit(100)
+        .load::<Keyword>(&connection)
+        .expect("Error loading keyword")
   }
 }
 
@@ -274,6 +284,15 @@ impl Work {
             .filter(work_id.eq(self.work_id))
             .load::<Publication>(&connection)
             .expect("Error loading publications")
+    }
+
+    pub fn keywords(&self, context: &Context) -> Vec<Keyword> {
+        use crate::schema::keyword::dsl::*;
+        let connection = context.db.get().unwrap();
+        keyword
+            .filter(work_id.eq(self.work_id))
+            .load::<Keyword>(&connection)
+            .expect("Error loading keywords")
     }
 }
 
@@ -533,6 +552,26 @@ impl Price {
             .find(self.publication_id)
             .first(&connection)
             .expect("Error loading publication")
+    }
+}
+
+#[juniper::object(Context = Context, description = "A significant term related to a work.")]
+impl Keyword {
+    pub fn keyword_term(&self) -> &String {
+        &self.keyword_term
+    }
+
+    pub fn keyword_ordinal(&self) -> &i32 {
+        &self.keyword_ordinal
+    }
+
+    pub fn work(&self, context: &Context) -> Work {
+        use crate::schema::work::dsl::*;
+        let connection = context.db.get().unwrap();
+        work
+            .find(self.work_id)
+            .first(&connection)
+            .expect("Error loading work")
     }
 }
 

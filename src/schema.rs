@@ -37,6 +37,17 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+
+    keyword (keyword_id) {
+        keyword_id -> Uuid,
+        work_id -> Uuid,
+        keyword_term -> Text,
+        keyword_ordinal -> Int4,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use crate::models::language::Language_relation;
     use crate::models::language::Language_code;
 
@@ -144,6 +155,7 @@ joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
 joinable!(issue -> series (series_id));
 joinable!(issue -> work (work_id));
+joinable!(keyword -> work (work_id));
 joinable!(language -> work (work_id));
 joinable!(price -> publication (publication_id));
 joinable!(publication -> work (work_id));
@@ -154,6 +166,7 @@ allow_tables_to_appear_in_same_query!(
     contribution,
     contributor,
     issue,
+    keyword,
     language,
     price,
     publication,
