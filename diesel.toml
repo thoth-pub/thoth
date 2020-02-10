@@ -11,5 +11,6 @@ import_types = [
   "crate::models::publication::Publication_type",
   "crate::models::language::Language_relation",
   "crate::models::language::Language_code",
-  "crate::models::series::Series_type"
+  "crate::models::series::Series_type",
+  "crate::models::price::Currency_code"
 ]

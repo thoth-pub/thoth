@@ -14,6 +14,7 @@ use crate::models::language::*;
 use crate::models::series::*;
 use crate::models::contributor::*;
 use crate::models::publication::*;
+use crate::models::price::*;
 
 #[derive(Clone)]
 pub struct Context {
@@ -87,6 +88,15 @@ impl QueryRoot {
         .limit(100)
         .load::<Language>(&connection)
         .expect("Error loading languages")
+  }
+
+  fn prices(context: &Context) -> Vec<Price> {
+    use crate::schema::price::dsl::*;
+    let connection = context.db.get().unwrap();
+    price
+        .limit(100)
+        .load::<Price>(&connection)
+        .expect("Error loading prices")
   }
 }
 
@@ -267,7 +277,7 @@ impl Work {
     }
 }
 
-#[juniper::object(description = "A manifestation of a written text")]
+#[juniper::object(Context = Context, description = "A manifestation of a written text")]
 impl Publication {
     pub fn publication_id(&self) -> Uuid {
         self.publication_id
@@ -277,16 +287,30 @@ impl Publication {
         &self.publication_type
     }
 
-    pub fn work_id(&self) -> &Uuid {
-        &self.work_id
-    }
-
     pub fn isbn(&self) -> Option<&String> {
         self.isbn.as_ref()
     }
 
     pub fn publication_url(&self) -> Option<&String> {
         self.publication_url.as_ref()
+    }
+
+    pub fn prices(&self, context: &Context) -> Vec<Price> {
+        use crate::schema::price::dsl::*;
+        let connection = context.db.get().unwrap();
+        price
+            .filter(publication_id.eq(self.publication_id))
+            .load::<Price>(&connection)
+            .expect("Error loading price")
+    }
+
+    pub fn work(&self, context: &Context) -> Work {
+        use crate::schema::work::dsl::*;
+        let connection = context.db.get().unwrap();
+        work
+            .find(self.work_id)
+            .first(&connection)
+            .expect("Error loading work")
     }
 }
 
@@ -485,6 +509,30 @@ impl Language {
             .find(self.work_id)
             .first(&connection)
             .expect("Error loading work")
+    }
+}
+
+#[juniper::object(Context = Context, description = "The amount of money, in any currency, that a publication costs.")]
+impl Price {
+    pub fn price_id(&self) -> Uuid {
+        self.price_id
+    }
+
+    pub fn currency_code(&self) -> &CurrencyCode {
+        &self.currencty_code
+    }
+
+    pub fn unit_price(&self) -> f64 {
+        self.unit_price
+    }
+
+    pub fn publication(&self, context: &Context) -> Publication {
+        use crate::schema::publication::dsl::*;
+        let connection = context.db.get().unwrap();
+        publication
+            .find(self.publication_id)
+            .first(&connection)
+            .expect("Error loading publication")
     }
 }
 

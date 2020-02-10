@@ -51,6 +51,18 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use crate::models::price::Currency_code;
+
+    price (price_id) {
+        price_id -> Uuid,
+        publication_id -> Uuid,
+        currency_code -> Currency_code,
+        unit_price -> Float8,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use crate::models::publication::Publication_type;
 
     publication (publication_id) {
@@ -133,6 +145,7 @@ joinable!(contribution -> work (work_id));
 joinable!(issue -> series (series_id));
 joinable!(issue -> work (work_id));
 joinable!(language -> work (work_id));
+joinable!(price -> publication (publication_id));
 joinable!(publication -> work (work_id));
 joinable!(series -> publisher (publisher_id));
 joinable!(work -> publisher (publisher_id));
@@ -142,6 +155,7 @@ allow_tables_to_appear_in_same_query!(
     contributor,
     issue,
     language,
+    price,
     publication,
     publisher,
     series,
