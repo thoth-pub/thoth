@@ -28,6 +28,31 @@ table! {
 table! {
     use diesel::sql_types::*;
 
+    funder (funder_id) {
+        funder_id -> Uuid,
+        funder_name -> Text,
+        funder_doi -> Nullable<Text>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    funding (funding_id) {
+        funding_id -> Uuid,
+        work_id -> Uuid,
+        funder_id -> Uuid,
+        program -> Nullable<Text>,
+        project_name -> Nullable<Text>,
+        project_shortname -> Nullable<Text>,
+        grant_number -> Nullable<Text>,
+        jurisdiction -> Nullable<Text>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
     issue (series_id, work_id) {
         series_id -> Uuid,
         work_id -> Uuid,
@@ -153,6 +178,8 @@ table! {
 
 joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
+joinable!(funding -> funder (funder_id));
+joinable!(funding -> work (work_id));
 joinable!(issue -> series (series_id));
 joinable!(issue -> work (work_id));
 joinable!(keyword -> work (work_id));
@@ -165,6 +192,8 @@ joinable!(work -> publisher (publisher_id));
 allow_tables_to_appear_in_same_query!(
     contribution,
     contributor,
+    funder,
+    funding,
     issue,
     keyword,
     language,

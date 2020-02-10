@@ -6,3 +6,4 @@ pub mod contributor;
 pub mod publication;
 pub mod price;
 pub mod keyword;
+pub mod funder;

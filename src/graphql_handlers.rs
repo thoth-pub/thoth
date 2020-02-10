@@ -16,6 +16,7 @@ use crate::models::contributor::*;
 use crate::models::publication::*;
 use crate::models::price::*;
 use crate::models::keyword::*;
+use crate::models::funder::*;
 
 #[derive(Clone)]
 pub struct Context {
@@ -106,7 +107,25 @@ impl QueryRoot {
     keyword
         .limit(100)
         .load::<Keyword>(&connection)
-        .expect("Error loading keyword")
+        .expect("Error loading keywords")
+  }
+
+  fn funders(context: &Context) -> Vec<Funder> {
+    use crate::schema::funder::dsl::*;
+    let connection = context.db.get().unwrap();
+    funder
+        .limit(100)
+        .load::<Funder>(&connection)
+        .expect("Error loading funders")
+  }
+
+  fn funders(context: &Context) -> Vec<Funding> {
+    use crate::schema::funding::dsl::*;
+    let connection = context.db.get().unwrap();
+    funding
+        .limit(100)
+        .load::<Funding>(&connection)
+        .expect("Error loading fundings")
   }
 }
 
@@ -557,6 +576,10 @@ impl Price {
 
 #[juniper::object(Context = Context, description = "A significant term related to a work.")]
 impl Keyword {
+    pub fn keyword_id(&self) -> &Uuid {
+        &self.keyword_id
+    }
+
     pub fn keyword_term(&self) -> &String {
         &self.keyword_term
     }
@@ -572,6 +595,75 @@ impl Keyword {
             .find(self.work_id)
             .first(&connection)
             .expect("Error loading work")
+    }
+}
+
+#[juniper::object(Context = Context, description = "An organisation that provides the money to pay for the publication of a work.")]
+impl Funder {
+    pub fn funder_id(&self) -> &Uuid {
+        &self.funder_id
+    }
+
+    pub fn funder_name(&self) -> &String {
+        &self.funder_name
+    }
+
+    pub fn funder_doi(&self) -> Option<&String> {
+        self.funder_doi.as_ref()
+    }
+
+    pub fn fundings(&self, context: &Context) -> Vec<Funding> {
+        use crate::schema::funding::dsl::*;
+        let connection = context.db.get().unwrap();
+        funding
+            .filter(funder_id.eq(self.funder_id))
+            .load::<Funding>(&connection)
+            .expect("Error loading fundings")
+    }
+}
+
+#[juniper::object(Context = Context, description = "A grant awarded to the publication of a work by a funder.")]
+impl Funding {
+    pub fn funding_id(&self) -> &Uuid {
+        &self.funding_id
+    }
+
+    pub fn program(&self) -> Option<&String> {
+        self.program.as_ref()
+    }
+
+    pub fn project_name(&self) -> Option<&String> {
+        self.project_name.as_ref()
+    }
+
+    pub fn project_shortname(&self) -> Option<&String> {
+        self.project_shortname.as_ref()
+    }
+
+    pub fn grant_number(&self) -> Option<&String> {
+        self.grant_number.as_ref()
+    }
+
+    pub fn jurisdiction(&self) -> Option<&String> {
+        self.jurisdiction.as_ref()
+    }
+
+    pub fn work(&self, context: &Context) -> Work {
+        use crate::schema::work::dsl::*;
+        let connection = context.db.get().unwrap();
+        work
+            .find(self.work_id)
+            .first(&connection)
+            .expect("Error loading work")
+    }
+
+    pub fn funder(&self, context: &Context) -> Funder {
+        use crate::schema::funder::dsl::*;
+        let connection = context.db.get().unwrap();
+        funder
+            .find(self.funder_id)
+            .first(&connection)
+            .expect("Error loading funder")
     }
 }
 
