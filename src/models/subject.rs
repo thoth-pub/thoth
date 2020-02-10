@@ -7,6 +7,7 @@ pub enum SubjectType {
     Bic,
     Bisac,
     Thema,
+    Lcc,
     Custom,
     Keyword,
 }

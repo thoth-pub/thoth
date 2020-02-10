@@ -991,6 +991,7 @@ CREATE TYPE subject_type AS ENUM (
   'bic',
   'bisac',
   'thema',
+  'lcc',
   'custom',
   'keyword'
 );
