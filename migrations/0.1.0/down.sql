@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS keyword;
+
 DROP TABLE IF EXISTS price;
 DROP TYPE IF EXISTS currency_code;
 

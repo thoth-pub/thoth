@@ -982,6 +982,14 @@ CREATE TABLE price (
     unit_price          double precision NOT NULL
 );
 
+-------------------- Keyword
+
+CREATE TABLE keyword (
+    keyword_id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    work_id             UUID NOT NULL REFERENCES work(work_id),
+    keyword_term        TEXT NOT NULL CHECK (octet_length(keyword_term) >= 1),
+    keyword_ordinal     INTEGER NOT NULL CHECK (keyword_ordinal > 0)
+);
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
@@ -1035,3 +1043,7 @@ INSERT INTO price VALUES
 ('00000000-0000-AAAA-AAAA-000000000001', '00000000-0000-0000-BBBB-000000000001', 'gbp', 15.95),
 ('00000000-0000-AAAA-AAAA-000000000002', '00000000-0000-0000-BBBB-000000000002', 'gbp', 29.95),
 ('00000000-0000-AAAA-AAAA-000000000003', '00000000-0000-0000-BBBB-000000000004', 'gbp', 17.95);
+
+INSERT INTO keyword VALUES
+('00000000-0000-BBBB-AAAA-000000000001', '00000000-0000-0000-AAAA-000000000001', 'Greece', 1),
+('00000000-0000-BBBB-AAAA-000000000002', '00000000-0000-0000-AAAA-000000000001', 'Byron', 2);
