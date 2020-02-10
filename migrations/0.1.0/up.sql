@@ -668,6 +668,9 @@ CREATE TABLE publication (
     publication_url     TEXT CHECK (publication_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)')
 );
 
+CREATE INDEX publication_isbn_idx ON publication(isbn);
+
+
 -------------------- Price
 
 CREATE TYPE currency_code AS ENUM (
