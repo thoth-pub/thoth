@@ -62,17 +62,6 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-
-    keyword (keyword_id) {
-        keyword_id -> Uuid,
-        work_id -> Uuid,
-        keyword_term -> Text,
-        keyword_ordinal -> Int4,
-    }
-}
-
-table! {
-    use diesel::sql_types::*;
     use crate::models::language::Language_relation;
     use crate::models::language::Language_code;
 
@@ -138,6 +127,19 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use crate::models::subject::Subject_type;
+
+    subject (subject_id) {
+        subject_id -> Uuid,
+        work_id -> Uuid,
+        subject_type -> Subject_type,
+        subject_code -> Text,
+        subject_ordinal -> Int4,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use crate::models::work::Work_type;
     use crate::models::work::Work_status;
 
@@ -182,11 +184,11 @@ joinable!(funding -> funder (funder_id));
 joinable!(funding -> work (work_id));
 joinable!(issue -> series (series_id));
 joinable!(issue -> work (work_id));
-joinable!(keyword -> work (work_id));
 joinable!(language -> work (work_id));
 joinable!(price -> publication (publication_id));
 joinable!(publication -> work (work_id));
 joinable!(series -> publisher (publisher_id));
+joinable!(subject -> work (work_id));
 joinable!(work -> publisher (publisher_id));
 
 allow_tables_to_appear_in_same_query!(
@@ -195,11 +197,11 @@ allow_tables_to_appear_in_same_query!(
     funder,
     funding,
     issue,
-    keyword,
     language,
     price,
     publication,
     publisher,
     series,
+    subject,
     work,
 );

@@ -15,7 +15,7 @@ use crate::models::series::*;
 use crate::models::contributor::*;
 use crate::models::publication::*;
 use crate::models::price::*;
-use crate::models::keyword::*;
+use crate::models::subject::*;
 use crate::models::funder::*;
 
 #[derive(Clone)]
@@ -101,13 +101,13 @@ impl QueryRoot {
         .expect("Error loading prices")
   }
 
-  fn keywords(context: &Context) -> Vec<Keyword> {
-    use crate::schema::keyword::dsl::*;
+  fn subjects(context: &Context) -> Vec<Subject> {
+    use crate::schema::subject::dsl::*;
     let connection = context.db.get().unwrap();
-    keyword
+    subject
         .limit(100)
-        .load::<Keyword>(&connection)
-        .expect("Error loading keywords")
+        .load::<Subject>(&connection)
+        .expect("Error loading subjects")
   }
 
   fn funders(context: &Context) -> Vec<Funder> {
@@ -305,13 +305,13 @@ impl Work {
             .expect("Error loading publications")
     }
 
-    pub fn keywords(&self, context: &Context) -> Vec<Keyword> {
-        use crate::schema::keyword::dsl::*;
+    pub fn subjects(&self, context: &Context) -> Vec<Subject> {
+        use crate::schema::subject::dsl::*;
         let connection = context.db.get().unwrap();
-        keyword
+        subject
             .filter(work_id.eq(self.work_id))
-            .load::<Keyword>(&connection)
-            .expect("Error loading keywords")
+            .load::<Subject>(&connection)
+            .expect("Error loading subjects")
     }
 }
 
@@ -574,18 +574,22 @@ impl Price {
     }
 }
 
-#[juniper::object(Context = Context, description = "A significant term related to a work.")]
-impl Keyword {
-    pub fn keyword_id(&self) -> &Uuid {
-        &self.keyword_id
+#[juniper::object(Context = Context, description = "A significant discipline or term related to a work.")]
+impl Subject {
+    pub fn subject_id(&self) -> &Uuid {
+        &self.subject_id
     }
 
-    pub fn keyword_term(&self) -> &String {
-        &self.keyword_term
+    pub fn subject_type(&self) -> &SubjectType {
+        &self.subject_type
     }
 
-    pub fn keyword_ordinal(&self) -> &i32 {
-        &self.keyword_ordinal
+    pub fn subject_code(&self) -> &String {
+        &self.subject_code
+    }
+
+    pub fn subject_ordinal(&self) -> &i32 {
+        &self.subject_ordinal
     }
 
     pub fn work(&self, context: &Context) -> Work {

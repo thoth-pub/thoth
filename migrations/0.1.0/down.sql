@@ -1,7 +1,8 @@
 DROP TABLE IF EXISTS funding;
 DROP TABLE IF EXISTS funder;
 
-DROP TABLE IF EXISTS keyword;
+DROP TABLE IF EXISTS subject;
+DROP TYPE IF EXISTS subject_type;
 
 DROP TABLE IF EXISTS price;
 DROP TYPE IF EXISTS currency_code;
