@@ -30,6 +30,7 @@ CREATE TYPE work_type AS ENUM (
   'book-set'
 );
 
+-- ONIX Publishing status https://onix-codelists.io/codelist/64
 CREATE TYPE work_status AS ENUM (
   'unspecified',
   'cancelled',
