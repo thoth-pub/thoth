@@ -1,35 +1,11 @@
 use std::io;
-use std::sync::Arc;
 
-use actix_web::{web, App, Error, HttpResponse, HttpServer};
+use actix_web::{web, App, HttpServer};
 use dotenv::dotenv;
-use juniper::http::graphiql::graphiql_source;
-use juniper::http::GraphQLRequest;
 
+use thoth::server::{graphql, graphiql};
 use thoth::db::establish_connection;
-use thoth::graphql_handlers::{create_schema, Context, Schema};
-
-async fn graphiql() -> HttpResponse {
-    let html = graphiql_source("http://localhost:8080/graphql");
-    HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html)
-}
-
-async fn graphql(
-    st: web::Data<Arc<Schema>>,
-    ctx: web::Data<Context>,
-    data: web::Json<GraphQLRequest>,
-) -> Result<HttpResponse, Error> {
-    let result = web::block(move || {
-        let res = data.execute(&st, &ctx);
-        Ok::<_, serde_json::error::Error>(serde_json::to_string(&res)?)
-    })
-    .await?;
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(result))
-}
+use thoth::graphql_handlers::{create_schema, Context};
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
