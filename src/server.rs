@@ -33,14 +33,14 @@ pub async fn graphql(
 pub fn config(cfg: &mut web::ServiceConfig) {
     dotenv().ok();
     let pool = establish_connection();
-    let schema_context = Context { db: pool.clone() };
+    let schema_context = Context { db: pool };
     let schema = std::sync::Arc::new(create_schema());
 
     cfg.data(
         schema.clone()
     );
     cfg.data(
-        schema_context.clone()
+        schema_context
     );
     cfg.service(
         web::resource("/graphql").route(web::post().to(graphql))
