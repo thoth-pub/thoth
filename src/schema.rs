@@ -53,6 +53,17 @@ table! {
 table! {
     use diesel::sql_types::*;
 
+    imprint (imprint_id) {
+        imprint_id -> Uuid,
+        publisher_id -> Uuid,
+        imprint_name -> Text,
+        imprint_url -> Nullable<Text>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
     issue (series_id, work_id) {
         series_id -> Uuid,
         work_id -> Uuid,
@@ -121,7 +132,7 @@ table! {
         issn_print -> Text,
         issn_digital -> Text,
         series_url -> Nullable<Text>,
-        publisher_id -> Uuid,
+        imprint_id -> Uuid,
     }
 }
 
@@ -152,7 +163,7 @@ table! {
         subtitle -> Nullable<Text>,
         reference -> Nullable<Text>,
         edition -> Int4,
-        publisher_id -> Uuid,
+        imprint_id -> Uuid,
         doi -> Nullable<Text>,
         publication_date -> Nullable<Date>,
         place -> Nullable<Text>,
@@ -182,20 +193,22 @@ joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
 joinable!(funding -> funder (funder_id));
 joinable!(funding -> work (work_id));
+joinable!(imprint -> publisher (publisher_id));
 joinable!(issue -> series (series_id));
 joinable!(issue -> work (work_id));
 joinable!(language -> work (work_id));
 joinable!(price -> publication (publication_id));
 joinable!(publication -> work (work_id));
-joinable!(series -> publisher (publisher_id));
+joinable!(series -> imprint (imprint_id));
 joinable!(subject -> work (work_id));
-joinable!(work -> publisher (publisher_id));
+joinable!(work -> imprint (imprint_id));
 
 allow_tables_to_appear_in_same_query!(
     contribution,
     contributor,
     funder,
     funding,
+    imprint,
     issue,
     language,
     price,

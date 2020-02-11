@@ -56,6 +56,15 @@ impl QueryRoot {
       .expect("Error loading publishers")
   }
 
+  fn imprints(context: &Context) -> Vec<Imprint> {
+    use crate::schema::imprint::dsl::*;
+    let connection = context.db.get().unwrap();
+    imprint
+      .limit(100)
+      .load::<Imprint>(&connection)
+      .expect("Error loading imprints")
+  }
+
   fn contributors(context: &Context) -> Vec<Contributor> {
     use crate::schema::contributor::dsl::*;
     let connection = context.db.get().unwrap();
@@ -269,13 +278,13 @@ impl Work {
         self.cover_caption.as_ref()
     }
 
-    pub fn publisher(&self, context: &Context) -> Publisher {
-        use crate::schema::publisher::dsl::*;
+    pub fn imprint(&self, context: &Context) -> Imprint {
+        use crate::schema::imprint::dsl::*;
         let connection = context.db.get().unwrap();
-        publisher
-            .find(self.publisher_id)
+        imprint
+            .find(self.imprint_id)
             .first(&connection)
-            .expect("Error loading publisher")
+            .expect("Error loading imprint")
     }
 
     pub fn contributions(&self, context: &Context) -> Vec<Contribution> {
@@ -368,6 +377,39 @@ impl Publisher {
 
     pub fn publisher_url(&self) -> Option<&String> {
         self.publisher_url.as_ref()
+    }
+}
+
+#[juniper::object(Context = Context, description = "The brand under which a publisher issues works.")]
+impl Imprint {
+    pub fn imprint_id(&self) -> Uuid {
+        self.imprint_id
+    }
+
+    pub fn imprint_name(&self) -> &String {
+        &self.imprint_name
+    }
+
+    pub fn imprint_url(&self) -> Option<&String> {
+        self.imprint_url.as_ref()
+    }
+
+    pub fn publisher(&self, context: &Context) -> Publisher {
+        use crate::schema::publisher::dsl::*;
+        let connection = context.db.get().unwrap();
+        publisher
+            .find(self.publisher_id)
+            .first(&connection)
+            .expect("Error loading publisher")
+    }
+
+    pub fn works(&self, context: &Context) -> Vec<Work> {
+        use crate::schema::work::dsl::*;
+        let connection = context.db.get().unwrap();
+        work
+            .filter(imprint_id.eq(self.imprint_id))
+            .load::<Work>(&connection)
+            .expect("Error loading works")
     }
 }
 
@@ -478,13 +520,13 @@ impl Series {
         self.series_url.as_ref()
     }
 
-    pub fn publisher(&self, context: &Context) -> Publisher {
-        use crate::schema::publisher::dsl::*;
+    pub fn imprint(&self, context: &Context) -> Imprint {
+        use crate::schema::imprint::dsl::*;
         let connection = context.db.get().unwrap();
-        publisher
-            .find(self.publisher_id)
+        imprint
+            .find(self.imprint_id)
             .first(&connection)
-            .expect("Error loading publisher")
+            .expect("Error loading imprint")
     }
 
     pub fn issues(&self, context: &Context) -> Vec<Issue> {

@@ -17,7 +17,7 @@ pub struct Series {
     pub issn_print: String,
     pub issn_digital: String,
     pub series_url: Option<String>,
-    pub publisher_id: Uuid,
+    pub imprint_id: Uuid,
 }
 
 #[derive(Queryable)]
