@@ -7,7 +7,7 @@ use juniper::http::GraphQLRequest;
 use crate::graphql_handlers::{Context, Schema};
 
 pub async fn graphiql() -> HttpResponse {
-    let html = graphiql_source("http://localhost:8080/graphql");
+    let html = graphiql_source("/graphql");
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(html)
