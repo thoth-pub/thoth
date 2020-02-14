@@ -1,4 +1,5 @@
 use uuid::Uuid;
+use crate::schema::publication;
 
 #[derive(Debug, PartialEq, DbEnum)]
 #[derive(juniper::GraphQLEnum)]
@@ -23,6 +24,15 @@ pub enum PublicationType {
 #[derive(Queryable)]
 pub struct Publication {
     pub publication_id: Uuid,
+    pub publication_type: PublicationType,
+    pub work_id: Uuid,
+    pub isbn: Option<String>,
+    pub publication_url: Option<String>,
+}
+
+#[derive(juniper::GraphQLInputObject, Insertable)]
+#[table_name = "publication"]
+pub struct NewPublication {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<String>,

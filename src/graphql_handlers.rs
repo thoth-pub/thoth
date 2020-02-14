@@ -185,6 +185,17 @@ impl MutationRoot {
         .expect("Error saving new contribution")
   }
 
+  fn create_publication(
+      context: &Context,
+      data: NewPublication
+  ) -> Publication {
+    let connection = context.db.get().unwrap();
+    diesel::insert_into(publication::table)
+      .values(&data)
+      .get_result(&connection)
+      .expect("Error saving new publication")
+  }
+
   fn create_series(context: &Context, data: NewSeries) -> Series {
     let connection = context.db.get().unwrap();
     diesel::insert_into(series::table)
