@@ -253,6 +253,18 @@ impl MutationRoot {
   }
 
   fn create_subject(context: &Context, data: NewSubject) -> Subject {
+    use crate::models::subject::THEMA_CODES;
+    use crate::models::subject::BISAC_CODES;
+    use crate::models::subject::BIC_CODES;
+
+    let code = &data.subject_code;
+    match &data.subject_type {
+        SubjectType::Bic => assert!(BIC_CODES.contains_key::<str>(&code)),
+        SubjectType::Bisac => assert!(BISAC_CODES.contains_key::<str>(&code)),
+        SubjectType::Thema => assert!(THEMA_CODES.contains_key::<str>(&code)),
+        _ => assert!(true),
+    };
+
     let connection = context.db.get().unwrap();
     diesel::insert_into(subject::table)
       .values(&data)
