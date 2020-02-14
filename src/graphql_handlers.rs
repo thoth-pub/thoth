@@ -150,6 +150,22 @@ impl MutationRoot {
       .expect("Error saving new work")
   }
 
+  fn create_publisher(context: &Context, data: NewPublisher) -> Publisher {
+    let connection = context.db.get().unwrap();
+    diesel::insert_into(publisher::table)
+      .values(&data)
+      .get_result(&connection)
+      .expect("Error saving new publisher")
+  }
+
+  fn create_publisher(context: &Context, data: NewImprint) -> Imprint {
+    let connection = context.db.get().unwrap();
+    diesel::insert_into(imprint::table)
+      .values(&data)
+      .get_result(&connection)
+      .expect("Error saving new imprint")
+  }
+
   fn create_contributor(
       context: &Context,
       data: NewContributor
