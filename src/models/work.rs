@@ -81,7 +81,6 @@ pub struct Work {
 #[derive(juniper::GraphQLInputObject, Insertable)]
 #[table_name = "work"]
 pub struct NewWork {
-    pub work_id: Uuid,
     pub work_type: WorkType,
     pub work_status: WorkStatus,
     pub full_title: String,
