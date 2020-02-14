@@ -187,6 +187,22 @@ impl MutationRoot {
         .get_result(&connection)
         .expect("Error saving new contribution")
   }
+
+  fn create_series(context: &Context, data: NewSeries) -> Series {
+    let connection = context.db.get().unwrap();
+    diesel::insert_into(series::table)
+      .values(&data)
+      .get_result(&connection)
+      .expect("Error saving new series")
+  }
+
+  fn create_issue(context: &Context, data: NewIssue) -> Issue {
+    let connection = context.db.get().unwrap();
+    diesel::insert_into(issue::table)
+      .values(&data)
+      .get_result(&connection)
+      .expect("Error saving new issue")
+  }
 }
 
 #[juniper::object(Context = Context, description = "A written text that can be published")]
