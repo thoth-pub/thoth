@@ -235,6 +235,22 @@ impl MutationRoot {
       .get_result(&connection)
       .expect("Error saving new funding")
   }
+
+  fn create_funding(context: &Context, data: NewFunding) -> Funding {
+    let connection = context.db.get().unwrap();
+    diesel::insert_into(funding::table)
+      .values(&data)
+      .get_result(&connection)
+      .expect("Error saving new funding")
+  }
+
+  fn create_price(context: &Context, data: NewPrice) -> Price {
+    let connection = context.db.get().unwrap();
+    diesel::insert_into(price::table)
+      .values(&data)
+      .get_result(&connection)
+      .expect("Error saving new price")
+  }
 }
 
 #[juniper::object(Context = Context, description = "A written text that can be published")]
@@ -685,7 +701,7 @@ impl Price {
     }
 
     pub fn currency_code(&self) -> &CurrencyCode {
-        &self.currencty_code
+        &self.currency_code
     }
 
     pub fn unit_price(&self) -> f64 {

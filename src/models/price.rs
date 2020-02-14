@@ -1,10 +1,19 @@
 use uuid::Uuid;
+use crate::schema::price;
 
 #[derive(Queryable)]
 pub struct Price {
     pub price_id: Uuid,
     pub publication_id: Uuid,
-    pub currencty_code: CurrencyCode,
+    pub currency_code: CurrencyCode,
+    pub unit_price: f64,
+}
+
+#[derive(juniper::GraphQLInputObject, Insertable)]
+#[table_name = "price"]
+pub struct NewPrice {
+    pub publication_id: Uuid,
+    pub currency_code: CurrencyCode,
     pub unit_price: f64,
 }
 
