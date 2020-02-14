@@ -1,4 +1,5 @@
 use uuid::Uuid;
+use crate::schema::language;
 
 #[derive(Debug, PartialEq, DbEnum)]
 #[derive(juniper::GraphQLEnum)]
@@ -14,6 +15,15 @@ pub enum LanguageRelation {
 #[derive(Queryable)]
 pub struct Language {
     pub language_id: Uuid,
+    pub work_id: Uuid,
+    pub language_code: LanguageCode,
+    pub language_relation: LanguageRelation,
+    pub main_language: bool,
+}
+
+#[derive(juniper::GraphQLInputObject, Insertable)]
+#[table_name = "language"]
+pub struct NewLanguage {
     pub work_id: Uuid,
     pub language_code: LanguageCode,
     pub language_relation: LanguageRelation,

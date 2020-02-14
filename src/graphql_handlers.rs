@@ -200,6 +200,14 @@ impl MutationRoot {
       .get_result(&connection)
       .expect("Error saving new issue")
   }
+
+  fn create_language(context: &Context, data: NewLanguage) -> Language {
+    let connection = context.db.get().unwrap();
+    diesel::insert_into(language::table)
+      .values(&data)
+      .get_result(&connection)
+      .expect("Error saving new language")
+  }
 }
 
 #[juniper::object(Context = Context, description = "A written text that can be published")]
