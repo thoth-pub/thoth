@@ -1,5 +1,3 @@
-extern crate dotenv;
-
 use diesel::prelude::*;
 use juniper::RootNode;
 use uuid::Uuid;
@@ -7,7 +5,6 @@ use chrono::naive::NaiveDate;
 
 use crate::db::PgPool;
 use crate::schema::*;
-
 use crate::models::publisher::*;
 use crate::models::work::*;
 use crate::models::language::*;
