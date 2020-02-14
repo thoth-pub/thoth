@@ -251,6 +251,14 @@ impl MutationRoot {
       .get_result(&connection)
       .expect("Error saving new price")
   }
+
+  fn create_subject(context: &Context, data: NewSubject) -> Subject {
+    let connection = context.db.get().unwrap();
+    diesel::insert_into(subject::table)
+      .values(&data)
+      .get_result(&connection)
+      .expect("Error saving new subject")
+  }
 }
 
 #[juniper::object(Context = Context, description = "A written text that can be published")]

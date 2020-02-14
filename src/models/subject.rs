@@ -1,5 +1,6 @@
 use uuid::Uuid;
 use phf::{Map, phf_map};
+use crate::schema::subject;
 
 #[derive(Debug, PartialEq, DbEnum)]
 #[derive(juniper::GraphQLEnum)]
@@ -16,6 +17,15 @@ pub enum SubjectType {
 #[derive(Queryable)]
 pub struct Subject {
     pub subject_id: Uuid,
+    pub work_id: Uuid,
+    pub subject_type: SubjectType,
+    pub subject_code: String,
+    pub subject_ordinal: i32,
+}
+
+#[derive(juniper::GraphQLInputObject, Insertable)]
+#[table_name = "subject"]
+pub struct NewSubject {
     pub work_id: Uuid,
     pub subject_type: SubjectType,
     pub subject_code: String,
