@@ -6,7 +6,7 @@ use uuid::Uuid;
 use chrono::naive::NaiveDate;
 
 use crate::db::PgPool;
-use crate::schema::work;
+use crate::schema::*;
 
 use crate::models::publisher::*;
 use crate::models::work::*;
@@ -148,6 +148,17 @@ impl MutationRoot {
       .values(&data)
       .get_result(&connection)
       .expect("Error saving new work")
+  }
+
+  fn create_contributor(
+      context: &Context,
+      data: NewContributor
+  ) -> Contributor {
+    let connection = context.db.get().unwrap();
+    diesel::insert_into(contributor::table)
+        .values(&data)
+        .get_result(&connection)
+        .expect("Error saving new contributor")
   }
 }
 

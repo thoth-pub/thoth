@@ -1,4 +1,5 @@
 use uuid::Uuid;
+use crate::schema::contributor;
 
 #[derive(Debug, PartialEq, DbEnum)]
 #[derive(juniper::GraphQLEnum)]
@@ -23,6 +24,16 @@ pub enum ContributionType {
 #[derive(Queryable)]
 pub struct Contributor {
     pub contributor_id: Uuid,
+    pub first_name: Option<String>,
+    pub last_name: String,
+    pub full_name: String,
+    pub orcid: Option<String>,
+    pub website: Option<String>,
+}
+
+#[derive(juniper::GraphQLInputObject, Insertable)]
+#[table_name = "contributor"]
+pub struct NewContributor {
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
