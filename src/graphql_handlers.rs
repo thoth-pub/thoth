@@ -219,6 +219,22 @@ impl MutationRoot {
       .get_result(&connection)
       .expect("Error saving new language")
   }
+
+  fn create_funder(context: &Context, data: NewFunder) -> Funder {
+    let connection = context.db.get().unwrap();
+    diesel::insert_into(funder::table)
+      .values(&data)
+      .get_result(&connection)
+      .expect("Error saving new funder")
+  }
+
+  fn create_funding(context: &Context, data: NewFunding) -> Funding {
+    let connection = context.db.get().unwrap();
+    diesel::insert_into(funding::table)
+      .values(&data)
+      .get_result(&connection)
+      .expect("Error saving new funding")
+  }
 }
 
 #[juniper::object(Context = Context, description = "A written text that can be published")]
