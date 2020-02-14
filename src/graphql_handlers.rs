@@ -160,6 +160,17 @@ impl MutationRoot {
         .get_result(&connection)
         .expect("Error saving new contributor")
   }
+
+  fn create_contribution(
+      context: &Context,
+      data: NewContribution
+  ) -> Contribution {
+    let connection = context.db.get().unwrap();
+    diesel::insert_into(contribution::table)
+        .values(&data)
+        .get_result(&connection)
+        .expect("Error saving new contribution")
+  }
 }
 
 #[juniper::object(Context = Context, description = "A written text that can be published")]
