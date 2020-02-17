@@ -43,9 +43,10 @@ pub fn valid_code(subject_type: &SubjectType, code: &str) -> Result<(), Error> {
         SubjectType::Custom => true,
         SubjectType::Keyword => true,
     };
-    match valid {
-        true => Ok(()),
-        false => Err(Error::new(ErrorKind::InvalidInput, "Invalid subject code"))
+    if valid {
+        Ok(())
+    } else {
+        Err(Error::new(ErrorKind::InvalidInput, "Invalid subject code"))
     }
 }
 
