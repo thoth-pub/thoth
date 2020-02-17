@@ -253,7 +253,7 @@ impl MutationRoot {
   }
 
   fn create_subject(context: &Context, data: NewSubject) -> Subject {
-    valid_code(&data.subject_type, &data.subject_code)
+    check_subject(&data.subject_type, &data.subject_code)
         .expect(&format!("{} is not a valid {} code",
                 data.subject_code, data.subject_type.to_string()));
 

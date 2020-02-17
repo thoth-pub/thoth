@@ -1,8 +1,9 @@
-use std::io::{Error, ErrorKind};
 use std::fmt;
 use uuid::Uuid;
 use phf::{Map, phf_map};
 use crate::schema::subject;
+use crate::errors::*;
+use crate::errors::SubjectError::*;
 
 #[derive(Debug, PartialEq, DbEnum)]
 #[derive(juniper::GraphQLEnum)]
@@ -34,7 +35,7 @@ pub struct NewSubject {
     pub subject_ordinal: i32,
 }
 
-pub fn valid_code(subject_type: &SubjectType, code: &str) -> Result<(), Error> {
+pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<(), SubjectError> {
     let valid = match &subject_type {
         SubjectType::Bic => BIC_CODES.contains_key::<str>(&code),
         SubjectType::Bisac => BISAC_CODES.contains_key::<str>(&code),
@@ -46,7 +47,7 @@ pub fn valid_code(subject_type: &SubjectType, code: &str) -> Result<(), Error> {
     if valid {
         Ok(())
     } else {
-        Err(Error::new(ErrorKind::InvalidInput, "Invalid subject code"))
+        Err(InvalidCode(code.to_string(), subject_type.to_string()))?
     }
 }
 
