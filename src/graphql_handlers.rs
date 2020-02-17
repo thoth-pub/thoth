@@ -253,9 +253,9 @@ impl MutationRoot {
   }
 
   fn create_subject(context: &Context, data: NewSubject) -> Subject {
-    let error = format!("{} is not a valid {} code",
-        data.subject_code, data.subject_type.to_string());
-    valid_code(&data.subject_type, &data.subject_code).expect(&error);
+    valid_code(&data.subject_type, &data.subject_code)
+        .expect(&format!("{} is not a valid {} code",
+                data.subject_code, data.subject_type.to_string()));
 
     let connection = context.db.get().unwrap();
     diesel::insert_into(subject::table)
