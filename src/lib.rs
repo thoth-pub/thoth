@@ -5,6 +5,7 @@ extern crate juniper;
 #[macro_use]
 extern crate diesel_derive_enum;
 
+pub mod errors;
 pub mod server;
 pub mod db;
 pub mod graphql_handlers;
