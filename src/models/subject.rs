@@ -1,3 +1,5 @@
+use std::io::{Error, ErrorKind};
+use std::fmt;
 use uuid::Uuid;
 use phf::{Map, phf_map};
 use crate::schema::subject;
@@ -32,7 +34,28 @@ pub struct NewSubject {
     pub subject_ordinal: i32,
 }
 
-pub static THEMA_CODES: Map<&'static str, &'static str> = phf_map! {
+pub fn valid_code(subject_type: &SubjectType, code: &str) -> Result<(), Error> {
+    let valid = match &subject_type {
+        SubjectType::Bic => BIC_CODES.contains_key::<str>(&code),
+        SubjectType::Bisac => BISAC_CODES.contains_key::<str>(&code),
+        SubjectType::Thema => THEMA_CODES.contains_key::<str>(&code),
+        SubjectType::Lcc => true,
+        SubjectType::Custom => true,
+        SubjectType::Keyword => true,
+    };
+    match valid {
+        true => Ok(()),
+        false => Err(Error::new(ErrorKind::InvalidInput, "Invalid subject code"))
+    }
+}
+
+impl fmt::Display for SubjectType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+static THEMA_CODES: Map<&'static str, &'static str> = phf_map! {
     "A" => "The Arts",
     "AB" => "The arts: general issues",
     "ABA" => "Theory of art",
@@ -7546,7 +7569,7 @@ pub static THEMA_CODES: Map<&'static str, &'static str> = phf_map! {
     "6XZ" => "Zydeco"
 };
 
-pub static BISAC_CODES: Map<&'static str, &'static str> = phf_map! {
+static BISAC_CODES: Map<&'static str, &'static str> = phf_map! {
     "ANT000000" => "Antiques & Collectibles / General",
     "ANT001000" => "Antiques & Collectibles / Americana",
     "ANT002000" => "Antiques & Collectibles / Art",
@@ -11436,7 +11459,7 @@ pub static BISAC_CODES: Map<&'static str, &'static str> = phf_map! {
     "TRV035000" => "Travel / Rail Travel"
 };
 
-pub static BIC_CODES: Map<&'static str, &'static str> = phf_map! {
+static BIC_CODES: Map<&'static str, &'static str> = phf_map! {
     "A" => "The arts",
     "AB" => "The arts: general issues",
     "ABA" => "Theory of art",
