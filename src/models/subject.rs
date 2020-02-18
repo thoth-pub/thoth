@@ -51,6 +51,19 @@ pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<(), Subje
     }
 }
 
+#[test]
+fn test_check_subject() {
+    assert!(check_subject(&SubjectType::Bic, "HRQX9").is_ok());
+    assert!(check_subject(&SubjectType::Bisac, "BIB004060").is_ok());
+    assert!(check_subject(&SubjectType::Thema, "ATXZ1").is_ok());
+    assert!(check_subject(&SubjectType::Custom, "A custom subject").is_ok());
+    assert!(check_subject(&SubjectType::Keyword, "keyword").is_ok());
+
+    assert!(check_subject(&SubjectType::Bic, "ABCD0").is_err());
+    assert!(check_subject(&SubjectType::Bisac, "BLA123456").is_err());
+    assert!(check_subject(&SubjectType::Thema, "AHBW").is_err());
+}
+
 impl fmt::Display for SubjectType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
