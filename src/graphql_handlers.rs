@@ -155,7 +155,7 @@ impl MutationRoot {
       .expect("Error saving new publisher")
   }
 
-  fn create_publisher(context: &Context, data: NewImprint) -> Imprint {
+  fn create_imprint(context: &Context, data: NewImprint) -> Imprint {
     let connection = context.db.get().unwrap();
     diesel::insert_into(imprint::table)
       .values(&data)
