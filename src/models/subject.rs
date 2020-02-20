@@ -9941,6 +9941,7 @@ static BISAC_CODES: Map<&'static str, &'static str> = phf_map! {
     "LIT024050" => "Literary Criticism / Modern / 20th Century",
     "LIT024060" => "Literary Criticism / Modern / 21st Century",
     "LIT003000" => "Literary Criticism / Feminist",
+    "LIT022000" => "Literary Criticism / Fairy Tales, Folk Tales, Legends & Mythology",
     "LIT004010" => "Literary Criticism / African",
     "LIT004020" => "Literary Criticism / American / General",
     "LIT004030" => "Literary Criticism / American / Asian American",
