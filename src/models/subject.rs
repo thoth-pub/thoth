@@ -10988,6 +10988,7 @@ static BISAC_CODES: Map<&'static str, &'static str> = phf_map! {
     "SCI067000" => "Science / Waves & Wave Mechanics",
     "SCI068000" => "Science / Weights & Measures",
     "SCI070000" => "Science / Life Sciences / Zoology / General",
+    "SCI070060" => "Science / Life Sciences / Zoology / Ethology (Animal Behavior)",
     "SCI070010" => "Science / Life Sciences / Zoology / Ichthyology & Herpetology",
     "SCI070020" => "Science / Life Sciences / Zoology / Invertebrates",
     "SCI070030" => "Science / Life Sciences / Zoology / Mammals",
