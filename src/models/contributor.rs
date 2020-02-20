@@ -11,6 +11,8 @@ pub enum ContributionType {
     Translator,
     Photographer,
     Ilustrator,
+    #[db_rename = "music-editor"]
+    MusicEditor,
     #[db_rename = "foreword-by"]
     ForewordBy,
     #[db_rename = "introduction-by"]
