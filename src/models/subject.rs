@@ -10696,6 +10696,7 @@ static BISAC_CODES: Map<&'static str, &'static str> = phf_map! {
     "PSY048000" => "Psychology / Psychotherapy / Group",
     "PSY049000" => "Psychology / Psychopathology / Depression",
     "PSY050000" => "Psychology / EthnoPsychology",
+    "PSY053000" => "Psychology / Evolutionary Psychology",
     "REF000000" => "Reference / General",
     "REF001000" => "Reference / Almanacs",
     "REF002000" => "Reference / Atlases, Gazetteers & Maps",
