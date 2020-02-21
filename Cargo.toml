@@ -3,6 +3,8 @@ name = "thoth"
 version = "0.1.0"
 authors = ["Javier Arias <javier@arias.re>"]
 edition = "2018"
+license = "Apache 2.0"
+description = "GraphQL API for bibliographic data"
 
 [dependencies]
 actix-http = "1.0.1"
