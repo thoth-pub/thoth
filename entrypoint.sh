@@ -1,6 +1,6 @@
 #!/bin/bash -x
 
-sleep 5
+sleep 3
 diesel migration run
 
 exec "$@"
