@@ -1,5 +1,6 @@
 use std::env;
 use std::io;
+use dotenv::dotenv;
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool, PoolError};
 use diesel_migrations::embed_migrations;
@@ -15,6 +16,7 @@ fn init_pool(database_url: &str) -> Result<PgPool, PoolError> {
 }
 
 fn get_database_url() -> String {
+    dotenv().ok();
     if cfg!(test) {
         env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set")
     } else {
