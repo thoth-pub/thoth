@@ -19,10 +19,10 @@ async fn start_server(port: String) -> io::Result<()> {
 }
 
 fn main() -> io::Result<()> {
-    let matches = App::new("Thoth")
-        .version("0.1.0")
-        .author("Javier Arias <javi@openbookpublishers.com>")
-        .about("GraphQL API for bibliographic data")
+    let matches = App::new(env!("CARGO_PKG_NAME"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .author(env!("CARGO_PKG_AUTHORS"))
+        .about(env!("CARGO_PKG_DESCRIPTION"))
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .subcommand(
             App::new("migrate")
