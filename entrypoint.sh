@@ -1,6 +1,6 @@
 #!/bin/bash -x
 
 sleep 3
-diesel migration run
+thoth_db
 
 exec "$@"
