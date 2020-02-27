@@ -1,6 +1,6 @@
 #!/bin/bash -x
 
 sleep 3
-thoth_db
+thoth migrate
 
 exec "$@"

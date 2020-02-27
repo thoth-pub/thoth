@@ -4,6 +4,8 @@ extern crate dotenv;
 extern crate juniper;
 #[macro_use]
 extern crate diesel_derive_enum;
+#[macro_use]
+extern crate diesel_migrations;
 
 pub mod errors;
 pub mod server;

@@ -23,9 +23,5 @@ RUN apt-get update && apt-get install -y postgresql-client-12
 
 # Get thoth and diesel binaries
 COPY --from=build /usr/local/cargo/bin/thoth /usr/local/bin/thoth
-COPY --from=build /usr/local/cargo/bin/thoth_db /usr/local/bin/thoth_db
 
-COPY entrypoint.sh ./
-
-ENTRYPOINT ["./entrypoint.sh"]
-CMD ["thoth"]
+CMD ["thoth", "init"]

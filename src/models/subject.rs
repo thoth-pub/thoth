@@ -47,7 +47,7 @@ pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<(), Subje
     if valid {
         Ok(())
     } else {
-        Err(InvalidCode(code.to_string(), subject_type.to_string()))?
+        Err(InvalidCode(code.to_string(), subject_type.to_string()))
     }
 }
 
