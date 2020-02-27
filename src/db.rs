@@ -1,6 +1,9 @@
+use std::env;
+use std::io;
+use dotenv::dotenv;
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool, PoolError};
-use std::env;
+use diesel_migrations::embed_migrations;
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -13,6 +16,7 @@ fn init_pool(database_url: &str) -> Result<PgPool, PoolError> {
 }
 
 fn get_database_url() -> String {
+    dotenv().ok();
     if cfg!(test) {
         env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set")
     } else {
@@ -24,4 +28,12 @@ pub fn establish_connection() -> PgPool {
     let database_url = get_database_url();
     init_pool(&database_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
+}
+
+pub fn run_migrations() -> io::Result<()> {
+    embed_migrations!("migrations");
+    let connection = establish_connection().get().unwrap();
+    embedded_migrations::run_with_output(&connection, &mut io::stdout())
+        .expect("Can't run migrations");
+    Ok(())
 }

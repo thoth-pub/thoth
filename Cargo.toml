@@ -1,7 +1,7 @@
 [package]
 name = "thoth"
 version = "0.1.0"
-authors = ["Javier Arias <javier@arias.re>"]
+authors = ["Javier Arias <javi@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
 description = "GraphQL API for bibliographic data"
@@ -10,6 +10,7 @@ description = "GraphQL API for bibliographic data"
 actix-http = "1.0.1"
 actix-web = "2.0.0"
 actix-rt = "1.0.0"
+clap = "2.33.0"
 chrono = "0.4"
 diesel = { version = "1.4.0", features = ["postgres", "uuidv07", "chrono", "r2d2"] }
 diesel_migrations = { version = "1.4.0", features = ["postgres"] }
