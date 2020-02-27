@@ -1,19 +1,31 @@
 FROM rust:1.40.0 AS build
-WORKDIR /usr/src
-RUN rustup target add x86_64-unknown-linux-musl
-RUN apt-get update && apt-get install -y musl-tools && rm -rf /var/lib/apt/lists/*
 
-RUN USER=root cargo new thoth
+# Install thoth
 WORKDIR /usr/src/thoth
 COPY Cargo.toml Cargo.lock ./
-RUN cargo build --release
+COPY ./src ./src
+COPY ./migrations ./migrations
+RUN cargo install --path .
 
-# Copy the source and build the application.
-COPY src ./src
-RUN cargo install --target x86_64-unknown-linux-musl --path .
+# Switch to debian for run time
+FROM debian:buster-slim
 
-# Copy the statically-linked binary into a scratch container.
-FROM scratch
-COPY --from=build /usr/local/cargo/bin/thoth .
-USER 1000
-CMD ["./thoth"]
+# Use postgres repo to get postgresql-client-12 (not yet distributed in buster)
+RUN apt-get update && apt-get install -y \
+  gnupg2 \
+  wget
+RUN wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+  | apt-key add -
+RUN echo "deb http://apt.postgresql.org/pub/repos/apt/ buster-pgdg main" \
+  | tee /etc/apt/sources.list.d/pgdg.list
+# Install dependencies
+RUN apt-get update && apt-get install -y postgresql-client-12
+
+# Get thoth and diesel binaries
+COPY --from=build /usr/local/cargo/bin/thoth /usr/local/bin/thoth
+COPY --from=build /usr/local/cargo/bin/thoth_db /usr/local/bin/thoth_db
+
+COPY entrypoint.sh ./
+
+ENTRYPOINT ["./entrypoint.sh"]
+CMD ["thoth"]

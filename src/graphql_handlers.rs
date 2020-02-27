@@ -484,7 +484,7 @@ impl Publication {
     }
 }
 
-#[juniper::object(description = "An organisation that produces and distributes written texts.")]
+#[juniper::object(Context = Context, description = "An organisation that produces and distributes written texts.")]
 impl Publisher {
     pub fn publisher_id(&self) -> Uuid {
         self.publisher_id
@@ -500,6 +500,15 @@ impl Publisher {
 
     pub fn publisher_url(&self) -> Option<&String> {
         self.publisher_url.as_ref()
+    }
+
+    pub fn imprints(&self, context: &Context) -> Vec<Imprint> {
+        use crate::schema::imprint::dsl::*;
+        let connection = context.db.get().unwrap();
+        imprint
+            .filter(publisher_id.eq(self.publisher_id))
+            .load::<Imprint>(&connection)
+            .expect("Error loading imprints")
     }
 }
 

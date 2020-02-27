@@ -3,6 +3,8 @@ name = "thoth"
 version = "0.1.0"
 authors = ["Javier Arias <javier@arias.re>"]
 edition = "2018"
+license = "Apache-2.0"
+description = "GraphQL API for bibliographic data"
 
 [dependencies]
 actix-http = "1.0.1"
@@ -10,6 +12,7 @@ actix-web = "2.0.0"
 actix-rt = "1.0.0"
 chrono = "0.4"
 diesel = { version = "1.4.0", features = ["postgres", "uuidv07", "chrono", "r2d2"] }
+diesel_migrations = { version = "1.4.0", features = ["postgres"] }
 diesel-derive-enum = { version = "0.4", features = ["postgres"] }
 dotenv = "0.9.0"
 env_logger = "0.6.2"
