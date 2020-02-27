@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Added
 - Implemented imprints for publisher graphql object
 - Added subcommands to main binary to allow running embedded migrations without having to install diesel\_cli
+- Automatic publication to crates.io
 
 ## [0.1.0] - 2020-02-21
 ## Added
