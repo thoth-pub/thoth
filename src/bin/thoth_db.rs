@@ -9,6 +9,7 @@ use std::io::stdout;
 fn main() -> io::Result<()> {
     embed_migrations!("migrations");
     let connection = establish_connection().get().unwrap();
-    Ok(embedded_migrations::run_with_output(&connection, &mut stdout())
-        .expect("Can't run migrations"))
+    embedded_migrations::run_with_output(&connection, &mut stdout())
+        .expect("Can't run migrations");
+    Ok(())
 }
