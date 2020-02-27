@@ -1,7 +1,7 @@
 extern crate clap;
 use std::io;
 
-use clap::{Arg, App, AppSettings};
+use clap::{Arg, App, AppSettings, crate_version, crate_authors};
 use actix_web::{App as WebApp, HttpServer};
 
 use thoth::server::config;
@@ -20,8 +20,8 @@ async fn start_server(port: String) -> io::Result<()> {
 
 fn main() -> io::Result<()> {
     let matches = App::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .author(env!("CARGO_PKG_AUTHORS"))
+        .version(crate_version!())
+        .author(crate_authors!())
         .about(env!("CARGO_PKG_DESCRIPTION"))
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .subcommand(
@@ -30,6 +30,16 @@ fn main() -> io::Result<()> {
         .subcommand(
             App::new("start")
                 .about("Start the thoth server")
+                .arg(Arg::with_name("port")
+                    .short("p")
+                    .long("port")
+                    .value_name("PORT")
+                    .default_value("8080")
+                    .help("Port to bind")
+                    .takes_value(true)))
+        .subcommand(
+            App::new("init")
+                .about("Run the database migrations and start the thoth server")
                 .arg(Arg::with_name("port")
                     .short("p")
                     .long("port")
@@ -46,6 +56,11 @@ fn main() -> io::Result<()> {
             }
             ("migrate", Some(_)) => {
                 run_migrations()
+            }
+            ("init", Some(init_matches)) => {
+                let port = init_matches.value_of("port").unwrap();
+                run_migrations()?;
+                start_server(port.to_owned())
             }
             _ => unreachable!(),
     }
