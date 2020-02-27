@@ -1,15 +1,11 @@
-#[macro_use]
-extern crate diesel_migrations;
 extern crate clap;
 use std::io;
-use std::io::stdout;
 
 use clap::{Arg, App, AppSettings};
 use actix_web::{App as WebApp, HttpServer};
-use diesel_migrations::embed_migrations;
 
 use thoth::server::config;
-use thoth::db::establish_connection;
+use thoth::db::run_migrations;
 
 #[actix_rt::main]
 async fn start_server(port: String) -> io::Result<()> {
@@ -20,14 +16,6 @@ async fn start_server(port: String) -> io::Result<()> {
     .bind(format!("0.0.0.0:{}", port))?
     .run()
     .await
-}
-
-fn run_migrations() -> io::Result<()> {
-    embed_migrations!("migrations");
-    let connection = establish_connection().get().unwrap();
-    embedded_migrations::run_with_output(&connection, &mut stdout())
-        .expect("Can't run migrations");
-    Ok(())
 }
 
 fn main() -> io::Result<()> {
