@@ -34,6 +34,7 @@ fn main() -> io::Result<()> {
                     .short("p")
                     .long("port")
                     .value_name("PORT")
+                    .default_value("8080")
                     .help("Port to bind")
                     .takes_value(true)))
         .get_matches();
