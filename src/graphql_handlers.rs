@@ -1,5 +1,7 @@
 use diesel::prelude::*;
 use juniper::RootNode;
+use juniper::FieldResult;
+use juniper::FieldError;
 use uuid::Uuid;
 use chrono::naive::NaiveDate;
 
@@ -139,131 +141,175 @@ pub struct MutationRoot;
 
 #[juniper::object(Context = Context)]
 impl MutationRoot {
-  fn create_work(context: &Context, data: NewWork) -> Work {
+  fn create_work(context: &Context, data: NewWork) -> FieldResult<Work> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(work::table)
+    match diesel::insert_into(work::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new work")
+      .get_result(&connection) {
+          Ok(work) => Ok(work),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_publisher(context: &Context, data: NewPublisher) -> Publisher {
+  fn create_publisher(
+      context: &Context,
+      data: NewPublisher
+) -> FieldResult<Publisher> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(publisher::table)
+    match diesel::insert_into(publisher::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new publisher")
+      .get_result(&connection) {
+          Ok(publisher) => Ok(publisher),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_imprint(context: &Context, data: NewImprint) -> Imprint {
+  fn create_imprint(
+      context: &Context,
+      data: NewImprint
+) -> FieldResult<Imprint> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(imprint::table)
+    match diesel::insert_into(imprint::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new imprint")
+      .get_result(&connection) {
+          Ok(imprint) => Ok(imprint),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
   fn create_contributor(
       context: &Context,
       data: NewContributor
-  ) -> Contributor {
+  ) -> FieldResult<Contributor> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(contributor::table)
+    match diesel::insert_into(contributor::table)
         .values(&data)
-        .get_result(&connection)
-        .expect("Error saving new contributor")
+        .get_result(&connection) {
+          Ok(contributor) => Ok(contributor),
+          Err(e) => Err(FieldError::from(e))?
+        }
   }
 
   fn create_contribution(
       context: &Context,
       data: NewContribution
-  ) -> Contribution {
+  ) -> FieldResult<Contribution> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(contribution::table)
+    match diesel::insert_into(contribution::table)
         .values(&data)
-        .get_result(&connection)
-        .expect("Error saving new contribution")
+        .get_result(&connection) {
+          Ok(contribution) => Ok(contribution),
+          Err(e) => Err(FieldError::from(e))?
+        }
   }
 
   fn create_publication(
       context: &Context,
       data: NewPublication
-  ) -> Publication {
+  ) -> FieldResult<Publication> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(publication::table)
+    match diesel::insert_into(publication::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new publication")
+      .get_result(&connection) {
+          Ok(publication) => Ok(publication),
+          Err(e) => Err(FieldError::from(e))?
+        }
   }
 
-  fn create_series(context: &Context, data: NewSeries) -> Series {
+  fn create_series(
+      context: &Context,
+      data: NewSeries
+) -> FieldResult<Series> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(series::table)
+    match diesel::insert_into(series::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new series")
+      .get_result(&connection) {
+          Ok(series) => Ok(series),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_issue(context: &Context, data: NewIssue) -> Issue {
+  fn create_issue(
+      context: &Context,
+      data: NewIssue
+) -> FieldResult<Issue> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(issue::table)
+    match diesel::insert_into(issue::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new issue")
+      .get_result(&connection) {
+          Ok(issue) => Ok(issue),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_language(context: &Context, data: NewLanguage) -> Language {
+  fn create_language(
+      context: &Context,
+      data: NewLanguage
+) -> FieldResult<Language> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(language::table)
+    match diesel::insert_into(language::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new language")
+      .get_result(&connection) {
+          Ok(language) => Ok(language),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_funder(context: &Context, data: NewFunder) -> Funder {
+  fn create_funder(
+      context: &Context,
+      data: NewFunder
+) -> FieldResult<Funder> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(funder::table)
+    match diesel::insert_into(funder::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new funder")
+      .get_result(&connection) {
+          Ok(funder) => Ok(funder),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_funding(context: &Context, data: NewFunding) -> Funding {
+  fn create_funding(
+      context: &Context,
+      data: NewFunding
+) -> FieldResult<Funding> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(funding::table)
+    match diesel::insert_into(funding::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new funding")
+      .get_result(&connection) {
+          Ok(funding) => Ok(funding),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_funding(context: &Context, data: NewFunding) -> Funding {
+  fn create_price(
+      context: &Context,
+      data: NewPrice
+) -> FieldResult<Price> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(funding::table)
+    match diesel::insert_into(price::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new funding")
+      .get_result(&connection) {
+          Ok(price) => Ok(price),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_price(context: &Context, data: NewPrice) -> Price {
-    let connection = context.db.get().unwrap();
-    diesel::insert_into(price::table)
-      .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new price")
-  }
-
-  fn create_subject(context: &Context, data: NewSubject) -> Subject {
-    check_subject(&data.subject_type, &data.subject_code)
-        .unwrap_or_else(
-            |_| panic!("{} is not a valid {} code",
-            data.subject_code, data.subject_type.to_string())
-        );
+  fn create_subject(
+      context: &Context,
+      data: NewSubject
+) -> FieldResult<Subject> {
+    match check_subject(&data.subject_type, &data.subject_code) {
+        Ok(_)  => (),
+        Err(e) => Err(FieldError::from(e))?
+    };
 
     let connection = context.db.get().unwrap();
-    diesel::insert_into(subject::table)
+    match diesel::insert_into(subject::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new subject")
+      .get_result(&connection) {
+          Ok(subject) => Ok(subject),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 }
 
