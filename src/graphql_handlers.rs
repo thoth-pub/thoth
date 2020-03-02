@@ -38,17 +38,28 @@ impl QueryRoot {
         offset(
             default = 0,
             description = "The number of items to skip"
-        )
+        ),
+        filter(
+            default = "".to_string(),
+            description = "A query string to search"
+        ),
     )
   )]
   fn works(
       context: &Context,
       limit: i32,
       offset: i32,
+      filter: String,
   ) -> Vec<Work> {
     use crate::schema::work::dsl::*;
     let connection = context.db.get().unwrap();
     work
+        .filter(full_title.ilike(format!("%{}%", filter)))
+        .or_filter(doi.ilike(format!("%{}%", filter)))
+        .or_filter(reference.ilike(format!("%{}%", filter)))
+        .or_filter(short_abstract.ilike(format!("%{}%", filter)))
+        .or_filter(long_abstract.ilike(format!("%{}%", filter)))
+        .or_filter(landing_page.ilike(format!("%{}%", filter)))
         .order(full_title.asc())
         .limit(limit.into())
         .offset(offset.into())
