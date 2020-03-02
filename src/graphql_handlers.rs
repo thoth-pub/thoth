@@ -32,7 +32,7 @@ impl QueryRoot {
   fn works(
       context: &Context,
       limit: Option<i32>,
-) -> Vec<Work> {
+  ) -> Vec<Work> {
     use crate::schema::work::dsl::*;
     let connection = context.db.get().unwrap();
     work
@@ -64,7 +64,7 @@ impl QueryRoot {
   fn publication(
       context: &Context,
       publication_id: Uuid
-) -> FieldResult<Publication> {
+  ) -> FieldResult<Publication> {
     let connection = context.db.get().unwrap();
     match crate::schema::publication::dsl::publication
         .find(publication_id)
@@ -87,7 +87,7 @@ impl QueryRoot {
   fn publication(
       context: &Context,
       publisher_id: Uuid
-) -> FieldResult<Publisher> {
+  ) -> FieldResult<Publisher> {
     let connection = context.db.get().unwrap();
     match crate::schema::publisher::dsl::publisher
         .find(publisher_id)
@@ -110,7 +110,7 @@ impl QueryRoot {
   fn imprint(
       context: &Context,
       imprint_id: Uuid
-) -> FieldResult<Imprint> {
+  ) -> FieldResult<Imprint> {
     let connection = context.db.get().unwrap();
     match crate::schema::imprint::dsl::imprint
         .find(imprint_id)
@@ -133,7 +133,7 @@ impl QueryRoot {
   fn contributor(
       context: &Context,
       contributor_id: Uuid
-) -> FieldResult<Contributor> {
+  ) -> FieldResult<Contributor> {
     let connection = context.db.get().unwrap();
     match crate::schema::contributor::dsl::contributor
         .find(contributor_id)
@@ -161,7 +161,7 @@ impl QueryRoot {
       work_id: Uuid,
       contributor_id: Uuid,
       contribution_type: ContributionType
-) -> FieldResult<Contribution> {
+  ) -> FieldResult<Contribution> {
     let connection = context.db.get().unwrap();
     match crate::schema::contribution::dsl::contribution
         .filter(crate::schema::contribution::dsl::work_id.eq(work_id))
@@ -188,7 +188,7 @@ impl QueryRoot {
   fn series(
       context: &Context,
       series_id: Uuid
-) -> FieldResult<Series> {
+  ) -> FieldResult<Series> {
     let connection = context.db.get().unwrap();
     match crate::schema::series::dsl::series
         .find(series_id)
@@ -212,7 +212,7 @@ impl QueryRoot {
       context: &Context,
       series_id: Uuid,
       work_id: Uuid
-) -> FieldResult<Issue> {
+  ) -> FieldResult<Issue> {
     let connection = context.db.get().unwrap();
     match crate::schema::issue::dsl::issue
         .filter(crate::schema::issue::dsl::series_id.eq(series_id))
@@ -236,7 +236,7 @@ impl QueryRoot {
   fn language(
       context: &Context,
       language_id: Uuid
-) -> FieldResult<Language> {
+  ) -> FieldResult<Language> {
     let connection = context.db.get().unwrap();
     match crate::schema::language::dsl::language
         .find(language_id)
@@ -259,7 +259,7 @@ impl QueryRoot {
   fn price(
       context: &Context,
       price_id: Uuid
-) -> FieldResult<Price> {
+  ) -> FieldResult<Price> {
     let connection = context.db.get().unwrap();
     match crate::schema::price::dsl::price
         .find(price_id)
@@ -282,7 +282,7 @@ impl QueryRoot {
   fn subject(
       context: &Context,
       subject_id: Uuid
-) -> FieldResult<Subject> {
+  ) -> FieldResult<Subject> {
     let connection = context.db.get().unwrap();
     match crate::schema::subject::dsl::subject
         .find(subject_id)
@@ -305,7 +305,7 @@ impl QueryRoot {
   fn funder(
       context: &Context,
       funder_id: Uuid
-) -> FieldResult<Funder> {
+  ) -> FieldResult<Funder> {
     let connection = context.db.get().unwrap();
     match crate::schema::funder::dsl::funder
         .find(funder_id)
@@ -328,7 +328,7 @@ impl QueryRoot {
   fn funding(
       context: &Context,
       funding_id: Uuid
-) -> FieldResult<Funding> {
+  ) -> FieldResult<Funding> {
     let connection = context.db.get().unwrap();
     match crate::schema::funding::dsl::funding
         .find(funding_id)
@@ -356,7 +356,7 @@ impl MutationRoot {
   fn create_publisher(
       context: &Context,
       data: NewPublisher
-) -> FieldResult<Publisher> {
+  ) -> FieldResult<Publisher> {
     let connection = context.db.get().unwrap();
     match diesel::insert_into(publisher::table)
       .values(&data)
@@ -369,7 +369,7 @@ impl MutationRoot {
   fn create_imprint(
       context: &Context,
       data: NewImprint
-) -> FieldResult<Imprint> {
+  ) -> FieldResult<Imprint> {
     let connection = context.db.get().unwrap();
     match diesel::insert_into(imprint::table)
       .values(&data)
@@ -421,7 +421,7 @@ impl MutationRoot {
   fn create_series(
       context: &Context,
       data: NewSeries
-) -> FieldResult<Series> {
+  ) -> FieldResult<Series> {
     let connection = context.db.get().unwrap();
     match diesel::insert_into(series::table)
       .values(&data)
@@ -434,7 +434,7 @@ impl MutationRoot {
   fn create_issue(
       context: &Context,
       data: NewIssue
-) -> FieldResult<Issue> {
+  ) -> FieldResult<Issue> {
     let connection = context.db.get().unwrap();
     match diesel::insert_into(issue::table)
       .values(&data)
@@ -447,7 +447,7 @@ impl MutationRoot {
   fn create_language(
       context: &Context,
       data: NewLanguage
-) -> FieldResult<Language> {
+  ) -> FieldResult<Language> {
     let connection = context.db.get().unwrap();
     match diesel::insert_into(language::table)
       .values(&data)
@@ -460,7 +460,7 @@ impl MutationRoot {
   fn create_funder(
       context: &Context,
       data: NewFunder
-) -> FieldResult<Funder> {
+  ) -> FieldResult<Funder> {
     let connection = context.db.get().unwrap();
     match diesel::insert_into(funder::table)
       .values(&data)
@@ -473,7 +473,7 @@ impl MutationRoot {
   fn create_funding(
       context: &Context,
       data: NewFunding
-) -> FieldResult<Funding> {
+  ) -> FieldResult<Funding> {
     let connection = context.db.get().unwrap();
     match diesel::insert_into(funding::table)
       .values(&data)
@@ -486,7 +486,7 @@ impl MutationRoot {
   fn create_price(
       context: &Context,
       data: NewPrice
-) -> FieldResult<Price> {
+  ) -> FieldResult<Price> {
     let connection = context.db.get().unwrap();
     match diesel::insert_into(price::table)
       .values(&data)
@@ -499,7 +499,7 @@ impl MutationRoot {
   fn create_subject(
       context: &Context,
       data: NewSubject
-) -> FieldResult<Subject> {
+  ) -> FieldResult<Subject> {
     match check_subject(&data.subject_type, &data.subject_code) {
         Ok(_)  => (),
         Err(e) => Err(FieldError::from(e))?
