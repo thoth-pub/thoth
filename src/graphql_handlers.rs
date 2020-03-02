@@ -28,110 +28,122 @@ pub struct QueryRoot;
 
 #[juniper::object(Context = Context)]
 impl QueryRoot {
-  fn works(context: &Context) -> Vec<Work> {
+  #[graphql(description="Default limit is 100")]
+  fn works(context: &Context, limit: Option<i32>) -> Vec<Work> {
     use crate::schema::work::dsl::*;
     let connection = context.db.get().unwrap();
     work
-      .limit(100)
+      .limit(limit.unwrap_or(100).into())
       .load::<Work>(&connection)
       .expect("Error loading works")
   }
 
-  fn publications(context: &Context) -> Vec<Publication> {
+  #[graphql(description="Default limit is 100")]
+  fn publications(context: &Context, limit: Option<i32>) -> Vec<Publication> {
     use crate::schema::publication::dsl::*;
     let connection = context.db.get().unwrap();
     publication
-      .limit(100)
+      .limit(limit.unwrap_or(100).into())
       .load::<Publication>(&connection)
       .expect("Error loading publications")
   }
 
-  fn publishers(context: &Context) -> Vec<Publisher> {
+  #[graphql(description="Default limit is 100")]
+  fn publishers(context: &Context, limit: Option<i32>) -> Vec<Publisher> {
     use crate::schema::publisher::dsl::*;
     let connection = context.db.get().unwrap();
     publisher
-      .limit(100)
+      .limit(limit.unwrap_or(100).into())
       .load::<Publisher>(&connection)
       .expect("Error loading publishers")
   }
 
-  fn imprints(context: &Context) -> Vec<Imprint> {
+  #[graphql(description="Default limit is 100")]
+  fn imprints(context: &Context, limit: Option<i32>) -> Vec<Imprint> {
     use crate::schema::imprint::dsl::*;
     let connection = context.db.get().unwrap();
     imprint
-      .limit(100)
+      .limit(limit.unwrap_or(100).into())
       .load::<Imprint>(&connection)
       .expect("Error loading imprints")
   }
 
-  fn contributors(context: &Context) -> Vec<Contributor> {
+  #[graphql(description="Default limit is 100")]
+  fn contributors(context: &Context, limit: Option<i32>) -> Vec<Contributor> {
     use crate::schema::contributor::dsl::*;
     let connection = context.db.get().unwrap();
     contributor
-        .limit(100)
+        .limit(limit.unwrap_or(100).into())
         .load::<Contributor>(&connection)
         .expect("Error loading contributors")
   }
 
-  fn series(context: &Context) -> Vec<Series> {
+  #[graphql(description="Default limit is 100")]
+  fn series(context: &Context, limit: Option<i32>) -> Vec<Series> {
     use crate::schema::series::dsl::*;
     let connection = context.db.get().unwrap();
     series
-        .limit(100)
+        .limit(limit.unwrap_or(100).into())
         .load::<Series>(&connection)
         .expect("Error loading series")
   }
 
-  fn issues(context: &Context) -> Vec<Issue> {
+  #[graphql(description="Default limit is 100")]
+  fn issues(context: &Context, limit: Option<i32>) -> Vec<Issue> {
     use crate::schema::issue::dsl::*;
     let connection = context.db.get().unwrap();
     issue
-        .limit(100)
+        .limit(limit.unwrap_or(100).into())
         .load::<Issue>(&connection)
         .expect("Error loading issues")
   }
 
-  fn languages(context: &Context) -> Vec<Language> {
+  #[graphql(description="Default limit is 100")]
+  fn languages(context: &Context, limit: Option<i32>) -> Vec<Language> {
     use crate::schema::language::dsl::*;
     let connection = context.db.get().unwrap();
     language
-        .limit(100)
+        .limit(limit.unwrap_or(100).into())
         .load::<Language>(&connection)
         .expect("Error loading languages")
   }
 
-  fn prices(context: &Context) -> Vec<Price> {
+  #[graphql(description="Default limit is 100")]
+  fn prices(context: &Context, limit: Option<i32>) -> Vec<Price> {
     use crate::schema::price::dsl::*;
     let connection = context.db.get().unwrap();
     price
-        .limit(100)
+        .limit(limit.unwrap_or(100).into())
         .load::<Price>(&connection)
         .expect("Error loading prices")
   }
 
-  fn subjects(context: &Context) -> Vec<Subject> {
+  #[graphql(description="Default limit is 100")]
+  fn subjects(context: &Context, limit: Option<i32>) -> Vec<Subject> {
     use crate::schema::subject::dsl::*;
     let connection = context.db.get().unwrap();
     subject
-        .limit(100)
+        .limit(limit.unwrap_or(100).into())
         .load::<Subject>(&connection)
         .expect("Error loading subjects")
   }
 
-  fn funders(context: &Context) -> Vec<Funder> {
+  #[graphql(description="Default limit is 100")]
+  fn funders(context: &Context, limit: Option<i32>) -> Vec<Funder> {
     use crate::schema::funder::dsl::*;
     let connection = context.db.get().unwrap();
     funder
-        .limit(100)
+        .limit(limit.unwrap_or(100).into())
         .load::<Funder>(&connection)
         .expect("Error loading funders")
   }
 
-  fn funders(context: &Context) -> Vec<Funding> {
+  #[graphql(description="Default limit is 100")]
+  fn funders(context: &Context, limit: Option<i32>) -> Vec<Funding> {
     use crate::schema::funding::dsl::*;
     let connection = context.db.get().unwrap();
     funding
-        .limit(100)
+        .limit(limit.unwrap_or(100).into())
         .load::<Funding>(&connection)
         .expect("Error loading fundings")
   }
