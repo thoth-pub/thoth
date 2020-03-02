@@ -29,13 +29,26 @@ pub struct QueryRoot;
 #[juniper::object(Context = Context)]
 impl QueryRoot {
   #[graphql(description="Default limit is 100")]
-  fn works(context: &Context, limit: Option<i32>) -> Vec<Work> {
+  fn works(
+      context: &Context,
+      limit: Option<i32>,
+) -> Vec<Work> {
     use crate::schema::work::dsl::*;
     let connection = context.db.get().unwrap();
     work
-      .limit(limit.unwrap_or(100).into())
-      .load::<Work>(&connection)
-      .expect("Error loading works")
+        .limit(limit.unwrap_or(100).into())
+        .load::<Work>(&connection)
+        .expect("Error loading works")
+  }
+
+  fn work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::work::dsl::work
+        .find(work_id)
+        .get_result::<Work>(&connection) {
+            Ok(work) => Ok(work),
+            Err(e) => Err(FieldError::from(e))?
+        }
   }
 
   #[graphql(description="Default limit is 100")]
@@ -48,6 +61,19 @@ impl QueryRoot {
       .expect("Error loading publications")
   }
 
+  fn publication(
+      context: &Context,
+      publication_id: Uuid
+) -> FieldResult<Publication> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::publication::dsl::publication
+        .find(publication_id)
+        .get_result::<Publication>(&connection) {
+            Ok(publication) => Ok(publication),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
   #[graphql(description="Default limit is 100")]
   fn publishers(context: &Context, limit: Option<i32>) -> Vec<Publisher> {
     use crate::schema::publisher::dsl::*;
@@ -56,6 +82,19 @@ impl QueryRoot {
       .limit(limit.unwrap_or(100).into())
       .load::<Publisher>(&connection)
       .expect("Error loading publishers")
+  }
+
+  fn publication(
+      context: &Context,
+      publisher_id: Uuid
+) -> FieldResult<Publisher> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::publisher::dsl::publisher
+        .find(publisher_id)
+        .get_result::<Publisher>(&connection) {
+            Ok(publisher) => Ok(publisher),
+            Err(e) => Err(FieldError::from(e))?
+        }
   }
 
   #[graphql(description="Default limit is 100")]
@@ -68,6 +107,19 @@ impl QueryRoot {
       .expect("Error loading imprints")
   }
 
+  fn imprint(
+      context: &Context,
+      imprint_id: Uuid
+) -> FieldResult<Imprint> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::imprint::dsl::imprint
+        .find(imprint_id)
+        .get_result::<Imprint>(&connection) {
+            Ok(imprint) => Ok(imprint),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
   #[graphql(description="Default limit is 100")]
   fn contributors(context: &Context, limit: Option<i32>) -> Vec<Contributor> {
     use crate::schema::contributor::dsl::*;
@@ -78,14 +130,72 @@ impl QueryRoot {
         .expect("Error loading contributors")
   }
 
+  fn contributor(
+      context: &Context,
+      contributor_id: Uuid
+) -> FieldResult<Contributor> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::contributor::dsl::contributor
+        .find(contributor_id)
+        .get_result::<Contributor>(&connection) {
+            Ok(contributor) => Ok(contributor),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
   #[graphql(description="Default limit is 100")]
-  fn series(context: &Context, limit: Option<i32>) -> Vec<Series> {
+  fn contributions(
+      context: &Context,
+      limit: Option<i32>
+  ) -> Vec<Contribution> {
+    use crate::schema::contribution::dsl::*;
+    let connection = context.db.get().unwrap();
+    contribution
+        .limit(limit.unwrap_or(100).into())
+        .load::<Contribution>(&connection)
+        .expect("Error loading contributions")
+  }
+
+  fn contribution(
+      context: &Context,
+      work_id: Uuid,
+      contributor_id: Uuid,
+      contribution_type: ContributionType
+) -> FieldResult<Contribution> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::contribution::dsl::contribution
+        .filter(crate::schema::contribution::dsl::work_id.eq(work_id))
+        .filter(crate::schema::contribution::dsl::contributor_id.eq(
+                contributor_id))
+        .filter(crate::schema::contribution::dsl::contribution_type.eq(
+                contribution_type))
+        .get_result::<Contribution>(&connection) {
+            Ok(contribution) => Ok(contribution),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
+  #[graphql(description="Default limit is 100")]
+  fn serieses(context: &Context, limit: Option<i32>) -> Vec<Series> {
     use crate::schema::series::dsl::*;
     let connection = context.db.get().unwrap();
     series
         .limit(limit.unwrap_or(100).into())
         .load::<Series>(&connection)
         .expect("Error loading series")
+  }
+
+  fn series(
+      context: &Context,
+      series_id: Uuid
+) -> FieldResult<Series> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::series::dsl::series
+        .find(series_id)
+        .get_result::<Series>(&connection) {
+            Ok(series) => Ok(series),
+            Err(e) => Err(FieldError::from(e))?
+        }
   }
 
   #[graphql(description="Default limit is 100")]
@@ -98,6 +208,21 @@ impl QueryRoot {
         .expect("Error loading issues")
   }
 
+  fn issue(
+      context: &Context,
+      series_id: Uuid,
+      work_id: Uuid
+) -> FieldResult<Issue> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::issue::dsl::issue
+        .filter(crate::schema::issue::dsl::series_id.eq(series_id))
+        .filter(crate::schema::issue::dsl::work_id.eq(work_id))
+        .get_result::<Issue>(&connection) {
+            Ok(issue) => Ok(issue),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
   #[graphql(description="Default limit is 100")]
   fn languages(context: &Context, limit: Option<i32>) -> Vec<Language> {
     use crate::schema::language::dsl::*;
@@ -106,6 +231,19 @@ impl QueryRoot {
         .limit(limit.unwrap_or(100).into())
         .load::<Language>(&connection)
         .expect("Error loading languages")
+  }
+
+  fn language(
+      context: &Context,
+      language_id: Uuid
+) -> FieldResult<Language> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::language::dsl::language
+        .find(language_id)
+        .get_result::<Language>(&connection) {
+            Ok(language) => Ok(language),
+            Err(e) => Err(FieldError::from(e))?
+        }
   }
 
   #[graphql(description="Default limit is 100")]
@@ -118,6 +256,19 @@ impl QueryRoot {
         .expect("Error loading prices")
   }
 
+  fn price(
+      context: &Context,
+      price_id: Uuid
+) -> FieldResult<Price> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::price::dsl::price
+        .find(price_id)
+        .get_result::<Price>(&connection) {
+            Ok(price) => Ok(price),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
   #[graphql(description="Default limit is 100")]
   fn subjects(context: &Context, limit: Option<i32>) -> Vec<Subject> {
     use crate::schema::subject::dsl::*;
@@ -126,6 +277,19 @@ impl QueryRoot {
         .limit(limit.unwrap_or(100).into())
         .load::<Subject>(&connection)
         .expect("Error loading subjects")
+  }
+
+  fn subject(
+      context: &Context,
+      subject_id: Uuid
+) -> FieldResult<Subject> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::subject::dsl::subject
+        .find(subject_id)
+        .get_result::<Subject>(&connection) {
+            Ok(subject) => Ok(subject),
+            Err(e) => Err(FieldError::from(e))?
+        }
   }
 
   #[graphql(description="Default limit is 100")]
@@ -138,14 +302,40 @@ impl QueryRoot {
         .expect("Error loading funders")
   }
 
+  fn funder(
+      context: &Context,
+      funder_id: Uuid
+) -> FieldResult<Funder> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::funder::dsl::funder
+        .find(funder_id)
+        .get_result::<Funder>(&connection) {
+            Ok(funder) => Ok(funder),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
   #[graphql(description="Default limit is 100")]
-  fn funders(context: &Context, limit: Option<i32>) -> Vec<Funding> {
+  fn fundings(context: &Context, limit: Option<i32>) -> Vec<Funding> {
     use crate::schema::funding::dsl::*;
     let connection = context.db.get().unwrap();
     funding
         .limit(limit.unwrap_or(100).into())
         .load::<Funding>(&connection)
         .expect("Error loading fundings")
+  }
+
+  fn funding(
+      context: &Context,
+      funding_id: Uuid
+) -> FieldResult<Funding> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::funding::dsl::funding
+        .find(funding_id)
+        .get_result::<Funding>(&connection) {
+            Ok(funding) => Ok(funding),
+            Err(e) => Err(FieldError::from(e))?
+        }
   }
 }
 
