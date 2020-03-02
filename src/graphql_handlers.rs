@@ -49,6 +49,7 @@ impl QueryRoot {
     use crate::schema::work::dsl::*;
     let connection = context.db.get().unwrap();
     work
+        .order(full_title.asc())
         .limit(limit.into())
         .offset(offset.into())
         .load::<Work>(&connection)
@@ -87,6 +88,7 @@ impl QueryRoot {
     use crate::schema::publication::dsl::*;
     let connection = context.db.get().unwrap();
     publication
+        .order(publication_type.asc())
         .limit(limit.into())
         .offset(offset.into())
         .load::<Publication>(&connection)
@@ -117,7 +119,7 @@ impl QueryRoot {
         offset(
             default = 0,
             description = "The number of items to skip"
-        )
+        ),
     )
   )]
   fn publishers(
@@ -128,6 +130,7 @@ impl QueryRoot {
     use crate::schema::publisher::dsl::*;
     let connection = context.db.get().unwrap();
     publisher
+        .order(publisher_name.asc())
         .limit(limit.into())
         .offset(offset.into())
         .load::<Publisher>(&connection)
@@ -169,6 +172,7 @@ impl QueryRoot {
     use crate::schema::imprint::dsl::*;
     let connection = context.db.get().unwrap();
     imprint
+        .order(imprint_name.asc())
         .limit(limit.into())
         .offset(offset.into())
         .load::<Imprint>(&connection)
@@ -210,6 +214,7 @@ impl QueryRoot {
     use crate::schema::contributor::dsl::*;
     let connection = context.db.get().unwrap();
     contributor
+        .order(full_name.asc())
         .limit(limit.into())
         .offset(offset.into())
         .load::<Contributor>(&connection)
@@ -251,6 +256,7 @@ impl QueryRoot {
     use crate::schema::contribution::dsl::*;
     let connection = context.db.get().unwrap();
     contribution
+        .order(contribution_type.asc())
         .limit(limit.into())
         .offset(offset.into())
         .load::<Contribution>(&connection)
@@ -298,6 +304,7 @@ impl QueryRoot {
     use crate::schema::series::dsl::*;
     let connection = context.db.get().unwrap();
     series
+        .order(series_name.asc())
         .limit(limit.into())
         .offset(offset.into())
         .load::<Series>(&connection)
@@ -339,6 +346,7 @@ impl QueryRoot {
     use crate::schema::issue::dsl::*;
     let connection = context.db.get().unwrap();
     issue
+        .order(issue_ordinal.asc())
         .limit(limit.into())
         .offset(offset.into())
         .load::<Issue>(&connection)
@@ -382,6 +390,7 @@ impl QueryRoot {
     use crate::schema::language::dsl::*;
     let connection = context.db.get().unwrap();
     language
+        .order(language_code.asc())
         .limit(limit.into())
         .offset(offset.into())
         .load::<Language>(&connection)
@@ -423,6 +432,7 @@ impl QueryRoot {
     use crate::schema::price::dsl::*;
     let connection = context.db.get().unwrap();
     price
+        .order(currency_code.asc())
         .limit(limit.into())
         .offset(offset.into())
         .load::<Price>(&connection)
@@ -464,6 +474,7 @@ impl QueryRoot {
     use crate::schema::subject::dsl::*;
     let connection = context.db.get().unwrap();
     subject
+        .order(subject_type.asc())
         .limit(limit.into())
         .offset(offset.into())
         .load::<Subject>(&connection)
@@ -505,6 +516,7 @@ impl QueryRoot {
     use crate::schema::funder::dsl::*;
     let connection = context.db.get().unwrap();
     funder
+        .order(funder_name.asc())
         .limit(limit.into())
         .offset(offset.into())
         .load::<Funder>(&connection)
@@ -546,6 +558,7 @@ impl QueryRoot {
     use crate::schema::funding::dsl::*;
     let connection = context.db.get().unwrap();
     funding
+        .order(program.asc())
         .limit(limit.into())
         .offset(offset.into())
         .load::<Funding>(&connection)
