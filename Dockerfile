@@ -16,4 +16,6 @@ COPY --from=build \
     /home/rust/src/target/x86_64-unknown-linux-musl/release/thoth \
     /usr/local/bin/
 
+EXPOSE 8080
+
 CMD ["/usr/local/bin/thoth", "init"]
