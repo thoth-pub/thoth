@@ -20,3 +20,16 @@ impl error::ResponseError for SubjectError {
         }
     }
 }
+
+impl juniper::IntoFieldError for SubjectError {
+    fn into_field_error(self) -> juniper::FieldError {
+        match self {
+            SubjectError::InvalidCode { .. } => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "INVALID_SUBJECT_CODE"
+                }),
+            ),
+        }
+    }
+}
