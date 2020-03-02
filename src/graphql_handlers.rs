@@ -120,16 +120,23 @@ impl QueryRoot {
             default = 0,
             description = "The number of items to skip"
         ),
+        filter(
+            default = "".to_string(),
+            description = "A query string to search"
+        ),
     )
   )]
   fn publishers(
       context: &Context,
       limit: i32,
       offset: i32,
+      filter: String,
   ) -> Vec<Publisher> {
     use crate::schema::publisher::dsl::*;
     let connection = context.db.get().unwrap();
     publisher
+        .filter(publisher_name.ilike(format!("%{}%", filter)))
+        .or_filter(publisher_shortname.ilike(format!("%{}%", filter)))
         .order(publisher_name.asc())
         .limit(limit.into())
         .offset(offset.into())
