@@ -41,7 +41,7 @@ impl QueryRoot {
         ),
         filter(
             default = "".to_string(),
-            description = "A query string to search"
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
         ),
     )
   )]
@@ -133,7 +133,8 @@ impl QueryRoot {
         ),
         filter(
             default = "".to_string(),
-            description = "A query string to search"
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on publisher_name and publisher_shortname"
+
         ),
     )
   )]
