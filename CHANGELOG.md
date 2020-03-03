@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Added
+- [#23](https://github.com/openbookpublishers/thoth/issues/23) - Redirect "/" to "/graphiql"
 
 ## [0.1.2] - 2020-03-03
 ### Changed
