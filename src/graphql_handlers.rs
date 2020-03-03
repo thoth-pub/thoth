@@ -1,5 +1,7 @@
 use diesel::prelude::*;
 use juniper::RootNode;
+use juniper::FieldResult;
+use juniper::FieldError;
 use uuid::Uuid;
 use chrono::naive::NaiveDate;
 
@@ -26,112 +28,574 @@ pub struct QueryRoot;
 
 #[juniper::object(Context = Context)]
 impl QueryRoot {
-  fn works(context: &Context) -> Vec<Work> {
+  #[graphql(
+    description="Query the full list of works",
+    arguments(
+        limit(
+            default = 100,
+            description = "The number of items to return"
+        ),
+        offset(
+            default = 0,
+            description = "The number of items to skip"
+        ),
+        filter(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
+        ),
+    )
+  )]
+  fn works(
+      context: &Context,
+      limit: i32,
+      offset: i32,
+      filter: String,
+  ) -> Vec<Work> {
     use crate::schema::work::dsl::*;
     let connection = context.db.get().unwrap();
     work
-      .limit(100)
-      .load::<Work>(&connection)
-      .expect("Error loading works")
+        .filter(full_title.ilike(format!("%{}%", filter)))
+        .or_filter(doi.ilike(format!("%{}%", filter)))
+        .or_filter(reference.ilike(format!("%{}%", filter)))
+        .or_filter(short_abstract.ilike(format!("%{}%", filter)))
+        .or_filter(long_abstract.ilike(format!("%{}%", filter)))
+        .or_filter(landing_page.ilike(format!("%{}%", filter)))
+        .order(full_title.asc())
+        .limit(limit.into())
+        .offset(offset.into())
+        .load::<Work>(&connection)
+        .expect("Error loading works")
   }
 
-  fn publications(context: &Context) -> Vec<Publication> {
+  #[graphql(description="Query a single work using its id")]
+  fn work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::work::dsl::work
+        .find(work_id)
+        .get_result::<Work>(&connection) {
+            Ok(work) => Ok(work),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
+  #[graphql(
+    description="Query the full list of publications",
+    arguments(
+        limit(
+            default = 100,
+            description = "The number of items to return"
+        ),
+        offset(
+            default = 0,
+            description = "The number of items to skip"
+        )
+    )
+  )]
+  fn publications(
+      context: &Context,
+      limit: i32,
+      offset: i32,
+  ) -> Vec<Publication> {
     use crate::schema::publication::dsl::*;
     let connection = context.db.get().unwrap();
     publication
-      .limit(100)
-      .load::<Publication>(&connection)
-      .expect("Error loading publications")
+        .order(publication_type.asc())
+        .limit(limit.into())
+        .offset(offset.into())
+        .load::<Publication>(&connection)
+        .expect("Error loading publications")
   }
 
-  fn publishers(context: &Context) -> Vec<Publisher> {
+  #[graphql(description="Query a single publication using its id")]
+  fn publication(
+      context: &Context,
+      publication_id: Uuid
+  ) -> FieldResult<Publication> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::publication::dsl::publication
+        .find(publication_id)
+        .get_result::<Publication>(&connection) {
+            Ok(publication) => Ok(publication),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
+  #[graphql(
+    description="Query the full list of publishers",
+    arguments(
+        limit(
+            default = 100,
+            description = "The number of items to return"
+        ),
+        offset(
+            default = 0,
+            description = "The number of items to skip"
+        ),
+        filter(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on publisher_name and publisher_shortname"
+
+        ),
+    )
+  )]
+  fn publishers(
+      context: &Context,
+      limit: i32,
+      offset: i32,
+      filter: String,
+  ) -> Vec<Publisher> {
     use crate::schema::publisher::dsl::*;
     let connection = context.db.get().unwrap();
     publisher
-      .limit(100)
-      .load::<Publisher>(&connection)
-      .expect("Error loading publishers")
+        .filter(publisher_name.ilike(format!("%{}%", filter)))
+        .or_filter(publisher_shortname.ilike(format!("%{}%", filter)))
+        .order(publisher_name.asc())
+        .limit(limit.into())
+        .offset(offset.into())
+        .load::<Publisher>(&connection)
+        .expect("Error loading publishers")
   }
 
-  fn imprints(context: &Context) -> Vec<Imprint> {
+  #[graphql(description="Query a publication work using its id")]
+  fn publication(
+      context: &Context,
+      publisher_id: Uuid
+  ) -> FieldResult<Publisher> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::publisher::dsl::publisher
+        .find(publisher_id)
+        .get_result::<Publisher>(&connection) {
+            Ok(publisher) => Ok(publisher),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
+  #[graphql(
+    description="Query the full list of imprints",
+    arguments(
+        limit(
+            default = 100,
+            description = "The number of items to return"
+        ),
+        offset(
+            default = 0,
+            description = "The number of items to skip"
+        )
+    )
+  )]
+  fn imprints(
+      context: &Context,
+      limit: i32,
+      offset: i32,
+  ) -> Vec<Imprint> {
     use crate::schema::imprint::dsl::*;
     let connection = context.db.get().unwrap();
     imprint
-      .limit(100)
-      .load::<Imprint>(&connection)
-      .expect("Error loading imprints")
+        .order(imprint_name.asc())
+        .limit(limit.into())
+        .offset(offset.into())
+        .load::<Imprint>(&connection)
+        .expect("Error loading imprints")
   }
 
-  fn contributors(context: &Context) -> Vec<Contributor> {
+  #[graphql(description="Query a single imprint using its id")]
+  fn imprint(
+      context: &Context,
+      imprint_id: Uuid
+  ) -> FieldResult<Imprint> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::imprint::dsl::imprint
+        .find(imprint_id)
+        .get_result::<Imprint>(&connection) {
+            Ok(imprint) => Ok(imprint),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
+  #[graphql(
+    description="Query the full list of contributors",
+    arguments(
+        limit(
+            default = 100,
+            description = "The number of items to return"
+        ),
+        offset(
+            default = 0,
+            description = "The number of items to skip"
+        )
+    )
+  )]
+  fn contributors(
+      context: &Context,
+      limit: i32,
+      offset: i32,
+  ) -> Vec<Contributor> {
     use crate::schema::contributor::dsl::*;
     let connection = context.db.get().unwrap();
     contributor
-        .limit(100)
+        .order(full_name.asc())
+        .limit(limit.into())
+        .offset(offset.into())
         .load::<Contributor>(&connection)
         .expect("Error loading contributors")
   }
 
-  fn series(context: &Context) -> Vec<Series> {
+  #[graphql(description="Query a single contributor using its id")]
+  fn contributor(
+      context: &Context,
+      contributor_id: Uuid
+  ) -> FieldResult<Contributor> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::contributor::dsl::contributor
+        .find(contributor_id)
+        .get_result::<Contributor>(&connection) {
+            Ok(contributor) => Ok(contributor),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
+  #[graphql(
+    description="Query the full list of contributions",
+    arguments(
+        limit(
+            default = 100,
+            description = "The number of items to return"
+        ),
+        offset(
+            default = 0,
+            description = "The number of items to skip"
+        )
+    )
+  )]
+  fn contributions(
+      context: &Context,
+      limit: i32,
+      offset: i32,
+  ) -> Vec<Contribution> {
+    use crate::schema::contribution::dsl::*;
+    let connection = context.db.get().unwrap();
+    contribution
+        .order(contribution_type.asc())
+        .limit(limit.into())
+        .offset(offset.into())
+        .load::<Contribution>(&connection)
+        .expect("Error loading contributions")
+  }
+
+  #[graphql(description="Query a single contribution using its identifiers")]
+  fn contribution(
+      context: &Context,
+      work_id: Uuid,
+      contributor_id: Uuid,
+      contribution_type: ContributionType
+  ) -> FieldResult<Contribution> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::contribution::dsl::contribution
+        .filter(crate::schema::contribution::dsl::work_id.eq(work_id))
+        .filter(crate::schema::contribution::dsl::contributor_id.eq(
+                contributor_id))
+        .filter(crate::schema::contribution::dsl::contribution_type.eq(
+                contribution_type))
+        .get_result::<Contribution>(&connection) {
+            Ok(contribution) => Ok(contribution),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
+  #[graphql(
+    description="Query the full list of series",
+    arguments(
+        limit(
+            default = 100,
+            description = "The number of items to return"
+        ),
+        offset(
+            default = 0,
+            description = "The number of items to skip"
+        )
+    )
+  )]
+  fn serieses(
+      context: &Context,
+      limit: i32,
+      offset: i32,
+  ) -> Vec<Series> {
     use crate::schema::series::dsl::*;
     let connection = context.db.get().unwrap();
     series
-        .limit(100)
+        .order(series_name.asc())
+        .limit(limit.into())
+        .offset(offset.into())
         .load::<Series>(&connection)
         .expect("Error loading series")
   }
 
-  fn issues(context: &Context) -> Vec<Issue> {
+  #[graphql(description="Query a single series using its id")]
+  fn series(
+      context: &Context,
+      series_id: Uuid
+  ) -> FieldResult<Series> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::series::dsl::series
+        .find(series_id)
+        .get_result::<Series>(&connection) {
+            Ok(series) => Ok(series),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
+  #[graphql(
+    description="Query the full list of issues",
+    arguments(
+        limit(
+            default = 100,
+            description = "The number of items to return"
+        ),
+        offset(
+            default = 0,
+            description = "The number of items to skip"
+        )
+    )
+  )]
+  fn issues(
+      context: &Context,
+      limit: i32,
+      offset: i32,
+  ) -> Vec<Issue> {
     use crate::schema::issue::dsl::*;
     let connection = context.db.get().unwrap();
     issue
-        .limit(100)
+        .order(issue_ordinal.asc())
+        .limit(limit.into())
+        .offset(offset.into())
         .load::<Issue>(&connection)
         .expect("Error loading issues")
   }
 
-  fn languages(context: &Context) -> Vec<Language> {
+  #[graphql(description="Query a single issue using its identifiers")]
+  fn issue(
+      context: &Context,
+      series_id: Uuid,
+      work_id: Uuid
+  ) -> FieldResult<Issue> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::issue::dsl::issue
+        .filter(crate::schema::issue::dsl::series_id.eq(series_id))
+        .filter(crate::schema::issue::dsl::work_id.eq(work_id))
+        .get_result::<Issue>(&connection) {
+            Ok(issue) => Ok(issue),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
+  #[graphql(
+    description="Query the full list of languages",
+    arguments(
+        limit(
+            default = 100,
+            description = "The number of items to return"
+        ),
+        offset(
+            default = 0,
+            description = "The number of items to skip"
+        )
+    )
+  )]
+  fn languages(
+      context: &Context,
+      limit: i32,
+      offset: i32,
+  ) -> Vec<Language> {
     use crate::schema::language::dsl::*;
     let connection = context.db.get().unwrap();
     language
-        .limit(100)
+        .order(language_code.asc())
+        .limit(limit.into())
+        .offset(offset.into())
         .load::<Language>(&connection)
         .expect("Error loading languages")
   }
 
-  fn prices(context: &Context) -> Vec<Price> {
+  #[graphql(description="Query a single language using its id")]
+  fn language(
+      context: &Context,
+      language_id: Uuid
+  ) -> FieldResult<Language> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::language::dsl::language
+        .find(language_id)
+        .get_result::<Language>(&connection) {
+            Ok(language) => Ok(language),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
+  #[graphql(
+    description="Query the full list of prices",
+    arguments(
+        limit(
+            default = 100,
+            description = "The number of items to return"
+        ),
+        offset(
+            default = 0,
+            description = "The number of items to skip"
+        )
+    )
+  )]
+  fn prices(
+      context: &Context,
+      limit: i32,
+      offset: i32,
+  ) -> Vec<Price> {
     use crate::schema::price::dsl::*;
     let connection = context.db.get().unwrap();
     price
-        .limit(100)
+        .order(currency_code.asc())
+        .limit(limit.into())
+        .offset(offset.into())
         .load::<Price>(&connection)
         .expect("Error loading prices")
   }
 
-  fn subjects(context: &Context) -> Vec<Subject> {
+  #[graphql(description="Query a single price using its id")]
+  fn price(
+      context: &Context,
+      price_id: Uuid
+  ) -> FieldResult<Price> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::price::dsl::price
+        .find(price_id)
+        .get_result::<Price>(&connection) {
+            Ok(price) => Ok(price),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
+  #[graphql(
+    description="Query the full list of subjects",
+    arguments(
+        limit(
+            default = 100,
+            description = "The number of items to return"
+        ),
+        offset(
+            default = 0,
+            description = "The number of items to skip"
+        )
+    )
+  )]
+  fn subjects(
+      context: &Context,
+      limit: i32,
+      offset: i32,
+  ) -> Vec<Subject> {
     use crate::schema::subject::dsl::*;
     let connection = context.db.get().unwrap();
     subject
-        .limit(100)
+        .order(subject_type.asc())
+        .limit(limit.into())
+        .offset(offset.into())
         .load::<Subject>(&connection)
         .expect("Error loading subjects")
   }
 
-  fn funders(context: &Context) -> Vec<Funder> {
+  #[graphql(description="Query a single subject using its id")]
+  fn subject(
+      context: &Context,
+      subject_id: Uuid
+  ) -> FieldResult<Subject> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::subject::dsl::subject
+        .find(subject_id)
+        .get_result::<Subject>(&connection) {
+            Ok(subject) => Ok(subject),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
+  #[graphql(
+    description="Query the full list of funders",
+    arguments(
+        limit(
+            default = 100,
+            description = "The number of items to return"
+        ),
+        offset(
+            default = 0,
+            description = "The number of items to skip"
+        )
+    )
+  )]
+  fn funders(
+      context: &Context,
+      limit: i32,
+      offset: i32,
+      ) -> Vec<Funder> {
     use crate::schema::funder::dsl::*;
     let connection = context.db.get().unwrap();
     funder
-        .limit(100)
+        .order(funder_name.asc())
+        .limit(limit.into())
+        .offset(offset.into())
         .load::<Funder>(&connection)
         .expect("Error loading funders")
   }
 
-  fn funders(context: &Context) -> Vec<Funding> {
+  #[graphql(description="Query a single funder using its id")]
+  fn funder(
+      context: &Context,
+      funder_id: Uuid
+  ) -> FieldResult<Funder> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::funder::dsl::funder
+        .find(funder_id)
+        .get_result::<Funder>(&connection) {
+            Ok(funder) => Ok(funder),
+            Err(e) => Err(FieldError::from(e))?
+        }
+  }
+
+  #[graphql(
+    description="Query the full list of fundings",
+    arguments(
+        limit(
+            default = 100,
+            description = "The number of items to return"
+        ),
+        offset(
+            default = 0,
+            description = "The number of items to skip"
+        )
+    )
+  )]
+  fn fundings(
+      context: &Context,
+      limit: i32,
+      offset: i32,
+  ) -> Vec<Funding> {
     use crate::schema::funding::dsl::*;
     let connection = context.db.get().unwrap();
     funding
-        .limit(100)
+        .order(program.asc())
+        .limit(limit.into())
+        .offset(offset.into())
         .load::<Funding>(&connection)
         .expect("Error loading fundings")
+  }
+
+  #[graphql(description="Query a single funding using its id")]
+  fn funding(
+      context: &Context,
+      funding_id: Uuid
+  ) -> FieldResult<Funding> {
+    let connection = context.db.get().unwrap();
+    match crate::schema::funding::dsl::funding
+        .find(funding_id)
+        .get_result::<Funding>(&connection) {
+            Ok(funding) => Ok(funding),
+            Err(e) => Err(FieldError::from(e))?
+        }
   }
 }
 
@@ -139,131 +603,175 @@ pub struct MutationRoot;
 
 #[juniper::object(Context = Context)]
 impl MutationRoot {
-  fn create_work(context: &Context, data: NewWork) -> Work {
+  fn create_work(context: &Context, data: NewWork) -> FieldResult<Work> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(work::table)
+    match diesel::insert_into(work::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new work")
+      .get_result(&connection) {
+          Ok(work) => Ok(work),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_publisher(context: &Context, data: NewPublisher) -> Publisher {
+  fn create_publisher(
+      context: &Context,
+      data: NewPublisher
+  ) -> FieldResult<Publisher> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(publisher::table)
+    match diesel::insert_into(publisher::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new publisher")
+      .get_result(&connection) {
+          Ok(publisher) => Ok(publisher),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_imprint(context: &Context, data: NewImprint) -> Imprint {
+  fn create_imprint(
+      context: &Context,
+      data: NewImprint
+  ) -> FieldResult<Imprint> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(imprint::table)
+    match diesel::insert_into(imprint::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new imprint")
+      .get_result(&connection) {
+          Ok(imprint) => Ok(imprint),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
   fn create_contributor(
       context: &Context,
       data: NewContributor
-  ) -> Contributor {
+  ) -> FieldResult<Contributor> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(contributor::table)
+    match diesel::insert_into(contributor::table)
         .values(&data)
-        .get_result(&connection)
-        .expect("Error saving new contributor")
+        .get_result(&connection) {
+          Ok(contributor) => Ok(contributor),
+          Err(e) => Err(FieldError::from(e))?
+        }
   }
 
   fn create_contribution(
       context: &Context,
       data: NewContribution
-  ) -> Contribution {
+  ) -> FieldResult<Contribution> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(contribution::table)
+    match diesel::insert_into(contribution::table)
         .values(&data)
-        .get_result(&connection)
-        .expect("Error saving new contribution")
+        .get_result(&connection) {
+          Ok(contribution) => Ok(contribution),
+          Err(e) => Err(FieldError::from(e))?
+        }
   }
 
   fn create_publication(
       context: &Context,
       data: NewPublication
-  ) -> Publication {
+  ) -> FieldResult<Publication> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(publication::table)
+    match diesel::insert_into(publication::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new publication")
+      .get_result(&connection) {
+          Ok(publication) => Ok(publication),
+          Err(e) => Err(FieldError::from(e))?
+        }
   }
 
-  fn create_series(context: &Context, data: NewSeries) -> Series {
+  fn create_series(
+      context: &Context,
+      data: NewSeries
+  ) -> FieldResult<Series> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(series::table)
+    match diesel::insert_into(series::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new series")
+      .get_result(&connection) {
+          Ok(series) => Ok(series),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_issue(context: &Context, data: NewIssue) -> Issue {
+  fn create_issue(
+      context: &Context,
+      data: NewIssue
+  ) -> FieldResult<Issue> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(issue::table)
+    match diesel::insert_into(issue::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new issue")
+      .get_result(&connection) {
+          Ok(issue) => Ok(issue),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_language(context: &Context, data: NewLanguage) -> Language {
+  fn create_language(
+      context: &Context,
+      data: NewLanguage
+  ) -> FieldResult<Language> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(language::table)
+    match diesel::insert_into(language::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new language")
+      .get_result(&connection) {
+          Ok(language) => Ok(language),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_funder(context: &Context, data: NewFunder) -> Funder {
+  fn create_funder(
+      context: &Context,
+      data: NewFunder
+  ) -> FieldResult<Funder> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(funder::table)
+    match diesel::insert_into(funder::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new funder")
+      .get_result(&connection) {
+          Ok(funder) => Ok(funder),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_funding(context: &Context, data: NewFunding) -> Funding {
+  fn create_funding(
+      context: &Context,
+      data: NewFunding
+  ) -> FieldResult<Funding> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(funding::table)
+    match diesel::insert_into(funding::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new funding")
+      .get_result(&connection) {
+          Ok(funding) => Ok(funding),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_funding(context: &Context, data: NewFunding) -> Funding {
+  fn create_price(
+      context: &Context,
+      data: NewPrice
+  ) -> FieldResult<Price> {
     let connection = context.db.get().unwrap();
-    diesel::insert_into(funding::table)
+    match diesel::insert_into(price::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new funding")
+      .get_result(&connection) {
+          Ok(price) => Ok(price),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 
-  fn create_price(context: &Context, data: NewPrice) -> Price {
-    let connection = context.db.get().unwrap();
-    diesel::insert_into(price::table)
-      .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new price")
-  }
-
-  fn create_subject(context: &Context, data: NewSubject) -> Subject {
-    check_subject(&data.subject_type, &data.subject_code)
-        .unwrap_or_else(
-            |_| panic!("{} is not a valid {} code",
-            data.subject_code, data.subject_type.to_string())
-        );
+  fn create_subject(
+      context: &Context,
+      data: NewSubject
+  ) -> FieldResult<Subject> {
+    match check_subject(&data.subject_type, &data.subject_code) {
+        Ok(_)  => (),
+        Err(e) => Err(FieldError::from(e))?
+    };
 
     let connection = context.db.get().unwrap();
-    diesel::insert_into(subject::table)
+    match diesel::insert_into(subject::table)
       .values(&data)
-      .get_result(&connection)
-      .expect("Error saving new subject")
+      .get_result(&connection) {
+          Ok(subject) => Ok(subject),
+          Err(e) => Err(FieldError::from(e))?
+      }
   }
 }
 
