@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::io;
 
-use actix_web::{App, HttpServer, web, Error, HttpResponse};
+use actix_web::{App, HttpServer, web, Error, HttpResponse, http::header};
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
@@ -42,6 +42,14 @@ fn config(cfg: &mut web::ServiceConfig) {
     );
     cfg.data(
         schema_context
+    );
+    cfg.service(
+        web::resource("/").route(
+            web::get().to(|| HttpResponse::Found()
+                                .header(header::LOCATION, "/graphiql")
+                                .finish()
+                                .into_body()
+        ))
     );
     cfg.service(
         web::resource("/graphql").route(web::post().to(graphql))
