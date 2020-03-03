@@ -5,8 +5,6 @@ services:
     image: postgres:12
     container_name: "thoth_db"
     restart: unless-stopped
-    expose:
-      - 5432
     volumes:
       - db:/var/lib/postgresql/data
       - /etc/localtime:/etc/localtime:ro
@@ -17,8 +15,6 @@ services:
     image: openbookpublishers/thoth
     container_name: "thoth"
     restart: unless-stopped
-    expose:
-      - 8080
     env_file:
       - .env
     depends_on:
