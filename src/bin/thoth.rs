@@ -2,21 +2,9 @@ extern crate clap;
 use std::io;
 
 use clap::{Arg, App, AppSettings, crate_version, crate_authors};
-use actix_web::{App as WebApp, HttpServer};
 
-use thoth::server::config;
+use thoth::server::start_server;
 use thoth::db::run_migrations;
-
-#[actix_rt::main]
-async fn start_server(port: String) -> io::Result<()> {
-    HttpServer::new(move || {
-        WebApp::new()
-            .configure(config)
-    })
-    .bind(format!("0.0.0.0:{}", port))?
-    .run()
-    .await
-}
 
 fn main() -> io::Result<()> {
     let matches = App::new(env!("CARGO_PKG_NAME"))

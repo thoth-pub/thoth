@@ -1,6 +1,7 @@
 use std::sync::Arc;
+use std::io;
 
-use actix_web::{web, Error, HttpResponse};
+use actix_web::{App, HttpServer, web, Error, HttpResponse};
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
@@ -8,14 +9,14 @@ use juniper::http::GraphQLRequest;
 use crate::db::establish_connection;
 use crate::graphql_handlers::{create_schema, Context, Schema};
 
-pub async fn graphiql() -> HttpResponse {
+async fn graphiql() -> HttpResponse {
     let html = graphiql_source("/graphql");
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(html)
 }
 
-pub async fn graphql(
+async fn graphql(
     st: web::Data<Arc<Schema>>,
     ctx: web::Data<Context>,
     data: web::Json<GraphQLRequest>,
@@ -30,7 +31,7 @@ pub async fn graphql(
         .body(result))
 }
 
-pub fn config(cfg: &mut web::ServiceConfig) {
+fn config(cfg: &mut web::ServiceConfig) {
     dotenv().ok();
     let pool = establish_connection();
     let schema_context = Context { db: pool };
@@ -48,4 +49,15 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::resource("/graphiql").route(web::get().to(graphiql))
     );
+}
+
+#[actix_rt::main]
+pub async fn start_server(port: String) -> io::Result<()> {
+    HttpServer::new(move || {
+        App::new()
+            .configure(config)
+    })
+    .bind(format!("0.0.0.0:{}", port))?
+    .run()
+    .await
 }

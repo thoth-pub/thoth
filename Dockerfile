@@ -1,27 +1,21 @@
-FROM rust:1.40.0 AS build
+ARG BASE_IMAGE=ekidd/rust-musl-builder:latest
+
+FROM ${BASE_IMAGE} as build
 
 # Install thoth
-WORKDIR /usr/src/thoth
-COPY Cargo.toml Cargo.lock ./
-COPY ./src ./src
-COPY ./migrations ./migrations
-RUN cargo install --path .
+ADD --chown=rust:rust Cargo.toml Cargo.lock ./
+ADD --chown=rust:rust ./src ./src
+ADD --chown=rust:rust ./migrations ./migrations
+RUN cargo build --release
 
 # Switch to debian for run time
-FROM debian:buster-slim
-
-# Use postgres repo to get postgresql-client-12 (not yet distributed in buster)
-RUN apt-get update && apt-get install -y \
-  gnupg2 \
-  wget
-RUN wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-  | apt-key add -
-RUN echo "deb http://apt.postgresql.org/pub/repos/apt/ buster-pgdg main" \
-  | tee /etc/apt/sources.list.d/pgdg.list
-# Install dependencies
-RUN apt-get update && apt-get install -y postgresql-client-12
+FROM scratch
 
 # Get thoth and diesel binaries
-COPY --from=build /usr/local/cargo/bin/thoth /usr/local/bin/thoth
+COPY --from=build \
+    /home/rust/src/target/x86_64-unknown-linux-musl/release/thoth \
+    /usr/local/bin/
 
-CMD ["thoth", "init"]
+EXPOSE 8080
+
+CMD ["/usr/local/bin/thoth", "init"]
