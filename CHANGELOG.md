@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Changed
 - Port exposing is handled in Dockerfile instead of docker-compose
 - Moved server start function from binary to library
+- Docker image is now compiled statically
 
 ## Added
 - Added limit and offset arguments to all queries
