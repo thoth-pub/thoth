@@ -15,3 +15,4 @@ pub mod db;
 pub mod graphql_handlers;
 mod schema;
 pub mod models;
+pub mod onix;
