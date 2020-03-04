@@ -1,13 +1,12 @@
 extern crate clap;
-use std::io;
-
 use clap::{Arg, App, AppSettings, crate_version, crate_authors};
 
+use thoth::errors::Result;
 use thoth::server::start_server;
 use thoth::db::run_migrations;
 use thoth::onix::generate_onix_3;
 
-fn main() -> io::Result<()> {
+fn main() -> Result<()> {
     let matches = App::new(env!("CARGO_PKG_NAME"))
         .version(crate_version!())
         .author(crate_authors!())
@@ -58,7 +57,10 @@ fn main() -> io::Result<()> {
     match matches.subcommand() {
             ("start", Some(start_matches)) => {
                 let port = start_matches.value_of("port").unwrap();
-                start_server(port.to_owned())
+                match start_server(port.to_owned()) {
+                    Ok(_) => Ok(()),
+                    Err(_) => panic!("Could not start server")
+                }
             }
             ("migrate", Some(_)) => {
                 run_migrations()
@@ -66,7 +68,10 @@ fn main() -> io::Result<()> {
             ("init", Some(init_matches)) => {
                 let port = init_matches.value_of("port").unwrap();
                 run_migrations()?;
-                start_server(port.to_owned())
+                match start_server(port.to_owned()) {
+                   Ok(_) => Ok(()),
+                   Err(_) => panic!("Could not start server")
+                }
             }
             ("onix", Some(onix_matches)) => {
                 let work_id = onix_matches.value_of("work-id").unwrap();
