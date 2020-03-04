@@ -5,6 +5,8 @@ use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool, PoolError};
 use diesel_migrations::embed_migrations;
 
+use crate::errors;
+
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
 fn init_pool(database_url: &str) -> Result<PgPool, PoolError> {
@@ -30,10 +32,12 @@ pub fn establish_connection() -> PgPool {
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
-pub fn run_migrations() -> io::Result<()> {
+pub fn run_migrations() -> errors::Result<()> {
     embed_migrations!("migrations");
     let connection = establish_connection().get().unwrap();
-    embedded_migrations::run_with_output(&connection, &mut io::stdout())
-        .expect("Can't run migrations");
-    Ok(())
+    match embedded_migrations::run_with_output(&connection, &mut io::stdout()) {
+        Ok(_) => Ok(()),
+        Err(_) => Err(errors::ThothError::DatabaseError(
+                "Could not run migrations".to_string()).into())
+    }
 }
