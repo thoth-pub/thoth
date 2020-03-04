@@ -3,7 +3,6 @@ use uuid::Uuid;
 use phf::{Map, phf_map};
 use crate::schema::subject;
 use crate::errors::*;
-use crate::errors::SubjectError::*;
 
 #[derive(Debug, PartialEq, DbEnum)]
 #[derive(juniper::GraphQLEnum)]
@@ -35,7 +34,7 @@ pub struct NewSubject {
     pub subject_ordinal: i32,
 }
 
-pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<(), SubjectError> {
+pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<()> {
     let valid = match &subject_type {
         SubjectType::Bic => BIC_CODES.contains_key::<str>(&code),
         SubjectType::Bisac => BISAC_CODES.contains_key::<str>(&code),
@@ -47,7 +46,8 @@ pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<(), Subje
     if valid {
         Ok(())
     } else {
-        Err(InvalidCode(code.to_string(), subject_type.to_string()))
+        Err(ThothError::InvalidSubjectCode(
+                code.to_string(), subject_type.to_string()).into())
     }
 }
 
