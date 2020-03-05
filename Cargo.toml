@@ -5,6 +5,12 @@ authors = ["Javier Arias <javi@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
 description = "GraphQL API for bibliographic data"
+repository = "https://github.com/openbookpublishers/thoth"
+readme = "README.md"
+
+[badges]
+travis-ci = { repository = "openbookpublishers/thoth" }
+maintenance = { status = "actively-developed" }
 
 [dependencies]
 actix-http = "1.0.1"
