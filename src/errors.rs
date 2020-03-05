@@ -45,7 +45,7 @@ impl From<reqwest::Error> for ThothError {
 
 impl From<failure::Error> for ThothError {
     fn from(error: failure::Error) -> ThothError {
-        if let Some(_) = error.downcast_ref::<ThothError>() {
+        if error.downcast_ref::<ThothError>().is_some() {
             return error.downcast::<ThothError>().unwrap();
         }
         ThothError::InternalError(error.to_string())
