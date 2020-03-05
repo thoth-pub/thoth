@@ -1,11 +1,13 @@
 use std::fmt;
-use uuid::Uuid;
-use phf::{Map, phf_map};
-use crate::schema::subject;
-use crate::errors::*;
 
-#[derive(Debug, PartialEq, DbEnum)]
-#[derive(juniper::GraphQLEnum)]
+use phf::phf_map;
+use phf::Map;
+use uuid::Uuid;
+
+use crate::errors::*;
+use crate::schema::subject;
+
+#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
 #[DieselType = "Subject_type"]
 pub enum SubjectType {
     Bic,
@@ -46,8 +48,7 @@ pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<()> {
     if valid {
         Ok(())
     } else {
-        Err(ThothError::InvalidSubjectCode(
-                code.to_string(), subject_type.to_string()).into())
+        Err(ThothError::InvalidSubjectCode(code.to_string(), subject_type.to_string()).into())
     }
 }
 

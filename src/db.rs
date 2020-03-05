@@ -1,9 +1,10 @@
 use std::env;
 use std::io;
-use dotenv::dotenv;
+
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool, PoolError};
 use diesel_migrations::embed_migrations;
+use dotenv::dotenv;
 
 use crate::errors;
 
@@ -28,8 +29,7 @@ fn get_database_url() -> String {
 
 pub fn establish_connection() -> PgPool {
     let database_url = get_database_url();
-    init_pool(&database_url)
-        .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
+    init_pool(&database_url).unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
 pub fn run_migrations() -> errors::Result<()> {
@@ -37,7 +37,8 @@ pub fn run_migrations() -> errors::Result<()> {
     let connection = establish_connection().get().unwrap();
     match embedded_migrations::run_with_output(&connection, &mut io::stdout()) {
         Ok(_) => Ok(()),
-        Err(_) => Err(errors::ThothError::DatabaseError(
-                "Could not run migrations".to_string()).into())
+        Err(_) => {
+            Err(errors::ThothError::DatabaseError("Could not run migrations".to_string()).into())
+        }
     }
 }

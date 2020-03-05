@@ -1,6 +1,7 @@
 use uuid::Uuid;
-use crate::schema::publisher;
+
 use crate::schema::imprint;
+use crate::schema::publisher;
 
 #[derive(Queryable)]
 pub struct Publisher {

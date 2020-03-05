@@ -1,10 +1,9 @@
-use uuid::Uuid;
 use chrono::naive::NaiveDate;
+use uuid::Uuid;
 
 use crate::schema::work;
 
-#[derive(Debug, PartialEq, DbEnum)]
-#[derive(juniper::GraphQLEnum)]
+#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
 #[DieselType = "Work_type"]
 pub enum WorkType {
     #[db_rename = "book-chapter"]
@@ -19,8 +18,7 @@ pub enum WorkType {
     BookSet,
 }
 
-#[derive(Debug, PartialEq, DbEnum)]
-#[derive(juniper::GraphQLEnum)]
+#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
 #[DieselType = "Work_status"]
 pub enum WorkStatus {
     Unspecified,
