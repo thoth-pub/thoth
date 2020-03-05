@@ -8,10 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
   - Pin compiler's docker image to a specific version (best practice)
   - Use COPY instead of ADD for directories in Dockerfile (best practice)
+  - [#24](https://github.com/openbookpublishers/thoth/issues/24) - Implemented rust style guidelines
 
 ### Added
   - [#23](https://github.com/openbookpublishers/thoth/issues/23) - Redirect "/" to "/graphiql"
   - [#18](https://github.com/openbookpublishers/thoth/issues/18) - Create ThothError structure to start catching all other types of errors
+  - [#24](https://github.com/openbookpublishers/thoth/issues/24) - Enforce rust style guidelines using husky (pre-push hook) and travis
+  - [#17](https://github.com/openbookpublishers/thoth/issues/17) - Allow producing a proto ONIX file from the binary
 
 ## [[0.1.2]](https://github.com/OpenBookPublishers/thoth/releases/tag/v0.1.2) - 2020-03-03
 ### Changed
