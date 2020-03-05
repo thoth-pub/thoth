@@ -60,7 +60,7 @@ fn main() -> Result<()> {
                 let port = start_matches.value_of("port").unwrap();
                 match start_server(port.to_owned()) {
                     Ok(_) => Ok(()),
-                    Err(e) => Err(ThothError::from(e))?
+                    Err(e) => Err(ThothError::from(e).into())
                 }
 
             }
@@ -72,7 +72,7 @@ fn main() -> Result<()> {
                 run_migrations()?;
                 match start_server(port.to_owned()) {
                    Ok(_) => Ok(()),
-                    Err(e) => Err(ThothError::from(e))?
+                    Err(e) => Err(ThothError::from(e).into())
                 }
             }
             ("onix", Some(onix_matches)) => {
@@ -82,7 +82,7 @@ fn main() -> Result<()> {
                     thoth_url.to_owned(), work_id.to_owned()
                 ) {
                     Ok(_) => Ok(()),
-                    Err(e) => Err(ThothError::from(e))?
+                    Err(e) => Err(ThothError::from(e).into())
                 }
             }
             _ => unreachable!(),
