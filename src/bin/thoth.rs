@@ -2,6 +2,7 @@ extern crate clap;
 use clap::{Arg, App, AppSettings, crate_version, crate_authors};
 
 use thoth::errors::Result;
+use thoth::errors::ThothError;
 use thoth::server::start_server;
 use thoth::db::run_migrations;
 use thoth::onix::generate_onix_3;
@@ -59,8 +60,9 @@ fn main() -> Result<()> {
                 let port = start_matches.value_of("port").unwrap();
                 match start_server(port.to_owned()) {
                     Ok(_) => Ok(()),
-                    Err(_) => panic!("Could not start server")
+                    Err(e) => Err(ThothError::from(e))?
                 }
+
             }
             ("migrate", Some(_)) => {
                 run_migrations()
@@ -70,7 +72,7 @@ fn main() -> Result<()> {
                 run_migrations()?;
                 match start_server(port.to_owned()) {
                    Ok(_) => Ok(()),
-                   Err(_) => panic!("Could not start server")
+                    Err(e) => Err(ThothError::from(e))?
                 }
             }
             ("onix", Some(onix_matches)) => {
@@ -80,7 +82,7 @@ fn main() -> Result<()> {
                     thoth_url.to_owned(), work_id.to_owned()
                 ) {
                     Ok(_) => Ok(()),
-                    Err(_) => Ok(())
+                    Err(e) => Err(ThothError::from(e))?
                 }
             }
             _ => unreachable!(),
