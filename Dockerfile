@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ekidd/rust-musl-builder:latest
+ARG BASE_IMAGE=ekidd/rust-musl-builder:1.41.0
 
 FROM ${BASE_IMAGE} as build
 
