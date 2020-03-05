@@ -34,3 +34,6 @@ uuid = "0.7"
 openssl = "0.10.28"
 reqwest = { version = "0.10", features = ["json"] }
 tokio = { version = "0.2", features = ["full"] }
+
+[dev-dependencies]
+cargo-husky = { version = "1.5.0", default-features = false, features = ["prepush-hook", "run-cargo-check", "run-cargo-test", "run-cargo-clippy", "run-cargo-fmt"] }
