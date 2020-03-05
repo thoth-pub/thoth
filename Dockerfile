@@ -3,9 +3,9 @@ ARG BASE_IMAGE=ekidd/rust-musl-builder:latest
 FROM ${BASE_IMAGE} as build
 
 # Install thoth
-ADD --chown=rust:rust Cargo.toml Cargo.lock ./
-ADD --chown=rust:rust ./src ./src
-ADD --chown=rust:rust ./migrations ./migrations
+COPY --chown=rust:rust Cargo.toml Cargo.lock ./
+COPY --chown=rust:rust ./src ./src
+COPY --chown=rust:rust ./migrations ./migrations
 RUN cargo build --release
 
 # Switch to debian for run time
