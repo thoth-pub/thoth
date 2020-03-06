@@ -1,21 +1,9 @@
-#[tokio::main]
-pub async fn generate_onix_3(url: String, work_id: String) -> Result<(), reqwest::Error> {
-    let query = format!(
-        "{{
-            work(workId: \"{}\") {{
-                workId
-                title
-                workType
-        }}}}",
-        work_id
-    );
-    let echo_json: serde_json::Value = reqwest::Client::new()
-        .post(&url)
-        .json(&serde_json::json!({ "query": query }))
-        .send()
-        .await?
-        .json()
-        .await?;
-    println!("{:#?}", echo_json["data"]["work"]);
+use crate::client::work_query::WorkQueryWork;
+use crate::errors::Result;
+
+pub fn generate_onix_3(work: WorkQueryWork) -> Result<()> {
+    println!("{:#?}", work);
+    let doi: String = work.doi.unwrap();
+    println!("{:#?}", doi);
     Ok(())
 }

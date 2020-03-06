@@ -1,5 +1,8 @@
 extern crate clap;
 use clap::{crate_authors, crate_version, App, AppSettings, Arg};
+use uuid::Uuid;
+
+use thoth::client::get_work;
 use thoth::db::run_migrations;
 use thoth::errors::Result;
 use thoth::errors::ThothError;
@@ -79,12 +82,11 @@ fn main() -> Result<()> {
             }
         }
         ("onix", Some(onix_matches)) => {
-            let work_id = onix_matches.value_of("work-id").unwrap();
+            let work_id_str = onix_matches.value_of("work-id").unwrap();
             let thoth_url = onix_matches.value_of("thoth-url").unwrap();
-            match generate_onix_3(thoth_url.to_owned(), work_id.to_owned()) {
-                Ok(_) => Ok(()),
-                Err(e) => Err(ThothError::from(e).into()),
-            }
+            let work_id = Uuid::parse_str(work_id_str).unwrap();
+            let work = get_work(work_id, thoth_url.to_owned());
+            generate_onix_3(work)
         }
         _ => unreachable!(),
     }
