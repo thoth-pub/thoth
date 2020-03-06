@@ -9,6 +9,7 @@ extern crate dotenv;
 #[macro_use]
 extern crate juniper;
 
+pub mod client;
 pub mod db;
 pub mod errors;
 pub mod graphql_handlers;
