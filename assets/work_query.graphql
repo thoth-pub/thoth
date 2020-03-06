@@ -2,6 +2,8 @@ query WorkQuery($workId: Uuid!) {
     work(workId: $workId) {
         workId
         fullTitle
+        title
+        subtitle
         workType
         doi
         license
