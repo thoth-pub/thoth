@@ -43,6 +43,12 @@ impl From<reqwest::Error> for ThothError {
     }
 }
 
+impl From<xml::writer::Error> for ThothError {
+    fn from(error: xml::writer::Error) -> ThothError {
+        ThothError::InternalError(error.to_string())
+    }
+}
+
 impl From<failure::Error> for ThothError {
     fn from(error: failure::Error) -> ThothError {
         if error.downcast_ref::<ThothError>().is_some() {
