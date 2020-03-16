@@ -9,6 +9,7 @@ query WorkQuery($workId: Uuid!) {
         license
         longAbstract
         place
+        pageCount
         publicationDate
         landingPage
         imprint {
@@ -30,6 +31,7 @@ query WorkQuery($workId: Uuid!) {
             languageRelation
         }
         publications {
+            publicationId
             publicationType
             isbn
         }
