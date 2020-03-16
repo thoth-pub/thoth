@@ -49,18 +49,22 @@ fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
 ) -> Result<()> {
     let mut event_builder: StartElementBuilder = XmlEvent::start_element(element);
 
-    for (k, v) in ns.unwrap().iter() {
-        event_builder = event_builder.ns(
-            string_to_static_str(k.clone()),
-            string_to_static_str(v.clone()),
-        );
+    if let Some(ns) = ns {
+        for (k, v) in ns.iter() {
+            event_builder = event_builder.ns(
+                string_to_static_str(k.clone()),
+                string_to_static_str(v.clone()),
+            );
+        }
     }
 
-    for (k, v) in attr.unwrap().iter() {
-        event_builder = event_builder.attr(
-            string_to_static_str(k.clone()),
-            string_to_static_str(v.clone()),
-        );
+    if let Some(attr) = attr {
+        for (k, v) in attr.iter() {
+            event_builder = event_builder.attr(
+                string_to_static_str(k.clone()),
+                string_to_static_str(v.clone()),
+            );
+        }
     }
 
     let mut event: XmlEvent = event_builder.into();
