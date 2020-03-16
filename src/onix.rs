@@ -49,22 +49,18 @@ fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
 ) -> Result<()> {
     let mut event_builder: StartElementBuilder = XmlEvent::start_element(element);
 
-    if ns.is_some() {
-        for (k, v) in ns.unwrap().iter() {
-            event_builder = event_builder.ns(
-                string_to_static_str(k.clone()),
-                string_to_static_str(v.clone()),
-            );
-        }
+    for (k, v) in ns.unwrap().iter() {
+        event_builder = event_builder.ns(
+            string_to_static_str(k.clone()),
+            string_to_static_str(v.clone()),
+        );
     }
 
-    if attr.is_some() {
-        for (k, v) in attr.unwrap().iter() {
-            event_builder = event_builder.attr(
-                string_to_static_str(k.clone()),
-                string_to_static_str(v.clone()),
-            );
-        }
+    for (k, v) in attr.unwrap().iter() {
+        event_builder = event_builder.attr(
+            string_to_static_str(k.clone()),
+            string_to_static_str(v.clone()),
+        );
     }
 
     let mut event: XmlEvent = event_builder.into();
@@ -105,7 +101,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
         }
     }
     let license = match &work.license.as_ref() {
-        Some(license) => license.to_string(),
+        Some(license) => (*license).to_string(),
         None => "".to_string(),
     };
 
@@ -114,13 +110,13 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
             write_element_block("Sender", None, None, w, |w| {
                 write_element_block("SenderName", None, None, w, |w| {
                     let event: XmlEvent =
-                        XmlEvent::Characters(&work.imprint.publisher.publisher_name).into();
+                        XmlEvent::Characters(&work.imprint.publisher.publisher_name);
                     w.write(event).ok();
                 })
                 .ok();
                 write_element_block("EmailAddress", None, None, w, |w| {
                     let event: XmlEvent =
-                        XmlEvent::Characters("javi@openbookpublishers.com").into();
+                        XmlEvent::Characters("javi@openbookpublishers.com");
                     w.write(event).ok();
                 })
                 .ok();
@@ -128,7 +124,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
             .ok();
             write_element_block("SentDateTime", None, None, w, |w| {
                 let utc = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-                let event: XmlEvent = XmlEvent::Characters(&utc).into();
+                let event: XmlEvent = XmlEvent::Characters(&utc);
                 w.write(event).ok();
             })
             .ok();
@@ -137,31 +133,31 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
 
         write_element_block("Product", None, None, w, |w| {
             write_element_block("RecordReference", None, None, w, |w| {
-                let event: XmlEvent = XmlEvent::Characters(&work_id).into();
+                let event: XmlEvent = XmlEvent::Characters(&work_id);
                 w.write(event).ok();
             })
             .ok();
             // 03 Notification confirmed on publication
             write_element_block("NotificationType", None, None, w, |w| {
-                let event: XmlEvent = XmlEvent::Characters("03").into();
+                let event: XmlEvent = XmlEvent::Characters("03");
                 w.write(event).ok();
             })
             .ok();
             // 01 Publisher
             write_element_block("RecordSourceType", None, None, w, |w| {
-                let event: XmlEvent = XmlEvent::Characters("01").into();
+                let event: XmlEvent = XmlEvent::Characters("01");
                 w.write(event).ok();
             })
             .ok();
             write_element_block("ProductIdentifier", None, None, w, |w| {
                 // 01 Proprietary
                 write_element_block("ProductIDType", None, None, w, |w| {
-                    let event: XmlEvent = XmlEvent::Characters("01").into();
+                    let event: XmlEvent = XmlEvent::Characters("01");
                     w.write(event).ok();
                 })
                 .ok();
                 write_element_block("IDValue", None, None, w, |w| {
-                    let event: XmlEvent = XmlEvent::Characters(work_id).into();
+                    let event: XmlEvent = XmlEvent::Characters(work_id);
                     w.write(event).ok();
                 })
                 .ok();
@@ -170,12 +166,12 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
             write_element_block("ProductIdentifier", None, None, w, |w| {
                 // 15 ISBN-13
                 write_element_block("ProductIDType", None, None, w, |w| {
-                    let event: XmlEvent = XmlEvent::Characters("15").into();
+                    let event: XmlEvent = XmlEvent::Characters("15");
                     w.write(event).ok();
                 })
                 .ok();
                 write_element_block("IDValue", None, None, w, |w| {
-                    let event: XmlEvent = XmlEvent::Characters(&isbn).into();
+                    let event: XmlEvent = XmlEvent::Characters(&isbn);
                     w.write(event).ok();
                 })
                 .ok();
@@ -184,12 +180,12 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
             if !doi.is_empty() {
                 write_element_block("ProductIdentifier", None, None, w, |w| {
                     write_element_block("ProductIDType", None, None, w, |w| {
-                        let event: XmlEvent = XmlEvent::Characters("06").into();
+                        let event: XmlEvent = XmlEvent::Characters("06");
                         w.write(event).ok();
                     })
                     .ok();
                     write_element_block("IDValue", None, None, w, |w| {
-                        let event: XmlEvent = XmlEvent::Characters(&doi).into();
+                        let event: XmlEvent = XmlEvent::Characters(&doi);
                         w.write(event).ok();
                     })
                     .ok();
@@ -199,25 +195,25 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
             write_element_block("DescriptiveDetail", None, None, w, |w| {
                 // 00 Single-component retail product
                 write_element_block("ProductComposition", None, None, w, |w| {
-                    let event: XmlEvent = XmlEvent::Characters("00").into();
+                    let event: XmlEvent = XmlEvent::Characters("00");
                     w.write(event).ok();
                 })
                 .ok();
                 // EB Digital download and online
                 write_element_block("ProductForm", None, None, w, |w| {
-                    let event: XmlEvent = XmlEvent::Characters("EB").into();
+                    let event: XmlEvent = XmlEvent::Characters("EB");
                     w.write(event).ok();
                 })
                 .ok();
                 // E107 PDF
                 write_element_block("ProductFormDetail", None, None, w, |w| {
-                    let event: XmlEvent = XmlEvent::Characters("E107").into();
+                    let event: XmlEvent = XmlEvent::Characters("E107");
                     w.write(event).ok();
                 })
                 .ok();
                 // 10 Text (eye-readable)
                 write_element_block("PrimaryContentType", None, None, w, |w| {
-                    let event: XmlEvent = XmlEvent::Characters("10").into();
+                    let event: XmlEvent = XmlEvent::Characters("10");
                     w.write(event).ok();
                 })
                 .ok();
@@ -225,18 +221,18 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     write_element_block("EpubLicense", None, None, w, |w| {
                         write_element_block("EpubLicenseName", None, None, w, |w| {
                             let event: XmlEvent =
-                                XmlEvent::Characters("Creative Commons License").into();
+                                XmlEvent::Characters("Creative Commons License");
                             w.write(event).ok();
                         })
                         .ok();
                         write_element_block("EpubLicenseExpression", None, None, w, |w| {
                             write_element_block("EpubLicenseExpressionType", None, None, w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters("02").into();
+                                let event: XmlEvent = XmlEvent::Characters("02");
                                 w.write(event).ok();
                             })
                             .ok();
                             write_element_block("EpubLicenseExpressionLink", None, None, w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters(&license).into();
+                                let event: XmlEvent = XmlEvent::Characters(&license);
                                 w.write(event).ok();
                             })
                             .ok();
@@ -248,31 +244,31 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                 write_element_block("TitleDetail", None, None, w, |w| {
                     // 01 Distinctive title (book)
                     write_element_block("TitleType", None, None, w, |w| {
-                        let event: XmlEvent = XmlEvent::Characters("01").into();
+                        let event: XmlEvent = XmlEvent::Characters("01");
                         w.write(event).ok();
                     })
                     .ok();
                     write_element_block("TitleElement", None, None, w, |w| {
                         // 01 Product
                         write_element_block("TitleElementLevel", None, None, w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters("01").into();
+                            let event: XmlEvent = XmlEvent::Characters("01");
                             w.write(event).ok();
                         })
                         .ok();
                         if subtitle.is_empty() {
                             write_element_block("TitleText", None, None, w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters(&work.full_title).into();
+                                let event: XmlEvent = XmlEvent::Characters(&work.full_title);
                                 w.write(event).ok();
                             })
                             .ok();
                         } else {
                             write_element_block("TitleText", None, None, w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters(&work.title).into();
+                                let event: XmlEvent = XmlEvent::Characters(&work.title);
                                 w.write(event).ok();
                             })
                             .ok();
                             write_element_block("Subtitle", None, None, w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters(subtitle).into();
+                                let event: XmlEvent = XmlEvent::Characters(subtitle);
                                 w.write(event).ok();
                             })
                             .ok();
@@ -285,18 +281,18 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     write_element_block("Extent", None, None, w, |w| {
                         // 00 Main content
                         write_element_block("ExtentType", None, None, w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters("00").into();
+                            let event: XmlEvent = XmlEvent::Characters("00");
                             w.write(event).ok();
                         })
                         .ok();
                         write_element_block("ExtentValue", None, None, w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters(&page_count).into();
+                            let event: XmlEvent = XmlEvent::Characters(&page_count);
                             w.write(event).ok();
                         })
                         .ok();
                         // 03 Pages
                         write_element_block("ExtentUnit", None, None, w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters("03").into();
+                            let event: XmlEvent = XmlEvent::Characters("03");
                             w.write(event).ok();
                         })
                         .ok();
@@ -308,13 +304,13 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                         // 00 Main content
                         write_element_block("SubjectSchemeIdentifier", None, None, w, |w| {
                             let scheme = stype_to_scheme(&subject.subject_type);
-                            let event: XmlEvent = XmlEvent::Characters(scheme).into();
+                            let event: XmlEvent = XmlEvent::Characters(scheme);
                             w.write(event).ok();
                         })
                         .ok();
                         write_element_block("SubjectCode", None, None, w, |w| {
                             let event: XmlEvent =
-                                XmlEvent::Characters(&subject.subject_code).into();
+                                XmlEvent::Characters(&subject.subject_code);
                             w.write(event).ok();
                         })
                         .ok();
