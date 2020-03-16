@@ -115,8 +115,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                 })
                 .ok();
                 write_element_block("EmailAddress", None, None, w, |w| {
-                    let event: XmlEvent =
-                        XmlEvent::Characters("javi@openbookpublishers.com");
+                    let event: XmlEvent = XmlEvent::Characters("javi@openbookpublishers.com");
                     w.write(event).ok();
                 })
                 .ok();
@@ -220,8 +219,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                 if !license.is_empty() {
                     write_element_block("EpubLicense", None, None, w, |w| {
                         write_element_block("EpubLicenseName", None, None, w, |w| {
-                            let event: XmlEvent =
-                                XmlEvent::Characters("Creative Commons License");
+                            let event: XmlEvent = XmlEvent::Characters("Creative Commons License");
                             w.write(event).ok();
                         })
                         .ok();
@@ -309,8 +307,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                         })
                         .ok();
                         write_element_block("SubjectCode", None, None, w, |w| {
-                            let event: XmlEvent =
-                                XmlEvent::Characters(&subject.subject_code);
+                            let event: XmlEvent = XmlEvent::Characters(&subject.subject_code);
                             w.write(event).ok();
                         })
                         .ok();
