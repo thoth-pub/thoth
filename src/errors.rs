@@ -1,35 +1,59 @@
-use actix_http::ResponseBuilder;
-use actix_web::{error, http::header, http::StatusCode, HttpResponse};
 use failure::Fail;
 
+pub type Result<T> = std::result::Result<T, failure::Error>;
+
 #[derive(Fail, Debug)]
-pub enum SubjectError {
+pub enum ThothError {
     #[fail(display = "{} is not a valid {} code", _0, _1)]
-    InvalidCode(String, String),
+    InvalidSubjectCode(String, String),
+    #[fail(display = "Database error: {}", _0)]
+    DatabaseError(String),
+    #[fail(display = "Internal error: {}", _0)]
+    InternalError(String),
 }
 
-impl error::ResponseError for SubjectError {
-    fn error_response(&self) -> HttpResponse {
-        ResponseBuilder::new(self.status_code())
-            .set_header(header::CONTENT_TYPE, "text/html; charset=utf-8")
-            .body(self.to_string())
-    }
-    fn status_code(&self) -> StatusCode {
-        match *self {
-            SubjectError::InvalidCode { .. } => StatusCode::BAD_REQUEST,
-        }
-    }
-}
-
-impl juniper::IntoFieldError for SubjectError {
+impl juniper::IntoFieldError for ThothError {
     fn into_field_error(self) -> juniper::FieldError {
         match self {
-            SubjectError::InvalidCode { .. } => juniper::FieldError::new(
+            ThothError::InvalidSubjectCode { .. } => juniper::FieldError::new(
                 self.to_string(),
                 graphql_value!({
                     "type": "INVALID_SUBJECT_CODE"
                 }),
             ),
+            _ => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "INTERNAL_ERROR"
+                }),
+            ),
         }
+    }
+}
+
+impl From<std::io::Error> for ThothError {
+    fn from(error: std::io::Error) -> ThothError {
+        ThothError::InternalError(error.to_string())
+    }
+}
+
+impl From<reqwest::Error> for ThothError {
+    fn from(error: reqwest::Error) -> ThothError {
+        ThothError::InternalError(error.to_string())
+    }
+}
+
+impl From<xml::writer::Error> for ThothError {
+    fn from(error: xml::writer::Error) -> ThothError {
+        ThothError::InternalError(error.to_string())
+    }
+}
+
+impl From<failure::Error> for ThothError {
+    fn from(error: failure::Error) -> ThothError {
+        if error.downcast_ref::<ThothError>().is_some() {
+            return error.downcast::<ThothError>().unwrap();
+        }
+        ThothError::InternalError(error.to_string())
     }
 }

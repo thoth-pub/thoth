@@ -1,6 +1,7 @@
+use uuid::Uuid;
+
 use crate::schema::funder;
 use crate::schema::funding;
-use uuid::Uuid;
 
 #[derive(Queryable)]
 pub struct Funder {

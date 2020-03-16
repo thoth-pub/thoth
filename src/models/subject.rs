@@ -1,9 +1,10 @@
-use crate::errors::SubjectError::*;
-use crate::errors::*;
-use crate::schema::subject;
-use phf::{phf_map, Map};
+use phf::phf_map;
+use phf::Map;
 use std::fmt;
 use uuid::Uuid;
+
+use crate::errors::*;
+use crate::schema::subject;
 
 #[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
 #[DieselType = "Subject_type"]
@@ -34,7 +35,7 @@ pub struct NewSubject {
     pub subject_ordinal: i32,
 }
 
-pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<(), SubjectError> {
+pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<()> {
     let valid = match &subject_type {
         SubjectType::Bic => BIC_CODES.contains_key::<str>(&code),
         SubjectType::Bisac => BISAC_CODES.contains_key::<str>(&code),
@@ -46,7 +47,7 @@ pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<(), Subje
     if valid {
         Ok(())
     } else {
-        Err(InvalidCode(code.to_string(), subject_type.to_string()))
+        Err(ThothError::InvalidSubjectCode(code.to_string(), subject_type.to_string()).into())
     }
 }
 

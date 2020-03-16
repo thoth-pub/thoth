@@ -1,6 +1,7 @@
+use uuid::Uuid;
+
 use crate::schema::issue;
 use crate::schema::series;
-use uuid::Uuid;
 
 #[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
 #[DieselType = "Series_type"]

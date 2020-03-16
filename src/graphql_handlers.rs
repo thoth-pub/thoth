@@ -69,7 +69,7 @@ impl QueryRoot {
             .get_result::<Work>(&connection)
         {
             Ok(work) => Ok(work),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -99,7 +99,7 @@ impl QueryRoot {
             .get_result::<Publication>(&connection)
         {
             Ok(publication) => Ok(publication),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -142,7 +142,7 @@ impl QueryRoot {
             .get_result::<Publisher>(&connection)
         {
             Ok(publisher) => Ok(publisher),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -172,7 +172,7 @@ impl QueryRoot {
             .get_result::<Imprint>(&connection)
         {
             Ok(imprint) => Ok(imprint),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -202,7 +202,7 @@ impl QueryRoot {
             .get_result::<Contributor>(&connection)
         {
             Ok(contributor) => Ok(contributor),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -239,7 +239,7 @@ impl QueryRoot {
             .get_result::<Contribution>(&connection)
         {
             Ok(contribution) => Ok(contribution),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -269,7 +269,7 @@ impl QueryRoot {
             .get_result::<Series>(&connection)
         {
             Ok(series) => Ok(series),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -300,7 +300,7 @@ impl QueryRoot {
             .get_result::<Issue>(&connection)
         {
             Ok(issue) => Ok(issue),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -330,7 +330,7 @@ impl QueryRoot {
             .get_result::<Language>(&connection)
         {
             Ok(language) => Ok(language),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -360,7 +360,7 @@ impl QueryRoot {
             .get_result::<Price>(&connection)
         {
             Ok(price) => Ok(price),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -390,7 +390,7 @@ impl QueryRoot {
             .get_result::<Subject>(&connection)
         {
             Ok(subject) => Ok(subject),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -420,7 +420,7 @@ impl QueryRoot {
             .get_result::<Funder>(&connection)
         {
             Ok(funder) => Ok(funder),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -450,7 +450,7 @@ impl QueryRoot {
             .get_result::<Funding>(&connection)
         {
             Ok(funding) => Ok(funding),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 }
@@ -466,7 +466,7 @@ impl MutationRoot {
             .get_result(&connection)
         {
             Ok(work) => Ok(work),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -477,7 +477,7 @@ impl MutationRoot {
             .get_result(&connection)
         {
             Ok(publisher) => Ok(publisher),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -488,7 +488,7 @@ impl MutationRoot {
             .get_result(&connection)
         {
             Ok(imprint) => Ok(imprint),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -499,7 +499,7 @@ impl MutationRoot {
             .get_result(&connection)
         {
             Ok(contributor) => Ok(contributor),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -510,7 +510,7 @@ impl MutationRoot {
             .get_result(&connection)
         {
             Ok(contribution) => Ok(contribution),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -521,7 +521,7 @@ impl MutationRoot {
             .get_result(&connection)
         {
             Ok(publication) => Ok(publication),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -532,7 +532,7 @@ impl MutationRoot {
             .get_result(&connection)
         {
             Ok(series) => Ok(series),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -543,7 +543,7 @@ impl MutationRoot {
             .get_result(&connection)
         {
             Ok(issue) => Ok(issue),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -554,7 +554,7 @@ impl MutationRoot {
             .get_result(&connection)
         {
             Ok(language) => Ok(language),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -565,7 +565,7 @@ impl MutationRoot {
             .get_result(&connection)
         {
             Ok(funder) => Ok(funder),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -576,7 +576,7 @@ impl MutationRoot {
             .get_result(&connection)
         {
             Ok(funding) => Ok(funding),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -587,15 +587,12 @@ impl MutationRoot {
             .get_result(&connection)
         {
             Ok(price) => Ok(price),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
     fn create_subject(context: &Context, data: NewSubject) -> FieldResult<Subject> {
-        match check_subject(&data.subject_type, &data.subject_code) {
-            Ok(_) => (),
-            Err(e) => Err(FieldError::from(e))?,
-        };
+        check_subject(&data.subject_type, &data.subject_code)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(subject::table)
@@ -603,7 +600,7 @@ impl MutationRoot {
             .get_result(&connection)
         {
             Ok(subject) => Ok(subject),
-            Err(e) => Err(FieldError::from(e))?,
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 }

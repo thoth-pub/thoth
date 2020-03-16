@@ -1,5 +1,6 @@
-use crate::schema::language;
 use uuid::Uuid;
+
+use crate::schema::language;
 
 #[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
 #[DieselType = "Language_relation"]

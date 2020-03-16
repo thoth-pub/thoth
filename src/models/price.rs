@@ -1,5 +1,6 @@
-use crate::schema::price;
 use uuid::Uuid;
+
+use crate::schema::price;
 
 #[derive(Queryable)]
 pub struct Price {

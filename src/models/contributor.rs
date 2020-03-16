@@ -1,6 +1,7 @@
+use uuid::Uuid;
+
 use crate::schema::contribution;
 use crate::schema::contributor;
-use uuid::Uuid;
 
 #[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
 #[DieselType = "Contribution_type"]

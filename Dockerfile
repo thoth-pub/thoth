@@ -1,14 +1,14 @@
-ARG BASE_IMAGE=ekidd/rust-musl-builder:latest
+ARG BASE_IMAGE=ekidd/rust-musl-builder:1.41.0
 
 FROM ${BASE_IMAGE} as build
 
-# Install thoth
-ADD --chown=rust:rust Cargo.toml Cargo.lock ./
-ADD --chown=rust:rust ./src ./src
-ADD --chown=rust:rust ./migrations ./migrations
+# Compile thoth for release
+COPY --chown=rust:rust Cargo.toml Cargo.lock ./
+COPY --chown=rust:rust ./src ./src
+COPY --chown=rust:rust ./migrations ./migrations
 RUN cargo build --release
 
-# Switch to debian for run time
+# Switch to minimal image for run time
 FROM scratch
 
 # Get thoth and diesel binaries
@@ -16,6 +16,8 @@ COPY --from=build \
     /home/rust/src/target/x86_64-unknown-linux-musl/release/thoth \
     /usr/local/bin/
 
+# Expose thoth's default port
 EXPOSE 8080
 
+# Run `thoth init` (runs migrations and starts the server on port 8080)
 CMD ["/usr/local/bin/thoth", "init"]
