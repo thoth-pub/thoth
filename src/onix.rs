@@ -7,6 +7,8 @@ use xml::writer::events::StartElementBuilder;
 use xml::writer::{EmitterConfig, EventWriter, Result, XmlEvent};
 
 use crate::client::work_query::WorkQueryWork;
+use crate::client::work_query::SubjectType;
+use crate::client::work_query::PublicationType;
 use crate::errors;
 
 pub fn generate_onix_3(mut work: WorkQueryWork) -> errors::Result<()> {
@@ -24,6 +26,18 @@ pub fn generate_onix_3(mut work: WorkQueryWork) -> errors::Result<()> {
 
 fn string_to_static_str(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
+}
+
+fn stype_to_scheme(subject_type: &SubjectType) -> &str {
+    match subject_type {
+        SubjectType::BIC => "12",
+        SubjectType::BISAC => "10",
+        SubjectType::KEYWORD => "20",
+        SubjectType::LCC => "04",
+        SubjectType::THEMA => "93",
+        SubjectType::CUSTOM => "B2", // B2 Keywords (not for display)
+        _ => unreachable!(),
+    }
 }
 
 fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
@@ -61,17 +75,36 @@ fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
 }
 
 fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> Result<()> {
-    let mut ns_map: HashMap<String, String> = HashMap::new();
+    let ns_map: HashMap<String, String> = HashMap::new();
     let mut attr_map: HashMap<String, String> = HashMap::new();
-
-    ns_map.insert("dpc".to_string(), "https://uba.uva.nl/dpc".to_string());
 
     attr_map.insert("xmlns".to_string(), "http://ns.editeur.org/onix/3.0/reference".to_string());
     attr_map.insert("release".to_string(), "3.0".to_string());
 
-    let doi = &work.doi.as_ref().unwrap().replace("https://doi.org/", "");
     let work_id = &work.work_id.to_string();
+    let doi = match &work.doi.as_ref() {
+        Some(doi) => doi.replace("https://doi.org/", ""),
+        None => "".to_string(),
+    };
+    let page_count = match &work.page_count.as_ref() {
+        Some(page_count) => page_count.to_string(),
+        None => "".to_string(),
+    };
     let subtitle = &work.subtitle.as_ref().unwrap();
+    let mut isbn = "".to_string();
+    for publication in &work.publications {
+        if publication.publication_type.eq(&PublicationType::PDF) {
+            isbn = match &publication.isbn.as_ref() {
+                Some(isbn) => isbn.replace("-", ""),
+                None => "".to_string(),
+            };
+            break;
+        }
+    }
+    let license = match &work.license.as_ref() {
+        Some(license) => license.to_string(),
+        None => "".to_string(),
+    };
 
     return write_element_block(
         "ONIXMessage",
@@ -99,7 +132,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
 
             write_element_block("Product", None, None, w, |w| {
                 write_element_block("RecordReference", None, None, w, |w| {
-                    let event: XmlEvent = XmlEvent::Characters(work_id).into();
+                    let event: XmlEvent = XmlEvent::Characters(&work_id).into();
                     w.write(event).ok();
                 }).ok();
                 // 03 Notification confirmed on publication
@@ -123,6 +156,17 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                         w.write(event).ok();
                     }).ok();
                 }).ok();
+                write_element_block("ProductIdentifier", None, None, w, |w| {
+                    // 15 ISBN-13
+                    write_element_block("ProductIDType", None, None, w, |w| {
+                        let event: XmlEvent = XmlEvent::Characters("15").into();
+                        w.write(event).ok();
+                    }).ok();
+                    write_element_block("IDValue", None, None, w, |w| {
+                        let event: XmlEvent = XmlEvent::Characters(&isbn).into();
+                        w.write(event).ok();
+                    }).ok();
+                }).ok();
                 if !doi.is_empty() {
                     write_element_block("ProductIdentifier", None, None, w, |w| {
                         write_element_block("ProductIDType", None, None, w, |w| {
@@ -130,12 +174,50 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                             w.write(event).ok();
                         }).ok();
                         write_element_block("IDValue", None, None, w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters(doi).into();
+                            let event: XmlEvent = XmlEvent::Characters(&doi).into();
                             w.write(event).ok();
                         }).ok();
                     }).ok();
                 }
                 write_element_block("DescriptiveDetail", None, None, w, |w| {
+                    // 00 Single-component retail product
+                    write_element_block("ProductComposition", None, None, w, |w| {
+                        let event: XmlEvent = XmlEvent::Characters("00").into();
+                        w.write(event).ok();
+                    }).ok();
+                    // EB Digital download and online
+                    write_element_block("ProductForm", None, None, w, |w| {
+                        let event: XmlEvent = XmlEvent::Characters("EB").into();
+                        w.write(event).ok();
+                    }).ok();
+                    // E107 PDF
+                    write_element_block("ProductFormDetail", None, None, w, |w| {
+                        let event: XmlEvent = XmlEvent::Characters("E107").into();
+                        w.write(event).ok();
+                    }).ok();
+                    // 10 Text (eye-readable)
+                    write_element_block("PrimaryContentType", None, None, w, |w| {
+                        let event: XmlEvent = XmlEvent::Characters("10").into();
+                        w.write(event).ok();
+                    }).ok();
+                    if !license.is_empty() {
+                    write_element_block("EpubLicense", None, None, w, |w| {
+                        write_element_block("EpubLicenseName", None, None, w, |w| {
+                            let event: XmlEvent = XmlEvent::Characters("Creative Commons License").into();
+                            w.write(event).ok();
+                        }).ok();
+                        write_element_block("EpubLicenseExpression", None, None, w, |w| {
+                            write_element_block("EpubLicenseExpressionType", None, None, w, |w| {
+                                let event: XmlEvent = XmlEvent::Characters("02").into();
+                                w.write(event).ok();
+                            }).ok();
+                            write_element_block("EpubLicenseExpressionLink", None, None, w, |w| {
+                                let event: XmlEvent = XmlEvent::Characters(&license).into();
+                                w.write(event).ok();
+                            }).ok();
+                        }).ok();
+                    }).ok();
+                    }
                     write_element_block("TitleDetail", None, None, w, |w| {
                         // 01 Distinctive title (book)
                         write_element_block("TitleType", None, None, w, |w| {
@@ -165,6 +247,38 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                             }
                         }).ok();
                     }).ok();
+                    if !page_count.is_empty() {
+                    write_element_block("Extent", None, None, w, |w| {
+                        // 00 Main content
+                        write_element_block("ExtentType", None, None, w, |w| {
+                            let event: XmlEvent = XmlEvent::Characters("00").into();
+                            w.write(event).ok();
+                        }).ok();
+                        write_element_block("ExtentValue", None, None, w, |w| {
+                            let event: XmlEvent = XmlEvent::Characters(&page_count).into();
+                            w.write(event).ok();
+                        }).ok();
+                        // 03 Pages
+                        write_element_block("ExtentUnit", None, None, w, |w| {
+                            let event: XmlEvent = XmlEvent::Characters("03").into();
+                            w.write(event).ok();
+                        }).ok();
+                    }).ok();
+                    }
+                    for subject in &work.subjects {
+                    write_element_block("Subject", None, None, w, |w| {
+                        // 00 Main content
+                        write_element_block("SubjectSchemeIdentifier", None, None, w, |w| {
+                            let scheme = stype_to_scheme(&subject.subject_type);
+                            let event: XmlEvent = XmlEvent::Characters(scheme).into();
+                            w.write(event).ok();
+                        }).ok();
+                        write_element_block("SubjectCode", None, None, w, |w| {
+                            let event: XmlEvent = XmlEvent::Characters(&subject.subject_code).into();
+                            w.write(event).ok();
+                        }).ok();
+                    }).ok();
+                    }
                 }).ok();
             }).ok();
         },
