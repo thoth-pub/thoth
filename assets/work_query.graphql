@@ -1,0 +1,43 @@
+query WorkQuery($workId: Uuid!) {
+    work(workId: $workId) {
+        workId
+        fullTitle
+        title
+        subtitle
+        workType
+        doi
+        license
+        longAbstract
+        place
+        pageCount
+        publicationDate
+        landingPage
+        imprint {
+            publisher {
+                publisherName
+            }
+        }
+        contributions {
+            contributionType
+            contributor {
+                firstName
+                lastName
+                fullName
+                orcid
+            }
+        }
+        languages {
+            languageCode
+            languageRelation
+        }
+        publications {
+            publicationId
+            publicationType
+            isbn
+        }
+        subjects {
+            subjectCode
+            subjectType
+        }
+    }
+}

@@ -1,9 +1,9 @@
 use uuid::Uuid;
-use crate::schema::contributor;
-use crate::schema::contribution;
 
-#[derive(Debug, PartialEq, DbEnum)]
-#[derive(juniper::GraphQLEnum)]
+use crate::schema::contribution;
+use crate::schema::contributor;
+
+#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
 #[DieselType = "Contribution_type"]
 pub enum ContributionType {
     Author,
@@ -22,7 +22,6 @@ pub enum ContributionType {
     #[db_rename = "preface-by"]
     PrefaceBy,
 }
-
 
 #[derive(Queryable)]
 pub struct Contributor {

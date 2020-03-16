@@ -5,13 +5,19 @@ authors = ["Javier Arias <javi@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
 description = "GraphQL API for bibliographic data"
+repository = "https://github.com/openbookpublishers/thoth"
+readme = "README.md"
+
+[badges]
+travis-ci = { repository = "openbookpublishers/thoth" }
+maintenance = { status = "actively-developed" }
 
 [dependencies]
 actix-http = "1.0.1"
 actix-web = "2.0.0"
 actix-rt = "1.0.0"
 clap = "2.33.0"
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
 diesel = { version = "1.4.0", features = ["postgres", "uuidv07", "chrono", "r2d2"] }
 diesel_migrations = { version = "1.4.0", features = ["postgres"] }
 diesel-derive-enum = { version = "0.4", features = ["postgres"] }
@@ -24,5 +30,12 @@ phf = { version = "0.8", features = ["macros"] }
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-uuid = "0.7"
-openssl = "*"
+uuid = { version = "0.7", features = ["serde"] }
+openssl = "0.10.28"
+reqwest = { version = "0.10", features = ["json"] }
+tokio = { version = "0.2", features = ["full"] }
+graphql_client = "0.8.0"
+xml-rs = "0.8.0"
+
+[dev-dependencies]
+cargo-husky = { version = "1.5.0", default-features = false, features = ["prepush-hook", "run-cargo-check", "run-cargo-test", "run-cargo-clippy", "run-cargo-fmt"] }
