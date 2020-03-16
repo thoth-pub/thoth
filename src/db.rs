@@ -1,9 +1,9 @@
-use std::env;
-use std::io;
-use dotenv::dotenv;
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool, PoolError};
 use diesel_migrations::embed_migrations;
+use dotenv::dotenv;
+use std::env;
+use std::io;
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -26,8 +26,7 @@ fn get_database_url() -> String {
 
 pub fn establish_connection() -> PgPool {
     let database_url = get_database_url();
-    init_pool(&database_url)
-        .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
+    init_pool(&database_url).unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
 pub fn run_migrations() -> io::Result<()> {

@@ -1,12 +1,11 @@
+use crate::errors::SubjectError::*;
+use crate::errors::*;
+use crate::schema::subject;
+use phf::{phf_map, Map};
 use std::fmt;
 use uuid::Uuid;
-use phf::{Map, phf_map};
-use crate::schema::subject;
-use crate::errors::*;
-use crate::errors::SubjectError::*;
 
-#[derive(Debug, PartialEq, DbEnum)]
-#[derive(juniper::GraphQLEnum)]
+#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
 #[DieselType = "Subject_type"]
 pub enum SubjectType {
     Bic,

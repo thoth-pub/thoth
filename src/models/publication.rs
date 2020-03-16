@@ -1,8 +1,7 @@
-use uuid::Uuid;
 use crate::schema::publication;
+use uuid::Uuid;
 
-#[derive(Debug, PartialEq, DbEnum)]
-#[derive(juniper::GraphQLEnum)]
+#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
 #[DieselType = "Publication_type"]
 pub enum PublicationType {
     #[db_rename = "Paperback"]

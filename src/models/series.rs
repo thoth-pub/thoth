@@ -1,9 +1,8 @@
-use uuid::Uuid;
-use crate::schema::series;
 use crate::schema::issue;
+use crate::schema::series;
+use uuid::Uuid;
 
-#[derive(Debug, PartialEq, DbEnum)]
-#[derive(juniper::GraphQLEnum)]
+#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
 #[DieselType = "Series_type"]
 pub enum SeriesType {
     Journal,

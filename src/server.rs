@@ -1,7 +1,7 @@
-use std::sync::Arc;
 use std::io;
+use std::sync::Arc;
 
-use actix_web::{App, HttpServer, web, Error, HttpResponse, http::header};
+use actix_web::{http::header, web, App, Error, HttpResponse, HttpServer};
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
@@ -37,35 +37,22 @@ fn config(cfg: &mut web::ServiceConfig) {
     let schema_context = Context { db: pool };
     let schema = std::sync::Arc::new(create_schema());
 
-    cfg.data(
-        schema.clone()
-    );
-    cfg.data(
-        schema_context
-    );
-    cfg.service(
-        web::resource("/").route(
-            web::get().to(|| HttpResponse::Found()
-                                .header(header::LOCATION, "/graphiql")
-                                .finish()
-                                .into_body()
-        ))
-    );
-    cfg.service(
-        web::resource("/graphql").route(web::post().to(graphql))
-    );
-    cfg.service(
-        web::resource("/graphiql").route(web::get().to(graphiql))
-    );
+    cfg.data(schema.clone());
+    cfg.data(schema_context);
+    cfg.service(web::resource("/").route(web::get().to(|| {
+        HttpResponse::Found()
+            .header(header::LOCATION, "/graphiql")
+            .finish()
+            .into_body()
+    })));
+    cfg.service(web::resource("/graphql").route(web::post().to(graphql)));
+    cfg.service(web::resource("/graphiql").route(web::get().to(graphiql)));
 }
 
 #[actix_rt::main]
 pub async fn start_server(port: String) -> io::Result<()> {
-    HttpServer::new(move || {
-        App::new()
-            .configure(config)
-    })
-    .bind(format!("0.0.0.0:{}", port))?
-    .run()
-    .await
+    HttpServer::new(move || App::new().configure(config))
+        .bind(format!("0.0.0.0:{}", port))?
+        .run()
+        .await
 }

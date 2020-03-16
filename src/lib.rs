@@ -9,9 +9,9 @@ extern crate diesel_derive_enum;
 #[macro_use]
 extern crate diesel_migrations;
 
-pub mod errors;
-pub mod server;
 pub mod db;
+pub mod errors;
 pub mod graphql_handlers;
-mod schema;
 pub mod models;
+mod schema;
+pub mod server;
