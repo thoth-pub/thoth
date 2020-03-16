@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## \[Unreleased\]
 ### Changed
+
+### Added
+
+
+## [[0.1.3]](https://github.com/OpenBookPublishers/thoth/releases/tag/v0.1.3) - 2020-03-16
+### Changed
   - Pin compiler's docker image to a specific version (best practice)
   - Use COPY instead of ADD for directories in Dockerfile (best practice)
   - [#24](https://github.com/openbookpublishers/thoth/issues/24) - Implemented rust style guidelines
