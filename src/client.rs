@@ -15,7 +15,7 @@ async fn query_work(
     work_id: Uuid,
     thoth_url: String,
 ) -> Result<Response<work_query::ResponseData>, failure::Error> {
-    let request_body = WorkQuery::build_query(work_query::Variables { work_id: work_id });
+    let request_body = WorkQuery::build_query(work_query::Variables { work_id });
     let client = reqwest::Client::new();
     let res = client.post(&thoth_url).json(&request_body).send().await?;
     let response_body: Response<work_query::ResponseData> = res.json().await?;
