@@ -71,7 +71,7 @@ fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
     w.write(event)?;
     f(w);
     event = XmlEvent::end_element().into();
-    return w.write(event);
+    w.write(event)
 }
 
 fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> Result<()> {
@@ -109,7 +109,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
         None => "".to_string(),
     };
 
-    return write_element_block("ONIXMessage", Some(ns_map), Some(attr_map), w, |w| {
+    write_element_block("ONIXMessage", Some(ns_map), Some(attr_map), w, |w| {
         write_element_block("Header", None, None, w, |w| {
             write_element_block("Sender", None, None, w, |w| {
                 write_element_block("SenderName", None, None, w, |w| {
@@ -325,5 +325,5 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
             .ok();
         })
         .ok();
-    });
+    })
 }
