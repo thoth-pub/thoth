@@ -129,7 +129,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
         None => "".to_string(),
     };
     let date = match &work.publication_date.as_ref() {
-        Some(date) => date.format("%Y-%m").to_string(),
+        Some(date) => date.format("%Y%m").to_string(),
         None => "".to_string(),
     };
 
@@ -375,7 +375,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                         let mut date_format: HashMap<String, String> = HashMap::new();
                         date_format.insert(
                             "dateformat".to_string(),
-                            "05".to_string(),
+                            "01".to_string(), // 01 YYYYMM
                         );
                         write_element_block("PublishingDate", None, None, w, |w| {
                             // 19 Publication date of print counterpart
