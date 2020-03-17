@@ -9,6 +9,7 @@ use xml::writer::{EmitterConfig, EventWriter, Result, XmlEvent};
 use crate::client::work_query::PublicationType;
 use crate::client::work_query::SubjectType;
 use crate::client::work_query::WorkQueryWork;
+use crate::client::work_query::WorkStatus;
 use crate::errors;
 
 pub fn generate_onix_3(mut work: WorkQueryWork) -> errors::Result<()> {
@@ -36,6 +37,25 @@ fn stype_to_scheme(subject_type: &SubjectType) -> &str {
         SubjectType::LCC => "04",
         SubjectType::THEMA => "93",
         SubjectType::CUSTOM => "B2", // B2 Keywords (not for display)
+        _ => unreachable!(),
+    }
+}
+
+fn wstatus_to_status(work_status: &WorkStatus) -> &str {
+    match work_status {
+        WorkStatus::UNSPECIFIED => "00",
+        WorkStatus::CANCELLED => "01",
+        WorkStatus::FORTHCOMING => "02",
+        WorkStatus::POSTPONED_INDEFINITELY => "03",
+        WorkStatus::ACTIVE => "04",
+        WorkStatus::NO_LONGER_OUR_PRODUCT => "05",
+        WorkStatus::OUT_OF_STOCK_INDEFINITELY => "06",
+        WorkStatus::OUT_OF_PRINT => "07",
+        WorkStatus::INACTIVE => "08",
+        WorkStatus::UNKNOWN => "09",
+        WorkStatus::REMAINDERED => "10",
+        WorkStatus::WITHDRAWN_FROM_SALE => "11",
+        WorkStatus::RECALLED => "15",
         _ => unreachable!(),
     }
 }
@@ -106,6 +126,10 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
     }
     let license = match &work.license.as_ref() {
         Some(license) => (*license).to_string(),
+        None => "".to_string(),
+    };
+    let date = match &work.publication_date.as_ref() {
+        Some(date) => date.format("%Y-%m").to_string(),
         None => "".to_string(),
     };
 
@@ -318,6 +342,54 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     })
                     .ok();
                 }
+                write_element_block("PublishingDetail", None, None, w, |w| {
+                    write_element_block("Imprint", None, None, w, |w| {
+                        write_element_block("ImprintName", None, None, w, |w| {
+                            let event: XmlEvent = XmlEvent::Characters(&work.imprint.imprint_name);
+                            w.write(event).ok();
+                        })
+                        .ok();
+                    })
+                    .ok();
+                    write_element_block("Publisher", None, None, w, |w| {
+                        // 01 Publisher
+                        write_element_block("PublishingRole", None, None, w, |w| {
+                            let event: XmlEvent = XmlEvent::Characters("01");
+                            w.write(event).ok();
+                        })
+                        .ok();
+                        write_element_block("PublisherName", None, None, w, |w| {
+                            let event: XmlEvent = XmlEvent::Characters(&work.imprint.publisher.publisher_name);
+                            w.write(event).ok();
+                        })
+                        .ok();
+                    })
+                    .ok();
+                    write_element_block("PublishingStatus", None, None, w, |w| {
+                        let status = wstatus_to_status(&work.work_status);
+                        let event: XmlEvent = XmlEvent::Characters(status);
+                        w.write(event).ok();
+                    })
+                    .ok();
+                    if !date.is_empty() {
+                        write_element_block("PublishingDate", None, None, w, |w| {
+                            // 19 Publication date of print counterpart
+                            write_element_block("PublishingDateRole", None, None, w, |w| {
+                                let event: XmlEvent = XmlEvent::Characters("19");
+                                w.write(event).ok();
+                            })
+                            .ok();
+                            // dateformat="01" YYYYMM
+                            write_element_block("Date", None, None, w, |w| {
+                                let event: XmlEvent = XmlEvent::Characters(&date);
+                                w.write(event).ok();
+                            })
+                            .ok();
+                        })
+                        .ok();
+                    }
+                })
+                .ok();
             })
             .ok();
         })
