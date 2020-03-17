@@ -373,8 +373,8 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     })
                     .ok();
                     if !date.is_empty() {
-                        let mut date_format: HashMap<String, String> = HashMap::new();
-                        date_format.insert(
+                        let mut date_fmt: HashMap<String, String> = HashMap::new();
+                        date_fmt.insert(
                             "dateformat".to_string(),
                             "01".to_string(), // 01 YYYYMM
                         );
@@ -386,16 +386,10 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                             })
                             .ok();
                             // dateformat="01" YYYYMM
-                            write_element_block(
-                                "Date",
-                                None,
-                                Some(date_format.to_owned()),
-                                w,
-                                |w| {
-                                    let event: XmlEvent = XmlEvent::Characters(&date);
-                                    w.write(event).ok();
-                                },
-                            )
+                            write_element_block("Date", None, Some(date_fmt.to_owned()), w, |w| {
+                                let event: XmlEvent = XmlEvent::Characters(&date);
+                                w.write(event).ok();
+                            })
                             .ok();
                         })
                         .ok();
