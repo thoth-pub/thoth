@@ -372,6 +372,11 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     })
                     .ok();
                     if !date.is_empty() {
+                        let mut date_format: HashMap<String, String> = HashMap::new();
+                        date_format.insert(
+                            "dateformat".to_string(),
+                            "05".to_string(),
+                        );
                         write_element_block("PublishingDate", None, None, w, |w| {
                             // 19 Publication date of print counterpart
                             write_element_block("PublishingDateRole", None, None, w, |w| {
@@ -380,7 +385,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                             })
                             .ok();
                             // dateformat="01" YYYYMM
-                            write_element_block("Date", None, None, w, |w| {
+                            write_element_block("Date", None, Some(date_format.to_owned()), w, |w| {
                                 let event: XmlEvent = XmlEvent::Characters(&date);
                                 w.write(event).ok();
                             })
