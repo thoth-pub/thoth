@@ -359,7 +359,8 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                         })
                         .ok();
                         write_element_block("PublisherName", None, None, w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters(&work.imprint.publisher.publisher_name);
+                            let event: XmlEvent =
+                                XmlEvent::Characters(&work.imprint.publisher.publisher_name);
                             w.write(event).ok();
                         })
                         .ok();
@@ -385,10 +386,16 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                             })
                             .ok();
                             // dateformat="01" YYYYMM
-                            write_element_block("Date", None, Some(date_format.to_owned()), w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters(&date);
-                                w.write(event).ok();
-                            })
+                            write_element_block(
+                                "Date",
+                                None,
+                                Some(date_format.to_owned()),
+                                w,
+                                |w| {
+                                    let event: XmlEvent = XmlEvent::Characters(&date);
+                                    w.write(event).ok();
+                                },
+                            )
                             .ok();
                         })
                         .ok();
