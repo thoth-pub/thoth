@@ -106,10 +106,15 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
 
     let work_id = format!("urn:uuid:{}", &work.work_id.to_string());
     let mut isbn = "".to_string();
+    let mut pdf_url = "".to_string();
     for publication in &work.publications {
         if publication.publication_type.eq(&PublicationType::PDF) {
             isbn = match &publication.isbn.as_ref() {
                 Some(isbn) => isbn.replace("-", ""),
+                None => "".to_string(),
+            };
+            pdf_url = match &publication.publication_url.as_ref() {
+                Some(pdf_url) => pdf_url.to_string(),
                 None => "".to_string(),
             };
             break;
@@ -428,6 +433,104 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                         write_element_block("Date", None, Some(date_fmt.to_owned()), w, |w| {
                             let pub_date = date.format("%Y%m").to_string();
                             let event: XmlEvent = XmlEvent::Characters(&pub_date);
+                            w.write(event).ok();
+                        })
+                        .ok();
+                    })
+                    .ok();
+                }
+            })
+            .ok();
+            write_element_block("RelatedMaterial", None, None, w, |w| {
+                for publication in &work.publications {
+                    if !publication.publication_type.eq(&PublicationType::PDF) {
+                        if let Some(isbn) = &publication.isbn.as_ref() {
+                            write_element_block("RelatedProduct", None, None, w, |w| {
+                                // 06 Alternative format
+                                write_element_block("ProductRelationCode", None, None, w, |w| {
+                                    let event: XmlEvent = XmlEvent::Characters("06");
+                                    w.write(event).ok();
+                                })
+                                .ok();
+                                write_element_block("ProductIdentifier", None, None, w, |w| {
+                                    // 06 ISBN
+                                    write_element_block("ProductIDType", None, None, w, |w| {
+                                        let event: XmlEvent = XmlEvent::Characters("06");
+                                        w.write(event).ok();
+                                    })
+                                    .ok();
+                                    write_element_block("IDValue", None, None, w, |w| {
+                                        let nohyphen_isbn = isbn.replace("-", "");
+                                        let event: XmlEvent = XmlEvent::Characters(&nohyphen_isbn);
+                                        w.write(event).ok();
+                                    })
+                                    .ok();
+                                })
+                                .ok();
+                            })
+                            .ok();
+                        }
+                    }
+                }
+            })
+            .ok();
+            write_element_block("ProductSupply", None, None, w, |w| {
+                let mut supplies: HashMap<String, String> = HashMap::new();
+                supplies.insert(
+                    pdf_url.to_string(),
+                    "Publisher's website: download the title".to_string(),
+                );
+                if let Some(landing_page) = &work.landing_page.as_ref() {
+                    supplies.insert(
+                        landing_page.to_string(),
+                        "Publisher's website: web shop".to_string(),
+                    );
+                }
+                for (url, description) in supplies.iter() {
+                    write_element_block("SupplyDetail", None, None, w, |w| {
+                        write_element_block("Supplier", None, None, w, |w| {
+                            // 09 Publisher to end-customers
+                            write_element_block("SupplierRole", None, None, w, |w| {
+                                let event: XmlEvent = XmlEvent::Characters("11");
+                                w.write(event).ok();
+                            })
+                            .ok();
+                            write_element_block("SupplierName", None, None, w, |w| {
+                                let event: XmlEvent =
+                                    XmlEvent::Characters(&work.imprint.publisher.publisher_name);
+                                w.write(event).ok();
+                            })
+                            .ok();
+                            write_element_block("Website", None, None, w, |w| {
+                                // 01 Publisher’s corporate website
+                                write_element_block("WebsiteRole", None, None, w, |w| {
+                                    let event: XmlEvent = XmlEvent::Characters("01");
+                                    w.write(event).ok();
+                                })
+                                .ok();
+                                write_element_block("WebsiteDescription", None, None, w, |w| {
+                                    let event: XmlEvent = XmlEvent::Characters(&description);
+                                    w.write(event).ok();
+                                })
+                                .ok();
+                                write_element_block("WebsiteLink", None, None, w, |w| {
+                                    let event: XmlEvent = XmlEvent::Characters(&url);
+                                    w.write(event).ok();
+                                })
+                                .ok();
+                            })
+                            .ok();
+                        })
+                        .ok();
+                        // 99 Contact supplier
+                        write_element_block("ProductAvailability", None, None, w, |w| {
+                            let event: XmlEvent = XmlEvent::Characters("99");
+                            w.write(event).ok();
+                        })
+                        .ok();
+                        // 04 Contact supplier
+                        write_element_block("UnpricedItemType", None, None, w, |w| {
+                            let event: XmlEvent = XmlEvent::Characters("04");
                             w.write(event).ok();
                         })
                         .ok();
