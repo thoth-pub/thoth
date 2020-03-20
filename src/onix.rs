@@ -104,7 +104,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
     );
     attr_map.insert("release".to_string(), "3.0".to_string());
 
-    let work_id = &work.work_id.to_string();
+    let work_id = format!("urn:uuid:{}", &work.work_id.to_string());
     let mut isbn = "".to_string();
     for publication in &work.publications {
         if publication.publication_type.eq(&PublicationType::PDF) {
@@ -167,7 +167,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                 })
                 .ok();
                 write_element_block("IDValue", None, None, w, |w| {
-                    let event: XmlEvent = XmlEvent::Characters(work_id);
+                    let event: XmlEvent = XmlEvent::Characters(&work_id);
                     w.write(event).ok();
                 })
                 .ok();
