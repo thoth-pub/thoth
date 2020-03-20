@@ -120,10 +120,6 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
             break;
         }
     }
-    let license = match &work.license.as_ref() {
-        Some(license) => (*license).to_string(),
-        None => "".to_string(),
-    };
     let date = match &work.publication_date.as_ref() {
         Some(date) => date.format("%Y%m").to_string(),
         None => "".to_string(),
@@ -240,7 +236,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     w.write(event).ok();
                 })
                 .ok();
-                if !license.is_empty() {
+                if let Some(license) = &work.license.as_ref() {
                     write_element_block("EpubLicense", None, None, w, |w| {
                         write_element_block("EpubLicenseName", None, None, w, |w| {
                             let event: XmlEvent = XmlEvent::Characters("Creative Commons License");
@@ -254,7 +250,8 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                             })
                             .ok();
                             write_element_block("EpubLicenseExpressionLink", None, None, w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters(&license);
+                                let license_url = license.to_string();
+                                let event: XmlEvent = XmlEvent::Characters(&license_url);
                                 w.write(event).ok();
                             })
                             .ok();
