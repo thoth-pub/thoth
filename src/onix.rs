@@ -120,10 +120,6 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
             break;
         }
     }
-    let date = match &work.publication_date.as_ref() {
-        Some(date) => date.format("%Y%m").to_string(),
-        None => "".to_string(),
-    };
 
     write_element_block("ONIXMessage", Some(ns_map), Some(attr_map), w, |w| {
         write_element_block("Header", None, None, w, |w| {
@@ -419,7 +415,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     w.write(event).ok();
                 })
                 .ok();
-                if !date.is_empty() {
+                if let Some(date) = &work.publication_date.as_ref() {
                     let mut date_fmt: HashMap<String, String> = HashMap::new();
                     date_fmt.insert(
                         "dateformat".to_string(),
@@ -434,7 +430,8 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                         .ok();
                         // dateformat="01" YYYYMM
                         write_element_block("Date", None, Some(date_fmt.to_owned()), w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters(&date);
+                            let pub_date = date.format("%Y%m").to_string();
+                            let event: XmlEvent = XmlEvent::Characters(&pub_date);
                             w.write(event).ok();
                         })
                         .ok();
