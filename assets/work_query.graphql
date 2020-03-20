@@ -13,6 +13,7 @@ query WorkQuery($workId: Uuid!) {
         pageCount
         publicationDate
         landingPage
+        toc
         imprint {
             imprintName
             publisher {

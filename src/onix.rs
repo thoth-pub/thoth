@@ -344,6 +344,57 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                 }
             })
             .ok();
+            if work.long_abstract.is_some() || work.toc.is_some() {
+                write_element_block("CollateralDetail", None, None, w, |w| {
+                    if let Some(labstract) = &work.long_abstract {
+                        let mut lang_fmt: HashMap<String, String> = HashMap::new();
+                        lang_fmt.insert("language".to_string(), "eng".to_string());
+                        write_element_block("TextContent", None, None, w, |w| {
+                            // 30 Abstract
+                            write_element_block("TextType", None, None, w, |w| {
+                                let event: XmlEvent = XmlEvent::Characters("30");
+                                w.write(event).ok();
+                            })
+                            .ok();
+                            // 00 Unrestricted
+                            write_element_block("ContentAudience", None, None, w, |w| {
+                                let event: XmlEvent = XmlEvent::Characters("00");
+                                w.write(event).ok();
+                            })
+                            .ok();
+                            write_element_block("Text", None, Some(lang_fmt.to_owned()), w, |w| {
+                                let event: XmlEvent = XmlEvent::Characters(&labstract);
+                                w.write(event).ok();
+                            })
+                            .ok();
+                        })
+                        .ok();
+                    }
+                    if let Some(toc) = &work.toc {
+                        write_element_block("TextContent", None, None, w, |w| {
+                            // 04 Table of contents
+                            write_element_block("TextType", None, None, w, |w| {
+                                let event: XmlEvent = XmlEvent::Characters("04");
+                                w.write(event).ok();
+                            })
+                            .ok();
+                            // 00 Unrestricted
+                            write_element_block("ContentAudience", None, None, w, |w| {
+                                let event: XmlEvent = XmlEvent::Characters("00");
+                                w.write(event).ok();
+                            })
+                            .ok();
+                            write_element_block("Text", None, None, w, |w| {
+                                let event: XmlEvent = XmlEvent::Characters(&toc);
+                                w.write(event).ok();
+                            })
+                            .ok();
+                        })
+                        .ok();
+                    }
+                })
+                .ok();
+            }
             write_element_block("PublishingDetail", None, None, w, |w| {
                 write_element_block("Imprint", None, None, w, |w| {
                     write_element_block("ImprintName", None, None, w, |w| {
