@@ -342,60 +342,60 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     })
                     .ok();
                 }
-                write_element_block("PublishingDetail", None, None, w, |w| {
-                    write_element_block("Imprint", None, None, w, |w| {
-                        write_element_block("ImprintName", None, None, w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters(&work.imprint.imprint_name);
-                            w.write(event).ok();
-                        })
-                        .ok();
-                    })
-                    .ok();
-                    write_element_block("Publisher", None, None, w, |w| {
-                        // 01 Publisher
-                        write_element_block("PublishingRole", None, None, w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters("01");
-                            w.write(event).ok();
-                        })
-                        .ok();
-                        write_element_block("PublisherName", None, None, w, |w| {
-                            let event: XmlEvent =
-                                XmlEvent::Characters(&work.imprint.publisher.publisher_name);
-                            w.write(event).ok();
-                        })
-                        .ok();
-                    })
-                    .ok();
-                    write_element_block("PublishingStatus", None, None, w, |w| {
-                        let status = wstatus_to_status(&work.work_status);
-                        let event: XmlEvent = XmlEvent::Characters(status);
+            })
+            .ok();
+            write_element_block("PublishingDetail", None, None, w, |w| {
+                write_element_block("Imprint", None, None, w, |w| {
+                    write_element_block("ImprintName", None, None, w, |w| {
+                        let event: XmlEvent = XmlEvent::Characters(&work.imprint.imprint_name);
                         w.write(event).ok();
                     })
                     .ok();
-                    if !date.is_empty() {
-                        let mut date_fmt: HashMap<String, String> = HashMap::new();
-                        date_fmt.insert(
-                            "dateformat".to_string(),
-                            "01".to_string(), // 01 YYYYMM
-                        );
-                        write_element_block("PublishingDate", None, None, w, |w| {
-                            // 19 Publication date of print counterpart
-                            write_element_block("PublishingDateRole", None, None, w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters("19");
-                                w.write(event).ok();
-                            })
-                            .ok();
-                            // dateformat="01" YYYYMM
-                            write_element_block("Date", None, Some(date_fmt.to_owned()), w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters(&date);
-                                w.write(event).ok();
-                            })
-                            .ok();
-                        })
-                        .ok();
-                    }
                 })
                 .ok();
+                write_element_block("Publisher", None, None, w, |w| {
+                    // 01 Publisher
+                    write_element_block("PublishingRole", None, None, w, |w| {
+                        let event: XmlEvent = XmlEvent::Characters("01");
+                        w.write(event).ok();
+                    })
+                    .ok();
+                    write_element_block("PublisherName", None, None, w, |w| {
+                        let event: XmlEvent =
+                            XmlEvent::Characters(&work.imprint.publisher.publisher_name);
+                        w.write(event).ok();
+                    })
+                    .ok();
+                })
+                .ok();
+                write_element_block("PublishingStatus", None, None, w, |w| {
+                    let status = wstatus_to_status(&work.work_status);
+                    let event: XmlEvent = XmlEvent::Characters(status);
+                    w.write(event).ok();
+                })
+                .ok();
+                if !date.is_empty() {
+                    let mut date_fmt: HashMap<String, String> = HashMap::new();
+                    date_fmt.insert(
+                        "dateformat".to_string(),
+                        "01".to_string(), // 01 YYYYMM
+                    );
+                    write_element_block("PublishingDate", None, None, w, |w| {
+                        // 19 Publication date of print counterpart
+                        write_element_block("PublishingDateRole", None, None, w, |w| {
+                            let event: XmlEvent = XmlEvent::Characters("19");
+                            w.write(event).ok();
+                        })
+                        .ok();
+                        // dateformat="01" YYYYMM
+                        write_element_block("Date", None, Some(date_fmt.to_owned()), w, |w| {
+                            let event: XmlEvent = XmlEvent::Characters(&date);
+                            w.write(event).ok();
+                        })
+                        .ok();
+                    })
+                    .ok();
+                }
             })
             .ok();
         })
