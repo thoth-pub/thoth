@@ -105,10 +105,6 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
     attr_map.insert("release".to_string(), "3.0".to_string());
 
     let work_id = &work.work_id.to_string();
-    let doi = match &work.doi.as_ref() {
-        Some(doi) => doi.replace("https://doi.org/", ""),
-        None => "".to_string(),
-    };
     let mut isbn = "".to_string();
     for publication in &work.publications {
         if publication.publication_type.eq(&PublicationType::PDF) {
@@ -191,7 +187,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                 .ok();
             })
             .ok();
-            if !doi.is_empty() {
+            if let Some(doi) = &work.doi.as_ref() {
                 write_element_block("ProductIdentifier", None, None, w, |w| {
                     write_element_block("ProductIDType", None, None, w, |w| {
                         let event: XmlEvent = XmlEvent::Characters("06");
@@ -199,7 +195,8 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     })
                     .ok();
                     write_element_block("IDValue", None, None, w, |w| {
-                        let event: XmlEvent = XmlEvent::Characters(&doi);
+                        let sanitised_doi = doi.replace("https://doi.org/", "");
+                        let event: XmlEvent = XmlEvent::Characters(&sanitised_doi);
                         w.write(event).ok();
                     })
                     .ok();
