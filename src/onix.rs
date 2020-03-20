@@ -109,10 +109,6 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
         Some(doi) => doi.replace("https://doi.org/", ""),
         None => "".to_string(),
     };
-    let page_count = match &work.page_count.as_ref() {
-        Some(page_count) => page_count.to_string(),
-        None => "".to_string(),
-    };
     let subtitle = &work.subtitle.as_ref().unwrap();
     let mut isbn = "".to_string();
     for publication in &work.publications {
@@ -303,7 +299,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     .ok();
                 })
                 .ok();
-                if !page_count.is_empty() {
+                if let Some(page_count) = &work.page_count.as_ref() {
                     write_element_block("Extent", None, None, w, |w| {
                         // 00 Main content
                         write_element_block("ExtentType", None, None, w, |w| {
@@ -312,7 +308,8 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                         })
                         .ok();
                         write_element_block("ExtentValue", None, None, w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters(&page_count);
+                            let pcount = page_count.to_string();
+                            let event: XmlEvent = XmlEvent::Characters(&pcount);
                             w.write(event).ok();
                         })
                         .ok();
