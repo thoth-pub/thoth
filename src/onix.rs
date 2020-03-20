@@ -109,7 +109,6 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
         Some(doi) => doi.replace("https://doi.org/", ""),
         None => "".to_string(),
     };
-    let subtitle = &work.subtitle.as_ref().unwrap();
     let mut isbn = "".to_string();
     for publication in &work.publications {
         if publication.publication_type.eq(&PublicationType::PDF) {
@@ -270,20 +269,20 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                             w.write(event).ok();
                         })
                         .ok();
-                        if subtitle.is_empty() {
-                            write_element_block("TitleText", None, None, w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters(&work.full_title);
-                                w.write(event).ok();
-                            })
-                            .ok();
-                        } else {
+                        if let Some(subtitle) = &work.subtitle.as_ref() {
                             write_element_block("TitleText", None, None, w, |w| {
                                 let event: XmlEvent = XmlEvent::Characters(&work.title);
                                 w.write(event).ok();
                             })
                             .ok();
                             write_element_block("Subtitle", None, None, w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters(subtitle);
+                                let event: XmlEvent = XmlEvent::Characters(&subtitle);
+                                w.write(event).ok();
+                            })
+                            .ok();
+                        } else {
+                            write_element_block("TitleText", None, None, w, |w| {
+                                let event: XmlEvent = XmlEvent::Characters(&work.full_title);
                                 w.write(event).ok();
                             })
                             .ok();
