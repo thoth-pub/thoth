@@ -140,7 +140,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                 Some(isbn) => isbn.replace("-", ""),
                 None => "".to_string(),
             };
-            pdf_url = match &publication.publication_url.as_ref() {
+            pdf_url = match &publication.publication_url {
                 Some(pdf_url) => pdf_url.to_string(),
                 None => "".to_string(),
             };
@@ -260,7 +260,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     w.write(event).ok();
                 })
                 .ok();
-                if let Some(license) = &work.license.as_ref() {
+                if let Some(license) = &work.license {
                     write_element_block("EpubLicense", None, None, w, |w| {
                         write_element_block("EpubLicenseName", None, None, w, |w| {
                             let event: XmlEvent = XmlEvent::Characters("Creative Commons License");
@@ -574,7 +574,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     pdf_url.to_string(),
                     "Publisher's website: download the title".to_string(),
                 );
-                if let Some(landing_page) = &work.landing_page.as_ref() {
+                if let Some(landing_page) = &work.landing_page {
                     supplies.insert(
                         landing_page.to_string(),
                         "Publisher's website: web shop".to_string(),
