@@ -36,6 +36,7 @@ query WorkQuery($workId: Uuid!) {
         publications {
             publicationId
             publicationType
+            publicationUrl
             isbn
         }
         subjects {
