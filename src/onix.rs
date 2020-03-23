@@ -6,6 +6,8 @@ use chrono::prelude::*;
 use xml::writer::events::StartElementBuilder;
 use xml::writer::{EmitterConfig, EventWriter, Result, XmlEvent};
 
+use crate::client::work_query::ContributionType;
+use crate::client::work_query::LanguageRelation;
 use crate::client::work_query::PublicationType;
 use crate::client::work_query::SubjectType;
 use crate::client::work_query::WorkQueryWork;
@@ -37,6 +39,31 @@ fn stype_to_scheme(subject_type: &SubjectType) -> &str {
         SubjectType::LCC => "04",
         SubjectType::THEMA => "93",
         SubjectType::CUSTOM => "B2", // B2 Keywords (not for display)
+        _ => unreachable!(),
+    }
+}
+
+fn langrel_to_role(language_relation: &LanguageRelation) -> &str {
+    match language_relation {
+        LanguageRelation::ORIGINAL => "01",        // Language of text
+        LanguageRelation::TRANSLATED_FROM => "02", // Original language of a translated text
+        LanguageRelation::TRANSLATED_INTO => "01",
+        _ => unreachable!(),
+    }
+}
+
+fn contribution_type_to_role(contribution_type: &ContributionType) -> &str {
+    match contribution_type {
+        ContributionType::AUTHOR => "A01",          // By (author)
+        ContributionType::EDITOR => "B01",          // Edited by
+        ContributionType::TRANSLATOR => "B06",      // Translated by
+        ContributionType::PHOTOGRAPHER => "A13",    // Photographs by
+        ContributionType::ILUSTRATOR => "A12",      // Illustrated by
+        ContributionType::MUSIC_EDITOR => "B25",    // Arranged by (music)
+        ContributionType::FOREWORD_BY => "A23",     // Foreword by
+        ContributionType::INTRODUCTION_BY => "A24", // Introduction by
+        ContributionType::AFTERWORD_BY => "A19",    // Afterword by
+        ContributionType::PREFACE_BY => "A15",      // Preface by
         _ => unreachable!(),
     }
 }
@@ -293,6 +320,74 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     .ok();
                 })
                 .ok();
+                for contribution in &work.contributions {
+                    write_element_block("Contributor", None, None, w, |w| {
+                        write_element_block("SequenceNumber", None, None, w, |w| {
+                            let event: XmlEvent = XmlEvent::Characters("");
+                            w.write(event).ok();
+                        })
+                        .ok();
+                        write_element_block("ContributorRole", None, None, w, |w| {
+                            let role = contribution_type_to_role(&contribution.contribution_type);
+                            let event: XmlEvent = XmlEvent::Characters(role);
+                            w.write(event).ok();
+                        })
+                        .ok();
+                        if let Some(orcid) = &contribution.contributor.orcid.as_ref() {
+                            write_element_block("NameIdentifier", None, None, w, |w| {
+                                write_element_block("NameIDType", None, None, w, |w| {
+                                    let event: XmlEvent = XmlEvent::Characters("21");
+                                    w.write(event).ok();
+                                })
+                                .ok();
+                                write_element_block("IDValue", None, None, w, |w| {
+                                    let event: XmlEvent = XmlEvent::Characters(&orcid);
+                                    w.write(event).ok();
+                                })
+                                .ok();
+                            })
+                            .ok();
+                        }
+                        if let Some(first_name) = &contribution.contributor.first_name.as_ref() {
+                            write_element_block("NamesBeforeKey", None, None, w, |w| {
+                                let event: XmlEvent = XmlEvent::Characters(&first_name);
+                                w.write(event).ok();
+                            })
+                            .ok();
+                            write_element_block("KeyNames", None, None, w, |w| {
+                                let event: XmlEvent =
+                                    XmlEvent::Characters(&contribution.contributor.last_name);
+                                w.write(event).ok();
+                            })
+                            .ok();
+                        } else {
+                            write_element_block("PersonName", None, None, w, |w| {
+                                let event: XmlEvent =
+                                    XmlEvent::Characters(&contribution.contributor.full_name);
+                                w.write(event).ok();
+                            })
+                            .ok();
+                        }
+                    })
+                    .ok();
+                }
+                for language in &work.languages {
+                    write_element_block("Language", None, None, w, |w| {
+                        write_element_block("LanguageRole", None, None, w, |w| {
+                            let role = langrel_to_role(&language.language_relation);
+                            let event: XmlEvent = XmlEvent::Characters(role);
+                            w.write(event).ok();
+                        })
+                        .ok();
+                        write_element_block("LanguageCode", None, None, w, |w| {
+                            let code = &language.language_code.to_string().to_lowercase();
+                            let event: XmlEvent = XmlEvent::Characters(&code);
+                            w.write(event).ok();
+                        })
+                        .ok();
+                    })
+                    .ok();
+                }
                 if let Some(page_count) = &work.page_count.as_ref() {
                     write_element_block("Extent", None, None, w, |w| {
                         // 00 Main content
@@ -318,7 +413,6 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                 }
                 for subject in &work.subjects {
                     write_element_block("Subject", None, None, w, |w| {
-                        // 00 Main content
                         write_element_block("SubjectSchemeIdentifier", None, None, w, |w| {
                             let scheme = stype_to_scheme(&subject.subject_type);
                             let event: XmlEvent = XmlEvent::Characters(scheme);
