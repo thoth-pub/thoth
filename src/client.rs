@@ -1,3 +1,5 @@
+use std::fmt;
+
 use chrono::naive::NaiveDate;
 use graphql_client::{GraphQLQuery, Response};
 use uuid::Uuid;
@@ -33,4 +35,10 @@ pub fn get_work(work_id: Uuid, thoth_url: String) -> work_query::WorkQueryWork {
     }
     let response_data: work_query::ResponseData = response.data.expect("missing response data");
     response_data.work
+}
+
+impl fmt::Display for work_query::LanguageCode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
