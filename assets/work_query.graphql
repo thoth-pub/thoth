@@ -1,6 +1,7 @@
 query WorkQuery($workId: Uuid!) {
     work(workId: $workId) {
         workId
+        workStatus
         fullTitle
         title
         subtitle
@@ -12,7 +13,9 @@ query WorkQuery($workId: Uuid!) {
         pageCount
         publicationDate
         landingPage
+        toc
         imprint {
+            imprintName
             publisher {
                 publisherName
             }
@@ -33,6 +36,7 @@ query WorkQuery($workId: Uuid!) {
         publications {
             publicationId
             publicationType
+            publicationUrl
             isbn
         }
         subjects {

@@ -1,6 +1,10 @@
+use std::fmt;
+
 use chrono::naive::NaiveDate;
 use graphql_client::{GraphQLQuery, Response};
 use uuid::Uuid;
+
+use crate::errors::ThothError;
 
 #[derive(GraphQLQuery)]
 #[graphql(
@@ -10,27 +14,30 @@ use uuid::Uuid;
 )]
 pub struct WorkQuery;
 
-#[tokio::main]
-async fn query_work(
+pub async fn get_work(
     work_id: Uuid,
     thoth_url: String,
-) -> Result<Response<work_query::ResponseData>, failure::Error> {
+) -> Result<work_query::WorkQueryWork, ThothError> {
     let request_body = WorkQuery::build_query(work_query::Variables { work_id });
     let client = reqwest::Client::new();
     let res = client.post(&thoth_url).json(&request_body).send().await?;
     let response_body: Response<work_query::ResponseData> = res.json().await?;
-    Ok(response_body)
+    match response_body.data {
+        Some(data) => {
+            if let Some(errors) = response_body.errors {
+                println!("there are errors:");
+                for error in &errors {
+                    println!("{:?}", error);
+                }
+            }
+            Ok(data.work)
+        }
+        _ => Err(ThothError::InternalError("Query failed".to_string())),
+    }
 }
 
-pub fn get_work(work_id: Uuid, thoth_url: String) -> work_query::WorkQueryWork {
-    let response = query_work(work_id, thoth_url).unwrap();
-    if let Some(errors) = response.errors {
-        println!("there are errors:");
-
-        for error in &errors {
-            println!("{:?}", error);
-        }
+impl fmt::Display for work_query::LanguageCode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
-    let response_data: work_query::ResponseData = response.data.expect("missing response data");
-    response_data.work
 }

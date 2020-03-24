@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [[0.1.4]](https://github.com/OpenBookPublishers/thoth/releases/tag/v0.1.4) - 2020-03-24
+### Changed
+  - "/" now renders its own page, instead of redirecting to "/graphiql"
+  - [#27](https://github.com/openbookpublishers/thoth/issues/27) - Produce an OAPEN compatible ONIX file
+
+### Added
+  - [#26](https://github.com/openbookpublishers/thoth/issues/26) - Create an endpoint to allow generating ONIX streams from "/onix/{workId}"
+
+### Removed
+  - Dropped support for creating ONIX from binary
 
 ## [[0.1.3]](https://github.com/OpenBookPublishers/thoth/releases/tag/v0.1.3) - 2020-03-16
 ### Changed
