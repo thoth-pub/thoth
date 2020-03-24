@@ -1,12 +1,9 @@
 extern crate clap;
 use clap::{crate_authors, crate_version, App, AppSettings, Arg};
-use uuid::Uuid;
 
-use thoth::client::get_work;
 use thoth::db::run_migrations;
 use thoth::errors::Result;
 use thoth::errors::ThothError;
-use thoth::onix::generate_onix_3;
 use thoth::server::start_server;
 
 fn main() -> Result<()> {
@@ -40,28 +37,6 @@ fn main() -> Result<()> {
                         .takes_value(true),
                 ),
         )
-        .subcommand(
-            App::new("onix")
-                .about("Produce an ONIX 3.0 file for a work")
-                .arg(
-                    Arg::with_name("work-id")
-                        .short("w")
-                        .long("work-id")
-                        .value_name("UUID")
-                        .help("ID of the work to generate ONIX for")
-                        .takes_value(true)
-                        .required(true),
-                )
-                .arg(
-                    Arg::with_name("thoth-url")
-                        .short("u")
-                        .long("thoth-url")
-                        .value_name("URL")
-                        .default_value("http://localhost:8080/graphql")
-                        .help("URL to thoth's GraphQL endpoint")
-                        .takes_value(true),
-                ),
-        )
         .get_matches();
 
     match matches.subcommand() {
@@ -80,13 +55,6 @@ fn main() -> Result<()> {
                 Ok(_) => Ok(()),
                 Err(e) => Err(ThothError::from(e).into()),
             }
-        }
-        ("onix", Some(onix_matches)) => {
-            let work_id_str = onix_matches.value_of("work-id").unwrap();
-            let thoth_url = onix_matches.value_of("thoth-url").unwrap();
-            let work_id = Uuid::parse_str(work_id_str).unwrap();
-            let work = get_work(work_id, thoth_url.to_owned());
-            generate_onix_3(work)
         }
         _ => unreachable!(),
     }

@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate actix_web;
 extern crate openssl;
 #[macro_use]
 extern crate diesel;
