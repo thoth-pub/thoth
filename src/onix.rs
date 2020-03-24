@@ -14,8 +14,6 @@ use crate::client::work_query::WorkStatus;
 use crate::errors;
 
 pub fn generate_onix_3(mut work: WorkQueryWork) -> errors::Result<Vec<u8>> {
-    println!("{:#?}", work);
-
     let mut buffer = Vec::new();
     let mut writer = EmitterConfig::new()
         .perform_indent(true)
