@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fs::File;
 use std::io::Write;
 
 use chrono::prelude::*;
@@ -14,15 +13,15 @@ use crate::client::work_query::WorkQueryWork;
 use crate::client::work_query::WorkStatus;
 use crate::errors;
 
-pub fn generate_onix_3(mut work: WorkQueryWork) -> errors::Result<()> {
+pub fn generate_onix_3(mut work: WorkQueryWork) -> errors::Result<Vec<u8>> {
     println!("{:#?}", work);
 
-    let mut file = File::create("output.xml").unwrap();
+    let mut buffer = Vec::new();
     let mut writer = EmitterConfig::new()
         .perform_indent(true)
-        .create_writer(&mut file);
+        .create_writer(&mut buffer);
     match handle_event(&mut writer, &mut work) {
-        Ok(_) => Ok(()),
+        Ok(_) => Ok(buffer),
         Err(e) => Err(errors::ThothError::from(e).into()),
     }
 }
