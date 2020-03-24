@@ -5,9 +5,12 @@ use actix_web::{http::header, web, App, Error, HttpResponse, HttpServer};
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
+use uuid::Uuid;
 
+use crate::client::get_work;
 use crate::db::establish_connection;
 use crate::graphql_handlers::{create_schema, Context, Schema};
+use crate::onix::generate_onix_3;
 
 async fn graphiql() -> HttpResponse {
     let html = graphiql_source("/graphql");
@@ -31,6 +34,23 @@ async fn graphql(
         .body(result))
 }
 
+async fn onix(path: web::Path<(String,)>) -> HttpResponse {
+    let work_id = Uuid::parse_str(&path.0).unwrap();
+    let thoth_url = "http://localhost:8080/graphql".to_string();
+    if let Ok(work) = get_work(work_id, thoth_url).await {
+        if let Ok(body) = generate_onix_3(work) {
+            HttpResponse::Ok()
+                .content_type("text/xml; charset=utf-8")
+                .body(String::from_utf8(body).unwrap())
+        } else {
+            HttpResponse::InternalServerError()
+                .body(format!("Could not generate ONIX for: {}", path.0))
+        }
+    } else {
+        HttpResponse::NotFound().body(format!("Not found: {}", path.0))
+    }
+}
+
 fn config(cfg: &mut web::ServiceConfig) {
     dotenv().ok();
     let pool = establish_connection();
@@ -47,6 +67,7 @@ fn config(cfg: &mut web::ServiceConfig) {
     })));
     cfg.service(web::resource("/graphql").route(web::post().to(graphql)));
     cfg.service(web::resource("/graphiql").route(web::get().to(graphiql)));
+    cfg.service(web::resource("/onix/{uuid}").route(web::get().to(onix)));
 }
 
 #[actix_rt::main]
