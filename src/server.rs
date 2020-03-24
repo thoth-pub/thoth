@@ -2,7 +2,7 @@ use std::io;
 use std::sync::Arc;
 
 use actix_files::NamedFile;
-use actix_web::{web, App, Error, HttpResponse, HttpServer, HttpRequest, Result};
+use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
@@ -52,7 +52,11 @@ async fn graphql(
 
 async fn onix(req: HttpRequest, path: web::Path<(String,)>) -> HttpResponse {
     let work_id = Uuid::parse_str(&path.0).unwrap();
-    let thoth_url = format!("{}://{}/graphql", req.connection_info().scheme(), req.connection_info().host());
+    let thoth_url = format!(
+        "{}://{}/graphql",
+        req.connection_info().scheme(),
+        req.connection_info().host()
+    );
     if let Ok(work) = get_work(work_id, thoth_url).await {
         if let Ok(body) = generate_onix_3(work) {
             HttpResponse::Ok()
