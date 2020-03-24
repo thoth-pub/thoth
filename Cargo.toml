@@ -13,6 +13,7 @@ travis-ci = { repository = "openbookpublishers/thoth" }
 maintenance = { status = "actively-developed" }
 
 [dependencies]
+actix-files = "0.2.1"
 actix-http = "1.0.1"
 actix-web = "2.0.0"
 actix-rt = "1.0.0"
