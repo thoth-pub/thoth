@@ -1,11 +1,16 @@
+<!DOCTYPE html>
 <html>
     <head>
         <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <meta name="apple-mobile-web-app-capable" content="yes">
         <title>Thoth</title>
+        <meta name="description" content="Bibliographical metadata management system.">
         <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic">
         <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.css">
         <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/milligram/1.3.0/milligram.css">
-        <script>
+        <script type="text/javascript">
             const getWorksQuery = () => `{ works { fullTitle workId } }`;
 
             const renderWorks = ({ data }) => {
@@ -49,6 +54,22 @@
 
             document.onload = loadWorks();
         </script>
+        <!-- Matomo -->
+        <script type="text/javascript">
+          var _paq = window._paq || [];
+          _paq.push(["setDocumentTitle", document.domain + "/" + document.title]);
+          _paq.push(["setCookieDomain", "*.staging.thoth.openbookpublishers.com"]);
+          _paq.push(['trackPageView']);
+          _paq.push(['enableLinkTracking']);
+          (function() {
+            var u="https://analytics.openbookpublishers.com/";
+            _paq.push(['setTrackerUrl', u+'matomo.php']);
+            _paq.push(['setSiteId', '7']);
+            var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+            g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'matomo.js'; s.parentNode.insertBefore(g,s);
+          })();
+        </script>
+        <!-- End Matomo Code -->
         <style>
           .header {
             text-align: center;
