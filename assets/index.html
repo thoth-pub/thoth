@@ -1,0 +1,98 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Thoth</title>
+        <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic">
+        <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.css">
+        <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/milligram/1.3.0/milligram.css">
+        <script>
+            const getWorksQuery = () => `{ works { fullTitle workId } }`;
+
+            const renderWorks = ({ data }) => {
+                const workContainer = document.querySelector("#works");
+                const allWorks = data.works;
+
+                const workFragment = document.createDocumentFragment();
+                const worksList = document.createElement('ul');
+
+                allWorks.forEach((work) => {
+                    console.log(work);
+                    const worksListItem = document.createElement('li');
+                    const worksListLink = document.createElement('a');
+                    worksListLink.href = "/onix/"+work.workId;
+                    worksListLink.textContent = "OAPEN ONIX";
+                    worksListItem.textContent = `${work.fullTitle} `;
+                    worksListItem.appendChild(worksListLink);
+                    worksList.appendChild(worksListItem);
+                });
+
+                workFragment.appendChild(worksList);
+                workContainer.appendChild(workFragment);
+            }
+
+            const loadWorks = (ev) => {
+                const thothUrl = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '')+"/graphql";
+
+                const options = {
+                    method: "post",
+                    headers: {
+                    "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                    query: getWorksQuery()
+                    })
+                };
+                fetch(thothUrl, options)
+                    .then(res => res.json())
+                    .then(renderWorks);
+            }
+
+            document.onload = loadWorks();
+        </script>
+        <style>
+          .header {
+            text-align: center;
+            background-color: #f4f5f6;
+            display: block;
+          }
+          .header .container {
+            border-top: 0;
+            padding-bottom: 7.5rem;
+            padding-top: 7.5rem;
+            position: relative;
+            text-align: center;
+          }
+          .logo {
+            height: 30rem;
+            margin-bottom: 2rem;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+          }
+          .button {
+            background-color: #ec801d;
+            border-color: #ec801d;
+          }
+          a {
+            color: #ec801d;
+          }
+          .works {
+            padding-top: 7.5rem;
+          }
+        </style>
+    </head>
+    <body>
+        <section class="header">
+            <div class="container">
+                <img class="logo" src="/thoth-logo.png">
+                <a class="button" href="https://github.com/OpenBookPublishers/thoth" title="Project">Project</a>
+                <a class="button" href="https://github.com/orgs/OpenBookPublishers/projects/1" title="Timeline">Timeline</a>
+                <a class="button" href="/graphiql" title="GraphiQL">GraphiQL</a>
+            </div>
+        </section>
+         <div class="container works">
+              <div id="works" class="row"></div>
+         </div>
+    </body>
+</html>
+

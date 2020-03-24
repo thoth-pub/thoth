@@ -1,7 +1,8 @@
 use std::io;
 use std::sync::Arc;
 
-use actix_web::{http::header, web, App, Error, HttpResponse, HttpServer};
+use actix_files::NamedFile;
+use actix_web::{web, App, Error, HttpResponse, HttpServer, HttpRequest, Result};
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
@@ -11,6 +12,21 @@ use crate::client::get_work;
 use crate::db::establish_connection;
 use crate::graphql_handlers::{create_schema, Context, Schema};
 use crate::onix::generate_onix_3;
+
+#[get("/favicon.ico")]
+async fn favicon() -> Result<NamedFile> {
+    Ok(NamedFile::open("assets/favicon.ico")?)
+}
+
+#[get("/thoth-logo.png")]
+async fn logo() -> Result<NamedFile> {
+    Ok(NamedFile::open("assets/thoth-logo.png")?)
+}
+
+#[get("/")]
+async fn index() -> Result<NamedFile> {
+    Ok(NamedFile::open("assets/index.html")?)
+}
 
 async fn graphiql() -> HttpResponse {
     let html = graphiql_source("/graphql");
@@ -34,9 +50,9 @@ async fn graphql(
         .body(result))
 }
 
-async fn onix(path: web::Path<(String,)>) -> HttpResponse {
+async fn onix(req: HttpRequest, path: web::Path<(String,)>) -> HttpResponse {
     let work_id = Uuid::parse_str(&path.0).unwrap();
-    let thoth_url = "http://localhost:8080/graphql".to_string();
+    let thoth_url = format!("{}://{}/graphql", req.connection_info().scheme(), req.connection_info().host());
     if let Ok(work) = get_work(work_id, thoth_url).await {
         if let Ok(body) = generate_onix_3(work) {
             HttpResponse::Ok()
@@ -59,12 +75,9 @@ fn config(cfg: &mut web::ServiceConfig) {
 
     cfg.data(schema.clone());
     cfg.data(schema_context);
-    cfg.service(web::resource("/").route(web::get().to(|| {
-        HttpResponse::Found()
-            .header(header::LOCATION, "/graphiql")
-            .finish()
-            .into_body()
-    })));
+    cfg.service(favicon);
+    cfg.service(logo);
+    cfg.service(index);
     cfg.service(web::resource("/graphql").route(web::post().to(graphql)));
     cfg.service(web::resource("/graphiql").route(web::get().to(graphiql)));
     cfg.service(web::resource("/onix/{uuid}").route(web::get().to(onix)));
