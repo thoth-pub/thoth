@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [[0.1.5]](https://github.com/OpenBookPublishers/thoth/releases/tag/v0.1.5) - 2020-03-25
+### Changed
+  - Load assets statically
+
 ## [[0.1.4]](https://github.com/OpenBookPublishers/thoth/releases/tag/v0.1.4) - 2020-03-24
 ### Changed
   - "/" now renders its own page, instead of redirecting to "/graphiql"
