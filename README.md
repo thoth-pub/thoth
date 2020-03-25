@@ -3,8 +3,8 @@
 > GraphQL API for bibliographic data
 
 [![Build Status](https://travis-ci.org/openbookpublishers/thoth.svg?branch=master)](https://travis-ci.org/openbookpublishers/thoth)
-[![Release](https://img.shields.io/github/release/openbookpublishers/thoth.svg?colorB=58839b&maxAge=2592000)](https://github.com/openbookpublishers/thoth/releases)
-[![Crates.io](https://img.shields.io/crates/v/thoth.svg?maxAge=2592000)](https://crates.io/crates/thoth)
+[![Release](https://img.shields.io/github/release/openbookpublishers/thoth.svg?colorB=58839b&maxAge=86400)](https://github.com/openbookpublishers/thoth/releases)
+[![Crates.io](https://img.shields.io/crates/v/thoth.svg?maxAge=86400)](https://crates.io/crates/thoth)
 [![License](https://img.shields.io/github/license/openbookpublishers/thoth.svg?colorB=blue)](https://github.com/openbookpublishers/thoth/blob/master/LICENSE)
 
 ---
