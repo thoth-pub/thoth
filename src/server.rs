@@ -12,9 +12,9 @@ use crate::db::establish_connection;
 use crate::graphql_handlers::{create_schema, Context, Schema};
 use crate::onix::generate_onix_3;
 
-const INDEX_FILE: &'static [u8] = include_bytes!("../assets/index.html");
-const ICON_FILE: &'static [u8] = include_bytes!("../assets/favicon.ico");
-const LOGO_FILE: &'static [u8] = include_bytes!("../assets/thoth-logo.png");
+const INDEX_FILE: &[u8] = include_bytes!("../assets/index.html");
+const ICON_FILE: &[u8] = include_bytes!("../assets/favicon.ico");
+const LOGO_FILE: &[u8] = include_bytes!("../assets/thoth-logo.png");
 
 #[get("/favicon.ico")]
 async fn favicon() -> HttpResponse {
