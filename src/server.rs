@@ -1,7 +1,6 @@
 use std::io;
 use std::sync::Arc;
 
-use actix_files::NamedFile;
 use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
@@ -13,19 +12,29 @@ use crate::db::establish_connection;
 use crate::graphql_handlers::{create_schema, Context, Schema};
 use crate::onix::generate_onix_3;
 
+const INDEX_FILE: &'static [u8] = include_bytes!("../assets/index.html");
+const ICON_FILE: &'static [u8] = include_bytes!("../assets/favicon.ico");
+const LOGO_FILE: &'static [u8] = include_bytes!("../assets/thoth-logo.png");
+
 #[get("/favicon.ico")]
-async fn favicon() -> Result<NamedFile> {
-    Ok(NamedFile::open("assets/favicon.ico")?)
+async fn favicon() -> HttpResponse {
+    HttpResponse::Ok()
+        .content_type("image/x-icon")
+        .body(ICON_FILE)
 }
 
 #[get("/thoth-logo.png")]
-async fn logo() -> Result<NamedFile> {
-    Ok(NamedFile::open("assets/thoth-logo.png")?)
+async fn logo() -> HttpResponse {
+    HttpResponse::Ok()
+        .content_type("image/png")
+        .body(LOGO_FILE)
 }
 
 #[get("/")]
-async fn index() -> Result<NamedFile> {
-    Ok(NamedFile::open("assets/index.html")?)
+async fn index() -> HttpResponse {
+    HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(INDEX_FILE)
 }
 
 async fn graphiql() -> HttpResponse {
