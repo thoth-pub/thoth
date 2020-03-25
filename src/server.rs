@@ -25,9 +25,7 @@ async fn favicon() -> HttpResponse {
 
 #[get("/thoth-logo.png")]
 async fn logo() -> HttpResponse {
-    HttpResponse::Ok()
-        .content_type("image/png")
-        .body(LOGO_FILE)
+    HttpResponse::Ok().content_type("image/png").body(LOGO_FILE)
 }
 
 #[get("/")]
