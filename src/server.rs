@@ -18,7 +18,9 @@ const LOGO_FILE: &[u8] = include_bytes!("../assets/thoth-logo.png");
 
 #[get("/favicon.ico")]
 async fn favicon() -> HttpResponse {
-    HttpResponse::Ok().content_type("image/x-icon").body(ICON_FILE)
+    HttpResponse::Ok()
+        .content_type("image/x-icon")
+        .body(ICON_FILE)
 }
 
 #[get("/thoth-logo.png")]
@@ -28,13 +30,17 @@ async fn logo() -> HttpResponse {
 
 #[get("/")]
 async fn index() -> HttpResponse {
-    HttpResponse::Ok().content_type("text/html; charset=utf-8").body(INDEX_FILE)
+    HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(INDEX_FILE)
 }
 
 #[get("/graphiql")]
 async fn graphiql() -> HttpResponse {
     let html = graphiql_source("/graphql");
-    HttpResponse::Ok().content_type("text/html; charset=utf-8").body(html)
+    HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(html)
 }
 
 #[post("/graphql")]
