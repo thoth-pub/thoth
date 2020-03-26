@@ -129,19 +129,20 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
     attr_map.insert("release".to_string(), "3.0".to_string());
 
     let work_id = format!("urn:uuid:{}", &work.work_id.to_string());
-    let mut isbn = "".to_string();
+    let mut main_isbn = "".to_string();
     let mut pdf_url = "".to_string();
+    let mut isbns: Vec<String, > = Vec::new();
     for publication in &work.publications {
         if publication.publication_type.eq(&PublicationType::PDF) {
-            isbn = match &publication.isbn.as_ref() {
-                Some(isbn) => isbn.replace("-", ""),
-                None => "".to_string(),
-            };
-            pdf_url = match &publication.publication_url {
-                Some(pdf_url) => pdf_url.to_string(),
-                None => "".to_string(),
-            };
-            break;
+            pdf_url = publication.publication_url.as_ref().unwrap().to_string();
+        }
+
+        if let Some(isbn) = &publication.isbn {
+            if publication.publication_type.eq(&PublicationType::PAPERBACK) {
+                main_isbn = isbn.replace("-", "");
+            } else {
+                isbns.push(isbn.replace("-", ""));
+            }
         }
     }
 
@@ -210,7 +211,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                 })
                 .ok();
                 write_element_block("IDValue", None, None, w, |w| {
-                    let event: XmlEvent = XmlEvent::Characters(&isbn);
+                    let event: XmlEvent = XmlEvent::Characters(&main_isbn);
                     w.write(event).ok();
                 })
                 .ok();
@@ -535,39 +536,36 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                 }
             })
             .ok();
-            write_element_block("RelatedMaterial", None, None, w, |w| {
-                for publication in &work.publications {
-                    if !publication.publication_type.eq(&PublicationType::PDF) {
-                        if let Some(isbn) = &publication.isbn.as_ref() {
-                            write_element_block("RelatedProduct", None, None, w, |w| {
-                                // 06 Alternative format
-                                write_element_block("ProductRelationCode", None, None, w, |w| {
+            if !isbns.is_empty() {
+                write_element_block("RelatedMaterial", None, None, w, |w| {
+                    for isbn in &isbns {
+                        write_element_block("RelatedProduct", None, None, w, |w| {
+                            // 06 Alternative format
+                            write_element_block("ProductRelationCode", None, None, w, |w| {
+                                let event: XmlEvent = XmlEvent::Characters("06");
+                                w.write(event).ok();
+                            })
+                            .ok();
+                            write_element_block("ProductIdentifier", None, None, w, |w| {
+                                // 06 ISBN
+                                write_element_block("ProductIDType", None, None, w, |w| {
                                     let event: XmlEvent = XmlEvent::Characters("06");
                                     w.write(event).ok();
                                 })
                                 .ok();
-                                write_element_block("ProductIdentifier", None, None, w, |w| {
-                                    // 06 ISBN
-                                    write_element_block("ProductIDType", None, None, w, |w| {
-                                        let event: XmlEvent = XmlEvent::Characters("06");
-                                        w.write(event).ok();
-                                    })
-                                    .ok();
-                                    write_element_block("IDValue", None, None, w, |w| {
-                                        let nohyphen_isbn = isbn.replace("-", "");
-                                        let event: XmlEvent = XmlEvent::Characters(&nohyphen_isbn);
-                                        w.write(event).ok();
-                                    })
-                                    .ok();
+                                write_element_block("IDValue", None, None, w, |w| {
+                                    let event: XmlEvent = XmlEvent::Characters(&isbn);
+                                    w.write(event).ok();
                                 })
                                 .ok();
                             })
                             .ok();
-                        }
+                        })
+                        .ok();
                     }
-                }
-            })
-            .ok();
+                })
+                .ok();
+            }
             write_element_block("ProductSupply", None, None, w, |w| {
                 let mut supplies: HashMap<String, String> = HashMap::new();
                 supplies.insert(
