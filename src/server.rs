@@ -18,9 +18,7 @@ const LOGO_FILE: &[u8] = include_bytes!("../assets/thoth-logo.png");
 
 #[get("/favicon.ico")]
 async fn favicon() -> HttpResponse {
-    HttpResponse::Ok()
-        .content_type("image/x-icon")
-        .body(ICON_FILE)
+    HttpResponse::Ok().content_type("image/x-icon").body(ICON_FILE)
 }
 
 #[get("/thoth-logo.png")]
@@ -30,18 +28,16 @@ async fn logo() -> HttpResponse {
 
 #[get("/")]
 async fn index() -> HttpResponse {
-    HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(INDEX_FILE)
+    HttpResponse::Ok().content_type("text/html; charset=utf-8").body(INDEX_FILE)
 }
 
+#[get("/graphiql")]
 async fn graphiql() -> HttpResponse {
     let html = graphiql_source("/graphql");
-    HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html)
+    HttpResponse::Ok().content_type("text/html; charset=utf-8").body(html)
 }
 
+#[post("/graphql")]
 async fn graphql(
     st: web::Data<Arc<Schema>>,
     ctx: web::Data<Context>,
@@ -57,6 +53,7 @@ async fn graphql(
         .body(result))
 }
 
+#[get("/onix/{uuid}")]
 async fn onix(req: HttpRequest, path: web::Path<(String,)>) -> HttpResponse {
     let scheme = match req.app_config().secure() {
         true => "https".to_string(),
@@ -89,9 +86,9 @@ fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(favicon);
     cfg.service(logo);
     cfg.service(index);
-    cfg.service(web::resource("/graphql").route(web::post().to(graphql)));
-    cfg.service(web::resource("/graphiql").route(web::get().to(graphiql)));
-    cfg.service(web::resource("/onix/{uuid}").route(web::get().to(onix)));
+    cfg.service(graphql);
+    cfg.service(graphiql);
+    cfg.service(onix);
 }
 
 #[actix_rt::main]
