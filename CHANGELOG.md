@@ -6,8 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## \[Unreleased\]
 ### Changed
-
-### Added
+  - Fix incompatibilities with OAPEN ONIX parser
+  - Map ONIX parameter to UUID directly, instead of converting afterwards
+  - Normalise server route definitions
 
 ## [[0.1.5]](https://github.com/OpenBookPublishers/thoth/releases/tag/v0.1.5) - 2020-03-25
 ### Changed
