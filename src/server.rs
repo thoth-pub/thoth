@@ -60,12 +60,13 @@ async fn graphql(
 }
 
 #[get("/onix/{uuid}")]
-async fn onix(req: HttpRequest, path: web::Path<(String,)>) -> HttpResponse {
-    let scheme = match req.app_config().secure() {
-        true => "https".to_string(),
-        false => "http".to_string(),
+async fn onix(req: HttpRequest, path: web::Path<(Uuid,)>) -> HttpResponse {
+    let work_id = path.0;
+    let scheme = if req.app_config().secure() {
+        "https".to_string()
+    } else {
+        "http".to_string()
     };
-    let work_id = Uuid::parse_str(&path.0).unwrap();
     let thoth_url = format!("{}://{}/graphql", scheme, req.app_config().local_addr());
     if let Ok(work) = get_work(work_id, thoth_url).await {
         if let Ok(body) = generate_onix_3(work) {
@@ -74,10 +75,10 @@ async fn onix(req: HttpRequest, path: web::Path<(String,)>) -> HttpResponse {
                 .body(String::from_utf8(body).unwrap())
         } else {
             HttpResponse::InternalServerError()
-                .body(format!("Could not generate ONIX for: {}", path.0))
+                .body(format!("Could not generate ONIX for: {}", work_id))
         }
     } else {
-        HttpResponse::NotFound().body(format!("Not found: {}", path.0))
+        HttpResponse::NotFound().body(format!("Not found: {}", work_id))
     }
 }
 
