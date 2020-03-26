@@ -131,7 +131,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
     let work_id = format!("urn:uuid:{}", &work.work_id.to_string());
     let mut main_isbn = "".to_string();
     let mut pdf_url = "".to_string();
-    let mut isbns: Vec<String, > = Vec::new();
+    let mut isbns: Vec<String> = Vec::new();
     for publication in &work.publications {
         if publication.publication_type.eq(&PublicationType::PDF) {
             pdf_url = publication.publication_url.as_ref().unwrap().to_string();
