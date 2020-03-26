@@ -162,7 +162,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
             })
             .ok();
             write_element_block("SentDateTime", None, None, w, |w| {
-                let utc = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+                let utc = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
                 let event: XmlEvent = XmlEvent::Characters(&utc);
                 w.write(event).ok();
             })
@@ -317,10 +317,13 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     .ok();
                 })
                 .ok();
+                let mut sequence_number = 0;
                 for contribution in &work.contributions {
+                    sequence_number = sequence_number + 1;
                     write_element_block("Contributor", None, None, w, |w| {
                         write_element_block("SequenceNumber", None, None, w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters("");
+                            let seq = &sequence_number.to_string();
+                            let event: XmlEvent = XmlEvent::Characters(seq);
                             w.write(event).ok();
                         })
                         .ok();
