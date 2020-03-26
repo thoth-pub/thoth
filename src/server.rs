@@ -58,12 +58,12 @@ async fn graphql(
 }
 
 async fn onix(req: HttpRequest, path: web::Path<(String,)>) -> HttpResponse {
+    let scheme = match req.app_config().secure() {
+        true => "https".to_string(),
+        false => "http".to_string(),
+    };
     let work_id = Uuid::parse_str(&path.0).unwrap();
-    let thoth_url = format!(
-        "{}://{}/graphql",
-        req.connection_info().scheme(),
-        req.connection_info().host()
-    );
+    let thoth_url = format!("{}://{}/graphql", scheme, req.app_config().local_addr());
     if let Ok(work) = get_work(work_id, thoth_url).await {
         if let Ok(body) = generate_onix_3(work) {
             HttpResponse::Ok()
