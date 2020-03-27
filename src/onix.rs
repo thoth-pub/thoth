@@ -9,6 +9,7 @@ use crate::client::work_query::ContributionType;
 use crate::client::work_query::LanguageRelation;
 use crate::client::work_query::PublicationType;
 use crate::client::work_query::SubjectType;
+use crate::client::work_query::WorkQueryWorkPublications;
 use crate::client::work_query::WorkQueryWork;
 use crate::client::work_query::WorkStatus;
 use crate::errors;
@@ -84,6 +85,35 @@ fn wstatus_to_status(work_status: &WorkStatus) -> &str {
     }
 }
 
+fn get_publications_data(
+    publications: &Vec<WorkQueryWorkPublications>
+) -> (String, String, Vec<String>) {
+    let mut main_isbn = "".to_string();
+    let mut pdf_url = "".to_string();
+    let mut isbns: Vec<String> = Vec::new();
+
+    for publication in publications {
+        if publication.publication_type.eq(&PublicationType::PDF) {
+            pdf_url = publication.publication_url.as_ref().unwrap().to_string();
+        }
+
+        if let Some(isbn) = &publication.isbn {
+            isbns.push(isbn.replace("-", ""));
+            // The default product ISBN is the PDF's
+            if publication.publication_type.eq(&PublicationType::PDF) {
+                main_isbn = isbn.replace("-", "");
+            }
+            // Books that don't have a PDF ISBN will use the paperback's
+            if publication.publication_type.eq(&PublicationType::PAPERBACK) && main_isbn.is_empty()
+            {
+                main_isbn = isbn.replace("-", "");
+            }
+        }
+    }
+
+    (main_isbn, pdf_url, isbns)
+}
+
 fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
     element: &str,
     ns: Option<HashMap<String, String>>,
@@ -129,22 +159,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
     attr_map.insert("release".to_string(), "3.0".to_string());
 
     let work_id = format!("urn:uuid:{}", &work.work_id.to_string());
-    let mut main_isbn = "".to_string();
-    let mut pdf_url = "".to_string();
-    let mut isbns: Vec<String> = Vec::new();
-    for publication in &work.publications {
-        if publication.publication_type.eq(&PublicationType::PDF) {
-            pdf_url = publication.publication_url.as_ref().unwrap().to_string();
-        }
-
-        if let Some(isbn) = &publication.isbn {
-            if publication.publication_type.eq(&PublicationType::PAPERBACK) {
-                main_isbn = isbn.replace("-", "");
-            } else {
-                isbns.push(isbn.replace("-", ""));
-            }
-        }
-    }
+    let (main_isbn, pdf_url, isbns) = get_publications_data(&work.publications);
 
     write_element_block("ONIXMessage", Some(ns_map), Some(attr_map), w, |w| {
         write_element_block("Header", None, None, w, |w| {
@@ -217,7 +232,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                 .ok();
             })
             .ok();
-            if let Some(doi) = &work.doi.as_ref() {
+            if let Some(doi) = &work.doi {
                 write_element_block("ProductIdentifier", None, None, w, |w| {
                     write_element_block("ProductIDType", None, None, w, |w| {
                         let event: XmlEvent = XmlEvent::Characters("06");
@@ -296,7 +311,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                             w.write(event).ok();
                         })
                         .ok();
-                        if let Some(subtitle) = &work.subtitle.as_ref() {
+                        if let Some(subtitle) = &work.subtitle {
                             write_element_block("TitleText", None, None, w, |w| {
                                 let event: XmlEvent = XmlEvent::Characters(&work.title);
                                 w.write(event).ok();
@@ -334,7 +349,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                             w.write(event).ok();
                         })
                         .ok();
-                        if let Some(orcid) = &contribution.contributor.orcid.as_ref() {
+                        if let Some(orcid) = &contribution.contributor.orcid {
                             write_element_block("NameIdentifier", None, None, w, |w| {
                                 write_element_block("NameIDType", None, None, w, |w| {
                                     let event: XmlEvent = XmlEvent::Characters("21");
@@ -349,7 +364,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                             })
                             .ok();
                         }
-                        if let Some(first_name) = &contribution.contributor.first_name.as_ref() {
+                        if let Some(first_name) = &contribution.contributor.first_name {
                             write_element_block("NamesBeforeKey", None, None, w, |w| {
                                 let event: XmlEvent = XmlEvent::Characters(&first_name);
                                 w.write(event).ok();
@@ -389,7 +404,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     })
                     .ok();
                 }
-                if let Some(page_count) = &work.page_count.as_ref() {
+                if let Some(page_count) = &work.page_count {
                     write_element_block("Extent", None, None, w, |w| {
                         // 00 Main content
                         write_element_block("ExtentType", None, None, w, |w| {
@@ -518,7 +533,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     w.write(event).ok();
                 })
                 .ok();
-                if let Some(date) = &work.publication_date.as_ref() {
+                if let Some(date) = &work.publication_date {
                     let mut date_fmt: HashMap<String, String> = HashMap::new();
                     date_fmt.insert(
                         "dateformat".to_string(),
