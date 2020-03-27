@@ -451,9 +451,9 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                         let mut lang_fmt: HashMap<String, String> = HashMap::new();
                         lang_fmt.insert("language".to_string(), "eng".to_string());
                         write_element_block("TextContent", None, None, w, |w| {
-                            // 30 Abstract
+                            // 03 Description ("30 Abstract" not implemented in OAPEN)
                             write_element_block("TextType", None, None, w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters("30");
+                                let event: XmlEvent = XmlEvent::Characters("03");
                                 w.write(event).ok();
                             })
                             .ok();
