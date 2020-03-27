@@ -4,6 +4,12 @@ All notable changes to thoth will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [[0.1.7]](https://github.com/OpenBookPublishers/thoth/releases/tag/v0.1.7) - 2020-03-27
+### Changed
+  - [#35](https://github.com/openbookpublishers/thoth/issues/35) - Fix date format and lack in ONIX sender header
+  - Add place of publication to ONIX file
+  - Use code 03 (description) instead of 30 (abstract) in OAPEN ONIX
+
 ## [[0.1.6]](https://github.com/OpenBookPublishers/thoth/releases/tag/v0.1.6) - 2020-03-26
 ### Changed
   - Fix incompatibilities with OAPEN ONIX parser

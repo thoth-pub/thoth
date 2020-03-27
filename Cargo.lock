@@ -1761,7 +1761,7 @@ dependencies = [
 
 [[package]]
 name = "thoth"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "actix-http 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "actix-rt 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
