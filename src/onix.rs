@@ -86,7 +86,7 @@ fn wstatus_to_status(work_status: &WorkStatus) -> &str {
 }
 
 fn get_publications_data(
-    publications: &Vec<WorkQueryWorkPublications>,
+    publications: &[WorkQueryWorkPublications],
 ) -> (String, String, Vec<String>) {
     let mut main_isbn = "".to_string();
     let mut pdf_url = "".to_string();
