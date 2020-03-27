@@ -9,8 +9,8 @@ use crate::client::work_query::ContributionType;
 use crate::client::work_query::LanguageRelation;
 use crate::client::work_query::PublicationType;
 use crate::client::work_query::SubjectType;
-use crate::client::work_query::WorkQueryWorkPublications;
 use crate::client::work_query::WorkQueryWork;
+use crate::client::work_query::WorkQueryWorkPublications;
 use crate::client::work_query::WorkStatus;
 use crate::errors;
 
@@ -86,7 +86,7 @@ fn wstatus_to_status(work_status: &WorkStatus) -> &str {
 }
 
 fn get_publications_data(
-    publications: &Vec<WorkQueryWorkPublications>
+    publications: &Vec<WorkQueryWorkPublications>,
 ) -> (String, String, Vec<String>) {
     let mut main_isbn = "".to_string();
     let mut pdf_url = "".to_string();
