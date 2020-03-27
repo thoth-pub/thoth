@@ -505,6 +505,13 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     .ok();
                 })
                 .ok();
+                if let Some(place) = &work.place {
+                    write_element_block("CityOfPublication", None, None, w, |w| {
+                        let event: XmlEvent = XmlEvent::Characters(&place);
+                        w.write(event).ok();
+                    })
+                    .ok();
+                }
                 write_element_block("PublishingStatus", None, None, w, |w| {
                     let status = wstatus_to_status(&work.work_status);
                     let event: XmlEvent = XmlEvent::Characters(status);
