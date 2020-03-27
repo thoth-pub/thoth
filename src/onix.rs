@@ -163,7 +163,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
             })
             .ok();
             write_element_block("SentDateTime", None, None, w, |w| {
-                let utc = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+                let utc = Utc::now().format("%Y%m%dT%H%M%S").to_string();
                 let event: XmlEvent = XmlEvent::Characters(&utc);
                 w.write(event).ok();
             })
