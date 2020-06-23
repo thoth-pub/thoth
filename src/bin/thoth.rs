@@ -1,10 +1,10 @@
 extern crate clap;
 use clap::{crate_authors, crate_version, App, AppSettings, Arg};
 
+use thoth::server::start_server;
 use thoth_api::db::run_migrations;
 use thoth_api::errors::Result;
 use thoth_api::errors::ThothError;
-use thoth::server::start_server;
 
 fn main() -> Result<()> {
     let matches = App::new(env!("CARGO_PKG_NAME"))
