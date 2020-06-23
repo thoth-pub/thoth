@@ -5,11 +5,11 @@ use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
+use thoth_api::db::establish_connection;
+use thoth_api::graphql_handlers::{create_schema, Context, Schema};
 use uuid::Uuid;
 
 use crate::client::get_work;
-use crate::db::establish_connection;
-use crate::graphql_handlers::{create_schema, Context, Schema};
 use crate::onix::generate_onix_3;
 
 const INDEX_FILE: &[u8] = include_bytes!("../assets/index.html");

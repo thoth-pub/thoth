@@ -1,9 +1,9 @@
 extern crate clap;
 use clap::{crate_authors, crate_version, App, AppSettings, Arg};
 
-use thoth::db::run_migrations;
-use thoth::errors::Result;
-use thoth::errors::ThothError;
+use thoth_api::db::run_migrations;
+use thoth_api::errors::Result;
+use thoth_api::errors::ThothError;
 use thoth::server::start_server;
 
 fn main() -> Result<()> {

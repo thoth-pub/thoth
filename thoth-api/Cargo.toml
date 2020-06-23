@@ -1,5 +1,5 @@
 [package]
-name = "thoth"
+name = "thoth-api"
 version = "0.1.10"
 authors = ["Javier Arias <javi@openbookpublishers.com>"]
 edition = "2018"
@@ -12,11 +12,7 @@ readme = "README.md"
 travis-ci = { repository = "openbookpublishers/thoth" }
 maintenance = { status = "actively-developed" }
 
-[workspace]
-members = ["thoth-api"]
-
 [dependencies]
-thoth-api = {version = "*", path = "thoth-api" }
 actix-http = "1.0.1"
 actix-rt = "1.0.0"
 actix-web = "2.0.0"

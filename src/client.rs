@@ -2,9 +2,8 @@ use std::fmt;
 
 use chrono::naive::NaiveDate;
 use graphql_client::{GraphQLQuery, Response};
+use thoth_api::errors::ThothError;
 use uuid::Uuid;
-
-use crate::errors::ThothError;
 
 #[derive(GraphQLQuery)]
 #[graphql(
