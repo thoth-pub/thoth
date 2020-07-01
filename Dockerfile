@@ -6,7 +6,7 @@ FROM ${BASE_IMAGE} as build
 COPY --chown=rust:rust Cargo.toml Cargo.lock ./
 COPY --chown=rust:rust ./src ./src
 COPY --chown=rust:rust ./assets ./assets
-COPY --chown=rust:rust ./migrations ./migrations
+COPY --chown=rust:rust ./thoth-api ./thoth-api
 RUN cargo build --release
 
 # Switch to minimal image for run time
