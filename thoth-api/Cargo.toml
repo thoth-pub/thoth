@@ -13,15 +13,11 @@ travis-ci = { repository = "openbookpublishers/thoth" }
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-actix-http = "1.0.1"
-actix-rt = "1.0.0"
-actix-web = "2.0.0"
 chrono = { version = "0.4", features = ["serde"] }
 diesel = { version = "1.4.0", features = ["postgres", "uuidv07", "chrono", "r2d2"] }
 diesel-derive-enum = { version = "0.4", features = ["postgres"] }
 diesel_migrations = { version = "1.4.0", features = ["postgres"] }
 dotenv = "0.9.0"
-env_logger = "0.6.2"
 failure = "0.1.6"
 juniper = "0.14.2"
 openssl = "0.10.28"
