@@ -22,17 +22,9 @@ actix-rt = "1.0.0"
 actix-web = "2.0.0"
 chrono = { version = "0.4", features = ["serde"] }
 clap = "2.33.0"
-diesel = { version = "1.4.0", features = ["postgres", "uuidv07", "chrono", "r2d2"] }
-diesel-derive-enum = { version = "0.4", features = ["postgres"] }
-diesel_migrations = { version = "1.4.0", features = ["postgres"] }
 dotenv = "0.9.0"
-env_logger = "0.6.2"
-failure = "0.1.6"
-futures = "0.3"
 graphql_client = "0.9.0"
 juniper = "0.14.2"
-openssl = "0.10.28"
-phf = { version = "0.8", features = ["macros"] }
 reqwest = { version = "0.10", features = ["json"] }
 serde = "1.0"
 serde_derive = "1.0"
