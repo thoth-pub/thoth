@@ -1,6 +1,7 @@
 use std::io;
 use std::sync::Arc;
 
+use actix_cors::Cors;
 use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
@@ -11,29 +12,6 @@ use uuid::Uuid;
 
 use crate::client::get_work;
 use crate::onix::generate_onix_3;
-
-const INDEX_FILE: &[u8] = include_bytes!("../assets/index.html");
-const ICON_FILE: &[u8] = include_bytes!("../assets/favicon.ico");
-const LOGO_FILE: &[u8] = include_bytes!("../assets/thoth-logo.png");
-
-#[get("/favicon.ico")]
-async fn favicon() -> HttpResponse {
-    HttpResponse::Ok()
-        .content_type("image/x-icon")
-        .body(ICON_FILE)
-}
-
-#[get("/thoth-logo.png")]
-async fn logo() -> HttpResponse {
-    HttpResponse::Ok().content_type("image/png").body(LOGO_FILE)
-}
-
-#[get("/")]
-async fn index() -> HttpResponse {
-    HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(INDEX_FILE)
-}
 
 #[get("/graphiql")]
 async fn graphiql() -> HttpResponse {
@@ -90,9 +68,6 @@ fn config(cfg: &mut web::ServiceConfig) {
 
     cfg.data(schema.clone());
     cfg.data(schema_context);
-    cfg.service(favicon);
-    cfg.service(logo);
-    cfg.service(index);
     cfg.service(graphql);
     cfg.service(graphiql);
     cfg.service(onix);
@@ -100,7 +75,14 @@ fn config(cfg: &mut web::ServiceConfig) {
 
 #[actix_rt::main]
 pub async fn start_server(port: String) -> io::Result<()> {
-    HttpServer::new(move || App::new().configure(config))
+    HttpServer::new(move || App::new()
+            .wrap(
+                Cors::new()
+                    .allowed_methods(vec!["GET", "POST", "OPTIONS"])
+                    .finish()
+            )
+            .configure(config)
+        )
         .bind(format!("0.0.0.0:{}", port))?
         .run()
         .await

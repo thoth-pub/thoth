@@ -13,13 +13,14 @@ travis-ci = { repository = "openbookpublishers/thoth" }
 maintenance = { status = "actively-developed" }
 
 [workspace]
-members = ["thoth-api"]
+members = ["thoth-api", "thoth-manager"]
 
 [dependencies]
 thoth-api = {version = "*", path = "thoth-api" }
 actix-http = "1.0.1"
 actix-rt = "1.0.0"
 actix-web = "2.0.0"
+actix-cors = "0.2.0"
 chrono = { version = "0.4", features = ["serde"] }
 clap = "2.33.0"
 dotenv = "0.9.0"
