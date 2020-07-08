@@ -1,0 +1,21 @@
+[package]
+name = "thoth-manager"
+version = "0.1.10"
+authors = ["Javier Arias <javi@openbookpublishers.com>"]
+edition = "2018"
+license = "Apache-2.0"
+description = "GraphQL API for bibliographic data"
+repository = "https://github.com/openbookpublishers/thoth"
+readme = "../README.md"
+
+[badges]
+travis-ci = { repository = "openbookpublishers/thoth" }
+maintenance = { status = "actively-developed" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+yew = "0.17.1"
+wasm-bindgen = "0.2"
+
