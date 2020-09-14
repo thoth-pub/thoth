@@ -46,27 +46,27 @@ impl Component for MenuComponent {
     fn view(&self) -> VNode {
         html! {
             <aside class="menu">
-            <p class="menu-label">
-                { "General" }
-            </p>
-            <ul class="menu-list">
-                <li>
-                    <RouterAnchor<AppRoute>
-                        classes={self.is_active(AdminRoute::Dashboard)}
-                        route=AppRoute::Admin(AdminRoute::Dashboard)
-                    >
-                        {"Dashboard"}
-                    </  RouterAnchor<AppRoute>>
-                </li>
-                <li>
-                    <RouterAnchor<AppRoute>
-                        classes={self.is_active(AdminRoute::Test)}
-                        route=AppRoute::Admin(AdminRoute::Test)
-                    >
-                        {"Test"}
-                    </  RouterAnchor<AppRoute>>
-                </li>
-            </ul>
+                <p class="menu-label">
+                    { "General" }
+                </p>
+                <ul class="menu-list">
+                    <li>
+                        <RouterAnchor<AppRoute>
+                            classes={self.is_active(AdminRoute::Dashboard)}
+                            route=AppRoute::Admin(AdminRoute::Dashboard)
+                        >
+                            {"Dashboard"}
+                        </  RouterAnchor<AppRoute>>
+                    </li>
+                    <li>
+                        <RouterAnchor<AppRoute>
+                            classes={self.is_active(AdminRoute::Test)}
+                            route=AppRoute::Admin(AdminRoute::Test)
+                        >
+                            {"Test"}
+                        </  RouterAnchor<AppRoute>>
+                    </li>
+                </ul>
             </aside>
         }
     }
