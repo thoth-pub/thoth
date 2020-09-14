@@ -1,27 +1,30 @@
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[cfg(feature = "backend")]
 use crate::schema::publication;
 
-#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
-#[DieselType = "Publication_type"]
+#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
+#[cfg_attr(feature = "backend", DieselType = "Publication_type")]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub enum PublicationType {
-    #[db_rename = "Paperback"]
+    #[cfg_attr(feature = "backend", db_rename = "Paperback")]
     Paperback,
-    #[db_rename = "Hardback"]
+    #[cfg_attr(feature = "backend", db_rename = "Hardback")]
     Hardback,
-    #[db_rename = "PDF"]
+    #[cfg_attr(feature = "backend", db_rename = "PDF")]
     PDF,
-    #[db_rename = "HTML"]
+    #[cfg_attr(feature = "backend", db_rename = "HTML")]
     HTML,
-    #[db_rename = "XML"]
+    #[cfg_attr(feature = "backend", db_rename = "XML")]
     XML,
-    #[db_rename = "Epub"]
+    #[cfg_attr(feature = "backend", db_rename = "Epub")]
     Epub,
-    #[db_rename = "Mobi"]
+    #[cfg_attr(feature = "backend", db_rename = "Mobi")]
     Mobi,
 }
 
-#[derive(Queryable)]
+#[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Publication {
     pub publication_id: Uuid,
     pub publication_type: PublicationType,
@@ -30,8 +33,8 @@ pub struct Publication {
     pub publication_url: Option<String>,
 }
 
-#[derive(juniper::GraphQLInputObject, Insertable)]
-#[table_name = "publication"]
+#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
+#[cfg_attr(feature = "backend", table_name = "publication")]
 pub struct NewPublication {
     pub publication_type: PublicationType,
     pub work_id: Uuid,

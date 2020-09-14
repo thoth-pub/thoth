@@ -1,23 +1,25 @@
 use uuid::Uuid;
 
+#[cfg(feature = "backend")]
 use crate::schema::funder;
+#[cfg(feature = "backend")]
 use crate::schema::funding;
 
-#[derive(Queryable)]
+#[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Funder {
     pub funder_id: Uuid,
     pub funder_name: String,
     pub funder_doi: Option<String>,
 }
 
-#[derive(juniper::GraphQLInputObject, Insertable)]
-#[table_name = "funder"]
+#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
+#[cfg_attr(feature = "backend", table_name = "funder")]
 pub struct NewFunder {
     pub funder_name: String,
     pub funder_doi: Option<String>,
 }
 
-#[derive(Queryable)]
+#[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Funding {
     pub funding_id: Uuid,
     pub work_id: Uuid,
@@ -29,8 +31,8 @@ pub struct Funding {
     pub jurisdiction: Option<String>,
 }
 
-#[derive(juniper::GraphQLInputObject, Insertable)]
-#[table_name = "funding"]
+#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
+#[cfg_attr(feature = "backend", table_name = "funding")]
 pub struct NewFunding {
     pub work_id: Uuid,
     pub funder_id: Uuid,

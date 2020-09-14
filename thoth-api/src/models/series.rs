@@ -1,17 +1,21 @@
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[cfg(feature = "backend")]
 use crate::schema::issue;
+#[cfg(feature = "backend")]
 use crate::schema::series;
 
-#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
-#[DieselType = "Series_type"]
+#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
+#[cfg_attr(feature = "backend", DieselType = "Series_type")]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub enum SeriesType {
     Journal,
-    #[db_rename = "book-series"]
+    #[cfg_attr(feature = "backend", db_rename = "book-series")]
     BookSeries,
 }
 
-#[derive(Queryable)]
+#[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Series {
     pub series_id: Uuid,
     pub series_type: SeriesType,
@@ -22,8 +26,8 @@ pub struct Series {
     pub imprint_id: Uuid,
 }
 
-#[derive(juniper::GraphQLInputObject, Insertable)]
-#[table_name = "series"]
+#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
+#[cfg_attr(feature = "backend", table_name = "series")]
 pub struct NewSeries {
     pub series_type: SeriesType,
     pub series_name: String,
@@ -33,15 +37,15 @@ pub struct NewSeries {
     pub imprint_id: Uuid,
 }
 
-#[derive(Queryable)]
+#[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Issue {
     pub series_id: Uuid,
     pub work_id: Uuid,
     pub issue_ordinal: i32,
 }
 
-#[derive(juniper::GraphQLInputObject, Insertable)]
-#[table_name = "issue"]
+#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
+#[cfg_attr(feature = "backend", table_name = "issue")]
 pub struct NewIssue {
     pub series_id: Uuid,
     pub work_id: Uuid,

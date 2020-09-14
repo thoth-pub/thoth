@@ -1,5 +1,22 @@
 table! {
     use diesel::sql_types::*;
+
+    account (account_id) {
+        account_id -> Uuid,
+        name -> Text,
+        surname -> Text,
+        email -> Text,
+        password -> Text,
+        is_admin -> Bool,
+        is_bot -> Bool,
+        is_active -> Bool,
+        registered -> Date,
+        token -> Nullable<Text>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use crate::models::contributor::Contribution_type;
 
     contribution (work_id, contributor_id, contribution_type) {

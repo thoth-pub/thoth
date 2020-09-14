@@ -1,29 +1,33 @@
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[cfg(feature = "backend")]
 use crate::schema::contribution;
+#[cfg(feature = "backend")]
 use crate::schema::contributor;
 
-#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
-#[DieselType = "Contribution_type"]
+#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
+#[cfg_attr(feature = "backend", DieselType = "Contribution_type")]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub enum ContributionType {
     Author,
     Editor,
     Translator,
     Photographer,
     Ilustrator,
-    #[db_rename = "music-editor"]
+    #[cfg_attr(feature = "backend", db_rename = "music-editor")]
     MusicEditor,
-    #[db_rename = "foreword-by"]
+    #[cfg_attr(feature = "backend", db_rename = "foreword-by")]
     ForewordBy,
-    #[db_rename = "introduction-by"]
+    #[cfg_attr(feature = "backend", db_rename = "introduction-by")]
     IntroductionBy,
-    #[db_rename = "afterword-by"]
+    #[cfg_attr(feature = "backend", db_rename = "afterword-by")]
     AfterwordBy,
-    #[db_rename = "preface-by"]
+    #[cfg_attr(feature = "backend", db_rename = "preface-by")]
     PrefaceBy,
 }
 
-#[derive(Queryable)]
+#[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Contributor {
     pub contributor_id: Uuid,
     pub first_name: Option<String>,
@@ -33,8 +37,8 @@ pub struct Contributor {
     pub website: Option<String>,
 }
 
-#[derive(juniper::GraphQLInputObject, Insertable)]
-#[table_name = "contributor"]
+#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
+#[cfg_attr(feature = "backend", table_name = "contributor")]
 pub struct NewContributor {
     pub first_name: Option<String>,
     pub last_name: String,
@@ -43,7 +47,7 @@ pub struct NewContributor {
     pub website: Option<String>,
 }
 
-#[derive(Queryable)]
+#[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Contribution {
     pub work_id: Uuid,
     pub contributor_id: Uuid,
@@ -53,8 +57,8 @@ pub struct Contribution {
     pub institution: Option<String>,
 }
 
-#[derive(juniper::GraphQLInputObject, Insertable)]
-#[table_name = "contribution"]
+#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
+#[cfg_attr(feature = "backend", table_name = "contribution")]
 pub struct NewContribution {
     pub work_id: Uuid,
     pub contributor_id: Uuid,

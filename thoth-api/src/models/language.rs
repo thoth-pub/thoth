@@ -1,18 +1,21 @@
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[cfg(feature = "backend")]
 use crate::schema::language;
 
-#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
-#[DieselType = "Language_relation"]
+#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
+#[cfg_attr(feature = "backend", DieselType = "Language_relation")]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub enum LanguageRelation {
     Original,
-    #[db_rename = "translated-from"]
+    #[cfg_attr(feature = "backend", db_rename = "translated-from")]
     TranslatedFrom,
-    #[db_rename = "translated-into"]
+    #[cfg_attr(feature = "backend", db_rename = "translated-into")]
     TranslatedInto,
 }
 
-#[derive(Queryable)]
+#[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Language {
     pub language_id: Uuid,
     pub work_id: Uuid,
@@ -21,8 +24,8 @@ pub struct Language {
     pub main_language: bool,
 }
 
-#[derive(juniper::GraphQLInputObject, Insertable)]
-#[table_name = "language"]
+#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
+#[cfg_attr(feature = "backend", table_name = "language")]
 pub struct NewLanguage {
     pub work_id: Uuid,
     pub language_code: LanguageCode,
@@ -30,8 +33,9 @@ pub struct NewLanguage {
     pub main_language: bool,
 }
 
-#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
-#[DieselType = "Language_code"]
+#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
+#[cfg_attr(feature = "backend", DieselType = "Language_code")]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub enum LanguageCode {
     Aar,
     Abk,

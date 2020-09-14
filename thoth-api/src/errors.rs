@@ -10,6 +10,8 @@ pub enum ThothError {
     DatabaseError(String),
     #[fail(display = "Internal error: {}", _0)]
     InternalError(String),
+    #[fail(display = "No cookie found.")]
+    CookieError(),
 }
 
 impl juniper::IntoFieldError for ThothError {

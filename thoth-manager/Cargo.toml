@@ -1,6 +1,6 @@
 [package]
 name = "thoth-manager"
-version = "0.1.10"
+version = "0.2.0"
 authors = ["Javier Arias <javi@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -16,6 +16,14 @@ maintenance = { status = "actively-developed" }
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-yew = "0.17.1"
-wasm-bindgen = "0.2"
-
+anyhow = "1.0.32"
+log = "0.4.11"
+thiserror = "1.0.20"
+yew = "0.17.3"
+yew-router = "0.14.0"
+yewtil = { version = "0.3.2", features = ["fetch"] }
+wasm-bindgen = "0.2.67"
+stdweb = "0.4.20"
+serde = { version = "1.0.115", features = ["derive"] }
+url = "2.1.1"
+thoth-api = { version = "*", path = "../thoth-api"  }

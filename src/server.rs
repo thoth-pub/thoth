@@ -8,9 +8,9 @@ use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 use thoth_api::db::establish_connection;
 use thoth_api::graphql_handlers::{create_schema, Context, Schema};
+use thoth_client::work::get_work;
 use uuid::Uuid;
 
-use crate::client::get_work;
 use crate::onix::generate_onix_3;
 
 #[get("/graphiql")]

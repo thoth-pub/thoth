@@ -3,16 +3,15 @@ use std::io::Write;
 
 use chrono::prelude::*;
 use thoth_api::errors;
+use thoth_client::work::work_query::ContributionType;
+use thoth_client::work::work_query::LanguageRelation;
+use thoth_client::work::work_query::PublicationType;
+use thoth_client::work::work_query::SubjectType;
+use thoth_client::work::work_query::WorkQueryWork;
+use thoth_client::work::work_query::WorkQueryWorkPublications;
+use thoth_client::work::work_query::WorkStatus;
 use xml::writer::events::StartElementBuilder;
 use xml::writer::{EmitterConfig, EventWriter, Result, XmlEvent};
-
-use crate::client::work_query::ContributionType;
-use crate::client::work_query::LanguageRelation;
-use crate::client::work_query::PublicationType;
-use crate::client::work_query::SubjectType;
-use crate::client::work_query::WorkQueryWork;
-use crate::client::work_query::WorkQueryWorkPublications;
-use crate::client::work_query::WorkStatus;
 
 pub fn generate_onix_3(mut work: WorkQueryWork) -> errors::Result<Vec<u8>> {
     let mut buffer = Vec::new();

@@ -1,8 +1,10 @@
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[cfg(feature = "backend")]
 use crate::schema::price;
 
-#[derive(Queryable)]
+#[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Price {
     pub price_id: Uuid,
     pub publication_id: Uuid,
@@ -10,16 +12,17 @@ pub struct Price {
     pub unit_price: f64,
 }
 
-#[derive(juniper::GraphQLInputObject, Insertable)]
-#[table_name = "price"]
+#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
+#[cfg_attr(feature = "backend", table_name = "price")]
 pub struct NewPrice {
     pub publication_id: Uuid,
     pub currency_code: CurrencyCode,
     pub unit_price: f64,
 }
 
-#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
-#[DieselType = "Currency_code"]
+#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
+#[cfg_attr(feature = "backend", DieselType = "Currency_code")]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub enum CurrencyCode {
     Adp,
     Aed,

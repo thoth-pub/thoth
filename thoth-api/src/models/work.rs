@@ -1,47 +1,51 @@
 use chrono::naive::NaiveDate;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[cfg(feature = "backend")]
 use crate::schema::work;
 
-#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
-#[DieselType = "Work_type"]
+#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
+#[cfg_attr(feature = "backend", DieselType = "Work_type")]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub enum WorkType {
-    #[db_rename = "book-chapter"]
+    #[cfg_attr(feature = "backend", db_rename = "book-chapter")]
     BookChapter,
     Monograph,
-    #[db_rename = "edited-book"]
+    #[cfg_attr(feature = "backend", db_rename = "edited-book")]
     EditedBook,
     Textbook,
-    #[db_rename = "journal-issue"]
+    #[cfg_attr(feature = "backend", db_rename = "journal-issue")]
     JournalIssue,
-    #[db_rename = "book-set"]
+    #[cfg_attr(feature = "backend", db_rename = "book-set")]
     BookSet,
 }
 
-#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
-#[DieselType = "Work_status"]
+#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
+#[cfg_attr(feature = "backend", DieselType = "Work_status")]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub enum WorkStatus {
     Unspecified,
     Cancelled,
     Forthcoming,
-    #[db_rename = "postponed-indefinitely"]
+    #[cfg_attr(feature = "backend", db_rename = "postponed-indefinitely")]
     PostponedIndefinitely,
     Active,
-    #[db_rename = "no-longer-our-product"]
+    #[cfg_attr(feature = "backend", db_rename = "no-longer-our-product")]
     NoLongerOurProduct,
-    #[db_rename = "out-of-stock-indefinitely"]
+    #[cfg_attr(feature = "backend", db_rename = "out-of-stock-indefinitely")]
     OutOfStockIndefinitely,
-    #[db_rename = "out-of-print"]
+    #[cfg_attr(feature = "backend", db_rename = "out-of-print")]
     OutOfPrint,
     Inactive,
     Unknown,
     Remaindered,
-    #[db_rename = "withdrawn-from-sale"]
+    #[cfg_attr(feature = "backend", db_rename = "withdrawn-from-sale")]
     WithdrawnFromSale,
     Recalled,
 }
 
-#[derive(Queryable)]
+#[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Work {
     pub work_id: Uuid,
     pub work_type: WorkType,
@@ -76,8 +80,8 @@ pub struct Work {
     pub cover_caption: Option<String>,
 }
 
-#[derive(juniper::GraphQLInputObject, Insertable)]
-#[table_name = "work"]
+#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
+#[cfg_attr(feature = "backend", table_name = "work")]
 pub struct NewWork {
     pub work_type: WorkType,
     pub work_status: WorkStatus,

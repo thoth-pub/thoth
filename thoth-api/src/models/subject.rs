@@ -1,13 +1,16 @@
 use phf::phf_map;
 use phf::Map;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use uuid::Uuid;
 
 use crate::errors::*;
+#[cfg(feature = "backend")]
 use crate::schema::subject;
 
-#[derive(Debug, PartialEq, DbEnum, juniper::GraphQLEnum)]
-#[DieselType = "Subject_type"]
+#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
+#[cfg_attr(feature = "backend", DieselType = "Subject_type")]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub enum SubjectType {
     Bic,
     Bisac,
@@ -17,7 +20,7 @@ pub enum SubjectType {
     Keyword,
 }
 
-#[derive(Queryable)]
+#[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Subject {
     pub subject_id: Uuid,
     pub work_id: Uuid,
@@ -26,8 +29,8 @@ pub struct Subject {
     pub subject_ordinal: i32,
 }
 
-#[derive(juniper::GraphQLInputObject, Insertable)]
-#[table_name = "subject"]
+#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
+#[cfg_attr(feature = "backend", table_name = "subject")]
 pub struct NewSubject {
     pub work_id: Uuid,
     pub subject_type: SubjectType,

@@ -14,6 +14,7 @@
 - [Rustup](https://rustup.rs/)
 - Stable Toolchain: `rustup default stable`
 - A PostgreSQL database (included in docker-compose.yml if ran using docker)
+- `libssl-dev`
 
 ## Getting Started
 
@@ -35,4 +36,13 @@ git clone https://github.com/OpenBookPublishers/thoth.git
 cd thoth
 cp .env.example .env  # Edit the credentials in .env
 cargo run init
+```
+
+### Wasm
+
+```sh
+cargo run init -p 8000
+cd thoth-manager
+wasm-pack build --target web \
+  && rollup ./main.js --format iife --file ./pkg/thoth_manager.js
 ```

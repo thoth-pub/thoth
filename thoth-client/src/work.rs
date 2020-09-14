@@ -40,3 +40,32 @@ impl fmt::Display for work_query::LanguageCode {
         write!(f, "{:?}", self)
     }
 }
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "assets/schema.json",
+    query_path = "assets/works_query.graphql",
+    response_derives = "Debug"
+)]
+pub struct WorksQuery;
+
+pub async fn get_works(
+    thoth_url: String,
+) -> Result<Vec<works_query::WorksQueryWorks>, ThothError> {
+    let request_body = WorksQuery::build_query(works_query::Variables);
+    let client = reqwest::Client::new();
+    let res = client.post(&thoth_url).json(&request_body).send().await?;
+    let response_body: Response<works_query::ResponseData> = res.json().await?;
+    match response_body.data {
+        Some(data) => {
+            if let Some(errors) = response_body.errors {
+                println!("there are errors:");
+                for error in &errors {
+                    println!("{:?}", error);
+                }
+            }
+            Ok(data.works)
+        }
+        _ => Err(ThothError::InternalError("Query failed".to_string())),
+    }
+}
