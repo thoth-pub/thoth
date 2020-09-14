@@ -10,10 +10,9 @@ use yew_router::switch::Permissive;
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::component::admin::AdminComponent;
 use crate::component::catalogue::CatalogueComponent;
-use crate::component::dashboard::DashboardComponent;
 use crate::component::login::LoginComponent;
-use crate::component::menu::MenuComponent;
 use crate::component::navbar::NavbarComponent;
 use crate::component::notification::NotificationComponent;
 use crate::route::AppRoute;
@@ -114,53 +113,11 @@ impl Component for RootComponent {
                                     <LoginComponent />
                                 }
                             }
-                            AppRoute::Admin => {
+                            AppRoute::Admin(admin_route) => {
                                 html! {
-                                    <div class="columns">
-                                        <div class="column">
-                                            <div class="container">
-                                                <MenuComponent />
-                                            </div>
-                                        </div>
-                                        <div class="column is-four-fifths">
-                                            <div class="container">
-                                                <DashboardComponent />
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <AdminComponent route = admin_route />
                                 }
-                            }
-                            AppRoute::Dashboard => {
-                                html! {
-                                    <div class="columns">
-                                        <div class="column">
-                                            <div class="container">
-                                                <MenuComponent />
-                                            </div>
-                                        </div>
-                                        <div class="column is-four-fifths">
-                                            <div class="container">
-                                                <DashboardComponent />
-                                            </div>
-                                        </div>
-                                    </div>
-                                }
-                            }
-                            AppRoute::Test => {
-                                html! {
-                                    <div class="columns">
-                                        <div class="column">
-                                            <div class="container">
-                                                <MenuComponent />
-                                            </div>
-                                        </div>
-                                        <div class="column is-four-fifths">
-                                            <div class="container">
-                                                { "TEST" }
-                                            </div>
-                                        </div>
-                                    </div>
-                                }
+
                             }
                             AppRoute::Loading => {
                                 html! {

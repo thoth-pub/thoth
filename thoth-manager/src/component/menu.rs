@@ -1,3 +1,4 @@
+use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use yew::html;
 use yew::prelude::*;
@@ -33,7 +34,7 @@ impl Component for MenuComponent {
                 <li>
                     <RouterAnchor<AppRoute>
                         classes="navbar-item"
-                        route=AppRoute::Dashboard
+                        route=AppRoute::Admin(AdminRoute::Dashboard)
                     >
                         {"Dashboard"}
                     </  RouterAnchor<AppRoute>>
@@ -41,7 +42,7 @@ impl Component for MenuComponent {
                 <li>
                     <RouterAnchor<AppRoute>
                         classes="navbar-item"
-                        route=AppRoute::Test
+                        route=AppRoute::Admin(AdminRoute::Test)
                     >
                         {"Test"}
                     </  RouterAnchor<AppRoute>>
