@@ -71,7 +71,7 @@ impl Component for NavbarComponent {
                             classes="navbar-item"
                             route=AppRoute::Admin(AdminRoute::Dashboard)
                         >
-                            {"Dashboard"}
+                            {"Admin"}
                         </  RouterAnchor<AppRoute>>
                     </div>
                 </div>
