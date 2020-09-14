@@ -1,7 +1,7 @@
 use yew_router::prelude::*;
 use yew_router::switch::Permissive;
 
-#[derive(Switch, Debug, Clone)]
+#[derive(Switch, Debug, Clone, PartialEq)]
 pub enum AppRoute {
     #[to = "/login"]
     Login,
@@ -13,7 +13,7 @@ pub enum AppRoute {
     Home,
 }
 
-#[derive(Switch, Debug, Clone)]
+#[derive(Switch, Debug, Clone, PartialEq, Copy)]
 pub enum AdminRoute {
     #[to = "/dashboard"]
     Dashboard,

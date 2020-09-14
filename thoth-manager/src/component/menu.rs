@@ -1,27 +1,46 @@
-use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use yew::html;
 use yew::prelude::*;
 use yew::virtual_dom::VNode;
 use yew_router::prelude::*;
 
-pub struct MenuComponent {}
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
+
+pub struct MenuComponent {
+    props: Props,
+}
+
+#[derive(Clone, Properties)]
+pub struct Props {
+    pub route: AdminRoute,
+}
+
+impl MenuComponent {
+    fn is_active(&self, route: AdminRoute) -> String {
+        if self.props.route == route {
+              "is-active".to_string()
+          } else {
+              "".to_string()
+          }
+    }
+}
 
 impl Component for MenuComponent {
     type Message = ();
-    type Properties = ();
+    type Properties = Props;
 
-    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
-        MenuComponent {}
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        MenuComponent { props }
     }
 
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        self.props = props;
         true
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
-        true
+        false
     }
 
     fn view(&self) -> VNode {
@@ -33,7 +52,7 @@ impl Component for MenuComponent {
             <ul class="menu-list">
                 <li>
                     <RouterAnchor<AppRoute>
-                        classes="navbar-item"
+                        classes={self.is_active(AdminRoute::Dashboard)}
                         route=AppRoute::Admin(AdminRoute::Dashboard)
                     >
                         {"Dashboard"}
@@ -41,7 +60,7 @@ impl Component for MenuComponent {
                 </li>
                 <li>
                     <RouterAnchor<AppRoute>
-                        classes="navbar-item"
+                        classes={self.is_active(AdminRoute::Test)}
                         route=AppRoute::Admin(AdminRoute::Test)
                     >
                         {"Test"}

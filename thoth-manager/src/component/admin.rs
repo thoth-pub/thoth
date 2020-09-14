@@ -95,7 +95,7 @@ impl Component for AdminComponent {
                 <div class="columns">
                     <div class="column">
                         <div class="container">
-                            <MenuComponent />
+                            <MenuComponent route = self.props.route />
                         </div>
                     </div>
                     <div class="column is-four-fifths">
