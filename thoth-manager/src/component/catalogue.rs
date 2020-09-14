@@ -78,13 +78,14 @@ pub struct Request {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Work {
-    workId: String,
-    fullTitle: String,
-    coverUrl: String,
+    work_id: String,
+    full_title: String,
+    cover_url: String,
     license: LicenseType,
     doi: String,
-    publicationDate: Option<String>,
+    publication_date: Option<String>,
     place: String,
     contributions: Option<Vec<Contribution>>,
     imprint: Imprint,
@@ -96,19 +97,22 @@ pub struct Imprint {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Publisher {
-    publisherName: String,
+    publisher_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Contribution {
-    mainContribution: bool,
+    main_contribution: bool,
     contributor: Contributor,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Contributor {
-    fullName: String,
+    full_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -270,10 +274,10 @@ impl Component for CatalogueComponent {
 }
 
 fn render_contribution(c: &Contribution) -> Html {
-    if c.mainContribution {
+    if c.main_contribution {
         html! {
             <small class="contributor">
-                {&c.contributor.fullName}
+                {&c.contributor.full_name}
                 <span>{ " • " }</span>
             </small>
         }
@@ -338,14 +342,14 @@ fn render_work(w: &Work) -> Html {
             <article class="media">
                 <div class="media-left">
                 <figure class="image is-96x96">
-                    <img src={&w.coverUrl} alt="Placeholder image" />
+                    <img src={&w.cover_url} alt="Placeholder image" />
                     { render_license(&w.license) }
                 </figure>
                 </div>
                 <div class="media-content">
                     <div class="content">
                         <p>
-                            <strong>{&w.fullTitle}</strong>
+                            <strong>{&w.full_title}</strong>
                             <br/>
                             <div>
                             {
@@ -358,16 +362,16 @@ fn render_work(w: &Work) -> Html {
                             </div>
                             <br/>
                             {
-                                if let Some(date) = &w.publicationDate {
+                                if let Some(date) = &w.publication_date {
                                     let mut c1 = date.chars();
                                     c1.next();
                                     c1.next();
                                     c1.next();
                                     c1.next();
                                     let year: &str = &date[..date.len() - c1.as_str().len()];
-                                    html! {<small>{&w.place}{": "}{&w.imprint.publisher.publisherName}{", "}{year}</small>}
+                                    html! {<small>{&w.place}{": "}{&w.imprint.publisher.publisher_name}{", "}{year}</small>}
                                 } else {
-                                    html! {<small>{&w.imprint.publisher.publisherName}</small>}
+                                    html! {<small>{&w.imprint.publisher.publisher_name}</small>}
                                 }
                             }
                             <br/>
@@ -406,7 +410,7 @@ fn render_work(w: &Work) -> Html {
                                 <div class="dropdown-menu" id="dropdown-menu" role="menu">
                                     <div class="dropdown-content">
                                         <a
-                                            href={format!("http://localhost:8000/onix/{}", &w.workId)}
+                                            href={format!("http://localhost:8000/onix/{}", &w.work_id)}
                                             class="dropdown-item"
                                         >
                                         {"ONIX"}
