@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 use std::fmt;
+use yew::agent::Dispatcher;
 use yew::worker::*;
+
+pub type NotificationDispatcher = Dispatcher<NotificationBus>;
 
 #[derive(Debug)]
 pub enum Request {
