@@ -5,8 +5,6 @@ use yew_router::switch::Permissive;
 pub enum AppRoute {
     #[to = "/login"]
     Login,
-    #[to = "/loading"]
-    Loading,
     #[to = "/error"]
     Error(Permissive<String>),
     #[to = "/admin{*:rest}"]
@@ -21,6 +19,6 @@ pub enum AdminRoute {
     Dashboard,
     #[to = "/test"]
     Test,
-    #[to = "/"]
+    #[to = ""]
     Admin,
 }
