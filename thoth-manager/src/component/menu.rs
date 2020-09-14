@@ -58,12 +58,17 @@ impl Component for MenuComponent {
                             {"Dashboard"}
                         </  RouterAnchor<AppRoute>>
                     </li>
+                </ul>
+                <p class="menu-label">
+                    { "Metadata" }
+                </p>
+                <ul class="menu-list">
                     <li>
                         <RouterAnchor<AppRoute>
-                            classes={self.is_active(AdminRoute::Test)}
-                            route=AppRoute::Admin(AdminRoute::Test)
+                            classes={self.is_active(AdminRoute::Works)}
+                            route=AppRoute::Admin(AdminRoute::Works)
                         >
-                            {"Test"}
+                            {"Works"}
                         </  RouterAnchor<AppRoute>>
                     </li>
                 </ul>

@@ -17,8 +17,8 @@ pub enum AppRoute {
 pub enum AdminRoute {
     #[to = "/dashboard"]
     Dashboard,
-    #[to = "/test"]
-    Test,
+    #[to = "/works"]
+    Works,
     #[to = ""]
     Admin,
 }
