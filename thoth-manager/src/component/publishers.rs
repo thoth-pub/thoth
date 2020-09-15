@@ -14,6 +14,7 @@ use yew_router::route::Route;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 
+use crate::component::utils::Loader;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
@@ -180,11 +181,7 @@ impl Component for PublishersComponent {
                     </div>
                 }
             }
-            FetchState::Fetching(_) => html! {
-                <div class="pageloader is-active is-warning">
-                    <span class="title">{ "Loading" }</span>
-                 </div>
-            },
+            FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(body) => html! {
                 <>
                     <nav class="level">

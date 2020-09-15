@@ -11,6 +11,8 @@ use yewtil::fetch::Json;
 use yewtil::fetch::MethodBody;
 use yewtil::future::LinkFuture;
 
+use crate::component::utils::Loader;
+
 pub struct WorkComponent {
     markdown: Fetch<Request, ResponseBody>,
     link: ComponentLink<Self>,
@@ -217,11 +219,7 @@ impl Component for WorkComponent {
                     </div>
                 }
             }
-            FetchState::Fetching(_) => html! {
-                <div class="pageloader is-active is-warning">
-                    <span class="title">{ "Loading" }</span>
-                 </div>
-            },
+            FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(body) => {
                 let w = &body.data.work;
                 let subtitle = w.subtitle.clone().unwrap_or("".to_string());

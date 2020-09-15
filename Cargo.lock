@@ -2486,6 +2486,17 @@ dependencies = [
  "wasm-bindgen-futures 0.4.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "web-sys 0.3.36 (registry+https://github.com/rust-lang/crates.io-index)",
  "yew 0.17.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "yewtil-macro 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "yewtil-macro"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "proc-macro2 1.0.18 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn 1.0.33 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [metadata]
@@ -2749,3 +2760,4 @@ dependencies = [
 "checksum yew-router-macro 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)" = "768693f16c930d8a8742c2e5f62f258d5a6f0392e8c9265a45c550fac4cbe5a7"
 "checksum yew-router-route-parser 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)" = "49bf2f66f0e61d65d1637523fa1faedd5aa291cf9cb8d8fb200678472279b672"
 "checksum yewtil 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "003f4f533ee696c1f69d753db2c66096dec5700a93bd0bc801ab5891fec041c6"
+"checksum yewtil-macro 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "648da62a87cb3158cb93892e154bd8b7d08c659c3fd8c0aeb853bd89f8fc2249"

@@ -12,6 +12,7 @@ use yewtil::fetch::MethodBody;
 use yewtil::future::LinkFuture;
 use yew_router::prelude::RouterAnchor;
 
+use crate::component::utils::Loader;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
@@ -169,15 +170,7 @@ impl Component for DashboardComponent {
                     </div>
                 }
             }
-            FetchState::Fetching(_) => html! {
-                <div class="hero is-medium">
-                    <div class="hero-body">
-                        <div class="container has-text-centered">
-                            <progress class="progress is-warning" max="100"></progress>
-                        </div>
-                    </div>
-                </div>
-            },
+            FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(body) => html! {
                 <div class="tile is-ancestor">
                     <div class="tile is-parent">
