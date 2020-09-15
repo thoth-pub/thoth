@@ -6,4 +6,5 @@ pub mod navbar;
 pub mod notification;
 pub mod login;
 pub mod root;
+pub mod work;
 pub mod works;
