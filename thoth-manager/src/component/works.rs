@@ -14,7 +14,8 @@ use yew_router::route::Route;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 
-use crate::route::*;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 
 pub struct WorksComponent {
     markdown: Fetch<Request, ResponseBody>,
