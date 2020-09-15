@@ -3,7 +3,12 @@ use serde::Serialize;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
-use yewtil::fetch::{Fetch, FetchAction, FetchRequest, FetchState, Json, MethodBody};
+use yewtil::fetch::Fetch;
+use yewtil::fetch::FetchAction;
+use yewtil::fetch::FetchRequest;
+use yewtil::fetch::FetchState;
+use yewtil::fetch::Json;
+use yewtil::fetch::MethodBody;
 use yewtil::future::LinkFuture;
 
 pub struct WorkComponent {
