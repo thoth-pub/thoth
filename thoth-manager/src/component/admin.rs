@@ -62,7 +62,6 @@ impl Component for AdminComponent {
                             AdminRoute::Dashboard => html!{<DashboardComponent/>},
                             AdminRoute::Works => html!{<WorksComponent/>},
                             AdminRoute::Work(id) => html!{<WorkComponent work_id = id />},
-                            AdminRoute::Publications => html!{{ "Publications" }},
                             AdminRoute::Publishers => html!{<PublishersComponent/>},
                             AdminRoute::Publisher(id) => html!{{ id }},
                             AdminRoute::Imprints => html!{{ "Imprints" }},
