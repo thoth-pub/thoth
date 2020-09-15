@@ -236,7 +236,7 @@ impl Component for WorksComponent {
                             </p>
                         </div>
                     </nav>
-                    <table class="table">
+                    <table class="table is-fullwidth is-hoverable">
                         <thead>
                             <tr>
                                 <th>{ "ID" }</th>
