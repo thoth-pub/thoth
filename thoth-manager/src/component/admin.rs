@@ -5,6 +5,7 @@ use yew::prelude::*;
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::component::dashboard::DashboardComponent;
+use crate::component::publishers::PublishersComponent;
 use crate::component::work::WorkComponent;
 use crate::component::works::WorksComponent;
 use crate::component::menu::MenuComponent;
@@ -62,7 +63,8 @@ impl Component for AdminComponent {
                             AdminRoute::Works => html!{<WorksComponent/>},
                             AdminRoute::Work(id) => html!{<WorkComponent work_id = id />},
                             AdminRoute::Publications => html!{{ "Publications" }},
-                            AdminRoute::Publishers => html!{{ "Publishers" }},
+                            AdminRoute::Publishers => html!{<PublishersComponent/>},
+                            AdminRoute::Publisher(id) => html!{{ id }},
                             AdminRoute::Imprints => html!{{ "Imprints" }},
                             AdminRoute::Contributors => html!{{ "Contributors" }},
                             AdminRoute::Series => html!{{ "Series" }},

@@ -25,6 +25,8 @@ pub enum AdminRoute {
     Publications,
     #[to = "/publishers"]
     Publishers,
+    #[to = "/publisher/{id}"]
+    Publisher(String),
     #[to = "/imprints"]
     Imprints,
     #[to = "/contributors"]
