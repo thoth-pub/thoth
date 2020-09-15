@@ -11,6 +11,13 @@
     margin-left: 0.2em;
 }
 
+.row {
+    cursor: pointer;
+}
+
+.row:hover {
+    background-color: #eef3fc !important;
+}
 
 .fixed-right {
   float: right;

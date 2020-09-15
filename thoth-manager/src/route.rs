@@ -13,12 +13,24 @@ pub enum AppRoute {
     Home,
 }
 
-#[derive(Switch, Debug, Clone, PartialEq, Copy)]
+#[derive(Switch, Debug, Clone, PartialEq)]
 pub enum AdminRoute {
     #[to = "/dashboard"]
     Dashboard,
     #[to = "/works"]
     Works,
+    #[to = "/work/{id}"]
+    Work(String),
+    #[to = "/publications"]
+    Publications,
+    #[to = "/publishers"]
+    Publishers,
+    #[to = "/imprints"]
+    Imprints,
+    #[to = "/contributors"]
+    Contributors,
+    #[to = "/series"]
+    Series,
     #[to = ""]
     Admin,
 }

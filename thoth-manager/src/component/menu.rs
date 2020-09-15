@@ -71,7 +71,48 @@ impl Component for MenuComponent {
                             {"Works"}
                         </  RouterAnchor<AppRoute>>
                     </li>
+                    <li>
+                        <RouterAnchor<AppRoute>
+                            classes={self.is_active(AdminRoute::Publications)}
+                            route=AppRoute::Admin(AdminRoute::Publications)
+                        >
+                            {"Publications"}
+                        </  RouterAnchor<AppRoute>>
+                    </li>
+                    <li>
+                        <RouterAnchor<AppRoute>
+                            classes={self.is_active(AdminRoute::Publishers)}
+                            route=AppRoute::Admin(AdminRoute::Publishers)
+                        >
+                            {"Publishers"}
+                        </  RouterAnchor<AppRoute>>
+                    </li>
+                    <li>
+                        <RouterAnchor<AppRoute>
+                            classes={self.is_active(AdminRoute::Imprints)}
+                            route=AppRoute::Admin(AdminRoute::Imprints)
+                        >
+                            {"Imprints"}
+                        </  RouterAnchor<AppRoute>>
+                    </li>
+                    <li>
+                        <RouterAnchor<AppRoute>
+                            classes={self.is_active(AdminRoute::Contributors)}
+                            route=AppRoute::Admin(AdminRoute::Contributors)
+                        >
+                            {"Contributors"}
+                        </  RouterAnchor<AppRoute>>
+                    </li>
+                    <li>
+                        <RouterAnchor<AppRoute>
+                            classes={self.is_active(AdminRoute::Series)}
+                            route=AppRoute::Admin(AdminRoute::Series)
+                        >
+                            {"Series"}
+                        </  RouterAnchor<AppRoute>>
+                    </li>
                 </ul>
+
             </aside>
         }
     }

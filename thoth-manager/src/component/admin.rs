@@ -5,6 +5,7 @@ use yew::prelude::*;
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::component::dashboard::DashboardComponent;
+use crate::component::works::WorksComponent;
 use crate::component::menu::MenuComponent;
 use crate::route::AdminRoute;
 
@@ -49,15 +50,21 @@ impl Component for AdminComponent {
             <div class="columns">
                 <div class="column">
                     <div class="container">
-                        <MenuComponent route = self.props.route />
+                        <MenuComponent route = &self.props.route />
                     </div>
                 </div>
                 <div class="column is-four-fifths">
                     <div class="container">
                     {
-                        match self.props.route {
+                        match &self.props.route {
                             AdminRoute::Dashboard => html!{<DashboardComponent/>},
-                            AdminRoute::Works => html!{{ "Works" }},
+                            AdminRoute::Works => html!{<WorksComponent/>},
+                            AdminRoute::Work(id) => html!{{format!("id: {}", id)}},
+                            AdminRoute::Publications => html!{{ "Publications" }},
+                            AdminRoute::Publishers => html!{{ "Publishers" }},
+                            AdminRoute::Imprints => html!{{ "Imprints" }},
+                            AdminRoute::Contributors => html!{{ "Contributors" }},
+                            AdminRoute::Series => html!{{ "Series" }},
                             AdminRoute::Admin => html!{<DashboardComponent/>},
                         }
                     }
