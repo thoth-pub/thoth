@@ -15,10 +15,6 @@
     cursor: pointer;
 }
 
-.row:hover {
-    background-color: #eef3fc !important;
-}
-
 .fixed-right {
   float: right;
   position: fixed;
