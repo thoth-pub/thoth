@@ -21,7 +21,6 @@ struct Notification {
 
 pub struct NotificationComponent {
     notifications: Vec<Notification>,
-    message: String,
     link: ComponentLink<Self>,
     _producer: Box<dyn Bridge<NotificationBus>>,
 }
@@ -35,7 +34,6 @@ impl Component for NotificationComponent {
         let _producer = NotificationBus::bridge(callback);
         NotificationComponent {
             notifications: Vec::new(),
-            message: "".to_string(),
             link,
             _producer,
         }
