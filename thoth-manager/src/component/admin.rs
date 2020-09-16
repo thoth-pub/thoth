@@ -66,7 +66,7 @@ impl Component for AdminComponent {
                             AdminRoute::Publisher(id) => html!{{ id }},
                             AdminRoute::Imprints => html!{{ "Imprints" }},
                             AdminRoute::Contributors => html!{{ "Contributors" }},
-                            AdminRoute::Series => html!{{ "Series" }},
+                            AdminRoute::Serieses => html!{{ "Series" }},
                             AdminRoute::Admin => html!{<DashboardComponent/>},
                         }
                     }

@@ -97,8 +97,8 @@ impl Component for MenuComponent {
                     </li>
                     <li>
                         <RouterAnchor<AppRoute>
-                            classes={self.is_active(AdminRoute::Series)}
-                            route=AppRoute::Admin(AdminRoute::Series)
+                            classes={self.is_active(AdminRoute::Serieses)}
+                            route=AppRoute::Admin(AdminRoute::Serieses)
                         >
                             {"Series"}
                         </  RouterAnchor<AppRoute>>

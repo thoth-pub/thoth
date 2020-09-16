@@ -38,6 +38,18 @@ pub struct Publisher {
     publisher_id: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Series {
+    series_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Contributor {
+    contributor_id: String,
+}
+
 #[derive(Default, Debug, Clone)]
 pub struct Request {
     body: RequestBody,
@@ -52,6 +64,8 @@ pub struct ResponseBody {
 pub struct ResponseData {
     works: Vec<Work>,
     publishers: Vec<Publisher>,
+    serieses: Vec<Series>,
+    contributors: Vec<Contributor>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -63,7 +77,7 @@ pub struct RequestBody {
 impl Default for ResponseBody {
     fn default() -> ResponseBody {
         ResponseBody {
-            data: ResponseData { works: vec![], publishers: vec![] },
+            data: Default::default()
         }
     }
 }
@@ -73,6 +87,8 @@ impl Default for ResponseData {
         ResponseData {
             works: vec![],
             publishers: vec![],
+            serieses: vec![],
+            contributors: vec![],
         }
     }
 }
@@ -84,6 +100,8 @@ impl Default for RequestBody {
                 {
                     works(limit: 9999) { workId }
                     publishers(limit: 9999) { publisherId }
+                    serieses(limit: 9999) { seriesId }
+                    contributors(limit: 9999) { contributorId }
                 }
             ".to_string(),
             variables: "null".to_string()
@@ -173,33 +191,63 @@ impl Component for DashboardComponent {
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(body) => html! {
                 <div class="tile is-ancestor">
-                    <div class="tile is-parent">
-                        <article class="tile is-child notification is-primary">
-                            <div class="content">
-                                <p class="title">
-                                    {format!("{} Works", body.data.works.iter().count())}
-                                </p>
-                                <RouterAnchor<AppRoute>
-                                    route=AppRoute::Admin(AdminRoute::Works)
-                                >
-                                    {"See all"}
-                                </  RouterAnchor<AppRoute>>
+                    <div class="tile">
+                        <div class="tile">
+                            <div class="tile is-parent is-vertical">
+                                <article class="tile is-child notification is-primary">
+                                    <div class="content">
+                                        <p class="title">
+                                            {format!("{} Works", body.data.works.iter().count())}
+                                        </p>
+                                        <RouterAnchor<AppRoute>
+                                            route=AppRoute::Admin(AdminRoute::Works)
+                                        >
+                                            {"See all"}
+                                        </  RouterAnchor<AppRoute>>
+                                    </div>
+                                </article>
+                                <article class="tile is-child notification is-danger">
+                                    <div class="content">
+                                        <p class="title">
+                                            {format!("{} Series", body.data.serieses.iter().count())}
+                                        </p>
+                                        <RouterAnchor<AppRoute>
+                                            route=AppRoute::Admin(AdminRoute::Serieses)
+                                        >
+                                            {"See all"}
+                                        </  RouterAnchor<AppRoute>>
+                                    </div>
+                                </article>
                             </div>
-                        </article>
-                    </div>
-                    <div class="tile is-parent">
-                        <article class="tile is-child notification is-link">
-                            <div class="content">
-                                <p class="title">
-                                    {format!("{} Publishers", body.data.publishers.iter().count())}
-                                </p>
-                                <RouterAnchor<AppRoute>
-                                    route=AppRoute::Admin(AdminRoute::Publishers)
-                                >
-                                    {"See all"}
-                                </  RouterAnchor<AppRoute>>
+                        </div>
+                        <div class="tile">
+                            <div class="tile is-parent is-vertical">
+                                <article class="tile is-child notification is-link">
+                                    <div class="content">
+                                        <p class="title">
+                                            {format!("{} Publishers", body.data.publishers.iter().count())}
+                                        </p>
+                                        <RouterAnchor<AppRoute>
+                                            route=AppRoute::Admin(AdminRoute::Publishers)
+                                        >
+                                            {"See all"}
+                                        </  RouterAnchor<AppRoute>>
+                                    </div>
+                                </article>
+                                <article class="tile is-child notification is-warning">
+                                    <div class="content">
+                                        <p class="title">
+                                            {format!("{} Contributors", body.data.contributors.iter().count())}
+                                        </p>
+                                        <RouterAnchor<AppRoute>
+                                            route=AppRoute::Admin(AdminRoute::Contributors)
+                                        >
+                                            {"See all"}
+                                        </  RouterAnchor<AppRoute>>
+                                    </div>
+                                </article>
                             </div>
-                        </article>
+                        </div>
                     </div>
                 </div>
             },
