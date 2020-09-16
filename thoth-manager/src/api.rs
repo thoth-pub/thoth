@@ -6,22 +6,22 @@ use yewtil::fetch::FetchRequest;
 use yewtil::fetch::Json;
 use yewtil::fetch::MethodBody;
 
-pub type FetchPublishers = Fetch<Request, ResponseBody>;
-pub type FetchActionPublishers = FetchAction<ResponseBody>;
+use crate::string::GRAPHQL_ENDPOINT;
+
+pub type FetchPublishers = Fetch<PublishersRequest, PublishersResponseBody>;
+pub type FetchActionPublishers = FetchAction<PublishersResponseBody>;
 
 #[derive(Default, Debug, Clone)]
-pub struct Request {
-    body: RequestBody,
+pub struct PublishersRequest {
+    body: PublishersRequestBody,
 }
 
-impl FetchRequest for Request {
-    type RequestBody = RequestBody;
-    type ResponseBody = ResponseBody;
+impl FetchRequest for PublishersRequest {
+    type RequestBody = PublishersRequestBody;
+    type ResponseBody = PublishersResponseBody;
     type Format = Json;
 
-    fn url(&self) -> String {
-        "http://localhost:8000/graphql".to_string()
-    }
+    fn url(&self) -> String { GRAPHQL_ENDPOINT.to_string() }
 
     fn method(&self) -> MethodBody<Self::RequestBody> {
         MethodBody::Post(&self.body)
@@ -31,46 +31,44 @@ impl FetchRequest for Request {
         vec![("Content-Type".to_string(), "application/json".to_string())]
     }
 
-    fn use_cors(&self) -> bool {
-        true
-    }
+    fn use_cors(&self) -> bool { true }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ResponseBody {
-    pub data: ResponseData,
+pub struct PublishersResponseBody {
+    pub data: PublishersResponseData,
 }
 
-impl Default for ResponseBody {
-    fn default() -> ResponseBody {
-        ResponseBody {
-            data: ResponseData { publishers: vec![] },
+impl Default for PublishersResponseBody {
+    fn default() -> PublishersResponseBody {
+        PublishersResponseBody {
+            data: Default::default(),
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ResponseData {
+pub struct PublishersResponseData {
     pub publishers: Vec<Publisher>,
 }
 
-impl Default for ResponseData {
-    fn default() -> ResponseData {
-        ResponseData {
+impl Default for PublishersResponseData {
+    fn default() -> PublishersResponseData {
+        PublishersResponseData {
             publishers: vec![],
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct RequestBody {
+pub struct PublishersRequestBody {
     pub query: String,
     pub variables: String,
 }
 
-impl Default for RequestBody {
-    fn default() -> RequestBody {
-        RequestBody {
+impl Default for PublishersRequestBody {
+    fn default() -> PublishersRequestBody {
+        PublishersRequestBody {
             query: "
                 {
                     publishers(limit: 9999) {
