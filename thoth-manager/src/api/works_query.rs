@@ -48,8 +48,10 @@ pub struct WorksResponseData {
     pub works: Vec<Work>,
 }
 
-impl Default for WorksResponseBody {
-    fn default() -> WorksResponseBody {
-        WorksResponseBody { data: WorksResponseData { works: vec![] } }
+impl Default for WorksResponseData {
+    fn default() -> WorksResponseData {
+        WorksResponseData {
+            works: vec![]
+        }
     }
 }

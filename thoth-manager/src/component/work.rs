@@ -118,59 +118,62 @@ impl Component for WorkComponent {
             }
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(body) => {
-                let w = &body.data.work;
-                let subtitle = w.subtitle.clone().unwrap_or("".to_string());
-                html! {
-                    <>
-                        <div class="field">
-                            <label class="label">{"Title"}</label>
-                            <div class="control">
-                                <input
-                                    class="input"
-                                    type="text"
-                                    placeholder="Title"
-                                    value={&w.title}
-                                />
-                            </div>
-                        </div>
-
-                        <div class="field">
-                            <label class="label">{"Subtitle"}</label>
-                            <div class="control">
-                                <input
-                                    class="input"
-                                    type="text"
-                                    placeholder="Subtitle"
-                                    value={subtitle}
-                                />
-                            </div>
-                        </div>
-
-                        <div class="field">
-                            <label class="label">{"Subject"}</label>
-                            <div class="control">
-                                <div class="select">
-                                <select>
-                                    <option>{"Select dropdown"}</option>
-                                    <option>{"With options"}</option>
-                                </select>
+                if let Some(w) = &body.data.work {
+                    let subtitle = w.subtitle.clone().unwrap_or("".to_string());
+                    html! {
+                        <>
+                            <div class="field">
+                                <label class="label">{"Title"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="text"
+                                        placeholder="Title"
+                                        value={&w.title}
+                                    />
                                 </div>
                             </div>
-                        </div>
 
-                        <div class="field">
-                            <label class="label">{"Message"}</label>
-                            <div class="control">
-                                <textarea class="textarea" placeholder="Textarea"></textarea>
+                            <div class="field">
+                                <label class="label">{"Subtitle"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="text"
+                                        placeholder="Subtitle"
+                                        value={subtitle}
+                                    />
+                                </div>
                             </div>
-                        </div>
 
-                        <div class="field">
-                            <div class="control">
-                                <button class="button is-success">{"Save"}</button>
+                            <div class="field">
+                                <label class="label">{"Subject"}</label>
+                                <div class="control">
+                                    <div class="select">
+                                    <select>
+                                        <option>{"Select dropdown"}</option>
+                                        <option>{"With options"}</option>
+                                    </select>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </>
+
+                            <div class="field">
+                                <label class="label">{"Message"}</label>
+                                <div class="control">
+                                    <textarea class="textarea" placeholder="Textarea"></textarea>
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <div class="control">
+                                    <button class="button is-success">{"Save"}</button>
+                                </div>
+                            </div>
+                        </>
+                    }
+                } else {
+                    html!{{ "Work could not be found" }}
                 }
             },
             FetchState::Failed(_, err) => html! {&err},

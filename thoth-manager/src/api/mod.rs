@@ -62,6 +62,14 @@ macro_rules! query_builder {
                 }
             }
         }
+
+        impl Default for $response_body {
+            fn default() -> $response_body {
+                $response_body {
+                    data: Default::default()
+                }
+            }
+        }
     }
 }
 

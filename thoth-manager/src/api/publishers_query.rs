@@ -29,10 +29,10 @@ pub struct PublishersResponseData {
     pub publishers: Vec<Publisher>,
 }
 
-impl Default for PublishersResponseBody {
-    fn default() -> PublishersResponseBody {
-        PublishersResponseBody {
-            data: PublishersResponseData { publishers: vec![] }
+impl Default for PublishersResponseData {
+    fn default() -> PublishersResponseData {
+        PublishersResponseData {
+            publishers: vec![]
         }
     }
 }
