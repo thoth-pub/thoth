@@ -6,6 +6,10 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
+use crate::agent::notification_bus::NotificationBus;
+use crate::agent::notification_bus::NotificationDispatcher;
+use crate::agent::notification_bus::NotificationStatus;
+use crate::agent::notification_bus::Request;
 use crate::api::work_query::FetchWork;
 use crate::api::work_query::FetchActionWork;
 use crate::api::work_query::WorkRequest;
@@ -15,11 +19,13 @@ use crate::component::utils::Loader;
 pub struct WorkComponent {
     markdown: FetchWork,
     link: ComponentLink<Self>,
+    notification_bus: NotificationDispatcher,
 }
 
 pub enum Msg {
     SetMarkdownFetchState(FetchActionWork),
     GetMarkdown,
+    ClickedSave,
 }
 
 #[derive(Clone, Properties)]
@@ -63,10 +69,12 @@ impl Component for WorkComponent {
         let body = WorkRequestBody { query, variables: "null".to_string()};
         let request = WorkRequest { body };
         let markdown = Fetch::new(request);
+        let notification_bus = NotificationBus::dispatcher();
 
         WorkComponent {
             markdown,
             link,
+            notification_bus,
         }
     }
 
@@ -90,6 +98,12 @@ impl Component for WorkComponent {
                     .send_future(self.markdown.fetch(Msg::SetMarkdownFetchState));
                 self.link
                     .send_message(Msg::SetMarkdownFetchState(FetchAction::Fetching));
+                false
+            }
+            Msg::ClickedSave => {
+                self.notification_bus
+                    .send(Request::NotificationBusMsg(
+                            ("Saved".to_string(), NotificationStatus::Success)));
                 false
             }
         }
@@ -167,7 +181,12 @@ impl Component for WorkComponent {
 
                             <div class="field">
                                 <div class="control">
-                                    <button class="button is-success">{"Save"}</button>
+                                    <button
+                                        class="button is-success"
+                                        onclick=self.link.callback(|_| Msg::ClickedSave)
+                                    >
+                                        {"Save"}
+                                    </button>
                                 </div>
                             </div>
                         </>
