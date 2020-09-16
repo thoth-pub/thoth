@@ -12,23 +12,13 @@ pub enum Request {
 
 #[derive(Debug, Clone)]
 pub enum NotificationStatus {
-    Primary,
-    Link,
-    Info,
     Success,
-    Warning,
-    Danger,
 }
 
 impl fmt::Display for NotificationStatus {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            NotificationStatus::Primary => write!(f, "is-primary"),
-            NotificationStatus::Link => write!(f, "is-link"),
-            NotificationStatus::Info => write!(f, "is-info"),
             NotificationStatus::Success => write!(f, "is-success"),
-            NotificationStatus::Warning => write!(f, "is-warning"),
-            NotificationStatus::Danger => write!(f, "is-danger"),
         }
     }
 }
