@@ -5,8 +5,6 @@ use yew_router::prelude::*;
 use yew_router::route::Route;
 use yew_router::switch::Permissive;
 
-use crate::agent::notification_bus::NotificationBus;
-use crate::agent::notification_bus::NotificationDispatcher;
 use crate::component::admin::AdminComponent;
 use crate::component::catalogue::CatalogueComponent;
 use crate::component::login::LoginComponent;
@@ -14,22 +12,14 @@ use crate::component::navbar::NavbarComponent;
 use crate::component::notification::NotificationComponent;
 use crate::route::AppRoute;
 
-pub struct RootComponent {
-    link: ComponentLink<Self>,
-    notification_bus: NotificationDispatcher,
-}
+pub struct RootComponent {}
 
 impl Component for RootComponent {
     type Message = ();
     type Properties = ();
 
-    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let notification_bus = NotificationBus::dispatcher();
-
-        RootComponent {
-            notification_bus,
-            link,
-        }
+    fn create(_: Self::Properties, _link: ComponentLink<Self>) -> Self {
+        RootComponent {}
     }
 
 
@@ -37,7 +27,7 @@ impl Component for RootComponent {
         false
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, _msg: Self::Message) -> ShouldRender {
         false
     }
 
