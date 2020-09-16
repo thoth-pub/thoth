@@ -15,7 +15,7 @@ macro_rules! query_builder {
         use yewtil::fetch::Json;
         use yewtil::fetch::MethodBody;
 
-        use crate::string::GRAPHQL_ENDPOINT;
+        use crate::GRAPHQL_ENDPOINT;
 
         pub type $fetch = Fetch<$request, $response_body>;
         pub type $fetch_action = FetchAction<$response_body>;

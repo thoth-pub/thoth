@@ -12,7 +12,7 @@ mod string;
 
 use crate::{component::root::RootComponent, service::log::init_logger};
 
-const SESSION_COOKIE: &str = "sessionToken";
+const GRAPHQL_ENDPOINT: &str = "http://localhost:8000/graphql";
 
 #[wasm_bindgen(start)]
 pub fn run_app() -> Result<(), JsValue> {
