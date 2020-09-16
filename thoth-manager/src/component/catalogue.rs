@@ -1,204 +1,24 @@
-use serde::Deserialize;
-use serde::Serialize;
-use serde::de::{self, Deserializer};
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
-use yewtil::fetch::{Fetch, FetchAction, FetchRequest, FetchState, Json, MethodBody};
+use yewtil::fetch::FetchAction;
+use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
+use crate::api::FetchWorks;
+use crate::api::FetchActionWorks;
+use crate::api::Work;
+use crate::api::License;
+use crate::api::Contribution;
+
 pub struct CatalogueComponent {
-    markdown: Fetch<Request, ResponseBody>,
+    markdown: FetchWorks,
     link: ComponentLink<Self>,
 }
 
 pub enum Msg {
-    SetMarkdownFetchState(FetchAction<ResponseBody>),
+    SetMarkdownFetchState(FetchActionWorks),
     GetMarkdown,
-}
-
-#[derive(Clone, Debug, Serialize, PartialEq)]
-pub enum LicenseType {
-    By,
-    BySa,
-    ByNd,
-    ByNc,
-    ByNcSa,
-    ByNcNd,
-    Zero,
-}
-
-impl<'de> Deserialize<'de> for LicenseType {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let l = String::deserialize(deserializer)?.to_lowercase();
-        let license = match l.as_str() {
-            "http://creativecommons.org/licenses/by/1.0/"
-                | "http://creativecommons.org/licenses/by/2.0/"
-                | "http://creativecommons.org/licenses/by/2.5/"
-                | "http://creativecommons.org/licenses/by/3.0/"
-                | "http://creativecommons.org/licenses/by/4.0/" => LicenseType::By,
-            "http://creativecommons.org/licenses/by-sa/1.0/"
-                  | "http://creativecommons.org/licenses/by-sa/2.0/"
-                  | "http://creativecommons.org/licenses/by-sa/2.5/"
-                  | "http://creativecommons.org/licenses/by-sa/3.0/"
-                  | "http://creativecommons.org/licenses/by-sa/4.0/" => LicenseType::BySa,
-            "http://creativecommons.org/licenses/by-nd/1.0/"
-                  | "http://creativecommons.org/licenses/by-nd/2.0/"
-                  | "http://creativecommons.org/licenses/by-nd/2.5/"
-                  | "http://creativecommons.org/licenses/by-nd/3.0/"
-                  | "http://creativecommons.org/licenses/by-nd/4.0/" => LicenseType::ByNd,
-            "http://creativecommons.org/licenses/by-nc/1.0/"
-                  | "http://creativecommons.org/licenses/by-nc/2.0/"
-                  | "http://creativecommons.org/licenses/by-nc/2.5/"
-                  | "http://creativecommons.org/licenses/by-nc/3.0/"
-                  | "http://creativecommons.org/licenses/by-nc/4.0/" => LicenseType::ByNc,
-            "http://creativecommons.org/licenses/by-nc-sa/1.0/"
-                  | "http://creativecommons.org/licenses/by-nc-sa/2.0/"
-                  | "http://creativecommons.org/licenses/by-nc-sa/2.5/"
-                  | "http://creativecommons.org/licenses/by-nc-sa/3.0/"
-                  | "http://creativecommons.org/licenses/by-nc-sa/4.0/" => LicenseType::ByNcSa,
-            "http://creativecommons.org/licenses/by-nc-nd/1.0/"
-                  | "http://creativecommons.org/licenses/by-nc-nd/2.0/"
-                  | "http://creativecommons.org/licenses/by-nc-nd/2.5/"
-                  | "http://creativecommons.org/licenses/by-nc-nd/3.0/"
-                  | "http://creativecommons.org/licenses/by-nc-nd/4.0/" => LicenseType::ByNcNd,
-            "https://creativecommons.org/publicdomain/zero/1.0/" => LicenseType::Zero,
-            other => { return Err(de::Error::custom(format!("Invalid license '{}'", other))); },
-        };
-        Ok(license)
-    }
-}
-
-#[derive(Default, Debug, Clone)]
-pub struct Request {
-    body: RequestBody,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Work {
-    work_id: String,
-    full_title: String,
-    cover_url: String,
-    license: LicenseType,
-    doi: String,
-    publication_date: Option<String>,
-    place: String,
-    contributions: Option<Vec<Contribution>>,
-    imprint: Imprint,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Imprint {
-    publisher: Publisher,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Publisher {
-    publisher_name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Contribution {
-    main_contribution: bool,
-    contributor: Contributor,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Contributor {
-    full_name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ResponseBody {
-    data: ResponseData,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ResponseData {
-    works: Vec<Work>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct RequestBody {
-    query: String,
-    variables: String,
-}
-
-impl Default for ResponseBody {
-    fn default() -> ResponseBody {
-        ResponseBody {
-            data: ResponseData { works: vec![] },
-        }
-    }
-}
-
-impl Default for ResponseData {
-    fn default() -> ResponseData {
-        ResponseData {
-            works: vec![],
-        }
-    }
-}
-
-impl Default for RequestBody {
-    fn default() -> RequestBody {
-        RequestBody {
-            query: "
-                {
-                works(limit: 9999) {
-                    fullTitle
-                    workId
-                    coverUrl
-                    license
-                    doi
-                    publicationDate
-                    place
-                    contributions {
-                        mainContribution
-                        contributor {
-                            fullName
-                        }
-                    }
-                    imprint {
-                        publisher {
-                            publisherName
-                        }
-                    }
-                }
-            }
-            ".to_string(),
-            variables: "null".to_string()
-        }
-    }
-}
-
-impl FetchRequest for Request {
-    type RequestBody = RequestBody;
-    type ResponseBody = ResponseBody;
-    type Format = Json;
-
-    fn url(&self) -> String {
-        "http://localhost:8000/graphql".to_string()
-    }
-
-    fn method(&self) -> MethodBody<Self::RequestBody> {
-        MethodBody::Post(&self.body)
-    }
-
-    fn headers(&self) -> Vec<(String, String)> {
-        vec![("Content-Type".to_string(), "application/json".to_string())]
-    }
-
-    fn use_cors(&self) -> bool {
-        true
-    }
 }
 
 impl Component for CatalogueComponent {
@@ -286,48 +106,48 @@ fn render_contribution(c: &Contribution) -> Html {
     }
 }
 
-fn render_license(license: &LicenseType) -> Html {
+fn render_license(license: &License) -> Html {
     html! {
         <span class="icon is-small license">
             <i class="fab fa-creative-commons" aria-hidden="true"></i>
             {
                 match license {
-                    LicenseType::By =>html!{
+                    License::By =>html!{
                         <i class="fab fa-creative-commons-by" aria-hidden="true"></i>
                     },
-                    LicenseType::BySa => html!{
+                    License::BySa => html!{
                         <>
                             <i class="fab fa-creative-commons-by" aria-hidden="true"></i>
                             <i class="fab fa-creative-commons-sa" aria-hidden="true"></i>
                         </>
                     },
-                    LicenseType::ByNd => html!{
+                    License::ByNd => html!{
                         <>
                             <i class="fab fa-creative-commons-by" aria-hidden="true"></i>
                             <i class="fab fa-creative-commons-nd" aria-hidden="true"></i>
                         </>
                     },
-                    LicenseType::ByNc => html!{
+                    License::ByNc => html!{
                         <>
                             <i class="fab fa-creative-commons-by" aria-hidden="true"></i>
                             <i class="fab fa-creative-commons-nc" aria-hidden="true"></i>
                         </>
                     },
-                    LicenseType::ByNcSa => html!{
+                    License::ByNcSa => html!{
                         <>
                             <i class="fab fa-creative-commons-by" aria-hidden="true"></i>
                             <i class="fab fa-creative-commons-nc" aria-hidden="true"></i>
                             <i class="fab fa-creative-commons-sa" aria-hidden="true"></i>
                         </>
                     },
-                    LicenseType::ByNcNd => html!{
+                    License::ByNcNd => html!{
                         <>
                             <i class="fab fa-creative-commons-by" aria-hidden="true"></i>
                             <i class="fab fa-creative-commons-nc" aria-hidden="true"></i>
                             <i class="fab fa-creative-commons-nd" aria-hidden="true"></i>
                         </>
                     },
-                    LicenseType::Zero => html!{
+                    License::Zero => html!{
                         <i class="fab fa-creative-commons-zero" aria-hidden="true"></i>
                     }
                 }
