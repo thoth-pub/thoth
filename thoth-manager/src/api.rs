@@ -178,59 +178,31 @@ impl<'de> Deserialize<'de> for License {
     }
 }
 
-impl FetchRequest for WorkRequest {
-    type RequestBody = WorkRequestBody;
-    type ResponseBody = WorkResponseBody;
-    type Format = Json;
+macro_rules! fetchrequest {
+    ($req:ty, $request:ty, $response:ty) => {
+        impl FetchRequest for $req {
+            type RequestBody = $request;
+            type ResponseBody = $response;
+            type Format = Json;
 
-    fn url(&self) -> String { GRAPHQL_ENDPOINT.to_string() }
+            fn url(&self) -> String { GRAPHQL_ENDPOINT.to_string() }
 
-    fn method(&self) -> MethodBody<Self::RequestBody> {
-        MethodBody::Post(&self.body)
+            fn method(&self) -> MethodBody<Self::RequestBody> {
+                MethodBody::Post(&self.body)
+            }
+
+            fn headers(&self) -> Vec<(String, String)> {
+                vec![("Content-Type".to_string(), "application/json".to_string())]
+            }
+
+            fn use_cors(&self) -> bool { true }
+        }
     }
-
-    fn headers(&self) -> Vec<(String, String)> {
-        vec![("Content-Type".to_string(), "application/json".to_string())]
-    }
-
-    fn use_cors(&self) -> bool { true }
 }
 
-impl FetchRequest for WorksRequest {
-    type RequestBody = WorksRequestBody;
-    type ResponseBody = WorksResponseBody;
-    type Format = Json;
-
-    fn url(&self) -> String { GRAPHQL_ENDPOINT.to_string() }
-
-    fn method(&self) -> MethodBody<Self::RequestBody> {
-        MethodBody::Post(&self.body)
-    }
-
-    fn headers(&self) -> Vec<(String, String)> {
-        vec![("Content-Type".to_string(), "application/json".to_string())]
-    }
-
-    fn use_cors(&self) -> bool { true }
-}
-
-impl FetchRequest for PublishersRequest {
-    type RequestBody = PublishersRequestBody;
-    type ResponseBody = PublishersResponseBody;
-    type Format = Json;
-
-    fn url(&self) -> String { GRAPHQL_ENDPOINT.to_string() }
-
-    fn method(&self) -> MethodBody<Self::RequestBody> {
-        MethodBody::Post(&self.body)
-    }
-
-    fn headers(&self) -> Vec<(String, String)> {
-        vec![("Content-Type".to_string(), "application/json".to_string())]
-    }
-
-    fn use_cors(&self) -> bool { true }
-}
+fetchrequest!{WorkRequest, WorkRequestBody, WorkResponseBody}
+fetchrequest!{WorksRequest, WorksRequestBody, WorksResponseBody}
+fetchrequest!{PublishersRequest, PublishersRequestBody, PublishersResponseBody}
 
 impl Default for WorkResponseBody {
     fn default() -> WorkResponseBody {
