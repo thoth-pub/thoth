@@ -1,134 +1,25 @@
-use serde::Deserialize;
-use serde::Serialize;
 use yew::ComponentLink;
 use yew::html;
 use yew::prelude::*;
-use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
-use yewtil::fetch::FetchRequest;
 use yewtil::fetch::FetchState;
-use yewtil::fetch::Json;
-use yewtil::fetch::MethodBody;
 use yewtil::future::LinkFuture;
 use yew_router::prelude::RouterAnchor;
 
+use crate::api::stats_query::FetchStats;
+use crate::api::stats_query::FetchActionStats;
 use crate::component::utils::Loader;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
 pub struct DashboardComponent {
-    markdown: Fetch<Request, ResponseBody>,
+    markdown: FetchStats,
     link: ComponentLink<Self>,
 }
 
 pub enum Msg {
-    SetMarkdownFetchState(FetchAction<ResponseBody>),
+    SetMarkdownFetchState(FetchActionStats),
     GetMarkdown,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Work {
-    work_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Publisher {
-    publisher_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Series {
-    series_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Contributor {
-    contributor_id: String,
-}
-
-#[derive(Default, Debug, Clone)]
-pub struct Request {
-    body: RequestBody,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ResponseBody {
-    data: ResponseData,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ResponseData {
-    works: Vec<Work>,
-    publishers: Vec<Publisher>,
-    serieses: Vec<Series>,
-    contributors: Vec<Contributor>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct RequestBody {
-    query: String,
-    variables: String,
-}
-
-impl Default for ResponseBody {
-    fn default() -> ResponseBody {
-        ResponseBody {
-            data: Default::default()
-        }
-    }
-}
-
-impl Default for ResponseData {
-    fn default() -> ResponseData {
-        ResponseData {
-            works: vec![],
-            publishers: vec![],
-            serieses: vec![],
-            contributors: vec![],
-        }
-    }
-}
-
-impl Default for RequestBody {
-    fn default() -> RequestBody {
-        RequestBody {
-            query: "
-                {
-                    works(limit: 9999) { workId }
-                    publishers(limit: 9999) { publisherId }
-                    serieses(limit: 9999) { seriesId }
-                    contributors(limit: 9999) { contributorId }
-                }
-            ".to_string(),
-            variables: "null".to_string()
-        }
-    }
-}
-
-impl FetchRequest for Request {
-    type RequestBody = RequestBody;
-    type ResponseBody = ResponseBody;
-    type Format = Json;
-
-    fn url(&self) -> String {
-        "http://localhost:8000/graphql".to_string()
-    }
-
-    fn method(&self) -> MethodBody<Self::RequestBody> {
-        MethodBody::Post(&self.body)
-    }
-
-    fn headers(&self) -> Vec<(String, String)> {
-        vec![("Content-Type".to_string(), "application/json".to_string())]
-    }
-
-    fn use_cors(&self) -> bool {
-        true
-    }
 }
 
 impl Component for DashboardComponent {

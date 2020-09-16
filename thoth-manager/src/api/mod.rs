@@ -77,3 +77,4 @@ pub mod models;
 pub mod work_query;
 pub mod works_query;
 pub mod publishers_query;
+pub mod stats_query;
