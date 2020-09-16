@@ -10,6 +10,46 @@ use yewtil::fetch::MethodBody;
 
 use crate::string::GRAPHQL_ENDPOINT;
 
+const WORKS_QUERY: &str = "
+    {
+        works(limit: 9999) {
+            workId
+            fullTitle
+            title
+            doi
+            coverUrl
+            license
+            publicationDate
+            place
+            contributions {
+                mainContribution
+                contributor {
+                    fullName
+                }
+            }
+            imprint {
+                publisher {
+                    publisherId
+                    publisherName
+                    publisherShortname
+                    publisherUrl
+                }
+            }
+        }
+    }
+";
+
+const PUBLISHERS_QUERY: &str = "
+    {
+        publishers(limit: 9999) {
+            publisherId
+            publisherName
+            publisherShortname
+            publisherUrl
+        }
+    }
+";
+
 pub type FetchWork = Fetch<WorkRequest, WorkResponseBody>;
 pub type FetchActionWork = FetchAction<WorkResponseBody>;
 pub type FetchWorks = Fetch<WorksRequest, WorksResponseBody>;
@@ -17,35 +57,79 @@ pub type FetchActionWorks = FetchAction<WorksResponseBody>;
 pub type FetchPublishers = Fetch<PublishersRequest, PublishersResponseBody>;
 pub type FetchActionPublishers = FetchAction<PublishersResponseBody>;
 
-#[derive(Default, Debug, Clone)]
-pub struct WorkRequest {
-    pub body: WorkRequestBody,
+macro_rules! query_builder {
+    (
+        $request:ident,
+        $request_body:ident,
+        $query:expr,
+        $response_body:ident,
+        $response_data:ty
+    ) => {
+        #[derive(Default, Debug, Clone)]
+        pub struct $request {
+            pub body: $request_body,
+        }
+
+        #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+        pub struct $request_body {
+            pub query: String,
+            pub variables: String,
+        }
+
+        #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+        pub struct $response_body {
+            pub data: $response_data,
+        }
+
+        impl FetchRequest for $request {
+            type RequestBody = $request_body;
+            type ResponseBody = $response_body;
+            type Format = Json;
+
+            fn url(&self) -> String { GRAPHQL_ENDPOINT.to_string() }
+
+            fn method(&self) -> MethodBody<Self::RequestBody> {
+                MethodBody::Post(&self.body)
+            }
+
+            fn headers(&self) -> Vec<(String, String)> {
+                vec![("Content-Type".to_string(), "application/json".to_string())]
+            }
+
+            fn use_cors(&self) -> bool { true }
+        }
+
+        impl Default for $request_body {
+            fn default() -> $request_body {
+                $request_body { query: $query, variables: "".to_string()}
+            }
+        }
+    }
 }
 
-#[derive(Default, Debug, Clone)]
-pub struct WorksRequest {
-    body: WorksRequestBody,
+// $query here is filled in when instantiated. TODO make use of variables and predefine the query
+query_builder!{
+    WorkRequest,
+    WorkRequestBody,
+    "".to_string(),
+    WorkResponseBody,
+    WorkResponseData
+}
+query_builder!{
+    WorksRequest,
+    WorksRequestBody,
+    WORKS_QUERY.to_string(),
+    WorksResponseBody,
+    WorksResponseData
+}
+query_builder!{
+    PublishersRequest,
+    PublishersRequestBody,
+    PUBLISHERS_QUERY.to_string(),
+    PublishersResponseBody,
+    PublishersResponseData
 }
 
-#[derive(Default, Debug, Clone)]
-pub struct PublishersRequest {
-    body: PublishersRequestBody,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct WorkResponseBody {
-    pub data: WorkResponseData,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct WorksResponseBody {
-    pub data: WorksResponseData,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct PublishersResponseBody {
-    pub data: PublishersResponseData,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WorkResponseData {
@@ -60,24 +144,6 @@ pub struct WorksResponseData {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PublishersResponseData {
     pub publishers: Vec<Publisher>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct WorkRequestBody {
-    pub query: String,
-    pub variables: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct WorksRequestBody {
-    pub query: String,
-    pub variables: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct PublishersRequestBody {
-    pub query: String,
-    pub variables: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -178,32 +244,6 @@ impl<'de> Deserialize<'de> for License {
     }
 }
 
-macro_rules! fetchrequest {
-    ($req:ty, $request:ty, $response:ty) => {
-        impl FetchRequest for $req {
-            type RequestBody = $request;
-            type ResponseBody = $response;
-            type Format = Json;
-
-            fn url(&self) -> String { GRAPHQL_ENDPOINT.to_string() }
-
-            fn method(&self) -> MethodBody<Self::RequestBody> {
-                MethodBody::Post(&self.body)
-            }
-
-            fn headers(&self) -> Vec<(String, String)> {
-                vec![("Content-Type".to_string(), "application/json".to_string())]
-            }
-
-            fn use_cors(&self) -> bool { true }
-        }
-    }
-}
-
-fetchrequest!{WorkRequest, WorkRequestBody, WorkResponseBody}
-fetchrequest!{WorksRequest, WorksRequestBody, WorksResponseBody}
-fetchrequest!{PublishersRequest, PublishersRequestBody, PublishersResponseBody}
-
 impl Default for WorkResponseBody {
     fn default() -> WorkResponseBody {
         WorkResponseBody {
@@ -243,66 +283,6 @@ impl Default for PublishersResponseBody {
     fn default() -> PublishersResponseBody {
         PublishersResponseBody {
             data: PublishersResponseData { publishers: vec![] }
-        }
-    }
-}
-
-impl Default for WorkRequestBody {
-    fn default() -> WorkRequestBody {
-        WorkRequestBody { query: "".to_string(), variables: "null".to_string() }
-    }
-}
-
-impl Default for WorksRequestBody {
-    fn default() -> WorksRequestBody {
-        WorksRequestBody {
-            query: "
-                {
-                works(limit: 9999) {
-                    workId
-                    fullTitle
-                    title
-                    doi
-                    coverUrl
-                    license
-                    publicationDate
-                    place
-                    contributions {
-                        mainContribution
-                        contributor {
-                            fullName
-                        }
-                    }
-                    imprint {
-                        publisher {
-                            publisherId
-                            publisherName
-                            publisherShortname
-                            publisherUrl
-                        }
-                    }
-                }
-            }
-            ".to_string(),
-            variables: "null".to_string()
-        }
-    }
-}
-
-impl Default for PublishersRequestBody {
-    fn default() -> PublishersRequestBody {
-        PublishersRequestBody {
-            query: "
-                {
-                    publishers(limit: 9999) {
-                        publisherId
-                        publisherName
-                        publisherShortname
-                        publisherUrl
-                    }
-                }
-            ".to_string(),
-            variables: "null".to_string()
         }
     }
 }
