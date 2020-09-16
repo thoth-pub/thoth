@@ -2,8 +2,6 @@ use yew::ComponentLink;
 use yew::html;
 use yew::prelude::*;
 
-use crate::agent::notification_bus::NotificationBus;
-use crate::agent::notification_bus::NotificationDispatcher;
 use crate::component::dashboard::DashboardComponent;
 use crate::component::publishers::PublishersComponent;
 use crate::component::work::WorkComponent;
@@ -12,9 +10,7 @@ use crate::component::menu::MenuComponent;
 use crate::route::AdminRoute;
 
 pub struct AdminComponent {
-    link: ComponentLink<Self>,
     props: Props,
-    notification_bus: NotificationDispatcher,
 }
 
 pub enum Msg {}
@@ -28,13 +24,9 @@ impl Component for AdminComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let notification_bus = NotificationBus::dispatcher();
-
+    fn create(props: Self::Properties, _link: ComponentLink<Self>) -> Self {
         AdminComponent {
-            link,
             props,
-            notification_bus,
         }
     }
 
