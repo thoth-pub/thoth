@@ -10,10 +10,17 @@ use yewtil::fetch::MethodBody;
 
 use crate::string::GRAPHQL_ENDPOINT;
 
+pub type FetchWork = Fetch<WorkRequest, WorkResponseBody>;
+pub type FetchActionWork = FetchAction<WorkResponseBody>;
 pub type FetchWorks = Fetch<WorksRequest, WorksResponseBody>;
 pub type FetchActionWorks = FetchAction<WorksResponseBody>;
 pub type FetchPublishers = Fetch<PublishersRequest, PublishersResponseBody>;
 pub type FetchActionPublishers = FetchAction<PublishersResponseBody>;
+
+#[derive(Default, Debug, Clone)]
+pub struct WorkRequest {
+    pub body: WorkRequestBody,
+}
 
 #[derive(Default, Debug, Clone)]
 pub struct WorksRequest {
@@ -23,6 +30,11 @@ pub struct WorksRequest {
 #[derive(Default, Debug, Clone)]
 pub struct PublishersRequest {
     body: PublishersRequestBody,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct WorkResponseBody {
+    pub data: WorkResponseData,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -36,6 +48,11 @@ pub struct PublishersResponseBody {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct WorkResponseData {
+    pub work: Work,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WorksResponseData {
     pub works: Vec<Work>,
 }
@@ -43,6 +60,12 @@ pub struct WorksResponseData {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PublishersResponseData {
     pub publishers: Vec<Publisher>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct WorkRequestBody {
+    pub query: String,
+    pub variables: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -63,6 +86,7 @@ pub struct Work {
     pub work_id: String,
     pub full_title: String,
     pub title: String,
+    pub subtitle: Option<String>,
     pub doi: String,
     pub cover_url: String,
     pub license: License,
@@ -154,6 +178,24 @@ impl<'de> Deserialize<'de> for License {
     }
 }
 
+impl FetchRequest for WorkRequest {
+    type RequestBody = WorkRequestBody;
+    type ResponseBody = WorkResponseBody;
+    type Format = Json;
+
+    fn url(&self) -> String { GRAPHQL_ENDPOINT.to_string() }
+
+    fn method(&self) -> MethodBody<Self::RequestBody> {
+        MethodBody::Post(&self.body)
+    }
+
+    fn headers(&self) -> Vec<(String, String)> {
+        vec![("Content-Type".to_string(), "application/json".to_string())]
+    }
+
+    fn use_cors(&self) -> bool { true }
+}
+
 impl FetchRequest for WorksRequest {
     type RequestBody = WorksRequestBody;
     type ResponseBody = WorksResponseBody;
@@ -190,6 +232,12 @@ impl FetchRequest for PublishersRequest {
     fn use_cors(&self) -> bool { true }
 }
 
+impl Default for WorkResponseBody {
+    fn default() -> WorkResponseBody {
+        WorkResponseBody { data: Default::default() }
+    }
+}
+
 impl Default for WorksResponseBody {
     fn default() -> WorksResponseBody {
         WorksResponseBody { data: Default::default() }
@@ -202,6 +250,33 @@ impl Default for PublishersResponseBody {
     }
 }
 
+impl Default for WorkResponseData {
+    fn default() -> WorkResponseData {
+        WorkResponseData {
+            work: Work {
+                work_id: "".to_string(),
+                full_title: "".to_string(),
+                title: "".to_string(),
+                subtitle: None,
+                doi: "".to_string(),
+                cover_url: "".to_string(),
+                license: License::By,
+                place: "".to_string(),
+                publication_date: None,
+                contributions: None,
+                imprint: Imprint {
+                    publisher: Publisher {
+                        publisher_id: "".to_string(),
+                        publisher_name: "".to_string(),
+                        publisher_shortname: None,
+                        publisher_url: None,
+                    }
+                },
+            },
+        }
+    }
+}
+
 impl Default for WorksResponseData {
     fn default() -> WorksResponseData {
         WorksResponseData { works: vec![] }
@@ -211,6 +286,12 @@ impl Default for WorksResponseData {
 impl Default for PublishersResponseData {
     fn default() -> PublishersResponseData {
         PublishersResponseData { publishers: vec![] }
+    }
+}
+
+impl Default for WorkRequestBody {
+    fn default() -> WorkRequestBody {
+        WorkRequestBody { query: "".to_string(), variables: "null".to_string() }
     }
 }
 

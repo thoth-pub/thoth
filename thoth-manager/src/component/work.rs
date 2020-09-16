@@ -1,139 +1,30 @@
-use serde::Deserialize;
-use serde::Serialize;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
-use yewtil::fetch::FetchRequest;
 use yewtil::fetch::FetchState;
-use yewtil::fetch::Json;
-use yewtil::fetch::MethodBody;
 use yewtil::future::LinkFuture;
 
+use crate::api::FetchWork;
+use crate::api::FetchActionWork;
+use crate::api::WorkRequest;
+use crate::api::WorkRequestBody;
 use crate::component::utils::Loader;
 
 pub struct WorkComponent {
-    markdown: Fetch<Request, ResponseBody>,
+    markdown: FetchWork,
     link: ComponentLink<Self>,
-    props: Props,
 }
 
 pub enum Msg {
-    SetMarkdownFetchState(FetchAction<ResponseBody>),
+    SetMarkdownFetchState(FetchActionWork),
     GetMarkdown,
 }
 
 #[derive(Clone, Properties)]
 pub struct Props {
     pub work_id: String,
-}
-
-#[derive(Default, Debug, Clone)]
-pub struct Request {
-    body: RequestBody,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Work {
-    work_id: String,
-    title: String,
-    subtitle: Option<String>,
-    doi: String,
-    contributions: Option<Vec<Contribution>>,
-    imprint: Imprint,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Imprint {
-    publisher: Publisher,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Publisher {
-    publisher_name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Contribution {
-    main_contribution: bool,
-    contributor: Contributor,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Contributor {
-    full_name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ResponseBody {
-    data: ResponseData,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ResponseData {
-    work: Work,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct RequestBody {
-    query: String,
-    variables: String,
-}
-
-impl Default for ResponseBody {
-    fn default() -> ResponseBody {
-        ResponseBody {
-            data: Default::default(),
-        }
-    }
-}
-
-impl Default for ResponseData {
-    fn default() -> ResponseData {
-        ResponseData {
-            work: Work {
-                work_id: "".to_string(),
-                title: "".to_string(),
-                subtitle: None,
-                doi: "".to_string(),
-                contributions: None,
-                imprint: Imprint { publisher: Publisher {publisher_name: "".to_string()}},
-            },
-        }
-    }
-}
-
-impl Default for RequestBody {
-    fn default() -> RequestBody {
-        RequestBody { query: "".to_string(), variables: "null".to_string() }
-    }
-}
-
-impl FetchRequest for Request {
-    type RequestBody = RequestBody;
-    type ResponseBody = ResponseBody;
-    type Format = Json;
-
-    fn url(&self) -> String {
-        "http://localhost:8000/graphql".to_string()
-    }
-
-    fn method(&self) -> MethodBody<Self::RequestBody> {
-        MethodBody::Post(&self.body)
-    }
-
-    fn headers(&self) -> Vec<(String, String)> {
-        vec![("Content-Type".to_string(), "application/json".to_string())]
-    }
-
-    fn use_cors(&self) -> bool {
-        true
-    }
 }
 
 impl Component for WorkComponent {
@@ -144,10 +35,14 @@ impl Component for WorkComponent {
         let query = format!("
             {{
             work(workId: \"{}\") {{
-                title
-                subtitle
                 workId
+                fullTitle
+                title
                 doi
+                coverUrl
+                license
+                publicationDate
+                place
                 contributions {{
                     mainContribution
                     contributor {{
@@ -156,20 +51,22 @@ impl Component for WorkComponent {
                 }}
                 imprint {{
                     publisher {{
+                        publisherId
                         publisherName
+                        publisherShortname
+                        publisherUrl
                     }}
                 }}
             }}
         }}
         ", &props.work_id);
-        let body = RequestBody { query, variables: "null".to_string()};
-        let request = Request { body };
+        let body = WorkRequestBody { query, variables: "null".to_string()};
+        let request = WorkRequest { body };
         let markdown = Fetch::new(request);
 
         WorkComponent {
             markdown,
             link,
-            props,
         }
     }
 
