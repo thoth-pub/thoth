@@ -234,58 +234,44 @@ impl FetchRequest for PublishersRequest {
 
 impl Default for WorkResponseBody {
     fn default() -> WorkResponseBody {
-        WorkResponseBody { data: Default::default() }
+        WorkResponseBody {
+            data: WorkResponseData {
+                work: Work {
+                    work_id: "".to_string(),
+                    full_title: "".to_string(),
+                    title: "".to_string(),
+                    subtitle: None,
+                    doi: "".to_string(),
+                    cover_url: "".to_string(),
+                    license: License::By,
+                    place: "".to_string(),
+                    publication_date: None,
+                    contributions: None,
+                    imprint: Imprint {
+                        publisher: Publisher {
+                            publisher_id: "".to_string(),
+                            publisher_name: "".to_string(),
+                            publisher_shortname: None,
+                            publisher_url: None,
+                        }
+                    },
+                },
+            }
+        }
     }
 }
 
 impl Default for WorksResponseBody {
     fn default() -> WorksResponseBody {
-        WorksResponseBody { data: Default::default() }
+        WorksResponseBody { data: WorksResponseData { works: vec![] } }
     }
 }
 
 impl Default for PublishersResponseBody {
     fn default() -> PublishersResponseBody {
-        PublishersResponseBody { data: Default::default() }
-    }
-}
-
-impl Default for WorkResponseData {
-    fn default() -> WorkResponseData {
-        WorkResponseData {
-            work: Work {
-                work_id: "".to_string(),
-                full_title: "".to_string(),
-                title: "".to_string(),
-                subtitle: None,
-                doi: "".to_string(),
-                cover_url: "".to_string(),
-                license: License::By,
-                place: "".to_string(),
-                publication_date: None,
-                contributions: None,
-                imprint: Imprint {
-                    publisher: Publisher {
-                        publisher_id: "".to_string(),
-                        publisher_name: "".to_string(),
-                        publisher_shortname: None,
-                        publisher_url: None,
-                    }
-                },
-            },
+        PublishersResponseBody {
+            data: PublishersResponseData { publishers: vec![] }
         }
-    }
-}
-
-impl Default for WorksResponseData {
-    fn default() -> WorksResponseData {
-        WorksResponseData { works: vec![] }
-    }
-}
-
-impl Default for PublishersResponseData {
-    fn default() -> PublishersResponseData {
-        PublishersResponseData { publishers: vec![] }
     }
 }
 
