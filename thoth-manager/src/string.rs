@@ -5,5 +5,7 @@ macro_rules! strings {
 }
 
 strings! {
-    GRAPHQL_ENDPOINT => "http://localhost:8000/graphql",
+    INPUT_EMAIL => "Email",
+    INPUT_PASSWORD => "Password",
+    TEXT_LOGIN => "Login",
 }

@@ -1,6 +1,10 @@
 use yew::html;
 use yew::prelude::*;
 
+use crate::string::TEXT_LOGIN;
+use crate::string::INPUT_EMAIL;
+use crate::string::INPUT_PASSWORD;
+
 pub struct LoginComponent {}
 
 impl Component for LoginComponent {
@@ -26,7 +30,7 @@ impl Component for LoginComponent {
                     <div class="box">
                         <div class="field">
                             <p class="control has-icons-left has-icons-right">
-                                <input class="input" type="email" placeholder="Email" />
+                                <input class="input" type="email" placeholder=INPUT_EMAIL />
                                 <span class="icon is-small is-left">
                                     <i class="fas fa-envelope"></i>
                                 </span>
@@ -37,7 +41,7 @@ impl Component for LoginComponent {
                         </div>
                         <div class="field">
                             <p class="control has-icons-left">
-                                <input class="input" type="password" placeholder="Password" />
+                                <input class="input" type="password" placeholder=INPUT_PASSWORD />
                                 <span class="icon is-small is-left">
                                     <i class="fas fa-lock"></i>
                                 </span>
@@ -46,7 +50,7 @@ impl Component for LoginComponent {
                         <div class="field">
                             <p class="control">
                                 <button class="button is-success">
-                                    { "Login" }
+                                    { TEXT_LOGIN }
                                 </button>
                             </p>
                         </div>
