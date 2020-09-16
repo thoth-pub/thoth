@@ -30,7 +30,7 @@ pub enum AdminRoute {
     #[to = "/contributors"]
     Contributors,
     #[to = "/series"]
-    Series,
+    Serieses,
     #[to = ""]
     Admin,
 }
