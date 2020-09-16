@@ -5,11 +5,11 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::api::FetchWorks;
-use crate::api::FetchActionWorks;
-use crate::api::Work;
-use crate::api::License;
-use crate::api::Contribution;
+use crate::api::works_query::FetchWorks;
+use crate::api::works_query::FetchActionWorks;
+use crate::api::models::Work;
+use crate::api::models::License;
+use crate::api::models::Contribution;
 
 pub struct CatalogueComponent {
     markdown: FetchWorks,

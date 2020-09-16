@@ -6,10 +6,10 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::api::FetchWork;
-use crate::api::FetchActionWork;
-use crate::api::WorkRequest;
-use crate::api::WorkRequestBody;
+use crate::api::work_query::FetchWork;
+use crate::api::work_query::FetchActionWork;
+use crate::api::work_query::WorkRequest;
+use crate::api::work_query::WorkRequestBody;
 use crate::component::utils::Loader;
 
 pub struct WorkComponent {

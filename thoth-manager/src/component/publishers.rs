@@ -8,9 +8,9 @@ use yew_router::route::Route;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 
-use crate::api::FetchPublishers;
-use crate::api::FetchActionPublishers;
-use crate::api::Publisher;
+use crate::api::models::Publisher;
+use crate::api::publishers_query::FetchPublishers;
+use crate::api::publishers_query::FetchActionPublishers;
 use crate::component::utils::Loader;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;

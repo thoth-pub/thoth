@@ -8,10 +8,10 @@ use yew_router::route::Route;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 
-use crate::api::Contribution;
-use crate::api::FetchWorks;
-use crate::api::FetchActionWorks;
-use crate::api::Work;
+use crate::api::models::Contribution;
+use crate::api::models::Work;
+use crate::api::works_query::FetchWorks;
+use crate::api::works_query::FetchActionWorks;
 use crate::component::utils::Loader;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
