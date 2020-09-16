@@ -1,119 +1,30 @@
-use serde::Deserialize;
-use serde::Serialize;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
-use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
-use yewtil::fetch::FetchRequest;
 use yewtil::fetch::FetchState;
-use yewtil::fetch::Json;
-use yewtil::fetch::MethodBody;
 use yewtil::future::LinkFuture;
 use yew_router::route::Route;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 
+use crate::api::FetchPublishers;
+use crate::api::FetchActionPublishers;
+use crate::api::Publisher;
 use crate::component::utils::Loader;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
 pub struct PublishersComponent {
-    markdown: Fetch<Request, ResponseBody>,
+    markdown: FetchPublishers,
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
 }
 
 pub enum Msg {
-    SetMarkdownFetchState(FetchAction<ResponseBody>),
+    SetMarkdownFetchState(FetchActionPublishers),
     GetMarkdown,
     ChangeRoute(AppRoute),
-}
-
-#[derive(Default, Debug, Clone)]
-pub struct Request {
-    body: RequestBody,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Publisher {
-    publisher_id: String,
-    publisher_name: String,
-    publisher_shortname: Option<String>,
-    publisher_url: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ResponseBody {
-    data: ResponseData,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ResponseData {
-    publishers: Vec<Publisher>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct RequestBody {
-    query: String,
-    variables: String,
-}
-
-impl Default for ResponseBody {
-    fn default() -> ResponseBody {
-        ResponseBody {
-            data: ResponseData { publishers: vec![] },
-        }
-    }
-}
-
-impl Default for ResponseData {
-    fn default() -> ResponseData {
-        ResponseData {
-            publishers: vec![],
-        }
-    }
-}
-
-impl Default for RequestBody {
-    fn default() -> RequestBody {
-        RequestBody {
-            query: "
-                {
-                    publishers(limit: 9999) {
-                        publisherId
-                        publisherName
-                        publisherShortname
-                        publisherUrl
-                    }
-                }
-            ".to_string(),
-            variables: "null".to_string()
-        }
-    }
-}
-
-impl FetchRequest for Request {
-    type RequestBody = RequestBody;
-    type ResponseBody = ResponseBody;
-    type Format = Json;
-
-    fn url(&self) -> String {
-        "http://localhost:8000/graphql".to_string()
-    }
-
-    fn method(&self) -> MethodBody<Self::RequestBody> {
-        MethodBody::Post(&self.body)
-    }
-
-    fn headers(&self) -> Vec<(String, String)> {
-        vec![("Content-Type".to_string(), "application/json".to_string())]
-    }
-
-    fn use_cors(&self) -> bool {
-        true
-    }
 }
 
 impl Component for PublishersComponent {
