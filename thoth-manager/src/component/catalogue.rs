@@ -149,7 +149,8 @@ fn render_license(license: &License) -> Html {
                     },
                     License::Zero => html!{
                         <i class="fab fa-creative-commons-zero" aria-hidden="true"></i>
-                    }
+                    },
+                    License::Undefined => html! {}
                 }
             }
         </span>
@@ -157,13 +158,17 @@ fn render_license(license: &License) -> Html {
 }
 
 fn render_work(w: &Work) -> Html {
+    let doi = &w.doi.clone().unwrap_or("".to_string());
+    let license = &w.license.clone().unwrap_or(License::Undefined);
+    let cover_url = &w.cover_url.clone().unwrap_or("".to_string());
+    let place = &w.cover_url.clone().unwrap_or("".to_string());
     html! {
         <div class="box">
             <article class="media">
                 <div class="media-left">
                 <figure class="image is-96x96">
-                    <img src={&w.cover_url} alt="Placeholder image" />
-                    { render_license(&w.license) }
+                    <img src={cover_url} alt="Placeholder image" />
+                    { render_license(license) }
                 </figure>
                 </div>
                 <div class="media-content">
@@ -189,13 +194,13 @@ fn render_work(w: &Work) -> Html {
                                     c1.next();
                                     c1.next();
                                     let year: &str = &date[..date.len() - c1.as_str().len()];
-                                    html! {<small>{&w.place}{": "}{&w.imprint.publisher.publisher_name}{", "}{year}</small>}
+                                    html! {<small>{place}{": "}{&w.imprint.publisher.publisher_name}{", "}{year}</small>}
                                 } else {
                                     html! {<small>{&w.imprint.publisher.publisher_name}</small>}
                                 }
                             }
                             <br/>
-                            <small>{&w.doi}</small>
+                            <small>{&doi}</small>
                         </p>
                     </div>
                     <nav class="level is-mobile">
@@ -203,7 +208,7 @@ fn render_work(w: &Work) -> Html {
                             <a
                                 class="level-item button is-small"
                                 aria-label="read"
-                                href={format!("{}", &w.doi)}
+                                href={format!("{}", doi)}
                             >
                                 <span class="icon is-small">
                                 <i class="fas fa-book" aria-hidden="true"></i>

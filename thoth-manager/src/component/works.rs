@@ -153,6 +153,7 @@ impl WorksComponent {
     }
 
     fn render_work(&self, w: &Work) -> Html {
+        let doi = w.doi.clone().unwrap_or("".to_string());
         html! {
             <tr
                 class="row"
@@ -169,7 +170,7 @@ impl WorksComponent {
                         }
                     }
                 </td>
-                <td>{&w.doi}</td>
+                <td>{doi}</td>
                 <td>{&w.imprint.publisher.publisher_name}</td>
             </tr>
         }

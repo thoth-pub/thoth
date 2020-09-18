@@ -49,6 +49,8 @@ impl Component for WorkComponent {
                 license
                 publicationDate
                 place
+                shortAbstract
+                longAbstract
                 contributions {{
                     mainContribution
                     contributor {{
@@ -134,6 +136,12 @@ impl Component for WorkComponent {
             FetchState::Fetched(body) => {
                 if let Some(w) = &body.data.work {
                     let subtitle = w.subtitle.clone().unwrap_or("".to_string());
+                    let short_abstract = w.short_abstract.clone().unwrap_or("".to_string());
+                    let long_abstract = w.long_abstract.clone().unwrap_or("".to_string());
+                    let doi = w.doi.clone().unwrap_or("".to_string());
+                    let landing_page = w.landing_page.clone().unwrap_or("".to_string());
+                    let publication_date = w.publication_date.clone().unwrap_or("".to_string());
+                    let place = w.place.clone().unwrap_or("".to_string());
                     html! {
                         <>
                             <div class="field">
@@ -161,6 +169,54 @@ impl Component for WorkComponent {
                             </div>
 
                             <div class="field">
+                                <label class="label">{"Doi"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="text"
+                                        placeholder="Doi"
+                                        value={doi}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Landing Page"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="text"
+                                        placeholder="Landing Page"
+                                        value={landing_page}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Place of Publication"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="text"
+                                        placeholder="Place of Publication"
+                                        value={place}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Publication Date"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="text"
+                                        placeholder="Publication Date"
+                                        value={publication_date}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
                                 <label class="label">{"Subject"}</label>
                                 <div class="control">
                                     <div class="select">
@@ -173,9 +229,20 @@ impl Component for WorkComponent {
                             </div>
 
                             <div class="field">
-                                <label class="label">{"Message"}</label>
+                                <label class="label">{"Short Abstract"}</label>
                                 <div class="control">
-                                    <textarea class="textarea" placeholder="Textarea"></textarea>
+                                    <textarea class="textarea" placeholder="Short Abstract">
+                                    {short_abstract}
+                                    </textarea>
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Long Abstract"}</label>
+                                <div class="control">
+                                    <textarea class="textarea" placeholder="Long Abstract">
+                                    {long_abstract}
+                                    </textarea>
                                 </div>
                             </div>
 
