@@ -7,13 +7,16 @@ const WORKS_QUERY: &str = "
     {
         works(limit: 9999) {
             workId
+            workType
+            workStatus
             fullTitle
             title
+            edition
+            copyrightHolder
             doi
             coverUrl
             license
             publicationDate
-            place
             contributions {
                 mainContribution
                 contributor {
