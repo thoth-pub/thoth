@@ -1,20 +1,43 @@
 use serde::Deserialize;
 use serde::Serialize;
-use serde::de;
 use serde::de::Deserializer;
+
+use thoth_api::models::work::WorkType;
+use thoth_api::models::work::WorkStatus;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Work {
     pub work_id: String,
+    pub work_type: WorkType,
+    pub work_status: WorkStatus,
     pub full_title: String,
     pub title: String,
     pub subtitle: Option<String>,
-    pub doi: String,
-    pub cover_url: String,
-    pub license: License,
-    pub place: String,
+    pub reference: Option<String>,
+    pub edition: i32,
+    pub doi: Option<String>,
     pub publication_date: Option<String>,
+    pub place: Option<String>,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub page_count: Option<i32>,
+    pub page_breakdown: Option<String>,
+    pub image_count: Option<i32>,
+    pub table_count: Option<i32>,
+    pub audio_count: Option<i32>,
+    pub video_count: Option<i32>,
+    pub license: Option<License>,
+    pub copyright_holder: String,
+    pub landing_page: Option<String>,
+    pub lccn: Option<i32>,
+    pub oclc: Option<i32>,
+    pub short_abstract: Option<String>,
+    pub long_abstract: Option<String>,
+    pub general_note: Option<String>,
+    pub toc: Option<String>,
+    pub cover_url: Option<String>,
+    pub cover_caption: Option<String>,
     pub contributions: Option<Vec<Contribution>>,
     pub imprint: Imprint,
 }
@@ -28,6 +51,7 @@ pub enum License {
     ByNcSa,
     ByNcNd,
     Zero,
+    Undefined,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -95,7 +119,7 @@ impl<'de> Deserialize<'de> for License {
                   | "http://creativecommons.org/licenses/by-nc-nd/3.0/"
                   | "http://creativecommons.org/licenses/by-nc-nd/4.0/" => License::ByNcNd,
             "https://creativecommons.org/publicdomain/zero/1.0/" => License::Zero,
-            other => { return Err(de::Error::custom(format!("Invalid license '{}'", other))); },
+            _other => License::Undefined,
         };
         Ok(license)
     }
