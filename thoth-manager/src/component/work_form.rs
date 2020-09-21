@@ -7,6 +7,11 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::api::models::Work;
+use crate::component::utils::FormTextarea;
+use crate::component::utils::FormTextInput;
+use crate::component::utils::FormUrlInput;
+use crate::component::utils::FormDateInput;
+use crate::component::utils::FormNumberInput;
 
 pub struct WorkFormComponent {
     work: Work,
@@ -60,312 +65,35 @@ impl Component for WorkFormComponent {
         });
         html! {
             <form onsubmit=callback>
-                <div class="field">
-                    <label class="label">{"Title"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="text"
-                            placeholder="Title"
-                            value={&self.work.title}
-                            required=true
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Subtitle"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="text"
-                            placeholder="Subtitle"
-                            value={self.work.subtitle.clone().unwrap_or("".to_string())}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Internal Reference"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="text"
-                            placeholder="Internal Reference"
-                            value={self.work.reference.clone().unwrap_or("".to_string())}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Edition"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="number"
-                            placeholder="Edition"
-                            value={self.work.edition}
-                            required=true
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Doi"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="url"
-                            placeholder="Doi"
-                            value={self.work.doi.clone().unwrap_or("".to_string())}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Publication Date"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="date"
-                            placeholder="Publication Date"
-                            value={self.work.publication_date.clone().unwrap_or("".to_string())}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Place of Publication"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="text"
-                            placeholder="Place of Publication"
-                            value={self.work.place.clone().unwrap_or("".to_string())}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Width"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="number"
-                            placeholder="Width"
-                            value={self.work.width.clone().unwrap_or(0)}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Height"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="number"
-                            placeholder="Height"
-                            value={self.work.height.clone().unwrap_or(0)}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Page Count"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="number"
-                            placeholder="Page Count"
-                            value={self.work.page_count.clone().unwrap_or(0)}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Page Breakdown"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="text"
-                            placeholder="Page Breakdown"
-                            value={self.work.page_breakdown.clone().unwrap_or("".to_string())}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Image Count"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="number"
-                            placeholder="Image Count"
-                            value={self.work.image_count.clone().unwrap_or(0)}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Table Count"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="number"
-                            placeholder="Table Count"
-                            value={self.work.table_count.clone().unwrap_or(0)}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Audio Count"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="number"
-                            placeholder="Audio Count"
-                            value={self.work.audio_count.clone().unwrap_or(0)}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Video Count"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="number"
-                            placeholder="Video Count"
-                            value={self.work.video_count.clone().unwrap_or(0)}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Copyright Holder"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="text"
-                            placeholder="Copyright Holder"
-                            value={&self.work.copyright_holder}
-                            required=true
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Landing Page"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="url"
-                            placeholder="Landing Page"
-                            value={self.work.landing_page.clone().unwrap_or("".to_string())}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Subject"}</label>
-                    <div class="control">
-                        <div class="select">
-                        <select>
-                            <option>{"Select dropdown"}</option>
-                            <option>{"With options"}</option>
-                        </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Library of Congress Number (LCCN)"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="number"
-                            placeholder="Library of Congress Number (LCCN)"
-                            value={self.work.lccn.clone().unwrap_or(0)}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"OCLC Number"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="number"
-                            placeholder="OCLC Number"
-                            value={self.work.oclc.clone().unwrap_or(0)}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Short Abstract"}</label>
-                    <div class="control">
-                        <textarea class="textarea" placeholder="Short Abstract">
-                        {self.work.short_abstract.clone().unwrap_or("".to_string())}
-                        </textarea>
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Long Abstract"}</label>
-                    <div class="control">
-                        <textarea class="textarea" placeholder="Long Abstract">
-                        {self.work.long_abstract.clone().unwrap_or("".to_string())}
-                        </textarea>
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"General Note"}</label>
-                    <div class="control">
-                        <textarea class="textarea" placeholder="General Note">
-                        {self.work.general_note.clone().unwrap_or("".to_string())}
-                        </textarea>
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Table of Content"}</label>
-                    <div class="control">
-                        <textarea class="textarea" placeholder="Table of Content">
-                        {self.work.toc.clone().unwrap_or("".to_string())}
-                        </textarea>
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Cover Url"}</label>
-                    <div class="control">
-                        <input
-                            class="input"
-                            type="url"
-                            placeholder="Cover URL"
-                            value={self.work.cover_url.clone().unwrap_or("".to_string())}
-                        />
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label">{"Cover Caption"}</label>
-                    <div class="control">
-                        <textarea class="textarea" placeholder="Cover Caption">
-                        {self.work.cover_caption.clone().unwrap_or("".to_string())}
-                        </textarea>
-                    </div>
-                </div>
+                <FormTextInput label = "Title" value=&self.work.title required = true />
+                <FormTextInput label = "Subtitle" value=&self.work.subtitle />
+                <FormTextInput label = "Internal Reference" value=&self.work.reference />
+                <FormNumberInput label = "Edition" value=self.work.edition required = true />
+                <FormUrlInput label = "Doi" value=&self.work.doi />
+                <FormDateInput label = "Publication Date" value=&self.work.publication_date />
+                <FormTextInput label = "Place of Publication" value=&self.work.place />
+                <FormNumberInput label = "Width" value=self.work.width />
+                <FormNumberInput label = "Height" value=self.work.height />
+                <FormNumberInput label = "Page Count" value=self.work.page_count />
+                <FormTextInput label = "Page Breakdown" value=&self.work.page_breakdown />
+                <FormNumberInput label = "Image Count" value=self.work.image_count />
+                <FormNumberInput label = "Table Count" value=self.work.table_count />
+                <FormNumberInput label = "Audio Count" value=self.work.audio_count />
+                <FormNumberInput label = "Video Count" value=self.work.video_count />
+                <FormTextInput label = "Copyright Holder" value=&self.work.copyright_holder required = true />
+                <FormUrlInput label = "Landing Page" value=&self.work.landing_page />
+                <FormNumberInput label = "Library of Congress Number (LCCN)" value=self.work.lccn />
+                <FormNumberInput label = "OCLC Number" value=&self.work.oclc />
+                <FormTextarea label = "Short Abstract" value=&self.work.short_abstract />
+                <FormTextarea label = "Long Abstract" value=&self.work.long_abstract />
+                <FormTextarea label = "General Note" value=&self.work.general_note />
+                <FormTextarea label = "Table of Content" value=&self.work.toc />
+                <FormUrlInput label = "Cover URL" value=&self.work.cover_url />
+                <FormTextarea label = "Cover Caption" value=&self.work.cover_caption />
 
                 <div class="field">
                     <div class="control">
-                        <button
-                            class="button is-success"
-                            type="submit"
-                        >
+                        <button class="button is-success" type="submit">
                             {"Save"}
                         </button>
                     </div>
