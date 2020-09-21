@@ -110,15 +110,8 @@ impl Component for WorkComponent {
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(body) => {
                 if let Some(w) = &body.data.work {
-                    let subtitle = w.subtitle.clone().unwrap_or("".to_string());
-                    let short_abstract = w.short_abstract.clone().unwrap_or("".to_string());
-                    let long_abstract = w.long_abstract.clone().unwrap_or("".to_string());
-                    let doi = w.doi.clone().unwrap_or("".to_string());
-                    let landing_page = w.landing_page.clone().unwrap_or("".to_string());
-                    let publication_date = w.publication_date.clone().unwrap_or("".to_string());
-                    let place = w.place.clone().unwrap_or("".to_string());
                     html! {
-                        <>
+                        <form>
                             <div class="field">
                                 <label class="label">{"Title"}</label>
                                 <div class="control">
@@ -127,6 +120,7 @@ impl Component for WorkComponent {
                                         type="text"
                                         placeholder="Title"
                                         value={&w.title}
+                                        required=true
                                     />
                                 </div>
                             </div>
@@ -138,7 +132,32 @@ impl Component for WorkComponent {
                                         class="input"
                                         type="text"
                                         placeholder="Subtitle"
-                                        value={subtitle}
+                                        value={w.subtitle.clone().unwrap_or("".to_string())}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Internal Reference"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="text"
+                                        placeholder="Internal Reference"
+                                        value={w.reference.clone().unwrap_or("".to_string())}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Edition"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="number"
+                                        placeholder="Edition"
+                                        value={&w.edition}
+                                        required=true
                                     />
                                 </div>
                             </div>
@@ -148,21 +167,21 @@ impl Component for WorkComponent {
                                 <div class="control">
                                     <input
                                         class="input"
-                                        type="text"
+                                        type="url"
                                         placeholder="Doi"
-                                        value={doi}
+                                        value={w.doi.clone().unwrap_or("".to_string())}
                                     />
                                 </div>
                             </div>
 
                             <div class="field">
-                                <label class="label">{"Landing Page"}</label>
+                                <label class="label">{"Publication Date"}</label>
                                 <div class="control">
                                     <input
                                         class="input"
-                                        type="text"
-                                        placeholder="Landing Page"
-                                        value={landing_page}
+                                        type="date"
+                                        placeholder="Publication Date"
+                                        value={w.publication_date.clone().unwrap_or("".to_string())}
                                     />
                                 </div>
                             </div>
@@ -174,19 +193,128 @@ impl Component for WorkComponent {
                                         class="input"
                                         type="text"
                                         placeholder="Place of Publication"
-                                        value={place}
+                                        value={w.place.clone().unwrap_or("".to_string())}
                                     />
                                 </div>
                             </div>
 
                             <div class="field">
-                                <label class="label">{"Publication Date"}</label>
+                                <label class="label">{"Width"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="number"
+                                        placeholder="Width"
+                                        value={w.width.clone().unwrap_or(0)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Height"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="number"
+                                        placeholder="Height"
+                                        value={w.height.clone().unwrap_or(0)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Page Count"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="number"
+                                        placeholder="Page Count"
+                                        value={w.page_count.clone().unwrap_or(0)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Page Breakdown"}</label>
                                 <div class="control">
                                     <input
                                         class="input"
                                         type="text"
-                                        placeholder="Publication Date"
-                                        value={publication_date}
+                                        placeholder="Page Breakdown"
+                                        value={w.page_breakdown.clone().unwrap_or("".to_string())}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Image Count"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="number"
+                                        placeholder="Image Count"
+                                        value={w.image_count.clone().unwrap_or(0)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Table Count"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="number"
+                                        placeholder="Table Count"
+                                        value={w.table_count.clone().unwrap_or(0)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Audio Count"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="number"
+                                        placeholder="Audio Count"
+                                        value={w.audio_count.clone().unwrap_or(0)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Video Count"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="number"
+                                        placeholder="Video Count"
+                                        value={w.video_count.clone().unwrap_or(0)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Copyright Holder"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="text"
+                                        placeholder="Copyright Holder"
+                                        value={&w.copyright_holder}
+                                        required=true
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Landing Page"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="url"
+                                        placeholder="Landing Page"
+                                        value={w.landing_page.clone().unwrap_or("".to_string())}
                                     />
                                 </div>
                             </div>
@@ -204,10 +332,34 @@ impl Component for WorkComponent {
                             </div>
 
                             <div class="field">
+                                <label class="label">{"Library of Congress Number (LCCN)"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="number"
+                                        placeholder="Library of Congress Number (LCCN)"
+                                        value={w.lccn.clone().unwrap_or(0)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"OCLC Number"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="number"
+                                        placeholder="OCLC Number"
+                                        value={w.oclc.clone().unwrap_or(0)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
                                 <label class="label">{"Short Abstract"}</label>
                                 <div class="control">
                                     <textarea class="textarea" placeholder="Short Abstract">
-                                    {short_abstract}
+                                    {w.short_abstract.clone().unwrap_or("".to_string())}
                                     </textarea>
                                 </div>
                             </div>
@@ -216,7 +368,46 @@ impl Component for WorkComponent {
                                 <label class="label">{"Long Abstract"}</label>
                                 <div class="control">
                                     <textarea class="textarea" placeholder="Long Abstract">
-                                    {long_abstract}
+                                    {w.long_abstract.clone().unwrap_or("".to_string())}
+                                    </textarea>
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"General Note"}</label>
+                                <div class="control">
+                                    <textarea class="textarea" placeholder="General Note">
+                                    {w.general_note.clone().unwrap_or("".to_string())}
+                                    </textarea>
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Table of Content"}</label>
+                                <div class="control">
+                                    <textarea class="textarea" placeholder="Table of Content">
+                                    {w.toc.clone().unwrap_or("".to_string())}
+                                    </textarea>
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Cover Url"}</label>
+                                <div class="control">
+                                    <input
+                                        class="input"
+                                        type="url"
+                                        placeholder="Cover URL"
+                                        value={w.cover_url.clone().unwrap_or("".to_string())}
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label">{"Cover Caption"}</label>
+                                <div class="control">
+                                    <textarea class="textarea" placeholder="Cover Caption">
+                                    {w.cover_caption.clone().unwrap_or("".to_string())}
                                     </textarea>
                                 </div>
                             </div>
@@ -225,13 +416,14 @@ impl Component for WorkComponent {
                                 <div class="control">
                                     <button
                                         class="button is-success"
+                                        type="submit"
                                         onclick=self.link.callback(|_| Msg::ClickedSave)
                                     >
                                         {"Save"}
                                     </button>
                                 </div>
                             </div>
-                        </>
+                        </form>
                     }
                 } else {
                     html!{{ "Work could not be found" }}
