@@ -15,7 +15,7 @@ pub struct WorkFormComponent {
 }
 
 pub enum Msg {
-    ClickedSave,
+    Save,
 }
 
 #[derive(Clone, Properties)]
@@ -40,7 +40,7 @@ impl Component for WorkFormComponent {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::ClickedSave => {
+            Msg::Save => {
                 self.notification_bus
                     .send(Request::NotificationBusMsg(
                             ("Saved".to_string(), NotificationStatus::Success)));
@@ -54,8 +54,12 @@ impl Component for WorkFormComponent {
     }
 
     fn view(&self) -> Html {
+        let callback = self.link.callback(|event: FocusEvent| {
+            event.prevent_default();
+            Msg::Save
+        });
         html! {
-            <form>
+            <form onsubmit=callback>
                 <div class="field">
                     <label class="label">{"Title"}</label>
                     <div class="control">
@@ -361,7 +365,6 @@ impl Component for WorkFormComponent {
                         <button
                             class="button is-success"
                             type="submit"
-                            onclick=self.link.callback(|_| Msg::ClickedSave)
                         >
                             {"Save"}
                         </button>
