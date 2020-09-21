@@ -167,7 +167,7 @@ fn render_work(w: &Work) -> Html {
             <article class="media">
                 <div class="media-left">
                 <figure class="image is-96x96">
-                    <img src={cover_url} alt="Placeholder image" />
+                    <img src={cover_url} alt={format!("{} - Cover Image", &w.title)} loading="lazy" />
                     { render_license(license) }
                 </figure>
                 </div>
