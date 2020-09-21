@@ -16,6 +16,7 @@ const WORKS_QUERY: &str = "
             doi
             coverUrl
             license
+            place
             publicationDate
             contributions {
                 mainContribution
