@@ -10,6 +10,8 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::api::work_query::WORK_QUERY;
+use crate::api::work_query::Variables;
 use crate::api::work_query::FetchWork;
 use crate::api::work_query::FetchActionWork;
 use crate::api::work_query::WorkRequest;
@@ -38,37 +40,10 @@ impl Component for WorkComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let query = format!("
-            {{
-            work(workId: \"{}\") {{
-                workId
-                fullTitle
-                title
-                doi
-                coverUrl
-                license
-                publicationDate
-                place
-                shortAbstract
-                longAbstract
-                contributions {{
-                    mainContribution
-                    contributor {{
-                        fullName
-                    }}
-                }}
-                imprint {{
-                    publisher {{
-                        publisherId
-                        publisherName
-                        publisherShortname
-                        publisherUrl
-                    }}
-                }}
-            }}
-        }}
-        ", &props.work_id);
-        let body = WorkRequestBody { query, variables: "null".to_string()};
+        let body = WorkRequestBody {
+            query: WORK_QUERY.to_string(),
+            variables: Variables { work_id: Some(props.work_id) },
+        };
         let request = WorkRequest { body };
         let markdown = Fetch::new(request);
         let notification_bus = NotificationBus::dispatcher();

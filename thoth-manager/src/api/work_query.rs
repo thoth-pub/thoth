@@ -3,11 +3,60 @@ use serde::Serialize;
 
 use crate::api::models::Work;
 
-// $query here is filled in when instantiated. TODO make use of variables and predefine the query
+pub const WORK_QUERY: &str = "
+    query WorkQuery($workId: Uuid!) {
+        work(workId: $workId) {
+            workId
+            workType
+            workStatus
+            fullTitle
+            title
+            subtitle
+            reference
+            edition
+            doi
+            publicationDate
+            place
+            width
+            height
+            pageCount
+            pageBreakdown
+            imageCount
+            tableCount
+            videoCount
+            license
+            copyrightHolder
+            landingPage
+            lccn
+            oclc
+            shortAbstract
+            longAbstract
+            generalNote
+            toc
+            coverUrl
+            coverCaption
+            contributions {
+                mainContribution
+                contributor {
+                    fullName
+                }
+            }
+            imprint {
+                publisher {
+                    publisherId
+                    publisherName
+                    publisherShortname
+                    publisherUrl
+                }
+            }
+        }
+    }
+";
+
 query_builder!{
     WorkRequest,
     WorkRequestBody,
-    "",
+    WORK_QUERY,
     WorkResponseBody,
     WorkResponseData,
     FetchWork,
