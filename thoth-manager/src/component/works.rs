@@ -115,6 +115,7 @@ impl Component for WorksComponent {
                             <tr>
                                 <th>{ "ID" }</th>
                                 <th>{ "Title" }</th>
+                                <th>{ "Type" }</th>
                                 <th>{ "Contributors" }</th>
                                 <th>{ "DOI" }</th>
                                 <th>{ "Publisher" }</th>
@@ -161,6 +162,7 @@ impl WorksComponent {
             >
                 <td>{&w.work_id}</td>
                 <td>{&w.title}</td>
+                <td>{&w.work_type}</td>
                 <td>
                     {
                         if let Some(contributions) = &w.contributions {
