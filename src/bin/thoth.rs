@@ -17,6 +17,7 @@ fn main() -> Result<()> {
         .subcommand(
             App::new("start")
                 .about("Start an instance of Thoth API or GUI")
+                .setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommand(
                     App::new("api")
                         .about("Start the thoth API server")
