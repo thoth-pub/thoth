@@ -4,12 +4,15 @@ use yew::Properties;
 use yewtil::Pure;
 use yewtil::PureComponent;
 
+use crate::api::models::Imprint;
+
 pub type FormInput = Pure<PureInput>;
 pub type FormTextarea = Pure<PureTextarea>;
 pub type FormTextInput = Pure<PureTextInput>;
 pub type FormUrlInput = Pure<PureUrlInput>;
 pub type FormDateInput = Pure<PureDateInput>;
 pub type FormNumberInput = Pure<PureNumberInput>;
+pub type FormImprintSelect = Pure<PureImprintSelect>;
 pub type Loader = Pure<PureLoader>;
 
 #[derive(Clone, PartialEq, Properties)]
@@ -57,6 +60,15 @@ pub struct PureDateInput {
 pub struct PureNumberInput {
     pub label: String,
     pub value: Option<i32>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureImprintSelect {
+    pub label: String,
+    pub data: Vec<Imprint>,
+    pub value: Option<String>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -150,6 +162,41 @@ impl PureComponent for PureNumberInput {
                 input_type="number"
                 required=self.required
             />
+        }
+    }
+}
+
+impl PureComponent for PureImprintSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control">
+                    <div class="select">
+                    <select required=self.required>
+                        <option value="">{"Select Imprint"}</option>
+                        { for self.data.iter().map(|i| self.render_imprint(i)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+impl PureImprintSelect {
+    fn render_imprint(&self, i: &Imprint) -> VNode {
+        let value = &self.value.clone().unwrap_or("".to_string());
+        if &i.imprint_id == value {
+            html! {
+                <option value={&i.imprint_id} selected=true>
+                    {&i.imprint_name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={&i.imprint_id}>{&i.imprint_name}</option>
+            }
         }
     }
 }
