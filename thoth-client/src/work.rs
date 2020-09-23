@@ -49,9 +49,7 @@ impl fmt::Display for work_query::LanguageCode {
 )]
 pub struct WorksQuery;
 
-pub async fn get_works(
-    thoth_url: String,
-) -> Result<Vec<works_query::WorksQueryWorks>, ThothError> {
+pub async fn get_works(thoth_url: String) -> Result<Vec<works_query::WorksQueryWorks>, ThothError> {
     let request_body = WorksQuery::build_query(works_query::Variables);
     let client = reqwest::Client::new();
     let res = client.post(&thoth_url).json(&request_body).send().await?;
