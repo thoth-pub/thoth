@@ -15,7 +15,6 @@ impl Component for NavbarComponent {
         NavbarComponent {}
     }
 
-
     fn change(&mut self, _props: Self::Properties) -> ShouldRender {
         true
     }

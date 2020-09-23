@@ -1,9 +1,9 @@
 use yew::html;
 use yew::prelude::*;
 
-use crate::string::TEXT_LOGIN;
 use crate::string::INPUT_EMAIL;
 use crate::string::INPUT_PASSWORD;
+use crate::string::TEXT_LOGIN;
 
 pub struct LoginComponent {}
 

@@ -16,7 +16,7 @@ const CONTRIBUTORS_QUERY: &str = "
     }
 ";
 
-query_builder!{
+query_builder! {
     ContributorsRequest,
     ContributorsRequestBody,
     CONTRIBUTORS_QUERY,
@@ -26,7 +26,6 @@ query_builder!{
     FetchActionContributors
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ContributorsResponseData {
     pub contributors: Vec<Contributor>,
@@ -35,7 +34,7 @@ pub struct ContributorsResponseData {
 impl Default for ContributorsResponseData {
     fn default() -> ContributorsResponseData {
         ContributorsResponseData {
-            contributors: vec![]
+            contributors: vec![],
         }
     }
 }

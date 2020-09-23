@@ -1,10 +1,10 @@
+use yew::agent::Bridged;
+use yew::html;
 use yew::Bridge;
 use yew::Component;
 use yew::ComponentLink;
 use yew::Html;
 use yew::ShouldRender;
-use yew::agent::Bridged;
-use yew::html;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationStatus;
@@ -38,7 +38,6 @@ impl Component for NotificationComponent {
             _producer,
         }
     }
-
 
     fn change(&mut self, _props: Self::Properties) -> ShouldRender {
         false

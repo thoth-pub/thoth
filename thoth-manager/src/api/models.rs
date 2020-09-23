@@ -1,10 +1,10 @@
+use serde::de::Deserializer;
 use serde::Deserialize;
 use serde::Serialize;
-use serde::de::Deserializer;
 
 use thoth_api::models::series::SeriesType;
-use thoth_api::models::work::WorkType;
 use thoth_api::models::work::WorkStatus;
+use thoth_api::models::work::WorkType;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -134,35 +134,35 @@ impl<'de> Deserialize<'de> for License {
         let l = String::deserialize(deserializer)?.to_lowercase();
         let license = match l.as_str() {
             "http://creativecommons.org/licenses/by/1.0/"
-                | "http://creativecommons.org/licenses/by/2.0/"
-                | "http://creativecommons.org/licenses/by/2.5/"
-                | "http://creativecommons.org/licenses/by/3.0/"
-                | "http://creativecommons.org/licenses/by/4.0/" => License::By,
+            | "http://creativecommons.org/licenses/by/2.0/"
+            | "http://creativecommons.org/licenses/by/2.5/"
+            | "http://creativecommons.org/licenses/by/3.0/"
+            | "http://creativecommons.org/licenses/by/4.0/" => License::By,
             "http://creativecommons.org/licenses/by-sa/1.0/"
-                  | "http://creativecommons.org/licenses/by-sa/2.0/"
-                  | "http://creativecommons.org/licenses/by-sa/2.5/"
-                  | "http://creativecommons.org/licenses/by-sa/3.0/"
-                  | "http://creativecommons.org/licenses/by-sa/4.0/" => License::BySa,
+            | "http://creativecommons.org/licenses/by-sa/2.0/"
+            | "http://creativecommons.org/licenses/by-sa/2.5/"
+            | "http://creativecommons.org/licenses/by-sa/3.0/"
+            | "http://creativecommons.org/licenses/by-sa/4.0/" => License::BySa,
             "http://creativecommons.org/licenses/by-nd/1.0/"
-                  | "http://creativecommons.org/licenses/by-nd/2.0/"
-                  | "http://creativecommons.org/licenses/by-nd/2.5/"
-                  | "http://creativecommons.org/licenses/by-nd/3.0/"
-                  | "http://creativecommons.org/licenses/by-nd/4.0/" => License::ByNd,
+            | "http://creativecommons.org/licenses/by-nd/2.0/"
+            | "http://creativecommons.org/licenses/by-nd/2.5/"
+            | "http://creativecommons.org/licenses/by-nd/3.0/"
+            | "http://creativecommons.org/licenses/by-nd/4.0/" => License::ByNd,
             "http://creativecommons.org/licenses/by-nc/1.0/"
-                  | "http://creativecommons.org/licenses/by-nc/2.0/"
-                  | "http://creativecommons.org/licenses/by-nc/2.5/"
-                  | "http://creativecommons.org/licenses/by-nc/3.0/"
-                  | "http://creativecommons.org/licenses/by-nc/4.0/" => License::ByNc,
+            | "http://creativecommons.org/licenses/by-nc/2.0/"
+            | "http://creativecommons.org/licenses/by-nc/2.5/"
+            | "http://creativecommons.org/licenses/by-nc/3.0/"
+            | "http://creativecommons.org/licenses/by-nc/4.0/" => License::ByNc,
             "http://creativecommons.org/licenses/by-nc-sa/1.0/"
-                  | "http://creativecommons.org/licenses/by-nc-sa/2.0/"
-                  | "http://creativecommons.org/licenses/by-nc-sa/2.5/"
-                  | "http://creativecommons.org/licenses/by-nc-sa/3.0/"
-                  | "http://creativecommons.org/licenses/by-nc-sa/4.0/" => License::ByNcSa,
+            | "http://creativecommons.org/licenses/by-nc-sa/2.0/"
+            | "http://creativecommons.org/licenses/by-nc-sa/2.5/"
+            | "http://creativecommons.org/licenses/by-nc-sa/3.0/"
+            | "http://creativecommons.org/licenses/by-nc-sa/4.0/" => License::ByNcSa,
             "http://creativecommons.org/licenses/by-nc-nd/1.0/"
-                  | "http://creativecommons.org/licenses/by-nc-nd/2.0/"
-                  | "http://creativecommons.org/licenses/by-nc-nd/2.5/"
-                  | "http://creativecommons.org/licenses/by-nc-nd/3.0/"
-                  | "http://creativecommons.org/licenses/by-nc-nd/4.0/" => License::ByNcNd,
+            | "http://creativecommons.org/licenses/by-nc-nd/2.0/"
+            | "http://creativecommons.org/licenses/by-nc-nd/2.5/"
+            | "http://creativecommons.org/licenses/by-nc-nd/3.0/"
+            | "http://creativecommons.org/licenses/by-nc-nd/4.0/" => License::ByNcNd,
             "https://creativecommons.org/publicdomain/zero/1.0/" => License::Zero,
             _other => License::Undefined,
         };

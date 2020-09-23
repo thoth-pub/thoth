@@ -1,16 +1,16 @@
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
-use yew_router::route::Route;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
 
-use crate::api::serieses_query::FetchSerieses;
-use crate::api::serieses_query::FetchActionSerieses;
 use crate::api::models::Series;
+use crate::api::serieses_query::FetchActionSerieses;
+use crate::api::serieses_query::FetchSerieses;
 use crate::component::utils::Loader;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;

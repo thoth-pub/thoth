@@ -16,7 +16,7 @@ const SERIESES_QUERY: &str = "
     }
 ";
 
-query_builder!{
+query_builder! {
     SeriesesRequest,
     SeriesesRequestBody,
     SERIESES_QUERY,
@@ -26,7 +26,6 @@ query_builder!{
     FetchActionSerieses
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SeriesesResponseData {
     pub serieses: Vec<Series>,
@@ -34,8 +33,6 @@ pub struct SeriesesResponseData {
 
 impl Default for SeriesesResponseData {
     fn default() -> SeriesesResponseData {
-        SeriesesResponseData {
-            serieses: vec![]
-        }
+        SeriesesResponseData { serieses: vec![] }
     }
 }

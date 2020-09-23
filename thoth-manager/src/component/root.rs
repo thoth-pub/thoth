@@ -22,7 +22,6 @@ impl Component for RootComponent {
         RootComponent {}
     }
 
-
     fn change(&mut self, _props: Self::Properties) -> ShouldRender {
         false
     }

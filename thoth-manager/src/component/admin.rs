@@ -1,15 +1,15 @@
-use yew::ComponentLink;
 use yew::html;
 use yew::prelude::*;
+use yew::ComponentLink;
 
-use crate::component::dashboard::DashboardComponent;
 use crate::component::contributors::ContributorsComponent;
+use crate::component::dashboard::DashboardComponent;
 use crate::component::imprints::ImprintsComponent;
+use crate::component::menu::MenuComponent;
 use crate::component::publishers::PublishersComponent;
 use crate::component::serieses::SeriesesComponent;
 use crate::component::work::WorkComponent;
 use crate::component::works::WorksComponent;
-use crate::component::menu::MenuComponent;
 use crate::route::AdminRoute;
 
 pub struct AdminComponent {
@@ -28,9 +28,7 @@ impl Component for AdminComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, _link: ComponentLink<Self>) -> Self {
-        AdminComponent {
-            props,
-        }
+        AdminComponent { props }
     }
 
     fn update(&mut self, _msg: Self::Message) -> ShouldRender {

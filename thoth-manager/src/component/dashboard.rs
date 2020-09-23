@@ -1,13 +1,13 @@
-use yew::ComponentLink;
 use yew::html;
 use yew::prelude::*;
+use yew::ComponentLink;
+use yew_router::prelude::RouterAnchor;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
-use yew_router::prelude::RouterAnchor;
 
-use crate::api::stats_query::FetchStats;
 use crate::api::stats_query::FetchActionStats;
+use crate::api::stats_query::FetchStats;
 use crate::component::utils::Loader;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
@@ -27,7 +27,7 @@ impl Component for DashboardComponent {
     type Properties = ();
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
-        DashboardComponent{
+        DashboardComponent {
             markdown: Default::default(),
             link,
         }

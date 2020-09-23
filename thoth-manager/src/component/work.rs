@@ -6,14 +6,14 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::api::work_query::WORK_QUERY;
-use crate::api::work_query::Variables;
-use crate::api::work_query::FetchWork;
 use crate::api::work_query::FetchActionWork;
+use crate::api::work_query::FetchWork;
+use crate::api::work_query::Variables;
 use crate::api::work_query::WorkRequest;
 use crate::api::work_query::WorkRequestBody;
-use crate::component::work_form::WorkFormComponent;
+use crate::api::work_query::WORK_QUERY;
 use crate::component::utils::Loader;
+use crate::component::work_form::WorkFormComponent;
 
 pub struct WorkComponent {
     fetch_work: FetchWork,
@@ -37,15 +37,14 @@ impl Component for WorkComponent {
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let body = WorkRequestBody {
             query: WORK_QUERY.to_string(),
-            variables: Variables { work_id: Some(props.work_id) },
+            variables: Variables {
+                work_id: Some(props.work_id),
+            },
         };
         let request = WorkRequest { body };
         let fetch_work = Fetch::new(request);
 
-        WorkComponent {
-            fetch_work,
-            link,
-        }
+        WorkComponent { fetch_work, link }
     }
 
     fn rendered(&mut self, first_render: bool) {
@@ -106,9 +105,9 @@ impl Component for WorkComponent {
                         />
                     }
                 } else {
-                    html!{{ "Work could not be found" }}
+                    html! {{ "Work could not be found" }}
                 }
-            },
+            }
             FetchState::Failed(_, err) => html! {&err},
         }
     }

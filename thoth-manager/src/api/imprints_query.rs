@@ -29,7 +29,6 @@ query_builder! {
     FetchActionImprints
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ImprintsResponseData {
     pub imprints: Vec<Imprint>,

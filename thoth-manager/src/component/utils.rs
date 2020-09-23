@@ -1,14 +1,14 @@
-use yew::virtual_dom::VNode;
+use thoth_api::models::work::WorkStatus;
+use thoth_api::models::work::WorkType;
 use yew::html;
+use yew::virtual_dom::VNode;
 use yew::Properties;
 use yewtil::Pure;
 use yewtil::PureComponent;
-use thoth_api::models::work::WorkType;
-use thoth_api::models::work::WorkStatus;
 
 use crate::api::models::Imprint;
-use crate::api::models::WorkTypeValues;
 use crate::api::models::WorkStatusValues;
+use crate::api::models::WorkTypeValues;
 
 pub type FormInput = Pure<PureInput>;
 pub type FormTextarea = Pure<PureTextarea>;

@@ -11,7 +11,7 @@ const STATS_QUERY: &str = "
     }
 ";
 
-query_builder!{
+query_builder! {
     StatsRequest,
     StatsRequestBody,
     STATS_QUERY,

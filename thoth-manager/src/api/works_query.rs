@@ -39,7 +39,7 @@ const WORKS_QUERY: &str = "
     }
 ";
 
-query_builder!{
+query_builder! {
     WorksRequest,
     WorksRequestBody,
     WORKS_QUERY,
@@ -49,7 +49,6 @@ query_builder!{
     FetchActionWorks
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WorksResponseData {
     pub works: Vec<Work>,
@@ -57,8 +56,6 @@ pub struct WorksResponseData {
 
 impl Default for WorksResponseData {
     fn default() -> WorksResponseData {
-        WorksResponseData {
-            works: vec![]
-        }
+        WorksResponseData { works: vec![] }
     }
 }

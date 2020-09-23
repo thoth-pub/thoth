@@ -6,18 +6,18 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
-use crate::api::models::Work;
 use crate::api::models::Imprint;
-use crate::api::models::WorkTypeValues;
+use crate::api::models::Work;
 use crate::api::models::WorkStatusValues;
-use crate::component::utils::FormTextarea;
-use crate::component::utils::FormTextInput;
-use crate::component::utils::FormUrlInput;
+use crate::api::models::WorkTypeValues;
 use crate::component::utils::FormDateInput;
-use crate::component::utils::FormNumberInput;
-use crate::component::utils::FormWorkTypeSelect;
-use crate::component::utils::FormWorkStatusSelect;
 use crate::component::utils::FormImprintSelect;
+use crate::component::utils::FormNumberInput;
+use crate::component::utils::FormTextInput;
+use crate::component::utils::FormTextarea;
+use crate::component::utils::FormUrlInput;
+use crate::component::utils::FormWorkStatusSelect;
+use crate::component::utils::FormWorkTypeSelect;
 
 pub struct WorkFormComponent {
     work: Work,
@@ -68,9 +68,10 @@ impl Component for WorkFormComponent {
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::Save => {
-                self.notification_bus
-                    .send(Request::NotificationBusMsg(
-                            ("Saved".to_string(), NotificationStatus::Success)));
+                self.notification_bus.send(Request::NotificationBusMsg((
+                    "Saved".to_string(),
+                    NotificationStatus::Success,
+                )));
                 false
             }
         }

@@ -14,7 +14,7 @@ const PUBLISHERS_QUERY: &str = "
     }
 ";
 
-query_builder!{
+query_builder! {
     PublishersRequest,
     PublishersRequestBody,
     PUBLISHERS_QUERY,
@@ -31,8 +31,6 @@ pub struct PublishersResponseData {
 
 impl Default for PublishersResponseData {
     fn default() -> PublishersResponseData {
-        PublishersResponseData {
-            publishers: vec![]
-        }
+        PublishersResponseData { publishers: vec![] }
     }
 }

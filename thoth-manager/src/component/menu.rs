@@ -18,10 +18,10 @@ pub struct Props {
 impl MenuComponent {
     fn is_active(&self, route: AdminRoute) -> String {
         if self.props.route == route {
-              "is-active".to_string()
-          } else {
-              "".to_string()
-          }
+            "is-active".to_string()
+        } else {
+            "".to_string()
+        }
     }
 }
 
@@ -32,7 +32,6 @@ impl Component for MenuComponent {
     fn create(props: Self::Properties, _link: ComponentLink<Self>) -> Self {
         MenuComponent { props }
     }
-
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         self.props = props;

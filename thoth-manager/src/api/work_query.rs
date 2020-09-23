@@ -1,10 +1,10 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::api::models::Work;
 use crate::api::models::Imprint;
-use crate::api::models::WorkTypeDefinition;
+use crate::api::models::Work;
 use crate::api::models::WorkStatusDefinition;
+use crate::api::models::WorkTypeDefinition;
 
 pub const WORK_QUERY: &str = "
     query WorkQuery($workId: Uuid!) {
@@ -79,7 +79,7 @@ pub const WORK_QUERY: &str = "
     }
 ";
 
-query_builder!{
+query_builder! {
     WorkRequest,
     WorkRequestBody,
     WORK_QUERY,
@@ -102,8 +102,12 @@ impl Default for WorkResponseData {
         WorkResponseData {
             work: None,
             imprints: vec![],
-            work_types: WorkTypeDefinition { enum_values: vec![] },
-            work_statuses: WorkStatusDefinition { enum_values: vec![] },
+            work_types: WorkTypeDefinition {
+                enum_values: vec![],
+            },
+            work_statuses: WorkStatusDefinition {
+                enum_values: vec![],
+            },
         }
     }
 }

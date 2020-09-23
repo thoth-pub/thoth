@@ -47,7 +47,9 @@ macro_rules! query_builder {
             type ResponseBody = $response_body;
             type Format = Json;
 
-            fn url(&self) -> String { GRAPHQL_ENDPOINT.to_string() }
+            fn url(&self) -> String {
+                GRAPHQL_ENDPOINT.to_string()
+            }
 
             fn method(&self) -> MethodBody<Self::RequestBody> {
                 MethodBody::Post(&self.body)
@@ -57,7 +59,9 @@ macro_rules! query_builder {
                 vec![("Content-Type".to_string(), "application/json".to_string())]
             }
 
-            fn use_cors(&self) -> bool { true }
+            fn use_cors(&self) -> bool {
+                true
+            }
         }
 
         impl Default for $request_body {
@@ -72,18 +76,18 @@ macro_rules! query_builder {
         impl Default for $response_body {
             fn default() -> $response_body {
                 $response_body {
-                    data: Default::default()
+                    data: Default::default(),
                 }
             }
         }
-    }
+    };
 }
 
+pub mod contributors_query;
+pub mod imprints_query;
 pub mod models;
+pub mod publishers_query;
+pub mod serieses_query;
+pub mod stats_query;
 pub mod work_query;
 pub mod works_query;
-pub mod publishers_query;
-pub mod stats_query;
-pub mod imprints_query;
-pub mod contributors_query;
-pub mod serieses_query;
