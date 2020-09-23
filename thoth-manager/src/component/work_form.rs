@@ -89,10 +89,25 @@ impl Component for WorkFormComponent {
             <form onsubmit=callback>
                 <FormTextInput label = "Title" value=&self.work.title required = true />
                 <FormTextInput label = "Subtitle" value=&self.work.subtitle />
-                <FormWorkTypeSelect label = "Work Type" value=&self.work.work_type data=&self.data.work_types />
-                <FormWorkStatusSelect label = "Work Status" value=&self.work.work_status data=&self.data.work_statuses />
+                <FormWorkTypeSelect
+                    label = "Work Type"
+                    value=&self.work.work_type
+                    data=&self.data.work_types
+                    required = true 
+                />
+                <FormWorkStatusSelect
+                    label = "Work Status"
+                    value=&self.work.work_status
+                    data=&self.data.work_statuses
+                    required = true
+                />
                 <FormTextInput label = "Internal Reference" value=&self.work.reference />
-                <FormImprintSelect label = "Imprint" value=&self.work.imprint.imprint_id data=&self.data.imprints />
+                <FormImprintSelect
+                    label = "Imprint"
+                    value=&self.work.imprint.imprint_id
+                    data=&self.data.imprints
+                    required = true
+                />
                 <FormNumberInput label = "Edition" value=self.work.edition required = true />
                 <FormUrlInput label = "Doi" value=&self.work.doi />
                 <FormDateInput label = "Publication Date" value=&self.work.publication_date />
