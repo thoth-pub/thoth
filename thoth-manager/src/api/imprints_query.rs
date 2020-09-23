@@ -19,7 +19,7 @@ const IMPRINTS_QUERY: &str = "
     }
 ";
 
-query_builder!{
+query_builder! {
     ImprintsRequest,
     ImprintsRequestBody,
     IMPRINTS_QUERY,
@@ -37,8 +37,6 @@ pub struct ImprintsResponseData {
 
 impl Default for ImprintsResponseData {
     fn default() -> ImprintsResponseData {
-        ImprintsResponseData {
-            imprints: vec![]
-        }
+        ImprintsResponseData { imprints: vec![] }
     }
 }

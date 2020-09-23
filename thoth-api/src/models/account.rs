@@ -1,6 +1,6 @@
 use chrono::naive::NaiveDate;
-use uuid::Uuid;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[cfg(feature = "backend")]
 use crate::schema::account;
