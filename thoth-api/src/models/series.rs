@@ -1,3 +1,4 @@
+use std::fmt;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -9,6 +10,7 @@ use crate::schema::series;
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Series_type")]
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SeriesType {
     Journal,
     #[cfg_attr(feature = "backend", db_rename = "book-series")]
@@ -50,4 +52,13 @@ pub struct NewIssue {
     pub series_id: Uuid,
     pub work_id: Uuid,
     pub issue_ordinal: i32,
+}
+
+impl fmt::Display for SeriesType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            SeriesType::Journal => write!(f, "Journal"),
+            SeriesType::BookSeries => write!(f, "Book Series"),
+        }
+    }
 }
