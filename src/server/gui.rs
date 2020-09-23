@@ -27,10 +27,12 @@ macro_rules! static_files {
 }
 
 static_files! {
-    (MATOMO, matomo_file) => ("../static/js/matomo.js", "/js/matomo.js", "application/javascript"),
-    (JS, js_file) => ("../static/main.js", "/main.js", "application/javascript"),
-    (PKG, pkg_file) => ("../static/pkg/thoth_manager.js", "/pkg/thoth_manager.js", "application/javascript"),
-    (WASM, wasm_file) => ("../static/pkg/thoth_manager_bg.wasm", "/pkg/thoth_manager_bg.wasm", "application/wasm"),
+    (JS, js_file) => ("../static/thoth_manager.js", "/thoth_manager.js", "application/javascript"),
+    (WASM, wasm_file) => ("../static/thoth_manager_bg.wasm", "/thoth_manager_bg.wasm", "application/wasm"),
+    (PKG, pkg_file) => ("../static/package.json", "/package.json", "application/json"),
+    (TS1, ts1_file) => ("../static/thoth_manager.d.ts", "/thoth_manager.d.ts", "application/typescript"),
+    (TS2, ts2_file) => ("../static/thoth_manager_bg.d.ts", "/thoth_manager_bg.d.ts", "application/typescript"),
+    (MATOMO, matomo_file) => ("../static/js/matomo.js", "/matomo.js", "application/javascript"),
     (BULMA, bulma_file) => ("../static/css/bulma-pageloader.min.css", "/css/bulma-pageloader.min.css", "text/css; charset=utf-8"),
     (CSS, css_file) => ("../static/css/thoth.css", "/css/thoth.css", "text/css; charset=utf-8"),
     (ICON, icon_file) => ("../static/favicon.ico", "/favicon.ico", "image/x-icon"),
