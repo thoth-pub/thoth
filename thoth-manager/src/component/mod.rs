@@ -1,5 +1,6 @@
 pub mod admin;
 pub mod catalogue;
+pub mod contributors;
 pub mod dashboard;
 pub mod imprints;
 pub mod login;

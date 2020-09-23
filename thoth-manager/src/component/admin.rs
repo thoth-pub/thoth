@@ -3,6 +3,7 @@ use yew::html;
 use yew::prelude::*;
 
 use crate::component::dashboard::DashboardComponent;
+use crate::component::contributors::ContributorsComponent;
 use crate::component::imprints::ImprintsComponent;
 use crate::component::publishers::PublishersComponent;
 use crate::component::work::WorkComponent;
@@ -59,7 +60,8 @@ impl Component for AdminComponent {
                             AdminRoute::Publisher(id) => html!{{ id }},
                             AdminRoute::Imprints => html!{<ImprintsComponent/>},
                             AdminRoute::Imprint(id) => html!{{ id }},
-                            AdminRoute::Contributors => html!{{ "Contributors" }},
+                            AdminRoute::Contributors => html!{<ContributorsComponent/>},
+                            AdminRoute::Contributor(id) => html!{{ id }},
                             AdminRoute::Serieses => html!{{ "Series" }},
                             AdminRoute::Admin => html!{<DashboardComponent/>},
                         }

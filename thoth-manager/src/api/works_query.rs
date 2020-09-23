@@ -21,6 +21,7 @@ const WORKS_QUERY: &str = "
             contributions {
                 mainContribution
                 contributor {
+                    contributorId
                     fullName
                 }
             }
