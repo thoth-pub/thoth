@@ -55,7 +55,10 @@ pub enum License {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Imprint {
+    pub imprint_id: String,
+    pub imprint_name: String,
     pub publisher: Publisher,
 }
 
@@ -79,6 +82,30 @@ pub struct Contribution {
 #[serde(rename_all = "camelCase")]
 pub struct Contributor {
     pub full_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkTypeDefinition {
+    pub enum_values: Vec<WorkTypeValues>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkStatusDefinition {
+    pub enum_values: Vec<WorkStatusValues>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkTypeValues {
+    pub name: WorkType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkStatusValues {
+    pub name: WorkStatus,
 }
 
 impl<'de> Deserialize<'de> for License {

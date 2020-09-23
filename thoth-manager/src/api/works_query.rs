@@ -25,6 +25,8 @@ const WORKS_QUERY: &str = "
                 }
             }
             imprint {
+                imprintId
+                imprintName
                 publisher {
                     publisherId
                     publisherName
