@@ -3,8 +3,12 @@ use yew::html;
 use yew::Properties;
 use yewtil::Pure;
 use yewtil::PureComponent;
+use thoth_api::models::work::WorkType;
+use thoth_api::models::work::WorkStatus;
 
 use crate::api::models::Imprint;
+use crate::api::models::WorkTypeValues;
+use crate::api::models::WorkStatusValues;
 
 pub type FormInput = Pure<PureInput>;
 pub type FormTextarea = Pure<PureTextarea>;
@@ -12,6 +16,8 @@ pub type FormTextInput = Pure<PureTextInput>;
 pub type FormUrlInput = Pure<PureUrlInput>;
 pub type FormDateInput = Pure<PureDateInput>;
 pub type FormNumberInput = Pure<PureNumberInput>;
+pub type FormWorkTypeSelect = Pure<PureWorkTypeSelect>;
+pub type FormWorkStatusSelect = Pure<PureWorkStatusSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
 pub type Loader = Pure<PureLoader>;
 
@@ -60,6 +66,24 @@ pub struct PureDateInput {
 pub struct PureNumberInput {
     pub label: String,
     pub value: Option<i32>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureWorkTypeSelect {
+    pub label: String,
+    pub data: Vec<WorkTypeValues>,
+    pub value: WorkType,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureWorkStatusSelect {
+    pub label: String,
+    pub data: Vec<WorkStatusValues>,
+    pub value: WorkStatus,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -166,6 +190,42 @@ impl PureComponent for PureNumberInput {
     }
 }
 
+impl PureComponent for PureWorkTypeSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control">
+                    <div class="select">
+                    <select required=self.required>
+                        <option value="">{"Select Work Type"}</option>
+                        { for self.data.iter().map(|i| self.render_worktype(i)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+impl PureComponent for PureWorkStatusSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control">
+                    <div class="select">
+                    <select required=self.required>
+                        <option value="">{"Select Work Status"}</option>
+                        { for self.data.iter().map(|i| self.render_workstatus(i)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
 impl PureComponent for PureImprintSelect {
     fn render(&self) -> VNode {
         html! {
@@ -180,6 +240,38 @@ impl PureComponent for PureImprintSelect {
                     </div>
                 </div>
             </div>
+        }
+    }
+}
+
+impl PureWorkTypeSelect {
+    fn render_worktype(&self, w: &WorkTypeValues) -> VNode {
+        if &w.name == &self.value {
+            html! {
+                <option value={&w.name} selected=true>
+                    {&w.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={&w.name}>{&w.name}</option>
+            }
+        }
+    }
+}
+
+impl PureWorkStatusSelect {
+    fn render_workstatus(&self, w: &WorkStatusValues) -> VNode {
+        if &w.name == &self.value {
+            html! {
+                <option value={&w.name} selected=true>
+                    {&w.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={&w.name}>{&w.name}</option>
+            }
         }
     }
 }
