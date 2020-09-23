@@ -97,7 +97,14 @@ impl Component for WorkComponent {
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(body) => {
                 if let Some(w) = &body.data.work {
-                    html! {<WorkFormComponent work = w />}
+                    html! {
+                        <WorkFormComponent
+                            work = w
+                            imprints = &body.data.imprints
+                            work_types = &body.data.work_types.enum_values
+                            work_statuses = &body.data.work_statuses.enum_values
+                        />
+                    }
                 } else {
                     html!{{ "Work could not be found" }}
                 }

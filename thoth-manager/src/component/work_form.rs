@@ -7,16 +7,29 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::api::models::Work;
+use crate::api::models::Imprint;
+use crate::api::models::WorkTypeValues;
+use crate::api::models::WorkStatusValues;
 use crate::component::utils::FormTextarea;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::FormDateInput;
 use crate::component::utils::FormNumberInput;
+use crate::component::utils::FormWorkTypeSelect;
+use crate::component::utils::FormWorkStatusSelect;
+use crate::component::utils::FormImprintSelect;
 
 pub struct WorkFormComponent {
     work: Work,
+    data: WorkFormData,
     link: ComponentLink<Self>,
     notification_bus: NotificationDispatcher,
+}
+
+struct WorkFormData {
+    imprints: Vec<Imprint>,
+    work_types: Vec<WorkTypeValues>,
+    work_statuses: Vec<WorkStatusValues>,
 }
 
 pub enum Msg {
@@ -26,6 +39,9 @@ pub enum Msg {
 #[derive(Clone, Properties)]
 pub struct Props {
     pub work: Work,
+    pub imprints: Vec<Imprint>,
+    pub work_types: Vec<WorkTypeValues>,
+    pub work_statuses: Vec<WorkStatusValues>,
 }
 
 impl Component for WorkFormComponent {
@@ -34,10 +50,16 @@ impl Component for WorkFormComponent {
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let work = props.work;
+        let data = WorkFormData {
+            imprints: props.imprints,
+            work_types: props.work_types,
+            work_statuses: props.work_statuses,
+        };
         let notification_bus = NotificationBus::dispatcher();
 
         WorkFormComponent {
             work,
+            data,
             link,
             notification_bus,
         }
@@ -67,7 +89,10 @@ impl Component for WorkFormComponent {
             <form onsubmit=callback>
                 <FormTextInput label = "Title" value=&self.work.title required = true />
                 <FormTextInput label = "Subtitle" value=&self.work.subtitle />
+                <FormWorkTypeSelect label = "Work Type" value=&self.work.work_type data=&self.data.work_types />
+                <FormWorkStatusSelect label = "Work Status" value=&self.work.work_status data=&self.data.work_statuses />
                 <FormTextInput label = "Internal Reference" value=&self.work.reference />
+                <FormImprintSelect label = "Imprint" value=&self.work.imprint.imprint_id data=&self.data.imprints />
                 <FormNumberInput label = "Edition" value=self.work.edition required = true />
                 <FormUrlInput label = "Doi" value=&self.work.doi />
                 <FormDateInput label = "Publication Date" value=&self.work.publication_date />
