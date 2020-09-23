@@ -9,6 +9,7 @@ pub mod navbar;
 pub mod notification;
 pub mod publishers;
 pub mod root;
+pub mod serieses;
 pub mod utils;
 pub mod work;
 pub mod work_form;

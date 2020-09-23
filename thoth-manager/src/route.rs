@@ -33,8 +33,10 @@ pub enum AdminRoute {
     Contributors,
     #[to = "/contributor/{id}"]
     Contributor(String),
-    #[to = "/series"]
+    #[to = "/serieses"]
     Serieses,
+    #[to = "/series/{id}"]
+    Series(String),
     #[to = ""]
     Admin,
 }

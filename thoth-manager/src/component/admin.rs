@@ -6,6 +6,7 @@ use crate::component::dashboard::DashboardComponent;
 use crate::component::contributors::ContributorsComponent;
 use crate::component::imprints::ImprintsComponent;
 use crate::component::publishers::PublishersComponent;
+use crate::component::serieses::SeriesesComponent;
 use crate::component::work::WorkComponent;
 use crate::component::works::WorksComponent;
 use crate::component::menu::MenuComponent;
@@ -62,7 +63,8 @@ impl Component for AdminComponent {
                             AdminRoute::Imprint(id) => html!{{ id }},
                             AdminRoute::Contributors => html!{<ContributorsComponent/>},
                             AdminRoute::Contributor(id) => html!{{ id }},
-                            AdminRoute::Serieses => html!{{ "Series" }},
+                            AdminRoute::Serieses => html!{<SeriesesComponent/>},
+                            AdminRoute::Series(id) => html!{{ id }},
                             AdminRoute::Admin => html!{<DashboardComponent/>},
                         }
                     }

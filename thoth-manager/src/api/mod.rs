@@ -86,3 +86,4 @@ pub mod publishers_query;
 pub mod stats_query;
 pub mod imprints_query;
 pub mod contributors_query;
+pub mod serieses_query;
