@@ -332,8 +332,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     .ok();
                 })
                 .ok();
-                let mut sequence_number = 0;
-                for contribution in &work.contributions {
+                for (mut sequence_number, contribution) in work.contributions.iter().enumerate() {
                     sequence_number += 1;
                     write_element_block("Contributor", None, None, w, |w| {
                         write_element_block("SequenceNumber", None, None, w, |w| {
