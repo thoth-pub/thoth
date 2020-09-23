@@ -1,10 +1,10 @@
 use std::io;
 
 use actix_cors::Cors;
+use actix_web::web;
 use actix_web::App;
 use actix_web::HttpResponse;
 use actix_web::HttpServer;
-use actix_web::web;
 use dotenv::dotenv;
 
 macro_rules! static_files {
@@ -52,12 +52,12 @@ pub async fn start_server(port: String) -> io::Result<()> {
             .wrap(
                 Cors::new()
                     .allowed_methods(vec!["GET", "POST", "OPTIONS"])
-                    .finish()
+                    .finish(),
             )
             .configure(config)
             .default_service(web::route().to(index))
-        })
-        .bind(format!("0.0.0.0:{}", port))?
-        .run()
-        .await
+    })
+    .bind(format!("0.0.0.0:{}", port))?
+    .run()
+    .await
 }

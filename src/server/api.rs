@@ -75,15 +75,16 @@ fn config(cfg: &mut web::ServiceConfig) {
 
 #[actix_rt::main]
 pub async fn start_server(port: String) -> io::Result<()> {
-    HttpServer::new(move || App::new()
+    HttpServer::new(move || {
+        App::new()
             .wrap(
                 Cors::new()
                     .allowed_methods(vec!["GET", "POST", "OPTIONS"])
-                    .finish()
+                    .finish(),
             )
             .configure(config)
-        )
-        .bind(format!("0.0.0.0:{}", port))?
-        .run()
-        .await
+    })
+    .bind(format!("0.0.0.0:{}", port))?
+    .run()
+    .await
 }
