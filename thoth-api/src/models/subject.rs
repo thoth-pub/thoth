@@ -69,8 +69,25 @@ fn test_check_subject() {
 
 impl fmt::Display for SubjectType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        match self {
+            SubjectType::Bic => write!(f, "BIC"),
+            SubjectType::Bisac => write!(f, "BISAC"),
+            SubjectType::Thema => write!(f, "Thema"),
+            SubjectType::Lcc => write!(f, "LCC"),
+            SubjectType::Custom => write!(f, "Custom"),
+            SubjectType::Keyword => write!(f, "Keyword"),
+        }
     }
+}
+
+#[test]
+fn test_subjecttype_display() {
+    assert_eq!(format!("{}", SubjectType::Bic), "BIC");
+    assert_eq!(format!("{}", SubjectType::Bisac), "BISAC");
+    assert_eq!(format!("{}", SubjectType::Thema), "Thema");
+    assert_eq!(format!("{}", SubjectType::Lcc), "LCC");
+    assert_eq!(format!("{}", SubjectType::Custom), "Custom");
+    assert_eq!(format!("{}", SubjectType::Keyword), "Keyword");
 }
 
 static THEMA_CODES: Map<&'static str, &'static str> = phf_map! {

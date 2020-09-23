@@ -62,3 +62,9 @@ impl fmt::Display for SeriesType {
         }
     }
 }
+
+#[test]
+fn test_seriestype_display() {
+    assert_eq!(format!("{}", SeriesType::Journal), "Journal");
+    assert_eq!(format!("{}", SeriesType::BookSeries), "Book Series");
+}
