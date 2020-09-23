@@ -1,10 +1,11 @@
 pub mod admin;
 pub mod catalogue;
 pub mod dashboard;
+pub mod imprints;
+pub mod login;
 pub mod menu;
 pub mod navbar;
 pub mod notification;
-pub mod login;
 pub mod publishers;
 pub mod root;
 pub mod utils;

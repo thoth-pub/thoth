@@ -59,6 +59,7 @@ pub enum License {
 pub struct Imprint {
     pub imprint_id: String,
     pub imprint_name: String,
+    pub imprint_url: Option<String>,
     pub publisher: Publisher,
 }
 
