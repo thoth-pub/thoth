@@ -165,14 +165,26 @@ fn test_worktype_display() {
 fn test_workstatus_display() {
     assert_eq!(format!("{}", WorkStatus::Cancelled), "Cancelled");
     assert_eq!(format!("{}", WorkStatus::Forthcoming), "Forthcoming");
-    assert_eq!(format!("{}", WorkStatus::PostponedIndefinitely), "Postponed Indefinitely");
+    assert_eq!(
+        format!("{}", WorkStatus::PostponedIndefinitely),
+        "Postponed Indefinitely"
+    );
     assert_eq!(format!("{}", WorkStatus::Active), "Active");
-    assert_eq!(format!("{}", WorkStatus::NoLongerOurProduct), "No Longer Our Product");
-    assert_eq!(format!("{}", WorkStatus::OutOfStockIndefinitely), "Out Of Stock Indefinitely");
+    assert_eq!(
+        format!("{}", WorkStatus::NoLongerOurProduct),
+        "No Longer Our Product"
+    );
+    assert_eq!(
+        format!("{}", WorkStatus::OutOfStockIndefinitely),
+        "Out Of Stock Indefinitely"
+    );
     assert_eq!(format!("{}", WorkStatus::OutOfPrint), "Out Of Print");
     assert_eq!(format!("{}", WorkStatus::Inactive), "Inactive");
     assert_eq!(format!("{}", WorkStatus::Unknown), "Unknown");
     assert_eq!(format!("{}", WorkStatus::Remaindered), "Remaindered");
-    assert_eq!(format!("{}", WorkStatus::WithdrawnFromSale), "Withdrawn From Sale");
+    assert_eq!(
+        format!("{}", WorkStatus::WithdrawnFromSale),
+        "Withdrawn From Sale"
+    );
     assert_eq!(format!("{}", WorkStatus::Recalled), "Recalled");
 }
