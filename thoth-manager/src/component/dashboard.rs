@@ -97,22 +97,6 @@ impl Component for DashboardComponent {
                                         </  RouterAnchor<AppRoute>>
                                     </div>
                                 </article>
-                                <article class="tile is-child notification is-danger">
-                                    <div class="content">
-                                        <p class="title">
-                                            {format!("{} Series", body.data.serieses.iter().count())}
-                                        </p>
-                                        <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Serieses)
-                                        >
-                                            {"See all"}
-                                        </  RouterAnchor<AppRoute>>
-                                    </div>
-                                </article>
-                            </div>
-                        </div>
-                        <div class="tile">
-                            <div class="tile is-parent is-vertical">
                                 <article class="tile is-child notification is-link">
                                     <div class="content">
                                         <p class="title">
@@ -125,6 +109,10 @@ impl Component for DashboardComponent {
                                         </  RouterAnchor<AppRoute>>
                                     </div>
                                 </article>
+                            </div>
+                        </div>
+                        <div class="tile">
+                            <div class="tile is-parent is-vertical">
                                 <article class="tile is-child notification is-warning">
                                     <div class="content">
                                         <p class="title">
@@ -132,6 +120,30 @@ impl Component for DashboardComponent {
                                         </p>
                                         <RouterAnchor<AppRoute>
                                             route=AppRoute::Admin(AdminRoute::Contributors)
+                                        >
+                                            {"See all"}
+                                        </  RouterAnchor<AppRoute>>
+                                    </div>
+                                </article>
+                                <article class="tile is-child notification is-danger">
+                                    <div class="content">
+                                        <p class="title">
+                                            {format!("{} Series", body.data.serieses.iter().count())}
+                                        </p>
+                                        <RouterAnchor<AppRoute>
+                                            route=AppRoute::Admin(AdminRoute::Serieses)
+                                        >
+                                            {"See all"}
+                                        </  RouterAnchor<AppRoute>>
+                                    </div>
+                                </article>
+                                <article class="tile is-child notification is-success">
+                                    <div class="content">
+                                        <p class="title">
+                                            {format!("{} Imprints", body.data.imprints.iter().count())}
+                                        </p>
+                                        <RouterAnchor<AppRoute>
+                                            route=AppRoute::Admin(AdminRoute::Imprints)
                                         >
                                             {"See all"}
                                         </  RouterAnchor<AppRoute>>

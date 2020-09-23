@@ -5,6 +5,7 @@ const STATS_QUERY: &str = "
     {
         works(limit: 9999) { workId }
         publishers(limit: 9999) { publisherId }
+        imprints(limit: 9999) { imprintId }
         serieses(limit: 9999) { seriesId }
         contributors(limit: 9999) { contributorId }
     }
@@ -34,6 +35,12 @@ pub struct StatsQueryPublisher {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct StatsQueryImprint {
+    imprint_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct StatsQuerySeries {
     series_id: String,
 }
@@ -48,6 +55,7 @@ pub struct StatsQueryContributor {
 pub struct StatsResponseData {
     pub works: Vec<StatsQueryWork>,
     pub publishers: Vec<StatsQueryPublisher>,
+    pub imprints: Vec<StatsQueryImprint>,
     pub serieses: Vec<StatsQuerySeries>,
     pub contributors: Vec<StatsQueryContributor>,
 }
@@ -57,6 +65,7 @@ impl Default for StatsResponseData {
         StatsResponseData {
             works: vec![],
             publishers: vec![],
+            imprints: vec![],
             serieses: vec![],
             contributors: vec![],
         }
