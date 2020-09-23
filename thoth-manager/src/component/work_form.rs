@@ -93,7 +93,7 @@ impl Component for WorkFormComponent {
                     label = "Work Type"
                     value=&self.work.work_type
                     data=&self.data.work_types
-                    required = true 
+                    required = true
                 />
                 <FormWorkStatusSelect
                     label = "Work Status"
