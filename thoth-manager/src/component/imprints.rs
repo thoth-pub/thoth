@@ -64,7 +64,7 @@ impl Component for ImprintsComponent {
                 false
             }
             Msg::ChangeRoute(r) => {
-                let route = Route::from(r.clone());
+                let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
                 false
             }

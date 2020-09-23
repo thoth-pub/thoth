@@ -65,7 +65,7 @@ impl Component for WorksComponent {
                 false
             }
             Msg::ChangeRoute(r) => {
-                let route = Route::from(r.clone());
+                let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
                 false
             }
@@ -154,7 +154,7 @@ impl WorksComponent {
     }
 
     fn render_work(&self, w: &Work) -> Html {
-        let doi = w.doi.clone().unwrap_or("".to_string());
+        let doi = w.doi.clone().unwrap_or_else(|| "".to_string());
         html! {
             <tr
                 class="row"

@@ -130,7 +130,7 @@ impl PureComponent for PureTextarea {
                         placeholder=&self.label
                         required={ self.required }
                     >
-                        {&self.value.clone().unwrap_or("".to_string())}
+                        {&self.value.clone().unwrap_or_else(|| "".to_string())}
                     </textarea>
                 </div>
             </div>
@@ -143,7 +143,7 @@ impl PureComponent for PureTextInput {
         html! {
             <FormInput
                 label=&self.label
-                value=&self.value.clone().unwrap_or("".to_string())
+                value=&self.value.clone().unwrap_or_else(|| "".to_string())
                 input_type="text"
                 required=self.required
             />
@@ -156,7 +156,7 @@ impl PureComponent for PureUrlInput {
         html! {
             <FormInput
                 label=&self.label
-                value=&self.value.clone().unwrap_or("".to_string())
+                value=&self.value.clone().unwrap_or_else(|| "".to_string())
                 input_type="url"
                 required=self.required
             />
@@ -169,7 +169,7 @@ impl PureComponent for PureDateInput {
         html! {
             <FormInput
                 label=&self.label
-                value=&self.value.clone().unwrap_or("".to_string())
+                value=&self.value.clone().unwrap_or_else(|| "".to_string())
                 input_type="date"
                 required=self.required
             />
@@ -246,7 +246,7 @@ impl PureComponent for PureImprintSelect {
 
 impl PureWorkTypeSelect {
     fn render_worktype(&self, w: &WorkTypeValues) -> VNode {
-        if &w.name == &self.value {
+        if w.name == self.value {
             html! {
                 <option value={&w.name} selected=true>
                     {&w.name}
@@ -262,7 +262,7 @@ impl PureWorkTypeSelect {
 
 impl PureWorkStatusSelect {
     fn render_workstatus(&self, w: &WorkStatusValues) -> VNode {
-        if &w.name == &self.value {
+        if w.name == self.value {
             html! {
                 <option value={&w.name} selected=true>
                     {&w.name}
@@ -278,7 +278,7 @@ impl PureWorkStatusSelect {
 
 impl PureImprintSelect {
     fn render_imprint(&self, i: &Imprint) -> VNode {
-        let value = &self.value.clone().unwrap_or("".to_string());
+        let value = &self.value.clone().unwrap_or_else(|| "".to_string());
         if &i.imprint_id == value {
             html! {
                 <option value={&i.imprint_id} selected=true>

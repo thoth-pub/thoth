@@ -158,10 +158,10 @@ fn render_license(license: &License) -> Html {
 }
 
 fn render_work(w: &Work) -> Html {
-    let doi = &w.doi.clone().unwrap_or("".to_string());
+    let doi = &w.doi.clone().unwrap_or_else(|| "".to_string());
     let license = &w.license.clone().unwrap_or(License::Undefined);
-    let cover_url = &w.cover_url.clone().unwrap_or("".to_string());
-    let place = &w.place.clone().unwrap_or("".to_string());
+    let cover_url = &w.cover_url.clone().unwrap_or_else(|| "".to_string());
+    let place = &w.place.clone().unwrap_or_else(|| "".to_string());
     html! {
         <div class="box">
             <article class="media">
