@@ -10,6 +10,7 @@ use crate::api::models::Imprint;
 use crate::api::models::Work;
 use crate::api::models::WorkStatusValues;
 use crate::api::models::WorkTypeValues;
+use crate::component::contributions_form::ContributionsFormComponent;
 use crate::component::utils::FormDateInput;
 use crate::component::utils::FormImprintSelect;
 use crate::component::utils::FormNumberInput;
@@ -131,6 +132,9 @@ impl Component for WorkFormComponent {
                 <FormTextarea label = "Table of Content" value=&self.work.toc />
                 <FormUrlInput label = "Cover URL" value=&self.work.cover_url />
                 <FormTextarea label = "Cover Caption" value=&self.work.cover_caption />
+                <ContributionsFormComponent
+                    contributions=self.work.contributions.clone().unwrap_or_else(|| vec![])
+                />
 
                 <div class="field">
                     <div class="control">
