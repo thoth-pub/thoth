@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use uuid::Uuid;
 
 #[cfg(feature = "backend")]
@@ -8,7 +9,8 @@ use crate::schema::contributor;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Contribution_type")]
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ContributionType {
     Author,
     Editor,
@@ -66,4 +68,35 @@ pub struct NewContribution {
     pub main_contribution: bool,
     pub biography: Option<String>,
     pub institution: Option<String>,
+}
+
+impl fmt::Display for ContributionType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ContributionType::Author => write!(f, "Author"),
+            ContributionType::Editor => write!(f, "Editor"),
+            ContributionType::Translator => write!(f, "Translator"),
+            ContributionType::Photographer => write!(f, "Photographer"),
+            ContributionType::Ilustrator => write!(f, "Ilustrator"),
+            ContributionType::MusicEditor => write!(f, "Music Editor"),
+            ContributionType::ForewordBy => write!(f, "Foreword By"),
+            ContributionType::IntroductionBy => write!(f, "Introduction By"),
+            ContributionType::AfterwordBy => write!(f, "Afterword By"),
+            ContributionType::PrefaceBy => write!(f, "Preface By"),
+        }
+    }
+}
+
+#[test]
+fn test_contributiontype_display() {
+    assert_eq!(format!("{}", ContributionType::Author), "Author");
+    assert_eq!(format!("{}", ContributionType::Editor), "Editor");
+    assert_eq!(format!("{}", ContributionType::Translator), "Translator");
+    assert_eq!(format!("{}", ContributionType::Photographer), "Photographer");
+    assert_eq!(format!("{}", ContributionType::Ilustrator), "Ilustrator");
+    assert_eq!(format!("{}", ContributionType::MusicEditor), "Music Editor");
+    assert_eq!(format!("{}", ContributionType::ForewordBy), "Foreword By");
+    assert_eq!(format!("{}", ContributionType::IntroductionBy), "Introduction By");
+    assert_eq!(format!("{}", ContributionType::AfterwordBy), "Afterword By");
+    assert_eq!(format!("{}", ContributionType::PrefaceBy), "Preface By");
 }
