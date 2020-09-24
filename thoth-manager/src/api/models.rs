@@ -2,6 +2,7 @@ use serde::de::Deserializer;
 use serde::Deserialize;
 use serde::Serialize;
 
+use thoth_api::models::contributor::ContributionType;
 use thoth_api::models::series::SeriesType;
 use thoth_api::models::work::WorkStatus;
 use thoth_api::models::work::WorkType;
@@ -76,7 +77,10 @@ pub struct Publisher {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contribution {
+    pub contribution_type: ContributionType,
     pub main_contribution: bool,
+    pub biography: Option<String>,
+    pub institution: Option<String>,
     pub contributor: Contributor,
 }
 

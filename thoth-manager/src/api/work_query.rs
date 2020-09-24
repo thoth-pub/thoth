@@ -39,7 +39,10 @@ pub const WORK_QUERY: &str = "
             coverUrl
             coverCaption
             contributions {
+                contributionType
                 mainContribution
+                biography
+                institution
                 contributor {
                     contributorId
                     fullName

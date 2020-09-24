@@ -19,6 +19,7 @@ const WORKS_QUERY: &str = "
             place
             publicationDate
             contributions {
+                contributionType
                 mainContribution
                 contributor {
                     contributorId
