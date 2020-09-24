@@ -1,3 +1,4 @@
+use thoth_api::models::contributor::ContributionType;
 use thoth_api::models::work::WorkStatus;
 use thoth_api::models::work::WorkType;
 use yew::html;
@@ -7,6 +8,7 @@ use yewtil::Pure;
 use yewtil::PureComponent;
 
 use crate::api::models::Imprint;
+use crate::api::models::ContributionTypeValues;
 use crate::api::models::WorkStatusValues;
 use crate::api::models::WorkTypeValues;
 
@@ -18,6 +20,7 @@ pub type FormDateInput = Pure<PureDateInput>;
 pub type FormNumberInput = Pure<PureNumberInput>;
 pub type FormWorkTypeSelect = Pure<PureWorkTypeSelect>;
 pub type FormWorkStatusSelect = Pure<PureWorkStatusSelect>;
+pub type FormContributionTypeSelect = Pure<PureContributionTypeSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
 pub type Loader = Pure<PureLoader>;
 
@@ -84,6 +87,15 @@ pub struct PureWorkStatusSelect {
     pub label: String,
     pub data: Vec<WorkStatusValues>,
     pub value: WorkStatus,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureContributionTypeSelect {
+    pub label: String,
+    pub data: Vec<ContributionTypeValues>,
+    pub value: ContributionType,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -226,6 +238,24 @@ impl PureComponent for PureWorkStatusSelect {
     }
 }
 
+impl PureComponent for PureContributionTypeSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control">
+                    <div class="select">
+                    <select required=self.required>
+                        <option value="">{"Select Contribution Type"}</option>
+                        { for self.data.iter().map(|i| self.render_contributiontype(i)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
 impl PureComponent for PureImprintSelect {
     fn render(&self) -> VNode {
         html! {
@@ -271,6 +301,22 @@ impl PureWorkStatusSelect {
         } else {
             html! {
                 <option value={&w.name}>{&w.name}</option>
+            }
+        }
+    }
+}
+
+impl PureContributionTypeSelect {
+    fn render_contributiontype(&self, c: &ContributionTypeValues) -> VNode {
+        if c.name == self.value {
+            html! {
+                <option value={&c.name} selected=true>
+                    {&c.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={&c.name}>{&c.name}</option>
             }
         }
     }
