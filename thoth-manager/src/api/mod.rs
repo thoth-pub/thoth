@@ -29,6 +29,7 @@ macro_rules! query_builder {
         #[serde(rename_all = "camelCase")]
         pub struct Variables {
             pub work_id: Option<String>,
+            pub filter: Option<String>,
         }
 
         #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -68,7 +69,10 @@ macro_rules! query_builder {
             fn default() -> $request_body {
                 $request_body {
                     query: $query.to_string(),
-                    variables: Variables { work_id: None },
+                    variables: Variables {
+                        work_id: None,
+                        filter: None,
+                    },
                 }
             }
         }

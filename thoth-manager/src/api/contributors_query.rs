@@ -3,9 +3,9 @@ use serde::Serialize;
 
 use crate::api::models::Contributor;
 
-const CONTRIBUTORS_QUERY: &str = "
-    {
-        contributors(limit: 9999) {
+pub const CONTRIBUTORS_QUERY: &str = "
+    query ContributorsQuery($filter: String) {
+        contributors(limit: 9999, filter: $filter) {
             contributorId
             firstName
             lastName
