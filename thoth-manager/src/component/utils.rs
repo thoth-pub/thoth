@@ -246,7 +246,6 @@ impl PureComponent for PureContributionTypeSelect {
                 <div class="control">
                     <div class="select">
                     <select required=self.required>
-                        <option value="">{"Select Contribution Type"}</option>
                         { for self.data.iter().map(|i| self.render_contributiontype(i)) }
                     </select>
                     </div>
