@@ -180,13 +180,18 @@ impl QueryRoot {
         description = "Query the full list of contributors",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_name and orcid"
+            ),
         )
     )]
-    fn contributors(context: &Context, limit: i32, offset: i32) -> Vec<Contributor> {
+    fn contributors(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Contributor> {
         use crate::schema::contributor::dsl::*;
         let connection = context.db.get().unwrap();
-        contributor
+        contributor.filter(full_name.ilike(format!("%{}%", filter)))
+            .or_filter(orcid.ilike(format!("%{}%", filter)))
             .order(full_name.asc())
             .limit(limit.into())
             .offset(offset.into())
