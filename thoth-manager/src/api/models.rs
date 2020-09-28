@@ -77,6 +77,8 @@ pub struct Publisher {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contribution {
+    pub work_id: String,
+    pub contributor_id: String,
     pub contribution_type: ContributionType,
     pub main_contribution: bool,
     pub biography: Option<String>,
