@@ -10,13 +10,16 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::api::models::Work;
+use crate::api::models::Imprint;
+use crate::api::models::WorkTypeValues;
+use crate::api::models::WorkStatusValues;
 use crate::api::work_query::FetchActionWork;
 use crate::api::work_query::FetchWork;
 use crate::api::work_query::Variables;
 use crate::api::work_query::WorkRequest;
 use crate::api::work_query::WorkRequestBody;
 use crate::api::work_query::WORK_QUERY;
-use crate::api::work_query::WorkResponseData;
 use crate::component::contributions_form::ContributionsFormComponent;
 use crate::component::utils::FormDateInput;
 use crate::component::utils::FormImprintSelect;
@@ -29,10 +32,17 @@ use crate::component::utils::FormWorkTypeSelect;
 use crate::component::utils::Loader;
 
 pub struct WorkComponent {
-    data: WorkResponseData,
+    work: Work,
+    data: WorkFormData,
     fetch_work: FetchWork,
     link: ComponentLink<Self>,
     notification_bus: NotificationDispatcher,
+}
+
+struct WorkFormData {
+    imprints: Vec<Imprint>,
+    work_types: Vec<WorkTypeValues>,
+    work_statuses: Vec<WorkStatusValues>,
 }
 
 pub enum Msg {
@@ -61,11 +71,17 @@ impl Component for WorkComponent {
         let request = WorkRequest { body };
         let fetch_work = Fetch::new(request);
         let notification_bus = NotificationBus::dispatcher();
-        let data: WorkResponseData = Default::default();
+        let work: Work = Default::default();
+        let data = WorkFormData {
+            imprints: vec![],
+            work_types: vec![],
+            work_statuses: vec![],
+        };
 
         link.send_message(Msg::GetWork);
 
         WorkComponent {
+            work,
             data,
             fetch_work,
             link,
@@ -86,18 +102,21 @@ impl Component for WorkComponent {
         match msg {
             Msg::SetWorkFetchState(fetch_state) => {
                 self.fetch_work.apply(fetch_state);
-                self.data = match self.fetch_work.as_ref().state() {
-                    FetchState::NotFetching(_) => Default::default(),
-                    FetchState::Fetching(_) => Default::default(),
-                    FetchState::Fetched(body) => WorkResponseData {
-                        work: body.data.work.to_owned(),
-                        imprints: body.data.imprints.to_owned(),
-                        work_types: body.data.work_types.to_owned(),
-                        work_statuses: body.data.work_statuses.to_owned(),
+                match self.fetch_work.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => {
+                        self.work = match &body.data.work {
+                            Some(w) => w.to_owned(),
+                            None => Default::default()
+                        };
+                        self.data.imprints = body.data.imprints.to_owned();
+                        self.data.work_types = body.data.work_types.enum_values.to_owned();
+                        self.data.work_statuses = body.data.work_statuses.enum_values.to_owned();
+                        true
                     },
-                    FetchState::Failed(_, _err) => Default::default(),
-                };
-                true
+                    FetchState::Failed(_, _err) => false
+                }
             }
             Msg::GetWork => {
                 self.link
@@ -107,7 +126,7 @@ impl Component for WorkComponent {
                 false
             }
             Msg::Save => {
-                log::info!("Saved");
+                log::debug!("{:?}", self.work);
                 self.notification_bus.send(Request::NotificationBusMsg((
                     "Saved".to_string(),
                     NotificationStatus::Success,
@@ -144,67 +163,63 @@ impl Component for WorkComponent {
                     event.prevent_default();
                     Msg::Save
                 });
-                if let Some(work) = self.data.work.to_owned() {
-                    html! {
-                        <form onsubmit=callback>
-                            <FormTextInput label = "Title" value=work.title required = true />
-                            <FormTextInput label = "Subtitle" value=work.subtitle />
-                            <FormWorkTypeSelect
-                                label = "Work Type"
-                                value=work.work_type
-                                data=&self.data.work_types.enum_values
-                                required = true
-                            />
-                            <FormWorkStatusSelect
-                                label = format!("Work Status: {}", work.work_status)
-                                value=work.work_status
-                                data=&self.data.work_statuses.enum_values
-                                required = true
-                            />
-                            <FormTextInput label = "Internal Reference" value=work.reference />
-                            <FormImprintSelect
-                                label = "Imprint"
-                                value=work.imprint.imprint_id
-                                data=&self.data.imprints
-                                required = true
-                            />
-                            <FormNumberInput label = "Edition" value=work.edition required = true />
-                            <FormUrlInput label = "Doi" value=work.doi />
-                            <FormDateInput label = "Publication Date" value=work.publication_date />
-                            <FormTextInput label = "Place of Publication" value=work.place />
-                            <FormNumberInput label = "Width" value=work.width />
-                            <FormNumberInput label = "Height" value=work.height />
-                            <FormNumberInput label = "Page Count" value=work.page_count />
-                            <FormTextInput label = "Page Breakdown" value=work.page_breakdown />
-                            <FormNumberInput label = "Image Count" value=work.image_count />
-                            <FormNumberInput label = "Table Count" value=work.table_count />
-                            <FormNumberInput label = "Audio Count" value=work.audio_count />
-                            <FormNumberInput label = "Video Count" value=work.video_count />
-                            <FormTextInput label = "Copyright Holder" value=work.copyright_holder required = true />
-                            <FormUrlInput label = "Landing Page" value=work.landing_page />
-                            <FormNumberInput label = "Library of Congress Number (LCCN)" value=work.lccn />
-                            <FormNumberInput label = "OCLC Number" value=work.oclc />
-                            <FormTextarea label = "Short Abstract" value=work.short_abstract />
-                            <FormTextarea label = "Long Abstract" value=work.long_abstract />
-                            <FormTextarea label = "General Note" value=work.general_note />
-                            <FormTextarea label = "Table of Content" value=work.toc />
-                            <FormUrlInput label = "Cover URL" value=work.cover_url />
-                            <FormTextarea label = "Cover Caption" value=work.cover_caption />
-                            <ContributionsFormComponent
-                                contributions=work.contributions
-                            />
+                html! {
+                    <form onsubmit=callback>
+                        <FormTextInput label = "Title" value=&self.work.title required = true />
+                        <FormTextInput label = "Subtitle" value=&self.work.subtitle />
+                        <FormWorkTypeSelect
+                            label = "Work Type"
+                            value=&self.work.work_type
+                            data=&self.data.work_types
+                            required = true
+                        />
+                        <FormWorkStatusSelect
+                            label = format!("Work Status: {}", self.work.work_status)
+                            value=&self.work.work_status
+                            data=&self.data.work_statuses
+                            required = true
+                        />
+                        <FormTextInput label = "Internal Reference" value=&self.work.reference />
+                        <FormImprintSelect
+                            label = "Imprint"
+                            value=&self.work.imprint.imprint_id
+                            data=&self.data.imprints
+                            required = true
+                        />
+                        <FormNumberInput label = "Edition" value=&self.work.edition required = true />
+                        <FormUrlInput label = "Doi" value=&self.work.doi />
+                        <FormDateInput label = "Publication Date" value=&self.work.publication_date />
+                        <FormTextInput label = "Place of Publication" value=&self.work.place />
+                        <FormNumberInput label = "Width" value=self.work.width />
+                        <FormNumberInput label = "Height" value=self.work.height />
+                        <FormNumberInput label = "Page Count" value=self.work.page_count />
+                        <FormTextInput label = "Page Breakdown" value=&self.work.page_breakdown />
+                        <FormNumberInput label = "Image Count" value=self.work.image_count />
+                        <FormNumberInput label = "Table Count" value=self.work.table_count />
+                        <FormNumberInput label = "Audio Count" value=self.work.audio_count />
+                        <FormNumberInput label = "Video Count" value=self.work.video_count />
+                        <FormTextInput label = "Copyright Holder" value=&self.work.copyright_holder required = true />
+                        <FormUrlInput label = "Landing Page" value=&self.work.landing_page />
+                        <FormNumberInput label = "Library of Congress Number (LCCN)" value=self.work.lccn />
+                        <FormNumberInput label = "OCLC Number" value=self.work.oclc />
+                        <FormTextarea label = "Short Abstract" value=&self.work.short_abstract />
+                        <FormTextarea label = "Long Abstract" value=&self.work.long_abstract />
+                        <FormTextarea label = "General Note" value=&self.work.general_note />
+                        <FormTextarea label = "Table of Content" value=&self.work.toc />
+                        <FormUrlInput label = "Cover URL" value=&self.work.cover_url />
+                        <FormTextarea label = "Cover Caption" value=&self.work.cover_caption />
+                        <ContributionsFormComponent
+                            contributions=&self.work.contributions
+                        />
 
-                            <div class="field">
-                                <div class="control">
-                                    <button class="button is-success" type="submit">
-                                        {"Save"}
-                                    </button>
-                                </div>
+                        <div class="field">
+                            <div class="control">
+                                <button class="button is-success" type="submit">
+                                    {"Save"}
+                                </button>
                             </div>
-                        </form>
-                    }
-                } else {
-                    html! { "Work was not found." }
+                        </div>
+                    </form>
                 }
             }
             FetchState::Failed(_, err) => html! {&err},
