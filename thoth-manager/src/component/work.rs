@@ -5,6 +5,7 @@ use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
+use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
@@ -48,6 +49,31 @@ struct WorkFormData {
 pub enum Msg {
     SetWorkFetchState(FetchActionWork),
     GetWork,
+    ChangeTitle(String),
+    ChangeSubtitle(String),
+    ChangeReference(String),
+    ChangeEdition(String),
+    ChangeDoi(String),
+    ChangeDate(String),
+    ChangePlace(String),
+    ChangeWidth(String),
+    ChangeHeight(String),
+    ChangePageCount(String),
+    ChangePageBreakdown(String),
+    ChangeImageCount(String),
+    ChangeTableCount(String),
+    ChangeAudioCount(String),
+    ChangeVideoCount(String),
+    ChangeCopyright(String),
+    ChangeLandingPage(String),
+    ChangeLccn(String),
+    ChangeOclc(String),
+    ChangeShortAbstract(String),
+    ChangeLongAbstract(String),
+    ChangeNote(String),
+    ChangeToc(String),
+    ChangeCoverUrl(String),
+    ChangeCoverCaption(String),
     Save,
 }
 
@@ -125,6 +151,194 @@ impl Component for WorkComponent {
                     .send_message(Msg::SetWorkFetchState(FetchAction::Fetching));
                 false
             }
+            Msg::ChangeTitle(title) => {
+                log::info!("Title changed: {}", title);
+                if self.work.title.neq_assign(title) {
+                    self.work.full_title = self.work.compile_fulltitle();
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeSubtitle(subtitle) => {
+                if self.work.subtitle.neq_assign(Some(subtitle)) {
+                    self.work.full_title = self.work.compile_fulltitle();
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeReference(reference) => {
+                if self.work.reference.neq_assign(Some(reference)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeEdition(edition) => {
+                let edition: i32 = edition.parse().unwrap_or(1);
+                if self.work.edition.neq_assign(edition) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeDoi(doi) => {
+                if self.work.doi.neq_assign(Some(doi)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeDate(date) => {
+                if self.work.publication_date.neq_assign(Some(date)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangePlace(place) => {
+                if self.work.place.neq_assign(Some(place)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeWidth(width) => {
+                let width: i32 = width.parse().unwrap_or(0);
+                if self.work.width.neq_assign(Some(width)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeHeight(height) => {
+                let height: i32 = height.parse().unwrap_or(0);
+                if self.work.height.neq_assign(Some(height)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangePageCount(page_count) => {
+                let page_count: i32 = page_count.parse().unwrap_or(0);
+                if self.work.page_count.neq_assign(Some(page_count)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangePageBreakdown(breakdown) => {
+                if self.work.page_breakdown.neq_assign(Some(breakdown)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeImageCount(image_count) => {
+                let image_count: i32 = image_count.parse().unwrap_or(0);
+                if self.work.image_count.neq_assign(Some(image_count)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeTableCount(table_count) => {
+                let table_count: i32 = table_count.parse().unwrap_or(0);
+                if self.work.table_count.neq_assign(Some(table_count)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeAudioCount(audio_count) => {
+                let audio_count: i32 = audio_count.parse().unwrap_or(0);
+                if self.work.audio_count.neq_assign(Some(audio_count)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeVideoCount(video_count) => {
+                let video_count: i32 = video_count.parse().unwrap_or(0);
+                if self.work.video_count.neq_assign(Some(video_count)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeCopyright(copyright) => {
+                if self.work.copyright_holder.neq_assign(copyright) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeLandingPage(landing_page) => {
+                if self.work.landing_page.neq_assign(Some(landing_page)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeLccn(lccn) => {
+                let lccn: i32 = lccn.parse().unwrap_or(0);
+                if self.work.lccn.neq_assign(Some(lccn)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeOclc(oclc) => {
+                let oclc: i32 = oclc.parse().unwrap_or(0);
+                if self.work.oclc.neq_assign(Some(oclc)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeShortAbstract(short_abstract) => {
+                if self.work.short_abstract.neq_assign(Some(short_abstract)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeLongAbstract(long_abstract) => {
+                if self.work.long_abstract.neq_assign(Some(long_abstract)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeNote(note) => {
+                if self.work.general_note.neq_assign(Some(note)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeToc(toc) => {
+                if self.work.toc.neq_assign(Some(toc)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeCoverUrl(cover_url) => {
+                if self.work.cover_url.neq_assign(Some(cover_url)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeCoverCaption(cover_caption) => {
+                if self.work.cover_caption.neq_assign(Some(cover_caption)) {
+                    true
+                } else {
+                    false
+                }
+            }
             Msg::Save => {
                 log::debug!("{:?}", self.work);
                 self.notification_bus.send(Request::NotificationBusMsg((
@@ -165,8 +379,17 @@ impl Component for WorkComponent {
                 });
                 html! {
                     <form onsubmit=callback>
-                        <FormTextInput label = "Title" value=&self.work.title required = true />
-                        <FormTextInput label = "Subtitle" value=&self.work.subtitle />
+                        <FormTextInput
+                            label = "Title"
+                            value=&self.work.title
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeTitle(e.value))
+                            required = true
+                        />
+                        <FormTextInput
+                            label = "Subtitle"
+                            value=&self.work.subtitle
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeSubtitle(e.value))
+                        />
                         <FormWorkTypeSelect
                             label = "Work Type"
                             value=&self.work.work_type
@@ -179,35 +402,129 @@ impl Component for WorkComponent {
                             data=&self.data.work_statuses
                             required = true
                         />
-                        <FormTextInput label = "Internal Reference" value=&self.work.reference />
+                        <FormTextInput
+                            label = "Internal Reference"
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeReference(e.value))
+                            value=&self.work.reference
+                        />
                         <FormImprintSelect
                             label = "Imprint"
                             value=&self.work.imprint.imprint_id
                             data=&self.data.imprints
                             required = true
                         />
-                        <FormNumberInput label = "Edition" value=&self.work.edition required = true />
-                        <FormUrlInput label = "Doi" value=&self.work.doi />
-                        <FormDateInput label = "Publication Date" value=&self.work.publication_date />
-                        <FormTextInput label = "Place of Publication" value=&self.work.place />
-                        <FormNumberInput label = "Width" value=self.work.width />
-                        <FormNumberInput label = "Height" value=self.work.height />
-                        <FormNumberInput label = "Page Count" value=self.work.page_count />
-                        <FormTextInput label = "Page Breakdown" value=&self.work.page_breakdown />
-                        <FormNumberInput label = "Image Count" value=self.work.image_count />
-                        <FormNumberInput label = "Table Count" value=self.work.table_count />
-                        <FormNumberInput label = "Audio Count" value=self.work.audio_count />
-                        <FormNumberInput label = "Video Count" value=self.work.video_count />
-                        <FormTextInput label = "Copyright Holder" value=&self.work.copyright_holder required = true />
-                        <FormUrlInput label = "Landing Page" value=&self.work.landing_page />
-                        <FormNumberInput label = "Library of Congress Number (LCCN)" value=self.work.lccn />
-                        <FormNumberInput label = "OCLC Number" value=self.work.oclc />
-                        <FormTextarea label = "Short Abstract" value=&self.work.short_abstract />
-                        <FormTextarea label = "Long Abstract" value=&self.work.long_abstract />
-                        <FormTextarea label = "General Note" value=&self.work.general_note />
-                        <FormTextarea label = "Table of Content" value=&self.work.toc />
-                        <FormUrlInput label = "Cover URL" value=&self.work.cover_url />
-                        <FormTextarea label = "Cover Caption" value=&self.work.cover_caption />
+                        <FormNumberInput
+                            label = "Edition"
+                            value=&self.work.edition
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeEdition(e.value))
+                            required = true
+                        />
+                        <FormUrlInput
+                            label = "Doi"
+                            value=&self.work.doi
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeDoi(e.value))
+                        />
+                        <FormDateInput
+                            label = "Publication Date"
+                            value=&self.work.publication_date
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeDate(e.value))
+                        />
+                        <FormTextInput
+                            label = "Place of Publication"
+                            value=&self.work.place
+                            oninput=self.link.callback(|e: InputData| Msg::ChangePlace(e.value))
+                        />
+                        <FormNumberInput
+                            label = "Width"
+                            value=self.work.width
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
+                        />
+                        <FormNumberInput
+                            label = "Height"
+                            value=self.work.height
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
+                        />
+                        <FormNumberInput
+                            label = "Page Count"
+                            value=self.work.page_count
+                            oninput=self.link.callback(|e: InputData| Msg::ChangePageCount(e.value))
+                        />
+                        <FormTextInput
+                            label = "Page Breakdown"
+                            value=&self.work.page_breakdown
+                            oninput=self.link.callback(|e: InputData| Msg::ChangePageBreakdown(e.value))
+                        />
+                        <FormNumberInput
+                            label = "Image Count"
+                            value=self.work.image_count
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeImageCount(e.value))
+                        />
+                        <FormNumberInput
+                            label = "Table Count"
+                            value=self.work.table_count
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeTableCount(e.value))
+                        />
+                        <FormNumberInput
+                            label = "Audio Count"
+                            value=self.work.audio_count
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeAudioCount(e.value))
+                        />
+                        <FormNumberInput
+                            label = "Video Count"
+                            value=self.work.video_count
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeVideoCount(e.value))
+                        />
+                        <FormTextInput
+                            label = "Copyright Holder"
+                            value=&self.work.copyright_holder
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeCopyright(e.value))
+                            required = true
+                        />
+                        <FormUrlInput
+                            label = "Landing Page"
+                            value=&self.work.landing_page
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeLandingPage(e.value))
+                        />
+                        <FormNumberInput
+                            label = "Library of Congress Number (LCCN)"
+                            value=self.work.lccn
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeLccn(e.value))
+                        />
+                        <FormNumberInput
+                            label = "OCLC Number"
+                            value=self.work.oclc
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeOclc(e.value))
+                        />
+                        <FormTextarea
+                            label = "Short Abstract"
+                            value=&self.work.short_abstract
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeShortAbstract(e.value))
+                        />
+                        <FormTextarea
+                            label = "Long Abstract"
+                            value=&self.work.long_abstract
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeLongAbstract(e.value))
+                        />
+                        <FormTextarea
+                            label = "General Note"
+                            value=&self.work.general_note
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeNote(e.value))
+                        />
+                        <FormTextarea
+                            label = "Table of Content"
+                            value=&self.work.toc
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeToc(e.value))
+                        />
+                        <FormUrlInput
+                            label = "Cover URL"
+                            value=&self.work.cover_url
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeCoverUrl(e.value))
+                        />
+                        <FormTextarea
+                            label = "Cover Caption"
+                            value=&self.work.cover_caption
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeCoverCaption(e.value))
+                        />
                         <ContributionsFormComponent
                             contributions=&self.work.contributions
                         />

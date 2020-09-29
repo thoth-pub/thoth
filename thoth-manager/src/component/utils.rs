@@ -3,6 +3,8 @@ use thoth_api::models::work::WorkStatus;
 use thoth_api::models::work::WorkType;
 use yew::html;
 use yew::virtual_dom::VNode;
+use yew::Callback;
+use yew::InputData;
 use yew::Properties;
 use yewtil::Pure;
 use yewtil::PureComponent;
@@ -29,6 +31,7 @@ pub struct PureInput {
     pub label: String,
     pub value: String,
     pub input_type: String,
+    pub oninput: Callback<InputData>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -37,6 +40,7 @@ pub struct PureInput {
 pub struct PureTextarea {
     pub label: String,
     pub value: Option<String>,
+    pub oninput: Callback<InputData>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -45,6 +49,7 @@ pub struct PureTextarea {
 pub struct PureTextInput {
     pub label: String,
     pub value: Option<String>,
+    pub oninput: Callback<InputData>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -53,6 +58,7 @@ pub struct PureTextInput {
 pub struct PureUrlInput {
     pub label: String,
     pub value: Option<String>,
+    pub oninput: Callback<InputData>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -61,6 +67,7 @@ pub struct PureUrlInput {
 pub struct PureDateInput {
     pub label: String,
     pub value: Option<String>,
+    pub oninput: Callback<InputData>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -69,6 +76,7 @@ pub struct PureDateInput {
 pub struct PureNumberInput {
     pub label: String,
     pub value: Option<i32>,
+    pub oninput: Callback<InputData>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -123,6 +131,7 @@ impl PureComponent for PureInput {
                         type={ &self.input_type }
                         placeholder={ &self.label }
                         value={ &self.value }
+                        oninput=&self.oninput
                         required={ self.required }
                     />
                 </div>
@@ -140,6 +149,7 @@ impl PureComponent for PureTextarea {
                     <textarea
                         class="textarea"
                         placeholder=&self.label
+                        oninput=&self.oninput
                         required={ self.required }
                     >
                         {&self.value.clone().unwrap_or_else(|| "".to_string())}
@@ -157,6 +167,7 @@ impl PureComponent for PureTextInput {
                 label=&self.label
                 value=&self.value.clone().unwrap_or_else(|| "".to_string())
                 input_type="text"
+                oninput=&self.oninput
                 required=self.required
             />
         }
@@ -170,6 +181,7 @@ impl PureComponent for PureUrlInput {
                 label=&self.label
                 value=&self.value.clone().unwrap_or_else(|| "".to_string())
                 input_type="url"
+                oninput=&self.oninput
                 required=self.required
             />
         }
@@ -183,6 +195,7 @@ impl PureComponent for PureDateInput {
                 label=&self.label
                 value=&self.value.clone().unwrap_or_else(|| "".to_string())
                 input_type="date"
+                oninput=&self.oninput
                 required=self.required
             />
         }
@@ -196,6 +209,7 @@ impl PureComponent for PureNumberInput {
                 label=&self.label
                 value=&self.value.unwrap_or(0).to_string()
                 input_type="number"
+                oninput=&self.oninput
                 required=self.required
             />
         }
