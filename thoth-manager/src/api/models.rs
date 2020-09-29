@@ -187,3 +187,65 @@ impl<'de> Deserialize<'de> for License {
         Ok(license)
     }
 }
+
+
+impl Default for Work {
+    fn default() -> Work {
+        Work {
+            work_id: "".to_string(),
+            work_type: WorkType::Monograph,
+            work_status: WorkStatus::Inactive,
+            full_title: "".to_string(),
+            title: "".to_string(),
+            subtitle: None,
+            reference: None,
+            edition: 1,
+            doi: None,
+            publication_date: None,
+            place: None,
+            width: None,
+            height: None,
+            page_count: None,
+            page_breakdown: None,
+            image_count: None,
+            table_count: None,
+            audio_count: None,
+            video_count: None,
+            license: None,
+            copyright_holder: "".to_string(),
+            landing_page: None,
+            lccn: None,
+            oclc: None,
+            short_abstract: None,
+            long_abstract: None,
+            general_note: None,
+            toc: None,
+            cover_url: None,
+            cover_caption: None,
+            contributions: None,
+            imprint: Default::default(),
+        }
+    }
+}
+
+impl Default for Imprint {
+    fn default() -> Imprint {
+        Imprint {
+            imprint_id: "".to_string(),
+            imprint_name: "".to_string(),
+            imprint_url: None,
+            publisher: Default::default(),
+        }
+    }
+}
+
+impl Default for Publisher {
+    fn default() -> Publisher {
+        Publisher {
+            publisher_id: "".to_string(),
+            publisher_name: "".to_string(),
+            publisher_shortname: None,
+            publisher_url: None,
+        }
+    }
+}
