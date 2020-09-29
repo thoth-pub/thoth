@@ -149,7 +149,7 @@ impl Work {
         if let Some(subtitle) = &self.subtitle.clone() {
             format!("{}: {}", self.title, subtitle)
         } else {
-            format!("{}", self.title)
+            self.title.to_string()
         }
     }
 }
