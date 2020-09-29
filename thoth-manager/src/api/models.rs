@@ -144,6 +144,16 @@ pub struct ContributionTypeValues {
     pub name: ContributionType,
 }
 
+impl Work {
+    pub fn compile_fulltitle(&self) -> String {
+        if let Some(subtitle) = &self.subtitle.clone() {
+            format!("{}: {}", self.title, subtitle)
+        } else {
+            format!("{}", self.title)
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for License {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
