@@ -169,175 +169,83 @@ impl Component for WorkComponent {
                 }
             }
             Msg::ChangeReference(reference) => {
-                if self.work.reference.neq_assign(Some(reference)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.reference.neq_assign(Some(reference))
             }
             Msg::ChangeEdition(edition) => {
                 let edition: i32 = edition.parse().unwrap_or(1);
-                if self.work.edition.neq_assign(edition) {
-                    true
-                } else {
-                    false
-                }
+                self.work.edition.neq_assign(edition)
             }
             Msg::ChangeDoi(doi) => {
-                if self.work.doi.neq_assign(Some(doi)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.doi.neq_assign(Some(doi))
             }
             Msg::ChangeDate(date) => {
-                if self.work.publication_date.neq_assign(Some(date)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.publication_date.neq_assign(Some(date))
             }
             Msg::ChangePlace(place) => {
-                if self.work.place.neq_assign(Some(place)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.place.neq_assign(Some(place))
             }
             Msg::ChangeWidth(width) => {
                 let width: i32 = width.parse().unwrap_or(0);
-                if self.work.width.neq_assign(Some(width)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.width.neq_assign(Some(width))
             }
             Msg::ChangeHeight(height) => {
                 let height: i32 = height.parse().unwrap_or(0);
-                if self.work.height.neq_assign(Some(height)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.height.neq_assign(Some(height))
             }
             Msg::ChangePageCount(page_count) => {
                 let page_count: i32 = page_count.parse().unwrap_or(0);
-                if self.work.page_count.neq_assign(Some(page_count)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.page_count.neq_assign(Some(page_count))
             }
             Msg::ChangePageBreakdown(breakdown) => {
-                if self.work.page_breakdown.neq_assign(Some(breakdown)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.page_breakdown.neq_assign(Some(breakdown))
             }
             Msg::ChangeImageCount(image_count) => {
                 let image_count: i32 = image_count.parse().unwrap_or(0);
-                if self.work.image_count.neq_assign(Some(image_count)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.image_count.neq_assign(Some(image_count))
             }
             Msg::ChangeTableCount(table_count) => {
                 let table_count: i32 = table_count.parse().unwrap_or(0);
-                if self.work.table_count.neq_assign(Some(table_count)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.table_count.neq_assign(Some(table_count))
             }
             Msg::ChangeAudioCount(audio_count) => {
                 let audio_count: i32 = audio_count.parse().unwrap_or(0);
-                if self.work.audio_count.neq_assign(Some(audio_count)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.audio_count.neq_assign(Some(audio_count))
             }
             Msg::ChangeVideoCount(video_count) => {
                 let video_count: i32 = video_count.parse().unwrap_or(0);
-                if self.work.video_count.neq_assign(Some(video_count)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.video_count.neq_assign(Some(video_count))
             }
             Msg::ChangeCopyright(copyright) => {
-                if self.work.copyright_holder.neq_assign(copyright) {
-                    true
-                } else {
-                    false
-                }
+                self.work.copyright_holder.neq_assign(copyright)
             }
             Msg::ChangeLandingPage(landing_page) => {
-                if self.work.landing_page.neq_assign(Some(landing_page)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.landing_page.neq_assign(Some(landing_page))
             }
             Msg::ChangeLccn(lccn) => {
                 let lccn: i32 = lccn.parse().unwrap_or(0);
-                if self.work.lccn.neq_assign(Some(lccn)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.lccn.neq_assign(Some(lccn))
             }
             Msg::ChangeOclc(oclc) => {
                 let oclc: i32 = oclc.parse().unwrap_or(0);
-                if self.work.oclc.neq_assign(Some(oclc)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.oclc.neq_assign(Some(oclc))
             }
             Msg::ChangeShortAbstract(short_abstract) => {
-                if self.work.short_abstract.neq_assign(Some(short_abstract)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.short_abstract.neq_assign(Some(short_abstract))
             }
             Msg::ChangeLongAbstract(long_abstract) => {
-                if self.work.long_abstract.neq_assign(Some(long_abstract)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.long_abstract.neq_assign(Some(long_abstract))
             }
             Msg::ChangeNote(note) => {
-                if self.work.general_note.neq_assign(Some(note)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.general_note.neq_assign(Some(note))
             }
             Msg::ChangeToc(toc) => {
-                if self.work.toc.neq_assign(Some(toc)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.toc.neq_assign(Some(toc))
             }
             Msg::ChangeCoverUrl(cover_url) => {
-                if self.work.cover_url.neq_assign(Some(cover_url)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.cover_url.neq_assign(Some(cover_url))
             }
             Msg::ChangeCoverCaption(cover_caption) => {
-                if self.work.cover_caption.neq_assign(Some(cover_caption)) {
-                    true
-                } else {
-                    false
-                }
+                self.work.cover_caption.neq_assign(Some(cover_caption))
             }
             Msg::Save => {
                 log::debug!("{:?}", self.work);
