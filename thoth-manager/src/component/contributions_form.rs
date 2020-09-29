@@ -1,3 +1,4 @@
+use thoth_api::models::contributor::ContributionType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -21,7 +22,7 @@ use crate::component::utils::FormTextInput;
 use crate::component::utils::FormContributionTypeSelect;
 
 pub struct ContributionsFormComponent {
-    contributions: Vec<Contribution>,
+    props: Props,
     data: ContributionsFormData,
     show_results: bool,
     fetch_contributors: FetchContributors,
@@ -41,11 +42,13 @@ pub enum Msg {
     GetContributionTypes,
     ToggleSearchResultDisplay(bool),
     SearchContributor(String),
+    AddContribution(Contributor),
+    RemoveContribution(String),
 }
 
-#[derive(Clone, Properties)]
+#[derive(Clone, Properties, PartialEq)]
 pub struct Props {
-    pub contributions: Vec<Contribution>,
+    pub contributions: Option<Vec<Contribution>>,
 }
 
 impl Component for ContributionsFormComponent {
@@ -53,7 +56,6 @@ impl Component for ContributionsFormComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let contributions = props.contributions;
         let data = ContributionsFormData {
             contributors: vec![],
             contribution_types: vec![],
@@ -64,7 +66,7 @@ impl Component for ContributionsFormComponent {
         link.send_message(Msg::GetContributionTypes);
 
         ContributionsFormComponent {
-            contributions,
+            props,
             data,
             show_results,
             fetch_contributors: Default::default(),
@@ -126,11 +128,47 @@ impl Component for ContributionsFormComponent {
                 self.link.send_message(Msg::GetContributors);
                 false
             }
+            Msg::AddContribution(contributor) => {
+                let mut contributions: Vec<Contribution> = self.props.contributions.clone().unwrap_or_else(|| vec![]);
+                let contributor_id = contributor.contributor_id.clone();
+                let contribution = Contribution {
+                    work_id: "37cf05e4-2bdc-4a13-8d83-f23b90c46dfc".to_string(), //  FIXME
+                    contributor_id: contributor_id.clone(),
+                    contribution_type: ContributionType::Author,
+                    main_contribution: false,
+                    biography: None,
+                    institution: None,
+                    contributor: Contributor {
+                        contributor_id: contributor_id,
+                        first_name: contributor.first_name,
+                        last_name: contributor.last_name,
+                        full_name: contributor.full_name,
+                        orcid: contributor.orcid,
+                        website: contributor.website,
+                    }
+                };
+                contributions.push(contribution);
+                self.props.contributions = Some(contributions);
+                true
+            }
+            Msg::RemoveContribution(contributor_id) => {
+                let to_keep: Vec<Contribution> = self.props.contributions.clone().unwrap_or_else(|| vec![])
+                    .into_iter()
+                    .filter(|c| c.contributor_id != contributor_id)
+                    .collect();
+                self.props.contributions = Some(to_keep);
+                true
+            }
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        false
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        if self.props != props {
+            self.props = props;
+            true
+        } else {
+            false
+        }
     }
 
     fn view(&self) -> Html {
@@ -162,16 +200,18 @@ impl Component for ContributionsFormComponent {
                         </div>
                         <div class="dropdown-menu" id="contributors-menu" role="menu">
                             <div class="dropdown-content">
-                                {
-                                    for self.data.contributors.iter().map(|c| html!{
-                                        <a href="#" class="dropdown-item">{ &c.full_name }</a>
-                                    })
-                                }
+                                { for self.data.contributors.iter().map(|c| self.render_contributors(c)) }
                             </div>
                         </div>
                     </div>
                 </div>
-                { for self.contributions.iter().map(|c| self.render_contribution(c)) }
+                {
+                    for self.props.contributions
+                        .clone()
+                        .unwrap_or_else(|| vec![])
+                        .iter()
+                        .map(|c| self.render_contribution(c))
+                }
             </nav>
         }
     }
@@ -185,7 +225,23 @@ impl ContributionsFormComponent {
         }
     }
 
+    fn render_contributors(&self, c: &Contributor) -> Html {
+        let contributor = c.clone();
+        // since contributors dropdown has an onblur event, we need to use onmousedown instead of
+        // onclick. This is not ideal, but it seems to be the only event that'd do the calback
+        // without disabling onblur so that onclick can take effect
+        html! {
+            <div
+                onmousedown=self.link.callback(move |_| Msg::AddContribution(contributor.clone()))
+                class="dropdown-item"
+            >
+                { &c.full_name }
+            </div>
+        }
+    }
+
     fn render_contribution(&self, c: &Contribution) -> Html {
+        let contributor_id = c.contributor_id.clone();
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -221,9 +277,12 @@ impl ContributionsFormComponent {
                     <div class="field">
                         <label class="label"></label>
                         <div class="control is-expanded">
-                            <button class="button is-danger">
+                            <a
+                                class="button is-danger"
+                                onclick=self.link.callback(move |_| Msg::RemoveContribution(contributor_id.clone()))
+                            >
                                 { "Remove" }
-                            </button>
+                            </a>
                         </div>
                     </div>
                 </div>
