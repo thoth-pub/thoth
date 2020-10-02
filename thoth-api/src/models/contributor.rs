@@ -92,11 +92,17 @@ fn test_contributiontype_display() {
     assert_eq!(format!("{}", ContributionType::Author), "Author");
     assert_eq!(format!("{}", ContributionType::Editor), "Editor");
     assert_eq!(format!("{}", ContributionType::Translator), "Translator");
-    assert_eq!(format!("{}", ContributionType::Photographer), "Photographer");
+    assert_eq!(
+        format!("{}", ContributionType::Photographer),
+        "Photographer"
+    );
     assert_eq!(format!("{}", ContributionType::Ilustrator), "Ilustrator");
     assert_eq!(format!("{}", ContributionType::MusicEditor), "Music Editor");
     assert_eq!(format!("{}", ContributionType::ForewordBy), "Foreword By");
-    assert_eq!(format!("{}", ContributionType::IntroductionBy), "Introduction By");
+    assert_eq!(
+        format!("{}", ContributionType::IntroductionBy),
+        "Introduction By"
+    );
     assert_eq!(format!("{}", ContributionType::AfterwordBy), "Afterword By");
     assert_eq!(format!("{}", ContributionType::PrefaceBy), "Preface By");
 }

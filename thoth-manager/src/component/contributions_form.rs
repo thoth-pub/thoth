@@ -6,19 +6,19 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::api::contributors_query::CONTRIBUTORS_QUERY;
+use crate::api::contribution_types_query::FetchActionContributionTypes;
+use crate::api::contribution_types_query::FetchContributionTypes;
 use crate::api::contributors_query::ContributorsRequest;
 use crate::api::contributors_query::ContributorsRequestBody;
 use crate::api::contributors_query::FetchActionContributors;
 use crate::api::contributors_query::FetchContributors;
 use crate::api::contributors_query::Variables;
-use crate::api::contribution_types_query::FetchActionContributionTypes;
-use crate::api::contribution_types_query::FetchContributionTypes;
+use crate::api::contributors_query::CONTRIBUTORS_QUERY;
 use crate::api::models::Contribution;
-use crate::api::models::Contributor;
 use crate::api::models::ContributionTypeValues;
-use crate::component::utils::FormTextInput;
+use crate::api::models::Contributor;
 use crate::component::utils::FormContributionTypeSelect;
+use crate::component::utils::FormTextInput;
 
 pub struct ContributionsFormComponent {
     props: Props,
@@ -31,7 +31,7 @@ pub struct ContributionsFormComponent {
 
 struct ContributionsFormData {
     contributors: Vec<Contributor>,
-    contribution_types: Vec<ContributionTypeValues>
+    contribution_types: Vec<ContributionTypeValues>,
 }
 
 pub enum Msg {
@@ -91,15 +91,18 @@ impl Component for ContributionsFormComponent {
                 true
             }
             Msg::GetContributors => {
-                self.link
-                    .send_future(self.fetch_contributors.fetch(Msg::SetContributorsFetchState));
+                self.link.send_future(
+                    self.fetch_contributors
+                        .fetch(Msg::SetContributorsFetchState),
+                );
                 self.link
                     .send_message(Msg::SetContributorsFetchState(FetchAction::Fetching));
                 false
             }
             Msg::SetContributionTypesFetchState(fetch_state) => {
                 self.fetch_contribution_types.apply(fetch_state);
-                self.data.contribution_types = match self.fetch_contribution_types.as_ref().state() {
+                self.data.contribution_types = match self.fetch_contribution_types.as_ref().state()
+                {
                     FetchState::NotFetching(_) => vec![],
                     FetchState::Fetching(_) => vec![],
                     FetchState::Fetched(body) => body.data.contribution_types.enum_values.clone(),
@@ -108,8 +111,10 @@ impl Component for ContributionsFormComponent {
                 true
             }
             Msg::GetContributionTypes => {
-                self.link
-                    .send_future(self.fetch_contribution_types.fetch(Msg::SetContributionTypesFetchState));
+                self.link.send_future(
+                    self.fetch_contribution_types
+                        .fetch(Msg::SetContributionTypesFetchState),
+                );
                 self.link
                     .send_message(Msg::SetContributionTypesFetchState(FetchAction::Fetching));
                 false

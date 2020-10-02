@@ -4,14 +4,14 @@ use thoth_api::models::work::WorkType;
 use yew::html;
 use yew::virtual_dom::VNode;
 use yew::Callback;
-use yew::InputData;
 use yew::FocusEvent;
+use yew::InputData;
 use yew::Properties;
 use yewtil::Pure;
 use yewtil::PureComponent;
 
-use crate::api::models::Imprint;
 use crate::api::models::ContributionTypeValues;
+use crate::api::models::Imprint;
 use crate::api::models::WorkStatusValues;
 use crate::api::models::WorkTypeValues;
 

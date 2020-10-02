@@ -198,7 +198,6 @@ impl<'de> Deserialize<'de> for License {
     }
 }
 
-
 impl Default for Work {
     fn default() -> Work {
         Work {

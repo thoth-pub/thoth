@@ -87,8 +87,8 @@ macro_rules! query_builder {
     };
 }
 
-pub mod contributors_query;
 pub mod contribution_types_query;
+pub mod contributors_query;
 pub mod imprints_query;
 pub mod models;
 pub mod publishers_query;

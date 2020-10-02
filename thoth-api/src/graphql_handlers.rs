@@ -187,10 +187,16 @@ impl QueryRoot {
             ),
         )
     )]
-    fn contributors(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Contributor> {
+    fn contributors(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+    ) -> Vec<Contributor> {
         use crate::schema::contributor::dsl::*;
         let connection = context.db.get().unwrap();
-        contributor.filter(full_name.ilike(format!("%{}%", filter)))
+        contributor
+            .filter(full_name.ilike(format!("%{}%", filter)))
             .or_filter(orcid.ilike(format!("%{}%", filter)))
             .order(full_name.asc())
             .limit(limit.into())

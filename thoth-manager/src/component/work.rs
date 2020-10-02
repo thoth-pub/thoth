@@ -14,10 +14,10 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::api::models::Contribution;
 use crate::api::models::Contributor;
-use crate::api::models::Work;
 use crate::api::models::Imprint;
-use crate::api::models::WorkTypeValues;
+use crate::api::models::Work;
 use crate::api::models::WorkStatusValues;
+use crate::api::models::WorkTypeValues;
 use crate::api::work_query::FetchActionWork;
 use crate::api::work_query::FetchWork;
 use crate::api::work_query::Variables;
@@ -149,14 +149,14 @@ impl Component for WorkComponent {
                     FetchState::Fetched(body) => {
                         self.work = match &body.data.work {
                             Some(w) => w.to_owned(),
-                            None => Default::default()
+                            None => Default::default(),
                         };
                         self.data.imprints = body.data.imprints.to_owned();
                         self.data.work_types = body.data.work_types.enum_values.to_owned();
                         self.data.work_statuses = body.data.work_statuses.enum_values.to_owned();
                         true
-                    },
-                    FetchState::Failed(_, _err) => false
+                    }
+                    FetchState::Failed(_, _err) => false,
                 }
             }
             Msg::GetWork => {
@@ -183,22 +183,14 @@ impl Component for WorkComponent {
                     false
                 }
             }
-            Msg::ChangeReference(reference) => {
-                self.work.reference.neq_assign(Some(reference))
-            }
+            Msg::ChangeReference(reference) => self.work.reference.neq_assign(Some(reference)),
             Msg::ChangeEdition(edition) => {
                 let edition: i32 = edition.parse().unwrap_or(1);
                 self.work.edition.neq_assign(edition)
             }
-            Msg::ChangeDoi(doi) => {
-                self.work.doi.neq_assign(Some(doi))
-            }
-            Msg::ChangeDate(date) => {
-                self.work.publication_date.neq_assign(Some(date))
-            }
-            Msg::ChangePlace(place) => {
-                self.work.place.neq_assign(Some(place))
-            }
+            Msg::ChangeDoi(doi) => self.work.doi.neq_assign(Some(doi)),
+            Msg::ChangeDate(date) => self.work.publication_date.neq_assign(Some(date)),
+            Msg::ChangePlace(place) => self.work.place.neq_assign(Some(place)),
             Msg::ChangeWidth(width) => {
                 let width: i32 = width.parse().unwrap_or(0);
                 self.work.width.neq_assign(Some(width))
@@ -230,9 +222,7 @@ impl Component for WorkComponent {
                 let video_count: i32 = video_count.parse().unwrap_or(0);
                 self.work.video_count.neq_assign(Some(video_count))
             }
-            Msg::ChangeCopyright(copyright) => {
-                self.work.copyright_holder.neq_assign(copyright)
-            }
+            Msg::ChangeCopyright(copyright) => self.work.copyright_holder.neq_assign(copyright),
             Msg::ChangeLandingPage(landing_page) => {
                 self.work.landing_page.neq_assign(Some(landing_page))
             }
@@ -250,20 +240,15 @@ impl Component for WorkComponent {
             Msg::ChangeLongAbstract(long_abstract) => {
                 self.work.long_abstract.neq_assign(Some(long_abstract))
             }
-            Msg::ChangeNote(note) => {
-                self.work.general_note.neq_assign(Some(note))
-            }
-            Msg::ChangeToc(toc) => {
-                self.work.toc.neq_assign(Some(toc))
-            }
-            Msg::ChangeCoverUrl(cover_url) => {
-                self.work.cover_url.neq_assign(Some(cover_url))
-            }
+            Msg::ChangeNote(note) => self.work.general_note.neq_assign(Some(note)),
+            Msg::ChangeToc(toc) => self.work.toc.neq_assign(Some(toc)),
+            Msg::ChangeCoverUrl(cover_url) => self.work.cover_url.neq_assign(Some(cover_url)),
             Msg::ChangeCoverCaption(cover_caption) => {
                 self.work.cover_caption.neq_assign(Some(cover_caption))
             }
             Msg::AddContribution(contributor) => {
-                let mut contributions: Vec<Contribution> = self.work.contributions.clone().unwrap_or_default();
+                let mut contributions: Vec<Contribution> =
+                    self.work.contributions.clone().unwrap_or_default();
                 let contributor_id = contributor.contributor_id.clone();
                 let contribution = Contribution {
                     work_id: self.work.work_id.clone(),
@@ -279,14 +264,18 @@ impl Component for WorkComponent {
                         full_name: contributor.full_name,
                         orcid: contributor.orcid,
                         website: contributor.website,
-                    }
+                    },
                 };
                 contributions.push(contribution);
                 self.work.contributions = Some(contributions);
                 true
             }
             Msg::RemoveContribution(contributor_id) => {
-                let to_keep: Vec<Contribution> = self.work.contributions.clone().unwrap_or_default()
+                let to_keep: Vec<Contribution> = self
+                    .work
+                    .contributions
+                    .clone()
+                    .unwrap_or_default()
                     .into_iter()
                     .filter(|c| c.contributor_id != contributor_id)
                     .collect();
@@ -303,8 +292,12 @@ impl Component for WorkComponent {
                     true => None,
                     false => Some(institution_value),
                 };
-                let mut contributions: Vec<Contribution> = self.work.contributions.clone().unwrap_or_default();
-                if let Some(position) = contributions.iter().position(|c| c.contributor_id == contributor_id) {
+                let mut contributions: Vec<Contribution> =
+                    self.work.contributions.clone().unwrap_or_default();
+                if let Some(position) = contributions
+                    .iter()
+                    .position(|c| c.contributor_id == contributor_id)
+                {
                     let mut contribution = contributions[position].clone();
                     contribution.institution = institution;
                     // we must acknowledge that replace returns a value, even if we don't want it
@@ -326,8 +319,12 @@ impl Component for WorkComponent {
                     true => None,
                     false => Some(biography_value),
                 };
-                let mut contributions: Vec<Contribution> = self.work.contributions.clone().unwrap_or_default();
-                if let Some(position) = contributions.iter().position(|c| c.contributor_id == contributor_id) {
+                let mut contributions: Vec<Contribution> =
+                    self.work.contributions.clone().unwrap_or_default();
+                if let Some(position) = contributions
+                    .iter()
+                    .position(|c| c.contributor_id == contributor_id)
+                {
                     let mut contribution = contributions[position].clone();
                     contribution.biography = biography;
                     let _ = std::mem::replace(&mut contributions[position], contribution);
