@@ -1,4 +1,3 @@
-use thoth_api::models::contributor::ContributionType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -42,13 +41,17 @@ pub enum Msg {
     GetContributionTypes,
     ToggleSearchResultDisplay(bool),
     SearchContributor(String),
-    AddContribution(Contributor),
-    RemoveContribution(String),
 }
 
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub contributions: Option<Vec<Contribution>>,
+    pub add_contribution: Callback<Contributor>,
+    pub remove_contribution: Callback<String>,
+    pub change_institution_value: Callback<InputData>,
+    pub change_institution: Callback<String>,
+    pub change_biography_value: Callback<InputData>,
+    pub change_biography: Callback<String>,
 }
 
 impl Component for ContributionsFormComponent {
@@ -128,37 +131,6 @@ impl Component for ContributionsFormComponent {
                 self.link.send_message(Msg::GetContributors);
                 false
             }
-            Msg::AddContribution(contributor) => {
-                let mut contributions: Vec<Contribution> = self.props.contributions.clone().unwrap_or_else(|| vec![]);
-                let contributor_id = contributor.contributor_id.clone();
-                let contribution = Contribution {
-                    work_id: "37cf05e4-2bdc-4a13-8d83-f23b90c46dfc".to_string(), //  FIXME
-                    contributor_id: contributor_id.clone(),
-                    contribution_type: ContributionType::Author,
-                    main_contribution: false,
-                    biography: None,
-                    institution: None,
-                    contributor: Contributor {
-                        contributor_id: contributor_id,
-                        first_name: contributor.first_name,
-                        last_name: contributor.last_name,
-                        full_name: contributor.full_name,
-                        orcid: contributor.orcid,
-                        website: contributor.website,
-                    }
-                };
-                contributions.push(contribution);
-                self.props.contributions = Some(contributions);
-                true
-            }
-            Msg::RemoveContribution(contributor_id) => {
-                let to_keep: Vec<Contribution> = self.props.contributions.clone().unwrap_or_else(|| vec![])
-                    .into_iter()
-                    .filter(|c| c.contributor_id != contributor_id)
-                    .collect();
-                self.props.contributions = Some(to_keep);
-                true
-            }
         }
     }
 
@@ -232,7 +204,7 @@ impl ContributionsFormComponent {
         // without disabling onblur so that onclick can take effect
         html! {
             <div
-                onmousedown=self.link.callback(move |_| Msg::AddContribution(contributor.clone()))
+                onmousedown=self.props.add_contribution.reform(move |_| contributor.clone())
                 class="dropdown-item"
             >
                 { &c.full_name }
@@ -241,7 +213,12 @@ impl ContributionsFormComponent {
     }
 
     fn render_contribution(&self, c: &Contribution) -> Html {
+        // there's probably a better way to do this. We basically need to copy 3 instances
+        // of contributor_id and take ownership of them so they can be passed on to
+        // the callback functions
         let contributor_id = c.contributor_id.clone();
+        let inst_cid = c.contributor_id.clone();
+        let bio_cid = c.contributor_id.clone();
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -263,10 +240,14 @@ impl ContributionsFormComponent {
                     <FormTextInput
                         label="Institution"
                         value=&c.institution.clone().unwrap_or_else(|| "".to_string())
+                        oninput=self.props.change_institution_value.clone()
+                        onblur=self.props.change_institution.reform(move |_| inst_cid.clone())
                     />
                     <FormTextInput
                         label="Biography"
                         value=&c.biography.clone().unwrap_or_else(|| "".to_string())
+                        oninput=self.props.change_biography_value.clone()
+                        onblur=self.props.change_biography.reform(move |_| bio_cid.clone())
                     />
                     <div class="field">
                         <label class="label">{ "Main" }</label>
@@ -279,7 +260,7 @@ impl ContributionsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::RemoveContribution(contributor_id.clone()))
+                                onclick=self.props.remove_contribution.reform(move |_| contributor_id.clone())
                             >
                                 { "Remove" }
                             </a>

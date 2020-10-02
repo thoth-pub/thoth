@@ -5,6 +5,7 @@ use yew::html;
 use yew::virtual_dom::VNode;
 use yew::Callback;
 use yew::InputData;
+use yew::FocusEvent;
 use yew::Properties;
 use yewtil::Pure;
 use yewtil::PureComponent;
@@ -31,7 +32,10 @@ pub struct PureInput {
     pub label: String,
     pub value: String,
     pub input_type: String,
+    #[prop_or_default]
     pub oninput: Callback<InputData>,
+    #[prop_or_default]
+    pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -40,6 +44,7 @@ pub struct PureInput {
 pub struct PureTextarea {
     pub label: String,
     pub value: Option<String>,
+    #[prop_or_default]
     pub oninput: Callback<InputData>,
     #[prop_or(false)]
     pub required: bool,
@@ -49,7 +54,10 @@ pub struct PureTextarea {
 pub struct PureTextInput {
     pub label: String,
     pub value: Option<String>,
+    #[prop_or_default]
     pub oninput: Callback<InputData>,
+    #[prop_or_default]
+    pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -58,7 +66,10 @@ pub struct PureTextInput {
 pub struct PureUrlInput {
     pub label: String,
     pub value: Option<String>,
+    #[prop_or_default]
     pub oninput: Callback<InputData>,
+    #[prop_or_default]
+    pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -67,7 +78,10 @@ pub struct PureUrlInput {
 pub struct PureDateInput {
     pub label: String,
     pub value: Option<String>,
+    #[prop_or_default]
     pub oninput: Callback<InputData>,
+    #[prop_or_default]
+    pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -76,7 +90,10 @@ pub struct PureDateInput {
 pub struct PureNumberInput {
     pub label: String,
     pub value: Option<i32>,
+    #[prop_or_default]
     pub oninput: Callback<InputData>,
+    #[prop_or_default]
+    pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -132,6 +149,7 @@ impl PureComponent for PureInput {
                         placeholder={ &self.label }
                         value={ &self.value }
                         oninput=&self.oninput
+                        onblur=&self.onblur
                         required={ self.required }
                     />
                 </div>
@@ -168,6 +186,7 @@ impl PureComponent for PureTextInput {
                 value=&self.value.clone().unwrap_or_else(|| "".to_string())
                 input_type="text"
                 oninput=&self.oninput
+                onblur=&self.onblur
                 required=self.required
             />
         }
@@ -182,6 +201,7 @@ impl PureComponent for PureUrlInput {
                 value=&self.value.clone().unwrap_or_else(|| "".to_string())
                 input_type="url"
                 oninput=&self.oninput
+                onblur=&self.onblur
                 required=self.required
             />
         }
@@ -196,6 +216,7 @@ impl PureComponent for PureDateInput {
                 value=&self.value.clone().unwrap_or_else(|| "".to_string())
                 input_type="date"
                 oninput=&self.oninput
+                onblur=&self.onblur
                 required=self.required
             />
         }
@@ -210,6 +231,7 @@ impl PureComponent for PureNumberInput {
                 value=&self.value.unwrap_or(0).to_string()
                 input_type="number"
                 oninput=&self.oninput
+                onblur=&self.onblur
                 required=self.required
             />
         }
