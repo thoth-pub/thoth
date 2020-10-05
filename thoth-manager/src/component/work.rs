@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use thoth_api::models::contributor::ContributionType;
-use thoth_api::models::work::WorkType;
 use thoth_api::models::work::WorkStatus;
+use thoth_api::models::work::WorkType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -199,8 +199,15 @@ impl Component for WorkComponent {
             Msg::ChangeReference(reference) => self.work.reference.neq_assign(Some(reference)),
             Msg::ChangeImprint(imprint_id) => {
                 // we already have the full list of imprints
-                if let Some(index) = self.data.imprints.iter().position(|i| i.imprint_id == imprint_id) {
-                    self.work.imprint.neq_assign(self.data.imprints.get(index).unwrap().clone())
+                if let Some(index) = self
+                    .data
+                    .imprints
+                    .iter()
+                    .position(|i| i.imprint_id == imprint_id)
+                {
+                    self.work
+                        .imprint
+                        .neq_assign(self.data.imprints.get(index).unwrap().clone())
                 } else {
                     false
                 }

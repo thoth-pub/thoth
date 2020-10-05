@@ -3,11 +3,11 @@ use std::fmt;
 use std::str::FromStr;
 use uuid::Uuid;
 
+use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::contribution;
 #[cfg(feature = "backend")]
 use crate::schema::contributor;
-use crate::errors::ThothError;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Contribution_type")]
@@ -104,7 +104,7 @@ impl FromStr for ContributionType {
             "Introduction By" => Ok(ContributionType::IntroductionBy),
             "Afterword By" => Ok(ContributionType::AfterwordBy),
             "Preface By" => Ok(ContributionType::PrefaceBy),
-            _  => Err(ThothError::InvalidContributionType(input.to_string())),
+            _ => Err(ThothError::InvalidContributionType(input.to_string())),
         }
     }
 }
@@ -131,16 +131,46 @@ fn test_contributiontype_display() {
 
 #[test]
 fn test_contributiontype_fromstr() {
-    assert_eq!(ContributionType::from_str("Author").unwrap(), ContributionType::Author);
-    assert_eq!(ContributionType::from_str("Editor").unwrap(), ContributionType::Editor);
-    assert_eq!(ContributionType::from_str("Translator").unwrap(), ContributionType::Translator);
-    assert_eq!(ContributionType::from_str("Photographer").unwrap(), ContributionType::Photographer);
-    assert_eq!(ContributionType::from_str("Ilustrator").unwrap(), ContributionType::Ilustrator);
-    assert_eq!(ContributionType::from_str("Music Editor").unwrap(), ContributionType::MusicEditor);
-    assert_eq!(ContributionType::from_str("Foreword By").unwrap(), ContributionType::ForewordBy);
-    assert_eq!(ContributionType::from_str("Introduction By").unwrap(), ContributionType::IntroductionBy);
-    assert_eq!(ContributionType::from_str("Afterword By").unwrap(), ContributionType::AfterwordBy);
-    assert_eq!(ContributionType::from_str("Preface By").unwrap(), ContributionType::PrefaceBy);
+    assert_eq!(
+        ContributionType::from_str("Author").unwrap(),
+        ContributionType::Author
+    );
+    assert_eq!(
+        ContributionType::from_str("Editor").unwrap(),
+        ContributionType::Editor
+    );
+    assert_eq!(
+        ContributionType::from_str("Translator").unwrap(),
+        ContributionType::Translator
+    );
+    assert_eq!(
+        ContributionType::from_str("Photographer").unwrap(),
+        ContributionType::Photographer
+    );
+    assert_eq!(
+        ContributionType::from_str("Ilustrator").unwrap(),
+        ContributionType::Ilustrator
+    );
+    assert_eq!(
+        ContributionType::from_str("Music Editor").unwrap(),
+        ContributionType::MusicEditor
+    );
+    assert_eq!(
+        ContributionType::from_str("Foreword By").unwrap(),
+        ContributionType::ForewordBy
+    );
+    assert_eq!(
+        ContributionType::from_str("Introduction By").unwrap(),
+        ContributionType::IntroductionBy
+    );
+    assert_eq!(
+        ContributionType::from_str("Afterword By").unwrap(),
+        ContributionType::AfterwordBy
+    );
+    assert_eq!(
+        ContributionType::from_str("Preface By").unwrap(),
+        ContributionType::PrefaceBy
+    );
 
     assert!(ContributionType::from_str("Juggler").is_err());
     assert!(ContributionType::from_str("Supervisor").is_err());
