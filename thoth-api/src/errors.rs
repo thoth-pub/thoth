@@ -10,6 +10,8 @@ pub enum ThothError {
     InvalidWorkType(String),
     #[fail(display = "{} is not a valid Work Status", _0)]
     InvalidWorkStatus(String),
+    #[fail(display = "{} is not a valid Contribution Type", _0)]
+    InvalidContributionType(String),
     #[fail(display = "Database error: {}", _0)]
     DatabaseError(String),
     #[fail(display = "Internal error: {}", _0)]
