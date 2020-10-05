@@ -17,6 +17,7 @@ use crate::api::contributors_query::CONTRIBUTORS_QUERY;
 use crate::api::models::Contribution;
 use crate::api::models::ContributionTypeValues;
 use crate::api::models::Contributor;
+use crate::component::utils::FormBooleanSelect;
 use crate::component::utils::FormContributionTypeSelect;
 use crate::component::utils::FormTextInput;
 
@@ -54,6 +55,8 @@ pub struct Props {
     pub change_biography: Callback<String>,
     pub change_contributiontype_value: Callback<ChangeData>,
     pub change_contributiontype: Callback<String>,
+    pub change_maincontribution_value: Callback<ChangeData>,
+    pub change_maincontribution: Callback<String>,
 }
 
 impl Component for ContributionsFormComponent {
@@ -227,6 +230,7 @@ impl ContributionsFormComponent {
         let type_cid = c.contributor_id.clone();
         let inst_cid = c.contributor_id.clone();
         let bio_cid = c.contributor_id.clone();
+        let main_cid = c.contributor_id.clone();
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -259,12 +263,13 @@ impl ContributionsFormComponent {
                         oninput=self.props.change_biography_value.clone()
                         onblur=self.props.change_biography.reform(move |_| bio_cid.clone())
                     />
-                    <div class="field">
-                        <label class="label">{ "Main" }</label>
-                        <div class="control is-expanded">
-                            <input type="checkbox" checked={c.main_contribution} />
-                        </div>
-                    </div>
+                    <FormBooleanSelect
+                        label = "Main"
+                        value=c.main_contribution
+                        onchange=self.props.change_maincontribution_value.clone()
+                        onblur=self.props.change_maincontribution.reform(move |_| main_cid.clone())
+                        required = true
+                    />
                     <div class="field">
                         <label class="label"></label>
                         <div class="control is-expanded">
