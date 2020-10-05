@@ -1,4 +1,6 @@
+use std::str::FromStr;
 use thoth_api::models::contributor::ContributionType;
+use thoth_api::models::work::WorkType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -56,6 +58,7 @@ pub enum Msg {
     GetWork,
     ChangeTitle(String),
     ChangeSubtitle(String),
+    ChangeWorkType(WorkType),
     ChangeReference(String),
     ChangeEdition(String),
     ChangeDoi(String),
@@ -182,6 +185,9 @@ impl Component for WorkComponent {
                 } else {
                     false
                 }
+            }
+            Msg::ChangeWorkType(work_type) => {
+                self.work.work_type.neq_assign(work_type)
             }
             Msg::ChangeReference(reference) => self.work.reference.neq_assign(Some(reference)),
             Msg::ChangeEdition(edition) => {
@@ -390,6 +396,13 @@ impl Component for WorkComponent {
                             label = "Work Type"
                             value=&self.work.work_type
                             data=&self.data.work_types
+                            onchange=self.link.callback(|event| match event {
+                                ChangeData::Select(elem) => {
+                                    let value = elem.value();
+                                    Msg::ChangeWorkType(WorkType::from_str(&value).unwrap())
+                                }
+                                _ => unreachable!(),
+                            })
                             required = true
                         />
                         <FormWorkStatusSelect

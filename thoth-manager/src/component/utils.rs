@@ -4,6 +4,7 @@ use thoth_api::models::work::WorkType;
 use yew::html;
 use yew::virtual_dom::VNode;
 use yew::Callback;
+use yew::ChangeData;
 use yew::FocusEvent;
 use yew::InputData;
 use yew::Properties;
@@ -103,6 +104,7 @@ pub struct PureWorkTypeSelect {
     pub label: String,
     pub data: Vec<WorkTypeValues>,
     pub value: WorkType,
+    pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -245,7 +247,7 @@ impl PureComponent for PureWorkTypeSelect {
                 <label class="label">{ &self.label }</label>
                 <div class="control">
                     <div class="select">
-                    <select required=self.required>
+                    <select required=self.required onchange=&self.onchange>
                         { for self.data.iter().map(|i| self.render_worktype(i)) }
                     </select>
                     </div>
