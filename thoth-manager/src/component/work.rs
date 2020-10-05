@@ -62,6 +62,7 @@ pub enum Msg {
     ChangeWorkType(WorkType),
     ChangeWorkStatus(WorkStatus),
     ChangeReference(String),
+    ChangeImprint(String),
     ChangeEdition(String),
     ChangeDoi(String),
     ChangeDate(String),
@@ -191,6 +192,18 @@ impl Component for WorkComponent {
             Msg::ChangeWorkType(work_type) => self.work.work_type.neq_assign(work_type),
             Msg::ChangeWorkStatus(work_status) => self.work.work_status.neq_assign(work_status),
             Msg::ChangeReference(reference) => self.work.reference.neq_assign(Some(reference)),
+            Msg::ChangeImprint(imprint_id) => {
+                let imprints: Vec<Imprint> = self.data.imprints
+                    .clone()
+                    .into_iter()
+                    .filter(|i| i.imprint_id == imprint_id)
+                    .collect();
+                if let Some(imprint) = imprints.get(0) {
+                    self.work.imprint.neq_assign(imprint.clone())
+                } else {
+                    false
+                }
+            }
             Msg::ChangeEdition(edition) => {
                 let edition: i32 = edition.parse().unwrap_or(1);
                 self.work.edition.neq_assign(edition)
@@ -428,6 +441,13 @@ impl Component for WorkComponent {
                             label = "Imprint"
                             value=&self.work.imprint.imprint_id
                             data=&self.data.imprints
+                            onchange=self.link.callback(|event| match event {
+                                ChangeData::Select(elem) => {
+                                    let value = elem.value();
+                                    Msg::ChangeImprint(value.clone())
+                                }
+                                _ => unreachable!(),
+                            })
                             required = true
                         />
                         <FormNumberInput

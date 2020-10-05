@@ -133,6 +133,7 @@ pub struct PureImprintSelect {
     pub label: String,
     pub data: Vec<Imprint>,
     pub value: Option<String>,
+    pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -299,7 +300,7 @@ impl PureComponent for PureImprintSelect {
                 <label class="label">{ &self.label }</label>
                 <div class="control">
                     <div class="select">
-                    <select required=self.required>
+                    <select required=self.required onchange=&self.onchange>
                         <option value="">{"Select Imprint"}</option>
                         { for self.data.iter().map(|i| self.render_imprint(i)) }
                     </select>
