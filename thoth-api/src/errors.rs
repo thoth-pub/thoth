@@ -6,6 +6,8 @@ pub type Result<T> = std::result::Result<T, failure::Error>;
 pub enum ThothError {
     #[fail(display = "{} is not a valid {} code", _0, _1)]
     InvalidSubjectCode(String, String),
+    #[fail(display = "{} is not a valid Work Type", _0)]
+    InvalidWorkType(String),
     #[fail(display = "Database error: {}", _0)]
     DatabaseError(String),
     #[fail(display = "Internal error: {}", _0)]

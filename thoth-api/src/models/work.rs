@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 #[cfg(feature = "backend")]
 use crate::schema::work;
+use crate::errors::ThothError;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Work_type")]
@@ -133,9 +134,9 @@ impl fmt::Display for WorkType {
 }
 
 impl FromStr for WorkType {
-    type Err = ();
+    type Err = ThothError;
 
-    fn from_str(input: &str) -> Result<WorkType, Self::Err> {
+    fn from_str(input: &str) -> Result<WorkType, ThothError> {
         match input {
             "Book Chapter"  => Ok(WorkType::BookChapter),
             "Monograph"  => Ok(WorkType::Monograph),
@@ -143,7 +144,7 @@ impl FromStr for WorkType {
             "Textbook"  => Ok(WorkType::Textbook),
             "Journal Issue"  => Ok(WorkType::JournalIssue),
             "Book Set"  => Ok(WorkType::BookSet),
-            _  => Err(()),
+            _  => Err(ThothError::InvalidWorkType(input.to_string())),
         }
     }
 }
