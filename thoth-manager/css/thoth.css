@@ -16,8 +16,12 @@
 }
 
 .fixed-right {
-  float: right;
-  position: fixed;
-  right: 0;
-  z-index: 1;
+    float: right;
+    position: fixed;
+    right: 0;
+    z-index: 1;
+}
+
+.dropdown-item {
+    cursor: pointer;
 }
