@@ -25,6 +25,7 @@ pub type FormNumberInput = Pure<PureNumberInput>;
 pub type FormWorkTypeSelect = Pure<PureWorkTypeSelect>;
 pub type FormWorkStatusSelect = Pure<PureWorkStatusSelect>;
 pub type FormContributionTypeSelect = Pure<PureContributionTypeSelect>;
+pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
 pub type Loader = Pure<PureLoader>;
 
@@ -124,6 +125,16 @@ pub struct PureContributionTypeSelect {
     pub label: String,
     pub data: Vec<ContributionTypeValues>,
     pub value: ContributionType,
+    pub onchange: Callback<ChangeData>,
+    pub onblur: Callback<FocusEvent>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureBooleanSelect {
+    pub label: String,
+    pub value: bool,
     pub onchange: Callback<ChangeData>,
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
@@ -291,6 +302,32 @@ impl PureComponent for PureContributionTypeSelect {
                         onblur=&self.onblur
                     >
                         { for self.data.iter().map(|i| self.render_contributiontype(i)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+impl PureComponent for PureBooleanSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                        onblur=&self.onblur
+                    >
+                        <option value=true selected=self.value>
+                            { "Yes" }
+                        </option>
+                        <option value=false selected=!self.value>
+                            { "No" }
+                        </option>
                     </select>
                     </div>
                 </div>
