@@ -229,3 +229,36 @@ fn test_workstatus_display() {
     );
     assert_eq!(format!("{}", WorkStatus::Recalled), "Recalled");
 }
+
+#[test]
+fn test_worktype_fromstr() {
+    assert_eq!(WorkType::from_str("Book Chapter").unwrap(), WorkType::BookChapter);
+    assert_eq!(WorkType::from_str("Monograph").unwrap(), WorkType::Monograph);
+    assert_eq!(WorkType::from_str("Edited Book").unwrap(), WorkType::EditedBook);
+    assert_eq!(WorkType::from_str("Textbook").unwrap(), WorkType::Textbook);
+    assert_eq!(WorkType::from_str("Journal Issue").unwrap(), WorkType::JournalIssue);
+    assert_eq!(WorkType::from_str("Book Set").unwrap(), WorkType::BookSet);
+
+    assert!(WorkType::from_str("Book Section").is_err());
+    assert!(WorkType::from_str("Manuscript").is_err());
+}
+
+#[test]
+fn test_workstatus_fromstr() {
+    assert_eq!(WorkStatus::from_str("Unspecified").unwrap(), WorkStatus::Unspecified);
+    assert_eq!(WorkStatus::from_str("Cancelled").unwrap(), WorkStatus::Cancelled);
+    assert_eq!(WorkStatus::from_str("Forthcoming").unwrap(), WorkStatus::Forthcoming);
+    assert_eq!(WorkStatus::from_str("Postponed Indefinitely").unwrap(), WorkStatus::PostponedIndefinitely);
+    assert_eq!(WorkStatus::from_str("Active").unwrap(), WorkStatus::Active);
+    assert_eq!(WorkStatus::from_str("No Longer Our Product").unwrap(), WorkStatus::NoLongerOurProduct);
+    assert_eq!(WorkStatus::from_str("Out Of Stock Indefinitely").unwrap(), WorkStatus::OutOfStockIndefinitely);
+    assert_eq!(WorkStatus::from_str("Out Of Print").unwrap(), WorkStatus::OutOfPrint);
+    assert_eq!(WorkStatus::from_str("Inactive").unwrap(), WorkStatus::Inactive);
+    assert_eq!(WorkStatus::from_str("Unknown").unwrap(), WorkStatus::Unknown);
+    assert_eq!(WorkStatus::from_str("Remaindered").unwrap(), WorkStatus::Remaindered);
+    assert_eq!(WorkStatus::from_str("Withdrawn From Sale").unwrap(), WorkStatus::WithdrawnFromSale);
+    assert_eq!(WorkStatus::from_str("Recalled").unwrap(), WorkStatus::Recalled);
+
+    assert!(WorkStatus::from_str("Published").is_err());
+    assert!(WorkStatus::from_str("Unpublished").is_err());
+}
