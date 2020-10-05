@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use thoth_api::models::contributor::ContributionType;
 use thoth_api::models::work::WorkType;
+use thoth_api::models::work::WorkStatus;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -59,6 +60,7 @@ pub enum Msg {
     ChangeTitle(String),
     ChangeSubtitle(String),
     ChangeWorkType(WorkType),
+    ChangeWorkStatus(WorkStatus),
     ChangeReference(String),
     ChangeEdition(String),
     ChangeDoi(String),
@@ -186,9 +188,8 @@ impl Component for WorkComponent {
                     false
                 }
             }
-            Msg::ChangeWorkType(work_type) => {
-                self.work.work_type.neq_assign(work_type)
-            }
+            Msg::ChangeWorkType(work_type) => self.work.work_type.neq_assign(work_type),
+            Msg::ChangeWorkStatus(work_status) => self.work.work_status.neq_assign(work_status),
             Msg::ChangeReference(reference) => self.work.reference.neq_assign(Some(reference)),
             Msg::ChangeEdition(edition) => {
                 let edition: i32 = edition.parse().unwrap_or(1);
@@ -406,9 +407,16 @@ impl Component for WorkComponent {
                             required = true
                         />
                         <FormWorkStatusSelect
-                            label = format!("Work Status: {}", self.work.work_status)
+                            label = "Work Status"
                             value=&self.work.work_status
                             data=&self.data.work_statuses
+                            onchange=self.link.callback(|event| match event {
+                                ChangeData::Select(elem) => {
+                                    let value = elem.value();
+                                    Msg::ChangeWorkStatus(WorkStatus::from_str(&value).unwrap())
+                                }
+                                _ => unreachable!(),
+                            })
                             required = true
                         />
                         <FormTextInput

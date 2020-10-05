@@ -114,6 +114,7 @@ pub struct PureWorkStatusSelect {
     pub label: String,
     pub data: Vec<WorkStatusValues>,
     pub value: WorkStatus,
+    pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -264,7 +265,7 @@ impl PureComponent for PureWorkStatusSelect {
                 <label class="label">{ &self.label }</label>
                 <div class="control">
                     <div class="select">
-                    <select required=self.required>
+                    <select required=self.required onchange=&self.onchange>
                         { for self.data.iter().map(|i| self.render_workstatus(i)) }
                     </select>
                     </div>
