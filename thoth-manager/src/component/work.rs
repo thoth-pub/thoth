@@ -1,5 +1,4 @@
 use std::str::FromStr;
-use thoth_api::models::contributor::ContributionType;
 use thoth_api::models::work::WorkStatus;
 use thoth_api::models::work::WorkType;
 use yew::html;
@@ -16,7 +15,6 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::api::models::Contribution;
-use crate::api::models::Contributor;
 use crate::api::models::Imprint;
 use crate::api::models::Work;
 use crate::api::models::WorkStatusValues;
@@ -41,10 +39,6 @@ use crate::component::utils::Loader;
 pub struct WorkComponent {
     work: Work,
     data: WorkFormData,
-    institution_value: String,
-    biography_value: String,
-    contributiontype_value: ContributionType,
-    maincontribution_value: bool,
     fetch_work: FetchWork,
     link: ComponentLink<Self>,
     notification_bus: NotificationDispatcher,
@@ -87,16 +81,7 @@ pub enum Msg {
     ChangeToc(String),
     ChangeCoverUrl(String),
     ChangeCoverCaption(String),
-    AddContribution(Contributor),
-    RemoveContribution(String),
-    ChangeInstitutionEditValue(String),
-    ChangeInstitution(String),
-    ChangeBiographyEditValue(String),
-    ChangeBiography(String),
-    ChangeContributiontypeEditValue(ContributionType),
-    ChangeContributiontype(String),
-    ChangeMainContributionEditValue(bool),
-    ChangeMainContribution(String),
+    UpdateContributions(Option<Vec<Contribution>>),
     Save,
 }
 
@@ -121,10 +106,6 @@ impl Component for WorkComponent {
         let fetch_work = Fetch::new(request);
         let notification_bus = NotificationBus::dispatcher();
         let work: Work = Default::default();
-        let institution_value = "".into();
-        let biography_value = "".into();
-        let contributiontype_value = ContributionType::Author;
-        let maincontribution_value = false;
         let data = WorkFormData {
             imprints: vec![],
             work_types: vec![],
@@ -135,10 +116,6 @@ impl Component for WorkComponent {
 
         WorkComponent {
             work,
-            institution_value,
-            biography_value,
-            contributiontype_value,
-            maincontribution_value,
             data,
             fetch_work,
             link,
@@ -278,134 +255,8 @@ impl Component for WorkComponent {
             Msg::ChangeCoverCaption(cover_caption) => {
                 self.work.cover_caption.neq_assign(Some(cover_caption))
             }
-            Msg::AddContribution(contributor) => {
-                let mut contributions: Vec<Contribution> =
-                    self.work.contributions.clone().unwrap_or_default();
-                let contributor_id = contributor.contributor_id.clone();
-                let contribution = Contribution {
-                    work_id: self.work.work_id.clone(),
-                    contributor_id: contributor_id.clone(),
-                    contribution_type: ContributionType::Author,
-                    main_contribution: false,
-                    biography: None,
-                    institution: None,
-                    contributor: Contributor {
-                        contributor_id,
-                        first_name: contributor.first_name,
-                        last_name: contributor.last_name,
-                        full_name: contributor.full_name,
-                        orcid: contributor.orcid,
-                        website: contributor.website,
-                    },
-                };
-                contributions.push(contribution);
-                self.work.contributions = Some(contributions);
-                true
-            }
-            Msg::RemoveContribution(contributor_id) => {
-                let to_keep: Vec<Contribution> = self
-                    .work
-                    .contributions
-                    .clone()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .filter(|c| c.contributor_id != contributor_id)
-                    .collect();
-                self.work.contributions = Some(to_keep);
-                true
-            }
-            Msg::ChangeInstitutionEditValue(institution) => {
-                self.institution_value.neq_assign(institution);
-                false // otherwise we re-render the component and reset the value
-            }
-            Msg::ChangeInstitution(contributor_id) => {
-                let institution_value = self.institution_value.trim().to_string();
-                let institution = match institution_value.is_empty() {
-                    true => None,
-                    false => Some(institution_value),
-                };
-                let mut contributions: Vec<Contribution> =
-                    self.work.contributions.clone().unwrap_or_default();
-                if let Some(position) = contributions
-                    .iter()
-                    .position(|c| c.contributor_id == contributor_id)
-                {
-                    let mut contribution = contributions[position].clone();
-                    contribution.institution = institution;
-                    // we must acknowledge that replace returns a value, even if we don't want it
-                    let _ = std::mem::replace(&mut contributions[position], contribution);
-                    self.work.contributions = Some(contributions);
-                    self.institution_value = "".to_string();
-                    true
-                } else {
-                    false
-                }
-            }
-            Msg::ChangeBiographyEditValue(biography) => {
-                self.biography_value.neq_assign(biography);
-                false
-            }
-            Msg::ChangeBiography(contributor_id) => {
-                let biography_value = self.biography_value.trim().to_string();
-                let biography = match biography_value.is_empty() {
-                    true => None,
-                    false => Some(biography_value),
-                };
-                let mut contributions: Vec<Contribution> =
-                    self.work.contributions.clone().unwrap_or_default();
-                if let Some(position) = contributions
-                    .iter()
-                    .position(|c| c.contributor_id == contributor_id)
-                {
-                    let mut contribution = contributions[position].clone();
-                    contribution.biography = biography;
-                    let _ = std::mem::replace(&mut contributions[position], contribution);
-                    self.work.contributions = Some(contributions);
-                    self.biography_value = "".to_string();
-                    true
-                } else {
-                    false
-                }
-            }
-            Msg::ChangeContributiontype(contributor_id) => {
-                let mut contributions: Vec<Contribution> =
-                    self.work.contributions.clone().unwrap_or_default();
-                if let Some(position) = contributions
-                    .iter()
-                    .position(|c| c.contributor_id == contributor_id)
-                {
-                    let mut contribution = contributions[position].clone();
-                    contribution.contribution_type = self.contributiontype_value.clone();
-                    let _ = std::mem::replace(&mut contributions[position], contribution);
-                    self.work.contributions = Some(contributions);
-                    self.contributiontype_value = ContributionType::Author;
-                    true
-                } else {
-                    false
-                }
-            }
-            Msg::ChangeContributiontypeEditValue(contribution_type) => {
-                self.contributiontype_value.neq_assign(contribution_type)
-            }
-            Msg::ChangeMainContribution(contributor_id) => {
-                let mut contributions: Vec<Contribution> =
-                    self.work.contributions.clone().unwrap_or_default();
-                if let Some(position) = contributions
-                    .iter()
-                    .position(|c| c.contributor_id == contributor_id)
-                {
-                    let mut contribution = contributions[position].clone();
-                    contribution.main_contribution = self.maincontribution_value.clone();
-                    let _ = std::mem::replace(&mut contributions[position], contribution);
-                    self.work.contributions = Some(contributions);
-                    self.maincontribution_value = false;
-                    true
-                } else {
-                    false
-                }
-            }
-            Msg::ChangeMainContributionEditValue(main_contribution) => {
-                self.maincontribution_value.neq_assign(main_contribution)
+            Msg::UpdateContributions(contributions) => {
+                self.work.contributions.neq_assign(contributions)
             }
             Msg::Save => {
                 log::debug!("{:?}", self.work);
@@ -616,30 +467,8 @@ impl Component for WorkComponent {
                         />
                         <ContributionsFormComponent
                             contributions=&self.work.contributions
-                            add_contribution=self.link.callback(|c: Contributor| Msg::AddContribution(c))
-                            remove_contribution=self.link.callback(|id: String| Msg::RemoveContribution(id))
-                            change_institution_value=self.link.callback(|e: InputData| Msg::ChangeInstitutionEditValue(e.value))
-                            change_institution=self.link.callback(|id: String| Msg::ChangeInstitution(id))
-                            change_biography_value=self.link.callback(|e: InputData| Msg::ChangeBiographyEditValue(e.value))
-                            change_biography=self.link.callback(|id: String| Msg::ChangeBiography(id))
-                            change_contributiontype_value=self.link.callback(|event| match event {
-                                ChangeData::Select(elem) => {
-                                    let value = elem.value();
-                                    Msg::ChangeContributiontypeEditValue(ContributionType::from_str(&value).unwrap())
-                                }
-                                _ => unreachable!(),
-                            })
-                            change_contributiontype=self.link.callback(|id: String| Msg::ChangeContributiontype(id))
-                            change_maincontribution_value=self.link.callback(|event| match event {
-                                ChangeData::Select(elem) => {
-                                    let value = elem.value();
-                                    log::info!("Main: {}", value);
-                                    let boolean = value == "true".to_string();
-                                    Msg::ChangeMainContributionEditValue(boolean)
-                                }
-                                _ => unreachable!(),
-                            })
-                            change_maincontribution=self.link.callback(|id: String| Msg::ChangeMainContribution(id))
+                            work_id=&self.work.work_id
+                            update_contributions=self.link.callback(|c: Option<Vec<Contribution>>| Msg::UpdateContributions(c))
                         />
 
                         <div class="field">

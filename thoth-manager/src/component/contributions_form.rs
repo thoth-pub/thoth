@@ -1,3 +1,5 @@
+use std::str::FromStr;
+use thoth_api::models::contributor::ContributionType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -5,6 +7,7 @@ use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
+use yewtil::NeqAssign;
 
 use crate::api::contribution_types_query::FetchActionContributionTypes;
 use crate::api::contribution_types_query::FetchContributionTypes;
@@ -24,6 +27,10 @@ use crate::component::utils::FormTextInput;
 pub struct ContributionsFormComponent {
     props: Props,
     data: ContributionsFormData,
+    institution_value: String,
+    biography_value: String,
+    contributiontype_value: ContributionType,
+    maincontribution_value: bool,
     show_results: bool,
     fetch_contributors: FetchContributors,
     fetch_contribution_types: FetchContributionTypes,
@@ -42,21 +49,23 @@ pub enum Msg {
     GetContributionTypes,
     ToggleSearchResultDisplay(bool),
     SearchContributor(String),
+    AddContribution(Contributor),
+    RemoveContribution(String),
+    ChangeInstitutionEditValue(String),
+    ChangeInstitution(String),
+    ChangeBiographyEditValue(String),
+    ChangeBiography(String),
+    ChangeContributiontypeEditValue(ContributionType),
+    ChangeContributiontype(String),
+    ChangeMainContributionEditValue(bool),
+    ChangeMainContribution(String),
 }
 
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub contributions: Option<Vec<Contribution>>,
-    pub add_contribution: Callback<Contributor>,
-    pub remove_contribution: Callback<String>,
-    pub change_institution_value: Callback<InputData>,
-    pub change_institution: Callback<String>,
-    pub change_biography_value: Callback<InputData>,
-    pub change_biography: Callback<String>,
-    pub change_contributiontype_value: Callback<ChangeData>,
-    pub change_contributiontype: Callback<String>,
-    pub change_maincontribution_value: Callback<ChangeData>,
-    pub change_maincontribution: Callback<String>,
+    pub work_id: String,
+    pub update_contributions: Callback<Option<Vec<Contribution>>>,
 }
 
 impl Component for ContributionsFormComponent {
@@ -68,6 +77,10 @@ impl Component for ContributionsFormComponent {
             contributors: vec![],
             contribution_types: vec![],
         };
+        let institution_value = "".into();
+        let biography_value = "".into();
+        let contributiontype_value = ContributionType::Author;
+        let maincontribution_value = false;
         let show_results = false;
 
         link.send_message(Msg::GetContributors);
@@ -76,6 +89,10 @@ impl Component for ContributionsFormComponent {
         ContributionsFormComponent {
             props,
             data,
+            institution_value,
+            biography_value,
+            contributiontype_value,
+            maincontribution_value,
             show_results,
             fetch_contributors: Default::default(),
             fetch_contribution_types: Default::default(),
@@ -140,6 +157,135 @@ impl Component for ContributionsFormComponent {
                 self.fetch_contributors = Fetch::new(request);
                 self.link.send_message(Msg::GetContributors);
                 false
+            }
+            Msg::AddContribution(contributor) => {
+                let mut contributions: Vec<Contribution> =
+                    self.props.contributions.clone().unwrap_or_default();
+                let contributor_id = contributor.contributor_id.clone();
+                let contribution = Contribution {
+                    work_id: self.props.work_id.clone(),
+                    contributor_id: contributor_id.clone(),
+                    contribution_type: ContributionType::Author,
+                    main_contribution: false,
+                    biography: None,
+                    institution: None,
+                    contributor: Contributor {
+                        contributor_id,
+                        first_name: contributor.first_name,
+                        last_name: contributor.last_name,
+                        full_name: contributor.full_name,
+                        orcid: contributor.orcid,
+                        website: contributor.website,
+                    },
+                };
+                contributions.push(contribution);
+                self.props.update_contributions.emit(Some(contributions));
+                true
+            }
+            Msg::RemoveContribution(contributor_id) => {
+                let to_keep: Vec<Contribution> = self
+                    .props
+                    .contributions
+                    .clone()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|c| c.contributor_id != contributor_id)
+                    .collect();
+                self.props.update_contributions.emit(Some(to_keep));
+                true
+            }
+            Msg::ChangeInstitutionEditValue(institution) => {
+                self.institution_value.neq_assign(institution);
+                false // otherwise we re-render the component and reset the value
+            }
+            Msg::ChangeInstitution(contributor_id) => {
+                let institution_value = self.institution_value.trim().to_string();
+                let institution = match institution_value.is_empty() {
+                    true => None,
+                    false => Some(institution_value),
+                };
+                let mut contributions: Vec<Contribution> =
+                    self.props.contributions.clone().unwrap_or_default();
+                if let Some(position) = contributions
+                    .iter()
+                    .position(|c| c.contributor_id == contributor_id)
+                {
+                    let mut contribution = contributions[position].clone();
+                    contribution.institution = institution;
+                    // we must acknowledge that replace returns a value, even if we don't want it
+                    let _ = std::mem::replace(&mut contributions[position], contribution);
+                    self.props.update_contributions.emit(Some(contributions));
+                    self.institution_value = "".to_string();
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeBiographyEditValue(biography) => {
+                self.biography_value.neq_assign(biography);
+                false
+            }
+            Msg::ChangeBiography(contributor_id) => {
+                let biography_value = self.biography_value.trim().to_string();
+                let biography = match biography_value.is_empty() {
+                    true => None,
+                    false => Some(biography_value),
+                };
+                let mut contributions: Vec<Contribution> =
+                    self.props.contributions.clone().unwrap_or_default();
+                if let Some(position) = contributions
+                    .iter()
+                    .position(|c| c.contributor_id == contributor_id)
+                {
+                    let mut contribution = contributions[position].clone();
+                    contribution.biography = biography;
+                    let _ = std::mem::replace(&mut contributions[position], contribution);
+                    self.props.update_contributions.emit(Some(contributions));
+                    self.biography_value = "".to_string();
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeContributiontype(contributor_id) => {
+                let mut contributions: Vec<Contribution> =
+                    self.props.contributions.clone().unwrap_or_default();
+                if let Some(position) = contributions
+                    .iter()
+                    .position(|c| c.contributor_id == contributor_id)
+                {
+                    let mut contribution = contributions[position].clone();
+                    contribution.contribution_type = self.contributiontype_value.clone();
+                    let _ = std::mem::replace(&mut contributions[position], contribution);
+                    self.props.update_contributions.emit(Some(contributions));
+                    self.contributiontype_value = ContributionType::Author;
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeContributiontypeEditValue(contribution_type) => {
+                self.contributiontype_value.neq_assign(contribution_type)
+            }
+            Msg::ChangeMainContribution(contributor_id) => {
+                let mut contributions: Vec<Contribution> =
+                    self.props.contributions.clone().unwrap_or_default();
+                if let Some(position) = contributions
+                    .iter()
+                    .position(|c| c.contributor_id == contributor_id)
+                {
+                    let mut contribution = contributions[position].clone();
+                    contribution.main_contribution = self.maincontribution_value.clone();
+                    let _ = std::mem::replace(&mut contributions[position], contribution);
+                    self.props.update_contributions.emit(Some(contributions));
+                    self.maincontribution_value = false;
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeMainContributionEditValue(main_contribution) => {
+                self.maincontribution_value.neq_assign(main_contribution)
             }
         }
     }
@@ -223,7 +369,7 @@ impl ContributionsFormComponent {
             // without disabling onblur so that onclick can take effect
             html! {
                 <div
-                    onmousedown=self.props.add_contribution.reform(move |_| contributor.clone())
+                    onmousedown=self.link.callback(move |_| Msg::AddContribution(contributor.clone()))
                     class="dropdown-item"
                 >
                     { &c.full_name }
@@ -256,28 +402,42 @@ impl ContributionsFormComponent {
                     <FormContributionTypeSelect
                         label = "Contribution Type"
                         value=&c.contribution_type
-                        onchange=self.props.change_contributiontype_value.clone()
-                        onblur=self.props.change_contributiontype.reform(move |_| type_cid.clone())
+                        onchange=self.link.callback(|event| match event {
+                            ChangeData::Select(elem) => {
+                                let value = elem.value();
+                                Msg::ChangeContributiontypeEditValue(ContributionType::from_str(&value).unwrap())
+                            }
+                            _ => unreachable!(),
+                        })
+                        onblur=self.link.callback(move |_| Msg::ChangeContributiontype(type_cid.clone()))
+
                         data=&self.data.contribution_types
                         required = true
                     />
                     <FormTextInput
                         label="Institution"
                         value=&c.institution.clone().unwrap_or_else(|| "".to_string())
-                        oninput=self.props.change_institution_value.clone()
-                        onblur=self.props.change_institution.reform(move |_| inst_cid.clone())
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeInstitutionEditValue(e.value))
+                        onblur=self.link.callback(move |_| Msg::ChangeInstitution(inst_cid.clone()))
                     />
                     <FormTextInput
                         label="Biography"
                         value=&c.biography.clone().unwrap_or_else(|| "".to_string())
-                        oninput=self.props.change_biography_value.clone()
-                        onblur=self.props.change_biography.reform(move |_| bio_cid.clone())
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeBiographyEditValue(e.value))
+                        onblur=self.link.callback(move |_| Msg::ChangeBiography(bio_cid.clone()))
                     />
                     <FormBooleanSelect
                         label = "Main"
                         value=c.main_contribution
-                        onchange=self.props.change_maincontribution_value.clone()
-                        onblur=self.props.change_maincontribution.reform(move |_| main_cid.clone())
+                        onchange=self.link.callback(|event| match event {
+                            ChangeData::Select(elem) => {
+                                let value = elem.value();
+                                let boolean = value == "true".to_string();
+                                Msg::ChangeMainContributionEditValue(boolean)
+                            }
+                            _ => unreachable!(),
+                        })
+                        onblur=self.link.callback(move |_| Msg::ChangeMainContribution(main_cid.clone()))
                         required = true
                     />
                     <div class="field">
@@ -285,7 +445,7 @@ impl ContributionsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.props.remove_contribution.reform(move |_| contributor_id.clone())
+                                onclick=self.link.callback(move |_| Msg::RemoveContribution(contributor_id.clone()))
                             >
                                 { "Remove" }
                             </a>
