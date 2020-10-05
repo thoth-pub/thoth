@@ -193,13 +193,9 @@ impl Component for WorkComponent {
             Msg::ChangeWorkStatus(work_status) => self.work.work_status.neq_assign(work_status),
             Msg::ChangeReference(reference) => self.work.reference.neq_assign(Some(reference)),
             Msg::ChangeImprint(imprint_id) => {
-                let imprints: Vec<Imprint> = self.data.imprints
-                    .clone()
-                    .into_iter()
-                    .filter(|i| i.imprint_id == imprint_id)
-                    .collect();
-                if let Some(imprint) = imprints.get(0) {
-                    self.work.imprint.neq_assign(imprint.clone())
+                // we already have the full list of imprints
+                if let Some(index) = self.data.imprints.iter().position(|i| i.imprint_id == imprint_id) {
+                    self.work.imprint.neq_assign(self.data.imprints.get(index).unwrap().clone())
                 } else {
                     false
                 }
