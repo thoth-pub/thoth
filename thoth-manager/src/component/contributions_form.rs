@@ -209,6 +209,7 @@ impl ContributionsFormComponent {
 
     fn render_contributors(&self, c: &Contributor) -> Html {
         let contributor = c.clone();
+        // avoid listing contributors already present in contributions list
         if let Some(_index) = self.props.contributions
             .as_ref()
             .unwrap()
