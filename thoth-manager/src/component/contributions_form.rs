@@ -209,16 +209,25 @@ impl ContributionsFormComponent {
 
     fn render_contributors(&self, c: &Contributor) -> Html {
         let contributor = c.clone();
-        // since contributors dropdown has an onblur event, we need to use onmousedown instead of
-        // onclick. This is not ideal, but it seems to be the only event that'd do the calback
-        // without disabling onblur so that onclick can take effect
-        html! {
-            <div
-                onmousedown=self.props.add_contribution.reform(move |_| contributor.clone())
-                class="dropdown-item"
-            >
-                { &c.full_name }
-            </div>
+        if let Some(_index) = self.props.contributions
+            .as_ref()
+            .unwrap()
+            .iter()
+            .position(|ctr| ctr.contributor_id == c.contributor_id)
+        {
+            html! {}
+        } else {
+            // since contributors dropdown has an onblur event, we need to use onmousedown instead of
+            // onclick. This is not ideal, but it seems to be the only event that'd do the calback
+            // without disabling onblur so that onclick can take effect
+            html! {
+                <div
+                    onmousedown=self.props.add_contribution.reform(move |_| contributor.clone())
+                    class="dropdown-item"
+                >
+                    { &c.full_name }
+                </div>
+            }
         }
     }
 
