@@ -169,6 +169,29 @@ impl fmt::Display for WorkStatus {
     }
 }
 
+impl FromStr for WorkStatus {
+    type Err = ThothError;
+
+    fn from_str(input: &str) -> Result<WorkStatus, ThothError> {
+        match input {
+            "Unspecified" => Ok(WorkStatus::Unspecified),
+            "Cancelled" => Ok(WorkStatus::Cancelled),
+            "Forthcoming" => Ok(WorkStatus::Forthcoming),
+            "Postponed Indefinitely" => Ok(WorkStatus::PostponedIndefinitely),
+            "Active" => Ok(WorkStatus::Active),
+            "No Longer Our Product" => Ok(WorkStatus::NoLongerOurProduct),
+            "Out Of Stock Indefinitely" => Ok(WorkStatus::OutOfStockIndefinitely),
+            "Out Of Print" => Ok(WorkStatus::OutOfPrint),
+            "Inactive" => Ok(WorkStatus::Inactive),
+            "Unknown" => Ok(WorkStatus::Unknown),
+            "Remaindered" => Ok(WorkStatus::Remaindered),
+            "Withdrawn From Sale" => Ok(WorkStatus::WithdrawnFromSale),
+            "Recalled" => Ok(WorkStatus::Recalled),
+            _  => Err(ThothError::InvalidWorkStatus(input.to_string())),
+        }
+    }
+}
+
 #[test]
 fn test_worktype_display() {
     assert_eq!(format!("{}", WorkType::BookChapter), "Book Chapter");

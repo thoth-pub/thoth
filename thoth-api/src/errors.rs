@@ -8,6 +8,8 @@ pub enum ThothError {
     InvalidSubjectCode(String, String),
     #[fail(display = "{} is not a valid Work Type", _0)]
     InvalidWorkType(String),
+    #[fail(display = "{} is not a valid Work Status", _0)]
+    InvalidWorkStatus(String),
     #[fail(display = "Database error: {}", _0)]
     DatabaseError(String),
     #[fail(display = "Internal error: {}", _0)]
