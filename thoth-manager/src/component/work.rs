@@ -275,21 +275,7 @@ impl Component for WorkComponent {
 
     fn view(&self) -> Html {
         match self.fetch_work.as_ref().state() {
-            FetchState::NotFetching(_) => {
-                html! {
-                    <div class="buttons has-addons is-centered">
-                        <button
-                            class="button is-success is-large"
-                            onclick=self.link.callback(|_| Msg::GetWork)
-                        >
-                            <span class="icon">
-                            <i class="fas fa-sync"></i>
-                            </span>
-                            <span>{"Reload"}</span>
-                        </button>
-                    </div>
-                }
-            }
+            FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(_body) => {
                 let callback = self.link.callback(|event: FocusEvent| {
