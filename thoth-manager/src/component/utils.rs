@@ -124,6 +124,8 @@ pub struct PureContributionTypeSelect {
     pub label: String,
     pub data: Vec<ContributionTypeValues>,
     pub value: ContributionType,
+    pub onchange: Callback<ChangeData>,
+    pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -283,7 +285,11 @@ impl PureComponent for PureContributionTypeSelect {
                 <label class="label">{ &self.label }</label>
                 <div class="control">
                     <div class="select">
-                    <select required=self.required>
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                        onblur=&self.onblur
+                    >
                         { for self.data.iter().map(|i| self.render_contributiontype(i)) }
                     </select>
                     </div>

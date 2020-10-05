@@ -52,6 +52,8 @@ pub struct Props {
     pub change_institution: Callback<String>,
     pub change_biography_value: Callback<InputData>,
     pub change_biography: Callback<String>,
+    pub change_contributiontype_value: Callback<ChangeData>,
+    pub change_contributiontype: Callback<String>,
 }
 
 impl Component for ContributionsFormComponent {
@@ -222,6 +224,7 @@ impl ContributionsFormComponent {
         // of contributor_id and take ownership of them so they can be passed on to
         // the callback functions
         let contributor_id = c.contributor_id.clone();
+        let type_cid = c.contributor_id.clone();
         let inst_cid = c.contributor_id.clone();
         let bio_cid = c.contributor_id.clone();
         html! {
@@ -239,6 +242,8 @@ impl ContributionsFormComponent {
                     <FormContributionTypeSelect
                         label = "Contribution Type"
                         value=&c.contribution_type
+                        onchange=self.props.change_contributiontype_value.clone()
+                        onblur=self.props.change_contributiontype.reform(move |_| type_cid.clone())
                         data=&self.data.contribution_types
                         required = true
                     />
