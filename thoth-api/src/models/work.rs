@@ -138,12 +138,12 @@ impl FromStr for WorkType {
 
     fn from_str(input: &str) -> Result<WorkType, ThothError> {
         match input {
-            "Book Chapter"  => Ok(WorkType::BookChapter),
-            "Monograph"  => Ok(WorkType::Monograph),
-            "Edited Book"  => Ok(WorkType::EditedBook),
-            "Textbook"  => Ok(WorkType::Textbook),
-            "Journal Issue"  => Ok(WorkType::JournalIssue),
-            "Book Set"  => Ok(WorkType::BookSet),
+            "Book Chapter" => Ok(WorkType::BookChapter),
+            "Monograph" => Ok(WorkType::Monograph),
+            "Edited Book" => Ok(WorkType::EditedBook),
+            "Textbook" => Ok(WorkType::Textbook),
+            "Journal Issue" => Ok(WorkType::JournalIssue),
+            "Book Set" => Ok(WorkType::BookSet),
             _  => Err(ThothError::InvalidWorkType(input.to_string())),
         }
     }
