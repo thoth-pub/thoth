@@ -1,6 +1,7 @@
 use chrono::naive::NaiveDate;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::str::FromStr;
 use uuid::Uuid;
 
 #[cfg(feature = "backend")]
@@ -127,6 +128,22 @@ impl fmt::Display for WorkType {
             WorkType::Textbook => write!(f, "Textbook"),
             WorkType::JournalIssue => write!(f, "Journal Issue"),
             WorkType::BookSet => write!(f, "Book Set"),
+        }
+    }
+}
+
+impl FromStr for WorkType {
+    type Err = ();
+
+    fn from_str(input: &str) -> Result<WorkType, Self::Err> {
+        match input {
+            "Book Chapter"  => Ok(WorkType::BookChapter),
+            "Monograph"  => Ok(WorkType::Monograph),
+            "Edited Book"  => Ok(WorkType::EditedBook),
+            "Textbook"  => Ok(WorkType::Textbook),
+            "Journal Issue"  => Ok(WorkType::JournalIssue),
+            "Book Set"  => Ok(WorkType::BookSet),
+            _  => Err(()),
         }
     }
 }
