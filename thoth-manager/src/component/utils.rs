@@ -246,7 +246,6 @@ impl PureComponent for PureWorkTypeSelect {
                 <div class="control">
                     <div class="select">
                     <select required=self.required>
-                        <option value="">{"Select Work Type"}</option>
                         { for self.data.iter().map(|i| self.render_worktype(i)) }
                     </select>
                     </div>
@@ -264,7 +263,6 @@ impl PureComponent for PureWorkStatusSelect {
                 <div class="control">
                     <div class="select">
                     <select required=self.required>
-                        <option value="">{"Select Work Status"}</option>
                         { for self.data.iter().map(|i| self.render_workstatus(i)) }
                     </select>
                     </div>
