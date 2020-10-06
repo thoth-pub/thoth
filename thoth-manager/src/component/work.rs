@@ -361,6 +361,34 @@ impl Component for WorkComponent {
                             value=&self.work.place
                             oninput=self.link.callback(|e: InputData| Msg::ChangePlace(e.value))
                         />
+                        <div class="field">
+                            <div class="tile is-ancestor">
+                                <div class="tile is-2 is-parent">
+                                    <div class="tile is-child">
+                                        <figure class="image is-fullwidth">
+                                            <img
+                                                src={&self.work.cover_url.clone().unwrap_or("".to_string())}
+                                                loading="lazy"
+                                            />
+                                        </figure>
+                                    </div>
+                                </div>
+                                <div class="tile is-parent">
+                                    <div class="tile is-child">
+                                        <FormUrlInput
+                                            label = "Cover URL"
+                                            value=&self.work.cover_url
+                                            oninput=self.link.callback(|e: InputData| Msg::ChangeCoverUrl(e.value))
+                                        />
+                                        <FormTextarea
+                                            label = "Cover Caption"
+                                            value=&self.work.cover_caption
+                                            oninput=self.link.callback(|e: InputData| Msg::ChangeCoverCaption(e.value))
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <div class="field is-horizontal">
                             <div class="field-body">
                                 <FormUrlInput
@@ -464,20 +492,6 @@ impl Component for WorkComponent {
                             value=&self.work.toc
                             oninput=self.link.callback(|e: InputData| Msg::ChangeToc(e.value))
                         />
-                        <div class="field is-horizontal">
-                            <div class="field-body">
-                                <FormUrlInput
-                                    label = "Cover URL"
-                                    value=&self.work.cover_url
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeCoverUrl(e.value))
-                                />
-                                <FormTextarea
-                                    label = "Cover Caption"
-                                    value=&self.work.cover_caption
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeCoverCaption(e.value))
-                                />
-                            </div>
-                        </div>
                         <ContributionsFormComponent
                             contributions=&self.work.contributions
                             work_id=&self.work.work_id
