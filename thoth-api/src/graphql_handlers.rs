@@ -77,13 +77,18 @@ impl QueryRoot {
         description = "Query the full list of publications",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url"
+            ),
         )
     )]
-    fn publications(context: &Context, limit: i32, offset: i32) -> Vec<Publication> {
+    fn publications(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Publication> {
         use crate::schema::publication::dsl::*;
         let connection = context.db.get().unwrap();
-        publication
+        publication.filter(isbn.ilike(format!("%{}%", filter)))
+            .or_filter(publication_url.ilike(format!("%{}%", filter)))
             .order(publication_type.asc())
             .limit(limit.into())
             .offset(offset.into())
@@ -815,6 +820,10 @@ impl Publication {
 
     pub fn publication_type(&self) -> &PublicationType {
         &self.publication_type
+    }
+
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
     }
 
     pub fn isbn(&self) -> Option<&String> {
