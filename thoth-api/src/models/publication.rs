@@ -9,7 +9,8 @@ use crate::schema::publication;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Publication_type")]
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublicationType {
     #[cfg_attr(feature = "backend", db_rename = "Paperback")]
     Paperback,
