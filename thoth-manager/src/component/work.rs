@@ -291,6 +291,49 @@ impl Component for WorkComponent {
                 });
                 html! {
                     <form onsubmit=callback>
+                        <div class="field is-horizontal">
+                            <div class="field-body">
+                                <FormWorkTypeSelect
+                                    label = "Work Type"
+                                    value=&self.work.work_type
+                                    data=&self.data.work_types
+                                    onchange=self.link.callback(|event| match event {
+                                        ChangeData::Select(elem) => {
+                                            let value = elem.value();
+                                            Msg::ChangeWorkType(WorkType::from_str(&value).unwrap())
+                                        }
+                                        _ => unreachable!(),
+                                    })
+                                    required = true
+                                />
+                                <FormWorkStatusSelect
+                                    label = "Work Status"
+                                    value=&self.work.work_status
+                                    data=&self.data.work_statuses
+                                    onchange=self.link.callback(|event| match event {
+                                        ChangeData::Select(elem) => {
+                                            let value = elem.value();
+                                            Msg::ChangeWorkStatus(WorkStatus::from_str(&value).unwrap())
+                                        }
+                                        _ => unreachable!(),
+                                    })
+                                    required = true
+                                />
+                                <FormImprintSelect
+                                    label = "Imprint"
+                                    value=&self.work.imprint.imprint_id
+                                    data=&self.data.imprints
+                                    onchange=self.link.callback(|event| match event {
+                                        ChangeData::Select(elem) => {
+                                            let value = elem.value();
+                                            Msg::ChangeImprint(value.clone())
+                                        }
+                                        _ => unreachable!(),
+                                    })
+                                    required = true
+                                />
+                            </div>
+                        </div>
                         <FormTextInput
                             label = "Title"
                             value=&self.work.title
@@ -302,60 +345,11 @@ impl Component for WorkComponent {
                             value=&self.work.subtitle
                             oninput=self.link.callback(|e: InputData| Msg::ChangeSubtitle(e.value))
                         />
-                        <FormWorkTypeSelect
-                            label = "Work Type"
-                            value=&self.work.work_type
-                            data=&self.data.work_types
-                            onchange=self.link.callback(|event| match event {
-                                ChangeData::Select(elem) => {
-                                    let value = elem.value();
-                                    Msg::ChangeWorkType(WorkType::from_str(&value).unwrap())
-                                }
-                                _ => unreachable!(),
-                            })
-                            required = true
-                        />
-                        <FormWorkStatusSelect
-                            label = "Work Status"
-                            value=&self.work.work_status
-                            data=&self.data.work_statuses
-                            onchange=self.link.callback(|event| match event {
-                                ChangeData::Select(elem) => {
-                                    let value = elem.value();
-                                    Msg::ChangeWorkStatus(WorkStatus::from_str(&value).unwrap())
-                                }
-                                _ => unreachable!(),
-                            })
-                            required = true
-                        />
-                        <FormTextInput
-                            label = "Internal Reference"
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeReference(e.value))
-                            value=&self.work.reference
-                        />
-                        <FormImprintSelect
-                            label = "Imprint"
-                            value=&self.work.imprint.imprint_id
-                            data=&self.data.imprints
-                            onchange=self.link.callback(|event| match event {
-                                ChangeData::Select(elem) => {
-                                    let value = elem.value();
-                                    Msg::ChangeImprint(value.clone())
-                                }
-                                _ => unreachable!(),
-                            })
-                            required = true
-                        />
                         <FormNumberInput
                             label = "Edition"
                             value=&self.work.edition
                             oninput=self.link.callback(|e: InputData| Msg::ChangeEdition(e.value))
                             required = true
-                        />
-                        <FormUrlInput
-                            label = "Doi"
-                            value=&self.work.doi
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeDoi(e.value))
                         />
                         <FormDateInput
                             label = "Publication Date"
@@ -367,46 +361,78 @@ impl Component for WorkComponent {
                             value=&self.work.place
                             oninput=self.link.callback(|e: InputData| Msg::ChangePlace(e.value))
                         />
-                        <FormNumberInput
-                            label = "Width"
-                            value=self.work.width
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
-                        />
-                        <FormNumberInput
-                            label = "Height"
-                            value=self.work.height
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
-                        />
-                        <FormNumberInput
-                            label = "Page Count"
-                            value=self.work.page_count
-                            oninput=self.link.callback(|e: InputData| Msg::ChangePageCount(e.value))
-                        />
-                        <FormTextInput
-                            label = "Page Breakdown"
-                            value=&self.work.page_breakdown
-                            oninput=self.link.callback(|e: InputData| Msg::ChangePageBreakdown(e.value))
-                        />
-                        <FormNumberInput
-                            label = "Image Count"
-                            value=self.work.image_count
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeImageCount(e.value))
-                        />
-                        <FormNumberInput
-                            label = "Table Count"
-                            value=self.work.table_count
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeTableCount(e.value))
-                        />
-                        <FormNumberInput
-                            label = "Audio Count"
-                            value=self.work.audio_count
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeAudioCount(e.value))
-                        />
-                        <FormNumberInput
-                            label = "Video Count"
-                            value=self.work.video_count
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeVideoCount(e.value))
-                        />
+                        <div class="field is-horizontal">
+                            <div class="field-body">
+                                <FormUrlInput
+                                    label = "DOI"
+                                    value=&self.work.doi
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeDoi(e.value))
+                                />
+                                <FormNumberInput
+                                    label = "LCCN"
+                                    value=self.work.lccn
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeLccn(e.value))
+                                />
+                                <FormNumberInput
+                                    label = "OCLC Number"
+                                    value=self.work.oclc
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeOclc(e.value))
+                                />
+                                <FormTextInput
+                                    label = "Internal Reference"
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeReference(e.value))
+                                    value=&self.work.reference
+                                />
+                            </div>
+                        </div>
+                        <div class="field is-horizontal">
+                            <div class="field-body">
+                                <FormNumberInput
+                                    label = "Width"
+                                    value=self.work.width
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
+                                />
+                                <FormNumberInput
+                                    label = "Height"
+                                    value=self.work.height
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
+                                />
+                                <FormNumberInput
+                                    label = "Page Count"
+                                    value=self.work.page_count
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangePageCount(e.value))
+                                />
+                                <FormTextInput
+                                    label = "Page Breakdown"
+                                    value=&self.work.page_breakdown
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangePageBreakdown(e.value))
+                                />
+                            </div>
+                        </div>
+                        <div class="field is-horizontal">
+                            <div class="field-body">
+                                <FormNumberInput
+                                    label = "Image Count"
+                                    value=self.work.image_count
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeImageCount(e.value))
+                                />
+                                <FormNumberInput
+                                    label = "Table Count"
+                                    value=self.work.table_count
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeTableCount(e.value))
+                                />
+                                <FormNumberInput
+                                    label = "Audio Count"
+                                    value=self.work.audio_count
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeAudioCount(e.value))
+                                />
+                                <FormNumberInput
+                                    label = "Video Count"
+                                    value=self.work.video_count
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeVideoCount(e.value))
+                                />
+                            </div>
+                        </div>
                         <FormTextInput
                             label = "Copyright Holder"
                             value=&self.work.copyright_holder
@@ -417,16 +443,6 @@ impl Component for WorkComponent {
                             label = "Landing Page"
                             value=&self.work.landing_page
                             oninput=self.link.callback(|e: InputData| Msg::ChangeLandingPage(e.value))
-                        />
-                        <FormNumberInput
-                            label = "Library of Congress Number (LCCN)"
-                            value=self.work.lccn
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeLccn(e.value))
-                        />
-                        <FormNumberInput
-                            label = "OCLC Number"
-                            value=self.work.oclc
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeOclc(e.value))
                         />
                         <FormTextarea
                             label = "Short Abstract"
@@ -448,16 +464,20 @@ impl Component for WorkComponent {
                             value=&self.work.toc
                             oninput=self.link.callback(|e: InputData| Msg::ChangeToc(e.value))
                         />
-                        <FormUrlInput
-                            label = "Cover URL"
-                            value=&self.work.cover_url
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeCoverUrl(e.value))
-                        />
-                        <FormTextarea
-                            label = "Cover Caption"
-                            value=&self.work.cover_caption
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeCoverCaption(e.value))
-                        />
+                        <div class="field is-horizontal">
+                            <div class="field-body">
+                                <FormUrlInput
+                                    label = "Cover URL"
+                                    value=&self.work.cover_url
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeCoverUrl(e.value))
+                                />
+                                <FormTextarea
+                                    label = "Cover Caption"
+                                    value=&self.work.cover_caption
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeCoverCaption(e.value))
+                                />
+                            </div>
+                        </div>
                         <ContributionsFormComponent
                             contributions=&self.work.contributions
                             work_id=&self.work.work_id

@@ -159,7 +159,7 @@ impl PureComponent for PureInput {
         html! {
             <div class="field">
                 <label class="label">{ &self.label }</label>
-                <div class="control">
+                <div class="control is-expanded">
                     <input
                         class="input"
                         type={ &self.input_type }
@@ -180,7 +180,7 @@ impl PureComponent for PureTextarea {
         html! {
             <div class="field">
                 <label class="label">{ &self.label }</label>
-                <div class="control">
+                <div class="control is-expanded">
                     <textarea
                         class="textarea"
                         placeholder=&self.label
@@ -260,8 +260,8 @@ impl PureComponent for PureWorkTypeSelect {
         html! {
             <div class="field">
                 <label class="label">{ &self.label }</label>
-                <div class="control">
-                    <div class="select">
+                <div class="control is-expanded">
+                    <div class="select is-fullwidth">
                     <select required=self.required onchange=&self.onchange>
                         { for self.data.iter().map(|i| self.render_worktype(i)) }
                     </select>
@@ -277,8 +277,8 @@ impl PureComponent for PureWorkStatusSelect {
         html! {
             <div class="field">
                 <label class="label">{ &self.label }</label>
-                <div class="control">
-                    <div class="select">
+                <div class="control is-expanded">
+                    <div class="select is-fullwidth">
                     <select required=self.required onchange=&self.onchange>
                         { for self.data.iter().map(|i| self.render_workstatus(i)) }
                     </select>
@@ -294,7 +294,7 @@ impl PureComponent for PureContributionTypeSelect {
         html! {
             <div class="field">
                 <label class="label">{ &self.label }</label>
-                <div class="control">
+                <div class="control is-expanded">
                     <div class="select">
                     <select
                         required=self.required
@@ -315,7 +315,7 @@ impl PureComponent for PureBooleanSelect {
         html! {
             <div class="field">
                 <label class="label">{ &self.label }</label>
-                <div class="control">
+                <div class="control is-expanded">
                     <div class="select">
                     <select
                         required=self.required
@@ -341,8 +341,8 @@ impl PureComponent for PureImprintSelect {
         html! {
             <div class="field">
                 <label class="label">{ &self.label }</label>
-                <div class="control">
-                    <div class="select">
+                <div class="control is-expanded">
+                    <div class="select is-fullwidth">
                     <select required=self.required onchange=&self.onchange>
                         <option value="">{"Select Imprint"}</option>
                         { for self.data.iter().map(|i| self.render_imprint(i)) }

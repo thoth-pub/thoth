@@ -25,3 +25,8 @@
 .dropdown-item {
     cursor: pointer;
 }
+
+
+.field.is-horizontal > .field:not(:last-child) {
+    margin-right: .75em;
+}
