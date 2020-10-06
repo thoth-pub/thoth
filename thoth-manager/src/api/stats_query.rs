@@ -8,6 +8,7 @@ const STATS_QUERY: &str = "
         imprints(limit: 9999) { imprintId }
         serieses(limit: 9999) { seriesId }
         contributors(limit: 9999) { contributorId }
+        publications(limit: 9999) { publicationId }
     }
 ";
 
@@ -52,12 +53,19 @@ pub struct StatsQueryContributor {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct StatsQueryPublication {
+    publication_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StatsResponseData {
     pub works: Vec<StatsQueryWork>,
     pub publishers: Vec<StatsQueryPublisher>,
     pub imprints: Vec<StatsQueryImprint>,
     pub serieses: Vec<StatsQuerySeries>,
     pub contributors: Vec<StatsQueryContributor>,
+    pub publications: Vec<StatsQueryPublication>,
 }
 
 impl Default for StatsResponseData {
@@ -68,6 +76,7 @@ impl Default for StatsResponseData {
             imprints: vec![],
             serieses: vec![],
             contributors: vec![],
+            publications: vec![]
         }
     }
 }

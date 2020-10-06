@@ -109,10 +109,6 @@ impl Component for DashboardComponent {
                                         </  RouterAnchor<AppRoute>>
                                     </div>
                                 </article>
-                            </div>
-                        </div>
-                        <div class="tile">
-                            <div class="tile is-parent is-vertical">
                                 <article class="tile is-child notification is-warning">
                                     <div class="content">
                                         <p class="title">
@@ -125,6 +121,10 @@ impl Component for DashboardComponent {
                                         </  RouterAnchor<AppRoute>>
                                     </div>
                                 </article>
+                            </div>
+                        </div>
+                        <div class="tile">
+                            <div class="tile is-parent is-vertical">
                                 <article class="tile is-child notification is-danger">
                                     <div class="content">
                                         <p class="title">
@@ -144,6 +144,18 @@ impl Component for DashboardComponent {
                                         </p>
                                         <RouterAnchor<AppRoute>
                                             route=AppRoute::Admin(AdminRoute::Imprints)
+                                        >
+                                            {"See all"}
+                                        </  RouterAnchor<AppRoute>>
+                                    </div>
+                                </article>
+                                <article class="tile is-child notification is-info">
+                                    <div class="content">
+                                        <p class="title">
+                                            {format!("{} Publications", body.data.publications.iter().count())}
+                                        </p>
+                                        <RouterAnchor<AppRoute>
+                                            route=AppRoute::Admin(AdminRoute::Publications)
                                         >
                                             {"See all"}
                                         </  RouterAnchor<AppRoute>>
