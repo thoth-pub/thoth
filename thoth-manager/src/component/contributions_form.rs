@@ -23,6 +23,7 @@ use crate::api::models::Contributor;
 use crate::component::utils::FormBooleanSelect;
 use crate::component::utils::FormContributionTypeSelect;
 use crate::component::utils::FormTextInput;
+use crate::string::EMPTY_CONTRIBUTIONS;
 
 pub struct ContributionsFormComponent {
     props: Props,
@@ -170,14 +171,7 @@ impl Component for ContributionsFormComponent {
                     main_contribution: false,
                     biography: None,
                     institution: None,
-                    contributor: Contributor {
-                        contributor_id,
-                        first_name: contributor.first_name,
-                        last_name: contributor.last_name,
-                        full_name: contributor.full_name,
-                        orcid: contributor.orcid,
-                        website: contributor.website,
-                    },
+                    contributor,
                 };
                 contributions.push(contribution);
                 self.props.update_contributions.emit(Some(contributions));
@@ -296,6 +290,7 @@ impl Component for ContributionsFormComponent {
     }
 
     fn view(&self) -> Html {
+        let contributions = self.props.contributions.clone().unwrap_or_else(|| vec![]);
         html! {
             <nav class="panel">
                 <p class="panel-heading">
@@ -330,11 +325,15 @@ impl Component for ContributionsFormComponent {
                     </div>
                 </div>
                 {
-                    for self.props.contributions
-                        .clone()
-                        .unwrap_or_else(|| vec![])
-                        .iter()
-                        .map(|c| self.render_contribution(c))
+                    if contributions.len() > 0 {
+                        html!{{for contributions.iter().map(|c| self.render_contribution(c))}}
+                    } else {
+                        html! {
+                            <div class="notification is-warning is-light">
+                                { EMPTY_CONTRIBUTIONS }
+                            </div>
+                        }
+                    }
                 }
             </nav>
         }
