@@ -149,7 +149,7 @@ impl PublicationsComponent {
                 <td>{&p.publication_id}</td>
                 <td>{&p.work.title}</td>
                 <td>{&p.work.doi.clone().unwrap_or("".to_string())}</td>
-                <td>{&p.work.imprint.publisher.publisher_name}</td>
+                <td>{&p.work.publisher()}</td>
                 <td>{&p.publication_type}</td>
                 <td>{&p.isbn.clone().unwrap_or("".to_string())}</td>
                 <td>{&p.publication_url.clone().unwrap_or("".to_string())}</td>

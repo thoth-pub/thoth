@@ -173,7 +173,7 @@ impl WorksComponent {
                     }
                 </td>
                 <td>{doi}</td>
-                <td>{&w.imprint.publisher.publisher_name}</td>
+                <td>{&w.publisher()}</td>
             </tr>
         }
     }

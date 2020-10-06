@@ -175,6 +175,14 @@ impl Work {
             self.title.to_string()
         }
     }
+
+    pub fn publisher(&self) -> String {
+        if let Some(short_name) = &self.imprint.publisher.publisher_shortname.clone() {
+            format!("{}", short_name)
+        } else {
+            format!("{}", self.imprint.publisher.publisher_name)
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for License {
