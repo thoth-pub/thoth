@@ -10,6 +10,7 @@ pub mod login;
 pub mod menu;
 pub mod navbar;
 pub mod notification;
+pub mod publications;
 pub mod publishers;
 pub mod root;
 pub mod serieses;

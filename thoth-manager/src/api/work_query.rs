@@ -50,6 +50,13 @@ pub const WORK_QUERY: &str = "
                     fullName
                 }
             }
+            publications [
+                publicationId
+                publicationType
+                workId
+                isbn
+                publicationUrl
+            }
             issues {
                 workId
                 seriesId

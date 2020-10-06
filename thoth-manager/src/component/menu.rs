@@ -72,6 +72,14 @@ impl Component for MenuComponent {
                     </li>
                     <li>
                         <RouterAnchor<AppRoute>
+                            classes={self.is_active(AdminRoute::Publications)}
+                            route=AppRoute::Admin(AdminRoute::Publications)
+                        >
+                            {"Publications"}
+                        </  RouterAnchor<AppRoute>>
+                    </li>
+                    <li>
+                        <RouterAnchor<AppRoute>
                             classes={self.is_active(AdminRoute::Publishers)}
                             route=AppRoute::Admin(AdminRoute::Publishers)
                         >

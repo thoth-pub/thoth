@@ -3,6 +3,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use thoth_api::models::contributor::ContributionType;
+use thoth_api::models::publication::PublicationType;
 use thoth_api::models::series::SeriesType;
 use thoth_api::models::work::WorkStatus;
 use thoth_api::models::work::WorkType;
@@ -41,6 +42,7 @@ pub struct Work {
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
     pub contributions: Option<Vec<Contribution>>,
+    pub publications: Option<Vec<Publication>>,
     pub issues: Option<Vec<Issue>>,
     pub imprint: Imprint,
 }
@@ -94,6 +96,17 @@ pub struct Contribution {
     pub biography: Option<String>,
     pub institution: Option<String>,
     pub contributor: Contributor,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Publication {
+    pub publication_id: String,
+    pub publication_type: PublicationType,
+    pub work_id: String,
+    pub isbn: Option<String>,
+    pub publication_url: Option<String>,
+    pub work: Work,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -242,6 +255,7 @@ impl Default for Work {
             cover_url: None,
             cover_caption: None,
             contributions: None,
+            publications: None,
             issues: None,
             imprint: Default::default(),
         }
@@ -279,6 +293,19 @@ impl Default for Contributor {
             full_name: "".to_string(),
             orcid: None,
             website: None,
+        }
+    }
+}
+
+impl Default for Publication {
+    fn default() -> Publication {
+        Publication {
+            publication_id: "".to_string(),
+            publication_type: PublicationType::Paperback,
+            work_id: "".to_string(),
+            isbn: None,
+            publication_url: None,
+            work: Default::default(),
         }
     }
 }
