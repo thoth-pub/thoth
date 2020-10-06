@@ -258,3 +258,16 @@ impl Default for Publisher {
         }
     }
 }
+
+impl Default for Contributor {
+    fn default() -> Contributor {
+        Contributor {
+            contributor_id: "".to_string(),
+            first_name: None,
+            last_name: None,
+            full_name: "".to_string(),
+            orcid: None,
+            website: None,
+        }
+    }
+}

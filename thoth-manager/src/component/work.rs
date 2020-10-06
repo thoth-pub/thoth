@@ -99,6 +99,7 @@ impl Component for WorkComponent {
             query: WORK_QUERY.to_string(),
             variables: Variables {
                 work_id: Some(props.work_id),
+                contributor_id: None,
                 filter: None,
             },
         };

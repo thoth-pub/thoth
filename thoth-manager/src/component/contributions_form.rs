@@ -150,6 +150,7 @@ impl Component for ContributionsFormComponent {
                     query: CONTRIBUTORS_QUERY.to_string(),
                     variables: Variables {
                         work_id: None,
+                        contributor_id: None,
                         filter: Some(value),
                     },
                 };

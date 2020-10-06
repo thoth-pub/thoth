@@ -29,6 +29,7 @@ macro_rules! query_builder {
         #[serde(rename_all = "camelCase")]
         pub struct Variables {
             pub work_id: Option<String>,
+            pub contributor_id: Option<String>,
             pub filter: Option<String>,
         }
 
@@ -71,6 +72,7 @@ macro_rules! query_builder {
                     query: $query.to_string(),
                     variables: Variables {
                         work_id: None,
+                        contributor_id: None,
                         filter: None,
                     },
                 }
@@ -88,6 +90,7 @@ macro_rules! query_builder {
 }
 
 pub mod contribution_types_query;
+pub mod contributor_query;
 pub mod contributors_query;
 pub mod imprints_query;
 pub mod models;

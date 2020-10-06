@@ -140,7 +140,7 @@ impl ContributorsComponent {
         html! {
             <tr
                 class="row"
-                onclick=&self.change_route(AppRoute::Admin(AdminRoute::Imprint(p.contributor_id.clone())))
+                onclick=&self.change_route(AppRoute::Admin(AdminRoute::Contributor(p.contributor_id.clone())))
             >
                 <td>{&p.contributor_id}</td>
                 <td>{&p.full_name}</td>
