@@ -11,6 +11,7 @@ pub mod menu;
 pub mod navbar;
 pub mod notification;
 pub mod publications;
+pub mod publications_form;
 pub mod publishers;
 pub mod root;
 pub mod serieses;

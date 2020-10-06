@@ -17,6 +17,7 @@ use crate::agent::notification_bus::Request;
 use crate::api::models::Contribution;
 use crate::api::models::Imprint;
 use crate::api::models::Issue;
+use crate::api::models::Publication;
 use crate::api::models::Work;
 use crate::api::models::WorkStatusValues;
 use crate::api::models::WorkTypeValues;
@@ -28,6 +29,7 @@ use crate::api::work_query::WorkRequestBody;
 use crate::api::work_query::WORK_QUERY;
 use crate::component::contributions_form::ContributionsFormComponent;
 use crate::component::issues_form::IssuesFormComponent;
+use crate::component::publications_form::PublicationsFormComponent;
 use crate::component::utils::FormDateInput;
 use crate::component::utils::FormImprintSelect;
 use crate::component::utils::FormNumberInput;
@@ -84,6 +86,7 @@ pub enum Msg {
     ChangeCoverUrl(String),
     ChangeCoverCaption(String),
     UpdateContributions(Option<Vec<Contribution>>),
+    UpdatePublications(Option<Vec<Publication>>),
     UpdateIssues(Option<Vec<Issue>>),
     Save,
 }
@@ -261,6 +264,9 @@ impl Component for WorkComponent {
             }
             Msg::UpdateContributions(contributions) => {
                 self.work.contributions.neq_assign(contributions)
+            }
+            Msg::UpdatePublications(publications) => {
+                self.work.publications.neq_assign(publications)
             }
             Msg::UpdateIssues(issues) => {
                 self.work.issues.neq_assign(issues)
@@ -496,6 +502,11 @@ impl Component for WorkComponent {
                             contributions=&self.work.contributions
                             work_id=&self.work.work_id
                             update_contributions=self.link.callback(|c: Option<Vec<Contribution>>| Msg::UpdateContributions(c))
+                        />
+                        <PublicationsFormComponent
+                            publications=&self.work.publications
+                            work_id=&self.work.work_id
+                            update_publications=self.link.callback(|p: Option<Vec<Publication>>| Msg::UpdatePublications(p))
                         />
                         <IssuesFormComponent
                             issues=&self.work.issues

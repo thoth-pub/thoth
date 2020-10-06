@@ -106,6 +106,17 @@ pub struct Publication {
     pub work_id: String,
     pub isbn: Option<String>,
     pub publication_url: Option<String>,
+}
+
+// Used for queries that required more data
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DetailedPublication {
+    pub publication_id: String,
+    pub publication_type: PublicationType,
+    pub work_id: String,
+    pub isbn: Option<String>,
+    pub publication_url: Option<String>,
     pub work: Work,
 }
 
@@ -308,6 +319,18 @@ impl Default for Contributor {
 impl Default for Publication {
     fn default() -> Publication {
         Publication {
+            publication_id: "".to_string(),
+            publication_type: PublicationType::Paperback,
+            work_id: "".to_string(),
+            isbn: None,
+            publication_url: None,
+        }
+    }
+}
+
+impl Default for DetailedPublication {
+    fn default() -> DetailedPublication {
+        DetailedPublication {
             publication_id: "".to_string(),
             publication_type: PublicationType::Paperback,
             work_id: "".to_string(),

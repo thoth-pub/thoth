@@ -3,34 +3,14 @@ use serde::Serialize;
 
 use crate::api::models::Publication;
 
-const PUBLICATIONS_QUERY: &str = "
-    {
-        publications(limit: 9999) {
+pub const PUBLICATIONS_QUERY: &str = "
+    query PublicationsQuery($filter: String) {
+        publications(limit: 9999, filter: $filter) {
             publicationId
             publicationType
             workId
             isbn
             publicationUrl
-            work {
-                workId
-                workType
-                workStatus
-                fullTitle
-                doi
-                title
-                edition
-                copyrightHolder
-                imprint {
-                    imprintId
-                    imprintName
-                    publisher {
-                        publisherId
-                        publisherName
-                        publisherShortname
-                        publisherUrl
-                    }
-                }
-            }
         }
     }
 ";

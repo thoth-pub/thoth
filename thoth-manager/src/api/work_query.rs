@@ -50,7 +50,7 @@ pub const WORK_QUERY: &str = "
                     fullName
                 }
             }
-            publications [
+            publications {
                 publicationId
                 publicationType
                 workId
