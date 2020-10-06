@@ -12,6 +12,8 @@ pub enum ThothError {
     InvalidWorkStatus(String),
     #[fail(display = "{} is not a valid Contribution Type", _0)]
     InvalidContributionType(String),
+    #[fail(display = "{} is not a valid Series Type", _0)]
+    InvalidSeriesType(String),
     #[fail(display = "Database error: {}", _0)]
     DatabaseError(String),
     #[fail(display = "Internal error: {}", _0)]

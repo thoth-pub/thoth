@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::str::FromStr;
 use uuid::Uuid;
 
+use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::issue;
 #[cfg(feature = "backend")]
@@ -63,8 +65,29 @@ impl fmt::Display for SeriesType {
     }
 }
 
+impl FromStr for SeriesType {
+    type Err = ThothError;
+
+    fn from_str(input: &str) -> Result<SeriesType, ThothError> {
+        match input {
+            "Journal" => Ok(SeriesType::Journal),
+            "Book Series" => Ok(SeriesType::BookSeries),
+            _ => Err(ThothError::InvalidSeriesType(input.to_string())),
+        }
+    }
+}
+
 #[test]
 fn test_seriestype_display() {
     assert_eq!(format!("{}", SeriesType::Journal), "Journal");
     assert_eq!(format!("{}", SeriesType::BookSeries), "Book Series");
+}
+
+#[test]
+fn test_seriestype_fromstr() {
+    assert_eq!(SeriesType::from_str("Journal").unwrap(), SeriesType::Journal);
+    assert_eq!(SeriesType::from_str("Book Series").unwrap(), SeriesType::BookSeries);
+
+    assert!(SeriesType::from_str("bookseries").is_err());
+    assert!(SeriesType::from_str("Collection").is_err());
 }
