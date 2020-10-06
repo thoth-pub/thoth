@@ -5,6 +5,7 @@ pub mod contributor;
 pub mod contributors;
 pub mod dashboard;
 pub mod imprints;
+pub mod issues_form;
 pub mod login;
 pub mod menu;
 pub mod navbar;

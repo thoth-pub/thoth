@@ -16,6 +16,7 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::api::models::Contribution;
 use crate::api::models::Imprint;
+use crate::api::models::Issue;
 use crate::api::models::Work;
 use crate::api::models::WorkStatusValues;
 use crate::api::models::WorkTypeValues;
@@ -26,6 +27,7 @@ use crate::api::work_query::WorkRequest;
 use crate::api::work_query::WorkRequestBody;
 use crate::api::work_query::WORK_QUERY;
 use crate::component::contributions_form::ContributionsFormComponent;
+use crate::component::issues_form::IssuesFormComponent;
 use crate::component::utils::FormDateInput;
 use crate::component::utils::FormImprintSelect;
 use crate::component::utils::FormNumberInput;
@@ -82,6 +84,7 @@ pub enum Msg {
     ChangeCoverUrl(String),
     ChangeCoverCaption(String),
     UpdateContributions(Option<Vec<Contribution>>),
+    UpdateIssues(Option<Vec<Issue>>),
     Save,
 }
 
@@ -258,6 +261,9 @@ impl Component for WorkComponent {
             }
             Msg::UpdateContributions(contributions) => {
                 self.work.contributions.neq_assign(contributions)
+            }
+            Msg::UpdateIssues(issues) => {
+                self.work.issues.neq_assign(issues)
             }
             Msg::Save => {
                 log::debug!("{:?}", self.work);
@@ -456,6 +462,11 @@ impl Component for WorkComponent {
                             contributions=&self.work.contributions
                             work_id=&self.work.work_id
                             update_contributions=self.link.callback(|c: Option<Vec<Contribution>>| Msg::UpdateContributions(c))
+                        />
+                        <IssuesFormComponent
+                            issues=&self.work.issues
+                            work_id=&self.work.work_id
+                            update_issues=self.link.callback(|i: Option<Vec<Issue>>| Msg::UpdateIssues(i))
                         />
 
                         <div class="field">
