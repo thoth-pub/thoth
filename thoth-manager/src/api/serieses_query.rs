@@ -3,9 +3,9 @@ use serde::Serialize;
 
 use crate::api::models::Series;
 
-const SERIESES_QUERY: &str = "
-    {
-        serieses(limit: 9999) {
+pub const SERIESES_QUERY: &str = "
+    query SeriesesQuery($filter: String) {
+        serieses(limit: 9999, filter: $filter) {
             seriesId
             seriesType
             seriesName

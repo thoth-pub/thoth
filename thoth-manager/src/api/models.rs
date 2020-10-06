@@ -41,6 +41,7 @@ pub struct Work {
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
     pub contributions: Option<Vec<Contribution>>,
+    pub issues: Option<Vec<Issue>>,
     pub imprint: Imprint,
 }
 
@@ -63,6 +64,15 @@ pub struct Imprint {
     pub imprint_name: String,
     pub imprint_url: Option<String>,
     pub publisher: Publisher,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Issue {
+    pub work_id: String,
+    pub series_id: String,
+    pub issue_ordinal: i32,
+    pub series: Series,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -232,6 +242,7 @@ impl Default for Work {
             cover_url: None,
             cover_caption: None,
             contributions: None,
+            issues: None,
             imprint: Default::default(),
         }
     }
@@ -268,6 +279,30 @@ impl Default for Contributor {
             full_name: "".to_string(),
             orcid: None,
             website: None,
+        }
+    }
+}
+
+impl Default for Series {
+    fn default() -> Series {
+        Series {
+            series_id: "".to_string(),
+            series_type: SeriesType::BookSeries,
+            series_name: "".to_string(),
+            issn_print: "".to_string(),
+            issn_digital: "".to_string(),
+            series_url: None,
+        }
+    }
+}
+
+impl Default for Issue {
+    fn default() -> Issue {
+        Issue {
+            work_id: "".to_string(),
+            series_id: "".to_string(),
+            issue_ordinal: 1,
+            series: Default::default(),
         }
     }
 }

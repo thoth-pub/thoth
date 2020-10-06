@@ -50,6 +50,19 @@ pub const WORK_QUERY: &str = "
                     fullName
                 }
             }
+            issues {
+                workId
+                seriesId
+                issueOrdinal
+                series {
+                    seriesId
+                    seriesType
+                    seriesName
+                    issnPrint
+                    issnDigital
+                    seriesUrl
+                }
+            }
             imprint {
                 imprintId
                 imprintName
