@@ -258,13 +258,20 @@ impl QueryRoot {
         description = "Query the full list of series",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
-        )
+            offset(default = 0, description = "The number of items to skip"),
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital and series_url"
+            ),
+        ),
     )]
-    fn serieses(context: &Context, limit: i32, offset: i32) -> Vec<Series> {
+    fn serieses(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Series> {
         use crate::schema::series::dsl::*;
         let connection = context.db.get().unwrap();
-        series
+        series.filter(series_name.ilike(format!("%{}%", filter)))
+            .or_filter(issn_print.ilike(format!("%{}%", filter)))
+            .or_filter(issn_digital.ilike(format!("%{}%", filter)))
+            .or_filter(series_url.ilike(format!("%{}%", filter)))
             .order(series_name.asc())
             .limit(limit.into())
             .offset(offset.into())
@@ -1023,6 +1030,14 @@ impl Series {
 
 #[juniper::object(Context = Context, description = "A work published as a number in a periodical.")]
 impl Issue {
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
+    }
+
+    pub fn series_id(&self) -> Uuid {
+        self.work_id
+    }
+
     pub fn issue_ordinal(&self) -> &i32 {
         &self.issue_ordinal
     }
