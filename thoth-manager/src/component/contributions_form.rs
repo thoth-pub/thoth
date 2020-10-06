@@ -367,7 +367,13 @@ impl ContributionsFormComponent {
                     onmousedown=self.link.callback(move |_| Msg::AddContribution(contributor.clone()))
                     class="dropdown-item"
                 >
-                    { &c.full_name }
+                {
+                    if let Some(orcid) = &c.orcid {
+                        format!("{} - {}", &c.full_name, orcid)
+                    } else {
+                        format!("{}", &c.full_name )
+                    }
+                }
                 </div>
             }
         }
