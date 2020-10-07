@@ -14,13 +14,13 @@ use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
 pub struct DashboardComponent {
-    markdown: FetchStats,
+    get_stats: FetchStats,
     link: ComponentLink<Self>,
 }
 
 pub enum Msg {
-    SetMarkdownFetchState(FetchActionStats),
-    GetMarkdown,
+    SetStatsFetchState(FetchActionStats),
+    GetStats,
 }
 
 impl Component for DashboardComponent {
@@ -29,7 +29,7 @@ impl Component for DashboardComponent {
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
         DashboardComponent {
-            markdown: Default::default(),
+            get_stats: Default::default(),
             link,
         }
     }
@@ -37,23 +37,23 @@ impl Component for DashboardComponent {
     fn rendered(&mut self, first_render: bool) {
         if first_render {
             self.link
-                .send_future(self.markdown.fetch(Msg::SetMarkdownFetchState));
+                .send_future(self.get_stats.fetch(Msg::SetStatsFetchState));
             self.link
-                .send_message(Msg::SetMarkdownFetchState(FetchAction::Fetching));
+                .send_message(Msg::SetStatsFetchState(FetchAction::Fetching));
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::SetMarkdownFetchState(fetch_state) => {
-                self.markdown.apply(fetch_state);
+            Msg::SetStatsFetchState(fetch_state) => {
+                self.get_stats.apply(fetch_state);
                 true
             }
-            Msg::GetMarkdown => {
+            Msg::GetStats => {
                 self.link
-                    .send_future(self.markdown.fetch(Msg::SetMarkdownFetchState));
+                    .send_future(self.get_stats.fetch(Msg::SetStatsFetchState));
                 self.link
-                    .send_message(Msg::SetMarkdownFetchState(FetchAction::Fetching));
+                    .send_message(Msg::SetStatsFetchState(FetchAction::Fetching));
                 false
             }
         }
@@ -64,8 +64,8 @@ impl Component for DashboardComponent {
     }
 
     fn view(&self) -> Html {
-        match self.markdown.as_ref().state() {
-            FetchState::NotFetching(_) => html! {<Reloader onclick=self.link.callback(|_| Msg::GetMarkdown)/>},
+        match self.get_stats.as_ref().state() {
+            FetchState::NotFetching(_) => html! {<Reloader onclick=self.link.callback(|_| Msg::GetStats)/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(body) => html! {
                 <div class="tile is-ancestor">
@@ -75,7 +75,7 @@ impl Component for DashboardComponent {
                                 <article class="tile is-child notification is-primary">
                                     <div class="content">
                                         <p class="title">
-                                            {format!("{} Works", body.data.works.iter().count())}
+                                            {format!("{} Works", body.data.work_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
                                             route=AppRoute::Admin(AdminRoute::Works)
@@ -87,7 +87,7 @@ impl Component for DashboardComponent {
                                 <article class="tile is-child notification is-link">
                                     <div class="content">
                                         <p class="title">
-                                            {format!("{} Publishers", body.data.publishers.iter().count())}
+                                            {format!("{} Publishers", body.data.publication_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
                                             route=AppRoute::Admin(AdminRoute::Publishers)
@@ -103,7 +103,7 @@ impl Component for DashboardComponent {
                                 <article class="tile is-child notification is-warning">
                                     <div class="content">
                                         <p class="title">
-                                            {format!("{} Contributors", body.data.contributors.iter().count())}
+                                            {format!("{} Contributors", body.data.contributor_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
                                             route=AppRoute::Admin(AdminRoute::Contributors)
@@ -115,7 +115,7 @@ impl Component for DashboardComponent {
                                 <article class="tile is-child notification is-info">
                                     <div class="content">
                                         <p class="title">
-                                            {format!("{} Publications", body.data.publications.iter().count())}
+                                            {format!("{} Publications", body.data.publication_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
                                             route=AppRoute::Admin(AdminRoute::Publications)
@@ -131,7 +131,7 @@ impl Component for DashboardComponent {
                                 <article class="tile is-child notification is-danger">
                                     <div class="content">
                                         <p class="title">
-                                            {format!("{} Series", body.data.serieses.iter().count())}
+                                            {format!("{} Series", body.data.series_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
                                             route=AppRoute::Admin(AdminRoute::Serieses)
@@ -143,7 +143,7 @@ impl Component for DashboardComponent {
                                 <article class="tile is-child notification is-success">
                                     <div class="content">
                                         <p class="title">
-                                            {format!("{} Imprints", body.data.imprints.iter().count())}
+                                            {format!("{} Imprints", body.data.imprint_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
                                             route=AppRoute::Admin(AdminRoute::Imprints)

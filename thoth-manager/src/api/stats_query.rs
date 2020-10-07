@@ -3,12 +3,12 @@ use serde::Serialize;
 
 const STATS_QUERY: &str = "
     {
-        works(limit: 9999) { workId }
-        publishers(limit: 9999) { publisherId }
-        imprints(limit: 9999) { imprintId }
-        serieses(limit: 9999) { seriesId }
-        contributors(limit: 9999) { contributorId }
-        publications(limit: 9999) { publicationId }
+        workCount
+        publisherCount
+        imprintCount
+        seriesCount
+        contributorCount
+        publicationCount
     }
 ";
 
@@ -24,59 +24,24 @@ query_builder! {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct StatsQueryWork {
-    work_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct StatsQueryPublisher {
-    publisher_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct StatsQueryImprint {
-    imprint_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct StatsQuerySeries {
-    series_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct StatsQueryContributor {
-    contributor_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct StatsQueryPublication {
-    publication_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StatsResponseData {
-    pub works: Vec<StatsQueryWork>,
-    pub publishers: Vec<StatsQueryPublisher>,
-    pub imprints: Vec<StatsQueryImprint>,
-    pub serieses: Vec<StatsQuerySeries>,
-    pub contributors: Vec<StatsQueryContributor>,
-    pub publications: Vec<StatsQueryPublication>,
+    pub work_count: i32,
+    pub publisher_count: i32,
+    pub imprint_count: i32,
+    pub series_count: i32,
+    pub contributor_count: i32,
+    pub publication_count: i32,
 }
 
 impl Default for StatsResponseData {
     fn default() -> StatsResponseData {
         StatsResponseData {
-            works: vec![],
-            publishers: vec![],
-            imprints: vec![],
-            serieses: vec![],
-            contributors: vec![],
-            publications: vec![]
+            work_count: 0,
+            publisher_count: 0,
+            imprint_count: 0,
+            series_count: 0,
+            contributor_count: 0,
+            publication_count: 0,
         }
     }
 }
