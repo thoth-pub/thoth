@@ -94,6 +94,7 @@ pub mod contributor_query;
 pub mod contributors_query;
 pub mod imprints_query;
 pub mod models;
+pub mod publication_types_query;
 pub mod publications_query;
 pub mod publishers_query;
 pub mod serieses_query;

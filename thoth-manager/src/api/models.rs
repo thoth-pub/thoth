@@ -150,6 +150,12 @@ pub struct ContributionTypeDefinition {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct PublicationTypeDefinition {
+    pub enum_values: Vec<PublicationTypeValues>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkTypeValues {
     pub name: WorkType,
 }
@@ -164,6 +170,12 @@ pub struct WorkStatusValues {
 #[serde(rename_all = "camelCase")]
 pub struct ContributionTypeValues {
     pub name: ContributionType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PublicationTypeValues {
+    pub name: PublicationType,
 }
 
 impl Work {
