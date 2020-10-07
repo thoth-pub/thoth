@@ -16,6 +16,7 @@ use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::FormPublicationTypeSelect;
 use crate::string::EMPTY_PUBLICATIONS;
+use crate::string::REMOVE_BUTTON;
 
 pub struct PublicationsFormComponent {
     props: Props,
@@ -286,7 +287,7 @@ impl PublicationsFormComponent {
                                 class="button is-danger"
                                 onclick=self.link.callback(move |_| Msg::RemovePublication(publication_id.clone()))
                             >
-                                { "Remove" }
+                                { REMOVE_BUTTON }
                             </a>
                         </div>
                     </div>

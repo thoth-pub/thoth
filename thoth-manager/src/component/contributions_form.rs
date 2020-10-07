@@ -24,6 +24,7 @@ use crate::component::utils::FormBooleanSelect;
 use crate::component::utils::FormContributionTypeSelect;
 use crate::component::utils::FormTextInput;
 use crate::string::EMPTY_CONTRIBUTIONS;
+use crate::string::REMOVE_BUTTON;
 
 pub struct ContributionsFormComponent {
     props: Props,
@@ -448,7 +449,7 @@ impl ContributionsFormComponent {
                                 class="button is-danger"
                                 onclick=self.link.callback(move |_| Msg::RemoveContribution(contributor_id.clone()))
                             >
-                                { "Remove" }
+                                { REMOVE_BUTTON }
                             </a>
                         </div>
                     </div>

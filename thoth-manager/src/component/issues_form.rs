@@ -17,6 +17,7 @@ use crate::api::models::Issue;
 use crate::api::models::Series;
 use crate::component::utils::FormNumberInput;
 use crate::string::EMPTY_ISSUES;
+use crate::string::REMOVE_BUTTON;
 
 pub struct IssuesFormComponent {
     props: Props,
@@ -305,7 +306,7 @@ impl IssuesFormComponent {
                                 class="button is-danger"
                                 onclick=self.link.callback(move |_| Msg::RemoveIssue(series_id.clone()))
                             >
-                                { "Remove" }
+                                { REMOVE_BUTTON }
                             </a>
                         </div>
                     </div>
