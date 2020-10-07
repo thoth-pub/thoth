@@ -92,7 +92,6 @@ macro_rules! query_builder {
 pub mod contribution_types_query;
 pub mod contributor_query;
 pub mod contributors_query;
-pub mod detailed_publications_query;
 pub mod imprints_query;
 pub mod models;
 pub mod publications_query;

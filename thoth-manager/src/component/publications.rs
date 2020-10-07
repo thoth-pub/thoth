@@ -8,21 +8,21 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::api::detailed_publications_query::FetchActionDetailedPublications;
-use crate::api::detailed_publications_query::FetchDetailedPublications;
-use crate::api::models::DetailedPublication;
+use crate::api::publications_query::FetchActionPublications;
+use crate::api::publications_query::FetchPublications;
+use crate::api::publications_query::DetailedPublication;
 use crate::component::utils::Loader;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
 pub struct PublicationsComponent {
-    markdown: FetchDetailedPublications,
+    markdown: FetchPublications,
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
 }
 
 pub enum Msg {
-    SetMarkdownFetchState(FetchActionDetailedPublications),
+    SetMarkdownFetchState(FetchActionPublications),
     GetMarkdown,
     ChangeRoute(AppRoute),
 }

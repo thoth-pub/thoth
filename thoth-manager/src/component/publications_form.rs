@@ -7,13 +7,13 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
-use crate::api::detailed_publications_query::DetailedPublicationsRequest;
-use crate::api::detailed_publications_query::DetailedPublicationsRequestBody;
-use crate::api::detailed_publications_query::FetchActionDetailedPublications;
-use crate::api::detailed_publications_query::FetchDetailedPublications;
-use crate::api::detailed_publications_query::Variables;
-use crate::api::detailed_publications_query::DETAILED_PUBLICATIONS_QUERY;
-use crate::api::models::DetailedPublication;
+use crate::api::publications_query::PublicationsRequest;
+use crate::api::publications_query::PublicationsRequestBody;
+use crate::api::publications_query::FetchActionPublications;
+use crate::api::publications_query::FetchPublications;
+use crate::api::publications_query::Variables;
+use crate::api::publications_query::PUBLICATIONS_QUERY;
+use crate::api::publications_query::DetailedPublication;
 use crate::api::models::Publication;
 use crate::string::EMPTY_PUBLICATIONS;
 
@@ -21,7 +21,7 @@ pub struct PublicationsFormComponent {
     props: Props,
     data: PublicationsFormData,
     show_results: bool,
-    fetch_publications: FetchDetailedPublications,
+    fetch_publications: FetchPublications,
     link: ComponentLink<Self>,
 }
 
@@ -30,7 +30,7 @@ struct PublicationsFormData {
 }
 
 pub enum Msg {
-    SetPublicationsFetchState(FetchActionDetailedPublications),
+    SetPublicationsFetchState(FetchActionPublications),
     GetPublications,
     ToggleSearchResultDisplay(bool),
     SearchPublication(String),
@@ -92,15 +92,15 @@ impl Component for PublicationsFormComponent {
                 true
             }
             Msg::SearchPublication(value) => {
-                let body = DetailedPublicationsRequestBody {
-                    query: DETAILED_PUBLICATIONS_QUERY.to_string(),
+                let body = PublicationsRequestBody {
+                    query: PUBLICATIONS_QUERY.to_string(),
                     variables: Variables {
                         work_id: None,
                         contributor_id: None,
                         filter: Some(value),
                     },
                 };
-                let request = DetailedPublicationsRequest { body };
+                let request = PublicationsRequest { body };
                 self.fetch_publications = Fetch::new(request);
                 self.link.send_message(Msg::GetPublications);
                 false

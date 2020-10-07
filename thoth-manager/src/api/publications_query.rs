@@ -1,7 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::models::publication::PublicationType;
 
-use crate::api::models::Publication;
+use crate::api::models::Work;
 
 pub const PUBLICATIONS_QUERY: &str = "
     query PublicationsQuery($filter: String) {
@@ -11,6 +12,26 @@ pub const PUBLICATIONS_QUERY: &str = "
             workId
             isbn
             publicationUrl
+            work {
+                workId
+                workType
+                workStatus
+                fullTitle
+                doi
+                title
+                edition
+                copyrightHolder
+                imprint {
+                    imprintId
+                    imprintName
+                    publisher {
+                        publisherId
+                        publisherName
+                        publisherShortname
+                        publisherUrl
+                    }
+                }
+            }
         }
     }
 ";
@@ -26,8 +47,32 @@ query_builder! {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DetailedPublication {
+    pub publication_id: String,
+    pub publication_type: PublicationType,
+    pub work_id: String,
+    pub isbn: Option<String>,
+    pub publication_url: Option<String>,
+    pub work: Work,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PublicationsResponseData {
-    pub publications: Vec<Publication>,
+    pub publications: Vec<DetailedPublication>,
+}
+
+impl Default for DetailedPublication {
+    fn default() -> DetailedPublication {
+        DetailedPublication {
+            publication_id: "".to_string(),
+            publication_type: PublicationType::Paperback,
+            work_id: "".to_string(),
+            isbn: None,
+            publication_url: None,
+            work: Default::default(),
+        }
+    }
 }
 
 impl Default for PublicationsResponseData {
