@@ -39,6 +39,7 @@ use crate::component::utils::FormUrlInput;
 use crate::component::utils::FormWorkStatusSelect;
 use crate::component::utils::FormWorkTypeSelect;
 use crate::component::utils::Loader;
+use crate::string::SAVE_BUTTON;
 
 pub struct WorkComponent {
     work: Work,
@@ -517,7 +518,7 @@ impl Component for WorkComponent {
                         <div class="field">
                             <div class="control">
                                 <button class="button is-success" type="submit">
-                                    {"Save"}
+                                    { SAVE_BUTTON }
                                 </button>
                             </div>
                         </div>

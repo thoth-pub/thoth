@@ -21,6 +21,7 @@ use crate::api::contributor_query::ContributorRequestBody;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
+use crate::string::SAVE_BUTTON;
 
 pub struct ContributorComponent {
     contributor: Contributor,
@@ -167,7 +168,7 @@ impl Component for ContributorComponent {
                         <div class="field">
                             <div class="control">
                                 <button class="button is-success" type="submit">
-                                    {"Save"}
+                                    { SAVE_BUTTON }
                                 </button>
                             </div>
                         </div>
