@@ -784,20 +784,67 @@ impl Work {
             .expect("Error loading languages")
     }
 
-    pub fn publications(&self, context: &Context) -> Vec<Publication> {
-        use crate::schema::publication::dsl::*;
+    #[graphql(
+        description = "Get publications linked to this work",
+        arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url"
+            ),
+            publication_type(description = "A specific type to filter by"),
+        )
+    )]
+    pub fn publications(&self, context: &Context, limit: i32, offset: i32, filter: String, publication_type: Option<PublicationType>) -> Vec<Publication> {
         let connection = context.db.get().unwrap();
-        publication
-            .filter(work_id.eq(self.work_id))
-            .load::<Publication>(&connection)
-            .expect("Error loading publications")
+
+        if let Some(pub_type) = publication_type {
+            use crate::schema::publication::dsl::*;
+
+            publication.filter(work_id.eq(self.work_id))
+                .filter(publication_type.eq(pub_type))
+                .filter(isbn.ilike(format!("%{}%", filter)).or(publication_url.ilike(format!("%{}%", filter))))
+                .order(publication_type.asc())
+                .limit(limit.into())
+                .offset(offset.into())
+                .load::<Publication>(&connection)
+                .expect("Error loading publications")
+
+        } else {
+            use crate::schema::publication::dsl::*;
+
+            publication.filter(work_id.eq(self.work_id))
+                .filter(isbn.ilike(format!("%{}%", filter)).or(publication_url.ilike(format!("%{}%", filter))))
+                .order(publication_type.asc())
+                .limit(limit.into())
+                .offset(offset.into())
+                .load::<Publication>(&connection)
+                .expect("Error loading publications")
+        }
     }
 
-    pub fn subjects(&self, context: &Context) -> Vec<Subject> {
+    #[graphql(
+        description = "Get subjects linked to this work",
+        arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code"
+            ),
+        )
+    )]
+    pub fn subjects(&self, context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Subject> {
         use crate::schema::subject::dsl::*;
         let connection = context.db.get().unwrap();
         subject
             .filter(work_id.eq(self.work_id))
+            .filter(subject_code.ilike(format!("%{}%", filter)))
+            .order(subject_type.asc())
+            .then_order_by(subject_code.asc())
+            .limit(limit.into())
+            .offset(offset.into())
             .load::<Subject>(&connection)
             .expect("Error loading subjects")
     }
