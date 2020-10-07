@@ -12,6 +12,7 @@ use crate::api::imprints_query::FetchActionImprints;
 use crate::api::imprints_query::FetchImprints;
 use crate::api::models::Imprint;
 use crate::component::utils::Loader;
+use crate::component::utils::Reloader;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
@@ -77,21 +78,7 @@ impl Component for ImprintsComponent {
 
     fn view(&self) -> Html {
         match self.markdown.as_ref().state() {
-            FetchState::NotFetching(_) => {
-                html! {
-                    <div class="buttons has-addons is-centered">
-                        <button
-                            class="button is-success is-large"
-                            onclick=self.link.callback(|_| Msg::GetMarkdown)
-                        >
-                            <span class="icon">
-                            <i class="fas fa-sync"></i>
-                            </span>
-                            <span>{"Reload"}</span>
-                        </button>
-                    </div>
-                }
-            }
+            FetchState::NotFetching(_) => html! {<Reloader onclick=self.link.callback(|_| Msg::GetMarkdown)/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(body) => html! {
                 <>

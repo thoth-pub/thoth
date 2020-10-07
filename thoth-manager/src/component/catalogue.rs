@@ -10,6 +10,7 @@ use crate::api::models::License;
 use crate::api::models::Work;
 use crate::api::works_query::FetchActionWorks;
 use crate::api::works_query::FetchWorks;
+use crate::component::utils::Reloader;
 
 pub struct CatalogueComponent {
     markdown: FetchWorks,
@@ -63,21 +64,7 @@ impl Component for CatalogueComponent {
 
     fn view(&self) -> Html {
         match self.markdown.as_ref().state() {
-            FetchState::NotFetching(_) => {
-                html! {
-                    <div class="buttons has-addons is-centered">
-                        <button
-                            class="button is-success is-large"
-                            onclick=self.link.callback(|_| Msg::GetMarkdown)
-                        >
-                            <span class="icon">
-                            <i class="fas fa-sync"></i>
-                            </span>
-                            <span>{"Reload"}</span>
-                        </button>
-                    </div>
-                }
-            }
+            FetchState::NotFetching(_) => html! {<Reloader onclick=self.link.callback(|_| Msg::GetMarkdown)/>},
             FetchState::Fetching(_) => html! {
                 <div class="pageloader is-active is-warning">
                     <span class="title">{ "Loading" }</span>

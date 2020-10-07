@@ -10,6 +10,7 @@ strings! {
     TEXT_LOGIN => "Login",
     SAVE_BUTTON => "Save",
     REMOVE_BUTTON => "Remove",
+    RELOAD_BUTTON => "Reload",
     EMPTY_CONTRIBUTIONS => "This work does not have any contributions. Search contributors above to add its contributions.",
     EMPTY_ISSUES => "This work is not part of a series. Search above to add a new series issue.",
     EMPTY_PUBLICATIONS => "This work does not have any publications. Click above to add associated publications",

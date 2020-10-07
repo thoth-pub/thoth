@@ -8,6 +8,7 @@ use yew::Callback;
 use yew::ChangeData;
 use yew::FocusEvent;
 use yew::InputData;
+use yew::MouseEvent;
 use yew::Properties;
 use yewtil::Pure;
 use yewtil::PureComponent;
@@ -17,6 +18,7 @@ use crate::api::models::Imprint;
 use crate::api::models::PublicationTypeValues;
 use crate::api::models::WorkStatusValues;
 use crate::api::models::WorkTypeValues;
+use crate::string::RELOAD_BUTTON;
 
 pub type FormInput = Pure<PureInput>;
 pub type FormTextarea = Pure<PureTextarea>;
@@ -31,6 +33,7 @@ pub type FormPublicationTypeSelect = Pure<PurePublicationTypeSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
 pub type Loader = Pure<PureLoader>;
+pub type Reloader = Pure<PureReloader>;
 
 #[derive(Clone, PartialEq, Properties)]
 pub struct PureInput {
@@ -166,6 +169,11 @@ pub struct PureImprintSelect {
 
 #[derive(Clone, PartialEq, Properties)]
 pub struct PureLoader {}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureReloader {
+    pub onclick: Callback<MouseEvent>,
+}
 
 impl PureComponent for PureInput {
     fn render(&self) -> VNode {
@@ -477,6 +485,24 @@ impl PureComponent for PureLoader {
                         <progress class="progress is-warning" max="100"></progress>
                     </div>
                 </div>
+            </div>
+        }
+    }
+}
+
+impl PureComponent for PureReloader {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="buttons has-addons is-centered">
+                <button
+                    class="button is-success is-large"
+                    onclick=&self.onclick
+                >
+                    <span class="icon">
+                        <i class="fas fa-sync"></i>
+                    </span>
+                    <span>{ RELOAD_BUTTON }</span>
+                </button>
             </div>
         }
     }
