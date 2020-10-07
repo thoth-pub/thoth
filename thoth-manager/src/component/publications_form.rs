@@ -1,41 +1,45 @@
+use std::str::FromStr;
+use thoth_api::models::publication::PublicationType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
-use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
-use crate::api::publications_query::PublicationsRequest;
-use crate::api::publications_query::PublicationsRequestBody;
-use crate::api::publications_query::FetchActionPublications;
-use crate::api::publications_query::FetchPublications;
-use crate::api::publications_query::Variables;
-use crate::api::publications_query::PUBLICATIONS_QUERY;
-use crate::api::publications_query::DetailedPublication;
+use crate::api::publication_types_query::FetchActionPublicationTypes;
+use crate::api::publication_types_query::FetchPublicationTypes;
 use crate::api::models::Publication;
+use crate::api::models::PublicationTypeValues;
+use crate::component::utils::FormTextInput;
+use crate::component::utils::FormUrlInput;
+use crate::component::utils::FormPublicationTypeSelect;
 use crate::string::EMPTY_PUBLICATIONS;
 
 pub struct PublicationsFormComponent {
     props: Props,
     data: PublicationsFormData,
-    show_results: bool,
-    fetch_publications: FetchPublications,
+    new_publication: Publication,
+    show_add_form: bool,
+    fetch_publication_types: FetchPublicationTypes,
     link: ComponentLink<Self>,
 }
 
 struct PublicationsFormData {
-    publications: Vec<DetailedPublication>,
+    publication_types: Vec<PublicationTypeValues>,
 }
 
 pub enum Msg {
-    SetPublicationsFetchState(FetchActionPublications),
-    GetPublications,
-    ToggleSearchResultDisplay(bool),
-    SearchPublication(String),
-    AddPublication(DetailedPublication),
+    ToggleAddFormDisplay(bool),
+    SetPublicationTypesFetchState(FetchActionPublicationTypes),
+    GetPublicationTypes,
+    ChangePublicationType(PublicationType),
+    ChangeIsbn(String),
+    ChangeUrl(String),
+    AddPublication,
     RemovePublication(String),
+    DoNothing,
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -51,61 +55,54 @@ impl Component for PublicationsFormComponent {
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let data = PublicationsFormData {
-            publications: vec![],
+            publication_types: vec![],
         };
-        let show_results = false;
+        let show_add_form = false;
+        let new_publication: Publication = Default::default();
 
-        link.send_message(Msg::GetPublications);
+        link.send_message(Msg::GetPublicationTypes);
 
         PublicationsFormComponent {
             props,
             data,
-            show_results,
-            fetch_publications: Default::default(),
+            new_publication,
+            show_add_form,
+            fetch_publication_types: Default::default(),
             link,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::SetPublicationsFetchState(fetch_state) => {
-                self.fetch_publications.apply(fetch_state);
-                self.data.publications = match self.fetch_publications.as_ref().state() {
+            Msg::ToggleAddFormDisplay(value) => {
+                self.show_add_form = value;
+                true
+            }
+            Msg::SetPublicationTypesFetchState(fetch_state) => {
+                self.fetch_publication_types.apply(fetch_state);
+                self.data.publication_types = match self.fetch_publication_types.as_ref().state()
+                {
                     FetchState::NotFetching(_) => vec![],
                     FetchState::Fetching(_) => vec![],
-                    FetchState::Fetched(body) => body.data.publications.clone(),
+                    FetchState::Fetched(body) => body.data.publication_types.enum_values.clone(),
                     FetchState::Failed(_, _err) => vec![],
                 };
                 true
             }
-            Msg::GetPublications => {
+            Msg::GetPublicationTypes => {
                 self.link.send_future(
-                    self.fetch_publications
-                        .fetch(Msg::SetPublicationsFetchState),
+                    self.fetch_publication_types
+                        .fetch(Msg::SetPublicationTypesFetchState),
                 );
                 self.link
-                    .send_message(Msg::SetPublicationsFetchState(FetchAction::Fetching));
+                    .send_message(Msg::SetPublicationTypesFetchState(FetchAction::Fetching));
                 false
             }
-            Msg::ToggleSearchResultDisplay(value) => {
-                self.show_results = value;
-                true
-            }
-            Msg::SearchPublication(value) => {
-                let body = PublicationsRequestBody {
-                    query: PUBLICATIONS_QUERY.to_string(),
-                    variables: Variables {
-                        work_id: None,
-                        contributor_id: None,
-                        filter: Some(value),
-                    },
-                };
-                let request = PublicationsRequest { body };
-                self.fetch_publications = Fetch::new(request);
-                self.link.send_message(Msg::GetPublications);
-                false
-            }
-            Msg::AddPublication(publication) => {
+            Msg::ChangePublicationType(val) => self.new_publication.publication_type.neq_assign(val),
+            Msg::ChangeIsbn(isbn) => self.new_publication.isbn.neq_assign(Some(isbn)),
+            Msg::ChangeUrl(url) => self.new_publication.publication_url.neq_assign(Some(url)),
+            Msg::AddPublication => {
+                let publication = self.new_publication.clone();
                 let mut publications: Vec<Publication> = self.props.publications.clone().unwrap_or_default();
                 let publication = Publication {
                     publication_id: publication.publication_id,
@@ -115,7 +112,9 @@ impl Component for PublicationsFormComponent {
                     publication_url: publication.publication_url,
                 };
                 publications.push(publication);
+                self.new_publication = Default::default();
                 self.props.update_publications.emit(Some(publications));
+                self.link.send_message(Msg::ToggleAddFormDisplay(false));
                 true
             }
             Msg::RemovePublication(publication_id) => {
@@ -130,6 +129,7 @@ impl Component for PublicationsFormComponent {
                 self.props.update_publications.emit(Some(to_keep));
                 true
             }
+            Msg::DoNothing => false,  // callbacks need to return a message
         }
     }
 
@@ -139,37 +139,88 @@ impl Component for PublicationsFormComponent {
 
     fn view(&self) -> Html {
         let publications = self.props.publications.clone().unwrap_or_else(|| vec![]);
+        let open_modal = self.link.callback(|e: MouseEvent| {
+            e.prevent_default();
+            Msg::ToggleAddFormDisplay(true)
+        });
+        let close_modal = self.link.callback(|e: MouseEvent| {
+            e.prevent_default();
+            Msg::ToggleAddFormDisplay(false)
+        });
         html! {
             <nav class="panel">
                 <p class="panel-heading">
                     { "Publications" }
                 </p>
                 <div class="panel-block">
-                    <div class=self.search_dropdown_status() style="width: 100%">
-                        <div class="dropdown-trigger" style="width: 100%">
-                            <div class="field">
-                                <p class="control is-expanded has-icons-left">
-                                    <input
-                                        class="input"
-                                        type="search"
-                                        placeholder="Search Publication"
-                                        aria-haspopup="true"
-                                        aria-controls="publications-menu"
-                                        oninput=self.link.callback(|e: InputData| Msg::SearchPublication(e.value))
-                                        onfocus=self.link.callback(|_| Msg::ToggleSearchResultDisplay(true))
-                                        onblur=self.link.callback(|_| Msg::ToggleSearchResultDisplay(false))
-                                    />
-                                    <span class="icon is-left">
-                                        <i class="fas fa-search" aria-hidden="true"></i>
-                                    </span>
-                                </p>
-                            </div>
-                        </div>
-                        <div class="dropdown-menu" id="publications-menu" role="menu">
-                            <div class="dropdown-content">
-                                { for self.data.publications.iter().map(|c| self.render_publications(c)) }
-                            </div>
-                        </div>
+                    <button
+                        class="button is-link is-outlined is-success is-fullwidth"
+                        onclick=open_modal
+                    >
+                        { "Add Publication" }
+                    </button>
+                </div>
+                <div class=self.add_form_status()>
+                    <div class="modal-background" onclick=&close_modal></div>
+                    <div class="modal-card">
+                        <header class="modal-card-head">
+                            <p class="modal-card-title">{ "New Publication" }</p>
+                            <button
+                                class="delete"
+                                aria-label="close"
+                                onclick=&close_modal
+                            ></button>
+                        </header>
+                        <section class="modal-card-body">
+                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                                e.prevent_default();
+                                Msg::DoNothing
+                            })
+                            >
+                                <FormPublicationTypeSelect
+                                    label = "Publication Type"
+                                    value=&self.new_publication.publication_type
+                                    data=&self.data.publication_types
+                                    onchange=self.link.callback(|event| match event {
+                                        ChangeData::Select(elem) => {
+                                            let value = elem.value();
+                                            Msg::ChangePublicationType(
+                                                PublicationType::from_str(&value).unwrap()
+                                            )
+                                        }
+                                        _ => unreachable!(),
+                                    })
+                                    required = true
+                                />
+                                <FormTextInput
+                                    label = "ISBN"
+                                    value=&self.new_publication.isbn.clone().unwrap_or("".to_string())
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeIsbn(e.value))
+                                />
+                                <FormUrlInput
+                                    label = "URL"
+                                    value=&self.new_publication.publication_url.clone().unwrap_or("".to_string())
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeUrl(e.value))
+                                />
+                            </form>
+                        </section>
+                        <footer class="modal-card-foot">
+                            <button
+                                class="button is-success"
+                                onclick=self.link.callback(|e: MouseEvent| {
+                                    e.prevent_default();
+                                    Msg::AddPublication
+                                })
+                            >
+                                { "Add Publication" }
+                            </button>
+                            <button
+                                class="button"
+                                onclick=&close_modal
+                            >
+                                { "Cancel" }
+                            </button>
+                        </footer>
                     </div>
                 </div>
                 {
@@ -189,35 +240,10 @@ impl Component for PublicationsFormComponent {
 }
 
 impl PublicationsFormComponent {
-    fn search_dropdown_status(&self) -> String {
-        match self.show_results {
-            true => "dropdown is-active".to_string(),
-            false => "dropdown".to_string(),
-        }
-    }
-
-    fn render_publications(&self, p: &DetailedPublication) -> Html {
-        let publication = p.clone();
-        // avoid listing publications already present in contributions list
-        if let Some(_index) = self.props.publications
-            .as_ref()
-            .unwrap()
-            .iter()
-            .position(|pu| pu.publication_id == p.publication_id)
-        {
-            html! {}
-        } else {
-            // since publications dropdown has an onblur event, we need to use onmousedown instead of
-            // onclick. This is not ideal, but it seems to be the only event that'd do the calback
-            // without disabling onblur so that onclick can take effect
-            html! {
-                <div
-                    onmousedown=self.link.callback(move |_| Msg::AddPublication(publication.clone()))
-                    class="dropdown-item"
-                >
-                { format!("{} ({}, {})", &p.work.doi.clone().unwrap_or(p.work.title.clone()), &p.publication_type, p.isbn.clone().unwrap_or("".to_string())) }
-                </div>
-            }
+    fn add_form_status(&self) -> String {
+        match self.show_add_form {
+            true => "modal is-active".to_string(),
+            false => "modal".to_string(),
         }
     }
 

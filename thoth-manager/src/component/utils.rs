@@ -1,4 +1,5 @@
 use thoth_api::models::contributor::ContributionType;
+use thoth_api::models::publication::PublicationType;
 use thoth_api::models::work::WorkStatus;
 use thoth_api::models::work::WorkType;
 use yew::html;
@@ -13,6 +14,7 @@ use yewtil::PureComponent;
 
 use crate::api::models::ContributionTypeValues;
 use crate::api::models::Imprint;
+use crate::api::models::PublicationTypeValues;
 use crate::api::models::WorkStatusValues;
 use crate::api::models::WorkTypeValues;
 
@@ -25,6 +27,7 @@ pub type FormNumberInput = Pure<PureNumberInput>;
 pub type FormWorkTypeSelect = Pure<PureWorkTypeSelect>;
 pub type FormWorkStatusSelect = Pure<PureWorkStatusSelect>;
 pub type FormContributionTypeSelect = Pure<PureContributionTypeSelect>;
+pub type FormPublicationTypeSelect = Pure<PurePublicationTypeSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
 pub type Loader = Pure<PureLoader>;
@@ -127,6 +130,16 @@ pub struct PureContributionTypeSelect {
     pub value: ContributionType,
     pub onchange: Callback<ChangeData>,
     pub onblur: Callback<FocusEvent>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PurePublicationTypeSelect {
+    pub label: String,
+    pub data: Vec<PublicationTypeValues>,
+    pub value: PublicationType,
+    pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -310,6 +323,26 @@ impl PureComponent for PureContributionTypeSelect {
     }
 }
 
+impl PureComponent for PurePublicationTypeSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                    >
+                        { for self.data.iter().map(|p| self.render_publicationtype(p)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
 impl PureComponent for PureBooleanSelect {
     fn render(&self) -> VNode {
         html! {
@@ -397,6 +430,22 @@ impl PureContributionTypeSelect {
         } else {
             html! {
                 <option value={&c.name}>{&c.name}</option>
+            }
+        }
+    }
+}
+
+impl PurePublicationTypeSelect {
+    fn render_publicationtype(&self, p: &PublicationTypeValues) -> VNode {
+        if p.name == self.value {
+            html! {
+                <option value={&p.name} selected=true>
+                    {&p.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={&p.name}>{&p.name}</option>
             }
         }
     }
