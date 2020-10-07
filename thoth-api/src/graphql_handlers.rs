@@ -73,6 +73,23 @@ impl QueryRoot {
         }
     }
 
+    #[graphql(description = "Get the total number of works")]
+    fn work_count(context: &Context) -> i32 {
+        use crate::schema::work::dsl::*;
+        let connection = context.db.get().unwrap();
+        // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
+        // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
+        // is converting i64 to string and then parsing it as i32. This should work until we reach
+        // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
+        work
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading work count")
+            .to_string()
+            .parse::<i32>()
+            .unwrap()
+    }
+
     #[graphql(
         description = "Query the full list of publications",
         arguments(
@@ -108,6 +125,20 @@ impl QueryRoot {
         }
     }
 
+    #[graphql(description = "Get the total number of publications")]
+    fn publication_count(context: &Context) -> i32 {
+        use crate::schema::publication::dsl::*;
+        let connection = context.db.get().unwrap();
+        // see comment in work_count()
+        publication
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading publication count")
+            .to_string()
+            .parse::<i32>()
+            .unwrap()
+    }
+
     #[graphql(
     description="Query the full list of publishers",
     arguments(
@@ -139,8 +170,8 @@ impl QueryRoot {
             .expect("Error loading publishers")
     }
 
-    #[graphql(description = "Query a publication work using its id")]
-    fn publication(context: &Context, publisher_id: Uuid) -> FieldResult<Publisher> {
+    #[graphql(description = "Query a publisher using its id")]
+    fn publisher(context: &Context, publisher_id: Uuid) -> FieldResult<Publisher> {
         let connection = context.db.get().unwrap();
         match crate::schema::publisher::dsl::publisher
             .find(publisher_id)
@@ -149,6 +180,20 @@ impl QueryRoot {
             Ok(publisher) => Ok(publisher),
             Err(e) => Err(FieldError::from(e)),
         }
+    }
+
+    #[graphql(description = "Get the total number of publishers")]
+    fn publisher_count(context: &Context) -> i32 {
+        use crate::schema::publisher::dsl::*;
+        let connection = context.db.get().unwrap();
+        // see comment in work_count()
+        publisher
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading publisher count")
+            .to_string()
+            .parse::<i32>()
+            .unwrap()
     }
 
     #[graphql(
@@ -179,6 +224,20 @@ impl QueryRoot {
             Ok(imprint) => Ok(imprint),
             Err(e) => Err(FieldError::from(e)),
         }
+    }
+
+    #[graphql(description = "Get the total number of imprints")]
+    fn imprint_count(context: &Context) -> i32 {
+        use crate::schema::imprint::dsl::*;
+        let connection = context.db.get().unwrap();
+        // see comment in work_count()
+        imprint
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading imprint count")
+            .to_string()
+            .parse::<i32>()
+            .unwrap()
     }
 
     #[graphql(
@@ -222,6 +281,20 @@ impl QueryRoot {
         }
     }
 
+    #[graphql(description = "Get the total number of contributors")]
+    fn contributor_count(context: &Context) -> i32 {
+        use crate::schema::contributor::dsl::*;
+        let connection = context.db.get().unwrap();
+        // see comment in work_count()
+        contributor
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading contributor count")
+            .to_string()
+            .parse::<i32>()
+            .unwrap()
+    }
+
     #[graphql(
         description = "Query the full list of contributions",
         arguments(
@@ -257,6 +330,20 @@ impl QueryRoot {
             Ok(contribution) => Ok(contribution),
             Err(e) => Err(FieldError::from(e)),
         }
+    }
+
+    #[graphql(description = "Get the total number of contributions")]
+    fn contribution_count(context: &Context) -> i32 {
+        use crate::schema::contribution::dsl::*;
+        let connection = context.db.get().unwrap();
+        // see comment in work_count()
+        contribution
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading contribution count")
+            .to_string()
+            .parse::<i32>()
+            .unwrap()
     }
 
     #[graphql(
@@ -296,6 +383,20 @@ impl QueryRoot {
         }
     }
 
+    #[graphql(description = "Get the total number of series")]
+    fn series_count(context: &Context) -> i32 {
+        use crate::schema::series::dsl::*;
+        let connection = context.db.get().unwrap();
+        // see comment in work_count()
+        series
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading series count")
+            .to_string()
+            .parse::<i32>()
+            .unwrap()
+    }
+
     #[graphql(
         description = "Query the full list of issues",
         arguments(
@@ -325,6 +426,20 @@ impl QueryRoot {
             Ok(issue) => Ok(issue),
             Err(e) => Err(FieldError::from(e)),
         }
+    }
+
+    #[graphql(description = "Get the total number of issues")]
+    fn issue_count(context: &Context) -> i32 {
+        use crate::schema::issue::dsl::*;
+        let connection = context.db.get().unwrap();
+        // see comment in work_count()
+        issue
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading issue count")
+            .to_string()
+            .parse::<i32>()
+            .unwrap()
     }
 
     #[graphql(
@@ -357,6 +472,20 @@ impl QueryRoot {
         }
     }
 
+    #[graphql(description = "Get the total number of languages associated to works")]
+    fn language_count(context: &Context) -> i32 {
+        use crate::schema::language::dsl::*;
+        let connection = context.db.get().unwrap();
+        // see comment in work_count()
+        language
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading language count")
+            .to_string()
+            .parse::<i32>()
+            .unwrap()
+    }
+
     #[graphql(
         description = "Query the full list of prices",
         arguments(
@@ -385,6 +514,20 @@ impl QueryRoot {
             Ok(price) => Ok(price),
             Err(e) => Err(FieldError::from(e)),
         }
+    }
+
+    #[graphql(description = "Get the total number of prices associated to works")]
+    fn price_count(context: &Context) -> i32 {
+        use crate::schema::price::dsl::*;
+        let connection = context.db.get().unwrap();
+        // see comment in work_count()
+        price
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading price count")
+            .to_string()
+            .parse::<i32>()
+            .unwrap()
     }
 
     #[graphql(
@@ -417,6 +560,20 @@ impl QueryRoot {
         }
     }
 
+    #[graphql(description = "Get the total number of subjects associated to works")]
+    fn subject_count(context: &Context) -> i32 {
+        use crate::schema::subject::dsl::*;
+        let connection = context.db.get().unwrap();
+        // see comment in work_count()
+        subject
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading subject count")
+            .to_string()
+            .parse::<i32>()
+            .unwrap()
+    }
+
     #[graphql(
         description = "Query the full list of funders",
         arguments(
@@ -447,6 +604,20 @@ impl QueryRoot {
         }
     }
 
+    #[graphql(description = "Get the total number of funders")]
+    fn funder_count(context: &Context) -> i32 {
+        use crate::schema::funder::dsl::*;
+        let connection = context.db.get().unwrap();
+        // see comment in work_count()
+        funder
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading funder count")
+            .to_string()
+            .parse::<i32>()
+            .unwrap()
+    }
+
     #[graphql(
         description = "Query the full list of fundings",
         arguments(
@@ -475,6 +646,20 @@ impl QueryRoot {
             Ok(funding) => Ok(funding),
             Err(e) => Err(FieldError::from(e)),
         }
+    }
+
+    #[graphql(description = "Get the total number of funding instances associated to works")]
+    fn funding_count(context: &Context) -> i32 {
+        use crate::schema::funding::dsl::*;
+        let connection = context.db.get().unwrap();
+        // see comment in work_count()
+        funding
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading funding count")
+            .to_string()
+            .parse::<i32>()
+            .unwrap()
     }
 }
 
