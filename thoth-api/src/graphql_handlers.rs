@@ -73,15 +73,28 @@ impl QueryRoot {
         }
     }
 
-    #[graphql(description = "Get the total number of works")]
-    fn work_count(context: &Context) -> i32 {
+    #[graphql(
+        description = "Get the total number of works",
+        arguments(
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
+            ),
+        )
+    )]
+    fn work_count(context: &Context, filter: String) -> i32 {
         use crate::schema::work::dsl::*;
         let connection = context.db.get().unwrap();
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        work
+        work.filter(full_title.ilike(format!("%{}%", filter)))
+            .or_filter(doi.ilike(format!("%{}%", filter)))
+            .or_filter(reference.ilike(format!("%{}%", filter)))
+            .or_filter(short_abstract.ilike(format!("%{}%", filter)))
+            .or_filter(long_abstract.ilike(format!("%{}%", filter)))
+            .or_filter(landing_page.ilike(format!("%{}%", filter)))
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading work count")
@@ -125,12 +138,21 @@ impl QueryRoot {
         }
     }
 
-    #[graphql(description = "Get the total number of publications")]
-    fn publication_count(context: &Context) -> i32 {
+    #[graphql(
+        description = "Get the total number of publications",
+        arguments(
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url"
+            ),
+        )
+    )]
+    fn publication_count(context: &Context, filter: String) -> i32 {
         use crate::schema::publication::dsl::*;
         let connection = context.db.get().unwrap();
         // see comment in work_count()
-        publication
+        publication.filter(isbn.ilike(format!("%{}%", filter)))
+            .or_filter(publication_url.ilike(format!("%{}%", filter)))
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading publication count")
@@ -182,12 +204,21 @@ impl QueryRoot {
         }
     }
 
-    #[graphql(description = "Get the total number of publishers")]
-    fn publisher_count(context: &Context) -> i32 {
+    #[graphql(
+        description = "Get the total number of publishers",
+        arguments(
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on publisher_name and publisher_shortname",
+            ),
+        )
+    )]
+    fn publisher_count(context: &Context, filter: String) -> i32 {
         use crate::schema::publisher::dsl::*;
         let connection = context.db.get().unwrap();
         // see comment in work_count()
-        publisher
+        publisher.filter(publisher_name.ilike(format!("%{}%", filter)))
+            .or_filter(publisher_shortname.ilike(format!("%{}%", filter)))
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading publisher count")
@@ -281,12 +312,22 @@ impl QueryRoot {
         }
     }
 
-    #[graphql(description = "Get the total number of contributors")]
-    fn contributor_count(context: &Context) -> i32 {
+    #[graphql(
+        description = "Get the total number of contributors",
+        arguments(
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_name and orcid",
+            ),
+        )
+    )]
+    fn contributor_count(context: &Context, filter: String) -> i32 {
         use crate::schema::contributor::dsl::*;
         let connection = context.db.get().unwrap();
         // see comment in work_count()
         contributor
+            .filter(full_name.ilike(format!("%{}%", filter)))
+            .or_filter(orcid.ilike(format!("%{}%", filter)))
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading contributor count")
@@ -383,12 +424,23 @@ impl QueryRoot {
         }
     }
 
-    #[graphql(description = "Get the total number of series")]
-    fn series_count(context: &Context) -> i32 {
+    #[graphql(
+        description = "Get the total number of series",
+        arguments(
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital and series_url",
+            ),
+        )
+    )]
+    fn series_count(context: &Context, filter: String) -> i32 {
         use crate::schema::series::dsl::*;
         let connection = context.db.get().unwrap();
         // see comment in work_count()
-        series
+        series.filter(series_name.ilike(format!("%{}%", filter)))
+            .or_filter(issn_print.ilike(format!("%{}%", filter)))
+            .or_filter(issn_digital.ilike(format!("%{}%", filter)))
+            .or_filter(series_url.ilike(format!("%{}%", filter)))
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading series count")
