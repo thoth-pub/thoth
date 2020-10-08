@@ -36,5 +36,8 @@ COPY --from=build \
 EXPOSE 8080
 EXPOSE 8000
 
-# Run `thoth init` (runs migrations and starts the server on port 8080)
-CMD ["/thoth", "init"]
+# Make thoth our default binary
+ENTRYPOINT ["/thoth"]
+
+# By default run `thoth init` (runs migrations and starts the server on port 8080)
+CMD ["init"]

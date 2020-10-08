@@ -24,7 +24,7 @@ services:
     image: openbookpublishers/thoth
     container_name: "thoth_gui"
     restart: unless-stopped
-    command: ["/thoth", "start", "gui"]
+    command: ["start", "gui"]
     env_file:
       - .env
     depends_on:

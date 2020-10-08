@@ -30,6 +30,8 @@
 
 - [Rustup](https://rustup.rs/)
 - Stable Toolchain: `rustup default stable`
+- [wasm-pack](https://rustwasm.github.io/docs/wasm-pack/introduction.html)
+- [rollup](https://www.npmjs.com/package/rollup)
 - A PostgreSQL database (included in docker-compose.yml if ran using docker)
 - `libssl-dev`
 
@@ -45,21 +47,26 @@ docker-compose up
 
 ### Running with rust (cargo)
 
+#### Config
 
 ```sh
 git clone https://github.com/thoth-pub/thoth.git
 cd thoth
 cp .env.example .env  # Edit the credentials in .env
+```
+
+#### API
+
+```sh
 cargo run init
 ```
 
-### Running the Wadm GUI
+#### Wasm GUI
 
 ```sh
-cargo run init -p 8000
-cd thoth-manager
-wasm-pack build --target web \
-  && rollup ./main.js --format iife --file ./pkg/thoth_manager.js
+wasm-pack build thoth-manager/ --target web \
+  && rollup thoth-manager/main.js --format iife --file thoth-manager/pkg/thoth_manager.js \
+  && cargo run start gui
 ```
 
 ## Acknowledgements
