@@ -56,6 +56,8 @@ impl Component for ContributorComponent {
             variables: Variables {
                 work_id: None,
                 contributor_id: Some(props.contributor_id),
+                limit: None,
+                offset: None,
                 filter: None,
             },
         };

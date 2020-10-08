@@ -3,9 +3,9 @@ use serde::Serialize;
 
 use crate::api::models::Work;
 
-const WORKS_QUERY: &str = "
-    {
-        works(limit: 9999) {
+pub const WORKS_QUERY: &str = "
+    query PublicationsQuery($limit: Int, $offset: Int, $filter: String) {
+        works(limit: $limit, offset: $offset, filter: $filter) {
             workId
             workType
             workStatus
@@ -39,6 +39,7 @@ const WORKS_QUERY: &str = "
                 }
             }
         }
+        workCount(filter: $filter)
     }
 ";
 
@@ -53,12 +54,14 @@ query_builder! {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct WorksResponseData {
     pub works: Vec<Work>,
+    pub work_count: i32,
 }
 
 impl Default for WorksResponseData {
     fn default() -> WorksResponseData {
-        WorksResponseData { works: vec![] }
+        WorksResponseData { works: vec![], work_count: 0 }
     }
 }

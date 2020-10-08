@@ -153,6 +153,8 @@ impl Component for ContributionsFormComponent {
                     variables: Variables {
                         work_id: None,
                         contributor_id: None,
+                        limit: None,
+                        offset: None,
                         filter: Some(value),
                     },
                 };

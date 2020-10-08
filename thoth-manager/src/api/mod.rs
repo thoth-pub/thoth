@@ -30,6 +30,8 @@ macro_rules! query_builder {
         pub struct Variables {
             pub work_id: Option<String>,
             pub contributor_id: Option<String>,
+            pub limit: Option<i32>,
+            pub offset: Option<i32>,
             pub filter: Option<String>,
         }
 
@@ -73,6 +75,8 @@ macro_rules! query_builder {
                     variables: Variables {
                         work_id: None,
                         contributor_id: None,
+                        limit: None,
+                        offset: None,
                         filter: None,
                     },
                 }

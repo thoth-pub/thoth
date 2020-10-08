@@ -107,6 +107,8 @@ impl Component for WorkComponent {
             variables: Variables {
                 work_id: Some(props.work_id),
                 contributor_id: None,
+                limit: None,
+                offset: None,
                 filter: None,
             },
         };
