@@ -87,7 +87,7 @@ impl Component for DashboardComponent {
                                 <article class="tile is-child notification is-link">
                                     <div class="content">
                                         <p class="title">
-                                            {format!("{} Publishers", body.data.publication_count)}
+                                            {format!("{} Publications", body.data.publication_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
                                             route=AppRoute::Admin(AdminRoute::Publishers)
