@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use serde::Serialize;
-
 use thoth_api::models::series::SeriesType;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -26,3 +25,5 @@ impl Default for Series {
         }
     }
 }
+
+pub mod serieses_query;

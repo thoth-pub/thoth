@@ -4,8 +4,8 @@ use wasm_bindgen::prelude::*;
 
 mod agent;
 #[macro_use]
-mod api;
 mod component;
+mod models;
 mod route;
 mod string;
 

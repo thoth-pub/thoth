@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::api::models::imprint::Imprint;
+use super::Imprint;
 
 const IMPRINTS_QUERY: &str = "
     {

@@ -1,10 +1,10 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::api::models::imprint::Imprint;
-use crate::api::models::work::Work;
-use crate::api::models::work::WorkStatusDefinition;
-use crate::api::models::work::WorkTypeDefinition;
+use super::super::imprint::Imprint;
+use super::Work;
+use super::WorkStatusDefinition;
+use super::WorkTypeDefinition;
 
 pub const WORK_QUERY: &str = "
     query WorkQuery($workId: Uuid!) {

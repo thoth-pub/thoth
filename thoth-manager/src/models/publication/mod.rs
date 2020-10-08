@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use serde::Serialize;
-
 use thoth_api::models::publication::PublicationType;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -36,3 +35,6 @@ impl Default for Publication {
         }
     }
 }
+
+pub mod publication_types_query;
+pub mod publications_query;

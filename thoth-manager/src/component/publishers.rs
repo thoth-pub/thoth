@@ -8,9 +8,9 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::api::models::publisher::Publisher;
-use crate::api::publishers_query::FetchActionPublishers;
-use crate::api::publishers_query::FetchPublishers;
+use crate::models::publisher::Publisher;
+use crate::models::publisher::publishers_query::FetchActionPublishers;
+use crate::models::publisher::publishers_query::FetchPublishers;
 use crate::component::utils::Loader;
 use crate::component::utils::Reloader;
 use crate::route::AdminRoute;

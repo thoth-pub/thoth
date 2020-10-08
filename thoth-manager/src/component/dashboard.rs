@@ -6,8 +6,8 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::api::stats_query::FetchActionStats;
-use crate::api::stats_query::FetchStats;
+use crate::models::stats::stats_query::FetchActionStats;
+use crate::models::stats::stats_query::FetchStats;
 use crate::component::utils::Loader;
 use crate::component::utils::Reloader;
 use crate::route::AdminRoute;

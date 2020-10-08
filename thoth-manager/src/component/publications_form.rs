@@ -8,10 +8,10 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
-use crate::api::publication_types_query::FetchActionPublicationTypes;
-use crate::api::publication_types_query::FetchPublicationTypes;
-use crate::api::models::publication::Publication;
-use crate::api::models::publication::PublicationTypeValues;
+use crate::models::publication::publication_types_query::FetchActionPublicationTypes;
+use crate::models::publication::publication_types_query::FetchPublicationTypes;
+use crate::models::publication::Publication;
+use crate::models::publication::PublicationTypeValues;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::FormPublicationTypeSelect;

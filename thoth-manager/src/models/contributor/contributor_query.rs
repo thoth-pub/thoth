@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::api::models::contributor::Contributor;
+use super::Contributor;
 
 pub const CONTRIBUTOR_QUERY: &str = "
     query ContributorQuery($contributorId: Uuid!) {

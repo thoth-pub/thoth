@@ -4,10 +4,10 @@ use serde::Serialize;
 use thoth_api::models::work::WorkStatus;
 use thoth_api::models::work::WorkType;
 
-use crate::api::models::contribution::Contribution;
-use crate::api::models::publication::Publication;
-use crate::api::models::issue::Issue;
-use crate::api::models::imprint::Imprint;
+use super::contribution::Contribution;
+use super::publication::Publication;
+use super::issue::Issue;
+use super::imprint::Imprint;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -186,3 +186,6 @@ impl Default for Work {
         }
     }
 }
+
+pub mod work_query;
+pub mod works_query;

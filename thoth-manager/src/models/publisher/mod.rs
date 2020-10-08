@@ -20,3 +20,5 @@ impl Default for Publisher {
         }
     }
 }
+
+pub mod publishers_query;

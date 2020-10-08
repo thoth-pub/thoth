@@ -13,11 +13,11 @@ use yew::Properties;
 use yewtil::Pure;
 use yewtil::PureComponent;
 
-use crate::api::models::contribution::ContributionTypeValues;
-use crate::api::models::imprint::Imprint;
-use crate::api::models::publication::PublicationTypeValues;
-use crate::api::models::work::WorkStatusValues;
-use crate::api::models::work::WorkTypeValues;
+use crate::models::contribution::ContributionTypeValues;
+use crate::models::imprint::Imprint;
+use crate::models::publication::PublicationTypeValues;
+use crate::models::work::WorkStatusValues;
+use crate::models::work::WorkTypeValues;
 use crate::string::RELOAD_BUTTON;
 
 pub type FormInput = Pure<PureInput>;

@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::api::models::work::Work;
+use super::Work;
 
 pub const WORKS_QUERY: &str = "
     query PublicationsQuery($limit: Int, $offset: Int, $filter: String) {

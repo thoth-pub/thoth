@@ -24,3 +24,6 @@ impl Default for Contributor {
         }
     }
 }
+
+pub mod contributor_query;
+pub mod contributors_query;

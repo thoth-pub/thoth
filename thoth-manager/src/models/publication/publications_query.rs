@@ -2,7 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::models::publication::PublicationType;
 
-use crate::api::models::work::Work;
+use super::super::work::Work;
 
 pub const PUBLICATIONS_QUERY: &str = "
     query PublicationsQuery($filter: String) {

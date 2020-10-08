@@ -93,15 +93,12 @@ macro_rules! query_builder {
     };
 }
 
-pub mod contribution_types_query;
-pub mod contributor_query;
-pub mod contributors_query;
-pub mod imprints_query;
-pub mod models;
-pub mod publication_types_query;
-pub mod publications_query;
-pub mod publishers_query;
-pub mod serieses_query;
-pub mod stats_query;
-pub mod work_query;
-pub mod works_query;
+pub mod contribution;
+pub mod contributor;
+pub mod imprint;
+pub mod issue;
+pub mod publication;
+pub mod publisher;
+pub mod series;
+pub mod stats;
+pub mod work;

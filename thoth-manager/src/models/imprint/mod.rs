@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::api::models::publisher::Publisher;
+use super::publisher::Publisher;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -22,3 +22,5 @@ impl Default for Imprint {
         }
     }
 }
+
+pub mod imprints_query;

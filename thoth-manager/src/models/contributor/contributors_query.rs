@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::api::models::contributor::Contributor;
+use super::Contributor;
 
 pub const CONTRIBUTORS_QUERY: &str = "
     query ContributorsQuery($filter: String) {

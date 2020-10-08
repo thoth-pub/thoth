@@ -2,7 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::models::contributor::ContributionType;
 
-use crate::api::models::contributor::Contributor;
+use super::contributor::Contributor;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -27,3 +27,5 @@ pub struct ContributionTypeDefinition {
 pub struct ContributionTypeValues {
     pub name: ContributionType,
 }
+
+pub mod contribution_types_query;

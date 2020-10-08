@@ -8,9 +8,9 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::api::models::series::Series;
-use crate::api::serieses_query::FetchActionSerieses;
-use crate::api::serieses_query::FetchSerieses;
+use crate::models::series::Series;
+use crate::models::series::serieses_query::FetchActionSerieses;
+use crate::models::series::serieses_query::FetchSerieses;
 use crate::component::utils::Loader;
 use crate::component::utils::Reloader;
 use crate::route::AdminRoute;

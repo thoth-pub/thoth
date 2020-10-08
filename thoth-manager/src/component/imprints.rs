@@ -8,9 +8,9 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::api::imprints_query::FetchActionImprints;
-use crate::api::imprints_query::FetchImprints;
-use crate::api::models::imprint::Imprint;
+use crate::models::imprint::imprints_query::FetchActionImprints;
+use crate::models::imprint::imprints_query::FetchImprints;
+use crate::models::imprint::Imprint;
 use crate::component::utils::Loader;
 use crate::component::utils::Reloader;
 use crate::route::AdminRoute;
