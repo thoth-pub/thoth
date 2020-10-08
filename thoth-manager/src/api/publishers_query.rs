@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::api::models::Publisher;
+use crate::api::models::publisher::Publisher;
 
 const PUBLISHERS_QUERY: &str = "
     {

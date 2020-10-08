@@ -9,8 +9,8 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::api::models::Contribution;
-use crate::api::models::Work;
+use crate::api::models::contribution::Contribution;
+use crate::api::models::work::Work;
 use crate::api::works_query::FetchActionWorks;
 use crate::api::works_query::FetchWorks;
 use crate::api::works_query::Variables;

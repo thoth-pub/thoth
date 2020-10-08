@@ -11,7 +11,7 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
-use crate::api::models::Contributor;
+use crate::api::models::contributor::Contributor;
 use crate::api::contributor_query::FetchActionContributor;
 use crate::api::contributor_query::FetchContributor;
 use crate::api::contributor_query::Variables;

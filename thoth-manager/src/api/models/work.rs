@@ -1,12 +1,13 @@
 use serde::de::Deserializer;
 use serde::Deserialize;
 use serde::Serialize;
-
-use thoth_api::models::contributor::ContributionType;
-use thoth_api::models::publication::PublicationType;
-use thoth_api::models::series::SeriesType;
 use thoth_api::models::work::WorkStatus;
 use thoth_api::models::work::WorkType;
+
+use crate::api::models::contribution::Contribution;
+use crate::api::models::publication::Publication;
+use crate::api::models::issue::Issue;
+use crate::api::models::imprint::Imprint;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -61,77 +62,6 @@ pub enum License {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct Imprint {
-    pub imprint_id: String,
-    pub imprint_name: String,
-    pub imprint_url: Option<String>,
-    pub publisher: Publisher,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Issue {
-    pub work_id: String,
-    pub series_id: String,
-    pub issue_ordinal: i32,
-    pub series: Series,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Publisher {
-    pub publisher_id: String,
-    pub publisher_name: String,
-    pub publisher_shortname: Option<String>,
-    pub publisher_url: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Contribution {
-    pub work_id: String,
-    pub contributor_id: String,
-    pub contribution_type: ContributionType,
-    pub main_contribution: bool,
-    pub biography: Option<String>,
-    pub institution: Option<String>,
-    pub contributor: Contributor,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Publication {
-    pub publication_id: String,
-    pub publication_type: PublicationType,
-    pub work_id: String,
-    pub isbn: Option<String>,
-    pub publication_url: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Contributor {
-    pub contributor_id: String,
-    pub first_name: Option<String>,
-    pub last_name: Option<String>,
-    pub full_name: String,
-    pub orcid: Option<String>,
-    pub website: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Series {
-    pub series_id: String,
-    pub series_type: SeriesType,
-    pub series_name: String,
-    pub issn_print: String,
-    pub issn_digital: String,
-    pub series_url: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkTypeDefinition {
     pub enum_values: Vec<WorkTypeValues>,
 }
@@ -144,18 +74,6 @@ pub struct WorkStatusDefinition {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct ContributionTypeDefinition {
-    pub enum_values: Vec<ContributionTypeValues>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct PublicationTypeDefinition {
-    pub enum_values: Vec<PublicationTypeValues>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkTypeValues {
     pub name: WorkType,
 }
@@ -164,18 +82,6 @@ pub struct WorkTypeValues {
 #[serde(rename_all = "camelCase")]
 pub struct WorkStatusValues {
     pub name: WorkStatus,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct ContributionTypeValues {
-    pub name: ContributionType,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct PublicationTypeValues {
-    pub name: PublicationType,
 }
 
 impl Work {
@@ -277,77 +183,6 @@ impl Default for Work {
             publications: None,
             issues: None,
             imprint: Default::default(),
-        }
-    }
-}
-
-impl Default for Imprint {
-    fn default() -> Imprint {
-        Imprint {
-            imprint_id: "".to_string(),
-            imprint_name: "".to_string(),
-            imprint_url: None,
-            publisher: Default::default(),
-        }
-    }
-}
-
-impl Default for Publisher {
-    fn default() -> Publisher {
-        Publisher {
-            publisher_id: "".to_string(),
-            publisher_name: "".to_string(),
-            publisher_shortname: None,
-            publisher_url: None,
-        }
-    }
-}
-
-impl Default for Contributor {
-    fn default() -> Contributor {
-        Contributor {
-            contributor_id: "".to_string(),
-            first_name: None,
-            last_name: None,
-            full_name: "".to_string(),
-            orcid: None,
-            website: None,
-        }
-    }
-}
-
-impl Default for Publication {
-    fn default() -> Publication {
-        Publication {
-            publication_id: "".to_string(),
-            publication_type: PublicationType::Paperback,
-            work_id: "".to_string(),
-            isbn: None,
-            publication_url: None,
-        }
-    }
-}
-
-impl Default for Series {
-    fn default() -> Series {
-        Series {
-            series_id: "".to_string(),
-            series_type: SeriesType::BookSeries,
-            series_name: "".to_string(),
-            issn_print: "".to_string(),
-            issn_digital: "".to_string(),
-            series_url: None,
-        }
-    }
-}
-
-impl Default for Issue {
-    fn default() -> Issue {
-        Issue {
-            work_id: "".to_string(),
-            series_id: "".to_string(),
-            issue_ordinal: 1,
-            series: Default::default(),
         }
     }
 }

@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::api::models::ContributionTypeDefinition;
+use crate::api::models::contribution::ContributionTypeDefinition;
 
 const CONTRIBUTION_TYPES_QUERY: &str = "
     {

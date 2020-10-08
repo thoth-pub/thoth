@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::api::models::Series;
+use crate::api::models::series::Series;
 
 pub const SERIESES_QUERY: &str = "
     query SeriesesQuery($filter: String) {

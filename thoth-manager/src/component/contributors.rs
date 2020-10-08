@@ -10,7 +10,7 @@ use yewtil::future::LinkFuture;
 
 use crate::api::contributors_query::FetchActionContributors;
 use crate::api::contributors_query::FetchContributors;
-use crate::api::models::Contributor;
+use crate::api::models::contributor::Contributor;
 use crate::component::utils::Loader;
 use crate::component::utils::Reloader;
 use crate::route::AdminRoute;

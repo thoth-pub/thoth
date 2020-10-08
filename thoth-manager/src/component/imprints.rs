@@ -10,7 +10,7 @@ use yewtil::future::LinkFuture;
 
 use crate::api::imprints_query::FetchActionImprints;
 use crate::api::imprints_query::FetchImprints;
-use crate::api::models::Imprint;
+use crate::api::models::imprint::Imprint;
 use crate::component::utils::Loader;
 use crate::component::utils::Reloader;
 use crate::route::AdminRoute;

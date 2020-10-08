@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::api::models::PublicationTypeDefinition;
+use crate::api::models::publication::PublicationTypeDefinition;
 
 const PUBLICATION_TYPES_QUERY: &str = "
     {

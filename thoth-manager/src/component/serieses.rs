@@ -8,7 +8,7 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::api::models::Series;
+use crate::api::models::series::Series;
 use crate::api::serieses_query::FetchActionSerieses;
 use crate::api::serieses_query::FetchSerieses;
 use crate::component::utils::Loader;

@@ -10,8 +10,8 @@ use yewtil::NeqAssign;
 
 use crate::api::publication_types_query::FetchActionPublicationTypes;
 use crate::api::publication_types_query::FetchPublicationTypes;
-use crate::api::models::Publication;
-use crate::api::models::PublicationTypeValues;
+use crate::api::models::publication::Publication;
+use crate::api::models::publication::PublicationTypeValues;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::FormPublicationTypeSelect;
