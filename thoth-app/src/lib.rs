@@ -1,5 +1,6 @@
 #![recursion_limit = "2048"]
 
+use std::env;
 use wasm_bindgen::prelude::*;
 
 mod agent;
@@ -11,7 +12,7 @@ mod string;
 
 use crate::component::root::RootComponent;
 
-const GRAPHQL_ENDPOINT: &str = "http://localhost:8000/graphql";
+const GRAPHQL_ENDPOINT: &str = env!("GRAPHQL_ENDPOINT");
 
 #[wasm_bindgen(start)]
 pub fn run_app() -> Result<(), JsValue> {
