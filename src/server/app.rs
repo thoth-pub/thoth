@@ -7,6 +7,8 @@ use actix_web::HttpResponse;
 use actix_web::HttpServer;
 use dotenv::dotenv;
 
+const NO_CACHE: &str = "no-cache";
+
 macro_rules! static_files {
     ($(($cname:ident, $fname:ident) => ($source_path:expr, $dest_path:expr, $type:expr),)*) => (
         $(
@@ -14,7 +16,7 @@ macro_rules! static_files {
 
             #[get($dest_path)]
             async fn $fname() -> HttpResponse {
-                HttpResponse::Ok().content_type($type).body($cname)
+                HttpResponse::Ok().content_type($type).header("Cache-Control", NO_CACHE).body($cname)
             }
         )*
 
@@ -70,6 +72,7 @@ const INDEX_FILE: &[u8] = include_bytes!("../static/index.html");
 async fn index() -> HttpResponse {
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
+        .header("Cache-Control", NO_CACHE)
         .body(INDEX_FILE)
 }
 
