@@ -2,7 +2,7 @@ extern crate clap;
 use clap::{crate_authors, crate_version, App, AppSettings, Arg};
 
 use thoth::server::api::start_server as api_server;
-use thoth::server::gui::start_server as gui_server;
+use thoth::server::app::start_server as app_server;
 use thoth_api::db::run_migrations;
 use thoth_api::errors::Result;
 use thoth_api::errors::ThothError;
@@ -30,7 +30,7 @@ fn main() -> Result<()> {
                     ),
                 )
                 .subcommand(
-                    App::new("gui").about("Start the thoth client GUI").arg(
+                    App::new("app").about("Start the thoth client GUI").arg(
                         Arg::with_name("port")
                             .short("p")
                             .long("port")
@@ -65,9 +65,9 @@ fn main() -> Result<()> {
                     Err(e) => Err(ThothError::from(e).into()),
                 }
             }
-            ("gui", Some(client_matches)) => {
+            ("app", Some(client_matches)) => {
                 let port = client_matches.value_of("port").unwrap();
-                match gui_server(port.to_owned()) {
+                match app_server(port.to_owned()) {
                     Ok(_) => Ok(()),
                     Err(e) => Err(ThothError::from(e).into()),
                 }

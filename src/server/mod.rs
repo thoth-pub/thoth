@@ -1,2 +1,2 @@
 pub mod api;
-pub mod gui;
+pub mod app;

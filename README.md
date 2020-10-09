@@ -64,9 +64,9 @@ cargo run init
 #### Wasm GUI
 
 ```sh
-wasm-pack build thoth-manager/ --target web \
-  && rollup thoth-manager/main.js --format iife --file thoth-manager/pkg/thoth_manager.js \
-  && cargo run start gui
+wasm-pack build thoth-app/ --target web \
+  && rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js \
+  && cargo run start app
 ```
 
 ## Acknowledgements

@@ -27,11 +27,11 @@ macro_rules! static_files {
 }
 
 static_files! {
-    (JS, js_file) => ("../static/pkg/thoth_manager.js", "/thoth_manager.js", "application/javascript"),
-    (WASM, wasm_file) => ("../static/pkg/thoth_manager_bg.wasm", "/thoth_manager_bg.wasm", "application/wasm"),
+    (JS, js_file) => ("../static/pkg/thoth_app.js", "/thoth_app.js", "application/javascript"),
+    (WASM, wasm_file) => ("../static/pkg/thoth_app_bg.wasm", "/thoth_app_bg.wasm", "application/wasm"),
     (PKG, pkg_file) => ("../static/pkg/package.json", "/package.json", "application/json"),
-    (TS1, ts1_file) => ("../static/pkg/thoth_manager.d.ts", "/thoth_manager.d.ts", "application/typescript"),
-    (TS2, ts2_file) => ("../static/pkg/thoth_manager_bg.d.ts", "/thoth_manager_bg.d.ts", "application/typescript"),
+    (TS1, ts1_file) => ("../static/pkg/thoth_app.d.ts", "/thoth_app.d.ts", "application/typescript"),
+    (TS2, ts2_file) => ("../static/pkg/thoth_app_bg.d.ts", "/thoth_app_bg.d.ts", "application/typescript"),
     (MATOMO, matomo_file) => ("../static/js/matomo.js", "/matomo.js", "application/javascript"),
     (BULMA, bulma_file) => ("../static/css/bulma-pageloader.min.css", "/css/bulma-pageloader.min.css", "text/css; charset=utf-8"),
     (CSS, css_file) => ("../static/css/thoth.css", "/css/thoth.css", "text/css; charset=utf-8"),

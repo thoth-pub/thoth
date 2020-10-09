@@ -16,13 +16,13 @@ COPY --chown=rust:rust Cargo.toml Cargo.lock ./
 COPY --chown=rust:rust ./src ./src
 COPY --chown=rust:rust ./thoth-api ./thoth-api
 COPY --chown=rust:rust ./thoth-client ./thoth-client
-COPY --chown=rust:rust ./thoth-manager ./thoth-manager
-RUN wasm-pack build thoth-manager/ \
+COPY --chown=rust:rust ./thoth-app ./thoth-app
+RUN wasm-pack build thoth-app/ \
   --target web \
   --release
-RUN rollup thoth-manager/main.js \
+RUN rollup thoth-app/main.js \
   --format iife \
-  --file thoth-manager/pkg/thoth_manager.js
+  --file thoth-app/pkg/thoth_app.js
 RUN cargo build --release
 
 # Switch to minimal image for run time

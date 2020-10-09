@@ -20,11 +20,11 @@ services:
     depends_on:
       - db
 
-  gui:
+  app:
     image: openbookpublishers/thoth
-    container_name: "thoth_gui"
+    container_name: "thoth_app"
     restart: unless-stopped
-    command: ["start", "gui"]
+    command: ["start", "app"]
     env_file:
       - .env
     depends_on:

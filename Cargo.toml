@@ -13,7 +13,7 @@ travis-ci = { repository = "openbookpublishers/thoth" }
 maintenance = { status = "actively-developed" }
 
 [workspace]
-members = ["thoth-api", "thoth-manager", "thoth-client"]
+members = ["thoth-api", "thoth-app", "thoth-client"]
 
 [dependencies]
 thoth-api = {version = "*", path = "thoth-api", features = ["backend"] }
