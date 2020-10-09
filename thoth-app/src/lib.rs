@@ -12,7 +12,7 @@ mod string;
 
 use crate::component::root::RootComponent;
 
-pub const API_ENDPOINT: &str = env!("API_ENDPOINT");
+pub const THOTH_API: &str = env!("THOTH_API");
 
 #[wasm_bindgen(start)]
 pub fn run_app() -> Result<(), JsValue> {

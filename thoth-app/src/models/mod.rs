@@ -15,7 +15,7 @@ macro_rules! query_builder {
         use yewtil::fetch::Json;
         use yewtil::fetch::MethodBody;
 
-        use crate::API_ENDPOINT;
+        use crate::THOTH_API;
 
         pub type $fetch = Fetch<$request, $response_body>;
         pub type $fetch_action = FetchAction<$response_body>;
@@ -52,7 +52,7 @@ macro_rules! query_builder {
             type Format = Json;
 
             fn url(&self) -> String {
-                format!("{}/graphql", API_ENDPOINT)
+                format!("{}/graphql", THOTH_API)
             }
 
             fn method(&self) -> MethodBody<Self::RequestBody> {
