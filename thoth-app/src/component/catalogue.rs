@@ -5,6 +5,7 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
+use crate::API_ENDPOINT;
 use crate::models::contribution::Contribution;
 use crate::models::work::License;
 use crate::models::work::Work;
@@ -222,7 +223,7 @@ fn render_work(w: &Work) -> Html {
                                 <div class="dropdown-menu" id="dropdown-menu" role="menu">
                                     <div class="dropdown-content">
                                         <a
-                                            href={format!("http://localhost:8000/onix/{}", &w.work_id)}
+                                            href={format!("{}/onix/{}", API_ENDPOINT, &w.work_id)}
                                             class="dropdown-item"
                                         >
                                         {"ONIX"}
