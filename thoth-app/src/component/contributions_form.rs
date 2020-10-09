@@ -358,7 +358,7 @@ impl ContributionsFormComponent {
             .as_ref()
             .unwrap()
             .iter()
-            .position(|ctr| ctr.contributor_id == c.contributor_id)
+            .position(|ctr| ctr.contributor_id == contributor.contributor_id)
         {
             html! {}
         } else {

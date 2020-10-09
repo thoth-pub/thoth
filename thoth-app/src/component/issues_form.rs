@@ -232,12 +232,12 @@ impl IssuesFormComponent {
 
     fn render_serieses(&self, s: &Series) -> Html {
         let series = s.clone();
-        // avoid listing serieses already present in contributions list
+        // avoid listing serieses already present in issues list
         if let Some(_index) = self.props.issues
             .as_ref()
             .unwrap()
             .iter()
-            .position(|ser| ser.series_id == s.series_id)
+            .position(|ser| ser.series_id == series.series_id)
         {
             html! {}
         } else {
