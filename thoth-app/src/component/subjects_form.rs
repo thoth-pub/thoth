@@ -259,7 +259,7 @@ impl SubjectsFormComponent {
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
-                    <i class="fas fa-atlas" aria-hidden="true"></i>
+                    <i class="fas fa-tag" aria-hidden="true"></i>
                 </span>
                 <div class="field-body">
                     <div class="field" style="width: 8em;">
