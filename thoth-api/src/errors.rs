@@ -6,6 +6,8 @@ pub type Result<T> = std::result::Result<T, failure::Error>;
 pub enum ThothError {
     #[fail(display = "{} is not a valid {} code", _0, _1)]
     InvalidSubjectCode(String, String),
+    #[fail(display = "{} is not a valid Language Code", _0)]
+    InvalidLanguageCode(String),
     #[fail(display = "{} is not a valid Work Type", _0)]
     InvalidWorkType(String),
     #[fail(display = "{} is not a valid Work Status", _0)]
@@ -18,6 +20,8 @@ pub enum ThothError {
     InvalidSeriesType(String),
     #[fail(display = "{} is not a valid Subject Type", _0)]
     InvalidSubjectType(String),
+    #[fail(display = "{} is not a valid Language Relation", _0)]
+    InvalidLanguageRelation(String),
     #[fail(display = "Database error: {}", _0)]
     DatabaseError(String),
     #[fail(display = "Internal error: {}", _0)]
