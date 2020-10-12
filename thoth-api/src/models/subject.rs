@@ -2,15 +2,18 @@ use phf::phf_map;
 use phf::Map;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::str::FromStr;
 use uuid::Uuid;
 
-use crate::errors::*;
+use crate::errors::ThothError;
+use crate::errors::Result;
 #[cfg(feature = "backend")]
 use crate::schema::subject;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Subject_type")]
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SubjectType {
     Bic,
     Bisac,
@@ -54,19 +57,6 @@ pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<()> {
     }
 }
 
-#[test]
-fn test_check_subject() {
-    assert!(check_subject(&SubjectType::Bic, "HRQX9").is_ok());
-    assert!(check_subject(&SubjectType::Bisac, "BIB004060").is_ok());
-    assert!(check_subject(&SubjectType::Thema, "ATXZ1").is_ok());
-    assert!(check_subject(&SubjectType::Custom, "A custom subject").is_ok());
-    assert!(check_subject(&SubjectType::Keyword, "keyword").is_ok());
-
-    assert!(check_subject(&SubjectType::Bic, "ABCD0").is_err());
-    assert!(check_subject(&SubjectType::Bisac, "BLA123456").is_err());
-    assert!(check_subject(&SubjectType::Thema, "AHBW").is_err());
-}
-
 impl fmt::Display for SubjectType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -80,6 +70,22 @@ impl fmt::Display for SubjectType {
     }
 }
 
+impl FromStr for SubjectType {
+    type Err = ThothError;
+
+    fn from_str(input: &str) -> std::result::Result<SubjectType, ThothError> {
+        match input {
+            "BIC" => Ok(SubjectType::Bic),
+            "BISAC" => Ok(SubjectType::Bisac),
+            "Thema" => Ok(SubjectType::Thema),
+            "LCC" => Ok(SubjectType::Lcc),
+            "Custom" => Ok(SubjectType::Custom),
+            "Keyword" => Ok(SubjectType::Keyword),
+            _ => Err(ThothError::InvalidSubjectType(input.to_string())),
+        }
+    }
+}
+
 #[test]
 fn test_subjecttype_display() {
     assert_eq!(format!("{}", SubjectType::Bic), "BIC");
@@ -88,6 +94,32 @@ fn test_subjecttype_display() {
     assert_eq!(format!("{}", SubjectType::Lcc), "LCC");
     assert_eq!(format!("{}", SubjectType::Custom), "Custom");
     assert_eq!(format!("{}", SubjectType::Keyword), "Keyword");
+}
+
+#[test]
+fn test_subjecttype_fromstr() {
+    assert_eq!(SubjectType::from_str("BIC").unwrap(), SubjectType::Bic);
+    assert_eq!(SubjectType::from_str("BISAC").unwrap(), SubjectType::Bisac);
+    assert_eq!(SubjectType::from_str("Thema").unwrap(), SubjectType::Thema);
+    assert_eq!(SubjectType::from_str("LCC").unwrap(), SubjectType::Lcc);
+    assert_eq!(SubjectType::from_str("Custom").unwrap(), SubjectType::Custom);
+    assert_eq!(SubjectType::from_str("Keyword").unwrap(), SubjectType::Keyword);
+
+    assert!(SubjectType::from_str("bic").is_err());
+    assert!(SubjectType::from_str("Library of Congress Subject Code").is_err());
+}
+
+#[test]
+fn test_check_subject() {
+    assert!(check_subject(&SubjectType::Bic, "HRQX9").is_ok());
+    assert!(check_subject(&SubjectType::Bisac, "BIB004060").is_ok());
+    assert!(check_subject(&SubjectType::Thema, "ATXZ1").is_ok());
+    assert!(check_subject(&SubjectType::Custom, "A custom subject").is_ok());
+    assert!(check_subject(&SubjectType::Keyword, "keyword").is_ok());
+
+    assert!(check_subject(&SubjectType::Bic, "ABCD0").is_err());
+    assert!(check_subject(&SubjectType::Bisac, "BLA123456").is_err());
+    assert!(check_subject(&SubjectType::Thema, "AHBW").is_err());
 }
 
 static THEMA_CODES: Map<&'static str, &'static str> = phf_map! {
