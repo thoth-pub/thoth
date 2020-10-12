@@ -1086,6 +1086,15 @@ impl Work {
             .expect("Error loading subjects")
     }
 
+    pub fn fundings(&self, context: &Context) -> Vec<Funding> {
+        use crate::schema::funding::dsl::*;
+        let connection = context.db.get().unwrap();
+        funding
+            .filter(work_id.eq(self.work_id))
+            .load::<Funding>(&connection)
+            .expect("Error loading fundings")
+    }
+
     pub fn issues(&self, context: &Context) -> Vec<Issue> {
         use crate::schema::issue::dsl::*;
         let connection = context.db.get().unwrap();
