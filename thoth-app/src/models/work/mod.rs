@@ -12,6 +12,7 @@ use super::contribution::Contribution;
 use super::publication::Publication;
 use super::issue::Issue;
 use super::imprint::Imprint;
+use super::subject::Subject;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
@@ -50,6 +51,7 @@ pub struct Work {
     pub cover_caption: Option<String>,
     pub contributions: Option<Vec<Contribution>>,
     pub publications: Option<Vec<Publication>>,
+    pub subjects: Option<Vec<Subject>>,
     pub issues: Option<Vec<Issue>>,
     pub imprint: Imprint,
 }
@@ -216,6 +218,7 @@ impl Default for Work {
             cover_caption: None,
             contributions: None,
             publications: None,
+            subjects: None,
             issues: None,
             imprint: Default::default(),
         }

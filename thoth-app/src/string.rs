@@ -17,4 +17,5 @@ strings! {
     EMPTY_CONTRIBUTIONS => "This work does not have any contributions. Search contributors above to add its contributions.",
     EMPTY_ISSUES => "This work is not part of a series. Search above to add a new series issue.",
     EMPTY_PUBLICATIONS => "This work does not have any publications. Click above to add associated publications",
+    EMPTY_SUBJECTS => "This work does not have any subjects. Click above to add associated subjects",
 }

@@ -57,6 +57,13 @@ pub const WORK_QUERY: &str = "
                 isbn
                 publicationUrl
             }
+            subjects {
+                subjectId
+                workId
+                subjectType
+                subjectCode
+                subjectOrdinal
+            }
             issues {
                 workId
                 seriesId

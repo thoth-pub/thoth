@@ -1,5 +1,6 @@
 use thoth_api::models::contributor::ContributionType;
 use thoth_api::models::publication::PublicationType;
+use thoth_api::models::subject::SubjectType;
 use thoth_api::models::work::WorkStatus;
 use thoth_api::models::work::WorkType;
 use yew::html;
@@ -16,6 +17,7 @@ use yewtil::PureComponent;
 use crate::models::contribution::ContributionTypeValues;
 use crate::models::imprint::Imprint;
 use crate::models::publication::PublicationTypeValues;
+use crate::models::subject::SubjectTypeValues;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
 use crate::string::RELOAD_BUTTON;
@@ -30,6 +32,7 @@ pub type FormWorkTypeSelect = Pure<PureWorkTypeSelect>;
 pub type FormWorkStatusSelect = Pure<PureWorkStatusSelect>;
 pub type FormContributionTypeSelect = Pure<PureContributionTypeSelect>;
 pub type FormPublicationTypeSelect = Pure<PurePublicationTypeSelect>;
+pub type FormSubjectTypeSelect = Pure<PureSubjectTypeSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
 pub type Loader = Pure<PureLoader>;
@@ -142,6 +145,16 @@ pub struct PurePublicationTypeSelect {
     pub label: String,
     pub data: Vec<PublicationTypeValues>,
     pub value: PublicationType,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureSubjectTypeSelect {
+    pub label: String,
+    pub data: Vec<SubjectTypeValues>,
+    pub value: SubjectType,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -351,6 +364,26 @@ impl PureComponent for PurePublicationTypeSelect {
     }
 }
 
+impl PureComponent for PureSubjectTypeSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                    >
+                        { for self.data.iter().map(|p| self.render_subjecttype(p)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
 impl PureComponent for PureBooleanSelect {
     fn render(&self) -> VNode {
         html! {
@@ -454,6 +487,22 @@ impl PurePublicationTypeSelect {
         } else {
             html! {
                 <option value={&p.name}>{&p.name}</option>
+            }
+        }
+    }
+}
+
+impl PureSubjectTypeSelect {
+    fn render_subjecttype(&self, s: &SubjectTypeValues) -> VNode {
+        if s.name == self.value {
+            html! {
+                <option value={&s.name} selected=true>
+                    {&s.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={&s.name}>{&s.name}</option>
             }
         }
     }
