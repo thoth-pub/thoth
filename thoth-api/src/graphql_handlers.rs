@@ -1478,6 +1478,14 @@ impl Funding {
         &self.funding_id
     }
 
+    pub fn work_id(&self) -> &Uuid {
+        &self.work_id
+    }
+
+    pub fn funder_id(&self) -> &Uuid {
+        &self.funder_id
+    }
+
     pub fn program(&self) -> Option<&String> {
         self.program.as_ref()
     }
