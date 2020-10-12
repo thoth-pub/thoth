@@ -1359,6 +1359,10 @@ impl Language {
         self.language_id
     }
 
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
+    }
+
     pub fn language_code(&self) -> &LanguageCode {
         &self.language_code
     }
