@@ -1410,6 +1410,10 @@ impl Subject {
         &self.subject_id
     }
 
+    pub fn work_id(&self) -> &Uuid {
+        &self.work_id
+    }
+
     pub fn subject_type(&self) -> &SubjectType {
         &self.subject_type
     }
