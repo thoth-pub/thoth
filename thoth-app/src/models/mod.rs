@@ -101,4 +101,5 @@ pub mod publication;
 pub mod publisher;
 pub mod series;
 pub mod stats;
+pub mod subject;
 pub mod work;
