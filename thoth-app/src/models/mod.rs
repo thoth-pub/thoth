@@ -97,6 +97,7 @@ pub mod contribution;
 pub mod contributor;
 pub mod imprint;
 pub mod issue;
+pub mod language;
 pub mod publication;
 pub mod publisher;
 pub mod series;

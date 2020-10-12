@@ -1,4 +1,6 @@
 use thoth_api::models::contributor::ContributionType;
+use thoth_api::models::language::LanguageCode;
+use thoth_api::models::language::LanguageRelation;
 use thoth_api::models::publication::PublicationType;
 use thoth_api::models::subject::SubjectType;
 use thoth_api::models::work::WorkStatus;
@@ -16,11 +18,15 @@ use yewtil::PureComponent;
 
 use crate::models::contribution::ContributionTypeValues;
 use crate::models::imprint::Imprint;
+use crate::models::language::LanguageCodeValues;
+use crate::models::language::LanguageRelationValues;
 use crate::models::publication::PublicationTypeValues;
 use crate::models::subject::SubjectTypeValues;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
 use crate::string::RELOAD_BUTTON;
+use crate::string::YES;
+use crate::string::NO;
 
 pub type FormInput = Pure<PureInput>;
 pub type FormTextarea = Pure<PureTextarea>;
@@ -33,6 +39,8 @@ pub type FormWorkStatusSelect = Pure<PureWorkStatusSelect>;
 pub type FormContributionTypeSelect = Pure<PureContributionTypeSelect>;
 pub type FormPublicationTypeSelect = Pure<PurePublicationTypeSelect>;
 pub type FormSubjectTypeSelect = Pure<PureSubjectTypeSelect>;
+pub type FormLanguageCodeSelect = Pure<PureLanguageCodeSelect>;
+pub type FormLanguageRelationSelect = Pure<PureLanguageRelationSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
 pub type Loader = Pure<PureLoader>;
@@ -161,10 +169,31 @@ pub struct PureSubjectTypeSelect {
 }
 
 #[derive(Clone, PartialEq, Properties)]
+pub struct PureLanguageCodeSelect {
+    pub label: String,
+    pub data: Vec<LanguageCodeValues>,
+    pub value: LanguageCode,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureLanguageRelationSelect {
+    pub label: String,
+    pub data: Vec<LanguageRelationValues>,
+    pub value: LanguageRelation,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
 pub struct PureBooleanSelect {
     pub label: String,
     pub value: bool,
     pub onchange: Callback<ChangeData>,
+    #[prop_or_default]
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
@@ -384,6 +413,46 @@ impl PureComponent for PureSubjectTypeSelect {
     }
 }
 
+impl PureComponent for PureLanguageCodeSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                    >
+                        { for self.data.iter().map(|l| self.render_languagecode(l)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+impl PureComponent for PureLanguageRelationSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                    >
+                        { for self.data.iter().map(|l| self.render_languagerelation(l)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
 impl PureComponent for PureBooleanSelect {
     fn render(&self) -> VNode {
         html! {
@@ -397,10 +466,10 @@ impl PureComponent for PureBooleanSelect {
                         onblur=&self.onblur
                     >
                         <option value=true selected=self.value>
-                            { "Yes" }
+                            { YES }
                         </option>
                         <option value=false selected=!self.value>
-                            { "No" }
+                            { NO }
                         </option>
                     </select>
                     </div>
@@ -503,6 +572,38 @@ impl PureSubjectTypeSelect {
         } else {
             html! {
                 <option value={&s.name}>{&s.name}</option>
+            }
+        }
+    }
+}
+
+impl PureLanguageCodeSelect {
+    fn render_languagecode(&self, l: &LanguageCodeValues) -> VNode {
+        if l.name == self.value {
+            html! {
+                <option value={&l.name} selected=true>
+                    {&l.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={&l.name}>{&l.name}</option>
+            }
+        }
+    }
+}
+
+impl PureLanguageRelationSelect {
+    fn render_languagerelation(&self, l: &LanguageRelationValues) -> VNode {
+        if l.name == self.value {
+            html! {
+                <option value={&l.name} selected=true>
+                    {&l.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={&l.name}>{&l.name}</option>
             }
         }
     }

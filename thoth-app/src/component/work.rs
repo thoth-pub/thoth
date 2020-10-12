@@ -18,6 +18,7 @@ use crate::models::contribution::Contribution;
 use crate::models::imprint::Imprint;
 use crate::models::issue::Issue;
 use crate::models::publication::Publication;
+use crate::models::language::Language;
 use crate::models::subject::Subject;
 use crate::models::work::Work;
 use crate::models::work::WorkStatusValues;
@@ -30,6 +31,7 @@ use crate::models::work::work_query::WorkRequestBody;
 use crate::models::work::work_query::WORK_QUERY;
 use crate::component::contributions_form::ContributionsFormComponent;
 use crate::component::issues_form::IssuesFormComponent;
+use crate::component::languages_form::LanguagesFormComponent;
 use crate::component::publications_form::PublicationsFormComponent;
 use crate::component::subjects_form::SubjectsFormComponent;
 use crate::component::utils::FormDateInput;
@@ -90,6 +92,7 @@ pub enum Msg {
     ChangeCoverCaption(String),
     UpdateContributions(Option<Vec<Contribution>>),
     UpdatePublications(Option<Vec<Publication>>),
+    UpdateLanguages(Option<Vec<Language>>),
     UpdateSubjects(Option<Vec<Subject>>),
     UpdateIssues(Option<Vec<Issue>>),
     Save,
@@ -273,6 +276,9 @@ impl Component for WorkComponent {
             }
             Msg::UpdatePublications(publications) => {
                 self.work.publications.neq_assign(publications)
+            }
+            Msg::UpdateLanguages(languages) => {
+                self.work.languages.neq_assign(languages)
             }
             Msg::UpdateSubjects(subjects) => {
                 self.work.subjects.neq_assign(subjects)
@@ -516,6 +522,11 @@ impl Component for WorkComponent {
                             publications=&self.work.publications
                             work_id=&self.work.work_id
                             update_publications=self.link.callback(|p: Option<Vec<Publication>>| Msg::UpdatePublications(p))
+                        />
+                        <LanguagesFormComponent
+                            languages=&self.work.languages
+                            work_id=&self.work.work_id
+                            update_languages=self.link.callback(|l: Option<Vec<Language>>| Msg::UpdateLanguages(l))
                         />
                         <SubjectsFormComponent
                             subjects=&self.work.subjects

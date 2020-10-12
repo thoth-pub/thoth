@@ -57,6 +57,13 @@ pub const WORK_QUERY: &str = "
                 isbn
                 publicationUrl
             }
+            languages {
+                languageId
+                workId
+                languageCode
+                languageRelation
+                mainLanguage
+            }
             subjects {
                 subjectId
                 workId
