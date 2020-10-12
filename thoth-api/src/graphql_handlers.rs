@@ -630,13 +630,19 @@ impl QueryRoot {
         description = "Query the full list of funders",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on funderName and funderDoi",
+            ),
         )
     )]
-    fn funders(context: &Context, limit: i32, offset: i32) -> Vec<Funder> {
+    fn funders(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Funder> {
         use crate::schema::funder::dsl::*;
         let connection = context.db.get().unwrap();
         funder
+            .filter(funder_name.ilike(format!("%{}%", filter)))
+            .or_filter(funder_doi.ilike(format!("%{}%", filter)))
             .order(funder_name.asc())
             .limit(limit.into())
             .offset(offset.into())
