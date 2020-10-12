@@ -3,11 +3,17 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::models::work::WorkStatus;
 use thoth_api::models::work::WorkType;
+use yew::html;
+use yew::Callback;
+use yew::MouseEvent;
+use yew::prelude::Html;
 
 use super::contribution::Contribution;
 use super::publication::Publication;
 use super::issue::Issue;
 use super::imprint::Imprint;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -98,6 +104,35 @@ impl Work {
             format!("{}", short_name)
         } else {
             format!("{}", self.imprint.publisher.publisher_name)
+        }
+    }
+
+    pub fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Work(self.work_id.clone()))
+    }
+
+    pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
+        let doi = self.doi.clone().unwrap_or_else(|| "".to_string());
+        html! {
+            <tr
+                class="row"
+                onclick=callback
+            >
+                <td>{&self.work_id}</td>
+                <td>{&self.title}</td>
+                <td>{&self.work_type}</td>
+                <td>
+                    {
+                        if let Some(contributions) = &self.contributions {
+                            contributions.iter().map(|c| c.main_contribution_item()).collect::<Html>()
+                        } else {
+                            html! {}
+                        }
+                    }
+                </td>
+                <td>{doi}</td>
+                <td>{&self.publisher()}</td>
+            </tr>
         }
     }
 }

@@ -1,6 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::models::contributor::ContributionType;
+use yew::Html;
+use yew::prelude::html;
 
 use super::contributor::Contributor;
 
@@ -26,6 +28,21 @@ pub struct ContributionTypeDefinition {
 #[serde(rename_all = "camelCase")]
 pub struct ContributionTypeValues {
     pub name: ContributionType,
+}
+
+impl Contribution {
+    pub fn main_contribution_item(&self) -> Html {
+        if self.main_contribution {
+            html! {
+                <small class="contributor">
+                    {&self.contributor.full_name}
+                    <span>{ ", " }</span>
+                </small>
+            }
+        } else {
+            html! {}
+        }
+    }
 }
 
 pub mod contribution_types_query;

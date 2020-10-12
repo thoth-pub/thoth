@@ -9,7 +9,6 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::models::contribution::Contribution;
 use crate::models::work::Work;
 use crate::models::work::works_query::FetchActionWorks;
 use crate::models::work::works_query::FetchWorks;
@@ -19,7 +18,6 @@ use crate::models::work::works_query::WorksRequest;
 use crate::models::work::works_query::WorksRequestBody;
 use crate::component::utils::Loader;
 use crate::component::utils::Reloader;
-use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::NEXT_PAGE_BUTTON;
 use crate::string::PREVIOUS_PAGE_BUTTON;
@@ -215,7 +213,16 @@ impl Component for WorksComponent {
                                 </thead>
 
                                 <tbody>
-                                    { for self.works.iter().map(|w| self.render_work(w)) }
+                                    {
+                                        for self.works.iter().map(|w| {
+                                            let route = w.edit_route().clone();
+                                            w.as_table_row(
+                                                self.link.callback(move |_| {
+                                                    Msg::ChangeRoute(route.clone())
+                                                })
+                                            )
+                                        })
+                                    }
                                 </tbody>
                             </table>
                         },
@@ -246,50 +253,5 @@ impl WorksComponent {
 
     fn is_next_disabled(&self) -> bool {
         self.limit >= self.result_count
-    }
-
-    fn change_route(&self, app_route: AppRoute) -> Callback<MouseEvent> {
-        self.link.callback(move |_| {
-            let route = app_route.clone();
-            Msg::ChangeRoute(route)
-        })
-    }
-
-    fn render_contribution(&self, c: &Contribution) -> Html {
-        if c.main_contribution {
-            html! {
-                <small class="contributor">
-                    {&c.contributor.full_name}
-                    <span>{ ", " }</span>
-                </small>
-            }
-        } else {
-            html! {}
-        }
-    }
-
-    fn render_work(&self, w: &Work) -> Html {
-        let doi = w.doi.clone().unwrap_or_else(|| "".to_string());
-        html! {
-            <tr
-                class="row"
-                onclick=&self.change_route(AppRoute::Admin(AdminRoute::Work(w.work_id.clone())))
-            >
-                <td>{&w.work_id}</td>
-                <td>{&w.title}</td>
-                <td>{&w.work_type}</td>
-                <td>
-                    {
-                        if let Some(contributions) = &w.contributions {
-                            contributions.iter().map(|c| self.render_contribution(c)).collect::<Html>()
-                        } else {
-                            html! {}
-                        }
-                    }
-                </td>
-                <td>{doi}</td>
-                <td>{&w.publisher()}</td>
-            </tr>
-        }
     }
 }
