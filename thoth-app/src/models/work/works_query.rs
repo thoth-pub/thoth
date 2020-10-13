@@ -62,6 +62,9 @@ pub struct WorksResponseData {
 
 impl Default for WorksResponseData {
     fn default() -> WorksResponseData {
-        WorksResponseData { works: vec![], work_count: 0 }
+        WorksResponseData {
+            works: vec![],
+            work_count: 0,
+        }
     }
 }

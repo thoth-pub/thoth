@@ -7,15 +7,15 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
+use crate::component::utils::FormNumberInput;
 use crate::models::issue::Issue;
-use crate::models::series::Series;
-use crate::models::series::serieses_query::SeriesesRequest;
-use crate::models::series::serieses_query::SeriesesRequestBody;
 use crate::models::series::serieses_query::FetchActionSerieses;
 use crate::models::series::serieses_query::FetchSerieses;
+use crate::models::series::serieses_query::SeriesesRequest;
+use crate::models::series::serieses_query::SeriesesRequestBody;
 use crate::models::series::serieses_query::Variables;
 use crate::models::series::serieses_query::SERIESES_QUERY;
-use crate::component::utils::FormNumberInput;
+use crate::models::series::Series;
 use crate::string::EMPTY_ISSUES;
 use crate::string::REMOVE_BUTTON;
 
@@ -55,9 +55,7 @@ impl Component for IssuesFormComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let data = IssuesFormData {
-            serieses: vec![],
-        };
+        let data = IssuesFormData { serieses: vec![] };
         let ordinal_value = 1;
         let show_results = false;
 
@@ -86,10 +84,8 @@ impl Component for IssuesFormComponent {
                 true
             }
             Msg::GetSerieses => {
-                self.link.send_future(
-                    self.fetch_serieses
-                        .fetch(Msg::SetSeriesesFetchState),
-                );
+                self.link
+                    .send_future(self.fetch_serieses.fetch(Msg::SetSeriesesFetchState));
                 self.link
                     .send_message(Msg::SetSeriesesFetchState(FetchAction::Fetching));
                 false
@@ -115,8 +111,7 @@ impl Component for IssuesFormComponent {
                 false
             }
             Msg::AddIssue(series) => {
-                let mut issues: Vec<Issue> =
-                    self.props.issues.clone().unwrap_or_default();
+                let mut issues: Vec<Issue> = self.props.issues.clone().unwrap_or_default();
                 let series_id = series.series_id.clone();
                 let issue = Issue {
                     work_id: self.props.work_id.clone(),
@@ -147,12 +142,8 @@ impl Component for IssuesFormComponent {
             }
             Msg::ChangeOrdinal(series_id) => {
                 let ordinal_value = self.ordinal_value;
-                let mut issues: Vec<Issue> =
-                    self.props.issues.clone().unwrap_or_default();
-                if let Some(position) = issues
-                    .iter()
-                    .position(|i| i.series_id == series_id)
-                {
+                let mut issues: Vec<Issue> = self.props.issues.clone().unwrap_or_default();
+                if let Some(position) = issues.iter().position(|i| i.series_id == series_id) {
                     let mut issue = issues[position].clone();
                     issue.issue_ordinal = ordinal_value;
                     // we must acknowledge that replace returns a value, even if we don't want it

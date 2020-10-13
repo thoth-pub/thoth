@@ -14,22 +14,6 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
-use crate::models::contribution::Contribution;
-use crate::models::funding::Funding;
-use crate::models::imprint::Imprint;
-use crate::models::issue::Issue;
-use crate::models::publication::Publication;
-use crate::models::language::Language;
-use crate::models::subject::Subject;
-use crate::models::work::Work;
-use crate::models::work::WorkStatusValues;
-use crate::models::work::WorkTypeValues;
-use crate::models::work::work_query::FetchActionWork;
-use crate::models::work::work_query::FetchWork;
-use crate::models::work::work_query::Variables;
-use crate::models::work::work_query::WorkRequest;
-use crate::models::work::work_query::WorkRequestBody;
-use crate::models::work::work_query::WORK_QUERY;
 use crate::component::contributions_form::ContributionsFormComponent;
 use crate::component::fundings_form::FundingsFormComponent;
 use crate::component::issues_form::IssuesFormComponent;
@@ -45,6 +29,22 @@ use crate::component::utils::FormUrlInput;
 use crate::component::utils::FormWorkStatusSelect;
 use crate::component::utils::FormWorkTypeSelect;
 use crate::component::utils::Loader;
+use crate::models::contribution::Contribution;
+use crate::models::funding::Funding;
+use crate::models::imprint::Imprint;
+use crate::models::issue::Issue;
+use crate::models::language::Language;
+use crate::models::publication::Publication;
+use crate::models::subject::Subject;
+use crate::models::work::work_query::FetchActionWork;
+use crate::models::work::work_query::FetchWork;
+use crate::models::work::work_query::Variables;
+use crate::models::work::work_query::WorkRequest;
+use crate::models::work::work_query::WorkRequestBody;
+use crate::models::work::work_query::WORK_QUERY;
+use crate::models::work::Work;
+use crate::models::work::WorkStatusValues;
+use crate::models::work::WorkTypeValues;
 use crate::string::SAVE_BUTTON;
 
 pub struct WorkComponent {
@@ -277,21 +277,13 @@ impl Component for WorkComponent {
             Msg::UpdateContributions(contributions) => {
                 self.work.contributions.neq_assign(contributions)
             }
-            Msg::UpdateFundings(fundings) => {
-                self.work.fundings.neq_assign(fundings)
-            }
+            Msg::UpdateFundings(fundings) => self.work.fundings.neq_assign(fundings),
             Msg::UpdatePublications(publications) => {
                 self.work.publications.neq_assign(publications)
             }
-            Msg::UpdateLanguages(languages) => {
-                self.work.languages.neq_assign(languages)
-            }
-            Msg::UpdateSubjects(subjects) => {
-                self.work.subjects.neq_assign(subjects)
-            }
-            Msg::UpdateIssues(issues) => {
-                self.work.issues.neq_assign(issues)
-            }
+            Msg::UpdateLanguages(languages) => self.work.languages.neq_assign(languages),
+            Msg::UpdateSubjects(subjects) => self.work.subjects.neq_assign(subjects),
+            Msg::UpdateIssues(issues) => self.work.issues.neq_assign(issues),
             Msg::Save => {
                 log::debug!("{:?}", self.work);
                 self.notification_bus.send(Request::NotificationBusMsg((

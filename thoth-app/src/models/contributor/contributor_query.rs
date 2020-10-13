@@ -33,8 +33,6 @@ pub struct ContributorResponseData {
 
 impl Default for ContributorResponseData {
     fn default() -> ContributorResponseData {
-        ContributorResponseData {
-            contributor: None,
-        }
+        ContributorResponseData { contributor: None }
     }
 }

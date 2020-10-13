@@ -85,8 +85,14 @@ fn test_seriestype_display() {
 
 #[test]
 fn test_seriestype_fromstr() {
-    assert_eq!(SeriesType::from_str("Journal").unwrap(), SeriesType::Journal);
-    assert_eq!(SeriesType::from_str("Book Series").unwrap(), SeriesType::BookSeries);
+    assert_eq!(
+        SeriesType::from_str("Journal").unwrap(),
+        SeriesType::Journal
+    );
+    assert_eq!(
+        SeriesType::from_str("Book Series").unwrap(),
+        SeriesType::BookSeries
+    );
 
     assert!(SeriesType::from_str("bookseries").is_err());
     assert!(SeriesType::from_str("Collection").is_err());

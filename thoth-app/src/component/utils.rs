@@ -24,9 +24,9 @@ use crate::models::publication::PublicationTypeValues;
 use crate::models::subject::SubjectTypeValues;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
+use crate::string::NO;
 use crate::string::RELOAD_BUTTON;
 use crate::string::YES;
-use crate::string::NO;
 
 pub type FormInput = Pure<PureInput>;
 pub type FormTextarea = Pure<PureTextarea>;

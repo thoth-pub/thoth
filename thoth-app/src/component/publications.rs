@@ -8,11 +8,11 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::models::publication::publications_query::FetchActionPublications;
-use crate::models::publication::publications_query::FetchPublications;
-use crate::models::publication::publications_query::DetailedPublication;
 use crate::component::utils::Loader;
 use crate::component::utils::Reloader;
+use crate::models::publication::publications_query::DetailedPublication;
+use crate::models::publication::publications_query::FetchActionPublications;
+use crate::models::publication::publications_query::FetchPublications;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
@@ -78,7 +78,9 @@ impl Component for PublicationsComponent {
 
     fn view(&self) -> Html {
         match self.markdown.as_ref().state() {
-            FetchState::NotFetching(_) => html! {<Reloader onclick=self.link.callback(|_| Msg::GetMarkdown)/>},
+            FetchState::NotFetching(_) => {
+                html! {<Reloader onclick=self.link.callback(|_| Msg::GetMarkdown)/>}
+            }
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(body) => html! {
                 <>

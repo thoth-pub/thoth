@@ -11,16 +11,16 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
-use crate::models::contributor::Contributor;
+use crate::component::utils::FormTextInput;
+use crate::component::utils::FormUrlInput;
+use crate::component::utils::Loader;
+use crate::models::contributor::contributor_query::ContributorRequest;
+use crate::models::contributor::contributor_query::ContributorRequestBody;
 use crate::models::contributor::contributor_query::FetchActionContributor;
 use crate::models::contributor::contributor_query::FetchContributor;
 use crate::models::contributor::contributor_query::Variables;
 use crate::models::contributor::contributor_query::CONTRIBUTOR_QUERY;
-use crate::models::contributor::contributor_query::ContributorRequest;
-use crate::models::contributor::contributor_query::ContributorRequestBody;
-use crate::component::utils::FormTextInput;
-use crate::component::utils::FormUrlInput;
-use crate::component::utils::Loader;
+use crate::models::contributor::Contributor;
 use crate::string::SAVE_BUTTON;
 
 pub struct ContributorComponent {
@@ -109,8 +109,12 @@ impl Component for ContributorComponent {
                     .send_message(Msg::SetContributorFetchState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangeFirstName(first_name) => self.contributor.first_name.neq_assign(Some(first_name)),
-            Msg::ChangeLastName(last_name) => self.contributor.last_name.neq_assign(Some(last_name)),
+            Msg::ChangeFirstName(first_name) => {
+                self.contributor.first_name.neq_assign(Some(first_name))
+            }
+            Msg::ChangeLastName(last_name) => {
+                self.contributor.last_name.neq_assign(Some(last_name))
+            }
             Msg::ChangeFullName(full_name) => self.contributor.full_name.neq_assign(full_name),
             Msg::ChangeOrcid(orcid) => self.contributor.orcid.neq_assign(Some(orcid)),
             Msg::ChangeWebsite(website) => self.contributor.website.neq_assign(Some(website)),

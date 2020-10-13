@@ -49,5 +49,5 @@ impl Default for Language {
     }
 }
 
-pub mod language_relations_query;
 pub mod language_codes_query;
+pub mod language_relations_query;

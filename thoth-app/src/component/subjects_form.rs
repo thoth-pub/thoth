@@ -8,13 +8,13 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
+use crate::component::utils::FormNumberInput;
+use crate::component::utils::FormSubjectTypeSelect;
+use crate::component::utils::FormTextInput;
 use crate::models::subject::subject_types_query::FetchActionSubjectTypes;
 use crate::models::subject::subject_types_query::FetchSubjectTypes;
 use crate::models::subject::Subject;
 use crate::models::subject::SubjectTypeValues;
-use crate::component::utils::FormTextInput;
-use crate::component::utils::FormNumberInput;
-use crate::component::utils::FormSubjectTypeSelect;
 use crate::string::EMPTY_SUBJECTS;
 use crate::string::REMOVE_BUTTON;
 
@@ -81,8 +81,7 @@ impl Component for SubjectsFormComponent {
             }
             Msg::SetSubjectTypesFetchState(fetch_state) => {
                 self.fetch_subject_types.apply(fetch_state);
-                self.data.subject_types = match self.fetch_subject_types.as_ref().state()
-                {
+                self.data.subject_types = match self.fetch_subject_types.as_ref().state() {
                     FetchState::NotFetching(_) => vec![],
                     FetchState::Fetching(_) => vec![],
                     FetchState::Fetched(body) => body.data.subject_types.enum_values.clone(),
@@ -133,7 +132,7 @@ impl Component for SubjectsFormComponent {
                 self.props.update_subjects.emit(Some(to_keep));
                 true
             }
-            Msg::DoNothing => false,  // callbacks need to return a message
+            Msg::DoNothing => false, // callbacks need to return a message
         }
     }
 

@@ -5,13 +5,13 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::THOTH_API;
+use crate::component::utils::Reloader;
 use crate::models::contribution::Contribution;
-use crate::models::work::License;
-use crate::models::work::Work;
 use crate::models::work::works_query::FetchActionWorks;
 use crate::models::work::works_query::FetchWorks;
-use crate::component::utils::Reloader;
+use crate::models::work::License;
+use crate::models::work::Work;
+use crate::THOTH_API;
 
 pub struct CatalogueComponent {
     markdown: FetchWorks,
@@ -65,7 +65,9 @@ impl Component for CatalogueComponent {
 
     fn view(&self) -> Html {
         match self.markdown.as_ref().state() {
-            FetchState::NotFetching(_) => html! {<Reloader onclick=self.link.callback(|_| Msg::GetMarkdown)/>},
+            FetchState::NotFetching(_) => {
+                html! {<Reloader onclick=self.link.callback(|_| Msg::GetMarkdown)/>}
+            }
             FetchState::Fetching(_) => html! {
                 <div class="pageloader is-active is-warning">
                     <span class="title">{ "Loading" }</span>

@@ -8,13 +8,13 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
+use crate::component::utils::FormPublicationTypeSelect;
+use crate::component::utils::FormTextInput;
+use crate::component::utils::FormUrlInput;
 use crate::models::publication::publication_types_query::FetchActionPublicationTypes;
 use crate::models::publication::publication_types_query::FetchPublicationTypes;
 use crate::models::publication::Publication;
 use crate::models::publication::PublicationTypeValues;
-use crate::component::utils::FormTextInput;
-use crate::component::utils::FormUrlInput;
-use crate::component::utils::FormPublicationTypeSelect;
 use crate::string::EMPTY_PUBLICATIONS;
 use crate::string::REMOVE_BUTTON;
 
@@ -81,8 +81,7 @@ impl Component for PublicationsFormComponent {
             }
             Msg::SetPublicationTypesFetchState(fetch_state) => {
                 self.fetch_publication_types.apply(fetch_state);
-                self.data.publication_types = match self.fetch_publication_types.as_ref().state()
-                {
+                self.data.publication_types = match self.fetch_publication_types.as_ref().state() {
                     FetchState::NotFetching(_) => vec![],
                     FetchState::Fetching(_) => vec![],
                     FetchState::Fetched(body) => body.data.publication_types.enum_values.clone(),
@@ -99,12 +98,15 @@ impl Component for PublicationsFormComponent {
                     .send_message(Msg::SetPublicationTypesFetchState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangePublicationType(val) => self.new_publication.publication_type.neq_assign(val),
+            Msg::ChangePublicationType(val) => {
+                self.new_publication.publication_type.neq_assign(val)
+            }
             Msg::ChangeIsbn(isbn) => self.new_publication.isbn.neq_assign(Some(isbn)),
             Msg::ChangeUrl(url) => self.new_publication.publication_url.neq_assign(Some(url)),
             Msg::AddPublication => {
                 let publication = self.new_publication.clone();
-                let mut publications: Vec<Publication> = self.props.publications.clone().unwrap_or_default();
+                let mut publications: Vec<Publication> =
+                    self.props.publications.clone().unwrap_or_default();
                 let publication = Publication {
                     publication_id: publication.publication_id,
                     work_id: self.props.work_id.clone(),
@@ -130,7 +132,7 @@ impl Component for PublicationsFormComponent {
                 self.props.update_publications.emit(Some(to_keep));
                 true
             }
-            Msg::DoNothing => false,  // callbacks need to return a message
+            Msg::DoNothing => false, // callbacks need to return a message
         }
     }
 

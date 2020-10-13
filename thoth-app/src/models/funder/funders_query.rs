@@ -30,8 +30,6 @@ pub struct FundersResponseData {
 
 impl Default for FundersResponseData {
     fn default() -> FundersResponseData {
-        FundersResponseData {
-            funders: vec![],
-        }
+        FundersResponseData { funders: vec![] }
     }
 }

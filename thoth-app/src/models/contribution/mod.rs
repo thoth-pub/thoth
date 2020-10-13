@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::models::contributor::ContributionType;
-use yew::Html;
 use yew::prelude::html;
+use yew::Html;
 
 use super::contributor::Contributor;
 

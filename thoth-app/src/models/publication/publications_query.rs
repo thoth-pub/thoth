@@ -77,6 +77,8 @@ impl Default for DetailedPublication {
 
 impl Default for PublicationsResponseData {
     fn default() -> PublicationsResponseData {
-        PublicationsResponseData { publications: vec![] }
+        PublicationsResponseData {
+            publications: vec![],
+        }
     }
 }

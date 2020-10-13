@@ -7,15 +7,15 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
-use crate::models::funder::funders_query::FundersRequest;
-use crate::models::funder::funders_query::FundersRequestBody;
+use crate::component::utils::FormTextInput;
 use crate::models::funder::funders_query::FetchActionFunders;
 use crate::models::funder::funders_query::FetchFunders;
+use crate::models::funder::funders_query::FundersRequest;
+use crate::models::funder::funders_query::FundersRequestBody;
 use crate::models::funder::funders_query::Variables;
 use crate::models::funder::funders_query::FUNDERS_QUERY;
-use crate::models::funding::Funding;
 use crate::models::funder::Funder;
-use crate::component::utils::FormTextInput;
+use crate::models::funding::Funding;
 use crate::string::EMPTY_FUNDINGS;
 use crate::string::REMOVE_BUTTON;
 
@@ -67,9 +67,7 @@ impl Component for FundingsFormComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let data = FundingsFormData {
-            funders: vec![],
-        };
+        let data = FundingsFormData { funders: vec![] };
         let program_value = "".into();
         let project_name_value = "".into();
         let project_shortname_value = "".into();
@@ -106,10 +104,8 @@ impl Component for FundingsFormComponent {
                 true
             }
             Msg::GetFunders => {
-                self.link.send_future(
-                    self.fetch_funders
-                        .fetch(Msg::SetFundersFetchState),
-                );
+                self.link
+                    .send_future(self.fetch_funders.fetch(Msg::SetFundersFetchState));
                 self.link
                     .send_message(Msg::SetFundersFetchState(FetchAction::Fetching));
                 false
@@ -135,8 +131,7 @@ impl Component for FundingsFormComponent {
                 false
             }
             Msg::AddFunding(funder) => {
-                let mut fundings: Vec<Funding> =
-                    self.props.fundings.clone().unwrap_or_default();
+                let mut fundings: Vec<Funding> = self.props.fundings.clone().unwrap_or_default();
                 let funder_id = funder.funder_id.clone();
                 let funding = Funding {
                     funding_id: "".to_string(),
@@ -175,12 +170,8 @@ impl Component for FundingsFormComponent {
                     true => None,
                     false => Some(program_value),
                 };
-                let mut fundings: Vec<Funding> =
-                    self.props.fundings.clone().unwrap_or_default();
-                if let Some(position) = fundings
-                    .iter()
-                    .position(|f| f.funder_id == funder_id)
-                {
+                let mut fundings: Vec<Funding> = self.props.fundings.clone().unwrap_or_default();
+                if let Some(position) = fundings.iter().position(|f| f.funder_id == funder_id) {
                     let mut funding = fundings[position].clone();
                     funding.program = program;
                     // we must acknowledge that replace returns a value, even if we don't want it
@@ -202,12 +193,8 @@ impl Component for FundingsFormComponent {
                     true => None,
                     false => Some(project_name_value),
                 };
-                let mut fundings: Vec<Funding> =
-                    self.props.fundings.clone().unwrap_or_default();
-                if let Some(position) = fundings
-                    .iter()
-                    .position(|f| f.funder_id == funder_id)
-                {
+                let mut fundings: Vec<Funding> = self.props.fundings.clone().unwrap_or_default();
+                if let Some(position) = fundings.iter().position(|f| f.funder_id == funder_id) {
                     let mut funding = fundings[position].clone();
                     funding.project_name = project_name;
                     // we must acknowledge that replace returns a value, even if we don't want it
@@ -229,12 +216,8 @@ impl Component for FundingsFormComponent {
                     true => None,
                     false => Some(project_shortname_value),
                 };
-                let mut fundings: Vec<Funding> =
-                    self.props.fundings.clone().unwrap_or_default();
-                if let Some(position) = fundings
-                    .iter()
-                    .position(|f| f.funder_id == funder_id)
-                {
+                let mut fundings: Vec<Funding> = self.props.fundings.clone().unwrap_or_default();
+                if let Some(position) = fundings.iter().position(|f| f.funder_id == funder_id) {
                     let mut funding = fundings[position].clone();
                     funding.project_shortname = project_shortname;
                     // we must acknowledge that replace returns a value, even if we don't want it
@@ -256,12 +239,8 @@ impl Component for FundingsFormComponent {
                     true => None,
                     false => Some(grant_number_value),
                 };
-                let mut fundings: Vec<Funding> =
-                    self.props.fundings.clone().unwrap_or_default();
-                if let Some(position) = fundings
-                    .iter()
-                    .position(|f| f.funder_id == funder_id)
-                {
+                let mut fundings: Vec<Funding> = self.props.fundings.clone().unwrap_or_default();
+                if let Some(position) = fundings.iter().position(|f| f.funder_id == funder_id) {
                     let mut funding = fundings[position].clone();
                     funding.grant_number = grant_number;
                     // we must acknowledge that replace returns a value, even if we don't want it
@@ -283,12 +262,8 @@ impl Component for FundingsFormComponent {
                     true => None,
                     false => Some(jurisdiction_value),
                 };
-                let mut fundings: Vec<Funding> =
-                    self.props.fundings.clone().unwrap_or_default();
-                if let Some(position) = fundings
-                    .iter()
-                    .position(|f| f.funder_id == funder_id)
-                {
+                let mut fundings: Vec<Funding> = self.props.fundings.clone().unwrap_or_default();
+                if let Some(position) = fundings.iter().position(|f| f.funder_id == funder_id) {
                     let mut funding = fundings[position].clone();
                     funding.jurisdiction = jurisdiction;
                     // we must acknowledge that replace returns a value, even if we don't want it

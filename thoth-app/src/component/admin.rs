@@ -2,11 +2,11 @@ use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
 
+use crate::component::contributor::ContributorComponent;
 use crate::component::contributors::ContributorsComponent;
 use crate::component::dashboard::DashboardComponent;
 use crate::component::imprints::ImprintsComponent;
 use crate::component::menu::MenuComponent;
-use crate::component::contributor::ContributorComponent;
 use crate::component::publications::PublicationsComponent;
 use crate::component::publishers::PublishersComponent;
 use crate::component::serieses::SeriesesComponent;

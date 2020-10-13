@@ -1,9 +1,9 @@
 use serde::Deserialize;
 use serde::Serialize;
 use yew::html;
+use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
-use yew::prelude::Html;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -30,22 +30,22 @@ impl Default for Contributor {
 }
 
 impl Contributor {
-      pub fn as_dropdown_item(&self, callback: Callback<MouseEvent>) -> Html {
-          // since contributions dropdown has an onblur event, we need to use onmousedown i  nstead of
-          // onclick. This is not ideal, but it seems to be the only event that'd do the ca  lback
-          // without disabling onblur so that onclick can take effect
-          html! {
-              <div onmousedown=callback class="dropdown-item">
-              {
-                if let Some(orcid) = &self.orcid {
-                    format!("{} - {}", &self.full_name, orcid)
-                  } else {
-                    format!("{}", &self.full_name )
-                  }
-              }
-              </div>
-          }
-      }
+    pub fn as_dropdown_item(&self, callback: Callback<MouseEvent>) -> Html {
+        // since contributions dropdown has an onblur event, we need to use onmousedown i  nstead of
+        // onclick. This is not ideal, but it seems to be the only event that'd do the ca  lback
+        // without disabling onblur so that onclick can take effect
+        html! {
+            <div onmousedown=callback class="dropdown-item">
+            {
+              if let Some(orcid) = &self.orcid {
+                  format!("{} - {}", &self.full_name, orcid)
+                } else {
+                  format!("{}", &self.full_name )
+                }
+            }
+            </div>
+        }
+    }
 }
 
 pub mod contributor_query;

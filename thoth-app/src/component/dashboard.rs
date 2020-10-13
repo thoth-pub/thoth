@@ -6,10 +6,10 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::models::stats::stats_query::FetchActionStats;
-use crate::models::stats::stats_query::FetchStats;
 use crate::component::utils::Loader;
 use crate::component::utils::Reloader;
+use crate::models::stats::stats_query::FetchActionStats;
+use crate::models::stats::stats_query::FetchStats;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
@@ -65,7 +65,9 @@ impl Component for DashboardComponent {
 
     fn view(&self) -> Html {
         match self.get_stats.as_ref().state() {
-            FetchState::NotFetching(_) => html! {<Reloader onclick=self.link.callback(|_| Msg::GetStats)/>},
+            FetchState::NotFetching(_) => {
+                html! {<Reloader onclick=self.link.callback(|_| Msg::GetStats)/>}
+            }
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(body) => html! {
                 <div class="tile is-ancestor">

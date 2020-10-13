@@ -114,10 +114,16 @@ impl QueryRoot {
             ),
         )
     )]
-    fn publications(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Publication> {
+    fn publications(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+    ) -> Vec<Publication> {
         use crate::schema::publication::dsl::*;
         let connection = context.db.get().unwrap();
-        publication.filter(isbn.ilike(format!("%{}%", filter)))
+        publication
+            .filter(isbn.ilike(format!("%{}%", filter)))
             .or_filter(publication_url.ilike(format!("%{}%", filter)))
             .order(publication_type.asc())
             .limit(limit.into())
@@ -151,7 +157,8 @@ impl QueryRoot {
         use crate::schema::publication::dsl::*;
         let connection = context.db.get().unwrap();
         // see comment in work_count()
-        publication.filter(isbn.ilike(format!("%{}%", filter)))
+        publication
+            .filter(isbn.ilike(format!("%{}%", filter)))
             .or_filter(publication_url.ilike(format!("%{}%", filter)))
             .count()
             .get_result::<i64>(&connection)
@@ -217,7 +224,8 @@ impl QueryRoot {
         use crate::schema::publisher::dsl::*;
         let connection = context.db.get().unwrap();
         // see comment in work_count()
-        publisher.filter(publisher_name.ilike(format!("%{}%", filter)))
+        publisher
+            .filter(publisher_name.ilike(format!("%{}%", filter)))
             .or_filter(publisher_shortname.ilike(format!("%{}%", filter)))
             .count()
             .get_result::<i64>(&connection)
@@ -401,7 +409,8 @@ impl QueryRoot {
     fn serieses(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Series> {
         use crate::schema::series::dsl::*;
         let connection = context.db.get().unwrap();
-        series.filter(series_name.ilike(format!("%{}%", filter)))
+        series
+            .filter(series_name.ilike(format!("%{}%", filter)))
             .or_filter(issn_print.ilike(format!("%{}%", filter)))
             .or_filter(issn_digital.ilike(format!("%{}%", filter)))
             .or_filter(series_url.ilike(format!("%{}%", filter)))
@@ -437,7 +446,8 @@ impl QueryRoot {
         use crate::schema::series::dsl::*;
         let connection = context.db.get().unwrap();
         // see comment in work_count()
-        series.filter(series_name.ilike(format!("%{}%", filter)))
+        series
+            .filter(series_name.ilike(format!("%{}%", filter)))
             .or_filter(issn_print.ilike(format!("%{}%", filter)))
             .or_filter(issn_digital.ilike(format!("%{}%", filter)))
             .or_filter(series_url.ilike(format!("%{}%", filter)))
@@ -1039,26 +1049,40 @@ impl Work {
             publication_type(description = "A specific type to filter by"),
         )
     )]
-    pub fn publications(&self, context: &Context, limit: i32, offset: i32, filter: String, publication_type: Option<PublicationType>) -> Vec<Publication> {
+    pub fn publications(
+        &self,
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+        publication_type: Option<PublicationType>,
+    ) -> Vec<Publication> {
         let connection = context.db.get().unwrap();
 
         if let Some(pub_type) = publication_type {
             use crate::schema::publication::dsl::*;
 
-            publication.filter(work_id.eq(self.work_id))
+            publication
+                .filter(work_id.eq(self.work_id))
                 .filter(publication_type.eq(pub_type))
-                .filter(isbn.ilike(format!("%{}%", filter)).or(publication_url.ilike(format!("%{}%", filter))))
+                .filter(
+                    isbn.ilike(format!("%{}%", filter))
+                        .or(publication_url.ilike(format!("%{}%", filter))),
+                )
                 .order(publication_type.asc())
                 .limit(limit.into())
                 .offset(offset.into())
                 .load::<Publication>(&connection)
                 .expect("Error loading publications")
-
         } else {
             use crate::schema::publication::dsl::*;
 
-            publication.filter(work_id.eq(self.work_id))
-                .filter(isbn.ilike(format!("%{}%", filter)).or(publication_url.ilike(format!("%{}%", filter))))
+            publication
+                .filter(work_id.eq(self.work_id))
+                .filter(
+                    isbn.ilike(format!("%{}%", filter))
+                        .or(publication_url.ilike(format!("%{}%", filter))),
+                )
                 .order(publication_type.asc())
                 .limit(limit.into())
                 .offset(offset.into())
@@ -1078,7 +1102,13 @@ impl Work {
             ),
         )
     )]
-    pub fn subjects(&self, context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Subject> {
+    pub fn subjects(
+        &self,
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+    ) -> Vec<Subject> {
         use crate::schema::subject::dsl::*;
         let connection = context.db.get().unwrap();
         subject

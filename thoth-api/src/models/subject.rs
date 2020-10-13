@@ -5,8 +5,8 @@ use std::fmt;
 use std::str::FromStr;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
 use crate::errors::Result;
+use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::subject;
 
@@ -102,8 +102,14 @@ fn test_subjecttype_fromstr() {
     assert_eq!(SubjectType::from_str("BISAC").unwrap(), SubjectType::Bisac);
     assert_eq!(SubjectType::from_str("Thema").unwrap(), SubjectType::Thema);
     assert_eq!(SubjectType::from_str("LCC").unwrap(), SubjectType::Lcc);
-    assert_eq!(SubjectType::from_str("Custom").unwrap(), SubjectType::Custom);
-    assert_eq!(SubjectType::from_str("Keyword").unwrap(), SubjectType::Keyword);
+    assert_eq!(
+        SubjectType::from_str("Custom").unwrap(),
+        SubjectType::Custom
+    );
+    assert_eq!(
+        SubjectType::from_str("Keyword").unwrap(),
+        SubjectType::Keyword
+    );
 
     assert!(SubjectType::from_str("bic").is_err());
     assert!(SubjectType::from_str("Library of Congress Subject Code").is_err());

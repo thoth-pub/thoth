@@ -9,6 +9,9 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
+use crate::component::utils::FormBooleanSelect;
+use crate::component::utils::FormLanguageCodeSelect;
+use crate::component::utils::FormLanguageRelationSelect;
 use crate::models::language::language_codes_query::FetchActionLanguageCodes;
 use crate::models::language::language_codes_query::FetchLanguageCodes;
 use crate::models::language::language_relations_query::FetchActionLanguageRelations;
@@ -16,13 +19,10 @@ use crate::models::language::language_relations_query::FetchLanguageRelations;
 use crate::models::language::Language;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
-use crate::component::utils::FormLanguageCodeSelect;
-use crate::component::utils::FormLanguageRelationSelect;
-use crate::component::utils::FormBooleanSelect;
-use crate::string::YES;
-use crate::string::NO;
 use crate::string::EMPTY_LANGUAGES;
+use crate::string::NO;
 use crate::string::REMOVE_BUTTON;
+use crate::string::YES;
 
 pub struct LanguagesFormComponent {
     props: Props,
@@ -94,8 +94,7 @@ impl Component for LanguagesFormComponent {
             }
             Msg::SetLanguageCodesFetchState(fetch_state) => {
                 self.fetch_language_codes.apply(fetch_state);
-                self.data.language_codes = match self.fetch_language_codes.as_ref().state()
-                {
+                self.data.language_codes = match self.fetch_language_codes.as_ref().state() {
                     FetchState::NotFetching(_) => vec![],
                     FetchState::Fetching(_) => vec![],
                     FetchState::Fetched(body) => body.data.language_codes.enum_values.clone(),
@@ -105,7 +104,8 @@ impl Component for LanguagesFormComponent {
             }
             Msg::GetLanguageCodes => {
                 self.link.send_future(
-                    self.fetch_language_codes.fetch(Msg::SetLanguageCodesFetchState),
+                    self.fetch_language_codes
+                        .fetch(Msg::SetLanguageCodesFetchState),
                 );
                 self.link
                     .send_message(Msg::SetLanguageCodesFetchState(FetchAction::Fetching));
@@ -162,7 +162,7 @@ impl Component for LanguagesFormComponent {
                 self.props.update_languages.emit(Some(to_keep));
                 true
             }
-            Msg::DoNothing => false,  // callbacks need to return a message
+            Msg::DoNothing => false, // callbacks need to return a message
         }
     }
 

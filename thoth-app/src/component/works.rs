@@ -9,19 +9,19 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::models::work::Work;
+use crate::component::utils::Loader;
+use crate::component::utils::Reloader;
 use crate::models::work::works_query::FetchActionWorks;
 use crate::models::work::works_query::FetchWorks;
 use crate::models::work::works_query::Variables;
-use crate::models::work::works_query::WORKS_QUERY;
 use crate::models::work::works_query::WorksRequest;
 use crate::models::work::works_query::WorksRequestBody;
-use crate::component::utils::Loader;
-use crate::component::utils::Reloader;
+use crate::models::work::works_query::WORKS_QUERY;
+use crate::models::work::Work;
 use crate::route::AppRoute;
 use crate::string::NEXT_PAGE_BUTTON;
-use crate::string::PREVIOUS_PAGE_BUTTON;
 use crate::string::PAGINATION_COUNT_WORKS;
+use crate::string::PREVIOUS_PAGE_BUTTON;
 
 pub struct WorksComponent {
     limit: i32,
@@ -244,7 +244,10 @@ impl WorksComponent {
             true => self.result_count,
             false => self.limit,
         };
-        format!("{} {}-{} of {}", PAGINATION_COUNT_WORKS, offset_display, limit_display, self.result_count)
+        format!(
+            "{} {}-{} of {}",
+            PAGINATION_COUNT_WORKS, offset_display, limit_display, self.result_count
+        )
     }
 
     fn is_previous_disabled(&self) -> bool {

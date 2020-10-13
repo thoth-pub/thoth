@@ -93,13 +93,34 @@ fn test_publicationtype_display() {
 
 #[test]
 fn test_publicationtype_fromstr() {
-    assert_eq!(PublicationType::from_str("Paperback").unwrap(), PublicationType::Paperback);
-    assert_eq!(PublicationType::from_str("Hardback").unwrap(), PublicationType::Hardback);
-    assert_eq!(PublicationType::from_str("PDF").unwrap(), PublicationType::PDF);
-    assert_eq!(PublicationType::from_str("HTML").unwrap(), PublicationType::HTML);
-    assert_eq!(PublicationType::from_str("XML").unwrap(), PublicationType::XML);
-    assert_eq!(PublicationType::from_str("Epub").unwrap(), PublicationType::Epub);
-    assert_eq!(PublicationType::from_str("Mobi").unwrap(), PublicationType::Mobi);
+    assert_eq!(
+        PublicationType::from_str("Paperback").unwrap(),
+        PublicationType::Paperback
+    );
+    assert_eq!(
+        PublicationType::from_str("Hardback").unwrap(),
+        PublicationType::Hardback
+    );
+    assert_eq!(
+        PublicationType::from_str("PDF").unwrap(),
+        PublicationType::PDF
+    );
+    assert_eq!(
+        PublicationType::from_str("HTML").unwrap(),
+        PublicationType::HTML
+    );
+    assert_eq!(
+        PublicationType::from_str("XML").unwrap(),
+        PublicationType::XML
+    );
+    assert_eq!(
+        PublicationType::from_str("Epub").unwrap(),
+        PublicationType::Epub
+    );
+    assert_eq!(
+        PublicationType::from_str("Mobi").unwrap(),
+        PublicationType::Mobi
+    );
 
     assert!(PublicationType::from_str("PNG").is_err());
     assert!(PublicationType::from_str("Latex").is_err());

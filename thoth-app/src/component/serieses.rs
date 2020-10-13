@@ -8,11 +8,11 @@ use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
-use crate::models::series::Series;
-use crate::models::series::serieses_query::FetchActionSerieses;
-use crate::models::series::serieses_query::FetchSerieses;
 use crate::component::utils::Loader;
 use crate::component::utils::Reloader;
+use crate::models::series::serieses_query::FetchActionSerieses;
+use crate::models::series::serieses_query::FetchSerieses;
+use crate::models::series::Series;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
@@ -78,7 +78,9 @@ impl Component for SeriesesComponent {
 
     fn view(&self) -> Html {
         match self.markdown.as_ref().state() {
-            FetchState::NotFetching(_) => html! {<Reloader onclick=self.link.callback(|_| Msg::GetMarkdown)/>},
+            FetchState::NotFetching(_) => {
+                html! {<Reloader onclick=self.link.callback(|_| Msg::GetMarkdown)/>}
+            }
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(body) => html! {
                 <>

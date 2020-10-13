@@ -9,20 +9,20 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
+use crate::component::utils::FormBooleanSelect;
+use crate::component::utils::FormContributionTypeSelect;
+use crate::component::utils::FormTextInput;
 use crate::models::contribution::contribution_types_query::FetchActionContributionTypes;
 use crate::models::contribution::contribution_types_query::FetchContributionTypes;
+use crate::models::contribution::Contribution;
+use crate::models::contribution::ContributionTypeValues;
 use crate::models::contributor::contributors_query::ContributorsRequest;
 use crate::models::contributor::contributors_query::ContributorsRequestBody;
 use crate::models::contributor::contributors_query::FetchActionContributors;
 use crate::models::contributor::contributors_query::FetchContributors;
 use crate::models::contributor::contributors_query::Variables;
 use crate::models::contributor::contributors_query::CONTRIBUTORS_QUERY;
-use crate::models::contribution::Contribution;
-use crate::models::contribution::ContributionTypeValues;
 use crate::models::contributor::Contributor;
-use crate::component::utils::FormBooleanSelect;
-use crate::component::utils::FormContributionTypeSelect;
-use crate::component::utils::FormTextInput;
 use crate::string::EMPTY_CONTRIBUTIONS;
 use crate::string::REMOVE_BUTTON;
 

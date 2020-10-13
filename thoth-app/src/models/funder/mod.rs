@@ -1,9 +1,9 @@
 use serde::Deserialize;
 use serde::Serialize;
 use yew::html;
+use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
-use yew::prelude::Html;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

@@ -1548,8 +1548,14 @@ impl FromStr for LanguageCode {
 #[test]
 fn test_languagerelation_display() {
     assert_eq!(format!("{}", LanguageRelation::Original), "Original");
-    assert_eq!(format!("{}", LanguageRelation::TranslatedFrom), "Translated From");
-    assert_eq!(format!("{}", LanguageRelation::TranslatedInto), "Translated Into");
+    assert_eq!(
+        format!("{}", LanguageRelation::TranslatedFrom),
+        "Translated From"
+    );
+    assert_eq!(
+        format!("{}", LanguageRelation::TranslatedInto),
+        "Translated Into"
+    );
 }
 
 #[test]
@@ -2045,9 +2051,18 @@ fn test_languagecode_display() {
 
 #[test]
 fn test_languagerelation_fromstr() {
-    assert_eq!(LanguageRelation::from_str("Original").unwrap(), LanguageRelation::Original);
-    assert_eq!(LanguageRelation::from_str("Translated From").unwrap(), LanguageRelation::TranslatedFrom);
-    assert_eq!(LanguageRelation::from_str("Translated Into").unwrap(), LanguageRelation::TranslatedInto);
+    assert_eq!(
+        LanguageRelation::from_str("Original").unwrap(),
+        LanguageRelation::Original
+    );
+    assert_eq!(
+        LanguageRelation::from_str("Translated From").unwrap(),
+        LanguageRelation::TranslatedFrom
+    );
+    assert_eq!(
+        LanguageRelation::from_str("Translated Into").unwrap(),
+        LanguageRelation::TranslatedInto
+    );
 
     assert!(LanguageRelation::from_str("Invented").is_err());
 }
