@@ -9,9 +9,9 @@
 
   <p>
     <a href="https://travis-ci.com/openbookpublishers/thoth"><img alt="Travis Info" src="https://travis-ci.com/openbookpublishers/thoth.svg?branch=master"/></a>
-    <a href="https://github.com/openbookpublishers/thoth/releases"><img alt="Thoth Releases" src="https://img.shields.io/github/release/openbookpublishers/thoth.svg?colorB=58839b&maxAge=86400"/></a>
+    <a href="https://github.com/thoth-pub/thoth/releases"><img alt="Thoth Releases" src="https://img.shields.io/github/release/thoth-pub/thoth.svg?colorB=58839b&maxAge=86400"/></a>
     <a href="https://crates.io/crates/thoth"><img alt="Crate Info" src="https://img.shields.io/crates/v/thoth.svg?maxAge=86400"/></a>
-    <a href="https://github.com/openbookpublishers/thoth/blob/master/LICENSE"><img alt="License Info" src="https://img.shields.io/github/license/openbookpublishers/thoth.svg?colorB=blue"/></a>
+    <a href="https://github.com/thoth-pub/thoth/blob/master/LICENSE"><img alt="License Info" src="https://img.shields.io/github/license/thoth-pub/thoth.svg?colorB=blue"/></a>
   </p>
 </div>
 
