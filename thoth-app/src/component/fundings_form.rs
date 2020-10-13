@@ -337,7 +337,16 @@ impl Component for FundingsFormComponent {
                         </div>
                         <div class="dropdown-menu" id="funders-menu" role="menu">
                             <div class="dropdown-content">
-                                { for self.data.funders.iter().map(|c| self.render_funders(c)) }
+                                {
+                                    for self.data.funders.iter().map(|f| {
+                                        let funder = f.clone();
+                                        f.as_dropdown_item(
+                                            self.link.callback(move |_| {
+                                                Msg::AddFunding(funder.clone())
+                                            })
+                                        )
+                                    })
+                                }
                             </div>
                         </div>
                     </div>
@@ -363,27 +372,6 @@ impl FundingsFormComponent {
         match self.show_results {
             true => "dropdown is-active".to_string(),
             false => "dropdown".to_string(),
-        }
-    }
-
-    fn render_funders(&self, f: &Funder) -> Html {
-        let funder = f.clone();
-        // since funders dropdown has an onblur event, we need to use onmousedown instead of
-        // onclick. This is not ideal, but it seems to be the only event that'd do the calback
-        // without disabling onblur so that onclick can take effect
-        html! {
-            <div
-                onmousedown=self.link.callback(move |_| Msg::AddFunding(funder.clone()))
-                class="dropdown-item"
-            >
-            {
-                if let Some(doi) = &f.funder_doi {
-                    format!("{} - {}", &f.funder_name, doi)
-                } else {
-                    format!("{}", &f.funder_name )
-                }
-            }
-            </div>
         }
     }
 
