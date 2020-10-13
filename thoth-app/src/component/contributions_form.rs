@@ -322,7 +322,26 @@ impl Component for ContributionsFormComponent {
                         </div>
                         <div class="dropdown-menu" id="contributors-menu" role="menu">
                             <div class="dropdown-content">
-                                { for self.data.contributors.iter().map(|c| self.render_contributors(c)) }
+                                {
+                                    for self.data.contributors.iter().map(|c| {
+                                        let contributor = c.clone();
+                                        // avoid listing contributors already present in contributions list
+                                        if let Some(_index) = self.props.contributions
+                                            .as_ref()
+                                            .unwrap()
+                                            .iter()
+                                            .position(|ctr| ctr.contributor_id == contributor.contributor_id)
+                                        {
+                                            html! {}
+                                        } else {
+                                            c.as_dropdown_item(
+                                                self.link.callback(move |_| {
+                                                    Msg::AddContribution(contributor.clone())
+                                                })
+                                            )
+                                        }
+                                    })
+                                }
                             </div>
                         </div>
                     </div>
@@ -348,37 +367,6 @@ impl ContributionsFormComponent {
         match self.show_results {
             true => "dropdown is-active".to_string(),
             false => "dropdown".to_string(),
-        }
-    }
-
-    fn render_contributors(&self, c: &Contributor) -> Html {
-        let contributor = c.clone();
-        // avoid listing contributors already present in contributions list
-        if let Some(_index) = self.props.contributions
-            .as_ref()
-            .unwrap()
-            .iter()
-            .position(|ctr| ctr.contributor_id == contributor.contributor_id)
-        {
-            html! {}
-        } else {
-            // since contributors dropdown has an onblur event, we need to use onmousedown instead of
-            // onclick. This is not ideal, but it seems to be the only event that'd do the calback
-            // without disabling onblur so that onclick can take effect
-            html! {
-                <div
-                    onmousedown=self.link.callback(move |_| Msg::AddContribution(contributor.clone()))
-                    class="dropdown-item"
-                >
-                {
-                    if let Some(orcid) = &c.orcid {
-                        format!("{} - {}", &c.full_name, orcid)
-                    } else {
-                        format!("{}", &c.full_name )
-                    }
-                }
-                </div>
-            }
         }
     }
 
