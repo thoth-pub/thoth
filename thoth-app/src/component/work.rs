@@ -15,6 +15,7 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::models::contribution::Contribution;
+use crate::models::funding::Funding;
 use crate::models::imprint::Imprint;
 use crate::models::issue::Issue;
 use crate::models::publication::Publication;
@@ -30,6 +31,7 @@ use crate::models::work::work_query::WorkRequest;
 use crate::models::work::work_query::WorkRequestBody;
 use crate::models::work::work_query::WORK_QUERY;
 use crate::component::contributions_form::ContributionsFormComponent;
+use crate::component::fundings_form::FundingsFormComponent;
 use crate::component::issues_form::IssuesFormComponent;
 use crate::component::languages_form::LanguagesFormComponent;
 use crate::component::publications_form::PublicationsFormComponent;
@@ -91,6 +93,7 @@ pub enum Msg {
     ChangeCoverUrl(String),
     ChangeCoverCaption(String),
     UpdateContributions(Option<Vec<Contribution>>),
+    UpdateFundings(Option<Vec<Funding>>),
     UpdatePublications(Option<Vec<Publication>>),
     UpdateLanguages(Option<Vec<Language>>),
     UpdateSubjects(Option<Vec<Subject>>),
@@ -273,6 +276,9 @@ impl Component for WorkComponent {
             }
             Msg::UpdateContributions(contributions) => {
                 self.work.contributions.neq_assign(contributions)
+            }
+            Msg::UpdateFundings(fundings) => {
+                self.work.fundings.neq_assign(fundings)
             }
             Msg::UpdatePublications(publications) => {
                 self.work.publications.neq_assign(publications)
@@ -537,6 +543,11 @@ impl Component for WorkComponent {
                             issues=&self.work.issues
                             work_id=&self.work.work_id
                             update_issues=self.link.callback(|i: Option<Vec<Issue>>| Msg::UpdateIssues(i))
+                        />
+                        <FundingsFormComponent
+                            fundings=&self.work.fundings
+                            work_id=&self.work.work_id
+                            update_fundings=self.link.callback(|f: Option<Vec<Funding>>| Msg::UpdateFundings(f))
                         />
 
                         <div class="field">

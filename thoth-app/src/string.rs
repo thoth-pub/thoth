@@ -21,4 +21,5 @@ strings! {
     EMPTY_LANGUAGES => "This work does not have any languages. Search above to add a new language.",
     EMPTY_PUBLICATIONS => "This work does not have any publications. Click above to add associated publications",
     EMPTY_SUBJECTS => "This work does not have any subjects. Click above to add associated subjects",
+    EMPTY_FUNDINGS => "This work does not have any funding. Click above to add associated funding",
 }

@@ -95,6 +95,8 @@ macro_rules! query_builder {
 
 pub mod contribution;
 pub mod contributor;
+pub mod funder;
+pub mod funding;
 pub mod imprint;
 pub mod issue;
 pub mod language;

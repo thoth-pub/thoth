@@ -10,6 +10,7 @@ use yew::prelude::Html;
 
 use super::contribution::Contribution;
 use super::publication::Publication;
+use super::funding::Funding;
 use super::issue::Issue;
 use super::imprint::Imprint;
 use super::language::Language;
@@ -53,6 +54,7 @@ pub struct Work {
     pub contributions: Option<Vec<Contribution>>,
     pub publications: Option<Vec<Publication>>,
     pub languages: Option<Vec<Language>>,
+    pub fundings: Option<Vec<Funding>>,
     pub subjects: Option<Vec<Subject>>,
     pub issues: Option<Vec<Issue>>,
     pub imprint: Imprint,
@@ -221,6 +223,7 @@ impl Default for Work {
             contributions: None,
             publications: None,
             languages: None,
+            fundings: None,
             subjects: None,
             issues: None,
             imprint: Default::default(),

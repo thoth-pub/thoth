@@ -64,6 +64,16 @@ pub const WORK_QUERY: &str = "
                 languageRelation
                 mainLanguage
             }
+            fundings {
+                fundingId
+                workId
+                funderId
+                program
+                projectName
+                projectShortname
+                grantNumber
+                jurisdiction
+            }
             subjects {
                 subjectId
                 workId
