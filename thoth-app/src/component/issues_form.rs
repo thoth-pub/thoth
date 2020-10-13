@@ -120,7 +120,7 @@ impl Component for IssuesFormComponent {
                 let series_id = series.series_id.clone();
                 let issue = Issue {
                     work_id: self.props.work_id.clone(),
-                    series_id: series_id.clone(),
+                    series_id,
                     issue_ordinal: 1,
                     series,
                 };
@@ -172,7 +172,7 @@ impl Component for IssuesFormComponent {
     }
 
     fn view(&self) -> Html {
-        let issues = self.props.issues.clone().unwrap_or_else(|| vec![]);
+        let issues = self.props.issues.clone().unwrap_or_default();
         html! {
             <nav class="panel">
                 <p class="panel-heading">

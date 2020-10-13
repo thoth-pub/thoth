@@ -171,7 +171,7 @@ impl Component for LanguagesFormComponent {
     }
 
     fn view(&self) -> Html {
-        let languages = self.props.languages.clone().unwrap_or_else(|| vec![]);
+        let languages = self.props.languages.clone().unwrap_or_default();
         let open_modal = self.link.callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(true)
@@ -246,7 +246,7 @@ impl Component for LanguagesFormComponent {
                                     onchange=self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
-                                            let boolean = value == "true".to_string();
+                                            let boolean = value == "true";
                                             Msg::ChangeMainLanguage(boolean)
                                         }
                                         _ => unreachable!(),

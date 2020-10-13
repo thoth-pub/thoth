@@ -142,7 +142,7 @@ impl Component for SubjectsFormComponent {
     }
 
     fn view(&self) -> Html {
-        let subjects = self.props.subjects.clone().unwrap_or_else(|| vec![]);
+        let subjects = self.props.subjects.clone().unwrap_or_default();
         let open_modal = self.link.callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(true)

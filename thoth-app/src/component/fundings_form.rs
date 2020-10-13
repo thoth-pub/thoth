@@ -141,7 +141,7 @@ impl Component for FundingsFormComponent {
                 let funding = Funding {
                     funding_id: "".to_string(),
                     work_id: self.props.work_id.clone(),
-                    funder_id: funder_id.clone(),
+                    funder_id,
                     program: None,
                     project_name: None,
                     project_shortname: None,
@@ -308,7 +308,7 @@ impl Component for FundingsFormComponent {
     }
 
     fn view(&self) -> Html {
-        let fundings = self.props.fundings.clone().unwrap_or_else(|| vec![]);
+        let fundings = self.props.fundings.clone().unwrap_or_default();
         html! {
             <nav class="panel">
                 <p class="panel-heading">

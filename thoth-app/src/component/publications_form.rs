@@ -139,7 +139,7 @@ impl Component for PublicationsFormComponent {
     }
 
     fn view(&self) -> Html {
-        let publications = self.props.publications.clone().unwrap_or_else(|| vec![]);
+        let publications = self.props.publications.clone().unwrap_or_default();
         let open_modal = self.link.callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(true)

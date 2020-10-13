@@ -169,7 +169,7 @@ impl Component for ContributionsFormComponent {
                 let contributor_id = contributor.contributor_id.clone();
                 let contribution = Contribution {
                     work_id: self.props.work_id.clone(),
-                    contributor_id: contributor_id.clone(),
+                    contributor_id,
                     contribution_type: ContributionType::Author,
                     main_contribution: false,
                     biography: None,
@@ -273,7 +273,7 @@ impl Component for ContributionsFormComponent {
                     .position(|c| c.contributor_id == contributor_id)
                 {
                     let mut contribution = contributions[position].clone();
-                    contribution.main_contribution = self.maincontribution_value.clone();
+                    contribution.main_contribution = self.maincontribution_value;
                     let _ = std::mem::replace(&mut contributions[position], contribution);
                     self.props.update_contributions.emit(Some(contributions));
                     self.maincontribution_value = false;
@@ -293,7 +293,7 @@ impl Component for ContributionsFormComponent {
     }
 
     fn view(&self) -> Html {
-        let contributions = self.props.contributions.clone().unwrap_or_else(|| vec![]);
+        let contributions = self.props.contributions.clone().unwrap_or_default();
         html! {
             <nav class="panel">
                 <p class="panel-heading">
@@ -424,7 +424,7 @@ impl ContributionsFormComponent {
                         onchange=self.link.callback(|event| match event {
                             ChangeData::Select(elem) => {
                                 let value = elem.value();
-                                let boolean = value == "true".to_string();
+                                let boolean = value == "true";
                                 Msg::ChangeMainContributionEditValue(boolean)
                             }
                             _ => unreachable!(),

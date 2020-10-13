@@ -107,9 +107,9 @@ impl Work {
 
     pub fn publisher(&self) -> String {
         if let Some(short_name) = &self.imprint.publisher.publisher_shortname.clone() {
-            format!("{}", short_name)
+            short_name.to_string()
         } else {
-            format!("{}", self.imprint.publisher.publisher_name)
+            self.imprint.publisher.publisher_name.to_string()
         }
     }
 
