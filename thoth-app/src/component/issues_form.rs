@@ -201,7 +201,26 @@ impl Component for IssuesFormComponent {
                         </div>
                         <div class="dropdown-menu" id="serieses-menu" role="menu">
                             <div class="dropdown-content">
-                                { for self.data.serieses.iter().map(|c| self.render_serieses(c)) }
+                                {
+                                    for self.data.serieses.iter().map(|s| {
+                                        let series = s.clone();
+                                        // avoid listing series already present in issues list
+                                        if let Some(_index) = self.props.issues
+                                            .as_ref()
+                                            .unwrap()
+                                            .iter()
+                                            .position(|ser| ser.series_id == series.series_id)
+                                        {
+                                            html! {}
+                                        } else {
+                                            s.as_dropdown_item(
+                                                self.link.callback(move |_| {
+                                                    Msg::AddIssue(series.clone())
+                                                })
+                                            )
+                                        }
+                                    })
+                                }
                             </div>
                         </div>
                     </div>
@@ -227,31 +246,6 @@ impl IssuesFormComponent {
         match self.show_results {
             true => "dropdown is-active".to_string(),
             false => "dropdown".to_string(),
-        }
-    }
-
-    fn render_serieses(&self, s: &Series) -> Html {
-        let series = s.clone();
-        // avoid listing serieses already present in issues list
-        if let Some(_index) = self.props.issues
-            .as_ref()
-            .unwrap()
-            .iter()
-            .position(|ser| ser.series_id == series.series_id)
-        {
-            html! {}
-        } else {
-            // since serieses dropdown has an onblur event, we need to use onmousedown instead of
-            // onclick. This is not ideal, but it seems to be the only event that'd do the calback
-            // without disabling onblur so that onclick can take effect
-            html! {
-                <div
-                    onmousedown=self.link.callback(move |_| Msg::AddIssue(series.clone()))
-                    class="dropdown-item"
-                >
-                { format!("{} ({}, {})", s.series_name, s.issn_print, s.issn_digital) }
-                </div>
-            }
         }
     }
 
