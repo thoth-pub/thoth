@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use actix_cors::Cors;
 use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
+use actix_web::middleware::Logger;
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
@@ -75,8 +76,11 @@ fn config(cfg: &mut web::ServiceConfig) {
 
 #[actix_rt::main]
 pub async fn start_server(port: String) -> io::Result<()> {
+    env_logger::init();
+
     HttpServer::new(move || {
         App::new()
+            .wrap(Logger::default())
             .wrap(
                 Cors::new()
                     .allowed_methods(vec!["GET", "POST", "OPTIONS"])

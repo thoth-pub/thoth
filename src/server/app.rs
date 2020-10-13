@@ -5,6 +5,7 @@ use actix_web::web;
 use actix_web::App;
 use actix_web::HttpResponse;
 use actix_web::HttpServer;
+use actix_web::middleware::Logger;
 use dotenv::dotenv;
 
 const NO_CACHE: &str = "no-cache";
@@ -77,8 +78,11 @@ async fn index() -> HttpResponse {
 
 #[actix_rt::main]
 pub async fn start_server(port: String) -> io::Result<()> {
+    env_logger::init();
+
     HttpServer::new(move || {
         App::new()
+            .wrap(Logger::default())
             .wrap(
                 Cors::new()
                     .allowed_methods(vec!["GET", "POST", "OPTIONS"])
