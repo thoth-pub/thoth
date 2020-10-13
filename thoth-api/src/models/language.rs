@@ -1040,7 +1040,7 @@ impl FromStr for LanguageRelation {
 
     fn from_str(input: &str) -> std::result::Result<LanguageRelation, ThothError> {
         match input {
-            "BIC" => Ok(LanguageRelation::Original),
+            "Original" => Ok(LanguageRelation::Original),
             "Translated From" => Ok(LanguageRelation::TranslatedFrom),
             "Translated Into" => Ok(LanguageRelation::TranslatedInto),
             _ => Err(ThothError::InvalidLanguageRelation(input.to_string())),
