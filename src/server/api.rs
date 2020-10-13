@@ -2,8 +2,8 @@ use std::io;
 use std::sync::Arc;
 
 use actix_cors::Cors;
-use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
 use actix_web::middleware::Logger;
+use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;

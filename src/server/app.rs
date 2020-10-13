@@ -1,11 +1,11 @@
 use std::io;
 
 use actix_cors::Cors;
+use actix_web::middleware::Logger;
 use actix_web::web;
 use actix_web::App;
 use actix_web::HttpResponse;
 use actix_web::HttpServer;
-use actix_web::middleware::Logger;
 use dotenv::dotenv;
 
 const NO_CACHE: &str = "no-cache";
