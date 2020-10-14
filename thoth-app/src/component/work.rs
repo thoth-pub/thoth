@@ -1,6 +1,6 @@
 use std::str::FromStr;
-use thoth_api::models::work::WorkStatus;
-use thoth_api::models::work::WorkType;
+use thoth_api::work::model::WorkStatus;
+use thoth_api::work::model::WorkType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;

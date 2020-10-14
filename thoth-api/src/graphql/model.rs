@@ -6,15 +6,19 @@ use juniper::RootNode;
 use uuid::Uuid;
 
 use crate::db::PgPool;
-use crate::models::contributor::*;
-use crate::models::funder::*;
-use crate::models::language::*;
-use crate::models::price::*;
-use crate::models::publication::*;
-use crate::models::publisher::*;
-use crate::models::series::*;
-use crate::models::subject::*;
-use crate::models::work::*;
+use crate::contributor::model::*;
+use crate::contribution::model::*;
+use crate::funder::model::*;
+use crate::funding::model::*;
+use crate::imprint::model::*;
+use crate::issue::model::*;
+use crate::language::model::*;
+use crate::price::model::*;
+use crate::publication::model::*;
+use crate::publisher::model::*;
+use crate::series::model::*;
+use crate::subject::model::*;
+use crate::work::model::*;
 use crate::schema::*;
 
 #[derive(Clone)]

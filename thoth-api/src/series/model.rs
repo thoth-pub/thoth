@@ -5,8 +5,6 @@ use uuid::Uuid;
 
 use crate::errors::ThothError;
 #[cfg(feature = "backend")]
-use crate::schema::issue;
-#[cfg(feature = "backend")]
 use crate::schema::series;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
@@ -39,21 +37,6 @@ pub struct NewSeries {
     pub issn_digital: String,
     pub series_url: Option<String>,
     pub imprint_id: Uuid,
-}
-
-#[cfg_attr(feature = "backend", derive(Queryable))]
-pub struct Issue {
-    pub series_id: Uuid,
-    pub work_id: Uuid,
-    pub issue_ordinal: i32,
-}
-
-#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
-#[cfg_attr(feature = "backend", table_name = "issue")]
-pub struct NewIssue {
-    pub series_id: Uuid,
-    pub work_id: Uuid,
-    pub issue_ordinal: i32,
 }
 
 impl fmt::Display for SeriesType {

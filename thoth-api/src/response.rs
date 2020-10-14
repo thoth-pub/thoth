@@ -1,5 +1,5 @@
 //! Response specific implementations
-use crate::models::account::*;
+use crate::account::model::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]

@@ -11,14 +11,27 @@ extern crate dotenv;
 #[macro_use]
 extern crate juniper;
 
+pub mod account;
+pub mod contribution;
+pub mod contributor;
 #[cfg(feature = "backend")]
 pub mod db;
 pub mod errors;
+pub mod funder;
+pub mod funding;
 #[cfg(feature = "backend")]
-pub mod graphql_handlers;
-pub mod models;
+pub mod graphql;
+pub mod imprint;
+pub mod issue;
+pub mod language;
+pub mod price;
+pub mod publication;
+pub mod publisher;
 pub mod request;
 pub mod response;
+pub mod series;
+pub mod subject;
+pub mod work;
 #[cfg(feature = "backend")]
 mod schema;
 

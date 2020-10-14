@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::models::series::SeriesType;
+use thoth_api::series::model::SeriesType;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;

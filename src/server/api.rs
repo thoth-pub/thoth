@@ -8,7 +8,7 @@ use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 use thoth_api::db::establish_connection;
-use thoth_api::graphql_handlers::{create_schema, Context, Schema};
+use thoth_api::graphql::model::{create_schema, Context, Schema};
 use thoth_client::work::get_work;
 use uuid::Uuid;
 
