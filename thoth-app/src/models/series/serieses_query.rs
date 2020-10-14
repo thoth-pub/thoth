@@ -16,7 +16,7 @@ pub const SERIESES_QUERY: &str = "
     }
 ";
 
-query_builder! {
+graphql_query_builder! {
     SeriesesRequest,
     SeriesesRequestBody,
     SERIESES_QUERY,

@@ -36,7 +36,7 @@ pub const PUBLICATIONS_QUERY: &str = "
     }
 ";
 
-query_builder! {
+graphql_query_builder! {
     PublicationsRequest,
     PublicationsRequestBody,
     PUBLICATIONS_QUERY,

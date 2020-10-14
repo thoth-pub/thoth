@@ -43,7 +43,7 @@ pub const WORKS_QUERY: &str = "
     }
 ";
 
-query_builder! {
+graphql_query_builder! {
     WorksRequest,
     WorksRequestBody,
     WORKS_QUERY,

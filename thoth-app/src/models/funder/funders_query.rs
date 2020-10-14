@@ -13,7 +13,7 @@ pub const FUNDERS_QUERY: &str = "
     }
 ";
 
-query_builder! {
+graphql_query_builder! {
     FundersRequest,
     FundersRequestBody,
     FUNDERS_QUERY,

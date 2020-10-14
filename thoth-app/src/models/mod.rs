@@ -1,5 +1,5 @@
 #[macro_export]
-macro_rules! query_builder {
+macro_rules! graphql_query_builder {
     (
         $request:ident,
         $request_body:ident,

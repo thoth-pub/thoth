@@ -128,7 +128,7 @@ pub const WORK_QUERY: &str = "
     }
 ";
 
-query_builder! {
+graphql_query_builder! {
     WorkRequest,
     WorkRequestBody,
     WORK_QUERY,

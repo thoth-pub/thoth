@@ -12,7 +12,7 @@ const STATS_QUERY: &str = "
     }
 ";
 
-query_builder! {
+graphql_query_builder! {
     StatsRequest,
     StatsRequestBody,
     STATS_QUERY,

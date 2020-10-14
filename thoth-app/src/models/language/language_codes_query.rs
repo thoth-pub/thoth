@@ -13,7 +13,7 @@ const LANGUAGE_CODES_QUERY: &str = "
     }
 ";
 
-query_builder! {
+graphql_query_builder! {
     LanguageCodesRequest,
     LanguageCodesRequestBody,
     LANGUAGE_CODES_QUERY,

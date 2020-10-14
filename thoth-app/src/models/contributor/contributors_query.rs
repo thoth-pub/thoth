@@ -16,7 +16,7 @@ pub const CONTRIBUTORS_QUERY: &str = "
     }
 ";
 
-query_builder! {
+graphql_query_builder! {
     ContributorsRequest,
     ContributorsRequestBody,
     CONTRIBUTORS_QUERY,
