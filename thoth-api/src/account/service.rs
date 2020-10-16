@@ -37,7 +37,6 @@ pub fn register(
     is_bot: &bool,
     context: &Context,
 ) ->  Result<Account, ThothError> {
-    println!("in");
     let connection = context.db.get().unwrap();
     let account_data = AccountData {
         name: name.to_owned(),
