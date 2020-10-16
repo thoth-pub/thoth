@@ -5,7 +5,7 @@ use juniper::FieldResult;
 use juniper::RootNode;
 use uuid::Uuid;
 
-use crate::db::PgPool;
+use crate::db::Context;
 use crate::contributor::model::*;
 use crate::contribution::model::*;
 use crate::funder::model::*;
@@ -20,11 +20,6 @@ use crate::series::model::*;
 use crate::subject::model::*;
 use crate::work::model::*;
 use crate::schema::*;
-
-#[derive(Clone)]
-pub struct Context {
-    pub db: PgPool,
-}
 
 impl juniper::Context for Context {}
 

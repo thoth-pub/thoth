@@ -10,6 +10,11 @@ use crate::errors;
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
+#[derive(Clone)]
+pub struct Context {
+    pub db: PgPool,
+}
+
 fn init_pool(database_url: &str) -> Result<PgPool, PoolError> {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     let pool = Pool::builder()

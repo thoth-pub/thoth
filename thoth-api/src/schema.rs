@@ -6,11 +6,12 @@ table! {
         name -> Text,
         surname -> Text,
         email -> Text,
-        password -> Text,
+        hash -> Bytea,
+        salt -> Text,
         is_admin -> Bool,
         is_bot -> Bool,
         is_active -> Bool,
-        registered -> Date,
+        registered -> Timestamp,
         token -> Nullable<Text>,
     }
 }

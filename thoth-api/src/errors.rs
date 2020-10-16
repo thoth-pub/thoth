@@ -1,4 +1,8 @@
 use failure::Fail;
+#[cfg(feature = "backend")]
+use actix_web::{error::ResponseError, HttpResponse};
+#[cfg(feature = "backend")]
+use diesel::result::Error as DBError;
 
 pub type Result<T> = std::result::Result<T, failure::Error>;
 
@@ -26,6 +30,8 @@ pub enum ThothError {
     DatabaseError(String),
     #[fail(display = "Internal error: {}", _0)]
     InternalError(String),
+    #[fail(display = "Invalid credentials.")]
+    Unauthorised,
     #[fail(display = "No cookie found.")]
     CookieError(),
 }
@@ -45,6 +51,30 @@ impl juniper::IntoFieldError for ThothError {
                     "type": "INTERNAL_ERROR"
                 }),
             ),
+        }
+    }
+}
+
+#[cfg(feature = "backend")]
+impl ResponseError for ThothError {
+    fn error_response(&self) -> HttpResponse {
+        match self {
+            ThothError::Unauthorised => HttpResponse::Unauthorized().json("Unauthorized"),
+            ThothError::DatabaseError { .. } => HttpResponse::InternalServerError().json("DB error"),
+            _ => HttpResponse::InternalServerError().json("Internal error"),
+        }
+    }
+}
+
+#[cfg(feature = "backend")]
+impl From<DBError> for ThothError {
+    fn from(error: DBError) -> ThothError {
+        match error {
+            DBError::DatabaseError(_kind, info) => {
+                let message = info.details().unwrap_or_else(|| info.message()).to_string();
+                ThothError::DatabaseError(message)
+            }
+            _ => ThothError::InternalError("".into()),
         }
     }
 }

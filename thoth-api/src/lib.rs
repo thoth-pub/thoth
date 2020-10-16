@@ -27,8 +27,6 @@ pub mod language;
 pub mod price;
 pub mod publication;
 pub mod publisher;
-pub mod request;
-pub mod response;
 pub mod series;
 pub mod subject;
 pub mod work;

@@ -7,8 +7,12 @@ use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
+use thoth_api::db::Context;
 use thoth_api::db::establish_connection;
-use thoth_api::graphql::model::{create_schema, Context, Schema};
+use thoth_api::errors::ThothError;
+use thoth_api::graphql::model::{create_schema, Schema};
+use thoth_api::account::model::LoginCredentials;
+use thoth_api::account::service::login;
 use thoth_client::work::get_work;
 use uuid::Uuid;
 
@@ -61,6 +65,19 @@ async fn onix(req: HttpRequest, path: web::Path<(Uuid,)>) -> HttpResponse {
     }
 }
 
+#[post("/account/login")]
+async fn login_credentials(
+    payload: web::Json<LoginCredentials>,
+    ctx: web::Data<Context>,
+) -> Result<HttpResponse, ThothError> {
+    let r = payload.into_inner();
+
+    login(&r.email, &r.password, &ctx).and_then(|account| {
+        let token = account.issue_token(&ctx).unwrap();
+        Ok(HttpResponse::Ok().json(token))
+    })
+}
+
 fn config(cfg: &mut web::ServiceConfig) {
     dotenv().ok();
     let pool = establish_connection();
@@ -72,6 +89,7 @@ fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(graphql);
     cfg.service(graphiql);
     cfg.service(onix);
+    cfg.service(login_credentials);
 }
 
 #[actix_rt::main]
