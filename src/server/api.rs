@@ -1,15 +1,17 @@
+use std::env;
 use std::io;
 use std::sync::Arc;
 
 use actix_cors::Cors;
+use actix_identity::CookieIdentityPolicy;
+use actix_identity::IdentityService;
 use actix_web::middleware::Logger;
-use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
+use actix_web::{web, error, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 use thoth_api::db::Context;
 use thoth_api::db::establish_connection;
-use thoth_api::errors::ThothError;
 use thoth_api::graphql::model::{create_schema, Schema};
 use thoth_api::account::model::LoginCredentials;
 use thoth_api::account::service::login;
@@ -44,7 +46,7 @@ async fn graphql(
 
 #[get("/onix/{uuid}")]
 async fn onix(req: HttpRequest, path: web::Path<(Uuid,)>) -> HttpResponse {
-    let work_id = path.0;
+    let work_id = path.0.0;
     let scheme = if req.app_config().secure() {
         "https".to_string()
     } else {
@@ -69,13 +71,13 @@ async fn onix(req: HttpRequest, path: web::Path<(Uuid,)>) -> HttpResponse {
 async fn login_credentials(
     payload: web::Json<LoginCredentials>,
     ctx: web::Data<Context>,
-) -> Result<HttpResponse, ThothError> {
+) -> Result<HttpResponse, Error> {
     let r = payload.into_inner();
 
     login(&r.email, &r.password, &ctx).and_then(|account| {
         let token = account.issue_token(&ctx).unwrap();
         Ok(HttpResponse::Ok().json(token))
-    })
+    }).map_err(error::ErrorUnauthorized)
 }
 
 fn config(cfg: &mut web::ServiceConfig) {
@@ -96,9 +98,21 @@ fn config(cfg: &mut web::ServiceConfig) {
 pub async fn start_server(port: String) -> io::Result<()> {
     env_logger::init();
 
+    dotenv().ok();
+    let secret_str = env::var("SECRET_KEY").expect("SECRET_KEY must be set");
+    let domain = env::var("THOTH_DOMAIN").expect("THOTH_DOMAIN must be set");
+    let session_duration = env::var("SESSION_DURATION_SECONDS").expect("SESSION_DURATION_SECONDS must be set");
+
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
+            .wrap(IdentityService::new(
+                CookieIdentityPolicy::new(secret_str.as_bytes())
+                    .name("auth")
+                    .path("/")
+                    .domain(&domain)
+                    .max_age(session_duration.parse::<i64>().unwrap()),
+            ))
             .wrap(
                 Cors::new()
                     .allowed_methods(vec!["GET", "POST", "OPTIONS"])
