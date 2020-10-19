@@ -5,6 +5,7 @@ use thoth_api::account::model::Login;
 use thoth_api::account::model::LoginSession;
 use thoth_api::account::model::Session;
 use yew::format::Json;
+use yew::agent::Dispatcher;
 use yew::prelude::*;
 use yew::prelude::worker::*;
 use yew::services::fetch::FetchTask;
@@ -15,6 +16,8 @@ use crate::SESSION_COOKIE;
 use crate::models::Response;
 use crate::fetch;
 use crate::service::cookie::CookieService;
+
+pub type SessionTimerDispatcher = Dispatcher<SessionTimerAgent>;
 
 pub enum Msg {
     Fetch(Response<Login>),
