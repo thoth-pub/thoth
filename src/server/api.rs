@@ -5,6 +5,7 @@ use std::sync::Arc;
 use actix_cors::Cors;
 use actix_identity::CookieIdentityPolicy;
 use actix_identity::IdentityService;
+use actix_identity::Identity;
 use actix_web::middleware::Logger;
 use actix_web::{web, error, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
 use dotenv::dotenv;
@@ -12,8 +13,11 @@ use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 use thoth_api::db::Context;
 use thoth_api::db::establish_connection;
+use thoth_api::errors::ThothError;
 use thoth_api::graphql::model::{create_schema, Schema};
+use thoth_api::account::model::Login;
 use thoth_api::account::model::LoginCredentials;
+use thoth_api::account::model::Session;
 use thoth_api::account::service::login;
 use thoth_client::work::get_work;
 use uuid::Uuid;
@@ -70,13 +74,17 @@ async fn onix(req: HttpRequest, path: web::Path<(Uuid,)>) -> HttpResponse {
 #[post("/account/login")]
 async fn login_credentials(
     payload: web::Json<LoginCredentials>,
+    id: Identity,
     ctx: web::Data<Context>,
 ) -> Result<HttpResponse, Error> {
     let r = payload.into_inner();
 
     login(&r.email, &r.password, &ctx).and_then(|account| {
         let token = account.issue_token(&ctx).unwrap();
-        Ok(HttpResponse::Ok().json(token))
+        let user_string =
+            serde_json::to_string(&account).map_err(|_| ThothError::InternalError("Serder error".into()))?;
+        id.remember(user_string);
+        Ok(HttpResponse::Ok().json(Login(Session { token })))
     }).map_err(error::ErrorUnauthorized)
 }
 
