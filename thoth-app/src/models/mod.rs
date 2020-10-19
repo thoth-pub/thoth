@@ -1,3 +1,9 @@
+use anyhow::Result;
+use yew::format::Json;
+use yew::services::fetch::Response as FetchResponse;
+
+pub type Response<T> = FetchResponse<Json<Result<T>>>;
+
 #[macro_export]
 macro_rules! graphql_query_builder {
     (
@@ -90,6 +96,25 @@ macro_rules! graphql_query_builder {
                 }
             }
         }
+    };
+}
+
+#[macro_export]
+macro_rules! fetch {
+    ($request:expr => $api:expr, $link:expr, $msg:expr, $succ:expr, $err:expr) => {
+        match ::yew::services::fetch::Request::post(format!("{}{}", crate::THOTH_API, $api))
+            .header("Content-Type", "application/json")
+            .body(Json(&$request))
+        {
+            Ok(body) => {
+                $succ();
+                ::yew::services::fetch::FetchService::fetch_binary(body, $link.callback($msg)).ok()
+            }
+            Err(_) => {
+                $err();
+                None
+            }
+        };
     };
 }
 
