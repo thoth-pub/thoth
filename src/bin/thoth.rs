@@ -6,7 +6,6 @@ use thoth::server::api::start_server as api_server;
 use thoth::server::app::start_server as app_server;
 use thoth_api::account::service::register;
 use thoth_api::db::run_migrations;
-use thoth_api::db::Context;
 use thoth_api::db::establish_connection;
 use thoth_api::errors::Result;
 use thoth_api::errors::ThothError;
@@ -153,8 +152,8 @@ fn main() -> Result<()> {
                 let is_bot = register_matches.is_present("is-bot");
 
                 dotenv().ok();
-                let context = Context { db: establish_connection() };
-                match register(&name, &surname, &email, &password, &is_admin, &is_bot, &context) {
+                let pool = establish_connection();
+                match register(&name, &surname, &email, &password, &is_admin, &is_bot, &pool) {
                     Ok(_) => Ok(()),
                     Err(e) => Err(ThothError::from(e).into()),
                 }

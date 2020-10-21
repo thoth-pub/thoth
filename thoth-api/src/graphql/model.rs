@@ -3,9 +3,10 @@ use diesel::prelude::*;
 use juniper::FieldError;
 use juniper::FieldResult;
 use juniper::RootNode;
+use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::db::Context;
+use crate::db::PgPool;
 use crate::contributor::model::*;
 use crate::contribution::model::*;
 use crate::funder::model::*;
@@ -22,6 +23,19 @@ use crate::work::model::*;
 use crate::schema::*;
 
 impl juniper::Context for Context {}
+
+#[derive(Clone)]
+pub struct Context {
+    pub db: Arc<PgPool>,
+}
+
+impl Context {
+    pub fn new(pool: Arc<PgPool>) -> Self {
+        Self {
+            db: pool,
+        }
+    }
+}
 
 pub struct QueryRoot;
 

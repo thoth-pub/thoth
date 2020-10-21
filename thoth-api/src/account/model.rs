@@ -23,7 +23,7 @@ use crate::schema::account;
 #[cfg(feature = "backend")]
 use crate::errors::ThothError;
 #[cfg(feature = "backend")]
-use crate::db::Context;
+use crate::db::PgPool;
 #[cfg(feature = "backend")]
 use crate::account::util::make_hash;
 #[cfg(feature = "backend")]
@@ -100,9 +100,9 @@ pub struct LogoutResponse;
 
 impl Account {
     #[cfg(feature = "backend")]
-    pub fn issue_token(&self, context: &Context) -> Result<String, ThothError> {
+    pub fn issue_token(&self, pool: &PgPool) -> Result<String, ThothError> {
         const DEFAULT_TOKEN_VALIDITY: i64 = 3600;
-        let connection = context.db.get().unwrap();
+        let connection = pool.get().unwrap();
         dotenv().ok();
         let secret_str = env::var("SECRET_KEY").expect("SECRET_KEY must be set");
         let secret: &[u8] = secret_str.as_bytes();

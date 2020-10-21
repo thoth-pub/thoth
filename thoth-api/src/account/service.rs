@@ -1,7 +1,7 @@
 use std::result::Result;
 use diesel::prelude::*;
 
-use crate::db::Context;
+use crate::db::PgPool;
 use crate::account::model::Account;
 use crate::account::model::AccountData;
 use crate::account::model::NewAccount;
@@ -11,11 +11,11 @@ use crate::errors::ThothError;
 pub fn login(
     user_email: &str,
     user_password: &str,
-    context: &Context,
+    pool: &PgPool,
 ) -> Result<Account, ThothError> {
     use crate::schema::account::dsl;
 
-    let conn = context.db.get().unwrap();
+    let conn = pool.get().unwrap();
     let account = dsl::account
         .filter(dsl::email.eq(user_email))
         .first::<Account>(&conn)
@@ -35,9 +35,9 @@ pub fn register(
     password: &str,
     is_admin: &bool,
     is_bot: &bool,
-    context: &Context,
+    pool: &PgPool,
 ) ->  Result<Account, ThothError> {
-    let connection = context.db.get().unwrap();
+    let connection = pool.get().unwrap();
     let account_data = AccountData {
         name: name.to_owned(),
         surname: surname.to_owned(),

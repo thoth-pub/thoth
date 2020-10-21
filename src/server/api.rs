@@ -11,8 +11,9 @@ use actix_web::{web, error, App, Error, HttpRequest, HttpResponse, HttpServer, R
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
-use thoth_api::db::Context;
+use thoth_api::graphql::model::Context;
 use thoth_api::db::establish_connection;
+use thoth_api::db::PgPool;
 use thoth_api::errors::ThothError;
 use thoth_api::graphql::model::{create_schema, Schema};
 use thoth_api::account::model::Login;
@@ -35,9 +36,10 @@ async fn graphiql() -> HttpResponse {
 #[post("/graphql")]
 async fn graphql(
     st: web::Data<Arc<Schema>>,
-    ctx: web::Data<Context>,
+    pool: web::Data<PgPool>,
     data: web::Json<GraphQLRequest>,
 ) -> Result<HttpResponse, Error> {
+    let ctx = Context::new(pool.into_inner());
     let result = web::block(move || {
         let res = data.execute(&st, &ctx);
         Ok::<_, serde_json::error::Error>(serde_json::to_string(&res)?)
@@ -75,12 +77,12 @@ async fn onix(req: HttpRequest, path: web::Path<(Uuid,)>) -> HttpResponse {
 async fn login_credentials(
     payload: web::Json<LoginCredentials>,
     id: Identity,
-    ctx: web::Data<Context>,
+    pool: web::Data<PgPool>,
 ) -> Result<HttpResponse, Error> {
     let r = payload.into_inner();
 
-    login(&r.email, &r.password, &ctx).and_then(|account| {
-        let token = account.issue_token(&ctx).unwrap();
+    login(&r.email, &r.password, &pool).and_then(|account| {
+        let token = account.issue_token(&pool).unwrap();
         let user_string =
             serde_json::to_string(&account).map_err(|_| ThothError::InternalError("Serder error".into()))?;
         id.remember(user_string);
@@ -91,11 +93,10 @@ async fn login_credentials(
 fn config(cfg: &mut web::ServiceConfig) {
     dotenv().ok();
     let pool = establish_connection();
-    let schema_context = Context { db: pool };
     let schema = std::sync::Arc::new(create_schema());
 
     cfg.data(schema.clone());
-    cfg.data(schema_context);
+    cfg.data(pool.clone());
     cfg.service(graphql);
     cfg.service(graphiql);
     cfg.service(onix);
