@@ -1,9 +1,12 @@
-use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use yew::html;
 use yew::prelude::*;
 use yew::virtual_dom::VNode;
 use yew_router::prelude::*;
+
+use crate::SESSION_COOKIE;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
+use crate::service::cookie::CookieService;
 
 pub struct NavbarComponent {}
 
@@ -11,7 +14,7 @@ impl Component for NavbarComponent {
     type Message = ();
     type Properties = ();
 
-    fn create(_: Self::Properties, _link: ComponentLink<Self>) -> Self {
+    fn create(_props: Self::Properties, _link: ComponentLink<Self>) -> Self {
         NavbarComponent {}
     }
 
@@ -24,6 +27,16 @@ impl Component for NavbarComponent {
     }
 
     fn view(&self) -> VNode {
+        let cookie_service = CookieService::new();
+        let authenticated = !cookie_service.get(SESSION_COOKIE).is_err();
+        let auth_route = match authenticated {
+            true => AppRoute::Home,  // will need to handle logout requests here
+            false => AppRoute::Login,
+        };
+        let auth_button = match authenticated {
+            true => "Logout",
+            false => "Log in",
+        };
         html! {
             <nav class="navbar is-warning" role="navigation" aria-label="main navigation">
                 <div class="navbar-brand">
@@ -83,9 +96,9 @@ impl Component for NavbarComponent {
                             </a>
                             <RouterAnchor<AppRoute>
                                 classes="button is-light"
-                                route=AppRoute::Login
+                                route=auth_route
                             >
-                                {"Log in"}
+                                { auth_button }
                             </  RouterAnchor<AppRoute>>
                         </div>
                     </div>
