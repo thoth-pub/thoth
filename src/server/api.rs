@@ -104,9 +104,8 @@ fn config(cfg: &mut web::ServiceConfig) {
 
 #[actix_rt::main]
 pub async fn start_server(port: String) -> io::Result<()> {
-    env_logger::init();
-
     dotenv().ok();
+    env_logger::init();
     let secret_str = env::var("SECRET_KEY").expect("SECRET_KEY must be set");
     let domain = env::var("THOTH_DOMAIN").expect("THOTH_DOMAIN must be set");
     let session_duration = env::var("SESSION_DURATION_SECONDS").expect("SESSION_DURATION_SECONDS must be set");
