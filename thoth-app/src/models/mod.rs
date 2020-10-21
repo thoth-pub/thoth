@@ -66,7 +66,17 @@ macro_rules! graphql_query_builder {
             }
 
             fn headers(&self) -> Vec<(String, String)> {
-                vec![("Content-Type".to_string(), "application/json".to_string())]
+                use crate::SESSION_COOKIE;
+                use crate::service::cookie::CookieService;
+
+                let cookie_service = CookieService::new();
+                let json = ("Content-Type".into(), "application/json".into());
+                if let Ok(token) = cookie_service.get(SESSION_COOKIE) {
+                    let auth = ("Authorization".into(), format!("Bearer {}", token));
+                    vec![json, auth]
+                } else {
+                    vec![json]
+                }
             }
 
             fn use_cors(&self) -> bool {
