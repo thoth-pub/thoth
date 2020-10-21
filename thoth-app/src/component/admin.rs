@@ -25,10 +25,10 @@ use crate::service::cookie::CookieService;
 
 pub struct AdminComponent {
     props: Props,
-    cookie_service: CookieService,
-    link: ComponentLink<Self>,
-    router: RouteAgentDispatcher<()>,
-    session_timer_agent: SessionTimerDispatcher,
+    _cookie_service: CookieService,
+    _link: ComponentLink<Self>,
+    _router: RouteAgentDispatcher<()>,
+    _session_timer_agent: SessionTimerDispatcher,
 }
 
 pub enum Msg {}
@@ -55,10 +55,10 @@ impl Component for AdminComponent {
 
         AdminComponent {
             props,
-            cookie_service,
-            link,
-            router,
-            session_timer_agent,
+            _cookie_service: cookie_service,
+            _link: link,
+            _router: router,
+            _session_timer_agent: session_timer_agent,
         }
     }
 
