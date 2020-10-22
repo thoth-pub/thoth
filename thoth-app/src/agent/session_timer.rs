@@ -14,7 +14,7 @@ use yew::services::Task;
 
 use crate::SESSION_COOKIE;
 use crate::models::Response;
-use crate::fetch;
+use crate::authenticated_fetch;
 use crate::service::cookie::CookieService;
 
 pub type SessionTimerDispatcher = Dispatcher<SessionTimerAgent>;
@@ -62,8 +62,9 @@ impl Agent for SessionTimerAgent {
             Msg::Update => {
                 log::info!("Updating current session");
                 if let Ok(token) = self.cookie_service.get(SESSION_COOKIE) {
-                    self.fetch_task = fetch! {
+                    self.fetch_task = authenticated_fetch! {
                         LoginSession(Session::new(token)) => "/account/token/renew",
+                        token,
                         self.agent_link, Msg::Fetch,
                         || {},
                         || {
@@ -103,7 +104,7 @@ impl Agent for SessionTimerAgent {
     fn handle_input(&mut self, msg: Self::Input, _: HandlerId) {
         match msg {
             Request::Start => {
-                let handle = IntervalService::spawn(Duration::from_secs(10), self.callback.clone());
+                let handle = IntervalService::spawn(Duration::from_secs(60), self.callback.clone());
                 self.timer_task = Some(Box::new(handle));
             }
             Request::Stop => {

@@ -128,6 +128,26 @@ macro_rules! fetch {
     };
 }
 
+#[macro_export]
+macro_rules! authenticated_fetch {
+    ($request:expr => $api:expr, $token:expr, $link:expr, $msg:expr, $succ:expr, $err:expr) => {
+        match ::yew::services::fetch::Request::post(format!("{}{}", crate::THOTH_API, $api))
+            .header("Content-Type", "application/json")
+            .header("Authorization", format!("Bearer {}", $token))
+            .body(Json(&$request))
+        {
+            Ok(body) => {
+                $succ();
+                ::yew::services::fetch::FetchService::fetch_binary(body, $link.callback($msg)).ok()
+            }
+            Err(_) => {
+                $err();
+                None
+            }
+        };
+    };
+}
+
 pub mod contribution;
 pub mod contributor;
 pub mod funder;
