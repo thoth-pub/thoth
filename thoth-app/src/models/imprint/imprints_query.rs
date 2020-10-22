@@ -19,7 +19,7 @@ const IMPRINTS_QUERY: &str = "
     }
 ";
 
-query_builder! {
+graphql_query_builder! {
     ImprintsRequest,
     ImprintsRequestBody,
     IMPRINTS_QUERY,

@@ -1,7 +1,13 @@
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 
+use crate::agent::session_timer;
+use crate::agent::session_timer::SessionTimerAgent;
+use crate::agent::session_timer::SessionTimerDispatcher;
 use crate::component::contributor::ContributorComponent;
 use crate::component::contributors::ContributorsComponent;
 use crate::component::dashboard::DashboardComponent;
@@ -13,9 +19,16 @@ use crate::component::serieses::SeriesesComponent;
 use crate::component::work::WorkComponent;
 use crate::component::works::WorksComponent;
 use crate::route::AdminRoute;
+use crate::route::AppRoute;
+use crate::service::cookie::CookieService;
+use crate::SESSION_COOKIE;
 
 pub struct AdminComponent {
     props: Props,
+    _cookie_service: CookieService,
+    _link: ComponentLink<Self>,
+    _router: RouteAgentDispatcher<()>,
+    _session_timer_agent: SessionTimerDispatcher,
 }
 
 pub enum Msg {}
@@ -29,8 +42,24 @@ impl Component for AdminComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, _link: ComponentLink<Self>) -> Self {
-        AdminComponent { props }
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        let mut router = RouteAgentDispatcher::new();
+        let cookie_service = CookieService::new();
+        let mut session_timer_agent = SessionTimerAgent::dispatcher();
+
+        if cookie_service.get(SESSION_COOKIE).is_err() {
+            router.send(RouteRequest::ChangeRoute(Route::from(AppRoute::Login)));
+        } else {
+            session_timer_agent.send(session_timer::Request::Start);
+        }
+
+        AdminComponent {
+            props,
+            _cookie_service: cookie_service,
+            _link: link,
+            _router: router,
+            _session_timer_agent: session_timer_agent,
+        }
     }
 
     fn update(&mut self, _msg: Self::Message) -> ShouldRender {

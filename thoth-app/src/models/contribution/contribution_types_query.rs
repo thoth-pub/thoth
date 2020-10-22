@@ -13,7 +13,7 @@ const CONTRIBUTION_TYPES_QUERY: &str = "
     }
 ";
 
-query_builder! {
+graphql_query_builder! {
     ContributionTypesRequest,
     ContributionTypesRequestBody,
     CONTRIBUTION_TYPES_QUERY,

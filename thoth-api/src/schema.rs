@@ -6,18 +6,19 @@ table! {
         name -> Text,
         surname -> Text,
         email -> Text,
-        password -> Text,
+        hash -> Bytea,
+        salt -> Text,
         is_admin -> Bool,
         is_bot -> Bool,
         is_active -> Bool,
-        registered -> Date,
+        registered -> Timestamp,
         token -> Nullable<Text>,
     }
 }
 
 table! {
     use diesel::sql_types::*;
-    use crate::models::contributor::Contribution_type;
+    use crate::contribution::model::Contribution_type;
 
     contribution (work_id, contributor_id, contribution_type) {
         work_id -> Uuid,
@@ -90,8 +91,8 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::models::language::Language_relation;
-    use crate::models::language::Language_code;
+    use crate::language::model::Language_relation;
+    use crate::language::model::Language_code;
 
     language (language_id) {
         language_id -> Uuid,
@@ -104,7 +105,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::models::price::Currency_code;
+    use crate::price::model::Currency_code;
 
     price (price_id) {
         price_id -> Uuid,
@@ -116,7 +117,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::models::publication::Publication_type;
+    use crate::publication::model::Publication_type;
 
     publication (publication_id) {
         publication_id -> Uuid,
@@ -140,7 +141,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::models::series::Series_type;
+    use crate::series::model::Series_type;
 
     series (series_id) {
         series_id -> Uuid,
@@ -155,7 +156,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::models::subject::Subject_type;
+    use crate::subject::model::Subject_type;
 
     subject (subject_id) {
         subject_id -> Uuid,
@@ -168,8 +169,8 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::models::work::Work_type;
-    use crate::models::work::Work_status;
+    use crate::work::model::Work_type;
+    use crate::work::model::Work_status;
 
     work (work_id) {
         work_id -> Uuid,

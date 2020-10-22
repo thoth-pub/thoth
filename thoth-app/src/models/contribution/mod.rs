@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::models::contributor::ContributionType;
+use thoth_api::contribution::model::ContributionType;
 use yew::prelude::html;
 use yew::Html;
 

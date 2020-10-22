@@ -3,26 +3,40 @@ use diesel::prelude::*;
 use juniper::FieldError;
 use juniper::FieldResult;
 use juniper::RootNode;
+use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::account::model::DecodedToken;
+use crate::contribution::model::*;
+use crate::contributor::model::*;
 use crate::db::PgPool;
-use crate::models::contributor::*;
-use crate::models::funder::*;
-use crate::models::language::*;
-use crate::models::price::*;
-use crate::models::publication::*;
-use crate::models::publisher::*;
-use crate::models::series::*;
-use crate::models::subject::*;
-use crate::models::work::*;
+use crate::errors::ThothError;
+use crate::funder::model::*;
+use crate::funding::model::*;
+use crate::imprint::model::*;
+use crate::issue::model::*;
+use crate::language::model::*;
+use crate::price::model::*;
+use crate::publication::model::*;
+use crate::publisher::model::*;
 use crate::schema::*;
+use crate::series::model::*;
+use crate::subject::model::*;
+use crate::work::model::*;
+
+impl juniper::Context for Context {}
 
 #[derive(Clone)]
 pub struct Context {
-    pub db: PgPool,
+    pub db: Arc<PgPool>,
+    pub token: DecodedToken,
 }
 
-impl juniper::Context for Context {}
+impl Context {
+    pub fn new(pool: Arc<PgPool>, token: DecodedToken) -> Self {
+        Self { db: pool, token }
+    }
+}
 
 pub struct QueryRoot;
 
@@ -736,6 +750,8 @@ pub struct MutationRoot;
 #[juniper::object(Context = Context)]
 impl MutationRoot {
     fn create_work(context: &Context, data: NewWork) -> FieldResult<Work> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+
         let connection = context.db.get().unwrap();
         match diesel::insert_into(work::table)
             .values(&data)
@@ -747,6 +763,8 @@ impl MutationRoot {
     }
 
     fn create_publisher(context: &Context, data: NewPublisher) -> FieldResult<Publisher> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+
         let connection = context.db.get().unwrap();
         match diesel::insert_into(publisher::table)
             .values(&data)
@@ -758,6 +776,8 @@ impl MutationRoot {
     }
 
     fn create_imprint(context: &Context, data: NewImprint) -> FieldResult<Imprint> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+
         let connection = context.db.get().unwrap();
         match diesel::insert_into(imprint::table)
             .values(&data)
@@ -769,6 +789,8 @@ impl MutationRoot {
     }
 
     fn create_contributor(context: &Context, data: NewContributor) -> FieldResult<Contributor> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+
         let connection = context.db.get().unwrap();
         match diesel::insert_into(contributor::table)
             .values(&data)
@@ -780,6 +802,8 @@ impl MutationRoot {
     }
 
     fn create_contribution(context: &Context, data: NewContribution) -> FieldResult<Contribution> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+
         let connection = context.db.get().unwrap();
         match diesel::insert_into(contribution::table)
             .values(&data)
@@ -791,6 +815,8 @@ impl MutationRoot {
     }
 
     fn create_publication(context: &Context, data: NewPublication) -> FieldResult<Publication> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+
         let connection = context.db.get().unwrap();
         match diesel::insert_into(publication::table)
             .values(&data)
@@ -802,6 +828,8 @@ impl MutationRoot {
     }
 
     fn create_series(context: &Context, data: NewSeries) -> FieldResult<Series> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+
         let connection = context.db.get().unwrap();
         match diesel::insert_into(series::table)
             .values(&data)
@@ -813,6 +841,8 @@ impl MutationRoot {
     }
 
     fn create_issue(context: &Context, data: NewIssue) -> FieldResult<Issue> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+
         let connection = context.db.get().unwrap();
         match diesel::insert_into(issue::table)
             .values(&data)
@@ -824,6 +854,8 @@ impl MutationRoot {
     }
 
     fn create_language(context: &Context, data: NewLanguage) -> FieldResult<Language> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+
         let connection = context.db.get().unwrap();
         match diesel::insert_into(language::table)
             .values(&data)
@@ -835,6 +867,8 @@ impl MutationRoot {
     }
 
     fn create_funder(context: &Context, data: NewFunder) -> FieldResult<Funder> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+
         let connection = context.db.get().unwrap();
         match diesel::insert_into(funder::table)
             .values(&data)
@@ -846,6 +880,8 @@ impl MutationRoot {
     }
 
     fn create_funding(context: &Context, data: NewFunding) -> FieldResult<Funding> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+
         let connection = context.db.get().unwrap();
         match diesel::insert_into(funding::table)
             .values(&data)
@@ -857,6 +893,8 @@ impl MutationRoot {
     }
 
     fn create_price(context: &Context, data: NewPrice) -> FieldResult<Price> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+
         let connection = context.db.get().unwrap();
         match diesel::insert_into(price::table)
             .values(&data)
@@ -868,6 +906,8 @@ impl MutationRoot {
     }
 
     fn create_subject(context: &Context, data: NewSubject) -> FieldResult<Subject> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+
         check_subject(&data.subject_type, &data.subject_code)?;
 
         let connection = context.db.get().unwrap();

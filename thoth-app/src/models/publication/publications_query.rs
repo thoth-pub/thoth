@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::models::publication::PublicationType;
+use thoth_api::publication::model::PublicationType;
 
 use super::super::work::Work;
 
@@ -36,7 +36,7 @@ pub const PUBLICATIONS_QUERY: &str = "
     }
 ";
 
-query_builder! {
+graphql_query_builder! {
     PublicationsRequest,
     PublicationsRequestBody,
     PUBLICATIONS_QUERY,

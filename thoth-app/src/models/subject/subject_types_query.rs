@@ -13,7 +13,7 @@ const SUBJECT_TYPES_QUERY: &str = "
     }
 ";
 
-query_builder! {
+graphql_query_builder! {
     SubjectTypesRequest,
     SubjectTypesRequestBody,
     SUBJECT_TYPES_QUERY,

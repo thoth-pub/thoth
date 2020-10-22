@@ -1,6 +1,6 @@
 use std::str::FromStr;
-use thoth_api::models::language::LanguageCode;
-use thoth_api::models::language::LanguageRelation;
+use thoth_api::language::model::LanguageCode;
+use thoth_api::language::model::LanguageRelation;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;

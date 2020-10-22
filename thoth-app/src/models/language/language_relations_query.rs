@@ -13,7 +13,7 @@ const LANGUAGE_RELATIONS_QUERY: &str = "
     }
 ";
 
-query_builder! {
+graphql_query_builder! {
     LanguageRelationsRequest,
     LanguageRelationsRequestBody,
     LANGUAGE_RELATIONS_QUERY,

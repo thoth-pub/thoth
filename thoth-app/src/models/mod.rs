@@ -1,5 +1,11 @@
+use anyhow::Result;
+use yew::format::Json;
+use yew::services::fetch::Response as FetchResponse;
+
+pub type Response<T> = FetchResponse<Json<Result<T>>>;
+
 #[macro_export]
-macro_rules! query_builder {
+macro_rules! graphql_query_builder {
     (
         $request:ident,
         $request_body:ident,
@@ -60,7 +66,17 @@ macro_rules! query_builder {
             }
 
             fn headers(&self) -> Vec<(String, String)> {
-                vec![("Content-Type".to_string(), "application/json".to_string())]
+                use crate::service::cookie::CookieService;
+                use crate::SESSION_COOKIE;
+
+                let cookie_service = CookieService::new();
+                let json = ("Content-Type".into(), "application/json".into());
+                if let Ok(token) = cookie_service.get(SESSION_COOKIE) {
+                    let auth = ("Authorization".into(), format!("Bearer {}", token));
+                    vec![json, auth]
+                } else {
+                    vec![json]
+                }
             }
 
             fn use_cors(&self) -> bool {
@@ -90,6 +106,45 @@ macro_rules! query_builder {
                 }
             }
         }
+    };
+}
+
+#[macro_export]
+macro_rules! fetch {
+    ($request:expr => $api:expr, $link:expr, $msg:expr, $succ:expr, $err:expr) => {
+        match ::yew::services::fetch::Request::post(format!("{}{}", crate::THOTH_API, $api))
+            .header("Content-Type", "application/json")
+            .body(Json(&$request))
+        {
+            Ok(body) => {
+                $succ();
+                ::yew::services::fetch::FetchService::fetch_binary(body, $link.callback($msg)).ok()
+            }
+            Err(_) => {
+                $err();
+                None
+            }
+        };
+    };
+}
+
+#[macro_export]
+macro_rules! authenticated_fetch {
+    ($request:expr => $api:expr, $token:expr, $link:expr, $msg:expr, $succ:expr, $err:expr) => {
+        match ::yew::services::fetch::Request::post(format!("{}{}", crate::THOTH_API, $api))
+            .header("Content-Type", "application/json")
+            .header("Authorization", format!("Bearer {}", $token))
+            .body(Json(&$request))
+        {
+            Ok(body) => {
+                $succ();
+                ::yew::services::fetch::FetchService::fetch_binary(body, $link.callback($msg)).ok()
+            }
+            Err(_) => {
+                $err();
+                None
+            }
+        };
     };
 }
 

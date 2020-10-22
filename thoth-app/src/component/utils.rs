@@ -1,10 +1,10 @@
-use thoth_api::models::contributor::ContributionType;
-use thoth_api::models::language::LanguageCode;
-use thoth_api::models::language::LanguageRelation;
-use thoth_api::models::publication::PublicationType;
-use thoth_api::models::subject::SubjectType;
-use thoth_api::models::work::WorkStatus;
-use thoth_api::models::work::WorkType;
+use thoth_api::contribution::model::ContributionType;
+use thoth_api::language::model::LanguageCode;
+use thoth_api::language::model::LanguageRelation;
+use thoth_api::publication::model::PublicationType;
+use thoth_api::subject::model::SubjectType;
+use thoth_api::work::model::WorkStatus;
+use thoth_api::work::model::WorkType;
 use yew::html;
 use yew::virtual_dom::VNode;
 use yew::Callback;

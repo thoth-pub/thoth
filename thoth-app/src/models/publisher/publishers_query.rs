@@ -14,7 +14,7 @@ const PUBLISHERS_QUERY: &str = "
     }
 ";
 
-query_builder! {
+graphql_query_builder! {
     PublishersRequest,
     PublishersRequestBody,
     PUBLISHERS_QUERY,

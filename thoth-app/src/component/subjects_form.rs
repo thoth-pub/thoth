@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use thoth_api::models::subject::SubjectType;
+use thoth_api::subject::model::SubjectType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;

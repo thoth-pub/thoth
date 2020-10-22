@@ -13,7 +13,7 @@ const PUBLICATION_TYPES_QUERY: &str = "
     }
 ";
 
-query_builder! {
+graphql_query_builder! {
     PublicationTypesRequest,
     PublicationTypesRequestBody,
     PUBLICATION_TYPES_QUERY,
