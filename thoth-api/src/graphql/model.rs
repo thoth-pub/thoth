@@ -7,6 +7,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::db::PgPool;
+use crate::account::model::DecodedToken;
 use crate::contributor::model::*;
 use crate::contribution::model::*;
 use crate::funder::model::*;
@@ -27,12 +28,14 @@ impl juniper::Context for Context {}
 #[derive(Clone)]
 pub struct Context {
     pub db: Arc<PgPool>,
+    pub token: DecodedToken,
 }
 
 impl Context {
-    pub fn new(pool: Arc<PgPool>) -> Self {
+    pub fn new(pool: Arc<PgPool>, token: DecodedToken) -> Self {
         Self {
             db: pool,
+            token: token,
         }
     }
 }

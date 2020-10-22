@@ -32,6 +32,8 @@ pub enum ThothError {
     InternalError(String),
     #[fail(display = "Invalid credentials.")]
     Unauthorised,
+    #[fail(display = "Failed to validate token.")]
+    InvalidToken,
     #[fail(display = "No cookie found.")]
     CookieError(),
 }

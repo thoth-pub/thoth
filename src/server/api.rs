@@ -19,6 +19,7 @@ use thoth_api::graphql::model::{create_schema, Schema};
 use thoth_api::account::model::Login;
 use thoth_api::account::model::LoginCredentials;
 use thoth_api::account::model::Session;
+use thoth_api::account::model::DecodedToken;
 use thoth_api::account::service::login;
 use thoth_client::work::get_work;
 use uuid::Uuid;
@@ -37,9 +38,10 @@ async fn graphiql() -> HttpResponse {
 async fn graphql(
     st: web::Data<Arc<Schema>>,
     pool: web::Data<PgPool>,
+    token: DecodedToken,
     data: web::Json<GraphQLRequest>,
 ) -> Result<HttpResponse, Error> {
-    let ctx = Context::new(pool.into_inner());
+    let ctx = Context::new(pool.into_inner(), token);
     let result = web::block(move || {
         let res = data.execute(&st, &ctx);
         Ok::<_, serde_json::error::Error>(serde_json::to_string(&res)?)

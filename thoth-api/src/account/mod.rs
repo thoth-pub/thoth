@@ -1,3 +1,5 @@
+#[cfg(feature = "backend")]
+pub mod handler;
 pub mod model;
 #[cfg(feature = "backend")]
 pub mod service;
