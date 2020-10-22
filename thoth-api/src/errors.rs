@@ -47,6 +47,12 @@ impl juniper::IntoFieldError for ThothError {
                     "type": "INVALID_SUBJECT_CODE"
                 }),
             ),
+            ThothError::Unauthorised => juniper::FieldError::new(
+                "Unauthorized",
+                graphql_value!({
+                    "type": "NO_ACCESS"
+                }),
+            ),
             _ => juniper::FieldError::new(
                 self.to_string(),
                 graphql_value!({
