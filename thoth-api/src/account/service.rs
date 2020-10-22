@@ -22,7 +22,7 @@ pub fn login(
         .map_err(|_| ThothError::Unauthorised)?;
 
     if verify(&account, &user_password) {
-        Ok(account.into())
+        Ok(account)
     } else {
         Err(ThothError::Unauthorised)
     }
@@ -39,7 +39,7 @@ pub fn login_with_token(
         .filter(dsl::token.eq(token))
         .first::<Account>(&conn)
         .map_err(|_| ThothError::Unauthorised)?;
-    Ok(account.into())
+    Ok(account)
 }
 
 pub fn register(
