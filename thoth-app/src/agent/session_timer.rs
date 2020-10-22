@@ -63,7 +63,7 @@ impl Agent for SessionTimerAgent {
                 log::info!("Updating current session");
                 if let Ok(token) = self.cookie_service.get(SESSION_COOKIE) {
                     self.fetch_task = fetch! {
-                        LoginSession(Session::new(token)) => "/account/login",
+                        LoginSession(Session::new(token)) => "/account/token/renew",
                         self.agent_link, Msg::Fetch,
                         || {},
                         || {
