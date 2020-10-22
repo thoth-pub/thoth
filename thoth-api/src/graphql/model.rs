@@ -36,7 +36,7 @@ impl Context {
     pub fn new(pool: Arc<PgPool>, token: DecodedToken) -> Self {
         Self {
             db: pool,
-            token: token,
+            token,
         }
     }
 }
