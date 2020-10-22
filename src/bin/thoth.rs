@@ -8,7 +8,6 @@ use thoth_api::account::service::register;
 use thoth_api::db::run_migrations;
 use thoth_api::db::establish_connection;
 use thoth_api::errors::Result;
-use thoth_api::errors::ThothError;
 
 fn main() -> Result<()> {
     let matches = App::new(env!("CARGO_PKG_NAME"))
@@ -121,14 +120,14 @@ fn main() -> Result<()> {
                 let port = api_matches.value_of("port").unwrap();
                 match api_server(port.to_owned()) {
                     Ok(_) => Ok(()),
-                    Err(e) => Err(ThothError::from(e).into()),
+                    Err(e) => Err(e.into()),
                 }
             }
             ("app", Some(client_matches)) => {
                 let port = client_matches.value_of("port").unwrap();
                 match app_server(port.to_owned()) {
                     Ok(_) => Ok(()),
-                    Err(e) => Err(ThothError::from(e).into()),
+                    Err(e) => Err(e.into()),
                 }
             }
             _ => unreachable!(),
@@ -139,7 +138,7 @@ fn main() -> Result<()> {
             run_migrations()?;
             match api_server(port.to_owned()) {
                 Ok(_) => Ok(()),
-                Err(e) => Err(ThothError::from(e).into()),
+                Err(e) => Err(e.into()),
             }
         },
         ("account", Some(account_matches)) => match account_matches.subcommand() {
@@ -155,7 +154,7 @@ fn main() -> Result<()> {
                 let pool = establish_connection();
                 match register(&name, &surname, &email, &password, &is_admin, &is_bot, &pool) {
                     Ok(_) => Ok(()),
-                    Err(e) => Err(ThothError::from(e).into()),
+                    Err(e) => Err(e.into()),
                 }
             },
             _ => unreachable!(),

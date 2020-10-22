@@ -28,7 +28,7 @@ impl Component for NavbarComponent {
 
     fn view(&self) -> VNode {
         let cookie_service = CookieService::new();
-        let authenticated = !cookie_service.get(SESSION_COOKIE).is_err();
+        let authenticated = cookie_service.get(SESSION_COOKIE).is_ok();
         let auth_route = match authenticated {
             true => AppRoute::Home,  // will need to handle logout requests here
             false => AppRoute::Login,

@@ -43,10 +43,6 @@ impl CookieService {
             .ok_or_else(|| CookieError::NotFound.into())
     }
 
-    pub fn remove(&self, name: &str) {
-        self.set_expiring(name, "", -1);
-    }
-
     fn set_expiring(&self, name: &str, value: &str, days: i32) {
         js! {
             document.cookie = @{name} + "=" + (@{value} || "") +

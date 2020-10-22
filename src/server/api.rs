@@ -119,7 +119,7 @@ fn config(cfg: &mut web::ServiceConfig) {
     let schema = std::sync::Arc::new(create_schema());
 
     cfg.data(schema.clone());
-    cfg.data(pool.clone());
+    cfg.data(pool);
     cfg.service(graphql);
     cfg.service(graphiql);
     cfg.service(onix);
