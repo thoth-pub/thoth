@@ -6,11 +6,11 @@ use juniper::RootNode;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::account::model::DecodedToken;
+use crate::contribution::model::*;
+use crate::contributor::model::*;
 use crate::db::PgPool;
 use crate::errors::ThothError;
-use crate::account::model::DecodedToken;
-use crate::contributor::model::*;
-use crate::contribution::model::*;
 use crate::funder::model::*;
 use crate::funding::model::*;
 use crate::imprint::model::*;
@@ -19,10 +19,10 @@ use crate::language::model::*;
 use crate::price::model::*;
 use crate::publication::model::*;
 use crate::publisher::model::*;
+use crate::schema::*;
 use crate::series::model::*;
 use crate::subject::model::*;
 use crate::work::model::*;
-use crate::schema::*;
 
 impl juniper::Context for Context {}
 
@@ -34,10 +34,7 @@ pub struct Context {
 
 impl Context {
     pub fn new(pool: Arc<PgPool>, token: DecodedToken) -> Self {
-        Self {
-            db: pool,
-            token,
-        }
+        Self { db: pool, token }
     }
 }
 

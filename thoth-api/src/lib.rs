@@ -27,11 +27,11 @@ pub mod language;
 pub mod price;
 pub mod publication;
 pub mod publisher;
+#[cfg(feature = "backend")]
+mod schema;
 pub mod series;
 pub mod subject;
 pub mod work;
-#[cfg(feature = "backend")]
-mod schema;
 
 macro_rules! apis {
     ($($name:ident => $content:expr,)*) => (

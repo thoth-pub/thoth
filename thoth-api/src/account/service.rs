@@ -1,18 +1,14 @@
-use std::result::Result;
 use diesel::prelude::*;
+use std::result::Result;
 
-use crate::db::PgPool;
 use crate::account::model::Account;
 use crate::account::model::AccountData;
 use crate::account::model::NewAccount;
 use crate::account::util::verify;
+use crate::db::PgPool;
 use crate::errors::ThothError;
 
-pub fn login(
-    user_email: &str,
-    user_password: &str,
-    pool: &PgPool,
-) -> Result<Account, ThothError> {
+pub fn login(user_email: &str, user_password: &str, pool: &PgPool) -> Result<Account, ThothError> {
     use crate::schema::account::dsl;
 
     let conn = pool.get().unwrap();
@@ -28,10 +24,7 @@ pub fn login(
     }
 }
 
-pub fn login_with_token(
-    token: &str,
-    pool: &PgPool,
-) -> Result<Account, ThothError> {
+pub fn login_with_token(token: &str, pool: &PgPool) -> Result<Account, ThothError> {
     use crate::schema::account::dsl;
 
     let conn = pool.get().unwrap();
@@ -50,7 +43,7 @@ pub fn register(
     is_admin: &bool,
     is_bot: &bool,
     pool: &PgPool,
-) ->  Result<Account, ThothError> {
+) -> Result<Account, ThothError> {
     let connection = pool.get().unwrap();
     let account_data = AccountData {
         name: name.to_owned(),

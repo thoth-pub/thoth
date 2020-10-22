@@ -1,21 +1,21 @@
 use diesel::prelude::*;
 use dotenv::dotenv;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use regex::Regex;
+use std::env;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
-use std::env;
 use uuid::Uuid;
-use regex::Regex;
 
-use crate::errors::ThothError;
-use crate::db::PgPool;
 use crate::account::model::Account;
-use crate::account::model::Token;
-use crate::account::model::DecodedToken;
 use crate::account::model::AccountData;
+use crate::account::model::DecodedToken;
 use crate::account::model::NewAccount;
+use crate::account::model::Token;
 use crate::account::util::make_hash;
 use crate::account::util::make_salt;
+use crate::db::PgPool;
+use crate::errors::ThothError;
 
 impl Account {
     pub fn issue_token(&self, pool: &PgPool) -> Result<String, ThothError> {

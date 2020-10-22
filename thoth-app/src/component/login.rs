@@ -1,31 +1,31 @@
 use thoth_api::account::model::Login;
 use thoth_api::account::model::LoginCredentials;
 use thoth_api::account::model::Session;
-use yew::html;
 use yew::format::Json;
-use yew::ComponentLink;
+use yew::html;
 use yew::prelude::*;
 use yew::services::fetch::FetchTask;
+use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 use yew_router::route::Route;
 use yewtil::NeqAssign;
 
-use crate::fetch;
-use crate::SESSION_COOKIE;
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::fetch;
 use crate::models::Response;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::service::cookie::CookieService;
 use crate::string::AUTHENTICATION_ERROR;
-use crate::string::RESPONSE_ERROR;
 use crate::string::INPUT_EMAIL;
 use crate::string::INPUT_PASSWORD;
+use crate::string::RESPONSE_ERROR;
 use crate::string::TEXT_LOGIN;
+use crate::SESSION_COOKIE;
 
 pub struct LoginComponent {
     email: String,
@@ -97,9 +97,9 @@ impl Component for LoginComponent {
                     match body {
                         Ok(Login(Session { token })) => {
                             self.cookie_service.set(SESSION_COOKIE, &token);
-                            self.router.send(RouteRequest::ChangeRoute(
-                                Route::from(AppRoute::Admin(AdminRoute::Admin))
-                            ));
+                            self.router.send(RouteRequest::ChangeRoute(Route::from(
+                                AppRoute::Admin(AdminRoute::Admin),
+                            )));
                         }
                         _ => {
                             self.notification_bus.send(Request::NotificationBusMsg((

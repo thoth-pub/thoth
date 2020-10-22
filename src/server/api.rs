@@ -4,25 +4,25 @@ use std::sync::Arc;
 
 use actix_cors::Cors;
 use actix_identity::CookieIdentityPolicy;
-use actix_identity::IdentityService;
 use actix_identity::Identity;
+use actix_identity::IdentityService;
 use actix_web::middleware::Logger;
-use actix_web::{web, error, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
+use actix_web::{error, web, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
-use thoth_api::graphql::model::Context;
-use thoth_api::db::establish_connection;
-use thoth_api::db::PgPool;
-use thoth_api::errors::ThothError;
-use thoth_api::graphql::model::{create_schema, Schema};
+use thoth_api::account::model::DecodedToken;
 use thoth_api::account::model::Login;
 use thoth_api::account::model::LoginCredentials;
 use thoth_api::account::model::LoginSession;
 use thoth_api::account::model::Session;
-use thoth_api::account::model::DecodedToken;
 use thoth_api::account::service::login;
 use thoth_api::account::service::login_with_token;
+use thoth_api::db::establish_connection;
+use thoth_api::db::PgPool;
+use thoth_api::errors::ThothError;
+use thoth_api::graphql::model::Context;
+use thoth_api::graphql::model::{create_schema, Schema};
 use thoth_client::work::get_work;
 use uuid::Uuid;
 
@@ -56,7 +56,7 @@ async fn graphql(
 
 #[get("/onix/{uuid}")]
 async fn onix(req: HttpRequest, path: web::Path<(Uuid,)>) -> HttpResponse {
-    let work_id = path.0.0;
+    let work_id = (path.0).0;
     let scheme = if req.app_config().secure() {
         "https".to_string()
     } else {
@@ -85,13 +85,15 @@ async fn login_credentials(
 ) -> Result<HttpResponse, Error> {
     let r = payload.into_inner();
 
-    login(&r.email, &r.password, &pool).and_then(|account| {
-        let token = account.issue_token(&pool).unwrap();
-        let user_string =
-            serde_json::to_string(&account).map_err(|_| ThothError::InternalError("Serder error".into()))?;
-        id.remember(user_string);
-        Ok(HttpResponse::Ok().json(Login(Session { token })))
-    }).map_err(error::ErrorUnauthorized)
+    login(&r.email, &r.password, &pool)
+        .and_then(|account| {
+            let token = account.issue_token(&pool).unwrap();
+            let user_string = serde_json::to_string(&account)
+                .map_err(|_| ThothError::InternalError("Serder error".into()))?;
+            id.remember(user_string);
+            Ok(HttpResponse::Ok().json(Login(Session { token })))
+        })
+        .map_err(error::ErrorUnauthorized)
 }
 
 #[post("/account/token/renew")]
@@ -104,13 +106,15 @@ async fn login_session(
     let r = payload.into_inner();
     token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
 
-    login_with_token(&r.0.token, &pool).and_then(|account| {
-        let token = account.issue_token(&pool).unwrap();
-        let user_string =
-            serde_json::to_string(&account).map_err(|_| ThothError::InternalError("Serder error".into()))?;
-        id.remember(user_string);
-        Ok(HttpResponse::Ok().json(Login(Session { token })))
-    }).map_err(error::ErrorUnauthorized)
+    login_with_token(&r.0.token, &pool)
+        .and_then(|account| {
+            let token = account.issue_token(&pool).unwrap();
+            let user_string = serde_json::to_string(&account)
+                .map_err(|_| ThothError::InternalError("Serder error".into()))?;
+            id.remember(user_string);
+            Ok(HttpResponse::Ok().json(Login(Session { token })))
+        })
+        .map_err(error::ErrorUnauthorized)
 }
 
 fn config(cfg: &mut web::ServiceConfig) {
@@ -133,7 +137,8 @@ pub async fn start_server(port: String) -> io::Result<()> {
     env_logger::init();
     let secret_str = env::var("SECRET_KEY").expect("SECRET_KEY must be set");
     let domain = env::var("THOTH_DOMAIN").expect("THOTH_DOMAIN must be set");
-    let session_duration = env::var("SESSION_DURATION_SECONDS").expect("SESSION_DURATION_SECONDS must be set");
+    let session_duration =
+        env::var("SESSION_DURATION_SECONDS").expect("SESSION_DURATION_SECONDS must be set");
 
     HttpServer::new(move || {
         App::new()

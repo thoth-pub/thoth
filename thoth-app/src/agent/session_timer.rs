@@ -4,18 +4,18 @@ use std::time::Duration;
 use thoth_api::account::model::Login;
 use thoth_api::account::model::LoginSession;
 use thoth_api::account::model::Session;
-use yew::format::Json;
 use yew::agent::Dispatcher;
-use yew::prelude::*;
+use yew::format::Json;
 use yew::prelude::worker::*;
+use yew::prelude::*;
 use yew::services::fetch::FetchTask;
 use yew::services::IntervalService;
 use yew::services::Task;
 
-use crate::SESSION_COOKIE;
-use crate::models::Response;
 use crate::authenticated_fetch;
+use crate::models::Response;
 use crate::service::cookie::CookieService;
+use crate::SESSION_COOKIE;
 
 pub type SessionTimerDispatcher = Dispatcher<SessionTimerAgent>;
 

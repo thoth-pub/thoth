@@ -1,8 +1,8 @@
-use failure::Fail;
 #[cfg(feature = "backend")]
 use actix_web::{error::ResponseError, HttpResponse};
 #[cfg(feature = "backend")]
 use diesel::result::Error as DBError;
+use failure::Fail;
 
 pub type Result<T> = std::result::Result<T, failure::Error>;
 
@@ -68,7 +68,9 @@ impl ResponseError for ThothError {
     fn error_response(&self) -> HttpResponse {
         match self {
             ThothError::Unauthorised => HttpResponse::Unauthorized().json("Unauthorized"),
-            ThothError::DatabaseError { .. } => HttpResponse::InternalServerError().json("DB error"),
+            ThothError::DatabaseError { .. } => {
+                HttpResponse::InternalServerError().json("DB error")
+            }
             _ => HttpResponse::InternalServerError().json("Internal error"),
         }
     }

@@ -5,10 +5,9 @@ use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 use yew_router::route::Route;
 
-use crate::SESSION_COOKIE;
 use crate::agent::session_timer;
-use crate::agent::session_timer::SessionTimerDispatcher;
 use crate::agent::session_timer::SessionTimerAgent;
+use crate::agent::session_timer::SessionTimerDispatcher;
 use crate::component::contributor::ContributorComponent;
 use crate::component::contributors::ContributorsComponent;
 use crate::component::dashboard::DashboardComponent;
@@ -22,6 +21,7 @@ use crate::component::works::WorksComponent;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::service::cookie::CookieService;
+use crate::SESSION_COOKIE;
 
 pub struct AdminComponent {
     props: Props,

@@ -3,10 +3,10 @@ use yew::prelude::*;
 use yew::virtual_dom::VNode;
 use yew_router::prelude::*;
 
-use crate::SESSION_COOKIE;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::service::cookie::CookieService;
+use crate::SESSION_COOKIE;
 
 pub struct NavbarComponent {}
 
@@ -30,7 +30,7 @@ impl Component for NavbarComponent {
         let cookie_service = CookieService::new();
         let authenticated = cookie_service.get(SESSION_COOKIE).is_ok();
         let auth_route = match authenticated {
-            true => AppRoute::Home,  // will need to handle logout requests here
+            true => AppRoute::Home, // will need to handle logout requests here
             false => AppRoute::Login,
         };
         let auth_button = match authenticated {

@@ -5,8 +5,8 @@ use dotenv::dotenv;
 use thoth::server::api::start_server as api_server;
 use thoth::server::app::start_server as app_server;
 use thoth_api::account::service::register;
-use thoth_api::db::run_migrations;
 use thoth_api::db::establish_connection;
+use thoth_api::db::run_migrations;
 use thoth_api::errors::Result;
 
 fn main() -> Result<()> {
@@ -61,7 +61,8 @@ fn main() -> Result<()> {
                 .about("Manage user accounts")
                 .setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommand(
-                    App::new("register").about("Create a new user account")
+                    App::new("register")
+                        .about("Create a new user account")
                         .arg(
                             Arg::with_name("name")
                                 .short("n")
@@ -109,8 +110,8 @@ fn main() -> Result<()> {
                                 .long("is-bot")
                                 .multiple(false)
                                 .help("Is the user a bot"),
-                        )
-                    ),
+                        ),
+                ),
         )
         .get_matches();
 
@@ -140,7 +141,7 @@ fn main() -> Result<()> {
                 Ok(_) => Ok(()),
                 Err(e) => Err(e.into()),
             }
-        },
+        }
         ("account", Some(account_matches)) => match account_matches.subcommand() {
             ("register", Some(register_matches)) => {
                 let name = register_matches.value_of("name").unwrap();
@@ -152,11 +153,13 @@ fn main() -> Result<()> {
 
                 dotenv().ok();
                 let pool = establish_connection();
-                match register(&name, &surname, &email, &password, &is_admin, &is_bot, &pool) {
+                match register(
+                    &name, &surname, &email, &password, &is_admin, &is_bot, &pool,
+                ) {
                     Ok(_) => Ok(()),
                     Err(e) => Err(e.into()),
                 }
-            },
+            }
             _ => unreachable!(),
         },
         _ => unreachable!(),

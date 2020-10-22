@@ -66,8 +66,8 @@ macro_rules! graphql_query_builder {
             }
 
             fn headers(&self) -> Vec<(String, String)> {
-                use crate::SESSION_COOKIE;
                 use crate::service::cookie::CookieService;
+                use crate::SESSION_COOKIE;
 
                 let cookie_service = CookieService::new();
                 let json = ("Content-Type".into(), "application/json".into());
