@@ -18,9 +18,11 @@ use thoth_api::errors::ThothError;
 use thoth_api::graphql::model::{create_schema, Schema};
 use thoth_api::account::model::Login;
 use thoth_api::account::model::LoginCredentials;
+use thoth_api::account::model::LoginSession;
 use thoth_api::account::model::Session;
 use thoth_api::account::model::DecodedToken;
 use thoth_api::account::service::login;
+use thoth_api::account::service::login_with_token;
 use thoth_client::work::get_work;
 use uuid::Uuid;
 
@@ -92,6 +94,25 @@ async fn login_credentials(
     }).map_err(error::ErrorUnauthorized)
 }
 
+#[post("/account/token/renew")]
+async fn login_session(
+    payload: web::Json<LoginSession>,
+    token: DecodedToken,
+    id: Identity,
+    pool: web::Data<PgPool>,
+) -> Result<HttpResponse, Error> {
+    let r = payload.into_inner();
+    token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+
+    login_with_token(&r.0.token, &pool).and_then(|account| {
+        let token = account.issue_token(&pool).unwrap();
+        let user_string =
+            serde_json::to_string(&account).map_err(|_| ThothError::InternalError("Serder error".into()))?;
+        id.remember(user_string);
+        Ok(HttpResponse::Ok().json(Login(Session { token })))
+    }).map_err(error::ErrorUnauthorized)
+}
+
 fn config(cfg: &mut web::ServiceConfig) {
     dotenv().ok();
     let pool = establish_connection();
@@ -103,6 +124,7 @@ fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(graphiql);
     cfg.service(onix);
     cfg.service(login_credentials);
+    cfg.service(login_session);
 }
 
 #[actix_rt::main]

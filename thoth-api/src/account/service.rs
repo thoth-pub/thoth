@@ -28,6 +28,20 @@ pub fn login(
     }
 }
 
+pub fn login_with_token(
+    token: &str,
+    pool: &PgPool,
+) -> Result<Account, ThothError> {
+    use crate::schema::account::dsl;
+
+    let conn = pool.get().unwrap();
+    let account = dsl::account
+        .filter(dsl::token.eq(token))
+        .first::<Account>(&conn)
+        .map_err(|_| ThothError::Unauthorised)?;
+    Ok(account.into())
+}
+
 pub fn register(
     name: &str,
     surname: &str,
