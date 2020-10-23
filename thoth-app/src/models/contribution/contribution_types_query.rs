@@ -27,17 +27,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Variables {}
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ContributionTypesResponseData {
     pub contribution_types: ContributionTypeDefinition,
-}
-
-impl Default for ContributionTypesResponseData {
-    fn default() -> ContributionTypesResponseData {
-        ContributionTypesResponseData {
-            contribution_types: ContributionTypeDefinition {
-                enum_values: vec![],
-            },
-        }
-    }
 }

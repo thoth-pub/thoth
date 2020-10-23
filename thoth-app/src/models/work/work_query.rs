@@ -145,25 +145,10 @@ pub struct Variables {
     pub work_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct WorkResponseData {
     pub work: Option<Work>,
     pub imprints: Vec<Imprint>,
     pub work_types: WorkTypeDefinition,
     pub work_statuses: WorkStatusDefinition,
-}
-
-impl Default for WorkResponseData {
-    fn default() -> WorkResponseData {
-        WorkResponseData {
-            work: None,
-            imprints: vec![],
-            work_types: WorkTypeDefinition {
-                enum_values: vec![],
-            },
-            work_statuses: WorkStatusDefinition {
-                enum_values: vec![],
-            },
-        }
-    }
 }

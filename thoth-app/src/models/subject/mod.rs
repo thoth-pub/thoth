@@ -12,7 +12,7 @@ pub struct Subject {
     pub subject_ordinal: i32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SubjectTypeDefinition {
     pub enum_values: Vec<SubjectTypeValues>,

@@ -27,17 +27,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Variables {}
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct SubjectTypesResponseData {
     pub subject_types: SubjectTypeDefinition,
-}
-
-impl Default for SubjectTypesResponseData {
-    fn default() -> SubjectTypesResponseData {
-        SubjectTypesResponseData {
-            subject_types: SubjectTypeDefinition {
-                enum_values: vec![],
-            },
-        }
-    }
 }
