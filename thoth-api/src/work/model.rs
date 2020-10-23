@@ -120,6 +120,18 @@ pub struct NewWork {
     pub cover_caption: Option<String>,
 }
 
+impl Default for WorkType {
+    fn default() -> WorkType {
+        WorkType::Monograph
+    }
+}
+
+impl Default for WorkStatus {
+    fn default() -> WorkStatus {
+        WorkStatus::Inactive
+    }
+}
+
 impl fmt::Display for WorkType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -190,6 +202,18 @@ impl FromStr for WorkStatus {
             _ => Err(ThothError::InvalidWorkStatus(input.to_string())),
         }
     }
+}
+
+#[test]
+fn test_worktype_default() {
+    let worktype: WorkType = Default::default();
+    assert_eq!(worktype, WorkType::Monograph);
+}
+
+#[test]
+fn test_workstatus_default() {
+    let workstatus: WorkStatus = Default::default();
+    assert_eq!(workstatus, WorkStatus::Inactive);
 }
 
 #[test]
