@@ -16,12 +16,16 @@ const CONTRIBUTION_TYPES_QUERY: &str = "
 graphql_query_builder! {
     ContributionTypesRequest,
     ContributionTypesRequestBody,
+    Variables,
     CONTRIBUTION_TYPES_QUERY,
     ContributionTypesResponseBody,
     ContributionTypesResponseData,
     FetchContributionTypes,
     FetchActionContributionTypes
 }
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct Variables {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ContributionTypesResponseData {

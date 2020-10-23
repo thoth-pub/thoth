@@ -15,6 +15,7 @@ const STATS_QUERY: &str = "
 graphql_query_builder! {
     StatsRequest,
     StatsRequestBody,
+    Variables,
     STATS_QUERY,
     StatsResponseBody,
     StatsResponseData,
@@ -22,7 +23,10 @@ graphql_query_builder! {
     FetchActionStats
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct Variables {}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct StatsResponseData {
     pub work_count: i32,
@@ -31,17 +35,4 @@ pub struct StatsResponseData {
     pub series_count: i32,
     pub contributor_count: i32,
     pub publication_count: i32,
-}
-
-impl Default for StatsResponseData {
-    fn default() -> StatsResponseData {
-        StatsResponseData {
-            work_count: 0,
-            publisher_count: 0,
-            imprint_count: 0,
-            series_count: 0,
-            contributor_count: 0,
-            publication_count: 0,
-        }
-    }
 }

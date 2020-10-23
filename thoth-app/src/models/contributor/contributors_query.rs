@@ -19,6 +19,7 @@ pub const CONTRIBUTORS_QUERY: &str = "
 graphql_query_builder! {
     ContributorsRequest,
     ContributorsRequestBody,
+    Variables,
     CONTRIBUTORS_QUERY,
     ContributorsResponseBody,
     ContributorsResponseData,
@@ -26,15 +27,13 @@ graphql_query_builder! {
     FetchActionContributors
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ContributorsResponseData {
-    pub contributors: Vec<Contributor>,
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Variables {
+    pub filter: Option<String>,
 }
 
-impl Default for ContributorsResponseData {
-    fn default() -> ContributorsResponseData {
-        ContributorsResponseData {
-            contributors: vec![],
-        }
-    }
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ContributorsResponseData {
+    pub contributors: Vec<Contributor>,
 }

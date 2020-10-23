@@ -22,6 +22,7 @@ const IMPRINTS_QUERY: &str = "
 graphql_query_builder! {
     ImprintsRequest,
     ImprintsRequestBody,
+    Variables,
     IMPRINTS_QUERY,
     ImprintsResponseBody,
     ImprintsResponseData,
@@ -29,13 +30,10 @@ graphql_query_builder! {
     FetchActionImprints
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct Variables {}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ImprintsResponseData {
     pub imprints: Vec<Imprint>,
-}
-
-impl Default for ImprintsResponseData {
-    fn default() -> ImprintsResponseData {
-        ImprintsResponseData { imprints: vec![] }
-    }
 }

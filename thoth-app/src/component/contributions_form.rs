@@ -21,7 +21,6 @@ use crate::models::contributor::contributors_query::ContributorsRequestBody;
 use crate::models::contributor::contributors_query::FetchActionContributors;
 use crate::models::contributor::contributors_query::FetchContributors;
 use crate::models::contributor::contributors_query::Variables;
-use crate::models::contributor::contributors_query::CONTRIBUTORS_QUERY;
 use crate::models::contributor::Contributor;
 use crate::string::EMPTY_CONTRIBUTIONS;
 use crate::string::REMOVE_BUTTON;
@@ -149,14 +148,10 @@ impl Component for ContributionsFormComponent {
             }
             Msg::SearchContributor(value) => {
                 let body = ContributorsRequestBody {
-                    query: CONTRIBUTORS_QUERY.to_string(),
                     variables: Variables {
-                        work_id: None,
-                        contributor_id: None,
-                        limit: None,
-                        offset: None,
                         filter: Some(value),
                     },
+                    ..Default::default()
                 };
                 let request = ContributorsRequest { body };
                 self.fetch_contributors = Fetch::new(request);

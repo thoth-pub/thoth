@@ -131,11 +131,18 @@ pub const WORK_QUERY: &str = "
 graphql_query_builder! {
     WorkRequest,
     WorkRequestBody,
+    Variables,
     WORK_QUERY,
     WorkResponseBody,
     WorkResponseData,
     FetchWork,
     FetchActionWork
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Variables {
+    pub work_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

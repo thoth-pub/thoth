@@ -46,6 +46,7 @@ pub const WORKS_QUERY: &str = "
 graphql_query_builder! {
     WorksRequest,
     WorksRequestBody,
+    Variables,
     WORKS_QUERY,
     WorksResponseBody,
     WorksResponseData,
@@ -53,18 +54,17 @@ graphql_query_builder! {
     FetchActionWorks
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Variables {
+    pub limit: Option<i32>,
+    pub offset: Option<i32>,
+    pub filter: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorksResponseData {
     pub works: Vec<Work>,
     pub work_count: i32,
-}
-
-impl Default for WorksResponseData {
-    fn default() -> WorksResponseData {
-        WorksResponseData {
-            works: vec![],
-            work_count: 0,
-        }
-    }
 }

@@ -16,12 +16,16 @@ const SUBJECT_TYPES_QUERY: &str = "
 graphql_query_builder! {
     SubjectTypesRequest,
     SubjectTypesRequestBody,
+    Variables,
     SUBJECT_TYPES_QUERY,
     SubjectTypesResponseBody,
     SubjectTypesResponseData,
     FetchSubjectTypes,
     FetchActionSubjectTypes
 }
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct Variables {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SubjectTypesResponseData {

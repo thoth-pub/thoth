@@ -19,7 +19,6 @@ use crate::models::contributor::contributor_query::ContributorRequestBody;
 use crate::models::contributor::contributor_query::FetchActionContributor;
 use crate::models::contributor::contributor_query::FetchContributor;
 use crate::models::contributor::contributor_query::Variables;
-use crate::models::contributor::contributor_query::CONTRIBUTOR_QUERY;
 use crate::models::contributor::Contributor;
 use crate::string::SAVE_BUTTON;
 
@@ -52,14 +51,10 @@ impl Component for ContributorComponent {
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let body = ContributorRequestBody {
-            query: CONTRIBUTOR_QUERY.to_string(),
             variables: Variables {
-                work_id: None,
                 contributor_id: Some(props.contributor_id),
-                limit: None,
-                offset: None,
-                filter: None,
             },
+            ..Default::default()
         };
         let request = ContributorRequest { body };
         let fetch_contributor = Fetch::new(request);
@@ -73,15 +68,6 @@ impl Component for ContributorComponent {
             fetch_contributor,
             link,
             notification_bus,
-        }
-    }
-
-    fn rendered(&mut self, first_render: bool) {
-        if first_render {
-            self.link
-                .send_future(self.fetch_contributor.fetch(Msg::SetContributorFetchState));
-            self.link
-                .send_message(Msg::SetContributorFetchState(FetchAction::Fetching));
         }
     }
 

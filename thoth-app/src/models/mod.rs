@@ -9,6 +9,7 @@ macro_rules! graphql_query_builder {
     (
         $request:ident,
         $request_body:ident,
+        $variables: ty,
         $query:expr,
         $response_body:ident,
         $response_data:ty,
@@ -32,19 +33,9 @@ macro_rules! graphql_query_builder {
         }
 
         #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-        #[serde(rename_all = "camelCase")]
-        pub struct Variables {
-            pub work_id: Option<String>,
-            pub contributor_id: Option<String>,
-            pub limit: Option<i32>,
-            pub offset: Option<i32>,
-            pub filter: Option<String>,
-        }
-
-        #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
         pub struct $request_body {
             pub query: String,
-            pub variables: Variables,
+            pub variables: $variables,
         }
 
         #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -88,13 +79,7 @@ macro_rules! graphql_query_builder {
             fn default() -> $request_body {
                 $request_body {
                     query: $query.to_string(),
-                    variables: Variables {
-                        work_id: None,
-                        contributor_id: None,
-                        limit: None,
-                        offset: None,
-                        filter: None,
-                    },
+                    variables: Default::default(),
                 }
             }
         }

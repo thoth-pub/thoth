@@ -16,12 +16,16 @@ const LANGUAGE_RELATIONS_QUERY: &str = "
 graphql_query_builder! {
     LanguageRelationsRequest,
     LanguageRelationsRequestBody,
+    Variables,
     LANGUAGE_RELATIONS_QUERY,
     LanguageRelationsResponseBody,
     LanguageRelationsResponseData,
     FetchLanguageRelations,
     FetchActionLanguageRelations
 }
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct Variables {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LanguageRelationsResponseData {

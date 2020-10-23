@@ -16,12 +16,16 @@ const LANGUAGE_CODES_QUERY: &str = "
 graphql_query_builder! {
     LanguageCodesRequest,
     LanguageCodesRequestBody,
+    Variables,
     LANGUAGE_CODES_QUERY,
     LanguageCodesResponseBody,
     LanguageCodesResponseData,
     FetchLanguageCodes,
     FetchActionLanguageCodes
 }
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct Variables {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LanguageCodesResponseData {

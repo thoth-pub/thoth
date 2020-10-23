@@ -19,6 +19,7 @@ pub const SERIESES_QUERY: &str = "
 graphql_query_builder! {
     SeriesesRequest,
     SeriesesRequestBody,
+    Variables,
     SERIESES_QUERY,
     SeriesesResponseBody,
     SeriesesResponseData,
@@ -26,13 +27,13 @@ graphql_query_builder! {
     FetchActionSerieses
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct SeriesesResponseData {
-    pub serieses: Vec<Series>,
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Variables {
+    pub filter: Option<String>,
 }
 
-impl Default for SeriesesResponseData {
-    fn default() -> SeriesesResponseData {
-        SeriesesResponseData { serieses: vec![] }
-    }
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct SeriesesResponseData {
+    pub serieses: Vec<Series>,
 }
