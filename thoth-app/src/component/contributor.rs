@@ -131,17 +131,17 @@ impl Component for ContributorComponent {
                 html! {
                     <form onsubmit=callback>
                         <FormTextInput
-                            label = "Title"
+                            label = "First Name"
                             value=&self.contributor.first_name
                             oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
                         />
                         <FormTextInput
-                            label = "Title"
+                            label = "Last Name"
                             value=&self.contributor.last_name
                             oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
                         />
                         <FormTextInput
-                            label = "Title"
+                            label = "Full Name"
                             value=&self.contributor.full_name
                             oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
                             required = true
