@@ -1,0 +1,32 @@
+.contributor:last-child > span {
+    display: none;
+}
+
+.license {
+    width: 100% !important;
+    margin-top: 0.5em;
+}
+
+.license > svg {
+    margin-left: 0.2em;
+}
+
+.row {
+    cursor: pointer;
+}
+
+.fixed-right {
+    float: right;
+    position: fixed;
+    right: 0;
+    z-index: 1;
+}
+
+.dropdown-item {
+    cursor: pointer;
+}
+
+
+.field.is-horizontal > .field:not(:last-child) {
+    margin-right: .75em;
+}

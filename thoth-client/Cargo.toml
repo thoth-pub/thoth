@@ -1,0 +1,17 @@
+[package]
+name = "thoth-client"
+version = "0.2.0"
+authors = ["Javier Arias <javi@openbookpublishers.com>"]
+edition = "2018"
+license = "Apache-2.0"
+description = "GraphQL Client for bibliographic data"
+repository = "https://github.com/thoth-pub/thoth"
+readme = "README.md"
+
+[dependencies]
+thoth-api = {version = "*", path = "../thoth-api", features = ["backend"] }
+graphql_client = "0.9.0"
+chrono = { version = "0.4", features = ["serde"] }
+reqwest = { version = "0.10", features = ["json"] }
+serde = "1.0"
+uuid = { version = "0.7", features = ["serde"] }

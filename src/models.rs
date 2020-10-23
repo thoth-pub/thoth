@@ -1,9 +1,0 @@
-pub mod contributor;
-pub mod funder;
-pub mod language;
-pub mod price;
-pub mod publication;
-pub mod publisher;
-pub mod series;
-pub mod subject;
-pub mod work;

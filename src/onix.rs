@@ -2,17 +2,16 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use chrono::prelude::*;
+use thoth_api::errors;
+use thoth_client::work::work_query::ContributionType;
+use thoth_client::work::work_query::LanguageRelation;
+use thoth_client::work::work_query::PublicationType;
+use thoth_client::work::work_query::SubjectType;
+use thoth_client::work::work_query::WorkQueryWork;
+use thoth_client::work::work_query::WorkQueryWorkPublications;
+use thoth_client::work::work_query::WorkStatus;
 use xml::writer::events::StartElementBuilder;
 use xml::writer::{EmitterConfig, EventWriter, Result, XmlEvent};
-
-use crate::client::work_query::ContributionType;
-use crate::client::work_query::LanguageRelation;
-use crate::client::work_query::PublicationType;
-use crate::client::work_query::SubjectType;
-use crate::client::work_query::WorkQueryWork;
-use crate::client::work_query::WorkQueryWorkPublications;
-use crate::client::work_query::WorkStatus;
-use crate::errors;
 
 pub fn generate_onix_3(mut work: WorkQueryWork) -> errors::Result<Vec<u8>> {
     let mut buffer = Vec::new();
@@ -333,8 +332,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     .ok();
                 })
                 .ok();
-                let mut sequence_number = 0;
-                for contribution in &work.contributions {
+                for (mut sequence_number, contribution) in work.contributions.iter().enumerate() {
                     sequence_number += 1;
                     write_element_block("Contributor", None, None, w, |w| {
                         write_element_block("SequenceNumber", None, None, w, |w| {

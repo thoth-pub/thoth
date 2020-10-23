@@ -11,14 +11,24 @@ services:
     env_file:
       - .env
 
-  thoth:
+  api:
     image: openbookpublishers/thoth
-    container_name: "thoth"
+    container_name: "thoth_api"
     restart: unless-stopped
     env_file:
       - .env
     depends_on:
       - db
+
+  app:
+    image: openbookpublishers/thoth
+    container_name: "thoth_app"
+    restart: unless-stopped
+    command: ["start", "app"]
+    env_file:
+      - .env
+    depends_on:
+      - api
 
 volumes:
   db:
