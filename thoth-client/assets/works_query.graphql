@@ -1,0 +1,21 @@
+query WorksQuery {
+    works(limit: 9999) {
+        fullTitle
+        workId
+        coverUrl
+        doi
+        publicationDate
+        place
+        contributions {
+            mainContribution
+            contributor {
+                fullName
+            }
+        }
+        imprint {
+            publisher {
+                publisherName
+            }
+        }
+    }
+}
