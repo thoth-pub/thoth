@@ -35,6 +35,8 @@ pub enum AdminRoute {
     Contributors,
     #[to = "/contributor/{id}"]
     Contributor(String),
+    #[to = "/contributor"]
+    NewContributor,
     #[to = "/serieses"]
     Serieses,
     #[to = "/series/{id}"]

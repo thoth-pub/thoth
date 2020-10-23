@@ -99,7 +99,7 @@ impl Component for ContributorComponent {
                 self.contributor.first_name.neq_assign(Some(first_name))
             }
             Msg::ChangeLastName(last_name) => {
-                self.contributor.last_name.neq_assign(Some(last_name))
+                self.contributor.last_name.neq_assign(last_name)
             }
             Msg::ChangeFullName(full_name) => self.contributor.full_name.neq_assign(full_name),
             Msg::ChangeOrcid(orcid) => self.contributor.orcid.neq_assign(Some(orcid)),
