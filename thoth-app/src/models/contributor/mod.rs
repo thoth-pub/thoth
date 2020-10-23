@@ -35,6 +35,6 @@ impl Contributor {
     }
 }
 
-pub mod create_contributor_mutation;
 pub mod contributor_query;
 pub mod contributors_query;
+pub mod create_contributor_mutation;

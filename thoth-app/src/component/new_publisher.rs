@@ -60,24 +60,22 @@ impl Component for NewPublisherComponent {
                 match self.push_publisher.as_ref().state() {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
-                    FetchState::Fetched(body) => {
-                        match &body.data.create_publisher {
-                            Some(p) => {
-                                self.notification_bus.send(Request::NotificationBusMsg((
-                                    format!("Saved {}", p.publisher_name),
-                                    NotificationStatus::Success,
-                                )));
-                                true
-                            }
-                            None => {
-                                self.notification_bus.send(Request::NotificationBusMsg((
-                                    "Failed to save".to_string(),
-                                    NotificationStatus::Danger,
-                                )));
-                                false
-                            }
+                    FetchState::Fetched(body) => match &body.data.create_publisher {
+                        Some(p) => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                format!("Saved {}", p.publisher_name),
+                                NotificationStatus::Success,
+                            )));
+                            true
                         }
-                    }
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
@@ -107,9 +105,10 @@ impl Component for NewPublisherComponent {
             Msg::ChangePublisherName(publisher_name) => {
                 self.publisher.publisher_name.neq_assign(publisher_name)
             }
-            Msg::ChangePublisherShortname(publisher_shortname) => {
-                self.publisher.publisher_shortname.neq_assign(Some(publisher_shortname))
-            }
+            Msg::ChangePublisherShortname(publisher_shortname) => self
+                .publisher
+                .publisher_shortname
+                .neq_assign(Some(publisher_shortname)),
             Msg::ChangePublisherUrl(publisher_url) => {
                 self.publisher.publisher_url.neq_assign(Some(publisher_url))
             }

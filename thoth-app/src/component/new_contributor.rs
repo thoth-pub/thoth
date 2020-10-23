@@ -62,24 +62,22 @@ impl Component for NewContributorComponent {
                 match self.push_contributor.as_ref().state() {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
-                    FetchState::Fetched(body) => {
-                        match &body.data.create_contributor {
-                            Some(c) => {
-                                self.notification_bus.send(Request::NotificationBusMsg((
-                                    format!("Saved {}", c.full_name),
-                                    NotificationStatus::Success,
-                                )));
-                                true
-                            }
-                            None => {
-                                self.notification_bus.send(Request::NotificationBusMsg((
-                                    "Failed to save".to_string(),
-                                    NotificationStatus::Danger,
-                                )));
-                                false
-                            }
+                    FetchState::Fetched(body) => match &body.data.create_contributor {
+                        Some(c) => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                format!("Saved {}", c.full_name),
+                                NotificationStatus::Success,
+                            )));
+                            true
                         }
-                    }
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
@@ -111,18 +109,10 @@ impl Component for NewContributorComponent {
             Msg::ChangeFirstName(first_name) => {
                 self.contributor.first_name.neq_assign(Some(first_name))
             }
-            Msg::ChangeLastName(last_name) => {
-                self.contributor.last_name.neq_assign(last_name)
-            }
-            Msg::ChangeFullName(full_name) => {
-                self.contributor.full_name.neq_assign(full_name)
-            }
-            Msg::ChangeOrcid(orcid) => {
-                self.contributor.orcid.neq_assign(Some(orcid))
-            }
-            Msg::ChangeWebsite(website) => {
-                self.contributor.website.neq_assign(Some(website))
-            }
+            Msg::ChangeLastName(last_name) => self.contributor.last_name.neq_assign(last_name),
+            Msg::ChangeFullName(full_name) => self.contributor.full_name.neq_assign(full_name),
+            Msg::ChangeOrcid(orcid) => self.contributor.orcid.neq_assign(Some(orcid)),
+            Msg::ChangeWebsite(website) => self.contributor.website.neq_assign(Some(website)),
         }
     }
 
