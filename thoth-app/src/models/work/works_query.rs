@@ -25,6 +25,7 @@ pub const WORKS_QUERY: &str = "
                 mainContribution
                 contributor {
                     contributorId
+                    lastName
                     fullName
                 }
             }
