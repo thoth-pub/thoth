@@ -49,6 +49,12 @@ pub struct NewPublication {
     pub publication_url: Option<String>,
 }
 
+impl Default for PublicationType {
+    fn default() -> PublicationType {
+        PublicationType::Paperback
+    }
+}
+
 impl fmt::Display for PublicationType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -78,6 +84,12 @@ impl FromStr for PublicationType {
             _ => Err(ThothError::InvalidPublicationType(input.to_string())),
         }
     }
+}
+
+#[test]
+fn test_publicationtype_default() {
+    let pubtype: PublicationType = Default::default();
+    assert_eq!(pubtype, PublicationType::Paperback);
 }
 
 #[test]

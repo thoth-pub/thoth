@@ -13,7 +13,6 @@ use crate::models::funder::funders_query::FetchFunders;
 use crate::models::funder::funders_query::FundersRequest;
 use crate::models::funder::funders_query::FundersRequestBody;
 use crate::models::funder::funders_query::Variables;
-use crate::models::funder::funders_query::FUNDERS_QUERY;
 use crate::models::funder::Funder;
 use crate::models::funding::Funding;
 use crate::string::EMPTY_FUNDINGS;
@@ -116,14 +115,10 @@ impl Component for FundingsFormComponent {
             }
             Msg::SearchFunder(value) => {
                 let body = FundersRequestBody {
-                    query: FUNDERS_QUERY.to_string(),
                     variables: Variables {
-                        work_id: None,
-                        contributor_id: None,
-                        limit: None,
-                        offset: None,
                         filter: Some(value),
                     },
+                    ..Default::default()
                 };
                 let request = FundersRequest { body };
                 self.fetch_funders = Fetch::new(request);

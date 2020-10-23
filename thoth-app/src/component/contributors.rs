@@ -3,6 +3,7 @@ use yew::prelude::*;
 use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
+use yew_router::prelude::RouterAnchor;
 use yew_router::route::Route;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -94,7 +95,12 @@ impl Component for ContributorsComponent {
                         </div>
                         <div class="level-right">
                             <p class="level-item">
-                                <a class="button is-success">{ "New" }</a>
+                                <RouterAnchor<AppRoute>
+                                    classes="button is-success"
+                                    route=AppRoute::Admin(AdminRoute::NewContributor)
+                                >
+                                    {"New"}
+                                </  RouterAnchor<AppRoute>>
                             </p>
                         </div>
                     </nav>

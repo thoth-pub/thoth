@@ -12,7 +12,7 @@ pub struct Publication {
     pub publication_url: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicationTypeDefinition {
     pub enum_values: Vec<PublicationTypeValues>,

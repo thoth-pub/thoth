@@ -531,6 +531,18 @@ pub enum LanguageCode {
     Zza,
 }
 
+impl Default for LanguageCode {
+    fn default() -> LanguageCode {
+        LanguageCode::Eng
+    }
+}
+
+impl Default for LanguageRelation {
+    fn default() -> LanguageRelation {
+        LanguageRelation::Original
+    }
+}
+
 impl fmt::Display for LanguageRelation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -1543,6 +1555,18 @@ impl FromStr for LanguageCode {
             _ => Err(ThothError::InvalidLanguageCode(input.to_string())),
         }
     }
+}
+
+#[test]
+fn test_languagecode_default() {
+    let langcode: LanguageCode = Default::default();
+    assert_eq!(langcode, LanguageCode::Eng);
+}
+
+#[test]
+fn test_languagerelation_default() {
+    let langrelation: LanguageRelation = Default::default();
+    assert_eq!(langrelation, LanguageRelation::Original);
 }
 
 #[test]

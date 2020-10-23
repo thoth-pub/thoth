@@ -39,6 +39,12 @@ pub struct NewSeries {
     pub imprint_id: Uuid,
 }
 
+impl Default for SeriesType {
+    fn default() -> SeriesType {
+        SeriesType::BookSeries
+    }
+}
+
 impl fmt::Display for SeriesType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -58,6 +64,12 @@ impl FromStr for SeriesType {
             _ => Err(ThothError::InvalidSeriesType(input.to_string())),
         }
     }
+}
+
+#[test]
+fn test_seriestype_default() {
+    let seriestype: SeriesType = Default::default();
+    assert_eq!(seriestype, SeriesType::BookSeries);
 }
 
 #[test]

@@ -14,7 +14,6 @@ use crate::models::series::serieses_query::FetchSerieses;
 use crate::models::series::serieses_query::SeriesesRequest;
 use crate::models::series::serieses_query::SeriesesRequestBody;
 use crate::models::series::serieses_query::Variables;
-use crate::models::series::serieses_query::SERIESES_QUERY;
 use crate::models::series::Series;
 use crate::string::EMPTY_ISSUES;
 use crate::string::REMOVE_BUTTON;
@@ -96,14 +95,10 @@ impl Component for IssuesFormComponent {
             }
             Msg::SearchSeries(value) => {
                 let body = SeriesesRequestBody {
-                    query: SERIESES_QUERY.to_string(),
                     variables: Variables {
-                        work_id: None,
-                        contributor_id: None,
-                        limit: None,
-                        offset: None,
                         filter: Some(value),
                     },
+                    ..Default::default()
                 };
                 let request = SeriesesRequest { body };
                 self.fetch_serieses = Fetch::new(request);

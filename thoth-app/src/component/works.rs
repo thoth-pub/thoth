@@ -16,7 +16,6 @@ use crate::models::work::works_query::FetchWorks;
 use crate::models::work::works_query::Variables;
 use crate::models::work::works_query::WorksRequest;
 use crate::models::work::works_query::WorksRequestBody;
-use crate::models::work::works_query::WORKS_QUERY;
 use crate::models::work::Work;
 use crate::route::AppRoute;
 use crate::string::NEXT_PAGE_BUTTON;
@@ -101,14 +100,12 @@ impl Component for WorksComponent {
             Msg::PaginateWorks => {
                 let filter = self.search_term.clone();
                 let body = WorksRequestBody {
-                    query: WORKS_QUERY.to_string(),
                     variables: Variables {
-                        work_id: None,
-                        contributor_id: None,
                         limit: Some(self.limit),
                         offset: Some(self.offset),
                         filter: Some(filter),
                     },
+                    ..Default::default()
                 };
                 let request = WorksRequest { body };
                 self.fetch_works = Fetch::new(request);

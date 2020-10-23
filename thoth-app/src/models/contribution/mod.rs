@@ -18,7 +18,7 @@ pub struct Contribution {
     pub contributor: Contributor,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ContributionTypeDefinition {
     pub enum_values: Vec<ContributionTypeValues>,

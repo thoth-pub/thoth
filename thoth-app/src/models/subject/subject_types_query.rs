@@ -16,6 +16,7 @@ const SUBJECT_TYPES_QUERY: &str = "
 graphql_query_builder! {
     SubjectTypesRequest,
     SubjectTypesRequestBody,
+    Variables,
     SUBJECT_TYPES_QUERY,
     SubjectTypesResponseBody,
     SubjectTypesResponseData,
@@ -23,17 +24,10 @@ graphql_query_builder! {
     FetchActionSubjectTypes
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct Variables {}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct SubjectTypesResponseData {
     pub subject_types: SubjectTypeDefinition,
-}
-
-impl Default for SubjectTypesResponseData {
-    fn default() -> SubjectTypesResponseData {
-        SubjectTypesResponseData {
-            subject_types: SubjectTypeDefinition {
-                enum_values: vec![],
-            },
-        }
-    }
 }

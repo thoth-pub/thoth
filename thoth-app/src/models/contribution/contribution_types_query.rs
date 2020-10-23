@@ -16,6 +16,7 @@ const CONTRIBUTION_TYPES_QUERY: &str = "
 graphql_query_builder! {
     ContributionTypesRequest,
     ContributionTypesRequestBody,
+    Variables,
     CONTRIBUTION_TYPES_QUERY,
     ContributionTypesResponseBody,
     ContributionTypesResponseData,
@@ -23,17 +24,10 @@ graphql_query_builder! {
     FetchActionContributionTypes
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct Variables {}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ContributionTypesResponseData {
     pub contribution_types: ContributionTypeDefinition,
-}
-
-impl Default for ContributionTypesResponseData {
-    fn default() -> ContributionTypesResponseData {
-        ContributionTypesResponseData {
-            contribution_types: ContributionTypeDefinition {
-                enum_values: vec![],
-            },
-        }
-    }
 }

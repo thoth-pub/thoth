@@ -57,6 +57,12 @@ pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<()> {
     }
 }
 
+impl Default for SubjectType {
+    fn default() -> SubjectType {
+        SubjectType::Keyword
+    }
+}
+
 impl fmt::Display for SubjectType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -84,6 +90,12 @@ impl FromStr for SubjectType {
             _ => Err(ThothError::InvalidSubjectType(input.to_string())),
         }
     }
+}
+
+#[test]
+fn test_subjecttype_default() {
+    let subjecttype: SubjectType = Default::default();
+    assert_eq!(subjecttype, SubjectType::Keyword);
 }
 
 #[test]

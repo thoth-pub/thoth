@@ -17,6 +17,7 @@ const PUBLISHERS_QUERY: &str = "
 graphql_query_builder! {
     PublishersRequest,
     PublishersRequestBody,
+    Variables,
     PUBLISHERS_QUERY,
     PublishersResponseBody,
     PublishersResponseData,
@@ -24,13 +25,10 @@ graphql_query_builder! {
     FetchActionPublishers
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct Variables {}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct PublishersResponseData {
     pub publishers: Vec<Publisher>,
-}
-
-impl Default for PublishersResponseData {
-    fn default() -> PublishersResponseData {
-        PublishersResponseData { publishers: vec![] }
-    }
 }

@@ -21,4 +21,5 @@ impl Default for Publisher {
     }
 }
 
+pub mod create_publisher_mutation;
 pub mod publishers_query;

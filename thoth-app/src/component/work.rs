@@ -41,7 +41,6 @@ use crate::models::work::work_query::FetchWork;
 use crate::models::work::work_query::Variables;
 use crate::models::work::work_query::WorkRequest;
 use crate::models::work::work_query::WorkRequestBody;
-use crate::models::work::work_query::WORK_QUERY;
 use crate::models::work::Work;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
@@ -112,14 +111,10 @@ impl Component for WorkComponent {
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let body = WorkRequestBody {
-            query: WORK_QUERY.to_string(),
             variables: Variables {
                 work_id: Some(props.work_id),
-                contributor_id: None,
-                limit: None,
-                offset: None,
-                filter: None,
             },
+            ..Default::default()
         };
         let request = WorkRequest { body };
         let fetch_work = Fetch::new(request);

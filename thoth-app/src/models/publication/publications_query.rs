@@ -39,6 +39,7 @@ pub const PUBLICATIONS_QUERY: &str = "
 graphql_query_builder! {
     PublicationsRequest,
     PublicationsRequestBody,
+    Variables,
     PUBLICATIONS_QUERY,
     PublicationsResponseBody,
     PublicationsResponseData,
@@ -46,7 +47,13 @@ graphql_query_builder! {
     FetchActionPublications
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Variables {
+    pub filter: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DetailedPublication {
     pub publication_id: String,
@@ -57,28 +64,7 @@ pub struct DetailedPublication {
     pub work: Work,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct PublicationsResponseData {
     pub publications: Vec<DetailedPublication>,
-}
-
-impl Default for DetailedPublication {
-    fn default() -> DetailedPublication {
-        DetailedPublication {
-            publication_id: "".to_string(),
-            publication_type: PublicationType::Paperback,
-            work_id: "".to_string(),
-            isbn: None,
-            publication_url: None,
-            work: Default::default(),
-        }
-    }
-}
-
-impl Default for PublicationsResponseData {
-    fn default() -> PublicationsResponseData {
-        PublicationsResponseData {
-            publications: vec![],
-        }
-    }
 }

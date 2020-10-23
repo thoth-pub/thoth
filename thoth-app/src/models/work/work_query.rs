@@ -47,6 +47,7 @@ pub const WORK_QUERY: &str = "
                 institution
                 contributor {
                     contributorId
+                    lastName
                     fullName
                 }
             }
@@ -131,6 +132,7 @@ pub const WORK_QUERY: &str = "
 graphql_query_builder! {
     WorkRequest,
     WorkRequestBody,
+    Variables,
     WORK_QUERY,
     WorkResponseBody,
     WorkResponseData,
@@ -138,25 +140,16 @@ graphql_query_builder! {
     FetchActionWork
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Variables {
+    pub work_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct WorkResponseData {
     pub work: Option<Work>,
     pub imprints: Vec<Imprint>,
     pub work_types: WorkTypeDefinition,
     pub work_statuses: WorkStatusDefinition,
-}
-
-impl Default for WorkResponseData {
-    fn default() -> WorkResponseData {
-        WorkResponseData {
-            work: None,
-            imprints: vec![],
-            work_types: WorkTypeDefinition {
-                enum_values: vec![],
-            },
-            work_statuses: WorkStatusDefinition {
-                enum_values: vec![],
-            },
-        }
-    }
 }

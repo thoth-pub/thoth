@@ -19,7 +19,6 @@ use crate::models::contributor::contributor_query::ContributorRequestBody;
 use crate::models::contributor::contributor_query::FetchActionContributor;
 use crate::models::contributor::contributor_query::FetchContributor;
 use crate::models::contributor::contributor_query::Variables;
-use crate::models::contributor::contributor_query::CONTRIBUTOR_QUERY;
 use crate::models::contributor::Contributor;
 use crate::string::SAVE_BUTTON;
 
@@ -52,14 +51,10 @@ impl Component for ContributorComponent {
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let body = ContributorRequestBody {
-            query: CONTRIBUTOR_QUERY.to_string(),
             variables: Variables {
-                work_id: None,
                 contributor_id: Some(props.contributor_id),
-                limit: None,
-                offset: None,
-                filter: None,
             },
+            ..Default::default()
         };
         let request = ContributorRequest { body };
         let fetch_contributor = Fetch::new(request);
@@ -73,15 +68,6 @@ impl Component for ContributorComponent {
             fetch_contributor,
             link,
             notification_bus,
-        }
-    }
-
-    fn rendered(&mut self, first_render: bool) {
-        if first_render {
-            self.link
-                .send_future(self.fetch_contributor.fetch(Msg::SetContributorFetchState));
-            self.link
-                .send_message(Msg::SetContributorFetchState(FetchAction::Fetching));
         }
     }
 
@@ -112,9 +98,7 @@ impl Component for ContributorComponent {
             Msg::ChangeFirstName(first_name) => {
                 self.contributor.first_name.neq_assign(Some(first_name))
             }
-            Msg::ChangeLastName(last_name) => {
-                self.contributor.last_name.neq_assign(Some(last_name))
-            }
+            Msg::ChangeLastName(last_name) => self.contributor.last_name.neq_assign(last_name),
             Msg::ChangeFullName(full_name) => self.contributor.full_name.neq_assign(full_name),
             Msg::ChangeOrcid(orcid) => self.contributor.orcid.neq_assign(Some(orcid)),
             Msg::ChangeWebsite(website) => self.contributor.website.neq_assign(Some(website)),
@@ -145,17 +129,17 @@ impl Component for ContributorComponent {
                 html! {
                     <form onsubmit=callback>
                         <FormTextInput
-                            label = "Title"
+                            label = "First Name"
                             value=&self.contributor.first_name
                             oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
                         />
                         <FormTextInput
-                            label = "Title"
+                            label = "Last Name"
                             value=&self.contributor.last_name
                             oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
                         />
                         <FormTextInput
-                            label = "Title"
+                            label = "Full Name"
                             value=&self.contributor.full_name
                             oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
                             required = true

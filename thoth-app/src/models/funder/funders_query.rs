@@ -16,6 +16,7 @@ pub const FUNDERS_QUERY: &str = "
 graphql_query_builder! {
     FundersRequest,
     FundersRequestBody,
+    Variables,
     FUNDERS_QUERY,
     FundersResponseBody,
     FundersResponseData,
@@ -23,13 +24,13 @@ graphql_query_builder! {
     FetchActionFunders
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct FundersResponseData {
-    pub funders: Vec<Funder>,
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Variables {
+    pub filter: Option<String>,
 }
 
-impl Default for FundersResponseData {
-    fn default() -> FundersResponseData {
-        FundersResponseData { funders: vec![] }
-    }
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct FundersResponseData {
+    pub funders: Vec<Funder>,
 }

@@ -327,3 +327,15 @@ pub enum CurrencyCode {
     Zwn,
     Zwr,
 }
+
+impl Default for CurrencyCode {
+    fn default() -> CurrencyCode {
+        CurrencyCode::Gbp
+    }
+}
+
+#[test]
+fn test_currencycode_default() {
+    let currencycode: CurrencyCode = Default::default();
+    assert_eq!(currencycode, CurrencyCode::Gbp);
+}

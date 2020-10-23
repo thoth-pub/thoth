@@ -50,6 +50,12 @@ pub struct NewContribution {
     pub institution: Option<String>,
 }
 
+impl Default for ContributionType {
+    fn default() -> ContributionType {
+        ContributionType::Author
+    }
+}
+
 impl fmt::Display for ContributionType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -85,6 +91,12 @@ impl FromStr for ContributionType {
             _ => Err(ThothError::InvalidContributionType(input.to_string())),
         }
     }
+}
+
+#[test]
+fn test_contributiontype_default() {
+    let contributiontype: ContributionType = Default::default();
+    assert_eq!(contributiontype, ContributionType::Author);
 }
 
 #[test]

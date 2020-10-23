@@ -72,13 +72,13 @@ pub enum License {
     Undefined,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkTypeDefinition {
     pub enum_values: Vec<WorkTypeValues>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkStatusDefinition {
     pub enum_values: Vec<WorkStatusValues>,

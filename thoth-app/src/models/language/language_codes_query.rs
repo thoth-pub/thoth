@@ -16,6 +16,7 @@ const LANGUAGE_CODES_QUERY: &str = "
 graphql_query_builder! {
     LanguageCodesRequest,
     LanguageCodesRequestBody,
+    Variables,
     LANGUAGE_CODES_QUERY,
     LanguageCodesResponseBody,
     LanguageCodesResponseData,
@@ -23,17 +24,10 @@ graphql_query_builder! {
     FetchActionLanguageCodes
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct Variables {}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct LanguageCodesResponseData {
     pub language_codes: LanguageCodeDefinition,
-}
-
-impl Default for LanguageCodesResponseData {
-    fn default() -> LanguageCodesResponseData {
-        LanguageCodesResponseData {
-            language_codes: LanguageCodeDefinition {
-                enum_values: vec![],
-            },
-        }
-    }
 }
