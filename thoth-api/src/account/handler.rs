@@ -19,7 +19,7 @@ use crate::errors::ThothError;
 
 impl Account {
     pub fn issue_token(&self, pool: &PgPool) -> Result<String, ThothError> {
-        const DEFAULT_TOKEN_VALIDITY: i64 = 3600;
+        const DEFAULT_TOKEN_VALIDITY: i64 = 24 * 60 * 60;
         let connection = pool.get().unwrap();
         dotenv().ok();
         let secret_str = env::var("SECRET_KEY").expect("SECRET_KEY must be set");
