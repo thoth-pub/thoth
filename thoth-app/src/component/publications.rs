@@ -94,7 +94,7 @@ impl Component for PublicationsComponent {
                         </div>
                         <div class="level-right">
                             <p class="level-item">
-                                <a class="button is-success">{ "New" }</a>
+                                { "New publications are created at the work level." }
                             </p>
                         </div>
                     </nav>

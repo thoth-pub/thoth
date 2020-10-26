@@ -231,5 +231,8 @@ impl Default for Work {
     }
 }
 
+pub mod create_work_mutation;
+pub mod work_statuses_query;
+pub mod work_types_query;
 pub mod work_query;
 pub mod works_query;

@@ -21,6 +21,8 @@ pub enum AdminRoute {
     Works,
     #[to = "/work/{id}"]
     Work(String),
+    #[to = "/work"]
+    NewWork,
     #[to = "/publishers"]
     Publishers,
     #[to = "/publisher/{id}"]

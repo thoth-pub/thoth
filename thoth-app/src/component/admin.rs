@@ -19,6 +19,7 @@ use crate::component::new_funder::NewFunderComponent;
 use crate::component::new_imprint::NewImprintComponent;
 use crate::component::new_publisher::NewPublisherComponent;
 use crate::component::new_series::NewSeriesComponent;
+use crate::component::new_work::NewWorkComponent;
 use crate::component::publications::PublicationsComponent;
 use crate::component::publishers::PublishersComponent;
 use crate::component::serieses::SeriesesComponent;
@@ -92,6 +93,7 @@ impl Component for AdminComponent {
                             AdminRoute::Dashboard => html!{<DashboardComponent/>},
                             AdminRoute::Works => html!{<WorksComponent/>},
                             AdminRoute::Work(id) => html!{<WorkComponent work_id = id />},
+                            AdminRoute::NewWork => html!{<NewWorkComponent/>},
                             AdminRoute::Publishers => html!{<PublishersComponent/>},
                             AdminRoute::Publisher(id) => html!{{ id }},
                             AdminRoute::NewPublisher => html!{<NewPublisherComponent/>},

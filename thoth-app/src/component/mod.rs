@@ -17,6 +17,7 @@ pub mod new_funder;
 pub mod new_imprint;
 pub mod new_publisher;
 pub mod new_series;
+pub mod new_work;
 pub mod notification;
 pub mod publications;
 pub mod publications_form;

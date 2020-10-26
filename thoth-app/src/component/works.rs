@@ -3,6 +3,7 @@ use yew::prelude::*;
 use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
+use yew_router::prelude::RouterAnchor;
 use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
@@ -18,6 +19,7 @@ use crate::models::work::works_query::WorksRequest;
 use crate::models::work::works_query::WorksRequestBody;
 use crate::models::work::Work;
 use crate::route::AppRoute;
+use crate::route::AdminRoute;
 use crate::string::NEXT_PAGE_BUTTON;
 use crate::string::PAGINATION_COUNT_WORKS;
 use crate::string::PREVIOUS_PAGE_BUTTON;
@@ -160,7 +162,12 @@ impl Component for WorksComponent {
                     </div>
                     <div class="level-right">
                         <p class="level-item">
-                            <a class="button is-success">{ "New" }</a>
+                                <RouterAnchor<AppRoute>
+                                    classes="button is-success"
+                                    route=AppRoute::Admin(AdminRoute::NewWork)
+                                >
+                                    {"New"}
+                                </  RouterAnchor<AppRoute>>
                         </p>
                     </div>
                 </nav>
