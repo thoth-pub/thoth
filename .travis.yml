@@ -2,6 +2,8 @@ language: rust
 rust:
     - stable
     - beta
+env:
+    - THOTH_API=http://localhost:8000
 before_script:
     - rustup component add rustfmt
     - rustup component add clippy || cargo install --git https://github.com/rust-lang/rust-clippy/ --force clippy
