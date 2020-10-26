@@ -19,6 +19,7 @@ pub mod publications_form;
 pub mod publishers;
 pub mod root;
 pub mod serieses;
+pub mod new_series;
 pub mod subjects_form;
 pub mod utils;
 pub mod work;

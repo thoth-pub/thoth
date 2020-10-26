@@ -2,6 +2,7 @@ use thoth_api::contribution::model::ContributionType;
 use thoth_api::language::model::LanguageCode;
 use thoth_api::language::model::LanguageRelation;
 use thoth_api::publication::model::PublicationType;
+use thoth_api::series::model::SeriesType;
 use thoth_api::subject::model::SubjectType;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
@@ -21,6 +22,7 @@ use crate::models::imprint::Imprint;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
 use crate::models::publication::PublicationTypeValues;
+use crate::models::series::SeriesTypeValues;
 use crate::models::subject::SubjectTypeValues;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
@@ -38,6 +40,7 @@ pub type FormWorkTypeSelect = Pure<PureWorkTypeSelect>;
 pub type FormWorkStatusSelect = Pure<PureWorkStatusSelect>;
 pub type FormContributionTypeSelect = Pure<PureContributionTypeSelect>;
 pub type FormPublicationTypeSelect = Pure<PurePublicationTypeSelect>;
+pub type FormSeriesTypeSelect = Pure<PureSeriesTypeSelect>;
 pub type FormSubjectTypeSelect = Pure<PureSubjectTypeSelect>;
 pub type FormLanguageCodeSelect = Pure<PureLanguageCodeSelect>;
 pub type FormLanguageRelationSelect = Pure<PureLanguageRelationSelect>;
@@ -163,6 +166,16 @@ pub struct PureSubjectTypeSelect {
     pub label: String,
     pub data: Vec<SubjectTypeValues>,
     pub value: SubjectType,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureSeriesTypeSelect {
+    pub label: String,
+    pub data: Vec<SeriesTypeValues>,
+    pub value: SeriesType,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -413,6 +426,26 @@ impl PureComponent for PureSubjectTypeSelect {
     }
 }
 
+impl PureComponent for PureSeriesTypeSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                    >
+                        { for self.data.iter().map(|s| self.render_seriestype(s)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
 impl PureComponent for PureLanguageCodeSelect {
     fn render(&self) -> VNode {
         html! {
@@ -563,6 +596,22 @@ impl PurePublicationTypeSelect {
 
 impl PureSubjectTypeSelect {
     fn render_subjecttype(&self, s: &SubjectTypeValues) -> VNode {
+        if s.name == self.value {
+            html! {
+                <option value={&s.name} selected=true>
+                    {&s.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={&s.name}>{&s.name}</option>
+            }
+        }
+    }
+}
+
+impl PureSeriesTypeSelect {
+    fn render_seriestype(&self, s: &SeriesTypeValues) -> VNode {
         if s.name == self.value {
             html! {
                 <option value={&s.name} selected=true>

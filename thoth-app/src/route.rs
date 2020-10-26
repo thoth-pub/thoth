@@ -41,6 +41,8 @@ pub enum AdminRoute {
     Serieses,
     #[to = "/series/{id}"]
     Series(String),
+    #[to = "/series"]
+    NewSeries,
     #[to = "/publications"]
     Publications,
     #[to = "/publication/{id}"]

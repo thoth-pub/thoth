@@ -17,6 +17,18 @@ pub struct Series {
     pub series_url: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SeriesTypeDefinition {
+    pub enum_values: Vec<SeriesTypeValues>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SeriesTypeValues {
+    pub name: SeriesType,
+}
+
 impl Default for Series {
     fn default() -> Series {
         Series {
@@ -43,4 +55,6 @@ impl Series {
     }
 }
 
+pub mod create_series_mutation;
 pub mod serieses_query;
+pub mod series_types_query;
