@@ -22,6 +22,7 @@ use crate::models::imprint::Imprint;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
 use crate::models::publication::PublicationTypeValues;
+use crate::models::publisher::Publisher;
 use crate::models::series::SeriesTypeValues;
 use crate::models::subject::SubjectTypeValues;
 use crate::models::work::WorkStatusValues;
@@ -46,6 +47,7 @@ pub type FormLanguageCodeSelect = Pure<PureLanguageCodeSelect>;
 pub type FormLanguageRelationSelect = Pure<PureLanguageRelationSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
+pub type FormPublisherSelect = Pure<PurePublisherSelect>;
 pub type Loader = Pure<PureLoader>;
 pub type Reloader = Pure<PureReloader>;
 
@@ -216,6 +218,16 @@ pub struct PureBooleanSelect {
 pub struct PureImprintSelect {
     pub label: String,
     pub data: Vec<Imprint>,
+    pub value: Option<String>,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PurePublisherSelect {
+    pub label: String,
+    pub data: Vec<Publisher>,
     pub value: Option<String>,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
@@ -530,6 +542,24 @@ impl PureComponent for PureImprintSelect {
     }
 }
 
+impl PureComponent for PurePublisherSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select is-fullwidth">
+                    <select required=self.required onchange=&self.onchange>
+                        <option value="">{"Select Publisher"}</option>
+                        { for self.data.iter().map(|p| self.render_publisher(p)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
 impl PureWorkTypeSelect {
     fn render_worktype(&self, w: &WorkTypeValues) -> VNode {
         if w.name == self.value {
@@ -670,6 +700,23 @@ impl PureImprintSelect {
         } else {
             html! {
                 <option value={&i.imprint_id}>{&i.imprint_name}</option>
+            }
+        }
+    }
+}
+
+impl PurePublisherSelect {
+    fn render_publisher(&self, p: &Publisher) -> VNode {
+        let value = &self.value.clone().unwrap_or_else(|| "".to_string());
+        if &p.publisher_id == value {
+            html! {
+                <option value={&p.publisher_id} selected=true>
+                    {&p.publisher_name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={&p.publisher_id}>{&p.publisher_name}</option>
             }
         }
     }

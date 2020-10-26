@@ -31,6 +31,8 @@ pub enum AdminRoute {
     Imprints,
     #[to = "/imprint/{id}"]
     Imprint(String),
+    #[to = "/imprint"]
+    NewImprint,
     #[to = "/contributors"]
     Contributors,
     #[to = "/contributor/{id}"]
