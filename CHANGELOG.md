@@ -4,6 +4,15 @@ All notable changes to thoth will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [[0.2.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.0) - 2020-10-23
+### Changed
+  - [#38](https://github.com/thoth-pub/thoth/issues/38) - Split client and server
+  - [#98](https://github.com/thoth-pub/thoth/issues/98) - Streamline Thoth logo
+
+### Added
+  - [#97](https://github.com/thoth-pub/thoth/issues/97), [#39](https://github.com/thoth-pub/thoth/issues/39), [#41](https://github.com/thoth-pub/thoth/issues/41) - Implement WASM frontend with Yew
+  - [#40](https://github.com/thoth-pub/thoth/issues/40) - Implement API authentication
+
 ## [[0.1.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.1.10) - 2020-06-03
 ### Changed
   - Roadmap button in index catalogue
