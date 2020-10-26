@@ -94,7 +94,11 @@ impl Component for PublicationsComponent {
                         </div>
                         <div class="level-right">
                             <p class="level-item">
-                                { "New publications are created at the work level." }
+                                <article class="message is-info">
+                                    <div class="message-body">
+                                        { "New publications can be added directly to the work." }
+                                    </div>
+                                </article>
                             </p>
                         </div>
                     </nav>
