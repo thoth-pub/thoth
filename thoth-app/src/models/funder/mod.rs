@@ -42,4 +42,5 @@ impl Funder {
     }
 }
 
+pub mod create_funder_mutation;
 pub mod funders_query;
