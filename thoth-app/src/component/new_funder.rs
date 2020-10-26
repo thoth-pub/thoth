@@ -100,12 +100,8 @@ impl Component for NewFunderComponent {
                     .send_message(Msg::SetFunderPushState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangeFunderName(funder_name) => {
-                self.funder.funder_name.neq_assign(funder_name)
-            }
-            Msg::ChangeFunderDoi(funder_doi) => {
-                self.funder.funder_doi.neq_assign(Some(funder_doi))
-            }
+            Msg::ChangeFunderName(funder_name) => self.funder.funder_name.neq_assign(funder_name),
+            Msg::ChangeFunderDoi(funder_doi) => self.funder.funder_doi.neq_assign(Some(funder_doi)),
         }
     }
 

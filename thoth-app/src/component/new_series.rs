@@ -14,19 +14,19 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormImprintSelect;
+use crate::component::utils::FormSeriesTypeSelect;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
-use crate::component::utils::FormSeriesTypeSelect;
-use crate::models::imprint::Imprint;
 use crate::models::imprint::imprints_query::FetchActionImprints;
 use crate::models::imprint::imprints_query::FetchImprints;
-use crate::models::series::series_types_query::FetchActionSeriesTypes;
-use crate::models::series::series_types_query::FetchSeriesTypes;
+use crate::models::imprint::Imprint;
 use crate::models::series::create_series_mutation::CreateSeriesRequest;
 use crate::models::series::create_series_mutation::CreateSeriesRequestBody;
 use crate::models::series::create_series_mutation::PushActionCreateSeries;
 use crate::models::series::create_series_mutation::PushCreateSeries;
 use crate::models::series::create_series_mutation::Variables;
+use crate::models::series::series_types_query::FetchActionSeriesTypes;
+use crate::models::series::series_types_query::FetchSeriesTypes;
 use crate::models::series::Series;
 use crate::models::series::SeriesTypeValues;
 use crate::string::SAVE_BUTTON;
@@ -95,8 +95,7 @@ impl Component for NewSeriesComponent {
         match msg {
             Msg::SetImprintsFetchState(fetch_state) => {
                 self.fetch_imprints.apply(fetch_state);
-                self.data.imprints = match self.fetch_imprints.as_ref().state()
-                {
+                self.data.imprints = match self.fetch_imprints.as_ref().state() {
                     FetchState::NotFetching(_) => vec![],
                     FetchState::Fetching(_) => vec![],
                     FetchState::Fetched(body) => body.data.imprints.clone(),
@@ -105,18 +104,15 @@ impl Component for NewSeriesComponent {
                 true
             }
             Msg::GetImprints => {
-                self.link.send_future(
-                    self.fetch_imprints
-                        .fetch(Msg::SetImprintsFetchState),
-                );
+                self.link
+                    .send_future(self.fetch_imprints.fetch(Msg::SetImprintsFetchState));
                 self.link
                     .send_message(Msg::SetImprintsFetchState(FetchAction::Fetching));
                 false
             }
             Msg::SetSeriesTypesFetchState(fetch_state) => {
                 self.fetch_series_types.apply(fetch_state);
-                self.data.series_types = match self.fetch_series_types.as_ref().state()
-                {
+                self.data.series_types = match self.fetch_series_types.as_ref().state() {
                     FetchState::NotFetching(_) => vec![],
                     FetchState::Fetching(_) => vec![],
                     FetchState::Fetched(body) => body.data.series_types.enum_values.clone(),
@@ -125,10 +121,8 @@ impl Component for NewSeriesComponent {
                 true
             }
             Msg::GetSeriesTypes => {
-                self.link.send_future(
-                    self.fetch_series_types
-                        .fetch(Msg::SetSeriesTypesFetchState),
-                );
+                self.link
+                    .send_future(self.fetch_series_types.fetch(Msg::SetSeriesTypesFetchState));
                 self.link
                     .send_message(Msg::SetSeriesTypesFetchState(FetchAction::Fetching));
                 false
@@ -183,15 +177,13 @@ impl Component for NewSeriesComponent {
                     .send_message(Msg::SetSeriesPushState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangeSeriesType(series_type) => {
-                self.series.series_type.neq_assign(series_type)
-            }
+            Msg::ChangeSeriesType(series_type) => self.series.series_type.neq_assign(series_type),
             Msg::ChangeImprint(imprint_id) => self.imprint_id.neq_assign(imprint_id),
-            Msg::ChangeSeriesName(series_name) => {
-                self.series.series_name.neq_assign(series_name)
-            }
+            Msg::ChangeSeriesName(series_name) => self.series.series_name.neq_assign(series_name),
             Msg::ChangeIssnPrint(issn_print) => self.series.issn_print.neq_assign(issn_print),
-            Msg::ChangeIssnDigital(issn_digital) => self.series.issn_digital.neq_assign(issn_digital),
+            Msg::ChangeIssnDigital(issn_digital) => {
+                self.series.issn_digital.neq_assign(issn_digital)
+            }
             Msg::ChangeSeriesUrl(series_url) => self.series.series_url.neq_assign(Some(series_url)),
         }
     }

@@ -14,15 +14,15 @@ use crate::agent::notification_bus::Request;
 use crate::component::utils::FormPublisherSelect;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
-use crate::models::publisher::Publisher;
-use crate::models::publisher::publishers_query::FetchActionPublishers;
-use crate::models::publisher::publishers_query::FetchPublishers;
 use crate::models::imprint::create_imprint_mutation::CreateImprintRequest;
 use crate::models::imprint::create_imprint_mutation::CreateImprintRequestBody;
 use crate::models::imprint::create_imprint_mutation::PushActionCreateImprint;
 use crate::models::imprint::create_imprint_mutation::PushCreateImprint;
 use crate::models::imprint::create_imprint_mutation::Variables;
 use crate::models::imprint::Imprint;
+use crate::models::publisher::publishers_query::FetchActionPublishers;
+use crate::models::publisher::publishers_query::FetchPublishers;
+use crate::models::publisher::Publisher;
 use crate::string::SAVE_BUTTON;
 
 pub struct NewImprintComponent {
@@ -79,8 +79,7 @@ impl Component for NewImprintComponent {
         match msg {
             Msg::SetPublishersFetchState(fetch_state) => {
                 self.fetch_publishers.apply(fetch_state);
-                self.data.publishers = match self.fetch_publishers.as_ref().state()
-                {
+                self.data.publishers = match self.fetch_publishers.as_ref().state() {
                     FetchState::NotFetching(_) => vec![],
                     FetchState::Fetching(_) => vec![],
                     FetchState::Fetched(body) => body.data.publishers.clone(),
@@ -89,10 +88,8 @@ impl Component for NewImprintComponent {
                 true
             }
             Msg::GetPublishers => {
-                self.link.send_future(
-                    self.fetch_publishers
-                        .fetch(Msg::SetPublishersFetchState),
-                );
+                self.link
+                    .send_future(self.fetch_publishers.fetch(Msg::SetPublishersFetchState));
                 self.link
                     .send_message(Msg::SetPublishersFetchState(FetchAction::Fetching));
                 false
@@ -148,7 +145,9 @@ impl Component for NewImprintComponent {
             Msg::ChangeImprintName(imprint_name) => {
                 self.imprint.imprint_name.neq_assign(imprint_name)
             }
-            Msg::ChangeImprintUrl(imprint_url) => self.imprint.imprint_url.neq_assign(Some(imprint_url)),
+            Msg::ChangeImprintUrl(imprint_url) => {
+                self.imprint.imprint_url.neq_assign(Some(imprint_url))
+            }
         }
     }
 
