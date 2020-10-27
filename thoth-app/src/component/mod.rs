@@ -7,6 +7,7 @@ pub mod dashboard;
 pub mod funder;
 pub mod funders;
 pub mod fundings_form;
+pub mod imprint;
 pub mod imprints;
 pub mod issues_form;
 pub mod languages_form;
