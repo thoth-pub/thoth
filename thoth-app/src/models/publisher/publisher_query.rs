@@ -8,6 +8,8 @@ pub const PUBLISHER_QUERY: &str = "
         publisher(publisherId: $publisherId) {
             publisherId
             publisherName
+            publisherShortname
+            publisherUrl
         }
     }
 ";
