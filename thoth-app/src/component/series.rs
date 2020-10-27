@@ -17,23 +17,30 @@ use crate::component::utils::FormImprintSelect;
 use crate::component::utils::FormSeriesTypeSelect;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
+use crate::component::utils::Loader;
 use crate::models::imprint::imprints_query::FetchActionImprints;
 use crate::models::imprint::imprints_query::FetchImprints;
 use crate::models::imprint::Imprint;
-use crate::models::series::create_series_mutation::CreateSeriesRequest;
-use crate::models::series::create_series_mutation::CreateSeriesRequestBody;
-use crate::models::series::create_series_mutation::PushActionCreateSeries;
-use crate::models::series::create_series_mutation::PushCreateSeries;
-use crate::models::series::create_series_mutation::Variables;
+use crate::models::series::series_query::SeriesRequest;
+use crate::models::series::series_query::SeriesRequestBody;
+use crate::models::series::series_query::FetchActionSeries;
+use crate::models::series::series_query::FetchSeries;
+use crate::models::series::series_query::Variables;
+use crate::models::series::update_series_mutation::UpdateSeriesRequest;
+use crate::models::series::update_series_mutation::UpdateSeriesRequestBody;
+use crate::models::series::update_series_mutation::PushActionUpdateSeries;
+use crate::models::series::update_series_mutation::PushUpdateSeries;
+use crate::models::series::update_series_mutation::Variables as UpdateVariables;
 use crate::models::series::series_types_query::FetchActionSeriesTypes;
 use crate::models::series::series_types_query::FetchSeriesTypes;
 use crate::models::series::Series;
 use crate::models::series::SeriesTypeValues;
 use crate::string::SAVE_BUTTON;
 
-pub struct NewSeriesComponent {
+pub struct SeriesComponent {
     series: Series,
-    push_series: PushCreateSeries,
+    fetch_series: FetchSeries,
+    push_series: PushUpdateSeries,
     data: SeriesFormData,
     fetch_imprints: FetchImprints,
     fetch_series_types: FetchSeriesTypes,
@@ -52,8 +59,10 @@ pub enum Msg {
     GetImprints,
     SetSeriesTypesFetchState(FetchActionSeriesTypes),
     GetSeriesTypes,
-    SetSeriesPushState(PushActionCreateSeries),
-    CreateSeries,
+    SetSeriesFetchState(FetchActionSeries),
+    GetSeries,
+    SetSeriesPushState(PushActionUpdateSeries),
+    UpdateSeries,
     ChangeSeriesType(SeriesType),
     ChangeImprint(String),
     ChangeSeriesName(String),
@@ -62,11 +71,24 @@ pub enum Msg {
     ChangeSeriesUrl(String),
 }
 
-impl Component for NewSeriesComponent {
-    type Message = Msg;
-    type Properties = ();
+#[derive(Clone, Properties)]
+pub struct Props {
+    pub series_id: String,
+}
 
-    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
+impl Component for SeriesComponent {
+    type Message = Msg;
+    type Properties = Props;
+
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        let body = SeriesRequestBody {
+            variables: Variables {
+                series_id: Some(props.series_id),
+            },
+            ..Default::default()
+        };
+        let request = SeriesRequest { body };
+        let fetch_series = Fetch::new(request);
         let push_series = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let series: Series = Default::default();
@@ -74,11 +96,13 @@ impl Component for NewSeriesComponent {
         let fetch_imprints: FetchImprints = Default::default();
         let fetch_series_types: FetchSeriesTypes = Default::default();
 
+        link.send_message(Msg::GetSeries);
         link.send_message(Msg::GetImprints);
         link.send_message(Msg::GetSeriesTypes);
 
-        NewSeriesComponent {
+        SeriesComponent {
             series,
+            fetch_series,
             push_series,
             data,
             fetch_imprints,
@@ -124,15 +148,37 @@ impl Component for NewSeriesComponent {
                     .send_message(Msg::SetSeriesTypesFetchState(FetchAction::Fetching));
                 false
             }
+            Msg::SetSeriesFetchState(fetch_state) => {
+                self.fetch_series.apply(fetch_state);
+                match self.fetch_series.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => {
+                        self.series = match &body.data.series {
+                            Some(c) => c.to_owned(),
+                            None => Default::default(),
+                        };
+                        true
+                    }
+                    FetchState::Failed(_, _err) => false,
+                }
+            }
+            Msg::GetSeries => {
+                self.link
+                    .send_future(self.fetch_series.fetch(Msg::SetSeriesFetchState));
+                self.link
+                    .send_message(Msg::SetSeriesFetchState(FetchAction::Fetching));
+                false
+            }
             Msg::SetSeriesPushState(fetch_state) => {
                 self.push_series.apply(fetch_state);
                 match self.push_series.as_ref().state() {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
-                    FetchState::Fetched(body) => match &body.data.create_series {
-                        Some(c) => {
+                    FetchState::Fetched(body) => match &body.data.update_series {
+                        Some(f) => {
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Saved {}", c.series_name),
+                                format!("Saved {}", f.series_name),
                                 NotificationStatus::Success,
                             )));
                             true
@@ -154,9 +200,10 @@ impl Component for NewSeriesComponent {
                     }
                 }
             }
-            Msg::CreateSeries => {
-                let body = CreateSeriesRequestBody {
-                    variables: Variables {
+            Msg::UpdateSeries => {
+                let body = UpdateSeriesRequestBody {
+                    variables: UpdateVariables {
+                        series_id: self.series.series_id.clone(),
                         series_type: self.series.series_type.clone(),
                         series_name: self.series.series_name.clone(),
                         issn_print: self.series.issn_print.clone(),
@@ -166,7 +213,7 @@ impl Component for NewSeriesComponent {
                     },
                     ..Default::default()
                 };
-                let request = CreateSeriesRequest { body };
+                let request = UpdateSeriesRequest { body };
                 self.push_series = Fetch::new(request);
                 self.link
                     .send_future(self.push_series.fetch(Msg::SetSeriesPushState));
@@ -190,70 +237,77 @@ impl Component for NewSeriesComponent {
     }
 
     fn view(&self) -> Html {
-        let callback = self.link.callback(|event: FocusEvent| {
-            event.prevent_default();
-            Msg::CreateSeries
-        });
-        html! {
-            <form onsubmit=callback>
-                <FormSeriesTypeSelect
-                    label = "Series Type"
-                    value=&self.series.series_type
-                    onchange=self.link.callback(|event| match event {
-                        ChangeData::Select(elem) => {
-                            let value = elem.value();
-                            Msg::ChangeSeriesType(SeriesType::from_str(&value).unwrap())
-                        }
-                        _ => unreachable!(),
-                    })
-                    data=&self.data.series_types
-                    required = true
-                />
-                <FormImprintSelect
-                    label = "Imprint"
-                    value=&self.series.imprint.imprint_id
-                    data=&self.data.imprints
-                    onchange=self.link.callback(|event| match event {
-                        ChangeData::Select(elem) => {
-                            let value = elem.value();
-                            Msg::ChangeImprint(value.clone())
-                        }
-                        _ => unreachable!(),
-                    })
-                    required = true
-                />
-                <FormTextInput
-                    label = "Series Name"
-                    value=&self.series.series_name
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesName(e.value))
-                    required=true
-                />
-                <FormTextInput
-                    label = "ISSN Print"
-                    value=&self.series.issn_print
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeIssnPrint(e.value))
-                    required=true
-                />
-                <FormTextInput
-                    label = "ISSN Digital"
-                    value=&self.series.issn_digital
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeIssnDigital(e.value))
-                    required=true
-                />
-                <FormUrlInput
-                    label = "Series URL"
-                    value=&self.series.series_url
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesUrl(e.value))
-                />
+        match self.fetch_series.as_ref().state() {
+            FetchState::NotFetching(_) => html! {<Loader/>},
+            FetchState::Fetching(_) => html! {<Loader/>},
+            FetchState::Fetched(_body) => {
+                let callback = self.link.callback(|event: FocusEvent| {
+                    event.prevent_default();
+                    Msg::UpdateSeries
+                });
+                html! {
+                    <form onsubmit=callback>
+                        <FormSeriesTypeSelect
+                            label = "Series Type"
+                            value=&self.series.series_type
+                            onchange=self.link.callback(|event| match event {
+                                ChangeData::Select(elem) => {
+                                    let value = elem.value();
+                                    Msg::ChangeSeriesType(SeriesType::from_str(&value).unwrap())
+                                }
+                                _ => unreachable!(),
+                            })
+                            data=&self.data.series_types
+                            required = true
+                        />
+                        <FormImprintSelect
+                            label = "Imprint"
+                            value=&self.series.imprint.imprint_id
+                            data=&self.data.imprints
+                            onchange=self.link.callback(|event| match event {
+                                ChangeData::Select(elem) => {
+                                    let value = elem.value();
+                                    Msg::ChangeImprint(value.clone())
+                                }
+                                _ => unreachable!(),
+                            })
+                            required = true
+                        />
+                        <FormTextInput
+                            label = "Series Name"
+                            value=&self.series.series_name
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesName(e.value))
+                            required=true
+                        />
+                        <FormTextInput
+                            label = "ISSN Print"
+                            value=&self.series.issn_print
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeIssnPrint(e.value))
+                            required=true
+                        />
+                        <FormTextInput
+                            label = "ISSN Digital"
+                            value=&self.series.issn_digital
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeIssnDigital(e.value))
+                            required=true
+                        />
+                        <FormUrlInput
+                            label = "Series URL"
+                            value=&self.series.series_url
+                            oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesUrl(e.value))
+                        />
 
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-success" type="submit">
-                            { SAVE_BUTTON }
-                        </button>
-                    </div>
-                </div>
-            </form>
+                        <div class="field">
+                            <div class="control">
+                                <button class="button is-success" type="submit">
+                                    { SAVE_BUTTON }
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                }
+            }
+            FetchState::Failed(_, err) => html! {&err},
         }
     }
 }

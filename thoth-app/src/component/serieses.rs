@@ -137,7 +137,7 @@ impl SeriesesComponent {
         html! {
             <tr
                 class="row"
-                onclick=&self.change_route(AppRoute::Admin(AdminRoute::Imprint(p.series_id.clone())))
+                onclick=&self.change_route(AppRoute::Admin(AdminRoute::Series(p.series_id.clone())))
             >
                 <td>{&p.series_id}</td>
                 <td>{&p.series_name}</td>

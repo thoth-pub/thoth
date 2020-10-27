@@ -2,10 +2,9 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::series::model::SeriesType;
 
-use super::Series;
-
-const CREATE_SERIES_MUTATION: &str = "
-    mutation CreateSeries(
+const UPDATE_SERIES_MUTATION: &str = "
+    mutation UpdateSeries(
+            $seriesId: Uuid!,
             $seriesType: SeriesType!,
             $seriesName: String!,
             $issnPrint: String!,
@@ -13,7 +12,8 @@ const CREATE_SERIES_MUTATION: &str = "
             $seriesUrl: String,
             $imprintId: Uuid!
     ) {
-        createSeries(data: {
+        updateSeries(data: {
+            seriesId: $seriesId
             seriesType: $seriesType
             seriesName: $seriesName
             issnPrint: $issnPrint
@@ -28,19 +28,20 @@ const CREATE_SERIES_MUTATION: &str = "
 ";
 
 graphql_query_builder! {
-    CreateSeriesRequest,
-    CreateSeriesRequestBody,
+    UpdateSeriesRequest,
+    UpdateSeriesRequestBody,
     Variables,
-    CREATE_SERIES_MUTATION,
-    CreateSeriesResponseBody,
-    CreateSeriesResponseData,
-    PushCreateSeries,
-    PushActionCreateSeries
+    UPDATE_SERIES_MUTATION,
+    UpdateSeriesResponseBody,
+    UpdateSeriesResponseData,
+    PushUpdateSeries,
+    PushActionUpdateSeries
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
+    pub series_id: String,
     pub series_type: SeriesType,
     pub series_name: String,
     pub issn_print: String,
@@ -58,6 +59,6 @@ pub struct SlimSeries {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct CreateSeriesResponseData {
-    pub create_series: Option<Series>,
+pub struct UpdateSeriesResponseData {
+    pub update_series: Option<SlimSeries>,
 }

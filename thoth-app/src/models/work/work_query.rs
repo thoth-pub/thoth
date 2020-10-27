@@ -93,6 +93,16 @@ pub const WORK_QUERY: &str = "
                     issnPrint
                     issnDigital
                     seriesUrl
+                    imprint {
+                        imprintId
+                        imprintName
+                        publisher {
+                            publisherId
+                            publisherName
+                            publisherShortname
+                            publisherUrl
+                        }
+                    }
                 }
             }
             imprint {

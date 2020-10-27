@@ -3,9 +3,9 @@ use serde::Serialize;
 
 use super::Series;
 
-pub const SERIESES_QUERY: &str = "
-    query SeriesesQuery($filter: String) {
-        serieses(limit: 9999, filter: $filter) {
+pub const SERIES_QUERY: &str = "
+    query SeriesQuery($seriesId: Uuid!) {
+        series(seriesId: $seriesId) {
             seriesId
             seriesType
             seriesName
@@ -27,23 +27,23 @@ pub const SERIESES_QUERY: &str = "
 ";
 
 graphql_query_builder! {
-    SeriesesRequest,
-    SeriesesRequestBody,
+    SeriesRequest,
+    SeriesRequestBody,
     Variables,
-    SERIESES_QUERY,
-    SeriesesResponseBody,
-    SeriesesResponseData,
-    FetchSerieses,
-    FetchActionSerieses
+    SERIES_QUERY,
+    SeriesResponseBody,
+    SeriesResponseData,
+    FetchSeries,
+    FetchActionSeries
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub filter: Option<String>,
+    pub series_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-pub struct SeriesesResponseData {
-    pub serieses: Vec<Series>,
+pub struct SeriesResponseData {
+    pub series: Option<Series>,
 }

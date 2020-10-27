@@ -26,6 +26,7 @@ pub mod publications_form;
 pub mod publisher;
 pub mod publishers;
 pub mod root;
+pub mod series;
 pub mod serieses;
 pub mod subjects_form;
 pub mod utils;
