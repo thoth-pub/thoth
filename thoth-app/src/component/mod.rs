@@ -22,6 +22,7 @@ pub mod new_work;
 pub mod notification;
 pub mod publications;
 pub mod publications_form;
+pub mod publisher;
 pub mod publishers;
 pub mod root;
 pub mod serieses;
