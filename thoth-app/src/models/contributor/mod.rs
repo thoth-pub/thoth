@@ -38,3 +38,4 @@ impl Contributor {
 pub mod contributor_query;
 pub mod contributors_query;
 pub mod create_contributor_mutation;
+pub mod update_contributor_mutation;
