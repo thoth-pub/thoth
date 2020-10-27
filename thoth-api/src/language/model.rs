@@ -28,9 +28,26 @@ pub struct Language {
     pub main_language: bool,
 }
 
-#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
-#[cfg_attr(feature = "backend", table_name = "language")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, Insertable),
+    table_name = "language",
+)]
 pub struct NewLanguage {
+    pub work_id: Uuid,
+    pub language_code: LanguageCode,
+    pub language_relation: LanguageRelation,
+    pub main_language: bool,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, AsChangeset),
+    changeset_options(treat_none_as_null="true"),
+    table_name = "language",
+)]
+pub struct PatchLanguage {
+    pub language_id: Uuid,
     pub work_id: Uuid,
     pub language_code: LanguageCode,
     pub language_relation: LanguageRelation,
