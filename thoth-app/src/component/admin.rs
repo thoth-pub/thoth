@@ -11,6 +11,7 @@ use crate::agent::session_timer::SessionTimerDispatcher;
 use crate::component::contributor::ContributorComponent;
 use crate::component::contributors::ContributorsComponent;
 use crate::component::dashboard::DashboardComponent;
+use crate::component::funder::FunderComponent;
 use crate::component::funders::FundersComponent;
 use crate::component::imprints::ImprintsComponent;
 use crate::component::menu::MenuComponent;
@@ -101,7 +102,7 @@ impl Component for AdminComponent {
                             AdminRoute::Imprint(id) => html!{{ id }},
                             AdminRoute::NewImprint => html!{<NewImprintComponent/>},
                             AdminRoute::Funders => html!{<FundersComponent/>},
-                            AdminRoute::Funder(id) => html!{{ id }},
+                            AdminRoute::Funder(id) => html!{<FunderComponent funder_id = id />},
                             AdminRoute::NewFunder => html!{<NewFunderComponent/>},
                             AdminRoute::Publications => html!{<PublicationsComponent/>},
                             AdminRoute::Publication(id) => html!{{ id }},

@@ -4,6 +4,7 @@ pub mod contributions_form;
 pub mod contributor;
 pub mod contributors;
 pub mod dashboard;
+pub mod funder;
 pub mod funders;
 pub mod fundings_form;
 pub mod imprints;
