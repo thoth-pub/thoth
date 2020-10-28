@@ -3,16 +3,31 @@ use thoth_api::subject::model::SubjectType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
+use crate::agent::notification_bus::NotificationBus;
+use crate::agent::notification_bus::NotificationDispatcher;
+use crate::agent::notification_bus::NotificationStatus;
+use crate::agent::notification_bus::Request;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormSubjectTypeSelect;
 use crate::component::utils::FormTextInput;
 use crate::models::subject::subject_types_query::FetchActionSubjectTypes;
 use crate::models::subject::subject_types_query::FetchSubjectTypes;
+use crate::models::subject::create_subject_mutation::CreateSubjectRequest;
+use crate::models::subject::create_subject_mutation::CreateSubjectRequestBody;
+use crate::models::subject::create_subject_mutation::PushActionCreateSubject;
+use crate::models::subject::create_subject_mutation::PushCreateSubject;
+use crate::models::subject::create_subject_mutation::Variables;
+use crate::models::subject::delete_subject_mutation::DeleteSubjectRequest;
+use crate::models::subject::delete_subject_mutation::DeleteSubjectRequestBody;
+use crate::models::subject::delete_subject_mutation::PushActionDeleteSubject;
+use crate::models::subject::delete_subject_mutation::PushDeleteSubject;
+use crate::models::subject::delete_subject_mutation::Variables as DeleteVariables;
 use crate::models::subject::Subject;
 use crate::models::subject::SubjectTypeValues;
 use crate::string::EMPTY_SUBJECTS;
@@ -24,9 +39,13 @@ pub struct SubjectsFormComponent {
     new_subject: Subject,
     show_add_form: bool,
     fetch_subject_types: FetchSubjectTypes,
+    push_subject: PushCreateSubject,
+    delete_subject: PushDeleteSubject,
     link: ComponentLink<Self>,
+    notification_bus: NotificationDispatcher,
 }
 
+#[derive(Default)]
 struct SubjectsFormData {
     subject_types: Vec<SubjectTypeValues>,
 }
@@ -35,11 +54,13 @@ pub enum Msg {
     ToggleAddFormDisplay(bool),
     SetSubjectTypesFetchState(FetchActionSubjectTypes),
     GetSubjectTypes,
+    SetSubjectPushState(PushActionCreateSubject),
+    CreateSubject,
+    SetSubjectDeleteState(PushActionDeleteSubject),
+    DeleteSubject(String),
     ChangeSubjectType(SubjectType),
     ChangeCode(String),
     ChangeOrdinal(String),
-    AddSubject,
-    RemoveSubject(String),
     DoNothing,
 }
 
@@ -55,11 +76,12 @@ impl Component for SubjectsFormComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let data = SubjectsFormData {
-            subject_types: vec![],
-        };
+        let data: SubjectsFormData = Default::default();
         let show_add_form = false;
         let new_subject: Subject = Default::default();
+        let push_subject = Default::default();
+        let delete_subject = Default::default();
+        let notification_bus = NotificationBus::dispatcher();
 
         link.send_message(Msg::GetSubjectTypes);
 
@@ -69,7 +91,10 @@ impl Component for SubjectsFormComponent {
             new_subject,
             show_add_form,
             fetch_subject_types: Default::default(),
+            push_subject,
+            delete_subject,
             link,
+            notification_bus,
         }
     }
 
@@ -98,39 +123,114 @@ impl Component for SubjectsFormComponent {
                     .send_message(Msg::SetSubjectTypesFetchState(FetchAction::Fetching));
                 false
             }
+            Msg::SetSubjectPushState(fetch_state) => {
+                self.push_subject.apply(fetch_state);
+                match self.push_subject.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.create_subject {
+                        Some(p) => {
+                            let subject = p.clone();
+                            let mut subjects: Vec<Subject> =
+                                self.props.subjects.clone().unwrap_or_default();
+                            subjects.push(subject);
+                            self.new_subject = Default::default();
+                            self.props.update_subjects.emit(Some(subjects));
+                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            true
+                        }
+                        None => {
+                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::CreateSubject => {
+                let body = CreateSubjectRequestBody {
+                    variables: Variables {
+                        work_id: self.props.work_id.clone(),
+                        subject_type: self.new_subject.subject_type.clone(),
+                        subject_code: self.new_subject.subject_code.clone(),
+                        subject_ordinal: self.new_subject.subject_ordinal.clone(),
+                    },
+                    ..Default::default()
+                };
+                let request = CreateSubjectRequest { body };
+                self.push_subject = Fetch::new(request);
+                self.link
+                    .send_future(self.push_subject.fetch(Msg::SetSubjectPushState));
+                self.link
+                    .send_message(Msg::SetSubjectPushState(FetchAction::Fetching));
+                false
+            }
+            Msg::SetSubjectDeleteState(fetch_state) => {
+                self.delete_subject.apply(fetch_state);
+                match self.delete_subject.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.delete_subject {
+                        Some(subject) => {
+                            let to_keep: Vec<Subject> = self
+                                .props
+                                .subjects
+                                .clone()
+                                .unwrap_or_default()
+                                .into_iter()
+                                .filter(|p| p.subject_id != subject.subject_id)
+                                .collect();
+                            self.props.update_subjects.emit(Some(to_keep));
+                            true
+                        }
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::DeleteSubject(subject_id) => {
+                let body = DeleteSubjectRequestBody {
+                    variables: DeleteVariables {
+                        subject_id,
+                    },
+                    ..Default::default()
+                };
+                let request = DeleteSubjectRequest { body };
+                self.delete_subject = Fetch::new(request);
+                self.link
+                    .send_future(self.delete_subject.fetch(Msg::SetSubjectDeleteState));
+                self.link
+                    .send_message(Msg::SetSubjectDeleteState(FetchAction::Fetching));
+                false
+            }
             Msg::ChangeSubjectType(val) => self.new_subject.subject_type.neq_assign(val),
             Msg::ChangeCode(code) => self.new_subject.subject_code.neq_assign(code),
             Msg::ChangeOrdinal(ordinal) => {
                 let ordinal = ordinal.parse::<i32>().unwrap();
                 self.new_subject.subject_ordinal.neq_assign(ordinal)
-            }
-            Msg::AddSubject => {
-                let subject = self.new_subject.clone();
-                let mut subjects: Vec<Subject> = self.props.subjects.clone().unwrap_or_default();
-                let subject = Subject {
-                    subject_id: subject.subject_id,
-                    work_id: self.props.work_id.clone(),
-                    subject_type: subject.subject_type,
-                    subject_code: subject.subject_code,
-                    subject_ordinal: subject.subject_ordinal,
-                };
-                subjects.push(subject);
-                self.new_subject = Default::default();
-                self.props.update_subjects.emit(Some(subjects));
-                self.link.send_message(Msg::ToggleAddFormDisplay(false));
-                true
-            }
-            Msg::RemoveSubject(subject_id) => {
-                let to_keep: Vec<Subject> = self
-                    .props
-                    .subjects
-                    .clone()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .filter(|i| i.subject_id != subject_id)
-                    .collect();
-                self.props.update_subjects.emit(Some(to_keep));
-                true
             }
             Msg::DoNothing => false, // callbacks need to return a message
         }
@@ -212,7 +312,7 @@ impl Component for SubjectsFormComponent {
                                 class="button is-success"
                                 onclick=self.link.callback(|e: MouseEvent| {
                                     e.prevent_default();
-                                    Msg::AddSubject
+                                    Msg::CreateSubject
                                 })
                             >
                                 { "Add Subject" }
@@ -287,7 +387,7 @@ impl SubjectsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::RemoveSubject(subject_id.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeleteSubject(subject_id.clone()))
                             >
                                 { REMOVE_BUTTON }
                             </a>
