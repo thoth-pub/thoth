@@ -589,6 +589,21 @@ impl Component for WorkComponent {
                             value=&self.work.toc
                             oninput=self.link.callback(|e: InputData| Msg::ChangeToc(e.value))
                         />
+
+                        <div class="field">
+                            <div class="control">
+                                <button class="button is-success" type="submit">
+                                    { SAVE_BUTTON }
+                                </button>
+                            </div>
+                        </div>
+                        <hr/>
+                        <article class="message is-info">
+                            <div class="message-body">
+                                { "Relations below are saved automatically upon change." }
+                            </div>
+                        </article>
+
                         <ContributionsFormComponent
                             contributions=&self.work.contributions
                             work_id=&self.work.work_id
@@ -619,14 +634,6 @@ impl Component for WorkComponent {
                             work_id=&self.work.work_id
                             update_fundings=self.link.callback(|f: Option<Vec<Funding>>| Msg::UpdateFundings(f))
                         />
-
-                        <div class="field">
-                            <div class="control">
-                                <button class="button is-success" type="submit">
-                                    { SAVE_BUTTON }
-                                </button>
-                            </div>
-                        </div>
                     </form>
                 }
             }
