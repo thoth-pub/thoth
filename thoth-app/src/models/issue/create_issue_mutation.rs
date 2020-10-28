@@ -44,7 +44,7 @@ pub struct Variables {
 #[serde(rename_all = "camelCase")]
 pub struct SlimIssue {
     pub work_id: String,
-    pub series_id; String,
+    pub series_id: String,
     pub issue_ordinal: i32,
 }
 
