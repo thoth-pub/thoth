@@ -45,6 +45,7 @@ pub struct PublicationsFormComponent {
     notification_bus: NotificationDispatcher,
 }
 
+#[derive(Default)]
 struct PublicationsFormData {
     publication_types: Vec<PublicationTypeValues>,
 }
@@ -75,9 +76,7 @@ impl Component for PublicationsFormComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let data = PublicationsFormData {
-            publication_types: vec![],
-        };
+        let data: PublicationsFormData = Default::default();
         let show_add_form = false;
         let new_publication: Publication = Default::default();
         let push_publication = Default::default();
