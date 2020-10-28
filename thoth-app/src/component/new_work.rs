@@ -42,7 +42,6 @@ use crate::string::SAVE_BUTTON;
 pub struct NewWorkComponent {
     work: Work,
     imprint_id: String,
-    license: Option<String>,
     push_work: PushCreateWork,
     data: WorkFormData,
     fetch_imprints: FetchImprints,
@@ -108,7 +107,6 @@ impl Component for NewWorkComponent {
         let notification_bus = NotificationBus::dispatcher();
         let work: Work = Default::default();
         let imprint_id: String = Default::default();
-        let license: Option<String> = Default::default();
         let data: WorkFormData = Default::default();
         let fetch_imprints: FetchImprints = Default::default();
         let fetch_work_types: FetchWorkTypes = Default::default();
@@ -121,7 +119,6 @@ impl Component for NewWorkComponent {
         NewWorkComponent {
             work,
             imprint_id,
-            license,
             push_work,
             data,
             fetch_imprints,
@@ -236,7 +233,7 @@ impl Component for NewWorkComponent {
                         table_count: self.work.table_count.clone(),
                         audio_count: self.work.audio_count.clone(),
                         video_count: self.work.video_count.clone(),
-                        license: self.license.clone(),
+                        license: self.work.license.clone(),
                         copyright_holder: self.work.copyright_holder.clone(),
                         landing_page: self.work.landing_page.clone(),
                         lccn: self.work.lccn.clone(),
@@ -317,7 +314,7 @@ impl Component for NewWorkComponent {
                 let video_count: i32 = video_count.parse().unwrap_or(0);
                 self.work.video_count.neq_assign(Some(video_count))
             }
-            Msg::ChangeLicense(license) => self.license.neq_assign(Some(license)),
+            Msg::ChangeLicense(license) => self.work.license.neq_assign(Some(license)),
             Msg::ChangeCopyright(copyright) => self.work.copyright_holder.neq_assign(copyright),
             Msg::ChangeLandingPage(landing_page) => {
                 self.work.landing_page.neq_assign(Some(landing_page))
@@ -534,7 +531,7 @@ impl Component for NewWorkComponent {
                 />
                 <FormTextInput
                     label = "License"
-                    value=&self.license
+                    value=&self.work.license
                     oninput=self.link.callback(|e: InputData| Msg::ChangeLicense(e.value))
                 />
                 <FormUrlInput
