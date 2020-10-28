@@ -7,7 +7,7 @@ use super::Publication;
 const CREATE_PUBLICATION_MUTATION: &str = "
     mutation CreatePublication(
         $publicationType: PublicationType!,
-        $work_id: Uuid!,
+        $workId: Uuid!,
         $isbn: String,
         $publicationUrl: String,
     ) {
@@ -19,6 +19,8 @@ const CREATE_PUBLICATION_MUTATION: &str = "
         }){
             publicationId
             publicationType
+            isbn
+            publicationUrl
             workId
         }
     }
