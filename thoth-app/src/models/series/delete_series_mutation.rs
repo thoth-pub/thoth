@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::series::model::SeriesType;
 
 const DELETE_SERIES_MUTATION: &str = "
     mutation DeleteSeries(

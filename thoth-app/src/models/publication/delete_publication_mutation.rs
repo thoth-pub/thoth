@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::publication::model::PublicationType;
 
 use super::Publication;
 

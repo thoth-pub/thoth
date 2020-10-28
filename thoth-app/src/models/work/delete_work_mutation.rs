@@ -1,7 +1,5 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::work::model::WorkType;
-use thoth_api::work::model::WorkStatus;
 
 const DELETE_WORK_MUTATION: &str = "
     mutation DeleteWork(

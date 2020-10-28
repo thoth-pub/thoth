@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::subject::model::SubjectType;
 
 use super::Subject;
 

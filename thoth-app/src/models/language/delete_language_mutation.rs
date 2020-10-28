@@ -1,7 +1,5 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::language::model::LanguageCode;
-use thoth_api::language::model::LanguageRelation;
 
 use super::Language;
 
