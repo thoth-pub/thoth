@@ -17,13 +17,13 @@ pub enum PublicationType {
     #[cfg_attr(feature = "backend", db_rename = "Hardback")]
     Hardback,
     #[cfg_attr(feature = "backend", db_rename = "PDF")]
-    #[serde(rename(deserialize = "PDF"))]
+    #[serde(rename = "PDF")]
     PDF,
     #[cfg_attr(feature = "backend", db_rename = "HTML")]
-    #[serde(rename(deserialize = "HTML"))]
+    #[serde(rename = "HTML")]
     HTML,
     #[cfg_attr(feature = "backend", db_rename = "XML")]
-    #[serde(rename(deserialize = "XML"))]
+    #[serde(rename = "XML")]
     XML,
     #[cfg_attr(feature = "backend", db_rename = "Epub")]
     Epub,
