@@ -60,6 +60,7 @@ impl Series {
 }
 
 pub mod create_series_mutation;
+pub mod delete_series_mutation;
 pub mod series_types_query;
 pub mod series_query;
 pub mod serieses_query;
