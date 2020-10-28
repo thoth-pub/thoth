@@ -1100,6 +1100,202 @@ impl MutationRoot {
             Err(e) => Err(FieldError::from(e)),
         }
     }
+
+    fn delete_work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::work::dsl::work.find(work_id);
+        let result = target.get_result::<Work>(&connection);
+        match diesel::delete(target)
+            .execute(&connection)
+        {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_publisher(context: &Context, publisher_id: Uuid) -> FieldResult<Publisher> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::publisher::dsl::publisher.find(publisher_id);
+        let result = target.get_result::<Publisher>(&connection);
+        match diesel::delete(target)
+            .execute(&connection)
+        {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_imprint(context: &Context, imprint_id: Uuid) -> FieldResult<Imprint> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::imprint::dsl::imprint.find(imprint_id);
+        let result = target.get_result::<Imprint>(&connection);
+        match diesel::delete(target)
+            .execute(&connection)
+        {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_contributor(context: &Context, contributor_id: Uuid) -> FieldResult<Contributor> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::contributor::dsl::contributor.find(contributor_id);
+        let result = target.get_result::<Contributor>(&connection);
+        match diesel::delete(target)
+            .execute(&connection)
+        {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_contribution(context: &Context, work_id: Uuid, contributor_id: Uuid, contribution_type: ContributionType) -> FieldResult<Contribution> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        use crate::schema::contribution::dsl::*;
+        let target = contribution
+            .filter(work_id.eq(&work_id))
+            .filter(contributor_id.eq(&contributor_id))
+            .filter(contribution_type.eq(&contribution_type));
+        let result = contribution
+            .filter(work_id.eq(work_id))
+            .filter(contributor_id.eq(contributor_id))
+            .filter(contribution_type.eq(contribution_type))
+            .get_result::<Contribution>(&connection);
+        match diesel::delete(target)
+            .execute(&connection)
+        {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_publication(context: &Context, publication_id: Uuid) -> FieldResult<Publication> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::publication::dsl::publication.find(publication_id);
+        let result = target.get_result::<Publication>(&connection);
+        match diesel::delete(target)
+            .execute(&connection)
+        {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_series(context: &Context, series_id: Uuid) -> FieldResult<Series> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::series::dsl::series.find(series_id);
+        let result = target.get_result::<Series>(&connection);
+        match diesel::delete(target)
+            .execute(&connection)
+        {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_issue(context: &Context, series_id: Uuid, work_id: Uuid) -> FieldResult<Issue> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        use crate::schema::issue::dsl::*;
+        let target = issue
+            .filter(series_id.eq(&series_id))
+            .filter(work_id.eq(&work_id));
+        let result = issue
+            .filter(series_id.eq(&series_id))
+            .filter(work_id.eq(&work_id))
+            .get_result::<Issue>(&connection);
+        match diesel::delete(target)
+            .execute(&connection)
+        {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_language(context: &Context, language_id: Uuid) -> FieldResult<Language> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::language::dsl::language.find(language_id);
+        let result = target.get_result::<Language>(&connection);
+        match diesel::delete(target)
+            .execute(&connection)
+        {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_funder(context: &Context, funder_id: Uuid) -> FieldResult<Funder> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::funder::dsl::funder.find(funder_id);
+        let result = target.get_result::<Funder>(&connection);
+        match diesel::delete(target)
+            .execute(&connection)
+        {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_funding(context: &Context, funding_id: Uuid) -> FieldResult<Funding> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::funding::dsl::funding.find(funding_id);
+        let result = target.get_result::<Funding>(&connection);
+        match diesel::delete(target)
+            .execute(&connection)
+        {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_price(context: &Context, price_id: Uuid) -> FieldResult<Price> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::price::dsl::price.find(price_id);
+        let result = target.get_result::<Price>(&connection);
+        match diesel::delete(target)
+            .execute(&connection)
+        {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_subject(context: &Context, subject_id: Uuid) -> FieldResult<Subject> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::subject::dsl::subject.find(subject_id);
+        let result = target.get_result::<Subject>(&connection);
+        match diesel::delete(target)
+            .execute(&connection)
+        {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
 }
 
 #[juniper::object(Context = Context, description = "A written text that can be published")]
