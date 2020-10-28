@@ -3,7 +3,7 @@ use serde::Serialize;
 
 use super::Contributor;
 
-const CREATE_CONTRIBUTOR_MUTATION: &str = "
+const UPDATE_CONTRIBUTOR_MUTATION: &str = "
     mutation UpdateContributor(
         $contributorId: Uuid!,
         $firstName: String,
@@ -31,7 +31,7 @@ graphql_query_builder! {
     UpdateContributorRequest,
     UpdateContributorRequestBody,
     Variables,
-    CREATE_CONTRIBUTOR_MUTATION,
+    UPDATE_CONTRIBUTOR_MUTATION,
     UpdateContributorResponseBody,
     UpdateContributorResponseData,
     PushUpdateContributor,
