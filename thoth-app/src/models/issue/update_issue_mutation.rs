@@ -1,8 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::Issue;
-
 const UPDATE_ISSUE_MUTATION: &str = "
     mutation UpdateIssue(
         $workId: Uuid!,

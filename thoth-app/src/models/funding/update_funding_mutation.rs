@@ -1,8 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::Funding;
-
 const UPDATE_FUNDING_MUTATION: &str = "
     mutation UpdateFunding(
         $fundingId: Uuid!,
