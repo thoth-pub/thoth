@@ -16,3 +16,7 @@ pub struct Funding {
     pub jurisdiction: Option<String>,
     pub funder: Funder,
 }
+
+pub mod create_funding_mutation;
+pub mod delete_funding_mutation;
+pub mod update_funding_mutation;
