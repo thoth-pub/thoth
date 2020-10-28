@@ -4,11 +4,16 @@ use thoth_api::language::model::LanguageRelation;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
+use crate::agent::notification_bus::NotificationBus;
+use crate::agent::notification_bus::NotificationDispatcher;
+use crate::agent::notification_bus::NotificationStatus;
+use crate::agent::notification_bus::Request;
 use crate::component::utils::FormBooleanSelect;
 use crate::component::utils::FormLanguageCodeSelect;
 use crate::component::utils::FormLanguageRelationSelect;
@@ -16,6 +21,16 @@ use crate::models::language::language_codes_query::FetchActionLanguageCodes;
 use crate::models::language::language_codes_query::FetchLanguageCodes;
 use crate::models::language::language_relations_query::FetchActionLanguageRelations;
 use crate::models::language::language_relations_query::FetchLanguageRelations;
+use crate::models::language::create_language_mutation::CreateLanguageRequest;
+use crate::models::language::create_language_mutation::CreateLanguageRequestBody;
+use crate::models::language::create_language_mutation::PushActionCreateLanguage;
+use crate::models::language::create_language_mutation::PushCreateLanguage;
+use crate::models::language::create_language_mutation::Variables;
+use crate::models::language::delete_language_mutation::DeleteLanguageRequest;
+use crate::models::language::delete_language_mutation::DeleteLanguageRequestBody;
+use crate::models::language::delete_language_mutation::PushActionDeleteLanguage;
+use crate::models::language::delete_language_mutation::PushDeleteLanguage;
+use crate::models::language::delete_language_mutation::Variables as DeleteVariables;
 use crate::models::language::Language;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
@@ -31,9 +46,13 @@ pub struct LanguagesFormComponent {
     show_add_form: bool,
     fetch_language_codes: FetchLanguageCodes,
     fetch_language_relations: FetchLanguageRelations,
+    push_language: PushCreateLanguage,
+    delete_language: PushDeleteLanguage,
     link: ComponentLink<Self>,
+    notification_bus: NotificationDispatcher,
 }
 
+#[derive(Default)]
 struct LanguagesFormData {
     language_codes: Vec<LanguageCodeValues>,
     language_relations: Vec<LanguageRelationValues>,
@@ -45,11 +64,13 @@ pub enum Msg {
     GetLanguageCodes,
     SetLanguageRelationsFetchState(FetchActionLanguageRelations),
     GetLanguageRelations,
+    SetLanguagePushState(PushActionCreateLanguage),
+    CreateLanguage,
+    SetLanguageDeleteState(PushActionDeleteLanguage),
+    DeleteLanguage(String),
     ChangeLanguageCode(LanguageCode),
     ChangeLanguageRelation(LanguageRelation),
     ChangeMainLanguage(bool),
-    AddLanguage,
-    RemoveLanguage(String),
     DoNothing,
 }
 
@@ -65,12 +86,14 @@ impl Component for LanguagesFormComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let data = LanguagesFormData {
-            language_codes: vec![],
-            language_relations: vec![],
-        };
+        let data: LanguagesFormData = Default::default();
         let show_add_form = false;
         let new_language: Language = Default::default();
+        let fetch_language_codes = Default::default();
+        let fetch_language_relations = Default::default();
+        let push_language = Default::default();
+        let delete_language = Default::default();
+        let notification_bus = NotificationBus::dispatcher();
 
         link.send_message(Msg::GetLanguageCodes);
         link.send_message(Msg::GetLanguageRelations);
@@ -80,9 +103,12 @@ impl Component for LanguagesFormComponent {
             data,
             new_language,
             show_add_form,
-            fetch_language_codes: Default::default(),
-            fetch_language_relations: Default::default(),
+            fetch_language_codes,
+            fetch_language_relations,
+            push_language,
+            delete_language,
             link,
+            notification_bus,
         }
     }
 
@@ -131,37 +157,112 @@ impl Component for LanguagesFormComponent {
                     .send_message(Msg::SetLanguageRelationsFetchState(FetchAction::Fetching));
                 false
             }
+            Msg::SetLanguagePushState(fetch_state) => {
+                self.push_language.apply(fetch_state);
+                match self.push_language.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.create_language {
+                        Some(l) => {
+                            let language = l.clone();
+                            let mut languages: Vec<Language> =
+                                self.props.languages.clone().unwrap_or_default();
+                            languages.push(language);
+                            self.new_language = Default::default();
+                            self.props.update_languages.emit(Some(languages));
+                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            true
+                        }
+                        None => {
+                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::CreateLanguage => {
+                let body = CreateLanguageRequestBody {
+                    variables: Variables {
+                        work_id: self.props.work_id.clone(),
+                        language_relation: self.new_language.language_relation.clone(),
+                        language_code: self.new_language.language_code.clone(),
+                        main_language: self.new_language.main_language.clone(),
+                    },
+                    ..Default::default()
+                };
+                let request = CreateLanguageRequest { body };
+                self.push_language = Fetch::new(request);
+                self.link
+                    .send_future(self.push_language.fetch(Msg::SetLanguagePushState));
+                self.link
+                    .send_message(Msg::SetLanguagePushState(FetchAction::Fetching));
+                false
+            }
+            Msg::SetLanguageDeleteState(fetch_state) => {
+                self.delete_language.apply(fetch_state);
+                match self.delete_language.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.delete_language {
+                        Some(language) => {
+                            let to_keep: Vec<Language> = self
+                                .props
+                                .languages
+                                .clone()
+                                .unwrap_or_default()
+                                .into_iter()
+                                .filter(|p| p.language_id != language.language_id)
+                                .collect();
+                            self.props.update_languages.emit(Some(to_keep));
+                            true
+                        }
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::DeleteLanguage(language_id) => {
+                let body = DeleteLanguageRequestBody {
+                    variables: DeleteVariables {
+                        language_id,
+                    },
+                    ..Default::default()
+                };
+                let request = DeleteLanguageRequest { body };
+                self.delete_language = Fetch::new(request);
+                self.link
+                    .send_future(self.delete_language.fetch(Msg::SetLanguageDeleteState));
+                self.link
+                    .send_message(Msg::SetLanguageDeleteState(FetchAction::Fetching));
+                false
+            }
             Msg::ChangeLanguageRelation(val) => self.new_language.language_relation.neq_assign(val),
             Msg::ChangeLanguageCode(code) => self.new_language.language_code.neq_assign(code),
             Msg::ChangeMainLanguage(val) => self.new_language.main_language.neq_assign(val),
-            Msg::AddLanguage => {
-                let language = self.new_language.clone();
-                let mut languages: Vec<Language> = self.props.languages.clone().unwrap_or_default();
-                let language = Language {
-                    language_id: language.language_id,
-                    work_id: self.props.work_id.clone(),
-                    language_relation: language.language_relation,
-                    language_code: language.language_code,
-                    main_language: language.main_language,
-                };
-                languages.push(language);
-                self.new_language = Default::default();
-                self.props.update_languages.emit(Some(languages));
-                self.link.send_message(Msg::ToggleAddFormDisplay(false));
-                true
-            }
-            Msg::RemoveLanguage(language_id) => {
-                let to_keep: Vec<Language> = self
-                    .props
-                    .languages
-                    .clone()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .filter(|i| i.language_id != language_id)
-                    .collect();
-                self.props.update_languages.emit(Some(to_keep));
-                true
-            }
             Msg::DoNothing => false, // callbacks need to return a message
         }
     }
@@ -260,7 +361,7 @@ impl Component for LanguagesFormComponent {
                                 class="button is-success"
                                 onclick=self.link.callback(|e: MouseEvent| {
                                     e.prevent_default();
-                                    Msg::AddLanguage
+                                    Msg::CreateLanguage
                                 })
                             >
                                 { "Add Language" }
@@ -340,7 +441,7 @@ impl LanguagesFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::RemoveLanguage(language_id.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeleteLanguage(language_id.clone()))
                             >
                                 { REMOVE_BUTTON }
                             </a>
