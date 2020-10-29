@@ -6,7 +6,7 @@ use yew::Html;
 
 use super::contributor::Contributor;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contribution {
     pub work_id: String,
