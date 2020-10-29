@@ -7,7 +7,7 @@ const CREATE_ISSUE_MUTATION: &str = "
     mutation CreateIssue(
         $workId: Uuid!,
         $seriesId: Uuid!,
-        $issueOrinal: Int!,
+        $issueOrdinal: Int!,
     ) {
         createIssue(data: {
             workId: $workId
