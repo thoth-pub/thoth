@@ -406,7 +406,7 @@ impl Component for FundingsFormComponent {
                                     Msg::CreateFunding
                                 })
                             >
-                                { "Add Subject" }
+                                { "Add Funding" }
                             </button>
                             <button
                                 class="button"
