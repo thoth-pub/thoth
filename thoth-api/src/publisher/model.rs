@@ -14,7 +14,7 @@ pub struct Publisher {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "publisher",
+    table_name = "publisher"
 )]
 pub struct NewPublisher {
     pub publisher_name: String,
@@ -25,8 +25,8 @@ pub struct NewPublisher {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null="true"),
-    table_name = "publisher",
+    changeset_options(treat_none_as_null = "true"),
+    table_name = "publisher"
 )]
 pub struct PatchPublisher {
     pub publisher_id: Uuid,

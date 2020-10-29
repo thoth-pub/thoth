@@ -1,6 +1,6 @@
 use std::str::FromStr;
-use thoth_api::work::model::WorkType;
 use thoth_api::work::model::WorkStatus;
+use thoth_api::work::model::WorkType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -14,14 +14,14 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::component::utils::FormDateInput;
 use crate::component::utils::FormImprintSelect;
-use crate::component::utils::FormWorkTypeSelect;
-use crate::component::utils::FormWorkStatusSelect;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormTextInput;
-use crate::component::utils::FormDateInput;
 use crate::component::utils::FormTextarea;
 use crate::component::utils::FormUrlInput;
+use crate::component::utils::FormWorkStatusSelect;
+use crate::component::utils::FormWorkTypeSelect;
 use crate::models::imprint::imprints_query::FetchActionImprints;
 use crate::models::imprint::imprints_query::FetchImprints;
 use crate::models::imprint::Imprint;
@@ -30,13 +30,13 @@ use crate::models::work::create_work_mutation::CreateWorkRequestBody;
 use crate::models::work::create_work_mutation::PushActionCreateWork;
 use crate::models::work::create_work_mutation::PushCreateWork;
 use crate::models::work::create_work_mutation::Variables;
-use crate::models::work::work_types_query::FetchActionWorkTypes;
-use crate::models::work::work_types_query::FetchWorkTypes;
 use crate::models::work::work_statuses_query::FetchActionWorkStatuses;
 use crate::models::work::work_statuses_query::FetchWorkStatuses;
+use crate::models::work::work_types_query::FetchActionWorkTypes;
+use crate::models::work::work_types_query::FetchWorkTypes;
 use crate::models::work::Work;
-use crate::models::work::WorkTypeValues;
 use crate::models::work::WorkStatusValues;
+use crate::models::work::WorkTypeValues;
 use crate::string::SAVE_BUTTON;
 
 pub struct NewWorkComponent {
@@ -176,8 +176,10 @@ impl Component for NewWorkComponent {
                 true
             }
             Msg::GetWorkStatuses => {
-                self.link
-                    .send_future(self.fetch_work_statuses.fetch(Msg::SetWorkStatusesFetchState));
+                self.link.send_future(
+                    self.fetch_work_statuses
+                        .fetch(Msg::SetWorkStatusesFetchState),
+                );
                 self.link
                     .send_message(Msg::SetWorkStatusesFetchState(FetchAction::Fetching));
                 false

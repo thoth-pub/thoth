@@ -15,7 +15,7 @@ pub struct Price {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "price",
+    table_name = "price"
 )]
 pub struct NewPrice {
     pub publication_id: Uuid,
@@ -26,8 +26,8 @@ pub struct NewPrice {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null="true"),
-    table_name = "price",
+    changeset_options(treat_none_as_null = "true"),
+    table_name = "price"
 )]
 pub struct PatchPrice {
     pub price_id: Uuid,

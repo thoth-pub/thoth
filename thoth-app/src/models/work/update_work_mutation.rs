@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::work::model::WorkType;
 use thoth_api::work::model::WorkStatus;
+use thoth_api::work::model::WorkType;
 
 const UPDATE_WORK_MUTATION: &str = "
     mutation UpdateWork(

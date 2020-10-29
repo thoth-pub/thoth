@@ -16,10 +16,6 @@ use crate::agent::notification_bus::Request;
 use crate::component::utils::FormPublicationTypeSelect;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
-use crate::models::publication::publication_types_query::FetchActionPublicationTypes;
-use crate::models::publication::publication_types_query::FetchPublicationTypes;
-use crate::models::publication::Publication;
-use crate::models::publication::PublicationTypeValues;
 use crate::models::publication::create_publication_mutation::CreatePublicationRequest;
 use crate::models::publication::create_publication_mutation::CreatePublicationRequestBody;
 use crate::models::publication::create_publication_mutation::PushActionCreatePublication;
@@ -30,6 +26,10 @@ use crate::models::publication::delete_publication_mutation::DeletePublicationRe
 use crate::models::publication::delete_publication_mutation::PushActionDeletePublication;
 use crate::models::publication::delete_publication_mutation::PushDeletePublication;
 use crate::models::publication::delete_publication_mutation::Variables as DeleteVariables;
+use crate::models::publication::publication_types_query::FetchActionPublicationTypes;
+use crate::models::publication::publication_types_query::FetchPublicationTypes;
+use crate::models::publication::Publication;
+use crate::models::publication::PublicationTypeValues;
 use crate::string::EMPTY_PUBLICATIONS;
 use crate::string::REMOVE_BUTTON;
 
@@ -213,15 +213,15 @@ impl Component for PublicationsFormComponent {
             }
             Msg::DeletePublication(publication_id) => {
                 let body = DeletePublicationRequestBody {
-                    variables: DeleteVariables {
-                        publication_id,
-                    },
+                    variables: DeleteVariables { publication_id },
                     ..Default::default()
                 };
                 let request = DeletePublicationRequest { body };
                 self.delete_publication = Fetch::new(request);
-                self.link
-                    .send_future(self.delete_publication.fetch(Msg::SetPublicationDeleteState));
+                self.link.send_future(
+                    self.delete_publication
+                        .fetch(Msg::SetPublicationDeleteState),
+                );
                 self.link
                     .send_message(Msg::SetPublicationDeleteState(FetchAction::Fetching));
                 false

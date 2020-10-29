@@ -43,7 +43,7 @@ pub struct Publication {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "publication",
+    table_name = "publication"
 )]
 pub struct NewPublication {
     pub publication_type: PublicationType,
@@ -55,8 +55,8 @@ pub struct NewPublication {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null="true"),
-    table_name = "publication",
+    changeset_options(treat_none_as_null = "true"),
+    table_name = "publication"
 )]
 pub struct PatchPublication {
     pub publication_id: Uuid,

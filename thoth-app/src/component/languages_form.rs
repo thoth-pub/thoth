@@ -17,10 +17,6 @@ use crate::agent::notification_bus::Request;
 use crate::component::utils::FormBooleanSelect;
 use crate::component::utils::FormLanguageCodeSelect;
 use crate::component::utils::FormLanguageRelationSelect;
-use crate::models::language::language_codes_query::FetchActionLanguageCodes;
-use crate::models::language::language_codes_query::FetchLanguageCodes;
-use crate::models::language::language_relations_query::FetchActionLanguageRelations;
-use crate::models::language::language_relations_query::FetchLanguageRelations;
 use crate::models::language::create_language_mutation::CreateLanguageRequest;
 use crate::models::language::create_language_mutation::CreateLanguageRequestBody;
 use crate::models::language::create_language_mutation::PushActionCreateLanguage;
@@ -31,6 +27,10 @@ use crate::models::language::delete_language_mutation::DeleteLanguageRequestBody
 use crate::models::language::delete_language_mutation::PushActionDeleteLanguage;
 use crate::models::language::delete_language_mutation::PushDeleteLanguage;
 use crate::models::language::delete_language_mutation::Variables as DeleteVariables;
+use crate::models::language::language_codes_query::FetchActionLanguageCodes;
+use crate::models::language::language_codes_query::FetchLanguageCodes;
+use crate::models::language::language_relations_query::FetchActionLanguageRelations;
+use crate::models::language::language_relations_query::FetchLanguageRelations;
 use crate::models::language::Language;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
@@ -247,9 +247,7 @@ impl Component for LanguagesFormComponent {
             }
             Msg::DeleteLanguage(language_id) => {
                 let body = DeleteLanguageRequestBody {
-                    variables: DeleteVariables {
-                        language_id,
-                    },
+                    variables: DeleteVariables { language_id },
                     ..Default::default()
                 };
                 let request = DeleteLanguageRequest { body };

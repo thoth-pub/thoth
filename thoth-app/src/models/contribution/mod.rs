@@ -45,6 +45,6 @@ impl Contribution {
     }
 }
 
+pub mod contribution_types_query;
 pub mod create_contribution_mutation;
 pub mod delete_contribution_mutation;
-pub mod contribution_types_query;

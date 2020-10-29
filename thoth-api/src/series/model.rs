@@ -31,7 +31,7 @@ pub struct Series {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "series",
+    table_name = "series"
 )]
 pub struct NewSeries {
     pub series_type: SeriesType,
@@ -45,8 +45,8 @@ pub struct NewSeries {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null="true"),
-    table_name = "series",
+    changeset_options(treat_none_as_null = "true"),
+    table_name = "series"
 )]
 pub struct PatchSeries {
     pub series_id: Uuid,

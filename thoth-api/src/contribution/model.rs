@@ -42,7 +42,7 @@ pub struct Contribution {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "contribution",
+    table_name = "contribution"
 )]
 pub struct NewContribution {
     pub work_id: Uuid,
@@ -56,8 +56,8 @@ pub struct NewContribution {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null="true"),
-    table_name = "contribution",
+    changeset_options(treat_none_as_null = "true"),
+    table_name = "contribution"
 )]
 pub struct PatchContribution {
     pub work_id: Uuid,

@@ -17,6 +17,7 @@ use crate::models::funder::funders_query::FetchFunders;
 use crate::models::funder::funders_query::FundersRequest;
 use crate::models::funder::funders_query::FundersRequestBody;
 use crate::models::funder::funders_query::Variables;
+use crate::models::funder::Funder;
 use crate::models::funding::create_funding_mutation::CreateFundingRequest;
 use crate::models::funding::create_funding_mutation::CreateFundingRequestBody;
 use crate::models::funding::create_funding_mutation::PushActionCreateFunding;
@@ -27,7 +28,6 @@ use crate::models::funding::delete_funding_mutation::DeleteFundingRequestBody;
 use crate::models::funding::delete_funding_mutation::PushActionDeleteFunding;
 use crate::models::funding::delete_funding_mutation::PushDeleteFunding;
 use crate::models::funding::delete_funding_mutation::Variables as DeleteVariables;
-use crate::models::funder::Funder;
 use crate::models::funding::Funding;
 use crate::string::EMPTY_FUNDINGS;
 use crate::string::REMOVE_BUTTON;
@@ -222,9 +222,7 @@ impl Component for FundingsFormComponent {
             }
             Msg::DeleteFunding(funding_id) => {
                 let body = DeleteFundingRequestBody {
-                    variables: DeleteVariables {
-                        funding_id,
-                    },
+                    variables: DeleteVariables { funding_id },
                     ..Default::default()
                 };
                 let request = DeleteFundingRequest { body };

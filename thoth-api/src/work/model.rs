@@ -88,7 +88,7 @@ pub struct Work {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "work",
+    table_name = "work"
 )]
 pub struct NewWork {
     pub work_type: WorkType,
@@ -126,8 +126,8 @@ pub struct NewWork {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null="true"),
-    table_name = "work",
+    changeset_options(treat_none_as_null = "true"),
+    table_name = "work"
 )]
 pub struct PatchWork {
     pub work_id: Uuid,

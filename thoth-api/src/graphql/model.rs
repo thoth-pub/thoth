@@ -963,16 +963,21 @@ impl MutationRoot {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let connection = context.db.get().unwrap();
 
-        match diesel::update(crate::schema::contributor::dsl::contributor.find(&data.contributor_id))
-            .set(&data)
-            .get_result(&connection)
+        match diesel::update(
+            crate::schema::contributor::dsl::contributor.find(&data.contributor_id),
+        )
+        .set(&data)
+        .get_result(&connection)
         {
             Ok(c) => Ok(c),
             Err(e) => Err(FieldError::from(e)),
         }
     }
 
-    fn update_contribution(context: &Context, data: PatchContribution) -> FieldResult<Contribution> {
+    fn update_contribution(
+        context: &Context,
+        data: PatchContribution,
+    ) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let connection = context.db.get().unwrap();
 
@@ -982,10 +987,7 @@ impl MutationRoot {
             .filter(contributor_id.eq(&data.contributor_id))
             .filter(contribution_type.eq(&data.contribution_type));
 
-        match diesel::update(target)
-            .set(&data)
-            .get_result(&connection)
-        {
+        match diesel::update(target).set(&data).get_result(&connection) {
             Ok(c) => Ok(c),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -995,9 +997,11 @@ impl MutationRoot {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let connection = context.db.get().unwrap();
 
-        match diesel::update(crate::schema::publication::dsl::publication.find(&data.publication_id))
-            .set(&data)
-            .get_result(&connection)
+        match diesel::update(
+            crate::schema::publication::dsl::publication.find(&data.publication_id),
+        )
+        .set(&data)
+        .get_result(&connection)
         {
             Ok(c) => Ok(c),
             Err(e) => Err(FieldError::from(e)),
@@ -1026,10 +1030,7 @@ impl MutationRoot {
             .filter(series_id.eq(&data.series_id))
             .filter(work_id.eq(&data.work_id));
 
-        match diesel::update(target)
-            .set(&data)
-            .get_result(&connection)
-        {
+        match diesel::update(target).set(&data).get_result(&connection) {
             Ok(c) => Ok(c),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -1107,9 +1108,7 @@ impl MutationRoot {
 
         let target = crate::schema::work::dsl::work.find(work_id);
         let result = target.get_result::<Work>(&connection);
-        match diesel::delete(target)
-            .execute(&connection)
-        {
+        match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(result.unwrap()),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -1121,9 +1120,7 @@ impl MutationRoot {
 
         let target = crate::schema::publisher::dsl::publisher.find(publisher_id);
         let result = target.get_result::<Publisher>(&connection);
-        match diesel::delete(target)
-            .execute(&connection)
-        {
+        match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(result.unwrap()),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -1135,9 +1132,7 @@ impl MutationRoot {
 
         let target = crate::schema::imprint::dsl::imprint.find(imprint_id);
         let result = target.get_result::<Imprint>(&connection);
-        match diesel::delete(target)
-            .execute(&connection)
-        {
+        match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(result.unwrap()),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -1149,15 +1144,18 @@ impl MutationRoot {
 
         let target = crate::schema::contributor::dsl::contributor.find(contributor_id);
         let result = target.get_result::<Contributor>(&connection);
-        match diesel::delete(target)
-            .execute(&connection)
-        {
+        match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(result.unwrap()),
             Err(e) => Err(FieldError::from(e)),
         }
     }
 
-    fn delete_contribution(context: &Context, work_id: Uuid, contributor_id: Uuid, contribution_type: ContributionType) -> FieldResult<Contribution> {
+    fn delete_contribution(
+        context: &Context,
+        work_id: Uuid,
+        contributor_id: Uuid,
+        contribution_type: ContributionType,
+    ) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let connection = context.db.get().unwrap();
 
@@ -1171,9 +1169,7 @@ impl MutationRoot {
             .filter(dsl::contributor_id.eq(&contributor_id))
             .filter(dsl::contribution_type.eq(&contribution_type))
             .get_result::<Contribution>(&connection);
-        match diesel::delete(target)
-            .execute(&connection)
-        {
+        match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(result.unwrap()),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -1185,9 +1181,7 @@ impl MutationRoot {
 
         let target = crate::schema::publication::dsl::publication.find(publication_id);
         let result = target.get_result::<Publication>(&connection);
-        match diesel::delete(target)
-            .execute(&connection)
-        {
+        match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(result.unwrap()),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -1199,9 +1193,7 @@ impl MutationRoot {
 
         let target = crate::schema::series::dsl::series.find(series_id);
         let result = target.get_result::<Series>(&connection);
-        match diesel::delete(target)
-            .execute(&connection)
-        {
+        match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(result.unwrap()),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -1219,9 +1211,7 @@ impl MutationRoot {
             .filter(dsl::series_id.eq(&series_id))
             .filter(dsl::work_id.eq(&work_id))
             .get_result::<Issue>(&connection);
-        match diesel::delete(target)
-            .execute(&connection)
-        {
+        match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(result.unwrap()),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -1233,9 +1223,7 @@ impl MutationRoot {
 
         let target = crate::schema::language::dsl::language.find(language_id);
         let result = target.get_result::<Language>(&connection);
-        match diesel::delete(target)
-            .execute(&connection)
-        {
+        match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(result.unwrap()),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -1247,9 +1235,7 @@ impl MutationRoot {
 
         let target = crate::schema::funder::dsl::funder.find(funder_id);
         let result = target.get_result::<Funder>(&connection);
-        match diesel::delete(target)
-            .execute(&connection)
-        {
+        match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(result.unwrap()),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -1261,9 +1247,7 @@ impl MutationRoot {
 
         let target = crate::schema::funding::dsl::funding.find(funding_id);
         let result = target.get_result::<Funding>(&connection);
-        match diesel::delete(target)
-            .execute(&connection)
-        {
+        match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(result.unwrap()),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -1275,9 +1259,7 @@ impl MutationRoot {
 
         let target = crate::schema::price::dsl::price.find(price_id);
         let result = target.get_result::<Price>(&connection);
-        match diesel::delete(target)
-            .execute(&connection)
-        {
+        match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(result.unwrap()),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -1289,9 +1271,7 @@ impl MutationRoot {
 
         let target = crate::schema::subject::dsl::subject.find(subject_id);
         let result = target.get_result::<Subject>(&connection);
-        match diesel::delete(target)
-            .execute(&connection)
-        {
+        match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(result.unwrap()),
             Err(e) => Err(FieldError::from(e)),
         }

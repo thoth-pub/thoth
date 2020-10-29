@@ -18,7 +18,7 @@ pub struct Funding {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "funding",
+    table_name = "funding"
 )]
 pub struct NewFunding {
     pub work_id: Uuid,
@@ -30,12 +30,11 @@ pub struct NewFunding {
     pub jurisdiction: Option<String>,
 }
 
-
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null="true"),
-    table_name = "funding",
+    changeset_options(treat_none_as_null = "true"),
+    table_name = "funding"
 )]
 pub struct PatchFunding {
     pub funding_id: Uuid,

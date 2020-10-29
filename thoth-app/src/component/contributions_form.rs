@@ -18,13 +18,6 @@ use crate::component::utils::FormContributionTypeSelect;
 use crate::component::utils::FormTextInput;
 use crate::models::contribution::contribution_types_query::FetchActionContributionTypes;
 use crate::models::contribution::contribution_types_query::FetchContributionTypes;
-use crate::models::contribution::Contribution;
-use crate::models::contribution::ContributionTypeValues;
-use crate::models::contributor::contributors_query::ContributorsRequest;
-use crate::models::contributor::contributors_query::ContributorsRequestBody;
-use crate::models::contributor::contributors_query::FetchActionContributors;
-use crate::models::contributor::contributors_query::FetchContributors;
-use crate::models::contributor::contributors_query::Variables;
 use crate::models::contribution::create_contribution_mutation::CreateContributionRequest;
 use crate::models::contribution::create_contribution_mutation::CreateContributionRequestBody;
 use crate::models::contribution::create_contribution_mutation::PushActionCreateContribution;
@@ -35,6 +28,13 @@ use crate::models::contribution::delete_contribution_mutation::DeleteContributio
 use crate::models::contribution::delete_contribution_mutation::PushActionDeleteContribution;
 use crate::models::contribution::delete_contribution_mutation::PushDeleteContribution;
 use crate::models::contribution::delete_contribution_mutation::Variables as DeleteVariables;
+use crate::models::contribution::Contribution;
+use crate::models::contribution::ContributionTypeValues;
+use crate::models::contributor::contributors_query::ContributorsRequest;
+use crate::models::contributor::contributors_query::ContributorsRequestBody;
+use crate::models::contributor::contributors_query::FetchActionContributors;
+use crate::models::contributor::contributors_query::FetchContributors;
+use crate::models::contributor::contributors_query::Variables;
 use crate::models::contributor::Contributor;
 use crate::string::EMPTY_CONTRIBUTIONS;
 use crate::string::NO;
@@ -233,7 +233,10 @@ impl Component for ContributionsFormComponent {
                                 .clone()
                                 .unwrap_or_default()
                                 .into_iter()
-                                .filter(|c| c.contributor_id != contribution.contributor_id && c.contribution_type != contribution.contribution_type)
+                                .filter(|c| {
+                                    c.contributor_id != contribution.contributor_id
+                                        && c.contribution_type != contribution.contribution_type
+                                })
                                 .collect();
                             self.props.update_contributions.emit(Some(to_keep));
                             true
@@ -266,8 +269,10 @@ impl Component for ContributionsFormComponent {
                 };
                 let request = DeleteContributionRequest { body };
                 self.delete_contribution = Fetch::new(request);
-                self.link
-                    .send_future(self.delete_contribution.fetch(Msg::SetContributionDeleteState));
+                self.link.send_future(
+                    self.delete_contribution
+                        .fetch(Msg::SetContributionDeleteState),
+                );
                 self.link
                     .send_message(Msg::SetContributionDeleteState(FetchAction::Fetching));
                 false

@@ -1,7 +1,7 @@
-use std::str::FromStr;
-use std::string::ParseError;
 use serde::Deserialize;
 use serde::Serialize;
+use std::str::FromStr;
+use std::string::ParseError;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
 use yew::html;
@@ -232,7 +232,7 @@ impl Default for Work {
 
 pub mod create_work_mutation;
 pub mod update_work_mutation;
+pub mod work_query;
 pub mod work_statuses_query;
 pub mod work_types_query;
-pub mod work_query;
 pub mod works_query;

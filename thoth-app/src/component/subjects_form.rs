@@ -16,8 +16,6 @@ use crate::agent::notification_bus::Request;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormSubjectTypeSelect;
 use crate::component::utils::FormTextInput;
-use crate::models::subject::subject_types_query::FetchActionSubjectTypes;
-use crate::models::subject::subject_types_query::FetchSubjectTypes;
 use crate::models::subject::create_subject_mutation::CreateSubjectRequest;
 use crate::models::subject::create_subject_mutation::CreateSubjectRequestBody;
 use crate::models::subject::create_subject_mutation::PushActionCreateSubject;
@@ -28,6 +26,8 @@ use crate::models::subject::delete_subject_mutation::DeleteSubjectRequestBody;
 use crate::models::subject::delete_subject_mutation::PushActionDeleteSubject;
 use crate::models::subject::delete_subject_mutation::PushDeleteSubject;
 use crate::models::subject::delete_subject_mutation::Variables as DeleteVariables;
+use crate::models::subject::subject_types_query::FetchActionSubjectTypes;
+use crate::models::subject::subject_types_query::FetchSubjectTypes;
 use crate::models::subject::Subject;
 use crate::models::subject::SubjectTypeValues;
 use crate::string::EMPTY_SUBJECTS;
@@ -213,9 +213,7 @@ impl Component for SubjectsFormComponent {
             }
             Msg::DeleteSubject(subject_id) => {
                 let body = DeleteSubjectRequestBody {
-                    variables: DeleteVariables {
-                        subject_id,
-                    },
+                    variables: DeleteVariables { subject_id },
                     ..Default::default()
                 };
                 let request = DeleteSubjectRequest { body };
