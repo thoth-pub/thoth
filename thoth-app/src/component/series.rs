@@ -54,6 +54,7 @@ struct SeriesFormData {
     series_types: Vec<SeriesTypeValues>,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum Msg {
     SetImprintsFetchState(FetchActionImprints),
     GetImprints,

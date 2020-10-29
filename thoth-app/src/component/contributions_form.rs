@@ -206,7 +206,7 @@ impl Component for ContributionsFormComponent {
                         work_id: self.props.work_id.clone(),
                         contributor_id: self.new_contribution.contributor_id.clone(),
                         contribution_type: self.new_contribution.contribution_type.clone(),
-                        main_contribution: self.new_contribution.main_contribution.clone(),
+                        main_contribution: self.new_contribution.main_contribution,
                         biography: self.new_contribution.biography.clone(),
                         institution: self.new_contribution.institution.clone(),
                     },

@@ -50,6 +50,7 @@ struct FundingsFormData {
     funders: Vec<Funder>,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum Msg {
     ToggleAddFormDisplay(bool),
     SetFundersFetchState(FetchActionFunders),
@@ -117,7 +118,7 @@ impl Component for FundingsFormComponent {
                 self.data.funders = match self.fetch_funders.clone().state() {
                     FetchState::NotFetching(_) => vec![],
                     FetchState::Fetching(_) => vec![],
-                    FetchState::Fetched(body) => body.data.funders.clone(),
+                    FetchState::Fetched(body) => body.data.funders,
                     FetchState::Failed(_, _err) => vec![],
                 };
                 true

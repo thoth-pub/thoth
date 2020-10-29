@@ -164,7 +164,7 @@ impl Component for SubjectsFormComponent {
                         work_id: self.props.work_id.clone(),
                         subject_type: self.new_subject.subject_type.clone(),
                         subject_code: self.new_subject.subject_code.clone(),
-                        subject_ordinal: self.new_subject.subject_ordinal.clone(),
+                        subject_ordinal: self.new_subject.subject_ordinal,
                     },
                     ..Default::default()
                 };

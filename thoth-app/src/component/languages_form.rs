@@ -198,7 +198,7 @@ impl Component for LanguagesFormComponent {
                         work_id: self.props.work_id.clone(),
                         language_relation: self.new_language.language_relation.clone(),
                         language_code: self.new_language.language_code.clone(),
-                        main_language: self.new_language.main_language.clone(),
+                        main_language: self.new_language.main_language,
                     },
                     ..Default::default()
                 };

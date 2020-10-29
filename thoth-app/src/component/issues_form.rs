@@ -50,6 +50,7 @@ struct IssuesFormData {
     serieses: Vec<Series>,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum Msg {
     ToggleAddFormDisplay(bool),
     SetSeriesesFetchState(FetchActionSerieses),
@@ -164,7 +165,7 @@ impl Component for IssuesFormComponent {
                     variables: CreateVariables {
                         work_id: self.props.work_id.clone(),
                         series_id: self.new_issue.series_id.clone(),
-                        issue_ordinal: self.new_issue.issue_ordinal.clone(),
+                        issue_ordinal: self.new_issue.issue_ordinal,
                     },
                     ..Default::default()
                 };
