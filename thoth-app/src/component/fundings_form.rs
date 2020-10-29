@@ -7,12 +7,26 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
+use crate::agent::notification_bus::NotificationBus;
+use crate::agent::notification_bus::NotificationDispatcher;
+use crate::agent::notification_bus::NotificationStatus;
+use crate::agent::notification_bus::Request;
 use crate::component::utils::FormTextInput;
 use crate::models::funder::funders_query::FetchActionFunders;
 use crate::models::funder::funders_query::FetchFunders;
 use crate::models::funder::funders_query::FundersRequest;
 use crate::models::funder::funders_query::FundersRequestBody;
 use crate::models::funder::funders_query::Variables;
+use crate::models::funding::create_funding_mutation::CreateFundingRequest;
+use crate::models::funding::create_funding_mutation::CreateFundingRequestBody;
+use crate::models::funding::create_funding_mutation::PushActionCreateFunding;
+use crate::models::funding::create_funding_mutation::PushCreateFunding;
+use crate::models::funding::create_funding_mutation::Variables as CreateVariables;
+use crate::models::funding::delete_funding_mutation::DeleteFundingRequest;
+use crate::models::funding::delete_funding_mutation::DeleteFundingRequestBody;
+use crate::models::funding::delete_funding_mutation::PushActionDeleteFunding;
+use crate::models::funding::delete_funding_mutation::PushDeleteFunding;
+use crate::models::funding::delete_funding_mutation::Variables as DeleteVariables;
 use crate::models::funder::Funder;
 use crate::models::funding::Funding;
 use crate::string::EMPTY_FUNDINGS;
@@ -21,37 +35,38 @@ use crate::string::REMOVE_BUTTON;
 pub struct FundingsFormComponent {
     props: Props,
     data: FundingsFormData,
-    program_value: String,
-    project_name_value: String,
-    project_shortname_value: String,
-    grant_number_value: String,
-    jurisdiction_value: String,
+    new_funding: Funding,
+    show_add_form: bool,
     show_results: bool,
     fetch_funders: FetchFunders,
+    push_funding: PushCreateFunding,
+    delete_funding: PushDeleteFunding,
     link: ComponentLink<Self>,
+    notification_bus: NotificationDispatcher,
 }
 
+#[derive(Default)]
 struct FundingsFormData {
     funders: Vec<Funder>,
 }
 
 pub enum Msg {
+    ToggleAddFormDisplay(bool),
     SetFundersFetchState(FetchActionFunders),
     GetFunders,
     ToggleSearchResultDisplay(bool),
     SearchFunder(String),
+    SetFundingPushState(PushActionCreateFunding),
+    CreateFunding,
+    SetFundingDeleteState(PushActionDeleteFunding),
+    DeleteFunding(String),
     AddFunding(Funder),
-    RemoveFunding(String),
-    ChangeProgramEditValue(String),
     ChangeProgram(String),
-    ChangeProjectNameEditValue(String),
     ChangeProjectName(String),
-    ChangeProjectShortnameEditValue(String),
     ChangeProjectShortname(String),
-    ChangeGrantEditValue(String),
     ChangeGrant(String),
-    ChangeJurisdictionEditValue(String),
     ChangeJurisdiction(String),
+    DoNothing,
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -66,35 +81,40 @@ impl Component for FundingsFormComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let data = FundingsFormData { funders: vec![] };
-        let program_value = "".into();
-        let project_name_value = "".into();
-        let project_shortname_value = "".into();
-        let grant_number_value = "".into();
-        let jurisdiction_value = "".into();
+        let data: FundingsFormData = Default::default();
+        let new_funding: Funding = Default::default();
+        let show_add_form = false;
         let show_results = false;
+        let fetch_funders = Default::default();
+        let push_funding = Default::default();
+        let delete_funding = Default::default();
+        let notification_bus = NotificationBus::dispatcher();
 
         link.send_message(Msg::GetFunders);
 
         FundingsFormComponent {
             props,
             data,
-            program_value,
-            project_name_value,
-            project_shortname_value,
-            grant_number_value,
-            jurisdiction_value,
+            new_funding,
+            show_add_form,
             show_results,
-            fetch_funders: Default::default(),
+            fetch_funders,
+            push_funding,
+            delete_funding,
             link,
+            notification_bus,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
+            Msg::ToggleAddFormDisplay(value) => {
+                self.show_add_form = value;
+                true
+            }
             Msg::SetFundersFetchState(fetch_state) => {
                 self.fetch_funders.apply(fetch_state);
-                self.data.funders = match self.fetch_funders.as_ref().state() {
+                self.data.funders = match self.fetch_funders.clone().state() {
                     FetchState::NotFetching(_) => vec![],
                     FetchState::Fetching(_) => vec![],
                     FetchState::Fetched(body) => body.data.funders.clone(),
@@ -108,6 +128,117 @@ impl Component for FundingsFormComponent {
                 self.link
                     .send_message(Msg::SetFundersFetchState(FetchAction::Fetching));
                 false
+            }
+            Msg::SetFundingPushState(fetch_state) => {
+                self.push_funding.apply(fetch_state);
+                match self.push_funding.clone().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.create_funding {
+                        Some(i) => {
+                            let funding = i.clone();
+                            let mut fundings: Vec<Funding> =
+                                self.props.fundings.clone().unwrap_or_default();
+                            fundings.push(funding);
+                            self.props.update_fundings.emit(Some(fundings));
+                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            true
+                        }
+                        None => {
+                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::CreateFunding => {
+                let body = CreateFundingRequestBody {
+                    variables: CreateVariables {
+                        work_id: self.props.work_id.clone(),
+                        funder_id: self.new_funding.funder_id.clone(),
+                        program: self.new_funding.program.clone(),
+                        project_name: self.new_funding.project_name.clone(),
+                        project_shortname: self.new_funding.project_shortname.clone(),
+                        grant_number: self.new_funding.grant_number.clone(),
+                        jurisdiction: self.new_funding.jurisdiction.clone(),
+                    },
+                    ..Default::default()
+                };
+                let request = CreateFundingRequest { body };
+                self.push_funding = Fetch::new(request);
+                self.link
+                    .send_future(self.push_funding.fetch(Msg::SetFundingPushState));
+                self.link
+                    .send_message(Msg::SetFundingPushState(FetchAction::Fetching));
+                false
+            }
+            Msg::SetFundingDeleteState(fetch_state) => {
+                self.delete_funding.apply(fetch_state);
+                match self.delete_funding.clone().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.delete_funding {
+                        Some(funding) => {
+                            let to_keep: Vec<Funding> = self
+                                .props
+                                .fundings
+                                .clone()
+                                .unwrap_or_default()
+                                .into_iter()
+                                .filter(|f| f.funding_id != funding.funding_id)
+                                .collect();
+                            self.props.update_fundings.emit(Some(to_keep));
+                            true
+                        }
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::DeleteFunding(funding_id) => {
+                let body = DeleteFundingRequestBody {
+                    variables: DeleteVariables {
+                        funding_id,
+                    },
+                    ..Default::default()
+                };
+                let request = DeleteFundingRequest { body };
+                self.delete_funding = Fetch::new(request);
+                self.link
+                    .send_future(self.delete_funding.fetch(Msg::SetFundingDeleteState));
+                self.link
+                    .send_message(Msg::SetFundingDeleteState(FetchAction::Fetching));
+                false
+            }
+            Msg::AddFunding(funder) => {
+                self.new_funding.funder_id = funder.funder_id.clone();
+                self.new_funding.funder = funder;
+                self.link.send_message(Msg::ToggleAddFormDisplay(true));
+                true
             }
             Msg::ToggleSearchResultDisplay(value) => {
                 self.show_results = value;
@@ -125,151 +256,42 @@ impl Component for FundingsFormComponent {
                 self.link.send_message(Msg::GetFunders);
                 false
             }
-            Msg::AddFunding(funder) => {
-                let mut fundings: Vec<Funding> = self.props.fundings.clone().unwrap_or_default();
-                let funder_id = funder.funder_id.clone();
-                let funding = Funding {
-                    funding_id: "".to_string(),
-                    work_id: self.props.work_id.clone(),
-                    funder_id,
-                    program: None,
-                    project_name: None,
-                    project_shortname: None,
-                    grant_number: None,
-                    jurisdiction: None,
-                    funder,
-                };
-                fundings.push(funding);
-                self.props.update_fundings.emit(Some(fundings));
-                true
-            }
-            Msg::RemoveFunding(funder_id) => {
-                let to_keep: Vec<Funding> = self
-                    .props
-                    .fundings
-                    .clone()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .filter(|f| f.funder_id != funder_id)
-                    .collect();
-                self.props.update_fundings.emit(Some(to_keep));
-                true
-            }
-            Msg::ChangeProgramEditValue(val) => {
-                self.program_value.neq_assign(val);
-                false // otherwise we re-render the component and reset the value
-            }
-            Msg::ChangeProgram(funder_id) => {
-                let program_value = self.program_value.trim().to_string();
-                let program = match program_value.is_empty() {
+            Msg::ChangeProgram(val) => {
+                let value = match val.is_empty() {
                     true => None,
-                    false => Some(program_value),
+                    false => Some(val),
                 };
-                let mut fundings: Vec<Funding> = self.props.fundings.clone().unwrap_or_default();
-                if let Some(position) = fundings.iter().position(|f| f.funder_id == funder_id) {
-                    let mut funding = fundings[position].clone();
-                    funding.program = program;
-                    // we must acknowledge that replace returns a value, even if we don't want it
-                    let _ = std::mem::replace(&mut fundings[position], funding);
-                    self.props.update_fundings.emit(Some(fundings));
-                    self.program_value = "".to_string();
-                    true
-                } else {
-                    false
-                }
+                self.new_funding.program.neq_assign(value)
             }
-            Msg::ChangeProjectNameEditValue(val) => {
-                self.project_name_value.neq_assign(val);
-                false // otherwise we re-render the component and reset the value
-            }
-            Msg::ChangeProjectName(funder_id) => {
-                let project_name_value = self.project_name_value.trim().to_string();
-                let project_name = match project_name_value.is_empty() {
+            Msg::ChangeProjectName(val) => {
+                let value = match val.is_empty() {
                     true => None,
-                    false => Some(project_name_value),
+                    false => Some(val),
                 };
-                let mut fundings: Vec<Funding> = self.props.fundings.clone().unwrap_or_default();
-                if let Some(position) = fundings.iter().position(|f| f.funder_id == funder_id) {
-                    let mut funding = fundings[position].clone();
-                    funding.project_name = project_name;
-                    // we must acknowledge that replace returns a value, even if we don't want it
-                    let _ = std::mem::replace(&mut fundings[position], funding);
-                    self.props.update_fundings.emit(Some(fundings));
-                    self.project_name_value = "".to_string();
-                    true
-                } else {
-                    false
-                }
+                self.new_funding.project_name.neq_assign(value)
             }
-            Msg::ChangeProjectShortnameEditValue(val) => {
-                self.project_shortname_value.neq_assign(val);
-                false // otherwise we re-render the component and reset the value
-            }
-            Msg::ChangeProjectShortname(funder_id) => {
-                let project_shortname_value = self.project_shortname_value.trim().to_string();
-                let project_shortname = match project_shortname_value.is_empty() {
+            Msg::ChangeProjectShortname(val) => {
+                let value = match val.is_empty() {
                     true => None,
-                    false => Some(project_shortname_value),
+                    false => Some(val),
                 };
-                let mut fundings: Vec<Funding> = self.props.fundings.clone().unwrap_or_default();
-                if let Some(position) = fundings.iter().position(|f| f.funder_id == funder_id) {
-                    let mut funding = fundings[position].clone();
-                    funding.project_shortname = project_shortname;
-                    // we must acknowledge that replace returns a value, even if we don't want it
-                    let _ = std::mem::replace(&mut fundings[position], funding);
-                    self.props.update_fundings.emit(Some(fundings));
-                    self.project_shortname_value = "".to_string();
-                    true
-                } else {
-                    false
-                }
+                self.new_funding.project_shortname.neq_assign(value)
             }
-            Msg::ChangeGrantEditValue(val) => {
-                self.grant_number_value.neq_assign(val);
-                false // otherwise we re-render the component and reset the value
-            }
-            Msg::ChangeGrant(funder_id) => {
-                let grant_number_value = self.grant_number_value.trim().to_string();
-                let grant_number = match grant_number_value.is_empty() {
+            Msg::ChangeGrant(val) => {
+                let value = match val.is_empty() {
                     true => None,
-                    false => Some(grant_number_value),
+                    false => Some(val),
                 };
-                let mut fundings: Vec<Funding> = self.props.fundings.clone().unwrap_or_default();
-                if let Some(position) = fundings.iter().position(|f| f.funder_id == funder_id) {
-                    let mut funding = fundings[position].clone();
-                    funding.grant_number = grant_number;
-                    // we must acknowledge that replace returns a value, even if we don't want it
-                    let _ = std::mem::replace(&mut fundings[position], funding);
-                    self.props.update_fundings.emit(Some(fundings));
-                    self.grant_number_value = "".to_string();
-                    true
-                } else {
-                    false
-                }
+                self.new_funding.grant_number.neq_assign(value)
             }
-            Msg::ChangeJurisdictionEditValue(val) => {
-                self.jurisdiction_value.neq_assign(val);
-                false // otherwise we re-render the component and reset the value
-            }
-            Msg::ChangeJurisdiction(funder_id) => {
-                let jurisdiction_value = self.jurisdiction_value.trim().to_string();
-                let jurisdiction = match jurisdiction_value.is_empty() {
+            Msg::ChangeJurisdiction(val) => {
+                let value = match val.is_empty() {
                     true => None,
-                    false => Some(jurisdiction_value),
+                    false => Some(val),
                 };
-                let mut fundings: Vec<Funding> = self.props.fundings.clone().unwrap_or_default();
-                if let Some(position) = fundings.iter().position(|f| f.funder_id == funder_id) {
-                    let mut funding = fundings[position].clone();
-                    funding.jurisdiction = jurisdiction;
-                    // we must acknowledge that replace returns a value, even if we don't want it
-                    let _ = std::mem::replace(&mut fundings[position], funding);
-                    self.props.update_fundings.emit(Some(fundings));
-                    self.jurisdiction_value = "".to_string();
-                    true
-                } else {
-                    false
-                }
+                self.new_funding.jurisdiction.neq_assign(value)
             }
+            Msg::DoNothing => false, // callbacks need to return a message
         }
     }
 
@@ -279,6 +301,10 @@ impl Component for FundingsFormComponent {
 
     fn view(&self) -> Html {
         let fundings = self.props.fundings.clone().unwrap_or_default();
+        let close_modal = self.link.callback(|e: MouseEvent| {
+            e.prevent_default();
+            Msg::ToggleAddFormDisplay(false)
+        });
         html! {
             <nav class="panel">
                 <p class="panel-heading">
@@ -321,6 +347,76 @@ impl Component for FundingsFormComponent {
                         </div>
                     </div>
                 </div>
+                <div class=self.add_form_status()>
+                    <div class="modal-background" onclick=&close_modal></div>
+                    <div class="modal-card">
+                        <header class="modal-card-head">
+                            <p class="modal-card-title">{ "New Funding" }</p>
+                            <button
+                                class="delete"
+                                aria-label="close"
+                                onclick=&close_modal
+                            ></button>
+                        </header>
+                        <section class="modal-card-body">
+                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                                e.prevent_default();
+                                Msg::DoNothing
+                            })
+                            >
+                                <div class="field">
+                                    <label class="label">{ "Funder" }</label>
+                                    <div class="control is-expanded">
+                                        {&self.new_funding.funder.funder_name}
+                                    </div>
+                                </div>
+                                <FormTextInput
+                                    label="Program"
+                                    value=&self.new_funding.program.clone().unwrap_or_else(|| "".to_string())
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeProgram(e.value))
+                                />
+                                <FormTextInput
+                                    label="Project Name"
+                                    value=&self.new_funding.project_name.clone().unwrap_or_else(|| "".to_string())
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeProjectName(e.value))
+                                />
+                                <FormTextInput
+                                    label="Project Short Name"
+                                    value=&self.new_funding.project_shortname.clone().unwrap_or_else(|| "".to_string())
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeProjectShortname(e.value))
+                                />
+                                <FormTextInput
+                                    label="Grant Number"
+                                    value=&self.new_funding.grant_number.clone().unwrap_or_else(|| "".to_string())
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeGrant(e.value))
+                                />
+                                <FormTextInput
+                                    label="Jurisdiction"
+                                    value=&self.new_funding.jurisdiction.clone().unwrap_or_else(|| "".to_string())
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeJurisdiction(e.value))
+                                />
+
+                            </form>
+                        </section>
+                        <footer class="modal-card-foot">
+                            <button
+                                class="button is-success"
+                                onclick=self.link.callback(|e: MouseEvent| {
+                                    e.prevent_default();
+                                    Msg::CreateFunding
+                                })
+                            >
+                                { "Add Subject" }
+                            </button>
+                            <button
+                                class="button"
+                                onclick=&close_modal
+                            >
+                                { "Cancel" }
+                            </button>
+                        </footer>
+                    </div>
+                </div>
                 {
                     if fundings.len() > 0 {
                         html!{{for fundings.iter().map(|c| self.render_funding(c))}}
@@ -338,6 +434,13 @@ impl Component for FundingsFormComponent {
 }
 
 impl FundingsFormComponent {
+    fn add_form_status(&self) -> String {
+        match self.show_add_form {
+            true => "modal is-active".to_string(),
+            false => "modal".to_string(),
+        }
+    }
+
     fn search_dropdown_status(&self) -> String {
         match self.show_results {
             true => "dropdown is-active".to_string(),
@@ -346,15 +449,7 @@ impl FundingsFormComponent {
     }
 
     fn render_funding(&self, f: &Funding) -> Html {
-        // there's probably a better way to do this. We basically need to copy 3 instances
-        // of funder_id and take ownership of them so they can be passed on to
-        // the callback functions
-        let funder_id = f.funder_id.clone();
-        let pro_fid = f.funder_id.clone();
-        let nam_fid = f.funder_id.clone();
-        let sna_fid = f.funder_id.clone();
-        let grant_fid = f.funder_id.clone();
-        let jur_fid = f.funder_id.clone();
+        let funding_id = f.funding_id.clone();
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -367,42 +462,42 @@ impl FundingsFormComponent {
                             {&f.funder.funder_name}
                         </div>
                     </div>
-                    <FormTextInput
-                        label="Program"
-                        value=&f.program.clone().unwrap_or_else(|| "".to_string())
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeProgramEditValue(e.value))
-                        onblur=self.link.callback(move |_| Msg::ChangeProgram(pro_fid.clone()))
-                    />
-                    <FormTextInput
-                        label="Project Name"
-                        value=&f.project_name.clone().unwrap_or_else(|| "".to_string())
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeProjectNameEditValue(e.value))
-                        onblur=self.link.callback(move |_| Msg::ChangeProjectName(nam_fid.clone()))
-                    />
-                    <FormTextInput
-                        label="Project Short Name"
-                        value=&f.project_shortname.clone().unwrap_or_else(|| "".to_string())
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeProjectShortnameEditValue(e.value))
-                        onblur=self.link.callback(move |_| Msg::ChangeProjectShortname(sna_fid.clone()))
-                    />
-                    <FormTextInput
-                        label="Grant Number"
-                        value=&f.grant_number.clone().unwrap_or_else(|| "".to_string())
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeGrantEditValue(e.value))
-                        onblur=self.link.callback(move |_| Msg::ChangeGrant(grant_fid.clone()))
-                    />
-                    <FormTextInput
-                        label="Jurisdiction"
-                        value=&f.jurisdiction.clone().unwrap_or_else(|| "".to_string())
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeJurisdictionEditValue(e.value))
-                        onblur=self.link.callback(move |_| Msg::ChangeJurisdiction(jur_fid.clone()))
-                    />
+                    <div class="field" style="width: 8em;">
+                        <label class="label">{ "Program" }</label>
+                        <div class="control is-expanded">
+                            {&f.program.clone().unwrap_or_else(|| "".to_string())}
+                        </div>
+                    </div>
+                    <div class="field" style="width: 8em;">
+                        <label class="label">{ "Project Name" }</label>
+                        <div class="control is-expanded">
+                            {&f.project_name.clone().unwrap_or_else(|| "".to_string())}
+                        </div>
+                    </div>
+                    <div class="field" style="width: 8em;">
+                        <label class="label">{ "Project Short Name" }</label>
+                        <div class="control is-expanded">
+                            {&f.project_shortname.clone().unwrap_or_else(|| "".to_string())}
+                        </div>
+                    </div>
+                    <div class="field" style="width: 8em;">
+                        <label class="label">{ "Grant Number" }</label>
+                        <div class="control is-expanded">
+                            {&f.grant_number.clone().unwrap_or_else(|| "".to_string())}
+                        </div>
+                    </div>
+                    <div class="field" style="width: 8em;">
+                        <label class="label">{ "Jurisdiction" }</label>
+                        <div class="control is-expanded">
+                            {&f.jurisdiction.clone().unwrap_or_else(|| "".to_string())}
+                        </div>
+                    </div>
                     <div class="field">
                         <label class="label"></label>
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::RemoveFunding(funder_id.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeleteFunding(funding_id.clone()))
                             >
                                 { REMOVE_BUTTON }
                             </a>

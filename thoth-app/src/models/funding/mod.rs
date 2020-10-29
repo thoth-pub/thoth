@@ -3,7 +3,7 @@ use serde::Serialize;
 
 use super::funder::Funder;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Funding {
     pub funding_id: String,
@@ -19,4 +19,3 @@ pub struct Funding {
 
 pub mod create_funding_mutation;
 pub mod delete_funding_mutation;
-pub mod update_funding_mutation;

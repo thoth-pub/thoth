@@ -74,6 +74,10 @@ pub const WORK_QUERY: &str = "
                 projectShortname
                 grantNumber
                 jurisdiction
+                funder {
+                    funderId
+                    funderName
+                }
             }
             subjects {
                 subjectId

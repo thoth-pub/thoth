@@ -1,6 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::Funding;
+
 const CREATE_FUNDING_MUTATION: &str = "
     mutation CreateFunding(
         $workId: Uuid!,
@@ -18,9 +20,20 @@ const CREATE_FUNDING_MUTATION: &str = "
             projectName: $projectName
             projectShortname: $projectShortname
             grantNumber: $grantNumber
-            jurisdicion: $jurisdiction
+            jurisdiction: $jurisdiction
         }){
             fundingId
+            workId
+            funderId
+            program
+            projectName
+            projectShortname
+            grantNumber
+            jurisdiction
+            funder {
+                funderId
+                funderName
+            }
         }
     }
 ";
@@ -50,12 +63,6 @@ pub struct Variables {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct SlimFunding {
-    pub funding_id: String,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct CreateFundingResponseData {
-    pub create_funding: Option<SlimFunding>,
+    pub create_funding: Option<Funding>,
 }
