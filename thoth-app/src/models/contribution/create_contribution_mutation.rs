@@ -10,7 +10,7 @@ const CREATE_CONTRIBUTION_MUTATION: &str = "
         $contributorId: Uuid!,
         $contributionType: ContributionType!,
         $mainContribution: Boolean!,
-        $biographqy: String,
+        $biography: String,
         $institution: String,
     ) {
         createContribution(data: {
