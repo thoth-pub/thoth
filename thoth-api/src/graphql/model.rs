@@ -1161,15 +1161,15 @@ impl MutationRoot {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let connection = context.db.get().unwrap();
 
-        use crate::schema::contribution::dsl::*;
-        let target = contribution
-            .filter(work_id.eq(&work_id))
-            .filter(contributor_id.eq(&contributor_id))
-            .filter(contribution_type.eq(&contribution_type));
-        let result = contribution
-            .filter(work_id.eq(work_id))
-            .filter(contributor_id.eq(contributor_id))
-            .filter(contribution_type.eq(contribution_type))
+        use crate::schema::contribution::dsl;
+        let target = dsl::contribution
+            .filter(dsl::work_id.eq(&work_id))
+            .filter(dsl::contributor_id.eq(&contributor_id))
+            .filter(dsl::contribution_type.eq(&contribution_type));
+        let result = dsl::contribution
+            .filter(dsl::work_id.eq(&work_id))
+            .filter(dsl::contributor_id.eq(&contributor_id))
+            .filter(dsl::contribution_type.eq(&contribution_type))
             .get_result::<Contribution>(&connection);
         match diesel::delete(target)
             .execute(&connection)
@@ -1211,13 +1211,13 @@ impl MutationRoot {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let connection = context.db.get().unwrap();
 
-        use crate::schema::issue::dsl::*;
-        let target = issue
-            .filter(series_id.eq(&series_id))
-            .filter(work_id.eq(&work_id));
-        let result = issue
-            .filter(series_id.eq(&series_id))
-            .filter(work_id.eq(&work_id))
+        use crate::schema::issue::dsl;
+        let target = dsl::issue
+            .filter(dsl::series_id.eq(&series_id))
+            .filter(dsl::work_id.eq(&work_id));
+        let result = dsl::issue
+            .filter(dsl::series_id.eq(&series_id))
+            .filter(dsl::work_id.eq(&work_id))
             .get_result::<Issue>(&connection);
         match diesel::delete(target)
             .execute(&connection)
