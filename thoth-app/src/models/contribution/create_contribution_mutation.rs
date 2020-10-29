@@ -25,6 +25,8 @@ const CREATE_CONTRIBUTION_MUTATION: &str = "
             contributorId
             contributionType
             mainContribution
+            institution
+            biography
             contributor {
                 contributorId
                 lastName
