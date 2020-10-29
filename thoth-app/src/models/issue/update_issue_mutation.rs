@@ -1,6 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::Issue;
+
 const UPDATE_ISSUE_MUTATION: &str = "
     mutation UpdateIssue(
         $workId: Uuid!,
@@ -15,6 +17,24 @@ const UPDATE_ISSUE_MUTATION: &str = "
             workId
             seriesId
             issueOrdinal
+            series {
+                seriesId
+                seriesType
+                seriesName
+                issnPrint
+                issnDigital
+                seriesUrl
+                imprint {
+                    imprintId
+                    imprintName
+                    publisher {
+                        publisherId
+                        publisherName
+                        publisherShortname
+                        publisherUrl
+                    }
+                }
+            }
         }
     }
 ";
@@ -35,19 +55,11 @@ graphql_query_builder! {
 pub struct Variables {
     pub work_id: String,
     pub series_id: String,
-    pub series_ordinal: i32,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimIssue {
-    pub work_id: String,
-    pub series_id: String,
     pub issue_ordinal: i32,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateIssueResponseData {
-    pub update_issue: Option<SlimIssue>,
+    pub update_issue: Option<Issue>,
 }
