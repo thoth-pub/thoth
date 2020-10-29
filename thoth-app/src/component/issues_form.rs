@@ -324,7 +324,7 @@ impl Component for IssuesFormComponent {
                     <div class="modal-background" onclick=&close_modal></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
-                            <p class="modal-card-title">{ "New Subject" }</p>
+                            <p class="modal-card-title">{ "New Issue" }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
