@@ -17,13 +17,13 @@ pub enum PublicationType {
     #[cfg_attr(feature = "backend", db_rename = "Hardback")]
     Hardback,
     #[cfg_attr(feature = "backend", db_rename = "PDF")]
-    #[serde(rename(deserialize = "PDF"))]
+    #[serde(rename = "PDF")]
     PDF,
     #[cfg_attr(feature = "backend", db_rename = "HTML")]
-    #[serde(rename(deserialize = "HTML"))]
+    #[serde(rename = "HTML")]
     HTML,
     #[cfg_attr(feature = "backend", db_rename = "XML")]
-    #[serde(rename(deserialize = "XML"))]
+    #[serde(rename = "XML")]
     XML,
     #[cfg_attr(feature = "backend", db_rename = "Epub")]
     Epub,
@@ -40,9 +40,26 @@ pub struct Publication {
     pub publication_url: Option<String>,
 }
 
-#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
-#[cfg_attr(feature = "backend", table_name = "publication")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, Insertable),
+    table_name = "publication"
+)]
 pub struct NewPublication {
+    pub publication_type: PublicationType,
+    pub work_id: Uuid,
+    pub isbn: Option<String>,
+    pub publication_url: Option<String>,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, AsChangeset),
+    changeset_options(treat_none_as_null = "true"),
+    table_name = "publication"
+)]
+pub struct PatchPublication {
+    pub publication_id: Uuid,
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<String>,

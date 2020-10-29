@@ -6,6 +6,8 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
+use super::imprint::Imprint;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Series {
@@ -15,6 +17,19 @@ pub struct Series {
     pub issn_print: String,
     pub issn_digital: String,
     pub series_url: Option<String>,
+    pub imprint: Imprint,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SeriesTypeDefinition {
+    pub enum_values: Vec<SeriesTypeValues>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SeriesTypeValues {
+    pub name: SeriesType,
 }
 
 impl Default for Series {
@@ -26,6 +41,7 @@ impl Default for Series {
             issn_print: "".to_string(),
             issn_digital: "".to_string(),
             series_url: None,
+            imprint: Default::default(),
         }
     }
 }
@@ -43,4 +59,8 @@ impl Series {
     }
 }
 
+pub mod create_series_mutation;
+pub mod series_query;
+pub mod series_types_query;
 pub mod serieses_query;
+pub mod update_series_mutation;

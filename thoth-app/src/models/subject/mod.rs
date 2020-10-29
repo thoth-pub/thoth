@@ -36,4 +36,6 @@ impl Default for Subject {
     }
 }
 
+pub mod create_subject_mutation;
+pub mod delete_subject_mutation;
 pub mod subject_types_query;

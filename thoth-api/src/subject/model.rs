@@ -32,9 +32,26 @@ pub struct Subject {
     pub subject_ordinal: i32,
 }
 
-#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
-#[cfg_attr(feature = "backend", table_name = "subject")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, Insertable),
+    table_name = "subject"
+)]
 pub struct NewSubject {
+    pub work_id: Uuid,
+    pub subject_type: SubjectType,
+    pub subject_code: String,
+    pub subject_ordinal: i32,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, AsChangeset),
+    changeset_options(treat_none_as_null = "true"),
+    table_name = "subject"
+)]
+pub struct PatchSubject {
+    pub subject_id: Uuid,
     pub work_id: Uuid,
     pub subject_type: SubjectType,
     pub subject_code: String,

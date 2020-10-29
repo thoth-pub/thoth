@@ -18,8 +18,8 @@ pub struct Contributor {
 
 impl Contributor {
     pub fn as_dropdown_item(&self, callback: Callback<MouseEvent>) -> Html {
-        // since contributions dropdown has an onblur event, we need to use onmousedown i  nstead of
-        // onclick. This is not ideal, but it seems to be the only event that'd do the ca  lback
+        // since contributions dropdown has an onblur event, we need to use onmousedown instead of
+        // onclick. This is not ideal, but it seems to be the only event that'd do the callback
         // without disabling onblur so that onclick can take effect
         html! {
             <div onmousedown=callback class="dropdown-item">
@@ -38,3 +38,4 @@ impl Contributor {
 pub mod contributor_query;
 pub mod contributors_query;
 pub mod create_contributor_mutation;
+pub mod update_contributor_mutation;

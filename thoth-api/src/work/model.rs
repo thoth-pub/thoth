@@ -85,9 +85,52 @@ pub struct Work {
     pub cover_caption: Option<String>,
 }
 
-#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
-#[cfg_attr(feature = "backend", table_name = "work")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, Insertable),
+    table_name = "work"
+)]
 pub struct NewWork {
+    pub work_type: WorkType,
+    pub work_status: WorkStatus,
+    pub full_title: String,
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub reference: Option<String>,
+    pub edition: i32,
+    pub imprint_id: Uuid,
+    pub doi: Option<String>,
+    pub publication_date: Option<NaiveDate>,
+    pub place: Option<String>,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub page_count: Option<i32>,
+    pub page_breakdown: Option<String>,
+    pub image_count: Option<i32>,
+    pub table_count: Option<i32>,
+    pub audio_count: Option<i32>,
+    pub video_count: Option<i32>,
+    pub license: Option<String>,
+    pub copyright_holder: String,
+    pub landing_page: Option<String>,
+    pub lccn: Option<i32>,
+    pub oclc: Option<i32>,
+    pub short_abstract: Option<String>,
+    pub long_abstract: Option<String>,
+    pub general_note: Option<String>,
+    pub toc: Option<String>,
+    pub cover_url: Option<String>,
+    pub cover_caption: Option<String>,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, AsChangeset),
+    changeset_options(treat_none_as_null = "true"),
+    table_name = "work"
+)]
+pub struct PatchWork {
+    pub work_id: Uuid,
     pub work_type: WorkType,
     pub work_status: WorkStatus,
     pub full_title: String,

@@ -10,9 +10,24 @@ pub struct Funder {
     pub funder_doi: Option<String>,
 }
 
-#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
-#[cfg_attr(feature = "backend", table_name = "funder")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, Insertable),
+    table_name = "funder"
+)]
 pub struct NewFunder {
+    pub funder_name: String,
+    pub funder_doi: Option<String>,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, AsChangeset),
+    changeset_options(treat_none_as_null = "true"),
+    table_name = "funder"
+)]
+pub struct PatchFunder {
+    pub funder_id: Uuid,
     pub funder_name: String,
     pub funder_doi: Option<String>,
 }

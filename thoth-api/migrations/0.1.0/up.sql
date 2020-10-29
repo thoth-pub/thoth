@@ -12,7 +12,7 @@ CREATE UNIQUE INDEX publisher_uniq_idx ON publisher(lower(publisher_name));
 
 CREATE TABLE imprint (
     imprint_id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    publisher_id        UUID NOT NULL REFERENCES publisher(publisher_id),
+    publisher_id        UUID NOT NULL REFERENCES publisher(publisher_id) ON DELETE CASCADE,
     imprint_name        TEXT NOT NULL CHECK (octet_length(imprint_name) >= 1),
     imprint_url         TEXT CHECK (imprint_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)')
 );
@@ -56,7 +56,7 @@ CREATE TABLE work (
     subtitle            TEXT CHECK (octet_length(subtitle) >= 1),
     reference           TEXT CHECK (octet_length(reference) >= 1),
     edition             INTEGER NOT NULL CHECK (edition > 0),
-    imprint_id          UUID NOT NULL REFERENCES imprint(imprint_id),
+    imprint_id          UUID NOT NULL REFERENCES imprint(imprint_id) ON DELETE CASCADE,
     doi                 TEXT CHECK (doi ~* 'https:\/\/doi.org\/10.\d{4,9}\/[-._\;\(\)\/:a-zA-Z0-9]+$'),
     publication_date    DATE,
     place               TEXT CHECK (octet_length(reference) >= 1),
@@ -583,7 +583,7 @@ CREATE TYPE language_code AS ENUM (
 
 CREATE TABLE language (
     language_id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    work_id             UUID NOT NULL REFERENCES work(work_id),
+    work_id             UUID NOT NULL REFERENCES work(work_id) ON DELETE CASCADE,
     language_code       language_code NOT NULL,
     language_relation   language_relation NOT NULL,
     main_language       BOOLEAN NOT NULL DEFAULT False
@@ -606,7 +606,7 @@ CREATE TABLE series (
     issn_print          TEXT NOT NULL CHECK (issn_print ~* '\d{4}\-\d{3}(\d|X)'),
     issn_digital        TEXT NOT NULL CHECK (issn_digital ~* '\d{4}\-\d{3}(\d|X)'),
     series_url          TEXT CHECK (series_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'),
-    imprint_id          UUID NOT NULL REFERENCES imprint(imprint_id)
+    imprint_id          UUID NOT NULL REFERENCES imprint(imprint_id) ON DELETE CASCADE
 );
 
 --  UNIQ index on ISSNs
@@ -614,8 +614,8 @@ CREATE UNIQUE INDEX series_issn_print_idx ON series(issn_print);
 CREATE UNIQUE INDEX series_issn_digital_idx ON series(issn_digital);
 
 CREATE TABLE issue (
-    series_id           UUID NOT NULL REFERENCES series(series_id),
-    work_id             UUID NOT NULL REFERENCES work(work_id),
+    series_id           UUID NOT NULL REFERENCES series(series_id) ON DELETE CASCADE,
+    work_id             UUID NOT NULL REFERENCES work(work_id) ON DELETE CASCADE,
     issue_ordinal       INTEGER NOT NULL CHECK (issue_ordinal > 0),
     PRIMARY KEY (series_id, work_id)
 );
@@ -650,8 +650,8 @@ CREATE TYPE contribution_type AS ENUM (
 );
 
 CREATE TABLE contribution (
-    work_id             UUID NOT NULL REFERENCES work(work_id),
-    contributor_id      UUID NOT NULL REFERENCES contributor(contributor_id),
+    work_id             UUID NOT NULL REFERENCES work(work_id) ON DELETE CASCADE,
+    contributor_id      UUID NOT NULL REFERENCES contributor(contributor_id) ON DELETE CASCADE,
     contribution_type   contribution_type NOT NULL,
     main_contribution   BOOLEAN NOT NULL DEFAULT False,
     biography           TEXT CHECK (octet_length(biography) >= 1),
@@ -674,7 +674,7 @@ CREATE TYPE publication_type AS ENUM (
 CREATE TABLE publication (
     publication_id      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     publication_type    publication_type NOT NULL,
-    work_id             UUID NOT NULL REFERENCES work(work_id),
+    work_id             UUID NOT NULL REFERENCES work(work_id) ON DELETE CASCADE,
     isbn                TEXT CHECK (octet_length(isbn) = 17),
     publication_url     TEXT CHECK (publication_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)')
 );
@@ -991,7 +991,7 @@ CREATE TYPE currency_code AS ENUM (
 
 CREATE TABLE price (
     price_id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    publication_id      UUID NOT NULL REFERENCES publication(publication_id),
+    publication_id      UUID NOT NULL REFERENCES publication(publication_id) ON DELETE CASCADE,
     currency_code       currency_code NOT NULL,
     unit_price          double precision NOT NULL
 );
@@ -1009,7 +1009,7 @@ CREATE TYPE subject_type AS ENUM (
 
 CREATE TABLE subject (
     subject_id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    work_id             UUID NOT NULL REFERENCES work(work_id),
+    work_id             UUID NOT NULL REFERENCES work(work_id) ON DELETE CASCADE,
     subject_type        subject_type NOT NULL,
     subject_code        TEXT NOT NULL CHECK (octet_length(subject_code) >= 1),
     subject_ordinal     INTEGER NOT NULL CHECK (subject_ordinal > 0)
@@ -1027,8 +1027,8 @@ CREATE UNIQUE INDEX funder_doi_uniq_idx ON funder(lower(funder_doi));
 
 CREATE TABLE funding (
     funding_id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    work_id             UUID NOT NULL REFERENCES work(work_id),
-    funder_id           UUID NOT NULL REFERENCES funder(funder_id),
+    work_id             UUID NOT NULL REFERENCES work(work_id) ON DELETE CASCADE,
+    funder_id           UUID NOT NULL REFERENCES funder(funder_id) ON DELETE CASCADE,
     program             TEXT CHECK (octet_length(program) >= 1),
     project_name        TEXT CHECK (octet_length(project_name) >= 1),
     project_shortname   TEXT CHECK (octet_length(project_shortname) >= 1),

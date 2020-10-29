@@ -919,6 +919,363 @@ impl MutationRoot {
             Err(e) => Err(FieldError::from(e)),
         }
     }
+
+    fn update_work(context: &Context, data: PatchWork) -> FieldResult<Work> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        match diesel::update(crate::schema::work::dsl::work.find(&data.work_id))
+            .set(&data)
+            .get_result(&connection)
+        {
+            Ok(c) => Ok(c),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn update_publisher(context: &Context, data: PatchPublisher) -> FieldResult<Publisher> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        match diesel::update(crate::schema::publisher::dsl::publisher.find(&data.publisher_id))
+            .set(&data)
+            .get_result(&connection)
+        {
+            Ok(c) => Ok(c),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn update_imprint(context: &Context, data: PatchImprint) -> FieldResult<Imprint> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        match diesel::update(crate::schema::imprint::dsl::imprint.find(&data.imprint_id))
+            .set(&data)
+            .get_result(&connection)
+        {
+            Ok(c) => Ok(c),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn update_contributor(context: &Context, data: PatchContributor) -> FieldResult<Contributor> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        match diesel::update(
+            crate::schema::contributor::dsl::contributor.find(&data.contributor_id),
+        )
+        .set(&data)
+        .get_result(&connection)
+        {
+            Ok(c) => Ok(c),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn update_contribution(
+        context: &Context,
+        data: PatchContribution,
+    ) -> FieldResult<Contribution> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        use crate::schema::contribution::dsl::*;
+        let target = contribution
+            .filter(work_id.eq(&data.work_id))
+            .filter(contributor_id.eq(&data.contributor_id))
+            .filter(contribution_type.eq(&data.contribution_type));
+
+        match diesel::update(target).set(&data).get_result(&connection) {
+            Ok(c) => Ok(c),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn update_publication(context: &Context, data: PatchPublication) -> FieldResult<Publication> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        match diesel::update(
+            crate::schema::publication::dsl::publication.find(&data.publication_id),
+        )
+        .set(&data)
+        .get_result(&connection)
+        {
+            Ok(c) => Ok(c),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn update_series(context: &Context, data: PatchSeries) -> FieldResult<Series> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        match diesel::update(crate::schema::series::dsl::series.find(&data.series_id))
+            .set(&data)
+            .get_result(&connection)
+        {
+            Ok(c) => Ok(c),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn update_issue(context: &Context, data: PatchIssue) -> FieldResult<Issue> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        use crate::schema::issue::dsl::*;
+        let target = issue
+            .filter(series_id.eq(&data.series_id))
+            .filter(work_id.eq(&data.work_id));
+
+        match diesel::update(target).set(&data).get_result(&connection) {
+            Ok(c) => Ok(c),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn update_language(context: &Context, data: PatchLanguage) -> FieldResult<Language> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        match diesel::update(crate::schema::language::dsl::language.find(&data.language_id))
+            .set(&data)
+            .get_result(&connection)
+        {
+            Ok(c) => Ok(c),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn update_funder(context: &Context, data: PatchFunder) -> FieldResult<Funder> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        match diesel::update(crate::schema::funder::dsl::funder.find(&data.funder_id))
+            .set(&data)
+            .get_result(&connection)
+        {
+            Ok(c) => Ok(c),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn update_funding(context: &Context, data: PatchFunding) -> FieldResult<Funding> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        match diesel::update(crate::schema::funding::dsl::funding.find(&data.funding_id))
+            .set(&data)
+            .get_result(&connection)
+        {
+            Ok(c) => Ok(c),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn update_price(context: &Context, data: PatchPrice) -> FieldResult<Price> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        match diesel::update(crate::schema::price::dsl::price.find(&data.price_id))
+            .set(&data)
+            .get_result(&connection)
+        {
+            Ok(c) => Ok(c),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn update_subject(context: &Context, data: PatchSubject) -> FieldResult<Subject> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        check_subject(&data.subject_type, &data.subject_code)?;
+        let connection = context.db.get().unwrap();
+
+        match diesel::update(crate::schema::subject::dsl::subject.find(&data.subject_id))
+            .set(&data)
+            .get_result(&connection)
+        {
+            Ok(c) => Ok(c),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::work::dsl::work.find(work_id);
+        let result = target.get_result::<Work>(&connection);
+        match diesel::delete(target).execute(&connection) {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_publisher(context: &Context, publisher_id: Uuid) -> FieldResult<Publisher> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::publisher::dsl::publisher.find(publisher_id);
+        let result = target.get_result::<Publisher>(&connection);
+        match diesel::delete(target).execute(&connection) {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_imprint(context: &Context, imprint_id: Uuid) -> FieldResult<Imprint> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::imprint::dsl::imprint.find(imprint_id);
+        let result = target.get_result::<Imprint>(&connection);
+        match diesel::delete(target).execute(&connection) {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_contributor(context: &Context, contributor_id: Uuid) -> FieldResult<Contributor> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::contributor::dsl::contributor.find(contributor_id);
+        let result = target.get_result::<Contributor>(&connection);
+        match diesel::delete(target).execute(&connection) {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_contribution(
+        context: &Context,
+        work_id: Uuid,
+        contributor_id: Uuid,
+        contribution_type: ContributionType,
+    ) -> FieldResult<Contribution> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        use crate::schema::contribution::dsl;
+        let target = dsl::contribution
+            .filter(dsl::work_id.eq(&work_id))
+            .filter(dsl::contributor_id.eq(&contributor_id))
+            .filter(dsl::contribution_type.eq(&contribution_type));
+        let result = dsl::contribution
+            .filter(dsl::work_id.eq(&work_id))
+            .filter(dsl::contributor_id.eq(&contributor_id))
+            .filter(dsl::contribution_type.eq(&contribution_type))
+            .get_result::<Contribution>(&connection);
+        match diesel::delete(target).execute(&connection) {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_publication(context: &Context, publication_id: Uuid) -> FieldResult<Publication> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::publication::dsl::publication.find(publication_id);
+        let result = target.get_result::<Publication>(&connection);
+        match diesel::delete(target).execute(&connection) {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_series(context: &Context, series_id: Uuid) -> FieldResult<Series> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::series::dsl::series.find(series_id);
+        let result = target.get_result::<Series>(&connection);
+        match diesel::delete(target).execute(&connection) {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_issue(context: &Context, series_id: Uuid, work_id: Uuid) -> FieldResult<Issue> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        use crate::schema::issue::dsl;
+        let target = dsl::issue
+            .filter(dsl::series_id.eq(&series_id))
+            .filter(dsl::work_id.eq(&work_id));
+        let result = dsl::issue
+            .filter(dsl::series_id.eq(&series_id))
+            .filter(dsl::work_id.eq(&work_id))
+            .get_result::<Issue>(&connection);
+        match diesel::delete(target).execute(&connection) {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_language(context: &Context, language_id: Uuid) -> FieldResult<Language> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::language::dsl::language.find(language_id);
+        let result = target.get_result::<Language>(&connection);
+        match diesel::delete(target).execute(&connection) {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_funder(context: &Context, funder_id: Uuid) -> FieldResult<Funder> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::funder::dsl::funder.find(funder_id);
+        let result = target.get_result::<Funder>(&connection);
+        match diesel::delete(target).execute(&connection) {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_funding(context: &Context, funding_id: Uuid) -> FieldResult<Funding> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::funding::dsl::funding.find(funding_id);
+        let result = target.get_result::<Funding>(&connection);
+        match diesel::delete(target).execute(&connection) {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_price(context: &Context, price_id: Uuid) -> FieldResult<Price> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::price::dsl::price.find(price_id);
+        let result = target.get_result::<Price>(&connection);
+        match diesel::delete(target).execute(&connection) {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
+    fn delete_subject(context: &Context, subject_id: Uuid) -> FieldResult<Subject> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+
+        let target = crate::schema::subject::dsl::subject.find(subject_id);
+        let result = target.get_result::<Subject>(&connection);
+        match diesel::delete(target).execute(&connection) {
+            Ok(c) => Ok(result.unwrap()),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
 }
 
 #[juniper::object(Context = Context, description = "A written text that can be published")]
@@ -1413,7 +1770,7 @@ impl Issue {
     }
 
     pub fn series_id(&self) -> Uuid {
-        self.work_id
+        self.series_id
     }
 
     pub fn issue_ordinal(&self) -> &i32 {

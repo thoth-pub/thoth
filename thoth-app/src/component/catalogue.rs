@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -149,7 +150,7 @@ fn render_license(license: &License) -> Html {
 
 fn render_work(w: &Work) -> Html {
     let doi = &w.doi.clone().unwrap_or_else(|| "".to_string());
-    let license = &w.license.clone().unwrap_or(License::Undefined);
+    let license = License::from_str(&w.license.clone().unwrap_or_else(|| "".to_string())).unwrap();
     let cover_url = &w.cover_url.clone().unwrap_or_else(|| "".to_string());
     let place = &w.place.clone().unwrap_or_else(|| "".to_string());
     html! {
@@ -158,7 +159,7 @@ fn render_work(w: &Work) -> Html {
                 <div class="media-left">
                 <figure class="image is-96x96">
                     <img src={cover_url} alt={format!("{} - Cover Image", &w.title)} loading="lazy" />
-                    { render_license(license) }
+                    { render_license(&license) }
                 </figure>
                 </div>
                 <div class="media-content">

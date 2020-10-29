@@ -21,16 +21,26 @@ pub enum AdminRoute {
     Works,
     #[to = "/work/{id}"]
     Work(String),
+    #[to = "/work"]
+    NewWork,
     #[to = "/publishers"]
     Publishers,
     #[to = "/publisher/{id}"]
     Publisher(String),
     #[to = "/publisher"]
     NewPublisher,
+    #[to = "/funders"]
+    Funders,
+    #[to = "/funder/{id}"]
+    Funder(String),
+    #[to = "/funder"]
+    NewFunder,
     #[to = "/imprints"]
     Imprints,
     #[to = "/imprint/{id}"]
     Imprint(String),
+    #[to = "/imprint"]
+    NewImprint,
     #[to = "/contributors"]
     Contributors,
     #[to = "/contributor/{id}"]
@@ -41,6 +51,8 @@ pub enum AdminRoute {
     Serieses,
     #[to = "/series/{id}"]
     Series(String),
+    #[to = "/series"]
+    NewSeries,
     #[to = "/publications"]
     Publications,
     #[to = "/publication/{id}"]

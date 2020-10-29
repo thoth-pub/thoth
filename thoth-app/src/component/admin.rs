@@ -11,12 +11,21 @@ use crate::agent::session_timer::SessionTimerDispatcher;
 use crate::component::contributor::ContributorComponent;
 use crate::component::contributors::ContributorsComponent;
 use crate::component::dashboard::DashboardComponent;
+use crate::component::funder::FunderComponent;
+use crate::component::funders::FundersComponent;
+use crate::component::imprint::ImprintComponent;
 use crate::component::imprints::ImprintsComponent;
 use crate::component::menu::MenuComponent;
 use crate::component::new_contributor::NewContributorComponent;
+use crate::component::new_funder::NewFunderComponent;
+use crate::component::new_imprint::NewImprintComponent;
 use crate::component::new_publisher::NewPublisherComponent;
+use crate::component::new_series::NewSeriesComponent;
+use crate::component::new_work::NewWorkComponent;
 use crate::component::publications::PublicationsComponent;
+use crate::component::publisher::PublisherComponent;
 use crate::component::publishers::PublishersComponent;
+use crate::component::series::SeriesComponent;
 use crate::component::serieses::SeriesesComponent;
 use crate::component::work::WorkComponent;
 use crate::component::works::WorksComponent;
@@ -88,18 +97,24 @@ impl Component for AdminComponent {
                             AdminRoute::Dashboard => html!{<DashboardComponent/>},
                             AdminRoute::Works => html!{<WorksComponent/>},
                             AdminRoute::Work(id) => html!{<WorkComponent work_id = id />},
+                            AdminRoute::NewWork => html!{<NewWorkComponent/>},
                             AdminRoute::Publishers => html!{<PublishersComponent/>},
-                            AdminRoute::Publisher(id) => html!{{ id }},
+                            AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id = id />},
                             AdminRoute::NewPublisher => html!{<NewPublisherComponent/>},
                             AdminRoute::Imprints => html!{<ImprintsComponent/>},
-                            AdminRoute::Imprint(id) => html!{{ id }},
+                            AdminRoute::Imprint(id) => html!{<ImprintComponent imprint_id = id />},
+                            AdminRoute::NewImprint => html!{<NewImprintComponent/>},
+                            AdminRoute::Funders => html!{<FundersComponent/>},
+                            AdminRoute::Funder(id) => html!{<FunderComponent funder_id = id />},
+                            AdminRoute::NewFunder => html!{<NewFunderComponent/>},
                             AdminRoute::Publications => html!{<PublicationsComponent/>},
                             AdminRoute::Publication(id) => html!{{ id }},
                             AdminRoute::Contributors => html!{<ContributorsComponent/>},
                             AdminRoute::Contributor(id) => html!{<ContributorComponent contributor_id = id />},
                             AdminRoute::NewContributor => html!{<NewContributorComponent/>},
                             AdminRoute::Serieses => html!{<SeriesesComponent/>},
-                            AdminRoute::Series(id) => html!{{ id }},
+                            AdminRoute::NewSeries => html!{<NewSeriesComponent/>},
+                            AdminRoute::Series(id) => html!{<SeriesComponent series_id = id />},
                             AdminRoute::Admin => html!{<DashboardComponent/>},
                         }
                     }
