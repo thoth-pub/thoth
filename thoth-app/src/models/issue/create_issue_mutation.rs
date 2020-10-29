@@ -17,6 +17,24 @@ const CREATE_ISSUE_MUTATION: &str = "
             workId
             seriesId
             issueOrdinal
+            series {
+                seriesId
+                seriesType
+                seriesName
+                issnPrint
+                issnDigital
+                seriesUrl
+                imprint {
+                    imprintId
+                    imprintName
+                    publisher {
+                        publisherId
+                        publisherName
+                        publisherShortname
+                        publisherUrl
+                    }
+                }
+            }
         }
     }
 ";
