@@ -1790,7 +1790,7 @@ impl Issue {
     }
 
     pub fn series_id(&self) -> Uuid {
-        self.work_id
+        self.series_id
     }
 
     pub fn issue_ordinal(&self) -> &i32 {
