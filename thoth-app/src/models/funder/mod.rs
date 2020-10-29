@@ -33,7 +33,6 @@ impl Funder {
 }
 
 pub mod create_funder_mutation;
-pub mod delete_funder_mutation;
 pub mod funder_query;
 pub mod funders_query;
 pub mod update_funder_mutation;

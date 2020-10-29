@@ -53,4 +53,3 @@ pub mod create_language_mutation;
 pub mod delete_language_mutation;
 pub mod language_codes_query;
 pub mod language_relations_query;
-pub mod update_language_mutation;

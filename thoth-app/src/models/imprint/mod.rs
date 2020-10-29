@@ -24,7 +24,6 @@ impl Default for Imprint {
 }
 
 pub mod create_imprint_mutation;
-pub mod delete_imprint_mutation;
 pub mod imprint_query;
 pub mod imprints_query;
 pub mod update_imprint_mutation;

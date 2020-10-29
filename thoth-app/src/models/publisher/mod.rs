@@ -22,7 +22,6 @@ impl Default for Publisher {
 }
 
 pub mod create_publisher_mutation;
-pub mod delete_publisher_mutation;
 pub mod publisher_query;
 pub mod publishers_query;
 pub mod update_publisher_mutation;
