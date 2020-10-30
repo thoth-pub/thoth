@@ -30,8 +30,8 @@ pub struct ContributionTypeValues {
     pub name: ContributionType,
 }
 
-const BULLET_SEPARATOR: &str = " • " ;
-const COMMA_SEPARATOR: &str = ", " ;
+const BULLET_SEPARATOR: &str = " • ";
+const COMMA_SEPARATOR: &str = ", ";
 
 impl Contribution {
     pub fn main_contribution_item_bullet_small(&self) -> Html {
