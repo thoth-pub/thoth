@@ -131,7 +131,7 @@ impl Work {
                 <td>
                     {
                         if let Some(contributions) = &self.contributions {
-                            contributions.iter().map(|c| c.main_contribution_item()).collect::<Html>()
+                            contributions.iter().map(|c| c.main_contribution_item_comma()).collect::<Html>()
                         } else {
                             html! {}
                         }
