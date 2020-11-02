@@ -1,6 +1,9 @@
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -25,6 +28,8 @@ use crate::models::funder::update_funder_mutation::UpdateFunderRequest;
 use crate::models::funder::update_funder_mutation::UpdateFunderRequestBody;
 use crate::models::funder::update_funder_mutation::Variables as UpdateVariables;
 use crate::models::funder::Funder;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct FunderComponent {
@@ -32,6 +37,7 @@ pub struct FunderComponent {
     fetch_funder: FetchFunder,
     push_funder: PushUpdateFunder,
     link: ComponentLink<Self>,
+    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -42,6 +48,7 @@ pub enum Msg {
     UpdateFunder,
     ChangeFunderName(String),
     ChangeFunderDoi(String),
+    ChangeRoute(AppRoute),
 }
 
 #[derive(Clone, Properties)]
@@ -65,6 +72,7 @@ impl Component for FunderComponent {
         let push_funder = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let funder: Funder = Default::default();
+        let router = RouteAgentDispatcher::new();
 
         link.send_message(Msg::GetFunder);
 
@@ -73,6 +81,7 @@ impl Component for FunderComponent {
             fetch_funder,
             push_funder,
             link,
+            router,
             notification_bus,
         }
     }
@@ -112,6 +121,7 @@ impl Component for FunderComponent {
                                 format!("Saved {}", f.funder_name),
                                 NotificationStatus::Success,
                             )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Funders)));
                             true
                         }
                         None => {
@@ -150,6 +160,11 @@ impl Component for FunderComponent {
             }
             Msg::ChangeFunderName(funder_name) => self.funder.funder_name.neq_assign(funder_name),
             Msg::ChangeFunderDoi(funder_doi) => self.funder.funder_doi.neq_assign(Some(funder_doi)),
+            Msg::ChangeRoute(r) => {
+                let route = Route::from(r);
+                self.router.send(RouteRequest::ChangeRoute(route));
+                false
+            }
         }
     }
 
