@@ -196,65 +196,76 @@ impl Component for NewSeriesComponent {
             Msg::CreateSeries
         });
         html! {
-            <form onsubmit=callback>
-                <FormSeriesTypeSelect
-                    label = "Series Type"
-                    value=&self.series.series_type
-                    onchange=self.link.callback(|event| match event {
-                        ChangeData::Select(elem) => {
-                            let value = elem.value();
-                            Msg::ChangeSeriesType(SeriesType::from_str(&value).unwrap())
-                        }
-                        _ => unreachable!(),
-                    })
-                    data=&self.data.series_types
-                    required = true
-                />
-                <FormImprintSelect
-                    label = "Imprint"
-                    value=&self.series.imprint.imprint_id
-                    data=&self.data.imprints
-                    onchange=self.link.callback(|event| match event {
-                        ChangeData::Select(elem) => {
-                            let value = elem.value();
-                            Msg::ChangeImprint(value.clone())
-                        }
-                        _ => unreachable!(),
-                    })
-                    required = true
-                />
-                <FormTextInput
-                    label = "Series Name"
-                    value=&self.series.series_name
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesName(e.value))
-                    required=true
-                />
-                <FormTextInput
-                    label = "ISSN Print"
-                    value=&self.series.issn_print
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeIssnPrint(e.value))
-                    required=true
-                />
-                <FormTextInput
-                    label = "ISSN Digital"
-                    value=&self.series.issn_digital
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeIssnDigital(e.value))
-                    required=true
-                />
-                <FormUrlInput
-                    label = "Series URL"
-                    value=&self.series.series_url
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesUrl(e.value))
-                />
-
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-success" type="submit">
-                            { SAVE_BUTTON }
-                        </button>
+            <>
+                <nav class="level">
+                    <div class="level-left">
+                        <p class="subtitle is-5">
+                            { "New series" }
+                        </p>
                     </div>
-                </div>
-            </form>
+                    <div class="level-right" />
+                </nav>
+
+                <form onsubmit=callback>
+                    <FormSeriesTypeSelect
+                        label = "Series Type"
+                        value=&self.series.series_type
+                        onchange=self.link.callback(|event| match event {
+                            ChangeData::Select(elem) => {
+                                let value = elem.value();
+                                Msg::ChangeSeriesType(SeriesType::from_str(&value).unwrap())
+                            }
+                            _ => unreachable!(),
+                        })
+                        data=&self.data.series_types
+                        required = true
+                    />
+                    <FormImprintSelect
+                        label = "Imprint"
+                        value=&self.series.imprint.imprint_id
+                        data=&self.data.imprints
+                        onchange=self.link.callback(|event| match event {
+                            ChangeData::Select(elem) => {
+                                let value = elem.value();
+                                Msg::ChangeImprint(value.clone())
+                            }
+                            _ => unreachable!(),
+                        })
+                        required = true
+                    />
+                    <FormTextInput
+                        label = "Series Name"
+                        value=&self.series.series_name
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesName(e.value))
+                        required=true
+                    />
+                    <FormTextInput
+                        label = "ISSN Print"
+                        value=&self.series.issn_print
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeIssnPrint(e.value))
+                        required=true
+                    />
+                    <FormTextInput
+                        label = "ISSN Digital"
+                        value=&self.series.issn_digital
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeIssnDigital(e.value))
+                        required=true
+                    />
+                    <FormUrlInput
+                        label = "Series URL"
+                        value=&self.series.series_url
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesUrl(e.value))
+                    />
+
+                    <div class="field">
+                        <div class="control">
+                            <button class="button is-success" type="submit">
+                                { SAVE_BUTTON }
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </>
         }
     }
 }

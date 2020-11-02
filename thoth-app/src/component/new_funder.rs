@@ -115,27 +115,38 @@ impl Component for NewFunderComponent {
             Msg::CreateFunder
         });
         html! {
-            <form onsubmit=callback>
-                <FormTextInput
-                    label = "Funder Name"
-                    value=&self.funder.funder_name
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeFunderName(e.value))
-                    required=true
-                />
-                <FormUrlInput
-                    label = "Funder DOI"
-                    value=&self.funder.funder_doi
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeFunderDoi(e.value))
-                />
-
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-success" type="submit">
-                            { SAVE_BUTTON }
-                        </button>
+            <>
+                <nav class="level">
+                    <div class="level-left">
+                        <p class="subtitle is-5">
+                            { "New funder" }
+                        </p>
                     </div>
-                </div>
-            </form>
+                    <div class="level-right" />
+                </nav>
+
+                <form onsubmit=callback>
+                    <FormTextInput
+                        label = "Funder Name"
+                        value=&self.funder.funder_name
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeFunderName(e.value))
+                        required=true
+                    />
+                    <FormUrlInput
+                        label = "Funder DOI"
+                        value=&self.funder.funder_doi
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeFunderDoi(e.value))
+                    />
+
+                    <div class="field">
+                        <div class="control">
+                            <button class="button is-success" type="submit">
+                                { SAVE_BUTTON }
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </>
         }
     }
 }

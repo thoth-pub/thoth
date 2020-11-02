@@ -161,40 +161,51 @@ impl Component for NewImprintComponent {
             Msg::CreateImprint
         });
         html! {
-            <form onsubmit=callback>
-                <FormPublisherSelect
-                    label = "Publisher"
-                    value=&self.publisher_id
-                    data=&self.data.publishers
-                    onchange=self.link.callback(|event| match event {
-                        ChangeData::Select(elem) => {
-                            let value = elem.value();
-                            Msg::ChangePublisher(value.clone())
-                        }
-                        _ => unreachable!(),
-                    })
-                    required = true
-                />
-                <FormTextInput
-                    label = "Imprint Name"
-                    value=&self.imprint.imprint_name
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeImprintName(e.value))
-                    required=true
-                />
-                <FormUrlInput
-                    label = "Imprint URL"
-                    value=&self.imprint.imprint_url
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeImprintUrl(e.value))
-                />
-
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-success" type="submit">
-                            { SAVE_BUTTON }
-                        </button>
+            <>
+                <nav class="level">
+                    <div class="level-left">
+                        <p class="subtitle is-5">
+                            { "New imprint" }
+                        </p>
                     </div>
-                </div>
-            </form>
+                    <div class="level-right" />
+                </nav>
+
+                <form onsubmit=callback>
+                    <FormPublisherSelect
+                        label = "Publisher"
+                        value=&self.publisher_id
+                        data=&self.data.publishers
+                        onchange=self.link.callback(|event| match event {
+                            ChangeData::Select(elem) => {
+                                let value = elem.value();
+                                Msg::ChangePublisher(value.clone())
+                            }
+                            _ => unreachable!(),
+                        })
+                        required = true
+                    />
+                    <FormTextInput
+                        label = "Imprint Name"
+                        value=&self.imprint.imprint_name
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeImprintName(e.value))
+                        required=true
+                    />
+                    <FormUrlInput
+                        label = "Imprint URL"
+                        value=&self.imprint.imprint_url
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeImprintUrl(e.value))
+                    />
+
+                    <div class="field">
+                        <div class="control">
+                            <button class="button is-success" type="submit">
+                                { SAVE_BUTTON }
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </>
         }
     }
 }

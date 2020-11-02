@@ -296,7 +296,11 @@ impl Component for ImprintComponent {
                 html! {
                     <>
                         <nav class="level">
-                            <div class="level-left" />
+                            <div class="level-left">
+                                <p class="subtitle is-5">
+                                    { "Edit imprint" }
+                                </p>
+                            </div>
                             <div class="level-right">
                                 <p class="level-item">
                                     <button class="button is-danger" onclick=self.link.callback(|_| Msg::DeleteImprint)>

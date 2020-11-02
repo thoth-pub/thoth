@@ -251,7 +251,11 @@ impl Component for PublisherComponent {
                 html! {
                     <>
                         <nav class="level">
-                            <div class="level-left" />
+                            <div class="level-left">
+                                <p class="subtitle is-5">
+                                    { "Edit publisher" }
+                                </p>
+                            </div>
                             <div class="level-right">
                                 <p class="level-item">
                                     <button class="button is-danger" onclick=self.link.callback(|_| Msg::DeletePublisher)>

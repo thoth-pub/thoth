@@ -125,32 +125,43 @@ impl Component for NewPublisherComponent {
             Msg::CreatePublisher
         });
         html! {
-            <form onsubmit=callback>
-                <FormTextInput
-                    label = "Publisher Name"
-                    value=&self.publisher.publisher_name
-                    oninput=self.link.callback(|e: InputData| Msg::ChangePublisherName(e.value))
-                    required=true
-                />
-                <FormTextInput
-                    label = "Publisher Short Name"
-                    value=&self.publisher.publisher_shortname
-                    oninput=self.link.callback(|e: InputData| Msg::ChangePublisherShortname(e.value))
-                />
-                <FormUrlInput
-                    label = "Publisher URL"
-                    value=&self.publisher.publisher_url
-                    oninput=self.link.callback(|e: InputData| Msg::ChangePublisherUrl(e.value))
-                />
-
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-success" type="submit">
-                            { SAVE_BUTTON }
-                        </button>
+            <>
+                <nav class="level">
+                    <div class="level-left">
+                        <p class="subtitle is-5">
+                            { "New publisher" }
+                        </p>
                     </div>
-                </div>
-            </form>
+                    <div class="level-right" />
+                </nav>
+
+                <form onsubmit=callback>
+                    <FormTextInput
+                        label = "Publisher Name"
+                        value=&self.publisher.publisher_name
+                        oninput=self.link.callback(|e: InputData| Msg::ChangePublisherName(e.value))
+                        required=true
+                    />
+                    <FormTextInput
+                        label = "Publisher Short Name"
+                        value=&self.publisher.publisher_shortname
+                        oninput=self.link.callback(|e: InputData| Msg::ChangePublisherShortname(e.value))
+                    />
+                    <FormUrlInput
+                        label = "Publisher URL"
+                        value=&self.publisher.publisher_url
+                        oninput=self.link.callback(|e: InputData| Msg::ChangePublisherUrl(e.value))
+                    />
+
+                    <div class="field">
+                        <div class="control">
+                            <button class="button is-success" type="submit">
+                                { SAVE_BUTTON }
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </>
         }
     }
 }

@@ -126,43 +126,54 @@ impl Component for NewContributorComponent {
             Msg::CreateContributor
         });
         html! {
-            <form onsubmit=callback>
-                <FormTextInput
-                    label = "First Name"
-                    value=&self.contributor.first_name
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
-                />
-                <FormTextInput
-                    label = "Last Name"
-                    value=&self.contributor.last_name
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
-                    required=true
-                />
-                <FormTextInput
-                    label = "Full Name"
-                    value=&self.contributor.full_name
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
-                    required=true
-                />
-                <FormUrlInput
-                    label = "ORCID (Full URL)"
-                    value=&self.contributor.orcid
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
-                />
-                <FormUrlInput
-                    label = "Website"
-                    value=&self.contributor.website
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeWebsite(e.value))
-                />
-
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-success" type="submit">
-                            { SAVE_BUTTON }
-                        </button>
+            <>
+                <nav class="level">
+                    <div class="level-left">
+                        <p class="subtitle is-5">
+                            { "New contributor" }
+                        </p>
                     </div>
-                </div>
-            </form>
+                    <div class="level-right" />
+                </nav>
+
+                <form onsubmit=callback>
+                    <FormTextInput
+                        label = "First Name"
+                        value=&self.contributor.first_name
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
+                    />
+                    <FormTextInput
+                        label = "Last Name"
+                        value=&self.contributor.last_name
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
+                        required=true
+                    />
+                    <FormTextInput
+                        label = "Full Name"
+                        value=&self.contributor.full_name
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
+                        required=true
+                    />
+                    <FormUrlInput
+                        label = "ORCID (Full URL)"
+                        value=&self.contributor.orcid
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
+                    />
+                    <FormUrlInput
+                        label = "Website"
+                        value=&self.contributor.website
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeWebsite(e.value))
+                    />
+
+                    <div class="field">
+                        <div class="control">
+                            <button class="button is-success" type="submit">
+                                { SAVE_BUTTON }
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </>
         }
     }
 }
