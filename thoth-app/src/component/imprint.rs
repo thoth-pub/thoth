@@ -28,18 +28,25 @@ use crate::models::imprint::update_imprint_mutation::PushUpdateImprint;
 use crate::models::imprint::update_imprint_mutation::UpdateImprintRequest;
 use crate::models::imprint::update_imprint_mutation::UpdateImprintRequestBody;
 use crate::models::imprint::update_imprint_mutation::Variables as UpdateVariables;
+use crate::models::imprint::delete_imprint_mutation::PushActionDeleteImprint;
+use crate::models::imprint::delete_imprint_mutation::PushDeleteImprint;
+use crate::models::imprint::delete_imprint_mutation::DeleteImprintRequest;
+use crate::models::imprint::delete_imprint_mutation::DeleteImprintRequestBody;
+use crate::models::imprint::delete_imprint_mutation::Variables as DeleteVariables;
 use crate::models::imprint::Imprint;
 use crate::models::publisher::publishers_query::FetchActionPublishers;
 use crate::models::publisher::publishers_query::FetchPublishers;
 use crate::models::publisher::Publisher;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
+use crate::string::DELETE_BUTTON;
 use crate::string::SAVE_BUTTON;
 
 pub struct ImprintComponent {
     imprint: Imprint,
     fetch_imprint: FetchImprint,
     push_imprint: PushUpdateImprint,
+    delete_imprint: PushDeleteImprint,
     data: ImprintFormData,
     fetch_publishers: FetchPublishers,
     link: ComponentLink<Self>,
@@ -59,6 +66,8 @@ pub enum Msg {
     GetImprint,
     SetImprintPushState(PushActionUpdateImprint),
     UpdateImprint,
+    SetImprintDeleteState(PushActionDeleteImprint),
+    DeleteImprint,
     ChangePublisher(String),
     ChangeImprintName(String),
     ChangeImprintUrl(String),
@@ -86,6 +95,7 @@ impl Component for ImprintComponent {
         let data: ImprintFormData = Default::default();
         let fetch_publishers: FetchPublishers = Default::default();
         let push_imprint = Default::default();
+        let delete_imprint = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let imprint: Imprint = Default::default();
         let router = RouteAgentDispatcher::new();
@@ -97,6 +107,7 @@ impl Component for ImprintComponent {
             imprint,
             fetch_imprint,
             push_imprint,
+            delete_imprint,
             data,
             fetch_publishers,
             link,
@@ -152,9 +163,9 @@ impl Component for ImprintComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.update_imprint {
-                        Some(f) => {
+                        Some(i) => {
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Saved {}", f.imprint_name),
+                                format!("Saved {}", i.imprint_name),
                                 NotificationStatus::Success,
                             )));
                             self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Imprints)));
@@ -193,6 +204,52 @@ impl Component for ImprintComponent {
                     .send_future(self.push_imprint.fetch(Msg::SetImprintPushState));
                 self.link
                     .send_message(Msg::SetImprintPushState(FetchAction::Fetching));
+                false
+            }
+            Msg::SetImprintDeleteState(fetch_state) => {
+                self.delete_imprint.apply(fetch_state);
+                match self.delete_imprint.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.delete_imprint {
+                        Some(i) => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                format!("Deleted {}", i.imprint_name),
+                                NotificationStatus::Success,
+                            )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Imprints)));
+                            true
+                        }
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::DeleteImprint => {
+                let body = DeleteImprintRequestBody {
+                    variables: DeleteVariables {
+                        imprint_id: self.imprint.imprint_id.clone(),
+                    },
+                    ..Default::default()
+                };
+                let request = DeleteImprintRequest { body };
+                self.delete_imprint = Fetch::new(request);
+                self.link
+                    .send_future(self.delete_imprint.fetch(Msg::SetImprintDeleteState));
+                self.link
+                    .send_message(Msg::SetImprintDeleteState(FetchAction::Fetching));
                 false
             }
             Msg::ChangePublisher(publisher_id) => {
@@ -237,40 +294,53 @@ impl Component for ImprintComponent {
                     Msg::UpdateImprint
                 });
                 html! {
-                    <form onsubmit=callback>
-                        <FormPublisherSelect
-                            label = "Publisher"
-                            value=&self.imprint.publisher.publisher_id
-                            data=&self.data.publishers
-                            onchange=self.link.callback(|event| match event {
-                                ChangeData::Select(elem) => {
-                                    let value = elem.value();
-                                    Msg::ChangePublisher(value.clone())
-                                }
-                                _ => unreachable!(),
-                            })
-                            required = true
-                        />
-                        <FormTextInput
-                            label = "Imprint Name"
-                            value=&self.imprint.imprint_name
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeImprintName(e.value))
-                            required=true
-                        />
-                        <FormUrlInput
-                            label = "Imprint URL"
-                            value=&self.imprint.imprint_url
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeImprintUrl(e.value))
-                        />
-
-                        <div class="field">
-                            <div class="control">
-                                <button class="button is-success" type="submit">
-                                    { SAVE_BUTTON }
-                                </button>
+                    <>
+                        <nav class="level">
+                            <div class="level-left" />
+                            <div class="level-right">
+                                <p class="level-item">
+                                    <button class="button is-danger" onclick=self.link.callback(|_| Msg::DeleteImprint)>
+                                        { DELETE_BUTTON }
+                                    </button>
+                                </p>
                             </div>
-                        </div>
-                    </form>
+                        </nav>
+
+                        <form onsubmit=callback>
+                            <FormPublisherSelect
+                                label = "Publisher"
+                                value=&self.imprint.publisher.publisher_id
+                                data=&self.data.publishers
+                                onchange=self.link.callback(|event| match event {
+                                    ChangeData::Select(elem) => {
+                                        let value = elem.value();
+                                        Msg::ChangePublisher(value.clone())
+                                    }
+                                    _ => unreachable!(),
+                                })
+                                required = true
+                            />
+                            <FormTextInput
+                                label = "Imprint Name"
+                                value=&self.imprint.imprint_name
+                                oninput=self.link.callback(|e: InputData| Msg::ChangeImprintName(e.value))
+                                required=true
+                            />
+                            <FormUrlInput
+                                label = "Imprint URL"
+                                value=&self.imprint.imprint_url
+                                oninput=self.link.callback(|e: InputData| Msg::ChangeImprintUrl(e.value))
+                            />
+
+                            <div class="field">
+                                <div class="control">
+                                    <button class="button is-success" type="submit">
+                                        { SAVE_BUTTON }
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </>
                 }
             }
             FetchState::Failed(_, err) => html! {&err},
