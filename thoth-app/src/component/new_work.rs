@@ -4,6 +4,9 @@ use thoth_api::work::model::WorkType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -25,6 +28,8 @@ use crate::component::utils::FormWorkTypeSelect;
 use crate::models::imprint::imprints_query::FetchActionImprints;
 use crate::models::imprint::imprints_query::FetchImprints;
 use crate::models::imprint::Imprint;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use crate::models::work::create_work_mutation::CreateWorkRequest;
 use crate::models::work::create_work_mutation::CreateWorkRequestBody;
 use crate::models::work::create_work_mutation::PushActionCreateWork;
@@ -48,6 +53,7 @@ pub struct NewWorkComponent {
     fetch_work_types: FetchWorkTypes,
     fetch_work_statuses: FetchWorkStatuses,
     link: ComponentLink<Self>,
+    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -96,6 +102,7 @@ pub enum Msg {
     ChangeToc(String),
     ChangeCoverUrl(String),
     ChangeCoverCaption(String),
+    ChangeRoute(AppRoute),
 }
 
 impl Component for NewWorkComponent {
@@ -104,6 +111,7 @@ impl Component for NewWorkComponent {
 
     fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let push_work = Default::default();
+        let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let work: Work = Default::default();
         let imprint_id: String = Default::default();
@@ -125,6 +133,7 @@ impl Component for NewWorkComponent {
             fetch_work_types,
             fetch_work_statuses,
             link,
+            router,
             notification_bus,
         }
     }
@@ -195,6 +204,7 @@ impl Component for NewWorkComponent {
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
                             )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Work(w.work_id.clone()))));
                             true
                         }
                         None => {
@@ -340,6 +350,11 @@ impl Component for NewWorkComponent {
             Msg::ChangeCoverUrl(cover_url) => self.work.cover_url.neq_assign(Some(cover_url)),
             Msg::ChangeCoverCaption(cover_caption) => {
                 self.work.cover_caption.neq_assign(Some(cover_caption))
+            }
+            Msg::ChangeRoute(r) => {
+                let route = Route::from(r);
+                self.router.send(RouteRequest::ChangeRoute(route));
+                false
             }
         }
     }

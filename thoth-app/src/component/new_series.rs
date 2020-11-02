@@ -3,6 +3,9 @@ use thoth_api::series::model::SeriesType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -29,6 +32,8 @@ use crate::models::series::series_types_query::FetchActionSeriesTypes;
 use crate::models::series::series_types_query::FetchSeriesTypes;
 use crate::models::series::Series;
 use crate::models::series::SeriesTypeValues;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct NewSeriesComponent {
@@ -38,6 +43,7 @@ pub struct NewSeriesComponent {
     fetch_imprints: FetchImprints,
     fetch_series_types: FetchSeriesTypes,
     link: ComponentLink<Self>,
+    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -61,6 +67,7 @@ pub enum Msg {
     ChangeIssnPrint(String),
     ChangeIssnDigital(String),
     ChangeSeriesUrl(String),
+    ChangeRoute(AppRoute),
 }
 
 impl Component for NewSeriesComponent {
@@ -74,6 +81,7 @@ impl Component for NewSeriesComponent {
         let data: SeriesFormData = Default::default();
         let fetch_imprints: FetchImprints = Default::default();
         let fetch_series_types: FetchSeriesTypes = Default::default();
+        let router = RouteAgentDispatcher::new();
 
         link.send_message(Msg::GetImprints);
         link.send_message(Msg::GetSeriesTypes);
@@ -85,6 +93,7 @@ impl Component for NewSeriesComponent {
             fetch_imprints,
             fetch_series_types,
             link,
+            router,
             notification_bus,
         }
     }
@@ -131,11 +140,12 @@ impl Component for NewSeriesComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.create_series {
-                        Some(c) => {
+                        Some(s) => {
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Saved {}", c.series_name),
+                                format!("Saved {}", s.series_name),
                                 NotificationStatus::Success,
                             )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Series(s.series_id.clone()))));
                             true
                         }
                         None => {
@@ -183,6 +193,11 @@ impl Component for NewSeriesComponent {
                 self.series.issn_digital.neq_assign(issn_digital)
             }
             Msg::ChangeSeriesUrl(series_url) => self.series.series_url.neq_assign(Some(series_url)),
+            Msg::ChangeRoute(r) => {
+                let route = Route::from(r);
+                self.router.send(RouteRequest::ChangeRoute(route));
+                false
+            }
         }
     }
 

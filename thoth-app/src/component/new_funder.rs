@@ -1,6 +1,9 @@
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -19,12 +22,15 @@ use crate::models::funder::create_funder_mutation::PushActionCreateFunder;
 use crate::models::funder::create_funder_mutation::PushCreateFunder;
 use crate::models::funder::create_funder_mutation::Variables;
 use crate::models::funder::Funder;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct NewFunderComponent {
     funder: Funder,
     push_funder: PushCreateFunder,
     link: ComponentLink<Self>,
+    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -33,6 +39,7 @@ pub enum Msg {
     CreateFunder,
     ChangeFunderName(String),
     ChangeFunderDoi(String),
+    ChangeRoute(AppRoute),
 }
 
 impl Component for NewFunderComponent {
@@ -43,11 +50,13 @@ impl Component for NewFunderComponent {
         let push_funder = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let funder: Funder = Default::default();
+        let router = RouteAgentDispatcher::new();
 
         NewFunderComponent {
             funder,
             push_funder,
             link,
+            router,
             notification_bus,
         }
     }
@@ -60,11 +69,12 @@ impl Component for NewFunderComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.create_funder {
-                        Some(p) => {
+                        Some(f) => {
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Saved {}", p.funder_name),
+                                format!("Saved {}", f.funder_name),
                                 NotificationStatus::Success,
                             )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Funder(f.funder_id.clone()))));
                             true
                         }
                         None => {
@@ -102,6 +112,11 @@ impl Component for NewFunderComponent {
             }
             Msg::ChangeFunderName(funder_name) => self.funder.funder_name.neq_assign(funder_name),
             Msg::ChangeFunderDoi(funder_doi) => self.funder.funder_doi.neq_assign(Some(funder_doi)),
+            Msg::ChangeRoute(r) => {
+                let route = Route::from(r);
+                self.router.send(RouteRequest::ChangeRoute(route));
+                false
+            }
         }
     }
 
