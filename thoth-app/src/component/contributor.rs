@@ -1,6 +1,9 @@
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -25,6 +28,8 @@ use crate::models::contributor::update_contributor_mutation::UpdateContributorRe
 use crate::models::contributor::update_contributor_mutation::UpdateContributorRequestBody;
 use crate::models::contributor::update_contributor_mutation::Variables as UpdateVariables;
 use crate::models::contributor::Contributor;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct ContributorComponent {
@@ -32,6 +37,7 @@ pub struct ContributorComponent {
     fetch_contributor: FetchContributor,
     push_contributor: PushUpdateContributor,
     link: ComponentLink<Self>,
+    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -45,6 +51,7 @@ pub enum Msg {
     ChangeFullName(String),
     ChangeOrcid(String),
     ChangeWebsite(String),
+    ChangeRoute(AppRoute),
 }
 
 #[derive(Clone, Properties)]
@@ -68,6 +75,7 @@ impl Component for ContributorComponent {
         let push_contributor = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
+        let router = RouteAgentDispatcher::new();
 
         link.send_message(Msg::GetContributor);
 
@@ -76,6 +84,7 @@ impl Component for ContributorComponent {
             fetch_contributor,
             push_contributor,
             link,
+            router,
             notification_bus,
         }
     }
@@ -115,6 +124,7 @@ impl Component for ContributorComponent {
                                 format!("Saved {}", c.full_name),
                                 NotificationStatus::Success,
                             )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Contributors)));
                             true
                         }
                         None => {
@@ -161,6 +171,11 @@ impl Component for ContributorComponent {
             Msg::ChangeFullName(full_name) => self.contributor.full_name.neq_assign(full_name),
             Msg::ChangeOrcid(orcid) => self.contributor.orcid.neq_assign(Some(orcid)),
             Msg::ChangeWebsite(website) => self.contributor.website.neq_assign(Some(website)),
+            Msg::ChangeRoute(r) => {
+                let route = Route::from(r);
+                self.router.send(RouteRequest::ChangeRoute(route));
+                false
+            }
         }
     }
 
