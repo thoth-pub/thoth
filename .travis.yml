@@ -6,7 +6,7 @@ rust:
 env:
   - THOTH_API=http://localhost:8000
 before_install:
-  - sudo apt-get -y install pkg-config npm
+  - sudo apt-get -y install pkg-config nodejs-dev node-gyp libssl1.0-dev npm
   - sudo npm install -g npm@6.14.8
   - sudo npm install -g n@6.7.0
   - sudo n 12.19.0
