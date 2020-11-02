@@ -66,6 +66,7 @@ pub struct WorkComponent {
     notification_bus: NotificationDispatcher,
 }
 
+#[derive(Default)]
 struct WorkFormData {
     imprints: Vec<Imprint>,
     work_types: Vec<WorkTypeValues>,
@@ -136,11 +137,7 @@ impl Component for WorkComponent {
         let push_work = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let work: Work = Default::default();
-        let data = WorkFormData {
-            imprints: vec![],
-            work_types: vec![],
-            work_statuses: vec![],
-        };
+        let data: WorkFormData = Default::default();
         let router = RouteAgentDispatcher::new();
 
         link.send_message(Msg::GetWork);
