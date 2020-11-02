@@ -30,14 +30,34 @@ pub struct ContributionTypeValues {
     pub name: ContributionType,
 }
 
+const BULLET_SEPARATOR: &str = " • ";
+const COMMA_SEPARATOR: &str = ", ";
+
 impl Contribution {
-    pub fn main_contribution_item(&self) -> Html {
+    pub fn main_contribution_item_bullet_small(&self) -> Html {
+        self.main_contribution_item(true, BULLET_SEPARATOR)
+    }
+
+    pub fn main_contribution_item_comma(&self) -> Html {
+        self.main_contribution_item(false, COMMA_SEPARATOR)
+    }
+
+    fn main_contribution_item(&self, is_small: bool, separator: &str) -> Html {
         if self.main_contribution {
-            html! {
-                <small class="contributor">
-                    {&self.contributor.full_name}
-                    <span>{ ", " }</span>
-                </small>
+            if is_small {
+                html! {
+                    <small class="contributor">
+                        {&self.contributor.full_name}
+                        <span>{ separator }</span>
+                    </small>
+                }
+            } else {
+                html! {
+                    <span class="contributor">
+                        {&self.contributor.full_name}
+                        <span>{ ", " }</span>
+                    </span>
+                }
             }
         } else {
             html! {}

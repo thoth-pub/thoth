@@ -131,7 +131,7 @@ impl Work {
                 <td>
                     {
                         if let Some(contributions) = &self.contributions {
-                            contributions.iter().map(|c| c.main_contribution_item()).collect::<Html>()
+                            contributions.iter().map(|c| c.main_contribution_item_comma()).collect::<Html>()
                         } else {
                             html! {}
                         }
@@ -231,6 +231,7 @@ impl Default for Work {
 }
 
 pub mod create_work_mutation;
+pub mod delete_work_mutation;
 pub mod update_work_mutation;
 pub mod work_query;
 pub mod work_statuses_query;

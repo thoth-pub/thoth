@@ -1,6 +1,9 @@
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -19,12 +22,15 @@ use crate::models::publisher::create_publisher_mutation::PushActionCreatePublish
 use crate::models::publisher::create_publisher_mutation::PushCreatePublisher;
 use crate::models::publisher::create_publisher_mutation::Variables;
 use crate::models::publisher::Publisher;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct NewPublisherComponent {
     publisher: Publisher,
     push_publisher: PushCreatePublisher,
     link: ComponentLink<Self>,
+    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -34,6 +40,7 @@ pub enum Msg {
     ChangePublisherName(String),
     ChangePublisherShortname(String),
     ChangePublisherUrl(String),
+    ChangeRoute(AppRoute),
 }
 
 impl Component for NewPublisherComponent {
@@ -42,6 +49,7 @@ impl Component for NewPublisherComponent {
 
     fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let push_publisher = Default::default();
+        let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let publisher: Publisher = Default::default();
 
@@ -49,6 +57,7 @@ impl Component for NewPublisherComponent {
             publisher,
             push_publisher,
             link,
+            router,
             notification_bus,
         }
     }
@@ -65,6 +74,9 @@ impl Component for NewPublisherComponent {
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!("Saved {}", p.publisher_name),
                                 NotificationStatus::Success,
+                            )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Publisher(p.publisher_id.clone()),
                             )));
                             true
                         }
@@ -112,6 +124,11 @@ impl Component for NewPublisherComponent {
             Msg::ChangePublisherUrl(publisher_url) => {
                 self.publisher.publisher_url.neq_assign(Some(publisher_url))
             }
+            Msg::ChangeRoute(r) => {
+                let route = Route::from(r);
+                self.router.send(RouteRequest::ChangeRoute(route));
+                false
+            }
         }
     }
 
@@ -125,32 +142,43 @@ impl Component for NewPublisherComponent {
             Msg::CreatePublisher
         });
         html! {
-            <form onsubmit=callback>
-                <FormTextInput
-                    label = "Publisher Name"
-                    value=&self.publisher.publisher_name
-                    oninput=self.link.callback(|e: InputData| Msg::ChangePublisherName(e.value))
-                    required=true
-                />
-                <FormTextInput
-                    label = "Publisher Short Name"
-                    value=&self.publisher.publisher_shortname
-                    oninput=self.link.callback(|e: InputData| Msg::ChangePublisherShortname(e.value))
-                />
-                <FormUrlInput
-                    label = "Publisher URL"
-                    value=&self.publisher.publisher_url
-                    oninput=self.link.callback(|e: InputData| Msg::ChangePublisherUrl(e.value))
-                />
-
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-success" type="submit">
-                            { SAVE_BUTTON }
-                        </button>
+            <>
+                <nav class="level">
+                    <div class="level-left">
+                        <p class="subtitle is-5">
+                            { "New publisher" }
+                        </p>
                     </div>
-                </div>
-            </form>
+                    <div class="level-right" />
+                </nav>
+
+                <form onsubmit=callback>
+                    <FormTextInput
+                        label = "Publisher Name"
+                        value=&self.publisher.publisher_name
+                        oninput=self.link.callback(|e: InputData| Msg::ChangePublisherName(e.value))
+                        required=true
+                    />
+                    <FormTextInput
+                        label = "Publisher Short Name"
+                        value=&self.publisher.publisher_shortname
+                        oninput=self.link.callback(|e: InputData| Msg::ChangePublisherShortname(e.value))
+                    />
+                    <FormUrlInput
+                        label = "Publisher URL"
+                        value=&self.publisher.publisher_url
+                        oninput=self.link.callback(|e: InputData| Msg::ChangePublisherUrl(e.value))
+                    />
+
+                    <div class="field">
+                        <div class="control">
+                            <button class="button is-success" type="submit">
+                                { SAVE_BUTTON }
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </>
         }
     }
 }

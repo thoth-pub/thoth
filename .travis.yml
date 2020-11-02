@@ -1,17 +1,30 @@
+dist: bionic
 language: rust
 rust:
-    - stable
-    - beta
+  - stable
+  - beta
 env:
-    - THOTH_API=http://localhost:8000
-before_script:
-    - rustup component add rustfmt
-    - rustup component add clippy || cargo install --git https://github.com/rust-lang/rust-clippy/ --force clippy
+  - THOTH_API=http://localhost:8000
+before_install:
+  - sudo apt-get -y install pkg-config nodejs-dev node-gyp libssl1.0-dev npm
+  - sudo npm install -g npm@6.14.8
+  - sudo npm install -g n@6.7.0
+  - sudo n 12.19.0
+  - sudo npm install -g rollup@2.28.2
+addons:
+  apt:
+    update: true
+install:
+  - cargo install wasm-pack
+  - rustup component add rustfmt
+  - rustup component add clippy || cargo install --git https://github.com/rust-lang/rust-clippy/ --force clippy
 script:
-    - cargo build --verbose
-    - cargo test --workspace --verbose
-    - cargo clippy --all --all-targets --all-features -- -D warnings
-    - cargo fmt --all -- --check
+  - wasm-pack build thoth-app/ --target web --release
+  - rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js
+  - cargo build --verbose
+  - cargo test --workspace --verbose
+  - cargo clippy --all --all-targets --all-features -- -D warnings
+  - cargo fmt --all -- --check
 deploy:
   provider: cargo
   token:

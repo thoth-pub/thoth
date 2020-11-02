@@ -1,6 +1,9 @@
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -14,6 +17,11 @@ use crate::agent::notification_bus::Request;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
+use crate::models::publisher::delete_publisher_mutation::DeletePublisherRequest;
+use crate::models::publisher::delete_publisher_mutation::DeletePublisherRequestBody;
+use crate::models::publisher::delete_publisher_mutation::PushActionDeletePublisher;
+use crate::models::publisher::delete_publisher_mutation::PushDeletePublisher;
+use crate::models::publisher::delete_publisher_mutation::Variables as DeleteVariables;
 use crate::models::publisher::publisher_query::FetchActionPublisher;
 use crate::models::publisher::publisher_query::FetchPublisher;
 use crate::models::publisher::publisher_query::PublisherRequest;
@@ -25,13 +33,18 @@ use crate::models::publisher::update_publisher_mutation::UpdatePublisherRequest;
 use crate::models::publisher::update_publisher_mutation::UpdatePublisherRequestBody;
 use crate::models::publisher::update_publisher_mutation::Variables as UpdateVariables;
 use crate::models::publisher::Publisher;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
+use crate::string::DELETE_BUTTON;
 use crate::string::SAVE_BUTTON;
 
 pub struct PublisherComponent {
     publisher: Publisher,
     fetch_publisher: FetchPublisher,
     push_publisher: PushUpdatePublisher,
+    delete_publisher: PushDeletePublisher,
     link: ComponentLink<Self>,
+    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -40,9 +53,12 @@ pub enum Msg {
     GetPublisher,
     SetPublisherPushState(PushActionUpdatePublisher),
     UpdatePublisher,
+    SetPublisherDeleteState(PushActionDeletePublisher),
+    DeletePublisher,
     ChangePublisherName(String),
     ChangePublisherShortname(String),
     ChangePublisherUrl(String),
+    ChangeRoute(AppRoute),
 }
 
 #[derive(Clone, Properties)]
@@ -64,8 +80,10 @@ impl Component for PublisherComponent {
         let request = PublisherRequest { body };
         let fetch_publisher = Fetch::new(request);
         let push_publisher = Default::default();
+        let delete_publisher = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let publisher: Publisher = Default::default();
+        let router = RouteAgentDispatcher::new();
 
         link.send_message(Msg::GetPublisher);
 
@@ -73,7 +91,9 @@ impl Component for PublisherComponent {
             publisher,
             fetch_publisher,
             push_publisher,
+            delete_publisher,
             link,
+            router,
             notification_bus,
         }
     }
@@ -113,6 +133,9 @@ impl Component for PublisherComponent {
                                 format!("Saved {}", p.publisher_name),
                                 NotificationStatus::Success,
                             )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Publishers,
+                            )));
                             true
                         }
                         None => {
@@ -150,6 +173,54 @@ impl Component for PublisherComponent {
                     .send_message(Msg::SetPublisherPushState(FetchAction::Fetching));
                 false
             }
+            Msg::SetPublisherDeleteState(fetch_state) => {
+                self.delete_publisher.apply(fetch_state);
+                match self.delete_publisher.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.delete_publisher {
+                        Some(f) => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                format!("Deleted {}", f.publisher_name),
+                                NotificationStatus::Success,
+                            )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Publishers,
+                            )));
+                            true
+                        }
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::DeletePublisher => {
+                let body = DeletePublisherRequestBody {
+                    variables: DeleteVariables {
+                        publisher_id: self.publisher.publisher_id.clone(),
+                    },
+                    ..Default::default()
+                };
+                let request = DeletePublisherRequest { body };
+                self.delete_publisher = Fetch::new(request);
+                self.link
+                    .send_future(self.delete_publisher.fetch(Msg::SetPublisherDeleteState));
+                self.link
+                    .send_message(Msg::SetPublisherDeleteState(FetchAction::Fetching));
+                false
+            }
             Msg::ChangePublisherName(publisher_name) => {
                 self.publisher.publisher_name.neq_assign(publisher_name)
             }
@@ -159,6 +230,11 @@ impl Component for PublisherComponent {
                 .neq_assign(Some(publisher_shortname)),
             Msg::ChangePublisherUrl(publisher_url) => {
                 self.publisher.publisher_url.neq_assign(Some(publisher_url))
+            }
+            Msg::ChangeRoute(r) => {
+                let route = Route::from(r);
+                self.router.send(RouteRequest::ChangeRoute(route));
+                false
             }
         }
     }
@@ -177,32 +253,49 @@ impl Component for PublisherComponent {
                     Msg::UpdatePublisher
                 });
                 html! {
-                    <form onsubmit=callback>
-                        <FormTextInput
-                            label = "Publisher Name"
-                            value=&self.publisher.publisher_name
-                            oninput=self.link.callback(|e: InputData| Msg::ChangePublisherName(e.value))
-                            required=true
-                        />
-                        <FormTextInput
-                            label = "Publisher Short Name"
-                            value=&self.publisher.publisher_shortname
-                            oninput=self.link.callback(|e: InputData| Msg::ChangePublisherShortname(e.value))
-                        />
-                        <FormUrlInput
-                            label = "Publisher URL"
-                            value=&self.publisher.publisher_url
-                            oninput=self.link.callback(|e: InputData| Msg::ChangePublisherUrl(e.value))
-                        />
-
-                        <div class="field">
-                            <div class="control">
-                                <button class="button is-success" type="submit">
-                                    { SAVE_BUTTON }
-                                </button>
+                    <>
+                        <nav class="level">
+                            <div class="level-left">
+                                <p class="subtitle is-5">
+                                    { "Edit publisher" }
+                                </p>
                             </div>
-                        </div>
-                    </form>
+                            <div class="level-right">
+                                <p class="level-item">
+                                    <button class="button is-danger" onclick=self.link.callback(|_| Msg::DeletePublisher)>
+                                        { DELETE_BUTTON }
+                                    </button>
+                                </p>
+                            </div>
+                        </nav>
+
+                        <form onsubmit=callback>
+                            <FormTextInput
+                                label = "Publisher Name"
+                                value=&self.publisher.publisher_name
+                                oninput=self.link.callback(|e: InputData| Msg::ChangePublisherName(e.value))
+                                required=true
+                            />
+                            <FormTextInput
+                                label = "Publisher Short Name"
+                                value=&self.publisher.publisher_shortname
+                                oninput=self.link.callback(|e: InputData| Msg::ChangePublisherShortname(e.value))
+                            />
+                            <FormUrlInput
+                                label = "Publisher URL"
+                                value=&self.publisher.publisher_url
+                                oninput=self.link.callback(|e: InputData| Msg::ChangePublisherUrl(e.value))
+                            />
+
+                            <div class="field">
+                                <div class="control">
+                                    <button class="button is-success" type="submit">
+                                        { SAVE_BUTTON }
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </>
                 }
             }
             FetchState::Failed(_, err) => html! {&err},

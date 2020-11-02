@@ -11,6 +11,7 @@ strings! {
     INPUT_PASSWORD => "Password",
     TEXT_LOGIN => "Login",
     SAVE_BUTTON => "Save",
+    DELETE_BUTTON => "Delete",
     REMOVE_BUTTON => "Remove",
     RELOAD_BUTTON => "Reload",
     NEXT_PAGE_BUTTON => "Next page",

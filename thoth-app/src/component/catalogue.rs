@@ -7,7 +7,6 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
 use crate::component::utils::Reloader;
-use crate::models::contribution::Contribution;
 use crate::models::work::works_query::FetchActionWorks;
 use crate::models::work::works_query::FetchWorks;
 use crate::models::work::License;
@@ -84,19 +83,6 @@ impl Component for CatalogueComponent {
     }
 }
 
-fn render_contribution(c: &Contribution) -> Html {
-    if c.main_contribution {
-        html! {
-            <small class="contributor">
-                {&c.contributor.full_name}
-                <span>{ " • " }</span>
-            </small>
-        }
-    } else {
-        html! {}
-    }
-}
-
 fn render_license(license: &License) -> Html {
     html! {
         <span class="icon is-small license">
@@ -170,7 +156,7 @@ fn render_work(w: &Work) -> Html {
                             <div>
                             {
                                 if let Some(contributions) = &w.contributions {
-                                    contributions.iter().map(render_contribution).collect::<Html>()
+                                    contributions.iter().map(|c| c.main_contribution_item_bullet_small()).collect::<Html>()
                                 } else {
                                     html! {}
                                 }

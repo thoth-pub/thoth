@@ -1,6 +1,9 @@
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -19,12 +22,15 @@ use crate::models::contributor::create_contributor_mutation::PushActionCreateCon
 use crate::models::contributor::create_contributor_mutation::PushCreateContributor;
 use crate::models::contributor::create_contributor_mutation::Variables;
 use crate::models::contributor::Contributor;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct NewContributorComponent {
     contributor: Contributor,
     push_contributor: PushCreateContributor,
     link: ComponentLink<Self>,
+    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -36,6 +42,7 @@ pub enum Msg {
     ChangeFullName(String),
     ChangeOrcid(String),
     ChangeWebsite(String),
+    ChangeRoute(AppRoute),
 }
 
 impl Component for NewContributorComponent {
@@ -44,6 +51,7 @@ impl Component for NewContributorComponent {
 
     fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let push_contributor = Default::default();
+        let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
 
@@ -51,6 +59,7 @@ impl Component for NewContributorComponent {
             contributor,
             push_contributor,
             link,
+            router,
             notification_bus,
         }
     }
@@ -67,6 +76,9 @@ impl Component for NewContributorComponent {
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!("Saved {}", c.full_name),
                                 NotificationStatus::Success,
+                            )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Contributor(c.contributor_id.clone()),
                             )));
                             true
                         }
@@ -113,6 +125,11 @@ impl Component for NewContributorComponent {
             Msg::ChangeFullName(full_name) => self.contributor.full_name.neq_assign(full_name),
             Msg::ChangeOrcid(orcid) => self.contributor.orcid.neq_assign(Some(orcid)),
             Msg::ChangeWebsite(website) => self.contributor.website.neq_assign(Some(website)),
+            Msg::ChangeRoute(r) => {
+                let route = Route::from(r);
+                self.router.send(RouteRequest::ChangeRoute(route));
+                false
+            }
         }
     }
 
@@ -126,43 +143,54 @@ impl Component for NewContributorComponent {
             Msg::CreateContributor
         });
         html! {
-            <form onsubmit=callback>
-                <FormTextInput
-                    label = "First Name"
-                    value=&self.contributor.first_name
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
-                />
-                <FormTextInput
-                    label = "Last Name"
-                    value=&self.contributor.last_name
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
-                    required=true
-                />
-                <FormTextInput
-                    label = "Full Name"
-                    value=&self.contributor.full_name
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
-                    required=true
-                />
-                <FormUrlInput
-                    label = "ORCID (Full URL)"
-                    value=&self.contributor.orcid
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
-                />
-                <FormUrlInput
-                    label = "Website"
-                    value=&self.contributor.website
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeWebsite(e.value))
-                />
-
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-success" type="submit">
-                            { SAVE_BUTTON }
-                        </button>
+            <>
+                <nav class="level">
+                    <div class="level-left">
+                        <p class="subtitle is-5">
+                            { "New contributor" }
+                        </p>
                     </div>
-                </div>
-            </form>
+                    <div class="level-right" />
+                </nav>
+
+                <form onsubmit=callback>
+                    <FormTextInput
+                        label = "First Name"
+                        value=&self.contributor.first_name
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
+                    />
+                    <FormTextInput
+                        label = "Last Name"
+                        value=&self.contributor.last_name
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
+                        required=true
+                    />
+                    <FormTextInput
+                        label = "Full Name"
+                        value=&self.contributor.full_name
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
+                        required=true
+                    />
+                    <FormUrlInput
+                        label = "ORCID (Full URL)"
+                        value=&self.contributor.orcid
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
+                    />
+                    <FormUrlInput
+                        label = "Website"
+                        value=&self.contributor.website
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeWebsite(e.value))
+                    />
+
+                    <div class="field">
+                        <div class="control">
+                            <button class="button is-success" type="submit">
+                                { SAVE_BUTTON }
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </>
         }
     }
 }

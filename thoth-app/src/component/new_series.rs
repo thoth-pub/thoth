@@ -3,6 +3,9 @@ use thoth_api::series::model::SeriesType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -29,6 +32,8 @@ use crate::models::series::series_types_query::FetchActionSeriesTypes;
 use crate::models::series::series_types_query::FetchSeriesTypes;
 use crate::models::series::Series;
 use crate::models::series::SeriesTypeValues;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct NewSeriesComponent {
@@ -38,6 +43,7 @@ pub struct NewSeriesComponent {
     fetch_imprints: FetchImprints,
     fetch_series_types: FetchSeriesTypes,
     link: ComponentLink<Self>,
+    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -47,7 +53,6 @@ struct SeriesFormData {
     series_types: Vec<SeriesTypeValues>,
 }
 
-#[allow(clippy::large_enum_variant)]
 pub enum Msg {
     SetImprintsFetchState(FetchActionImprints),
     GetImprints,
@@ -61,6 +66,7 @@ pub enum Msg {
     ChangeIssnPrint(String),
     ChangeIssnDigital(String),
     ChangeSeriesUrl(String),
+    ChangeRoute(AppRoute),
 }
 
 impl Component for NewSeriesComponent {
@@ -74,6 +80,7 @@ impl Component for NewSeriesComponent {
         let data: SeriesFormData = Default::default();
         let fetch_imprints: FetchImprints = Default::default();
         let fetch_series_types: FetchSeriesTypes = Default::default();
+        let router = RouteAgentDispatcher::new();
 
         link.send_message(Msg::GetImprints);
         link.send_message(Msg::GetSeriesTypes);
@@ -85,6 +92,7 @@ impl Component for NewSeriesComponent {
             fetch_imprints,
             fetch_series_types,
             link,
+            router,
             notification_bus,
         }
     }
@@ -131,10 +139,13 @@ impl Component for NewSeriesComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.create_series {
-                        Some(c) => {
+                        Some(s) => {
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Saved {}", c.series_name),
+                                format!("Saved {}", s.series_name),
                                 NotificationStatus::Success,
+                            )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Series(s.series_id.clone()),
                             )));
                             true
                         }
@@ -183,6 +194,11 @@ impl Component for NewSeriesComponent {
                 self.series.issn_digital.neq_assign(issn_digital)
             }
             Msg::ChangeSeriesUrl(series_url) => self.series.series_url.neq_assign(Some(series_url)),
+            Msg::ChangeRoute(r) => {
+                let route = Route::from(r);
+                self.router.send(RouteRequest::ChangeRoute(route));
+                false
+            }
         }
     }
 
@@ -196,65 +212,76 @@ impl Component for NewSeriesComponent {
             Msg::CreateSeries
         });
         html! {
-            <form onsubmit=callback>
-                <FormSeriesTypeSelect
-                    label = "Series Type"
-                    value=&self.series.series_type
-                    onchange=self.link.callback(|event| match event {
-                        ChangeData::Select(elem) => {
-                            let value = elem.value();
-                            Msg::ChangeSeriesType(SeriesType::from_str(&value).unwrap())
-                        }
-                        _ => unreachable!(),
-                    })
-                    data=&self.data.series_types
-                    required = true
-                />
-                <FormImprintSelect
-                    label = "Imprint"
-                    value=&self.series.imprint.imprint_id
-                    data=&self.data.imprints
-                    onchange=self.link.callback(|event| match event {
-                        ChangeData::Select(elem) => {
-                            let value = elem.value();
-                            Msg::ChangeImprint(value.clone())
-                        }
-                        _ => unreachable!(),
-                    })
-                    required = true
-                />
-                <FormTextInput
-                    label = "Series Name"
-                    value=&self.series.series_name
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesName(e.value))
-                    required=true
-                />
-                <FormTextInput
-                    label = "ISSN Print"
-                    value=&self.series.issn_print
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeIssnPrint(e.value))
-                    required=true
-                />
-                <FormTextInput
-                    label = "ISSN Digital"
-                    value=&self.series.issn_digital
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeIssnDigital(e.value))
-                    required=true
-                />
-                <FormUrlInput
-                    label = "Series URL"
-                    value=&self.series.series_url
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesUrl(e.value))
-                />
-
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-success" type="submit">
-                            { SAVE_BUTTON }
-                        </button>
+            <>
+                <nav class="level">
+                    <div class="level-left">
+                        <p class="subtitle is-5">
+                            { "New series" }
+                        </p>
                     </div>
-                </div>
-            </form>
+                    <div class="level-right" />
+                </nav>
+
+                <form onsubmit=callback>
+                    <FormSeriesTypeSelect
+                        label = "Series Type"
+                        value=&self.series.series_type
+                        onchange=self.link.callback(|event| match event {
+                            ChangeData::Select(elem) => {
+                                let value = elem.value();
+                                Msg::ChangeSeriesType(SeriesType::from_str(&value).unwrap())
+                            }
+                            _ => unreachable!(),
+                        })
+                        data=&self.data.series_types
+                        required = true
+                    />
+                    <FormImprintSelect
+                        label = "Imprint"
+                        value=&self.series.imprint.imprint_id
+                        data=&self.data.imprints
+                        onchange=self.link.callback(|event| match event {
+                            ChangeData::Select(elem) => {
+                                let value = elem.value();
+                                Msg::ChangeImprint(value.clone())
+                            }
+                            _ => unreachable!(),
+                        })
+                        required = true
+                    />
+                    <FormTextInput
+                        label = "Series Name"
+                        value=&self.series.series_name
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesName(e.value))
+                        required=true
+                    />
+                    <FormTextInput
+                        label = "ISSN Print"
+                        value=&self.series.issn_print
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeIssnPrint(e.value))
+                        required=true
+                    />
+                    <FormTextInput
+                        label = "ISSN Digital"
+                        value=&self.series.issn_digital
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeIssnDigital(e.value))
+                        required=true
+                    />
+                    <FormUrlInput
+                        label = "Series URL"
+                        value=&self.series.series_url
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesUrl(e.value))
+                    />
+
+                    <div class="field">
+                        <div class="control">
+                            <button class="button is-success" type="submit">
+                                { SAVE_BUTTON }
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </>
         }
     }
 }

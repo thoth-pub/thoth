@@ -1,6 +1,9 @@
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -23,6 +26,8 @@ use crate::models::imprint::Imprint;
 use crate::models::publisher::publishers_query::FetchActionPublishers;
 use crate::models::publisher::publishers_query::FetchPublishers;
 use crate::models::publisher::Publisher;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct NewImprintComponent {
@@ -32,6 +37,7 @@ pub struct NewImprintComponent {
     data: ImprintFormData,
     fetch_publishers: FetchPublishers,
     link: ComponentLink<Self>,
+    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -48,6 +54,7 @@ pub enum Msg {
     ChangePublisher(String),
     ChangeImprintName(String),
     ChangeImprintUrl(String),
+    ChangeRoute(AppRoute),
 }
 
 impl Component for NewImprintComponent {
@@ -56,6 +63,7 @@ impl Component for NewImprintComponent {
 
     fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let push_imprint = Default::default();
+        let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let imprint: Imprint = Default::default();
         let publisher_id: String = Default::default();
@@ -71,6 +79,7 @@ impl Component for NewImprintComponent {
             data,
             fetch_publishers,
             link,
+            router,
             notification_bus,
         }
     }
@@ -100,10 +109,13 @@ impl Component for NewImprintComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.create_imprint {
-                        Some(c) => {
+                        Some(i) => {
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Saved {}", c.imprint_name),
+                                format!("Saved {}", i.imprint_name),
                                 NotificationStatus::Success,
+                            )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Imprint(i.imprint_id.clone()),
                             )));
                             true
                         }
@@ -148,6 +160,11 @@ impl Component for NewImprintComponent {
             Msg::ChangeImprintUrl(imprint_url) => {
                 self.imprint.imprint_url.neq_assign(Some(imprint_url))
             }
+            Msg::ChangeRoute(r) => {
+                let route = Route::from(r);
+                self.router.send(RouteRequest::ChangeRoute(route));
+                false
+            }
         }
     }
 
@@ -161,40 +178,51 @@ impl Component for NewImprintComponent {
             Msg::CreateImprint
         });
         html! {
-            <form onsubmit=callback>
-                <FormPublisherSelect
-                    label = "Publisher"
-                    value=&self.publisher_id
-                    data=&self.data.publishers
-                    onchange=self.link.callback(|event| match event {
-                        ChangeData::Select(elem) => {
-                            let value = elem.value();
-                            Msg::ChangePublisher(value.clone())
-                        }
-                        _ => unreachable!(),
-                    })
-                    required = true
-                />
-                <FormTextInput
-                    label = "Imprint Name"
-                    value=&self.imprint.imprint_name
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeImprintName(e.value))
-                    required=true
-                />
-                <FormUrlInput
-                    label = "Imprint URL"
-                    value=&self.imprint.imprint_url
-                    oninput=self.link.callback(|e: InputData| Msg::ChangeImprintUrl(e.value))
-                />
-
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-success" type="submit">
-                            { SAVE_BUTTON }
-                        </button>
+            <>
+                <nav class="level">
+                    <div class="level-left">
+                        <p class="subtitle is-5">
+                            { "New imprint" }
+                        </p>
                     </div>
-                </div>
-            </form>
+                    <div class="level-right" />
+                </nav>
+
+                <form onsubmit=callback>
+                    <FormPublisherSelect
+                        label = "Publisher"
+                        value=&self.publisher_id
+                        data=&self.data.publishers
+                        onchange=self.link.callback(|event| match event {
+                            ChangeData::Select(elem) => {
+                                let value = elem.value();
+                                Msg::ChangePublisher(value.clone())
+                            }
+                            _ => unreachable!(),
+                        })
+                        required = true
+                    />
+                    <FormTextInput
+                        label = "Imprint Name"
+                        value=&self.imprint.imprint_name
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeImprintName(e.value))
+                        required=true
+                    />
+                    <FormUrlInput
+                        label = "Imprint URL"
+                        value=&self.imprint.imprint_url
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeImprintUrl(e.value))
+                    />
+
+                    <div class="field">
+                        <div class="control">
+                            <button class="button is-success" type="submit">
+                                { SAVE_BUTTON }
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </>
         }
     }
 }
