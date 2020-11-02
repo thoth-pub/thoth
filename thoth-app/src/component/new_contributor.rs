@@ -77,7 +77,9 @@ impl Component for NewContributorComponent {
                                 format!("Saved {}", c.full_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Contributor(c.contributor_id.clone()))));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Contributor(c.contributor_id.clone()),
+                            )));
                             true
                         }
                         None => {

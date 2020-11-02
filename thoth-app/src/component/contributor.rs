@@ -22,16 +22,16 @@ use crate::models::contributor::contributor_query::ContributorRequestBody;
 use crate::models::contributor::contributor_query::FetchActionContributor;
 use crate::models::contributor::contributor_query::FetchContributor;
 use crate::models::contributor::contributor_query::Variables;
+use crate::models::contributor::delete_contributor_mutation::DeleteContributorRequest;
+use crate::models::contributor::delete_contributor_mutation::DeleteContributorRequestBody;
+use crate::models::contributor::delete_contributor_mutation::PushActionDeleteContributor;
+use crate::models::contributor::delete_contributor_mutation::PushDeleteContributor;
+use crate::models::contributor::delete_contributor_mutation::Variables as DeleteVariables;
 use crate::models::contributor::update_contributor_mutation::PushActionUpdateContributor;
 use crate::models::contributor::update_contributor_mutation::PushUpdateContributor;
 use crate::models::contributor::update_contributor_mutation::UpdateContributorRequest;
 use crate::models::contributor::update_contributor_mutation::UpdateContributorRequestBody;
 use crate::models::contributor::update_contributor_mutation::Variables as UpdateVariables;
-use crate::models::contributor::delete_contributor_mutation::PushActionDeleteContributor;
-use crate::models::contributor::delete_contributor_mutation::PushDeleteContributor;
-use crate::models::contributor::delete_contributor_mutation::DeleteContributorRequest;
-use crate::models::contributor::delete_contributor_mutation::DeleteContributorRequestBody;
-use crate::models::contributor::delete_contributor_mutation::Variables as DeleteVariables;
 use crate::models::contributor::Contributor;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
@@ -135,7 +135,9 @@ impl Component for ContributorComponent {
                                 format!("Saved {}", c.full_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Contributors)));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Contributors,
+                            )));
                             true
                         }
                         None => {
@@ -186,7 +188,9 @@ impl Component for ContributorComponent {
                                 format!("Deleted {}", c.full_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Contributors)));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Contributors,
+                            )));
                             true
                         }
                         None => {
@@ -215,8 +219,10 @@ impl Component for ContributorComponent {
                 };
                 let request = DeleteContributorRequest { body };
                 self.delete_contributor = Fetch::new(request);
-                self.link
-                    .send_future(self.delete_contributor.fetch(Msg::SetContributorDeleteState));
+                self.link.send_future(
+                    self.delete_contributor
+                        .fetch(Msg::SetContributorDeleteState),
+                );
                 self.link
                     .send_message(Msg::SetContributorDeleteState(FetchAction::Fetching));
                 false

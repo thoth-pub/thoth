@@ -18,6 +18,11 @@ use crate::component::utils::FormPublisherSelect;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
+use crate::models::imprint::delete_imprint_mutation::DeleteImprintRequest;
+use crate::models::imprint::delete_imprint_mutation::DeleteImprintRequestBody;
+use crate::models::imprint::delete_imprint_mutation::PushActionDeleteImprint;
+use crate::models::imprint::delete_imprint_mutation::PushDeleteImprint;
+use crate::models::imprint::delete_imprint_mutation::Variables as DeleteVariables;
 use crate::models::imprint::imprint_query::FetchActionImprint;
 use crate::models::imprint::imprint_query::FetchImprint;
 use crate::models::imprint::imprint_query::ImprintRequest;
@@ -28,11 +33,6 @@ use crate::models::imprint::update_imprint_mutation::PushUpdateImprint;
 use crate::models::imprint::update_imprint_mutation::UpdateImprintRequest;
 use crate::models::imprint::update_imprint_mutation::UpdateImprintRequestBody;
 use crate::models::imprint::update_imprint_mutation::Variables as UpdateVariables;
-use crate::models::imprint::delete_imprint_mutation::PushActionDeleteImprint;
-use crate::models::imprint::delete_imprint_mutation::PushDeleteImprint;
-use crate::models::imprint::delete_imprint_mutation::DeleteImprintRequest;
-use crate::models::imprint::delete_imprint_mutation::DeleteImprintRequestBody;
-use crate::models::imprint::delete_imprint_mutation::Variables as DeleteVariables;
 use crate::models::imprint::Imprint;
 use crate::models::publisher::publishers_query::FetchActionPublishers;
 use crate::models::publisher::publishers_query::FetchPublishers;
@@ -168,7 +168,9 @@ impl Component for ImprintComponent {
                                 format!("Saved {}", i.imprint_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Imprints)));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Imprints,
+                            )));
                             true
                         }
                         None => {
@@ -217,7 +219,9 @@ impl Component for ImprintComponent {
                                 format!("Deleted {}", i.imprint_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Imprints)));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Imprints,
+                            )));
                             true
                         }
                         None => {

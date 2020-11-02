@@ -17,6 +17,11 @@ use crate::agent::notification_bus::Request;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
+use crate::models::publisher::delete_publisher_mutation::DeletePublisherRequest;
+use crate::models::publisher::delete_publisher_mutation::DeletePublisherRequestBody;
+use crate::models::publisher::delete_publisher_mutation::PushActionDeletePublisher;
+use crate::models::publisher::delete_publisher_mutation::PushDeletePublisher;
+use crate::models::publisher::delete_publisher_mutation::Variables as DeleteVariables;
 use crate::models::publisher::publisher_query::FetchActionPublisher;
 use crate::models::publisher::publisher_query::FetchPublisher;
 use crate::models::publisher::publisher_query::PublisherRequest;
@@ -27,11 +32,6 @@ use crate::models::publisher::update_publisher_mutation::PushUpdatePublisher;
 use crate::models::publisher::update_publisher_mutation::UpdatePublisherRequest;
 use crate::models::publisher::update_publisher_mutation::UpdatePublisherRequestBody;
 use crate::models::publisher::update_publisher_mutation::Variables as UpdateVariables;
-use crate::models::publisher::delete_publisher_mutation::PushActionDeletePublisher;
-use crate::models::publisher::delete_publisher_mutation::PushDeletePublisher;
-use crate::models::publisher::delete_publisher_mutation::DeletePublisherRequest;
-use crate::models::publisher::delete_publisher_mutation::DeletePublisherRequestBody;
-use crate::models::publisher::delete_publisher_mutation::Variables as DeleteVariables;
 use crate::models::publisher::Publisher;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
@@ -133,7 +133,9 @@ impl Component for PublisherComponent {
                                 format!("Saved {}", p.publisher_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Publishers)));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Publishers,
+                            )));
                             true
                         }
                         None => {
@@ -182,7 +184,9 @@ impl Component for PublisherComponent {
                                 format!("Deleted {}", f.publisher_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Publishers)));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Publishers,
+                            )));
                             true
                         }
                         None => {

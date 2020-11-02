@@ -24,6 +24,11 @@ use crate::component::utils::Loader;
 use crate::models::imprint::imprints_query::FetchActionImprints;
 use crate::models::imprint::imprints_query::FetchImprints;
 use crate::models::imprint::Imprint;
+use crate::models::series::delete_series_mutation::DeleteSeriesRequest;
+use crate::models::series::delete_series_mutation::DeleteSeriesRequestBody;
+use crate::models::series::delete_series_mutation::PushActionDeleteSeries;
+use crate::models::series::delete_series_mutation::PushDeleteSeries;
+use crate::models::series::delete_series_mutation::Variables as DeleteVariables;
 use crate::models::series::series_query::FetchActionSeries;
 use crate::models::series::series_query::FetchSeries;
 use crate::models::series::series_query::SeriesRequest;
@@ -36,11 +41,6 @@ use crate::models::series::update_series_mutation::PushUpdateSeries;
 use crate::models::series::update_series_mutation::UpdateSeriesRequest;
 use crate::models::series::update_series_mutation::UpdateSeriesRequestBody;
 use crate::models::series::update_series_mutation::Variables as UpdateVariables;
-use crate::models::series::delete_series_mutation::PushActionDeleteSeries;
-use crate::models::series::delete_series_mutation::PushDeleteSeries;
-use crate::models::series::delete_series_mutation::DeleteSeriesRequest;
-use crate::models::series::delete_series_mutation::DeleteSeriesRequestBody;
-use crate::models::series::delete_series_mutation::Variables as DeleteVariables;
 use crate::models::series::Series;
 use crate::models::series::SeriesTypeValues;
 use crate::route::AdminRoute;
@@ -202,7 +202,9 @@ impl Component for SeriesComponent {
                                 format!("Saved {}", s.series_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Serieses)));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Serieses,
+                            )));
                             true
                         }
                         None => {
@@ -254,7 +256,9 @@ impl Component for SeriesComponent {
                                 format!("Deleted {}", s.series_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Serieses)));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Serieses,
+                            )));
                             true
                         }
                         None => {

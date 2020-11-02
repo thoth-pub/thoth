@@ -28,8 +28,6 @@ use crate::component::utils::FormWorkTypeSelect;
 use crate::models::imprint::imprints_query::FetchActionImprints;
 use crate::models::imprint::imprints_query::FetchImprints;
 use crate::models::imprint::Imprint;
-use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use crate::models::work::create_work_mutation::CreateWorkRequest;
 use crate::models::work::create_work_mutation::CreateWorkRequestBody;
 use crate::models::work::create_work_mutation::PushActionCreateWork;
@@ -42,6 +40,8 @@ use crate::models::work::work_types_query::FetchWorkTypes;
 use crate::models::work::Work;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct NewWorkComponent {
@@ -204,7 +204,9 @@ impl Component for NewWorkComponent {
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Work(w.work_id.clone()))));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Work(w.work_id.clone()),
+                            )));
                             true
                         }
                         None => {

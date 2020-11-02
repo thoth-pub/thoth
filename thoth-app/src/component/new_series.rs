@@ -145,7 +145,9 @@ impl Component for NewSeriesComponent {
                                 format!("Saved {}", s.series_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Series(s.series_id.clone()))));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Series(s.series_id.clone()),
+                            )));
                             true
                         }
                         None => {

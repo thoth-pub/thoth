@@ -74,7 +74,9 @@ impl Component for NewFunderComponent {
                                 format!("Saved {}", f.funder_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Funder(f.funder_id.clone()))));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Funder(f.funder_id.clone()),
+                            )));
                             true
                         }
                         None => {

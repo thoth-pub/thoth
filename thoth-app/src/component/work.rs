@@ -39,16 +39,16 @@ use crate::models::issue::Issue;
 use crate::models::language::Language;
 use crate::models::publication::Publication;
 use crate::models::subject::Subject;
+use crate::models::work::delete_work_mutation::DeleteWorkRequest;
+use crate::models::work::delete_work_mutation::DeleteWorkRequestBody;
+use crate::models::work::delete_work_mutation::PushActionDeleteWork;
+use crate::models::work::delete_work_mutation::PushDeleteWork;
+use crate::models::work::delete_work_mutation::Variables as DeleteVariables;
 use crate::models::work::update_work_mutation::PushActionUpdateWork;
 use crate::models::work::update_work_mutation::PushUpdateWork;
 use crate::models::work::update_work_mutation::UpdateWorkRequest;
 use crate::models::work::update_work_mutation::UpdateWorkRequestBody;
 use crate::models::work::update_work_mutation::Variables as UpdateVariables;
-use crate::models::work::delete_work_mutation::PushActionDeleteWork;
-use crate::models::work::delete_work_mutation::PushDeleteWork;
-use crate::models::work::delete_work_mutation::DeleteWorkRequest;
-use crate::models::work::delete_work_mutation::DeleteWorkRequestBody;
-use crate::models::work::delete_work_mutation::Variables as DeleteVariables;
 use crate::models::work::work_query::FetchActionWork;
 use crate::models::work::work_query::FetchWork;
 use crate::models::work::work_query::Variables;
@@ -211,7 +211,8 @@ impl Component for WorkComponent {
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Works)));
+                            self.link
+                                .send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Works)));
                             true
                         }
                         None => {
@@ -287,7 +288,8 @@ impl Component for WorkComponent {
                                 format!("Deleted {}", w.title),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Works)));
+                            self.link
+                                .send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Works)));
                             true
                         }
                         None => {

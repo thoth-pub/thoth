@@ -17,6 +17,11 @@ use crate::agent::notification_bus::Request;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
+use crate::models::funder::delete_funder_mutation::DeleteFunderRequest;
+use crate::models::funder::delete_funder_mutation::DeleteFunderRequestBody;
+use crate::models::funder::delete_funder_mutation::PushActionDeleteFunder;
+use crate::models::funder::delete_funder_mutation::PushDeleteFunder;
+use crate::models::funder::delete_funder_mutation::Variables as DeleteVariables;
 use crate::models::funder::funder_query::FetchActionFunder;
 use crate::models::funder::funder_query::FetchFunder;
 use crate::models::funder::funder_query::FunderRequest;
@@ -27,11 +32,6 @@ use crate::models::funder::update_funder_mutation::PushUpdateFunder;
 use crate::models::funder::update_funder_mutation::UpdateFunderRequest;
 use crate::models::funder::update_funder_mutation::UpdateFunderRequestBody;
 use crate::models::funder::update_funder_mutation::Variables as UpdateVariables;
-use crate::models::funder::delete_funder_mutation::PushActionDeleteFunder;
-use crate::models::funder::delete_funder_mutation::PushDeleteFunder;
-use crate::models::funder::delete_funder_mutation::DeleteFunderRequest;
-use crate::models::funder::delete_funder_mutation::DeleteFunderRequestBody;
-use crate::models::funder::delete_funder_mutation::Variables as DeleteVariables;
 use crate::models::funder::Funder;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
@@ -132,7 +132,9 @@ impl Component for FunderComponent {
                                 format!("Saved {}", f.funder_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Funders)));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Funders,
+                            )));
                             true
                         }
                         None => {
@@ -180,7 +182,9 @@ impl Component for FunderComponent {
                                 format!("Deleted {}", f.funder_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Funders)));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                                AdminRoute::Funders,
+                            )));
                             true
                         }
                         None => {
