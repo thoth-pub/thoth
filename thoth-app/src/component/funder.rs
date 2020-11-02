@@ -27,15 +27,22 @@ use crate::models::funder::update_funder_mutation::PushUpdateFunder;
 use crate::models::funder::update_funder_mutation::UpdateFunderRequest;
 use crate::models::funder::update_funder_mutation::UpdateFunderRequestBody;
 use crate::models::funder::update_funder_mutation::Variables as UpdateVariables;
+use crate::models::funder::delete_funder_mutation::PushActionDeleteFunder;
+use crate::models::funder::delete_funder_mutation::PushDeleteFunder;
+use crate::models::funder::delete_funder_mutation::DeleteFunderRequest;
+use crate::models::funder::delete_funder_mutation::DeleteFunderRequestBody;
+use crate::models::funder::delete_funder_mutation::Variables as DeleteVariables;
 use crate::models::funder::Funder;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
+use crate::string::DELETE_BUTTON;
 use crate::string::SAVE_BUTTON;
 
 pub struct FunderComponent {
     funder: Funder,
     fetch_funder: FetchFunder,
     push_funder: PushUpdateFunder,
+    delete_funder: PushDeleteFunder,
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
@@ -46,6 +53,8 @@ pub enum Msg {
     GetFunder,
     SetFunderPushState(PushActionUpdateFunder),
     UpdateFunder,
+    SetFunderDeleteState(PushActionDeleteFunder),
+    DeleteFunder,
     ChangeFunderName(String),
     ChangeFunderDoi(String),
     ChangeRoute(AppRoute),
@@ -70,6 +79,7 @@ impl Component for FunderComponent {
         let request = FunderRequest { body };
         let fetch_funder = Fetch::new(request);
         let push_funder = Default::default();
+        let delete_funder = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let funder: Funder = Default::default();
         let router = RouteAgentDispatcher::new();
@@ -80,6 +90,7 @@ impl Component for FunderComponent {
             funder,
             fetch_funder,
             push_funder,
+            delete_funder,
             link,
             router,
             notification_bus,
@@ -158,6 +169,52 @@ impl Component for FunderComponent {
                     .send_message(Msg::SetFunderPushState(FetchAction::Fetching));
                 false
             }
+            Msg::SetFunderDeleteState(fetch_state) => {
+                self.delete_funder.apply(fetch_state);
+                match self.delete_funder.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.delete_funder {
+                        Some(f) => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                format!("Deleted {}", f.funder_name),
+                                NotificationStatus::Success,
+                            )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Funders)));
+                            true
+                        }
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::DeleteFunder => {
+                let body = DeleteFunderRequestBody {
+                    variables: DeleteVariables {
+                        funder_id: self.funder.funder_id.clone(),
+                    },
+                    ..Default::default()
+                };
+                let request = DeleteFunderRequest { body };
+                self.delete_funder = Fetch::new(request);
+                self.link
+                    .send_future(self.delete_funder.fetch(Msg::SetFunderDeleteState));
+                self.link
+                    .send_message(Msg::SetFunderDeleteState(FetchAction::Fetching));
+                false
+            }
             Msg::ChangeFunderName(funder_name) => self.funder.funder_name.neq_assign(funder_name),
             Msg::ChangeFunderDoi(funder_doi) => self.funder.funder_doi.neq_assign(Some(funder_doi)),
             Msg::ChangeRoute(r) => {
@@ -182,27 +239,40 @@ impl Component for FunderComponent {
                     Msg::UpdateFunder
                 });
                 html! {
-                    <form onsubmit=callback>
-                        <FormTextInput
-                            label = "Funder Name"
-                            value=&self.funder.funder_name
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeFunderName(e.value))
-                            required=true
-                        />
-                        <FormUrlInput
-                            label = "Funder DOI"
-                            value=&self.funder.funder_doi
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeFunderDoi(e.value))
-                        />
-
-                        <div class="field">
-                            <div class="control">
-                                <button class="button is-success" type="submit">
-                                    { SAVE_BUTTON }
-                                </button>
+                    <>
+                        <nav class="level">
+                            <div class="level-left" />
+                            <div class="level-right">
+                                <p class="level-item">
+                                    <button class="button is-danger" onclick=self.link.callback(|_| Msg::DeleteFunder)>
+                                        { DELETE_BUTTON }
+                                    </button>
+                                </p>
                             </div>
-                        </div>
-                    </form>
+                        </nav>
+
+                        <form onsubmit=callback>
+                            <FormTextInput
+                                label = "Funder Name"
+                                value=&self.funder.funder_name
+                                oninput=self.link.callback(|e: InputData| Msg::ChangeFunderName(e.value))
+                                required=true
+                            />
+                            <FormUrlInput
+                                label = "Funder DOI"
+                                value=&self.funder.funder_doi
+                                oninput=self.link.callback(|e: InputData| Msg::ChangeFunderDoi(e.value))
+                            />
+
+                            <div class="field">
+                                <div class="control">
+                                    <button class="button is-success" type="submit">
+                                        { SAVE_BUTTON }
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </>
                 }
             }
             FetchState::Failed(_, err) => html! {&err},
