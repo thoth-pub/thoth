@@ -3,6 +3,9 @@ use thoth_api::series::model::SeriesType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -35,6 +38,8 @@ use crate::models::series::update_series_mutation::UpdateSeriesRequestBody;
 use crate::models::series::update_series_mutation::Variables as UpdateVariables;
 use crate::models::series::Series;
 use crate::models::series::SeriesTypeValues;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct SeriesComponent {
@@ -45,6 +50,7 @@ pub struct SeriesComponent {
     fetch_imprints: FetchImprints,
     fetch_series_types: FetchSeriesTypes,
     link: ComponentLink<Self>,
+    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -70,6 +76,7 @@ pub enum Msg {
     ChangeIssnPrint(String),
     ChangeIssnDigital(String),
     ChangeSeriesUrl(String),
+    ChangeRoute(AppRoute),
 }
 
 #[derive(Clone, Properties)]
@@ -96,6 +103,7 @@ impl Component for SeriesComponent {
         let data: SeriesFormData = Default::default();
         let fetch_imprints: FetchImprints = Default::default();
         let fetch_series_types: FetchSeriesTypes = Default::default();
+        let router = RouteAgentDispatcher::new();
 
         link.send_message(Msg::GetSeries);
         link.send_message(Msg::GetImprints);
@@ -109,6 +117,7 @@ impl Component for SeriesComponent {
             fetch_imprints,
             fetch_series_types,
             link,
+            router,
             notification_bus,
         }
     }
@@ -182,6 +191,7 @@ impl Component for SeriesComponent {
                                 format!("Saved {}", f.series_name),
                                 NotificationStatus::Success,
                             )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Serieses)));
                             true
                         }
                         None => {
@@ -230,6 +240,11 @@ impl Component for SeriesComponent {
                 self.series.issn_digital.neq_assign(issn_digital)
             }
             Msg::ChangeSeriesUrl(series_url) => self.series.series_url.neq_assign(Some(series_url)),
+            Msg::ChangeRoute(r) => {
+                let route = Route::from(r);
+                self.router.send(RouteRequest::ChangeRoute(route));
+                false
+            }
         }
     }
 
