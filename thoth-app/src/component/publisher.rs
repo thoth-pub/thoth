@@ -1,6 +1,9 @@
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -25,6 +28,8 @@ use crate::models::publisher::update_publisher_mutation::UpdatePublisherRequest;
 use crate::models::publisher::update_publisher_mutation::UpdatePublisherRequestBody;
 use crate::models::publisher::update_publisher_mutation::Variables as UpdateVariables;
 use crate::models::publisher::Publisher;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct PublisherComponent {
@@ -32,6 +37,7 @@ pub struct PublisherComponent {
     fetch_publisher: FetchPublisher,
     push_publisher: PushUpdatePublisher,
     link: ComponentLink<Self>,
+    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -43,6 +49,7 @@ pub enum Msg {
     ChangePublisherName(String),
     ChangePublisherShortname(String),
     ChangePublisherUrl(String),
+    ChangeRoute(AppRoute),
 }
 
 #[derive(Clone, Properties)]
@@ -66,6 +73,7 @@ impl Component for PublisherComponent {
         let push_publisher = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let publisher: Publisher = Default::default();
+        let router = RouteAgentDispatcher::new();
 
         link.send_message(Msg::GetPublisher);
 
@@ -74,6 +82,7 @@ impl Component for PublisherComponent {
             fetch_publisher,
             push_publisher,
             link,
+            router,
             notification_bus,
         }
     }
@@ -113,6 +122,7 @@ impl Component for PublisherComponent {
                                 format!("Saved {}", p.publisher_name),
                                 NotificationStatus::Success,
                             )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Publishers)));
                             true
                         }
                         None => {
@@ -159,6 +169,11 @@ impl Component for PublisherComponent {
                 .neq_assign(Some(publisher_shortname)),
             Msg::ChangePublisherUrl(publisher_url) => {
                 self.publisher.publisher_url.neq_assign(Some(publisher_url))
+            }
+            Msg::ChangeRoute(r) => {
+                let route = Route::from(r);
+                self.router.send(RouteRequest::ChangeRoute(route));
+                false
             }
         }
     }
