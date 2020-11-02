@@ -92,7 +92,7 @@ impl Component for DashboardComponent {
                                             {format!("{} Publications", body.data.publication_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Publishers)
+                                            route=AppRoute::Admin(AdminRoute::Publications)
                                         >
                                             {"See all"}
                                         </  RouterAnchor<AppRoute>>
@@ -120,7 +120,7 @@ impl Component for DashboardComponent {
                                             {format!("{} Publishers", body.data.publisher_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Publications)
+                                            route=AppRoute::Admin(AdminRoute::Publishers)
                                         >
                                             {"See all"}
                                         </  RouterAnchor<AppRoute>>

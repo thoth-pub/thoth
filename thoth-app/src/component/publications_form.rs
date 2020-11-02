@@ -3,14 +3,29 @@ use thoth_api::publication::model::PublicationType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
+use crate::agent::notification_bus::NotificationBus;
+use crate::agent::notification_bus::NotificationDispatcher;
+use crate::agent::notification_bus::NotificationStatus;
+use crate::agent::notification_bus::Request;
 use crate::component::utils::FormPublicationTypeSelect;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
+use crate::models::publication::create_publication_mutation::CreatePublicationRequest;
+use crate::models::publication::create_publication_mutation::CreatePublicationRequestBody;
+use crate::models::publication::create_publication_mutation::PushActionCreatePublication;
+use crate::models::publication::create_publication_mutation::PushCreatePublication;
+use crate::models::publication::create_publication_mutation::Variables;
+use crate::models::publication::delete_publication_mutation::DeletePublicationRequest;
+use crate::models::publication::delete_publication_mutation::DeletePublicationRequestBody;
+use crate::models::publication::delete_publication_mutation::PushActionDeletePublication;
+use crate::models::publication::delete_publication_mutation::PushDeletePublication;
+use crate::models::publication::delete_publication_mutation::Variables as DeleteVariables;
 use crate::models::publication::publication_types_query::FetchActionPublicationTypes;
 use crate::models::publication::publication_types_query::FetchPublicationTypes;
 use crate::models::publication::Publication;
@@ -24,9 +39,13 @@ pub struct PublicationsFormComponent {
     new_publication: Publication,
     show_add_form: bool,
     fetch_publication_types: FetchPublicationTypes,
+    push_publication: PushCreatePublication,
+    delete_publication: PushDeletePublication,
     link: ComponentLink<Self>,
+    notification_bus: NotificationDispatcher,
 }
 
+#[derive(Default)]
 struct PublicationsFormData {
     publication_types: Vec<PublicationTypeValues>,
 }
@@ -35,11 +54,13 @@ pub enum Msg {
     ToggleAddFormDisplay(bool),
     SetPublicationTypesFetchState(FetchActionPublicationTypes),
     GetPublicationTypes,
+    SetPublicationPushState(PushActionCreatePublication),
+    CreatePublication,
+    SetPublicationDeleteState(PushActionDeletePublication),
+    DeletePublication(String),
     ChangePublicationType(PublicationType),
     ChangeIsbn(String),
     ChangeUrl(String),
-    AddPublication,
-    RemovePublication(String),
     DoNothing,
 }
 
@@ -55,11 +76,12 @@ impl Component for PublicationsFormComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let data = PublicationsFormData {
-            publication_types: vec![],
-        };
+        let data: PublicationsFormData = Default::default();
         let show_add_form = false;
         let new_publication: Publication = Default::default();
+        let push_publication = Default::default();
+        let delete_publication = Default::default();
+        let notification_bus = NotificationBus::dispatcher();
 
         link.send_message(Msg::GetPublicationTypes);
 
@@ -69,7 +91,10 @@ impl Component for PublicationsFormComponent {
             new_publication,
             show_add_form,
             fetch_publication_types: Default::default(),
+            push_publication,
+            delete_publication,
             link,
+            notification_bus,
         }
     }
 
@@ -98,40 +123,114 @@ impl Component for PublicationsFormComponent {
                     .send_message(Msg::SetPublicationTypesFetchState(FetchAction::Fetching));
                 false
             }
+            Msg::SetPublicationPushState(fetch_state) => {
+                self.push_publication.apply(fetch_state);
+                match self.push_publication.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.create_publication {
+                        Some(p) => {
+                            let publication = p.clone();
+                            let mut publications: Vec<Publication> =
+                                self.props.publications.clone().unwrap_or_default();
+                            publications.push(publication);
+                            self.new_publication = Default::default();
+                            self.props.update_publications.emit(Some(publications));
+                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            true
+                        }
+                        None => {
+                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::CreatePublication => {
+                let body = CreatePublicationRequestBody {
+                    variables: Variables {
+                        work_id: self.props.work_id.clone(),
+                        publication_type: self.new_publication.publication_type.clone(),
+                        isbn: self.new_publication.isbn.clone(),
+                        publication_url: self.new_publication.publication_url.clone(),
+                    },
+                    ..Default::default()
+                };
+                let request = CreatePublicationRequest { body };
+                self.push_publication = Fetch::new(request);
+                self.link
+                    .send_future(self.push_publication.fetch(Msg::SetPublicationPushState));
+                self.link
+                    .send_message(Msg::SetPublicationPushState(FetchAction::Fetching));
+                false
+            }
+            Msg::SetPublicationDeleteState(fetch_state) => {
+                self.delete_publication.apply(fetch_state);
+                match self.delete_publication.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.delete_publication {
+                        Some(publication) => {
+                            let to_keep: Vec<Publication> = self
+                                .props
+                                .publications
+                                .clone()
+                                .unwrap_or_default()
+                                .into_iter()
+                                .filter(|p| p.publication_id != publication.publication_id)
+                                .collect();
+                            self.props.update_publications.emit(Some(to_keep));
+                            true
+                        }
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::DeletePublication(publication_id) => {
+                let body = DeletePublicationRequestBody {
+                    variables: DeleteVariables { publication_id },
+                    ..Default::default()
+                };
+                let request = DeletePublicationRequest { body };
+                self.delete_publication = Fetch::new(request);
+                self.link.send_future(
+                    self.delete_publication
+                        .fetch(Msg::SetPublicationDeleteState),
+                );
+                self.link
+                    .send_message(Msg::SetPublicationDeleteState(FetchAction::Fetching));
+                false
+            }
             Msg::ChangePublicationType(val) => {
                 self.new_publication.publication_type.neq_assign(val)
             }
             Msg::ChangeIsbn(isbn) => self.new_publication.isbn.neq_assign(Some(isbn)),
             Msg::ChangeUrl(url) => self.new_publication.publication_url.neq_assign(Some(url)),
-            Msg::AddPublication => {
-                let publication = self.new_publication.clone();
-                let mut publications: Vec<Publication> =
-                    self.props.publications.clone().unwrap_or_default();
-                let publication = Publication {
-                    publication_id: publication.publication_id,
-                    work_id: self.props.work_id.clone(),
-                    publication_type: publication.publication_type,
-                    isbn: publication.isbn,
-                    publication_url: publication.publication_url,
-                };
-                publications.push(publication);
-                self.new_publication = Default::default();
-                self.props.update_publications.emit(Some(publications));
-                self.link.send_message(Msg::ToggleAddFormDisplay(false));
-                true
-            }
-            Msg::RemovePublication(publication_id) => {
-                let to_keep: Vec<Publication> = self
-                    .props
-                    .publications
-                    .clone()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .filter(|i| i.publication_id != publication_id)
-                    .collect();
-                self.props.update_publications.emit(Some(to_keep));
-                true
-            }
             Msg::DoNothing => false, // callbacks need to return a message
         }
     }
@@ -212,7 +311,7 @@ impl Component for PublicationsFormComponent {
                                 class="button is-success"
                                 onclick=self.link.callback(|e: MouseEvent| {
                                     e.prevent_default();
-                                    Msg::AddPublication
+                                    Msg::CreatePublication
                                 })
                             >
                                 { "Add Publication" }
@@ -287,7 +386,7 @@ impl PublicationsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::RemovePublication(publication_id.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeletePublication(publication_id.clone()))
                             >
                                 { REMOVE_BUTTON }
                             </a>

@@ -4,7 +4,6 @@ ARG THOTH_API
 FROM ${BASE_IMAGE} as build
 
 # Install build dependencies
-RUN sudo apt-get install -y
 RUN sudo apt-get update && sudo apt-get -y install pkg-config npm
 RUN sudo npm install -g npm@6.14.8
 RUN sudo npm install -g n@6.7.0

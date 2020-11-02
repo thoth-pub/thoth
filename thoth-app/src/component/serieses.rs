@@ -3,6 +3,7 @@ use yew::prelude::*;
 use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
+use yew_router::prelude::RouterAnchor;
 use yew_router::route::Route;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -94,7 +95,12 @@ impl Component for SeriesesComponent {
                         </div>
                         <div class="level-right">
                             <p class="level-item">
-                                <a class="button is-success">{ "New" }</a>
+                                <RouterAnchor<AppRoute>
+                                    classes="button is-success"
+                                    route=AppRoute::Admin(AdminRoute::NewSeries)
+                                >
+                                    {"New"}
+                                </  RouterAnchor<AppRoute>>
                             </p>
                         </div>
                     </nav>
@@ -131,7 +137,7 @@ impl SeriesesComponent {
         html! {
             <tr
                 class="row"
-                onclick=&self.change_route(AppRoute::Admin(AdminRoute::Imprint(p.series_id.clone())))
+                onclick=&self.change_route(AppRoute::Admin(AdminRoute::Series(p.series_id.clone())))
             >
                 <td>{&p.series_id}</td>
                 <td>{&p.series_name}</td>

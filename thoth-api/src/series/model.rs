@@ -28,9 +28,28 @@ pub struct Series {
     pub imprint_id: Uuid,
 }
 
-#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
-#[cfg_attr(feature = "backend", table_name = "series")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, Insertable),
+    table_name = "series"
+)]
 pub struct NewSeries {
+    pub series_type: SeriesType,
+    pub series_name: String,
+    pub issn_print: String,
+    pub issn_digital: String,
+    pub series_url: Option<String>,
+    pub imprint_id: Uuid,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, AsChangeset),
+    changeset_options(treat_none_as_null = "true"),
+    table_name = "series"
+)]
+pub struct PatchSeries {
+    pub series_id: Uuid,
     pub series_type: SeriesType,
     pub series_name: String,
     pub issn_print: String,

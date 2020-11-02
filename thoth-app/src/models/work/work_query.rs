@@ -74,6 +74,10 @@ pub const WORK_QUERY: &str = "
                 projectShortname
                 grantNumber
                 jurisdiction
+                funder {
+                    funderId
+                    funderName
+                }
             }
             subjects {
                 subjectId
@@ -93,6 +97,16 @@ pub const WORK_QUERY: &str = "
                     issnPrint
                     issnDigital
                     seriesUrl
+                    imprint {
+                        imprintId
+                        imprintName
+                        publisher {
+                            publisherId
+                            publisherName
+                            publisherShortname
+                            publisherUrl
+                        }
+                    }
                 }
             }
             imprint {

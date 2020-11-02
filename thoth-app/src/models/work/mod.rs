@@ -1,6 +1,7 @@
-use serde::de::Deserializer;
 use serde::Deserialize;
 use serde::Serialize;
+use std::str::FromStr;
+use std::string::ParseError;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
 use yew::html;
@@ -40,7 +41,7 @@ pub struct Work {
     pub table_count: Option<i32>,
     pub audio_count: Option<i32>,
     pub video_count: Option<i32>,
-    pub license: Option<License>,
+    pub license: Option<String>,
     pub copyright_holder: String,
     pub landing_page: Option<String>,
     pub lccn: Option<i32>,
@@ -130,7 +131,7 @@ impl Work {
                 <td>
                     {
                         if let Some(contributions) = &self.contributions {
-                            contributions.iter().map(|c| c.main_contribution_item()).collect::<Html>()
+                            contributions.iter().map(|c| c.main_contribution_item_comma()).collect::<Html>()
                         } else {
                             html! {}
                         }
@@ -143,13 +144,11 @@ impl Work {
     }
 }
 
-impl<'de> Deserialize<'de> for License {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let l = String::deserialize(deserializer)?.to_lowercase();
-        let license = match l.as_str() {
+impl FromStr for License {
+    type Err = ParseError;
+
+    fn from_str(input: &str) -> Result<License, ParseError> {
+        let license = match input {
             "http://creativecommons.org/licenses/by/1.0/"
             | "http://creativecommons.org/licenses/by/2.0/"
             | "http://creativecommons.org/licenses/by/2.5/"
@@ -231,5 +230,10 @@ impl Default for Work {
     }
 }
 
+pub mod create_work_mutation;
+pub mod delete_work_mutation;
+pub mod update_work_mutation;
 pub mod work_query;
+pub mod work_statuses_query;
+pub mod work_types_query;
 pub mod works_query;

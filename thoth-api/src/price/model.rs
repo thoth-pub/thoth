@@ -12,9 +12,25 @@ pub struct Price {
     pub unit_price: f64,
 }
 
-#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
-#[cfg_attr(feature = "backend", table_name = "price")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, Insertable),
+    table_name = "price"
+)]
 pub struct NewPrice {
+    pub publication_id: Uuid,
+    pub currency_code: CurrencyCode,
+    pub unit_price: f64,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, AsChangeset),
+    changeset_options(treat_none_as_null = "true"),
+    table_name = "price"
+)]
+pub struct PatchPrice {
+    pub price_id: Uuid,
     pub publication_id: Uuid,
     pub currency_code: CurrencyCode,
     pub unit_price: f64,

@@ -9,11 +9,25 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
+use crate::agent::notification_bus::NotificationBus;
+use crate::agent::notification_bus::NotificationDispatcher;
+use crate::agent::notification_bus::NotificationStatus;
+use crate::agent::notification_bus::Request;
 use crate::component::utils::FormBooleanSelect;
 use crate::component::utils::FormContributionTypeSelect;
 use crate::component::utils::FormTextInput;
 use crate::models::contribution::contribution_types_query::FetchActionContributionTypes;
 use crate::models::contribution::contribution_types_query::FetchContributionTypes;
+use crate::models::contribution::create_contribution_mutation::CreateContributionRequest;
+use crate::models::contribution::create_contribution_mutation::CreateContributionRequestBody;
+use crate::models::contribution::create_contribution_mutation::PushActionCreateContribution;
+use crate::models::contribution::create_contribution_mutation::PushCreateContribution;
+use crate::models::contribution::create_contribution_mutation::Variables as CreateVariables;
+use crate::models::contribution::delete_contribution_mutation::DeleteContributionRequest;
+use crate::models::contribution::delete_contribution_mutation::DeleteContributionRequestBody;
+use crate::models::contribution::delete_contribution_mutation::PushActionDeleteContribution;
+use crate::models::contribution::delete_contribution_mutation::PushDeleteContribution;
+use crate::models::contribution::delete_contribution_mutation::Variables as DeleteVariables;
 use crate::models::contribution::Contribution;
 use crate::models::contribution::ContributionTypeValues;
 use crate::models::contributor::contributors_query::ContributorsRequest;
@@ -23,43 +37,48 @@ use crate::models::contributor::contributors_query::FetchContributors;
 use crate::models::contributor::contributors_query::Variables;
 use crate::models::contributor::Contributor;
 use crate::string::EMPTY_CONTRIBUTIONS;
+use crate::string::NO;
 use crate::string::REMOVE_BUTTON;
+use crate::string::YES;
 
 pub struct ContributionsFormComponent {
     props: Props,
     data: ContributionsFormData,
-    institution_value: String,
-    biography_value: String,
-    contributiontype_value: ContributionType,
-    maincontribution_value: bool,
+    new_contribution: Contribution,
+    show_add_form: bool,
     show_results: bool,
     fetch_contributors: FetchContributors,
     fetch_contribution_types: FetchContributionTypes,
+    push_contribution: PushCreateContribution,
+    delete_contribution: PushDeleteContribution,
     link: ComponentLink<Self>,
+    notification_bus: NotificationDispatcher,
 }
 
+#[derive(Default)]
 struct ContributionsFormData {
     contributors: Vec<Contributor>,
     contribution_types: Vec<ContributionTypeValues>,
 }
 
 pub enum Msg {
+    ToggleAddFormDisplay(bool),
     SetContributorsFetchState(FetchActionContributors),
     GetContributors,
     SetContributionTypesFetchState(FetchActionContributionTypes),
     GetContributionTypes,
     ToggleSearchResultDisplay(bool),
     SearchContributor(String),
+    SetContributionPushState(PushActionCreateContribution),
+    CreateContribution,
+    SetContributionDeleteState(PushActionDeleteContribution),
+    DeleteContribution(String, ContributionType),
     AddContribution(Contributor),
-    RemoveContribution(String),
-    ChangeInstitutionEditValue(String),
     ChangeInstitution(String),
-    ChangeBiographyEditValue(String),
     ChangeBiography(String),
-    ChangeContributiontypeEditValue(ContributionType),
-    ChangeContributiontype(String),
-    ChangeMainContributionEditValue(bool),
-    ChangeMainContribution(String),
+    ChangeContributiontype(ContributionType),
+    ChangeMainContribution(bool),
+    DoNothing,
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -74,15 +93,15 @@ impl Component for ContributionsFormComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let data = ContributionsFormData {
-            contributors: vec![],
-            contribution_types: vec![],
-        };
-        let institution_value = "".into();
-        let biography_value = "".into();
-        let contributiontype_value = ContributionType::Author;
-        let maincontribution_value = false;
+        let data: ContributionsFormData = Default::default();
+        let new_contribution: Contribution = Default::default();
+        let show_add_form = false;
         let show_results = false;
+        let fetch_contributors = Default::default();
+        let fetch_contribution_types = Default::default();
+        let push_contribution = Default::default();
+        let delete_contribution = Default::default();
+        let notification_bus = NotificationBus::dispatcher();
 
         link.send_message(Msg::GetContributors);
         link.send_message(Msg::GetContributionTypes);
@@ -90,19 +109,24 @@ impl Component for ContributionsFormComponent {
         ContributionsFormComponent {
             props,
             data,
-            institution_value,
-            biography_value,
-            contributiontype_value,
-            maincontribution_value,
+            new_contribution,
+            show_add_form,
             show_results,
-            fetch_contributors: Default::default(),
-            fetch_contribution_types: Default::default(),
+            fetch_contributors,
+            fetch_contribution_types,
+            push_contribution,
+            delete_contribution,
             link,
+            notification_bus,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
+            Msg::ToggleAddFormDisplay(value) => {
+                self.show_add_form = value;
+                true
+            }
             Msg::SetContributorsFetchState(fetch_state) => {
                 self.fetch_contributors.apply(fetch_state);
                 self.data.contributors = match self.fetch_contributors.as_ref().state() {
@@ -142,6 +166,123 @@ impl Component for ContributionsFormComponent {
                     .send_message(Msg::SetContributionTypesFetchState(FetchAction::Fetching));
                 false
             }
+            Msg::SetContributionPushState(fetch_state) => {
+                self.push_contribution.apply(fetch_state);
+                match self.push_contribution.clone().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.create_contribution {
+                        Some(i) => {
+                            let contribution = i.clone();
+                            let mut contributions: Vec<Contribution> =
+                                self.props.contributions.clone().unwrap_or_default();
+                            contributions.push(contribution);
+                            self.props.update_contributions.emit(Some(contributions));
+                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            true
+                        }
+                        None => {
+                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::CreateContribution => {
+                let body = CreateContributionRequestBody {
+                    variables: CreateVariables {
+                        work_id: self.props.work_id.clone(),
+                        contributor_id: self.new_contribution.contributor_id.clone(),
+                        contribution_type: self.new_contribution.contribution_type.clone(),
+                        main_contribution: self.new_contribution.main_contribution,
+                        biography: self.new_contribution.biography.clone(),
+                        institution: self.new_contribution.institution.clone(),
+                    },
+                    ..Default::default()
+                };
+                let request = CreateContributionRequest { body };
+                self.push_contribution = Fetch::new(request);
+                self.link
+                    .send_future(self.push_contribution.fetch(Msg::SetContributionPushState));
+                self.link
+                    .send_message(Msg::SetContributionPushState(FetchAction::Fetching));
+                false
+            }
+            Msg::SetContributionDeleteState(fetch_state) => {
+                self.delete_contribution.apply(fetch_state);
+                match self.delete_contribution.clone().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.delete_contribution {
+                        Some(contribution) => {
+                            let to_keep: Vec<Contribution> = self
+                                .props
+                                .contributions
+                                .clone()
+                                .unwrap_or_default()
+                                .into_iter()
+                                .filter(|c| {
+                                    c.contributor_id != contribution.contributor_id
+                                        && c.contribution_type != contribution.contribution_type
+                                })
+                                .collect();
+                            self.props.update_contributions.emit(Some(to_keep));
+                            true
+                        }
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::DeleteContribution(contributor_id, contribution_type) => {
+                let body = DeleteContributionRequestBody {
+                    variables: DeleteVariables {
+                        work_id: self.props.work_id.clone(),
+                        contributor_id,
+                        contribution_type,
+                    },
+                    ..Default::default()
+                };
+                let request = DeleteContributionRequest { body };
+                self.delete_contribution = Fetch::new(request);
+                self.link.send_future(
+                    self.delete_contribution
+                        .fetch(Msg::SetContributionDeleteState),
+                );
+                self.link
+                    .send_message(Msg::SetContributionDeleteState(FetchAction::Fetching));
+                false
+            }
+            Msg::AddContribution(contributor) => {
+                self.new_contribution.contributor_id = contributor.contributor_id.clone();
+                self.new_contribution.contributor = contributor;
+                self.link.send_message(Msg::ToggleAddFormDisplay(true));
+                true
+            }
             Msg::ToggleSearchResultDisplay(value) => {
                 self.show_results = value;
                 true
@@ -158,128 +299,27 @@ impl Component for ContributionsFormComponent {
                 self.link.send_message(Msg::GetContributors);
                 false
             }
-            Msg::AddContribution(contributor) => {
-                let mut contributions: Vec<Contribution> =
-                    self.props.contributions.clone().unwrap_or_default();
-                let contributor_id = contributor.contributor_id.clone();
-                let contribution = Contribution {
-                    work_id: self.props.work_id.clone(),
-                    contributor_id,
-                    contribution_type: ContributionType::Author,
-                    main_contribution: false,
-                    biography: None,
-                    institution: None,
-                    contributor,
-                };
-                contributions.push(contribution);
-                self.props.update_contributions.emit(Some(contributions));
-                true
-            }
-            Msg::RemoveContribution(contributor_id) => {
-                let to_keep: Vec<Contribution> = self
-                    .props
-                    .contributions
-                    .clone()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .filter(|c| c.contributor_id != contributor_id)
-                    .collect();
-                self.props.update_contributions.emit(Some(to_keep));
-                true
-            }
-            Msg::ChangeInstitutionEditValue(institution) => {
-                self.institution_value.neq_assign(institution);
-                false // otherwise we re-render the component and reset the value
-            }
-            Msg::ChangeInstitution(contributor_id) => {
-                let institution_value = self.institution_value.trim().to_string();
-                let institution = match institution_value.is_empty() {
+            Msg::ChangeInstitution(val) => {
+                let value = match val.is_empty() {
                     true => None,
-                    false => Some(institution_value),
+                    false => Some(val),
                 };
-                let mut contributions: Vec<Contribution> =
-                    self.props.contributions.clone().unwrap_or_default();
-                if let Some(position) = contributions
-                    .iter()
-                    .position(|c| c.contributor_id == contributor_id)
-                {
-                    let mut contribution = contributions[position].clone();
-                    contribution.institution = institution;
-                    // we must acknowledge that replace returns a value, even if we don't want it
-                    let _ = std::mem::replace(&mut contributions[position], contribution);
-                    self.props.update_contributions.emit(Some(contributions));
-                    self.institution_value = "".to_string();
-                    true
-                } else {
-                    false
-                }
+                self.new_contribution.institution.neq_assign(value)
             }
-            Msg::ChangeBiographyEditValue(biography) => {
-                self.biography_value.neq_assign(biography);
-                false
-            }
-            Msg::ChangeBiography(contributor_id) => {
-                let biography_value = self.biography_value.trim().to_string();
-                let biography = match biography_value.is_empty() {
+            Msg::ChangeBiography(val) => {
+                let value = match val.is_empty() {
                     true => None,
-                    false => Some(biography_value),
+                    false => Some(val),
                 };
-                let mut contributions: Vec<Contribution> =
-                    self.props.contributions.clone().unwrap_or_default();
-                if let Some(position) = contributions
-                    .iter()
-                    .position(|c| c.contributor_id == contributor_id)
-                {
-                    let mut contribution = contributions[position].clone();
-                    contribution.biography = biography;
-                    let _ = std::mem::replace(&mut contributions[position], contribution);
-                    self.props.update_contributions.emit(Some(contributions));
-                    self.biography_value = "".to_string();
-                    true
-                } else {
-                    false
-                }
+                self.new_contribution.biography.neq_assign(value)
             }
-            Msg::ChangeContributiontype(contributor_id) => {
-                let mut contributions: Vec<Contribution> =
-                    self.props.contributions.clone().unwrap_or_default();
-                if let Some(position) = contributions
-                    .iter()
-                    .position(|c| c.contributor_id == contributor_id)
-                {
-                    let mut contribution = contributions[position].clone();
-                    contribution.contribution_type = self.contributiontype_value.clone();
-                    let _ = std::mem::replace(&mut contributions[position], contribution);
-                    self.props.update_contributions.emit(Some(contributions));
-                    self.contributiontype_value = ContributionType::Author;
-                    true
-                } else {
-                    false
-                }
+            Msg::ChangeContributiontype(val) => {
+                self.new_contribution.contribution_type.neq_assign(val)
             }
-            Msg::ChangeContributiontypeEditValue(contribution_type) => {
-                self.contributiontype_value.neq_assign(contribution_type)
+            Msg::ChangeMainContribution(val) => {
+                self.new_contribution.main_contribution.neq_assign(val)
             }
-            Msg::ChangeMainContribution(contributor_id) => {
-                let mut contributions: Vec<Contribution> =
-                    self.props.contributions.clone().unwrap_or_default();
-                if let Some(position) = contributions
-                    .iter()
-                    .position(|c| c.contributor_id == contributor_id)
-                {
-                    let mut contribution = contributions[position].clone();
-                    contribution.main_contribution = self.maincontribution_value;
-                    let _ = std::mem::replace(&mut contributions[position], contribution);
-                    self.props.update_contributions.emit(Some(contributions));
-                    self.maincontribution_value = false;
-                    true
-                } else {
-                    false
-                }
-            }
-            Msg::ChangeMainContributionEditValue(main_contribution) => {
-                self.maincontribution_value.neq_assign(main_contribution)
-            }
+            Msg::DoNothing => false, // callbacks need to return a message
         }
     }
 
@@ -289,6 +329,10 @@ impl Component for ContributionsFormComponent {
 
     fn view(&self) -> Html {
         let contributions = self.props.contributions.clone().unwrap_or_default();
+        let close_modal = self.link.callback(|e: MouseEvent| {
+            e.prevent_default();
+            Msg::ToggleAddFormDisplay(false)
+        });
         html! {
             <nav class="panel">
                 <p class="panel-heading">
@@ -320,25 +364,95 @@ impl Component for ContributionsFormComponent {
                                 {
                                     for self.data.contributors.iter().map(|c| {
                                         let contributor = c.clone();
-                                        // avoid listing contributors already present in contributions list
-                                        if let Some(_index) = self.props.contributions
-                                            .as_ref()
-                                            .unwrap()
-                                            .iter()
-                                            .position(|ctr| ctr.contributor_id == contributor.contributor_id)
-                                        {
-                                            html! {}
-                                        } else {
-                                            c.as_dropdown_item(
-                                                self.link.callback(move |_| {
-                                                    Msg::AddContribution(contributor.clone())
-                                                })
-                                            )
-                                        }
+                                        c.as_dropdown_item(
+                                            self.link.callback(move |_| {
+                                                Msg::AddContribution(contributor.clone())
+                                            })
+                                        )
                                     })
                                 }
                             </div>
                         </div>
+                    </div>
+                </div>
+                <div class=self.add_form_status()>
+                    <div class="modal-background" onclick=&close_modal></div>
+                    <div class="modal-card">
+                        <header class="modal-card-head">
+                            <p class="modal-card-title">{ "New Contribution" }</p>
+                            <button
+                                class="delete"
+                                aria-label="close"
+                                onclick=&close_modal
+                            ></button>
+                        </header>
+                        <section class="modal-card-body">
+                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                                e.prevent_default();
+                                Msg::DoNothing
+                            })
+                            >
+                                <div class="field">
+                                    <label class="label">{ "Contributor" }</label>
+                                    <div class="control is-expanded">
+                                        {&self.new_contribution.contributor.full_name}
+                                    </div>
+                                </div>
+                                <FormContributionTypeSelect
+                                    label = "Contribution Type"
+                                    value=&self.new_contribution.contribution_type
+                                    onchange=self.link.callback(|event| match event {
+                                        ChangeData::Select(elem) => {
+                                            let value = elem.value();
+                                            Msg::ChangeContributiontype(ContributionType::from_str(&value).unwrap())
+                                        }
+                                        _ => unreachable!(),
+                                    })
+                                    data=&self.data.contribution_types
+                                    required = true
+                                />
+                                <FormTextInput
+                                    label="Institution"
+                                    value=&self.new_contribution.institution.clone().unwrap_or_else(|| "".to_string())
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeInstitution(e.value))
+                                />
+                                <FormTextInput
+                                    label="Biography"
+                                    value=&self.new_contribution.biography.clone().unwrap_or_else(|| "".to_string())
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeBiography(e.value))
+                                />
+                                <FormBooleanSelect
+                                    label = "Main"
+                                    value=&self.new_contribution.main_contribution
+                                    onchange=self.link.callback(|event| match event {
+                                        ChangeData::Select(elem) => {
+                                            let value = elem.value();
+                                            let boolean = value == "true";
+                                            Msg::ChangeMainContribution(boolean)
+                                        }
+                                        _ => unreachable!(),
+                                    })
+                                    required = true
+                                />
+                            </form>
+                        </section>
+                        <footer class="modal-card-foot">
+                            <button
+                                class="button is-success"
+                                onclick=self.link.callback(|e: MouseEvent| {
+                                    e.prevent_default();
+                                    Msg::CreateContribution
+                                })
+                            >
+                                { "Add Subject" }
+                            </button>
+                            <button
+                                class="button"
+                                onclick=&close_modal
+                            >
+                                { "Cancel" }
+                            </button>
+                        </footer>
                     </div>
                 </div>
                 {
@@ -358,6 +472,13 @@ impl Component for ContributionsFormComponent {
 }
 
 impl ContributionsFormComponent {
+    fn add_form_status(&self) -> String {
+        match self.show_add_form {
+            true => "modal is-active".to_string(),
+            false => "modal".to_string(),
+        }
+    }
+
     fn search_dropdown_status(&self) -> String {
         match self.show_results {
             true => "dropdown is-active".to_string(),
@@ -370,10 +491,7 @@ impl ContributionsFormComponent {
         // of contributor_id and take ownership of them so they can be passed on to
         // the callback functions
         let contributor_id = c.contributor_id.clone();
-        let type_cid = c.contributor_id.clone();
-        let inst_cid = c.contributor_id.clone();
-        let bio_cid = c.contributor_id.clone();
-        let main_cid = c.contributor_id.clone();
+        let contribution_type = c.contribution_type.clone();
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -386,53 +504,42 @@ impl ContributionsFormComponent {
                             {&c.contributor.full_name}
                         </div>
                     </div>
-                    <FormContributionTypeSelect
-                        label = "Contribution Type"
-                        value=&c.contribution_type
-                        onchange=self.link.callback(|event| match event {
-                            ChangeData::Select(elem) => {
-                                let value = elem.value();
-                                Msg::ChangeContributiontypeEditValue(ContributionType::from_str(&value).unwrap())
+                    <div class="field" style="width: 8em;">
+                        <label class="label">{ "Contribution Type" }</label>
+                        <div class="control is-expanded">
+                            {&c.contribution_type}
+                        </div>
+                    </div>
+                    <div class="field" style="width: 8em;">
+                        <label class="label">{ "Institution" }</label>
+                        <div class="control is-expanded">
+                            {&c.institution.clone().unwrap_or_else(|| "".to_string())}
+                        </div>
+                    </div>
+                    <div class="field" style="width: 8em;">
+                        <label class="label">{ "Biography" }</label>
+                        <div class="control is-expanded">
+                            {&c.biography.clone().unwrap_or_else(|| "".to_string())}
+                        </div>
+                    </div>
+                    <div class="field" style="width: 8em;">
+                        <label class="label">{ "Main" }</label>
+                        <div class="control is-expanded">
+                            {
+                                match c.main_contribution {
+                                    true => { YES },
+                                    false => { NO }
+                                }
                             }
-                            _ => unreachable!(),
-                        })
-                        onblur=self.link.callback(move |_| Msg::ChangeContributiontype(type_cid.clone()))
+                        </div>
+                    </div>
 
-                        data=&self.data.contribution_types
-                        required = true
-                    />
-                    <FormTextInput
-                        label="Institution"
-                        value=&c.institution.clone().unwrap_or_else(|| "".to_string())
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeInstitutionEditValue(e.value))
-                        onblur=self.link.callback(move |_| Msg::ChangeInstitution(inst_cid.clone()))
-                    />
-                    <FormTextInput
-                        label="Biography"
-                        value=&c.biography.clone().unwrap_or_else(|| "".to_string())
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeBiographyEditValue(e.value))
-                        onblur=self.link.callback(move |_| Msg::ChangeBiography(bio_cid.clone()))
-                    />
-                    <FormBooleanSelect
-                        label = "Main"
-                        value=c.main_contribution
-                        onchange=self.link.callback(|event| match event {
-                            ChangeData::Select(elem) => {
-                                let value = elem.value();
-                                let boolean = value == "true";
-                                Msg::ChangeMainContributionEditValue(boolean)
-                            }
-                            _ => unreachable!(),
-                        })
-                        onblur=self.link.callback(move |_| Msg::ChangeMainContribution(main_cid.clone()))
-                        required = true
-                    />
                     <div class="field">
                         <label class="label"></label>
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::RemoveContribution(contributor_id.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeleteContribution(contributor_id.clone(), contribution_type.clone()))
                             >
                                 { REMOVE_BUTTON }
                             </a>

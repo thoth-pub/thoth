@@ -2,6 +2,7 @@ use thoth_api::contribution::model::ContributionType;
 use thoth_api::language::model::LanguageCode;
 use thoth_api::language::model::LanguageRelation;
 use thoth_api::publication::model::PublicationType;
+use thoth_api::series::model::SeriesType;
 use thoth_api::subject::model::SubjectType;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
@@ -21,6 +22,8 @@ use crate::models::imprint::Imprint;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
 use crate::models::publication::PublicationTypeValues;
+use crate::models::publisher::Publisher;
+use crate::models::series::SeriesTypeValues;
 use crate::models::subject::SubjectTypeValues;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
@@ -38,11 +41,13 @@ pub type FormWorkTypeSelect = Pure<PureWorkTypeSelect>;
 pub type FormWorkStatusSelect = Pure<PureWorkStatusSelect>;
 pub type FormContributionTypeSelect = Pure<PureContributionTypeSelect>;
 pub type FormPublicationTypeSelect = Pure<PurePublicationTypeSelect>;
+pub type FormSeriesTypeSelect = Pure<PureSeriesTypeSelect>;
 pub type FormSubjectTypeSelect = Pure<PureSubjectTypeSelect>;
 pub type FormLanguageCodeSelect = Pure<PureLanguageCodeSelect>;
 pub type FormLanguageRelationSelect = Pure<PureLanguageRelationSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
+pub type FormPublisherSelect = Pure<PurePublisherSelect>;
 pub type Loader = Pure<PureLoader>;
 pub type Reloader = Pure<PureReloader>;
 
@@ -143,7 +148,6 @@ pub struct PureContributionTypeSelect {
     pub data: Vec<ContributionTypeValues>,
     pub value: ContributionType,
     pub onchange: Callback<ChangeData>,
-    pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -163,6 +167,16 @@ pub struct PureSubjectTypeSelect {
     pub label: String,
     pub data: Vec<SubjectTypeValues>,
     pub value: SubjectType,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureSeriesTypeSelect {
+    pub label: String,
+    pub data: Vec<SeriesTypeValues>,
+    pub value: SeriesType,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -203,6 +217,16 @@ pub struct PureBooleanSelect {
 pub struct PureImprintSelect {
     pub label: String,
     pub data: Vec<Imprint>,
+    pub value: Option<String>,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PurePublisherSelect {
+    pub label: String,
+    pub data: Vec<Publisher>,
     pub value: Option<String>,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
@@ -362,7 +386,6 @@ impl PureComponent for PureContributionTypeSelect {
                     <select
                         required=self.required
                         onchange=&self.onchange
-                        onblur=&self.onblur
                     >
                         { for self.data.iter().map(|i| self.render_contributiontype(i)) }
                     </select>
@@ -405,6 +428,26 @@ impl PureComponent for PureSubjectTypeSelect {
                         onchange=&self.onchange
                     >
                         { for self.data.iter().map(|p| self.render_subjecttype(p)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+impl PureComponent for PureSeriesTypeSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                    >
+                        { for self.data.iter().map(|s| self.render_seriestype(s)) }
                     </select>
                     </div>
                 </div>
@@ -497,6 +540,24 @@ impl PureComponent for PureImprintSelect {
     }
 }
 
+impl PureComponent for PurePublisherSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select is-fullwidth">
+                    <select required=self.required onchange=&self.onchange>
+                        <option value="">{"Select Publisher"}</option>
+                        { for self.data.iter().map(|p| self.render_publisher(p)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
 impl PureWorkTypeSelect {
     fn render_worktype(&self, w: &WorkTypeValues) -> VNode {
         if w.name == self.value {
@@ -577,6 +638,22 @@ impl PureSubjectTypeSelect {
     }
 }
 
+impl PureSeriesTypeSelect {
+    fn render_seriestype(&self, s: &SeriesTypeValues) -> VNode {
+        if s.name == self.value {
+            html! {
+                <option value={&s.name} selected=true>
+                    {&s.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={&s.name}>{&s.name}</option>
+            }
+        }
+    }
+}
+
 impl PureLanguageCodeSelect {
     fn render_languagecode(&self, l: &LanguageCodeValues) -> VNode {
         if l.name == self.value {
@@ -621,6 +698,23 @@ impl PureImprintSelect {
         } else {
             html! {
                 <option value={&i.imprint_id}>{&i.imprint_name}</option>
+            }
+        }
+    }
+}
+
+impl PurePublisherSelect {
+    fn render_publisher(&self, p: &Publisher) -> VNode {
+        let value = &self.value.clone().unwrap_or_else(|| "".to_string());
+        if &p.publisher_id == value {
+            html! {
+                <option value={&p.publisher_id} selected=true>
+                    {&p.publisher_name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={&p.publisher_id}>{&p.publisher_name}</option>
             }
         }
     }

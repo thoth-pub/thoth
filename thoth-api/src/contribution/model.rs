@@ -39,9 +39,27 @@ pub struct Contribution {
     pub institution: Option<String>,
 }
 
-#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject, Insertable))]
-#[cfg_attr(feature = "backend", table_name = "contribution")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, Insertable),
+    table_name = "contribution"
+)]
 pub struct NewContribution {
+    pub work_id: Uuid,
+    pub contributor_id: Uuid,
+    pub contribution_type: ContributionType,
+    pub main_contribution: bool,
+    pub biography: Option<String>,
+    pub institution: Option<String>,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject, AsChangeset),
+    changeset_options(treat_none_as_null = "true"),
+    table_name = "contribution"
+)]
+pub struct PatchContribution {
     pub work_id: Uuid,
     pub contributor_id: Uuid,
     pub contribution_type: ContributionType,

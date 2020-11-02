@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -6,7 +7,6 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
 use crate::component::utils::Reloader;
-use crate::models::contribution::Contribution;
 use crate::models::work::works_query::FetchActionWorks;
 use crate::models::work::works_query::FetchWorks;
 use crate::models::work::License;
@@ -83,19 +83,6 @@ impl Component for CatalogueComponent {
     }
 }
 
-fn render_contribution(c: &Contribution) -> Html {
-    if c.main_contribution {
-        html! {
-            <small class="contributor">
-                {&c.contributor.full_name}
-                <span>{ " • " }</span>
-            </small>
-        }
-    } else {
-        html! {}
-    }
-}
-
 fn render_license(license: &License) -> Html {
     html! {
         <span class="icon is-small license">
@@ -149,7 +136,7 @@ fn render_license(license: &License) -> Html {
 
 fn render_work(w: &Work) -> Html {
     let doi = &w.doi.clone().unwrap_or_else(|| "".to_string());
-    let license = &w.license.clone().unwrap_or(License::Undefined);
+    let license = License::from_str(&w.license.clone().unwrap_or_else(|| "".to_string())).unwrap();
     let cover_url = &w.cover_url.clone().unwrap_or_else(|| "".to_string());
     let place = &w.place.clone().unwrap_or_else(|| "".to_string());
     html! {
@@ -158,7 +145,7 @@ fn render_work(w: &Work) -> Html {
                 <div class="media-left">
                 <figure class="image is-96x96">
                     <img src={cover_url} alt={format!("{} - Cover Image", &w.title)} loading="lazy" />
-                    { render_license(license) }
+                    { render_license(&license) }
                 </figure>
                 </div>
                 <div class="media-content">
@@ -169,7 +156,7 @@ fn render_work(w: &Work) -> Html {
                             <div>
                             {
                                 if let Some(contributions) = &w.contributions {
-                                    contributions.iter().map(render_contribution).collect::<Html>()
+                                    contributions.iter().map(|c| c.main_contribution_item_bullet_small()).collect::<Html>()
                                 } else {
                                     html! {}
                                 }

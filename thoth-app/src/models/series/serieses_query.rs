@@ -12,6 +12,16 @@ pub const SERIESES_QUERY: &str = "
             issnPrint
             issnDigital
             seriesUrl
+            imprint {
+                imprintId
+                imprintName
+                publisher {
+                    publisherId
+                    publisherName
+                    publisherShortname
+                    publisherUrl
+                }
+            }
         }
     }
 ";
