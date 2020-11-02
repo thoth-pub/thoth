@@ -1,9 +1,9 @@
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
-+use yew_router::agent::RouteAgentDispatcher;
-+use yew_router::agent::RouteRequest;
-+use yew_router::route::Route;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -32,8 +32,8 @@ use crate::models::imprint::Imprint;
 use crate::models::publisher::publishers_query::FetchActionPublishers;
 use crate::models::publisher::publishers_query::FetchPublishers;
 use crate::models::publisher::Publisher;
-+use crate::route::AdminRoute;
-+use crate::route::AppRoute;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct ImprintComponent {
@@ -43,7 +43,7 @@ pub struct ImprintComponent {
     data: ImprintFormData,
     fetch_publishers: FetchPublishers,
     link: ComponentLink<Self>,
-+    router: RouteAgentDispatcher<()>,
+    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -88,7 +88,7 @@ impl Component for ImprintComponent {
         let push_imprint = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let imprint: Imprint = Default::default();
-+        let router = RouteAgentDispatcher::new();
+        let router = RouteAgentDispatcher::new();
 
         link.send_message(Msg::GetImprint);
         link.send_message(Msg::GetPublishers);
@@ -157,7 +157,7 @@ impl Component for ImprintComponent {
                                 format!("Saved {}", f.imprint_name),
                                 NotificationStatus::Success,
                             )));
-+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Imprints)));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Imprints)));
                             true
                         }
                         None => {
@@ -215,11 +215,11 @@ impl Component for ImprintComponent {
             Msg::ChangeImprintUrl(imprint_url) => {
                 self.imprint.imprint_url.neq_assign(Some(imprint_url))
             }
-+            Msg::ChangeRoute(r) => {
-+                let route = Route::from(r);
-+                self.router.send(RouteRequest::ChangeRoute(route));
-+                false
-+            }
+            Msg::ChangeRoute(r) => {
+                let route = Route::from(r);
+                self.router.send(RouteRequest::ChangeRoute(route));
+                false
+            }
         }
     }
 
