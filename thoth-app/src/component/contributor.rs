@@ -27,15 +27,22 @@ use crate::models::contributor::update_contributor_mutation::PushUpdateContribut
 use crate::models::contributor::update_contributor_mutation::UpdateContributorRequest;
 use crate::models::contributor::update_contributor_mutation::UpdateContributorRequestBody;
 use crate::models::contributor::update_contributor_mutation::Variables as UpdateVariables;
+use crate::models::contributor::delete_contributor_mutation::PushActionDeleteContributor;
+use crate::models::contributor::delete_contributor_mutation::PushDeleteContributor;
+use crate::models::contributor::delete_contributor_mutation::DeleteContributorRequest;
+use crate::models::contributor::delete_contributor_mutation::DeleteContributorRequestBody;
+use crate::models::contributor::delete_contributor_mutation::Variables as DeleteVariables;
 use crate::models::contributor::Contributor;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
+use crate::string::DELETE_BUTTON;
 use crate::string::SAVE_BUTTON;
 
 pub struct ContributorComponent {
     contributor: Contributor,
     fetch_contributor: FetchContributor,
     push_contributor: PushUpdateContributor,
+    delete_contributor: PushDeleteContributor,
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
@@ -46,6 +53,8 @@ pub enum Msg {
     GetContributor,
     SetContributorPushState(PushActionUpdateContributor),
     UpdateContributor,
+    SetContributorDeleteState(PushActionDeleteContributor),
+    DeleteContributor,
     ChangeFirstName(String),
     ChangeLastName(String),
     ChangeFullName(String),
@@ -73,6 +82,7 @@ impl Component for ContributorComponent {
         let request = ContributorRequest { body };
         let fetch_contributor = Fetch::new(request);
         let push_contributor = Default::default();
+        let delete_contributor = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
         let router = RouteAgentDispatcher::new();
@@ -83,6 +93,7 @@ impl Component for ContributorComponent {
             contributor,
             fetch_contributor,
             push_contributor,
+            delete_contributor,
             link,
             router,
             notification_bus,
@@ -164,6 +175,52 @@ impl Component for ContributorComponent {
                     .send_message(Msg::SetContributorPushState(FetchAction::Fetching));
                 false
             }
+            Msg::SetContributorDeleteState(fetch_state) => {
+                self.delete_contributor.apply(fetch_state);
+                match self.delete_contributor.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.delete_contributor {
+                        Some(c) => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                format!("Deleted {}", c.full_name),
+                                NotificationStatus::Success,
+                            )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Contributors)));
+                            true
+                        }
+                        None => {
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::DeleteContributor => {
+                let body = DeleteContributorRequestBody {
+                    variables: DeleteVariables {
+                        contributor_id: self.contributor.contributor_id.clone(),
+                    },
+                    ..Default::default()
+                };
+                let request = DeleteContributorRequest { body };
+                self.delete_contributor = Fetch::new(request);
+                self.link
+                    .send_future(self.delete_contributor.fetch(Msg::SetContributorDeleteState));
+                self.link
+                    .send_message(Msg::SetContributorDeleteState(FetchAction::Fetching));
+                false
+            }
             Msg::ChangeFirstName(first_name) => {
                 self.contributor.first_name.neq_assign(Some(first_name))
             }
@@ -193,42 +250,55 @@ impl Component for ContributorComponent {
                     Msg::UpdateContributor
                 });
                 html! {
-                    <form onsubmit=callback>
-                        <FormTextInput
-                            label = "First Name"
-                            value=&self.contributor.first_name
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
-                        />
-                        <FormTextInput
-                            label = "Last Name"
-                            value=&self.contributor.last_name
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
-                        />
-                        <FormTextInput
-                            label = "Full Name"
-                            value=&self.contributor.full_name
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
-                            required = true
-                        />
-                        <FormUrlInput
-                            label = "ORCID (Full URL)"
-                            value=&self.contributor.orcid
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
-                        />
-                        <FormUrlInput
-                            label = "Website"
-                            value=&self.contributor.website
-                            oninput=self.link.callback(|e: InputData| Msg::ChangeWebsite(e.value))
-                        />
-
-                        <div class="field">
-                            <div class="control">
-                                <button class="button is-success" type="submit">
-                                    { SAVE_BUTTON }
-                                </button>
+                    <>
+                        <nav class="level">
+                            <div class="level-left" />
+                            <div class="level-right">
+                                <p class="level-item">
+                                    <button class="button is-danger" onclick=self.link.callback(|_| Msg::DeleteContributor)>
+                                        { DELETE_BUTTON }
+                                    </button>
+                                </p>
                             </div>
-                        </div>
-                    </form>
+                        </nav>
+
+                        <form onsubmit=callback>
+                            <FormTextInput
+                                label = "First Name"
+                                value=&self.contributor.first_name
+                                oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
+                            />
+                            <FormTextInput
+                                label = "Last Name"
+                                value=&self.contributor.last_name
+                                oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
+                            />
+                            <FormTextInput
+                                label = "Full Name"
+                                value=&self.contributor.full_name
+                                oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
+                                required = true
+                            />
+                            <FormUrlInput
+                                label = "ORCID (Full URL)"
+                                value=&self.contributor.orcid
+                                oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
+                            />
+                            <FormUrlInput
+                                label = "Website"
+                                value=&self.contributor.website
+                                oninput=self.link.callback(|e: InputData| Msg::ChangeWebsite(e.value))
+                            />
+
+                            <div class="field">
+                                <div class="control">
+                                    <button class="button is-success" type="submit">
+                                        { SAVE_BUTTON }
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </>
                 }
             }
             FetchState::Failed(_, err) => html! {&err},
