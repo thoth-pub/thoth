@@ -4,6 +4,9 @@ use thoth_api::work::model::WorkType;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -49,6 +52,8 @@ use crate::models::work::work_query::WorkRequestBody;
 use crate::models::work::Work;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct WorkComponent {
@@ -57,6 +62,7 @@ pub struct WorkComponent {
     fetch_work: FetchWork,
     push_work: PushUpdateWork,
     link: ComponentLink<Self>,
+    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -106,6 +112,7 @@ pub enum Msg {
     UpdateLanguages(Option<Vec<Language>>),
     UpdateSubjects(Option<Vec<Subject>>),
     UpdateIssues(Option<Vec<Issue>>),
+    ChangeRoute(AppRoute),
 }
 
 #[derive(Clone, Properties)]
@@ -134,6 +141,7 @@ impl Component for WorkComponent {
             work_types: vec![],
             work_statuses: vec![],
         };
+        let router = RouteAgentDispatcher::new();
 
         link.send_message(Msg::GetWork);
 
@@ -143,6 +151,7 @@ impl Component for WorkComponent {
             fetch_work,
             push_work,
             link,
+            router,
             notification_bus,
         }
     }
@@ -194,6 +203,7 @@ impl Component for WorkComponent {
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
                             )));
+                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Works)));
                             true
                         }
                         None => {
@@ -365,6 +375,11 @@ impl Component for WorkComponent {
             Msg::UpdateLanguages(languages) => self.work.languages.neq_assign(languages),
             Msg::UpdateSubjects(subjects) => self.work.subjects.neq_assign(subjects),
             Msg::UpdateIssues(issues) => self.work.issues.neq_assign(issues),
+            Msg::ChangeRoute(r) => {
+                let route = Route::from(r);
+                self.router.send(RouteRequest::ChangeRoute(route));
+                false
+            }
         }
     }
 
