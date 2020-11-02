@@ -2,8 +2,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::series::model::SeriesType;
 
-use super::Series;
-
 const CREATE_SERIES_MUTATION: &str = "
     mutation CreateSeries(
             $seriesType: SeriesType!,
@@ -59,5 +57,5 @@ pub struct SlimSeries {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSeriesResponseData {
-    pub create_series: Option<Series>,
+    pub create_series: Option<SlimSeries>,
 }
