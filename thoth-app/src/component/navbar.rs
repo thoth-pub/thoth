@@ -7,6 +7,7 @@ use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::service::cookie::CookieService;
 use crate::SESSION_COOKIE;
+use crate::THOTH_API;
 
 pub struct NavbarComponent {}
 
@@ -73,7 +74,7 @@ impl Component for NavbarComponent {
                                     { "Timeline" }
                                 </a>
                                 <hr class="navbar-divider" />
-                                <a class="navbar-item" href="/graphiql" title="GraphiQL">
+                                <a class="navbar-item" href={format!("{}/graphiql", THOTH_API)} title="GraphiQL">
                                     { "GraphiQL" }
                                 </a>
                             </div>
