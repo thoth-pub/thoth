@@ -69,6 +69,14 @@ wasm-pack build thoth-app/ --target web \
   && cargo run start app
 ```
 
+### Building with docker
+
+The wasm APP needs to know the endpoint the API will be running at compile time, we must provide `THOTH_API` as a build argument to the docker daemon upon build:
+
+```
+docker build --build-arg THOTH_API=https://api.thoth.openbookpublishers.com . -t openbookpublishers/thoth
+```
+
 ## Acknowledgements
 
 Thoth is being developed as part of the [COPIM](https://www.copim.ac.uk) project, an international effort to build community-owned, open systems and infrastructures to enable Open Access book publishing to flourish. COPIM is funded by the [Research England Development Fund](https://re.ukri.org/funding/our-funds-overview/research-england-development-red-fund/) (REDFund) and [Arcadia](https://www.arcadiafund.org.uk/).
