@@ -1,8 +1,8 @@
 ARG BASE_IMAGE=ekidd/rust-musl-builder:1.44.1
-ARG THOTH_API
 
 FROM ${BASE_IMAGE} as build
 
+ARG THOTH_API
 ENV THOTH_API=${THOTH_API}
 
 # Install build dependencies
