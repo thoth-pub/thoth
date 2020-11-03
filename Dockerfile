@@ -1,7 +1,9 @@
 ARG BASE_IMAGE=ekidd/rust-musl-builder:1.44.1
-ARG THOTH_API
 
 FROM ${BASE_IMAGE} as build
+
+ARG THOTH_API
+ENV THOTH_API=${THOTH_API}
 
 # Install build dependencies
 RUN sudo apt-get update && sudo apt-get -y install pkg-config npm
@@ -17,7 +19,7 @@ COPY --chown=rust:rust ./src ./src
 COPY --chown=rust:rust ./thoth-api ./thoth-api
 COPY --chown=rust:rust ./thoth-client ./thoth-client
 COPY --chown=rust:rust ./thoth-app ./thoth-app
-ENV THOTH_API ${THOTH_API}
+
 RUN wasm-pack build thoth-app/ \
   --target web \
   --release

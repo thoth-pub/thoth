@@ -8,7 +8,7 @@
   </p>
 
   <p>
-    <a href="https://travis-ci.com/openbookpublishers/thoth"><img alt="Travis Info" src="https://travis-ci.com/openbookpublishers/thoth.svg?branch=master"/></a>
+    <a href="https://travis-ci.com/thoth-pub/thoth"><img alt="Travis Info" src="https://travis-ci.com/thoth-pub/thoth.svg?branch=master"/></a>
     <a href="https://github.com/thoth-pub/thoth/releases"><img alt="Thoth Releases" src="https://img.shields.io/github/release/thoth-pub/thoth.svg?colorB=58839b&maxAge=86400"/></a>
     <a href="https://crates.io/crates/thoth"><img alt="Crate Info" src="https://img.shields.io/crates/v/thoth.svg?maxAge=86400"/></a>
     <a href="https://github.com/thoth-pub/thoth/blob/master/LICENSE"><img alt="License Info" src="https://img.shields.io/github/license/thoth-pub/thoth.svg?colorB=blue"/></a>
@@ -67,6 +67,14 @@ cargo run init
 wasm-pack build thoth-app/ --target web \
   && rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js \
   && cargo run start app
+```
+
+### Building with docker
+
+The wasm APP needs to know the endpoint the API will be running at compile time, we must provide `THOTH_API` as a build argument to the docker daemon upon build:
+
+```
+docker build --build-arg THOTH_API=https://api.thoth.openbookpublishers.com . -t openbookpublishers/thoth
 ```
 
 ## Acknowledgements
