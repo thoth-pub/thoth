@@ -594,17 +594,17 @@ impl Component for WorkComponent {
                                 <div class="field-body">
                                     <FormNumberInput
                                         label = "Width"
-                                        value=self.work.width
+                                        value=&self.work.width
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
                                     />
                                     <FormNumberInput
                                         label = "Height"
-                                        value=self.work.height
+                                        value=&self.work.height
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
                                     />
                                     <FormNumberInput
                                         label = "Page Count"
-                                        value=self.work.page_count
+                                        value=&self.work.page_count
                                         oninput=self.link.callback(|e: InputData| Msg::ChangePageCount(e.value))
                                     />
                                     <FormTextInput
@@ -618,22 +618,22 @@ impl Component for WorkComponent {
                                 <div class="field-body">
                                     <FormNumberInput
                                         label = "Image Count"
-                                        value=self.work.image_count
+                                        value=&self.work.image_count
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeImageCount(e.value))
                                     />
                                     <FormNumberInput
                                         label = "Table Count"
-                                        value=self.work.table_count
+                                        value=&self.work.table_count
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeTableCount(e.value))
                                     />
                                     <FormNumberInput
                                         label = "Audio Count"
-                                        value=self.work.audio_count
+                                        value=&self.work.audio_count
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeAudioCount(e.value))
                                     />
                                     <FormNumberInput
                                         label = "Video Count"
-                                        value=self.work.video_count
+                                        value=&self.work.video_count
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeVideoCount(e.value))
                                     />
                                 </div>
