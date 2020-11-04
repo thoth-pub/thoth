@@ -16,6 +16,7 @@ strings! {
     RELOAD_BUTTON => "Reload",
     NEXT_PAGE_BUTTON => "Next page",
     PREVIOUS_PAGE_BUTTON => "Previous",
+    PAGINATION_COUNT_FUNDERS => "Displaying funders",
     PAGINATION_COUNT_WORKS => "Displaying works",
     AUTHENTICATION_ERROR => "Authentication failed",
     RESPONSE_ERROR => "Failed to obtain a valid response from the server.",
