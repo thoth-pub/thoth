@@ -258,8 +258,8 @@ impl Component for WorkComponent {
                         license: self.work.license.clone(),
                         copyright_holder: self.work.copyright_holder.clone(),
                         landing_page: self.work.landing_page.clone(),
-                        lccn: self.work.lccn,
-                        oclc: self.work.oclc,
+                        lccn: self.work.lccn.clone(),
+                        oclc: self.work.oclc.clone(),
                         short_abstract: self.work.short_abstract.clone(),
                         long_abstract: self.work.long_abstract.clone(),
                         general_note: self.work.general_note.clone(),
@@ -402,11 +402,9 @@ impl Component for WorkComponent {
                 self.work.landing_page.neq_assign(Some(landing_page))
             }
             Msg::ChangeLccn(lccn) => {
-                let lccn: i32 = lccn.parse().unwrap_or(0);
                 self.work.lccn.neq_assign(Some(lccn))
             }
             Msg::ChangeOclc(oclc) => {
-                let oclc: i32 = oclc.parse().unwrap_or(0);
                 self.work.oclc.neq_assign(Some(oclc))
             }
             Msg::ChangeShortAbstract(short_abstract) => {
@@ -575,14 +573,14 @@ impl Component for WorkComponent {
                                         value=&self.work.doi
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeDoi(e.value))
                                     />
-                                    <FormNumberInput
+                                    <FormTextInput
                                         label = "LCCN"
-                                        value=self.work.lccn
+                                        value=&self.work.lccn
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeLccn(e.value))
                                     />
-                                    <FormNumberInput
+                                    <FormTextInput
                                         label = "OCLC Number"
-                                        value=self.work.oclc
+                                        value=&self.work.oclc
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeOclc(e.value))
                                     />
                                     <FormTextInput

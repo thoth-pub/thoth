@@ -1375,11 +1375,11 @@ impl Work {
         self.landing_page.as_ref()
     }
 
-    pub fn lccn(&self) -> Option<&i32> {
+    pub fn lccn(&self) -> Option<&String> {
         self.lccn.as_ref()
     }
 
-    pub fn oclc(&self) -> Option<&i32> {
+    pub fn oclc(&self) -> Option<&String> {
         self.oclc.as_ref()
     }
 
