@@ -401,12 +401,8 @@ impl Component for WorkComponent {
             Msg::ChangeLandingPage(landing_page) => {
                 self.work.landing_page.neq_assign(Some(landing_page))
             }
-            Msg::ChangeLccn(lccn) => {
-                self.work.lccn.neq_assign(Some(lccn))
-            }
-            Msg::ChangeOclc(oclc) => {
-                self.work.oclc.neq_assign(Some(oclc))
-            }
+            Msg::ChangeLccn(lccn) => self.work.lccn.neq_assign(Some(lccn)),
+            Msg::ChangeOclc(oclc) => self.work.oclc.neq_assign(Some(oclc)),
             Msg::ChangeShortAbstract(short_abstract) => {
                 self.work.short_abstract.neq_assign(Some(short_abstract))
             }
