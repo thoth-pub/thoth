@@ -23,6 +23,7 @@ use crate::route::AppRoute;
 use crate::string::NEXT_PAGE_BUTTON;
 use crate::string::PAGINATION_COUNT_WORKS;
 use crate::string::PREVIOUS_PAGE_BUTTON;
+use crate::string::SEARCH_WORKS;
 
 pub struct WorksComponent {
     limit: i32,
@@ -187,7 +188,7 @@ impl Component for WorksComponent {
                                     class="input"
                                     type="search"
                                     value=self.search_term
-                                    placeholder="Search by title, DOI, internal reference, abstract or landing page"
+                                    placeholder=SEARCH_WORKS
                                     oninput=self.link.callback(|e: InputData| Msg::SearchWorks(e.value))
                                 />
                                 <span class="icon is-left">

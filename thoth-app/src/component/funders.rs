@@ -23,6 +23,7 @@ use crate::route::AppRoute;
 use crate::string::NEXT_PAGE_BUTTON;
 use crate::string::PAGINATION_COUNT_FUNDERS;
 use crate::string::PREVIOUS_PAGE_BUTTON;
+use crate::string::SEARCH_FUNDERS;
 
 pub struct FundersComponent {
     limit: i32,
@@ -197,7 +198,7 @@ impl Component for FundersComponent {
                                     class="input"
                                     type="search"
                                     value=self.search_term
-                                    placeholder="Search by title, DOI, internal reference, abstract or landing page"
+                                    placeholder=SEARCH_FUNDERS
                                     oninput=self.link.callback(|e: InputData| Msg::SearchFunders(e.value))
                                 />
                                 <span class="icon is-left">

@@ -26,4 +26,6 @@ strings! {
     EMPTY_PUBLICATIONS => "This work does not have any publications. Click above to add associated publications",
     EMPTY_SUBJECTS => "This work does not have any subjects. Click above to add associated subjects",
     EMPTY_FUNDINGS => "This work does not have any funding. Click above to add associated funding",
+    SEARCH_FUNDERS => "Search by name or DOI",
+    SEARCH_WORKS => "Search by title, DOI, internal reference, abstract or landing page",
 }
