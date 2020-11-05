@@ -21,7 +21,6 @@ use crate::models::funder::Funder;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::NEXT_PAGE_BUTTON;
-use crate::string::PAGINATION_COUNT_FUNDERS;
 use crate::string::PREVIOUS_PAGE_BUTTON;
 use crate::string::SEARCH_FUNDERS;
 
@@ -47,6 +46,8 @@ pub enum Msg {
     ChangeRoute(AppRoute),
 }
 
+pagination_helpers! {FundersComponent, crate::string::PAGINATION_COUNT_FUNDERS}
+
 impl Component for FundersComponent {
     type Message = Msg;
     type Properties = ();
@@ -55,11 +56,13 @@ impl Component for FundersComponent {
         let router: RouteAgentDispatcher<()> = RouteAgentDispatcher::new();
         let offset: i32 = Default::default();
         let page_size: i32 = 20;
-        let limit: i32 = Default::default();
+        let limit: i32 = page_size;
         let search_term: String = Default::default();
         let result_count: i32 = Default::default();
         let funders: Vec<Funder> = Default::default();
         let fetch_funders: FetchFunders = Default::default();
+
+        link.send_message(Msg::PaginateFunders);
 
         FundersComponent {
             limit,
@@ -74,38 +77,23 @@ impl Component for FundersComponent {
         }
     }
 
-    fn rendered(&mut self, first_render: bool) {
-        if first_render {
-            self.link
-                .send_future(self.fetch_funders.fetch(Msg::SetFundersFetchState));
-            self.link
-                .send_message(Msg::SetFundersFetchState(FetchAction::Fetching));
-        }
-    }
-
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::SetFundersFetchState(fetch_state) => {
                 self.fetch_funders.apply(fetch_state);
                 self.funders = match self.fetch_funders.as_ref().state() {
-                    FetchState::NotFetching(_) => vec![],
-                    FetchState::Fetching(_) => vec![],
                     FetchState::Fetched(body) => body.data.funders.clone(),
-                    FetchState::Failed(_, _err) => vec![],
+                    _ => Default::default(),
                 };
                 self.result_count = match self.fetch_funders.as_ref().state() {
-                    FetchState::NotFetching(_) => 0,
-                    FetchState::Fetching(_) => 0,
                     FetchState::Fetched(body) => body.data.funder_count,
-                    FetchState::Failed(_, _err) => 0,
+                    _ => Default::default(),
                 };
                 true
             }
             Msg::GetFunders => {
-                self.link
-                    .send_future(self.fetch_funders.fetch(Msg::SetFundersFetchState));
-                self.link
-                    .send_message(Msg::SetFundersFetchState(FetchAction::Fetching));
+                self.link.send_future(self.fetch_funders.fetch(Msg::SetFundersFetchState));
+                self.link.send_message(Msg::SetFundersFetchState(FetchAction::Fetching));
                 false
             }
             Msg::PaginateFunders => {
@@ -225,7 +213,16 @@ impl Component for FundersComponent {
                                 </thead>
 
                                 <tbody>
-                                    { for self.funders.iter().map(|p| self.render_funder(p)) }
+                                    {
+                                        for self.funders.iter().map(|f| {
+                                            let route = f.edit_route().clone();
+                                            f.as_table_row(
+                                                self.link.callback(move |_| {
+                                                    Msg::ChangeRoute(route.clone())
+                                                })
+                                            )
+                                        })
+                                    }
                                 </tbody>
                             </table>
                         },
@@ -233,51 +230,6 @@ impl Component for FundersComponent {
                     }
                 }
             </>
-        }
-    }
-}
-
-impl FundersComponent {
-    fn change_route(&self, app_route: AppRoute) -> Callback<MouseEvent> {
-        self.link.callback(move |_| {
-            let route = app_route.clone();
-            Msg::ChangeRoute(route)
-        })
-    }
-
-    fn display_count(&self) -> String {
-        let offset_display = match self.offset == 0 && self.result_count > 0 {
-            true => 1,
-            false => self.offset,
-        };
-        let limit_display = match self.limit > self.result_count {
-            true => self.result_count,
-            false => self.limit,
-        };
-        format!(
-            "{} {}-{} of {}",
-            PAGINATION_COUNT_FUNDERS, offset_display, limit_display, self.result_count
-        )
-    }
-
-    fn is_previous_disabled(&self) -> bool {
-        self.offset < self.page_size
-    }
-
-    fn is_next_disabled(&self) -> bool {
-        self.limit >= self.result_count
-    }
-
-    fn render_funder(&self, f: &Funder) -> Html {
-        html! {
-            <tr
-                class="row"
-                onclick=&self.change_route(AppRoute::Admin(AdminRoute::Funder(f.funder_id.clone())))
-            >
-                <td>{&f.funder_id}</td>
-                <td>{&f.funder_name}</td>
-                <td>{&f.funder_doi.clone().unwrap_or("".to_string())}</td>
-            </tr>
         }
     }
 }

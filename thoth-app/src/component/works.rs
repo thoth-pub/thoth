@@ -21,7 +21,6 @@ use crate::models::work::Work;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::NEXT_PAGE_BUTTON;
-use crate::string::PAGINATION_COUNT_WORKS;
 use crate::string::PREVIOUS_PAGE_BUTTON;
 use crate::string::SEARCH_WORKS;
 
@@ -47,18 +46,20 @@ pub enum Msg {
     ChangeRoute(AppRoute),
 }
 
+pagination_helpers! {WorksComponent, crate::string::PAGINATION_COUNT_WORKS}
+
 impl Component for WorksComponent {
     type Message = Msg;
     type Properties = ();
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
         let router = RouteAgentDispatcher::new();
-        let offset = 0;
-        let page_size = 20;
-        let limit = page_size;
-        let search_term = "".into();
-        let result_count = 0;
-        let works = vec![];
+        let offset: i32 = Default::default();
+        let page_size: i32 = 20;
+        let limit: i32 = page_size;
+        let search_term: String = Default::default();
+        let result_count: i32 = Default::default();
+        let works: Vec<Work> = Default::default();
 
         link.send_message(Msg::PaginateWorks);
 
@@ -80,24 +81,18 @@ impl Component for WorksComponent {
             Msg::SetWorksFetchState(fetch_state) => {
                 self.fetch_works.apply(fetch_state);
                 self.works = match self.fetch_works.as_ref().state() {
-                    FetchState::NotFetching(_) => vec![],
-                    FetchState::Fetching(_) => vec![],
                     FetchState::Fetched(body) => body.data.works.clone(),
-                    FetchState::Failed(_, _err) => vec![],
+                    _ => Default::default(),
                 };
                 self.result_count = match self.fetch_works.as_ref().state() {
-                    FetchState::NotFetching(_) => 0,
-                    FetchState::Fetching(_) => 0,
                     FetchState::Fetched(body) => body.data.work_count,
-                    FetchState::Failed(_, _err) => 0,
+                    _ => Default::default(),
                 };
                 true
             }
             Msg::GetWorks => {
-                self.link
-                    .send_future(self.fetch_works.fetch(Msg::SetWorksFetchState));
-                self.link
-                    .send_message(Msg::SetWorksFetchState(FetchAction::Fetching));
+                self.link.send_future(self.fetch_works.fetch(Msg::SetWorksFetchState));
+                self.link.send_message(Msg::SetWorksFetchState(FetchAction::Fetching));
                 false
             }
             Msg::PaginateWorks => {
@@ -236,30 +231,5 @@ impl Component for WorksComponent {
                 }
             </>
         }
-    }
-}
-
-impl WorksComponent {
-    fn display_count(&self) -> String {
-        let offset_display = match self.offset == 0 && self.result_count > 0 {
-            true => 1,
-            false => self.offset,
-        };
-        let limit_display = match self.limit > self.result_count {
-            true => self.result_count,
-            false => self.limit,
-        };
-        format!(
-            "{} {}-{} of {}",
-            PAGINATION_COUNT_WORKS, offset_display, limit_display, self.result_count
-        )
-    }
-
-    fn is_previous_disabled(&self) -> bool {
-        self.offset < self.page_size
-    }
-
-    fn is_next_disabled(&self) -> bool {
-        self.limit >= self.result_count
     }
 }
