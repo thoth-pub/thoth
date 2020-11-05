@@ -1,5 +1,8 @@
 use yew::html;
-use yew::prelude::*;
+use yew::prelude::Component;
+use yew::prelude::ShouldRender;
+use yew::prelude::Html;
+use yew::prelude::InputData;
 use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
