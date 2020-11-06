@@ -1,8 +1,8 @@
+use crate::models::series::serieses_query::FetchActionSerieses;
 use crate::models::series::serieses_query::FetchSerieses;
+use crate::models::series::serieses_query::SeriesesRequest;
 use crate::models::series::serieses_query::SeriesesRequestBody;
 use crate::models::series::serieses_query::Variables;
-use crate::models::series::serieses_query::SeriesesRequest;
-use crate::models::series::serieses_query::FetchActionSerieses;
 use crate::models::series::Series;
 
 pagination_component! {

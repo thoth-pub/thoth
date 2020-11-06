@@ -27,7 +27,10 @@ impl Publisher {
     }
 
     pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
-        let publisher_shortname = self.publisher_shortname.clone().unwrap_or_else(|| "".to_string());
+        let publisher_shortname = self
+            .publisher_shortname
+            .clone()
+            .unwrap_or_else(|| "".to_string());
         let publisher_url = self.publisher_url.clone().unwrap_or_else(|| "".to_string());
         html! {
             <tr

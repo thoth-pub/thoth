@@ -82,12 +82,12 @@ macro_rules! pagination_component {
     ) => {
         use yew::html;
         use yew::prelude::Component;
-        use yew::ComponentLink;
-        use yew::prelude::ShouldRender;
         use yew::prelude::Html;
         use yew::prelude::InputData;
-        use yew_router::agent::RouteRequest;
+        use yew::prelude::ShouldRender;
+        use yew::ComponentLink;
         use yew_router::agent::RouteAgentDispatcher;
+        use yew_router::agent::RouteRequest;
         use yew_router::prelude::RouterAnchor;
         use yew_router::route::Route;
         use yewtil::fetch::Fetch;
@@ -170,8 +170,10 @@ macro_rules! pagination_component {
                         true
                     }
                     Msg::GetData => {
-                        self.link.send_future(self.fetch_data.fetch(Msg::SetFetchState));
-                        self.link.send_message(Msg::SetFetchState(FetchAction::Fetching));
+                        self.link
+                            .send_future(self.fetch_data.fetch(Msg::SetFetchState));
+                        self.link
+                            .send_message(Msg::SetFetchState(FetchAction::Fetching));
                         false
                     }
                     Msg::PaginateData => {
@@ -284,9 +286,8 @@ macro_rules! pagination_component {
                     </>
                 }
             }
-
         }
-    }
+    };
 }
 
 pub mod admin;

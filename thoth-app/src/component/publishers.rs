@@ -1,8 +1,8 @@
+use crate::models::publisher::publishers_query::FetchActionPublishers;
 use crate::models::publisher::publishers_query::FetchPublishers;
+use crate::models::publisher::publishers_query::PublishersRequest;
 use crate::models::publisher::publishers_query::PublishersRequestBody;
 use crate::models::publisher::publishers_query::Variables;
-use crate::models::publisher::publishers_query::PublishersRequest;
-use crate::models::publisher::publishers_query::FetchActionPublishers;
 use crate::models::publisher::Publisher;
 
 pagination_component! {

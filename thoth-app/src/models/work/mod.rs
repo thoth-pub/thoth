@@ -9,7 +9,6 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use crate::THOTH_API;
 use super::contribution::Contribution;
 use super::funding::Funding;
 use super::imprint::Imprint;
@@ -19,6 +18,7 @@ use super::publication::Publication;
 use super::subject::Subject;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
+use crate::THOTH_API;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -132,7 +132,8 @@ impl Work {
     }
 
     pub fn license_icons(&self) -> Html {
-        let license = License::from_str(&self.license.clone().unwrap_or_else(|| "".to_string())).unwrap();
+        let license =
+            License::from_str(&self.license.clone().unwrap_or_else(|| "".to_string())).unwrap();
         html! {
             <span class="icon is-small license">
                 <i class="fab fa-creative-commons" aria-hidden="true"></i>

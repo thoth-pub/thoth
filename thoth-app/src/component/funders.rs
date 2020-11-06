@@ -1,8 +1,8 @@
+use crate::models::funder::funders_query::FetchActionFunders;
 use crate::models::funder::funders_query::FetchFunders;
+use crate::models::funder::funders_query::FundersRequest;
 use crate::models::funder::funders_query::FundersRequestBody;
 use crate::models::funder::funders_query::Variables;
-use crate::models::funder::funders_query::FundersRequest;
-use crate::models::funder::funders_query::FetchActionFunders;
 use crate::models::funder::Funder;
 
 pagination_component! {

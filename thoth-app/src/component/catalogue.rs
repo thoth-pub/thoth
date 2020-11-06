@@ -1,10 +1,10 @@
 use yew::html;
 use yew::prelude::Component;
-use yew::ComponentLink;
-use yew::prelude::ShouldRender;
+use yew::prelude::FocusEvent;
 use yew::prelude::Html;
 use yew::prelude::InputData;
-use yew::prelude::FocusEvent;
+use yew::prelude::ShouldRender;
+use yew::ComponentLink;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -12,11 +12,11 @@ use yewtil::future::LinkFuture;
 
 use crate::component::utils::Loader;
 use crate::component::utils::Reloader;
+use crate::models::work::works_query::FetchActionWorks;
 use crate::models::work::works_query::FetchWorks;
-use crate::models::work::works_query::WorksRequestBody;
 use crate::models::work::works_query::Variables;
 use crate::models::work::works_query::WorksRequest;
-use crate::models::work::works_query::FetchActionWorks;
+use crate::models::work::works_query::WorksRequestBody;
 use crate::models::work::Work;
 
 pub struct CatalogueComponent {
@@ -86,8 +86,10 @@ impl Component for CatalogueComponent {
                 true
             }
             Msg::GetData => {
-                self.link.send_future(self.fetch_data.fetch(Msg::SetFetchState));
-                self.link.send_message(Msg::SetFetchState(FetchAction::Fetching));
+                self.link
+                    .send_future(self.fetch_data.fetch(Msg::SetFetchState));
+                self.link
+                    .send_message(Msg::SetFetchState(FetchAction::Fetching));
                 false
             }
             Msg::PaginateData => {

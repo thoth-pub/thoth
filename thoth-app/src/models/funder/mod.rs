@@ -1,11 +1,11 @@
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use serde::Deserialize;
 use serde::Serialize;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
-use crate::route::AdminRoute;
-use crate::route::AppRoute;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

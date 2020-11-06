@@ -1,8 +1,8 @@
+use crate::models::imprint::imprints_query::FetchActionImprints;
 use crate::models::imprint::imprints_query::FetchImprints;
+use crate::models::imprint::imprints_query::ImprintsRequest;
 use crate::models::imprint::imprints_query::ImprintsRequestBody;
 use crate::models::imprint::imprints_query::Variables;
-use crate::models::imprint::imprints_query::ImprintsRequest;
-use crate::models::imprint::imprints_query::FetchActionImprints;
 use crate::models::imprint::Imprint;
 
 pagination_component! {

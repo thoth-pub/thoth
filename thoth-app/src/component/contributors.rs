@@ -1,8 +1,8 @@
-use crate::models::contributor::contributors_query::FetchContributors;
-use crate::models::contributor::contributors_query::ContributorsRequestBody;
-use crate::models::contributor::contributors_query::Variables;
 use crate::models::contributor::contributors_query::ContributorsRequest;
+use crate::models::contributor::contributors_query::ContributorsRequestBody;
 use crate::models::contributor::contributors_query::FetchActionContributors;
+use crate::models::contributor::contributors_query::FetchContributors;
+use crate::models::contributor::contributors_query::Variables;
 use crate::models::contributor::Contributor;
 
 pagination_component! {

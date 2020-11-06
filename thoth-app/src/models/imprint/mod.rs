@@ -5,9 +5,9 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
+use super::publisher::Publisher;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use super::publisher::Publisher;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
