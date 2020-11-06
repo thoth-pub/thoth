@@ -247,6 +247,8 @@ impl Component for FundingsFormComponent {
                 let body = FundersRequestBody {
                     variables: Variables {
                         filter: Some(value),
+                        limit: Some(9999),
+                        ..Default::default()
                     },
                     ..Default::default()
                 };

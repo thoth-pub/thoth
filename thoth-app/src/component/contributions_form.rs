@@ -291,6 +291,8 @@ impl Component for ContributionsFormComponent {
                 let body = ContributorsRequestBody {
                     variables: Variables {
                         filter: Some(value),
+                        limit: Some(9999),
+                        ..Default::default()
                     },
                     ..Default::default()
                 };
@@ -444,7 +446,7 @@ impl Component for ContributionsFormComponent {
                                     Msg::CreateContribution
                                 })
                             >
-                                { "Add Subject" }
+                                { "Add Contribution" }
                             </button>
                             <button
                                 class="button"

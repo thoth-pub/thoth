@@ -18,6 +18,7 @@ use super::publication::Publication;
 use super::subject::Subject;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
+use crate::THOTH_API;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -98,6 +99,10 @@ pub struct WorkStatusValues {
 }
 
 impl Work {
+    pub fn create_route() -> AppRoute {
+        AppRoute::Admin(AdminRoute::NewWork)
+    }
+
     pub fn compile_fulltitle(&self) -> String {
         if let Some(subtitle) = &self.subtitle.clone() {
             format!("{}: {}", self.title, subtitle)
@@ -116,6 +121,67 @@ impl Work {
 
     pub fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Work(self.work_id.clone()))
+    }
+
+    pub fn onix_endpoint(&self) -> String {
+        format!("{}/onix/{}", THOTH_API, &self.work_id)
+    }
+
+    pub fn cover_alt_text(&self) -> String {
+        format!("{} - Cover Image", &self.title)
+    }
+
+    pub fn license_icons(&self) -> Html {
+        let license =
+            License::from_str(&self.license.clone().unwrap_or_else(|| "".to_string())).unwrap();
+        html! {
+            <span class="icon is-small license">
+                <i class="fab fa-creative-commons" aria-hidden="true"></i>
+                {
+                    match license {
+                        License::By =>html!{
+                            <i class="fab fa-creative-commons-by" aria-hidden="true"></i>
+                        },
+                        License::BySa => html!{
+                            <>
+                                <i class="fab fa-creative-commons-by" aria-hidden="true"></i>
+                                <i class="fab fa-creative-commons-sa" aria-hidden="true"></i>
+                            </>
+                        },
+                        License::ByNd => html!{
+                            <>
+                                <i class="fab fa-creative-commons-by" aria-hidden="true"></i>
+                                <i class="fab fa-creative-commons-nd" aria-hidden="true"></i>
+                            </>
+                        },
+                        License::ByNc => html!{
+                            <>
+                                <i class="fab fa-creative-commons-by" aria-hidden="true"></i>
+                                <i class="fab fa-creative-commons-nc" aria-hidden="true"></i>
+                            </>
+                        },
+                        License::ByNcSa => html!{
+                            <>
+                                <i class="fab fa-creative-commons-by" aria-hidden="true"></i>
+                                <i class="fab fa-creative-commons-nc" aria-hidden="true"></i>
+                                <i class="fab fa-creative-commons-sa" aria-hidden="true"></i>
+                            </>
+                        },
+                        License::ByNcNd => html!{
+                            <>
+                                <i class="fab fa-creative-commons-by" aria-hidden="true"></i>
+                                <i class="fab fa-creative-commons-nc" aria-hidden="true"></i>
+                                <i class="fab fa-creative-commons-nd" aria-hidden="true"></i>
+                            </>
+                        },
+                        License::Zero => html!{
+                            <i class="fab fa-creative-commons-zero" aria-hidden="true"></i>
+                        },
+                        License::Undefined => html! {}
+                    }
+                }
+            </span>
+        }
     }
 
     pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
@@ -140,6 +206,99 @@ impl Work {
                 <td>{doi}</td>
                 <td>{&self.publisher()}</td>
             </tr>
+        }
+    }
+
+    pub fn as_catalogue_box(&self) -> Html {
+        let doi = self.doi.clone().unwrap_or_else(|| "".to_string());
+        let cover_url = self.cover_url.clone().unwrap_or_else(|| "".to_string());
+        let place = self.place.clone().unwrap_or_else(|| "".to_string());
+        html! {
+            <div class="box">
+                <article class="media">
+                    <div class="media-left">
+                    <figure class="image is-96x96">
+                        <img src={cover_url} alt={self.cover_alt_text()} loading="lazy" />
+                        { self.license_icons() }
+                    </figure>
+                    </div>
+                    <div class="media-content">
+                        <div class="content">
+                            <p>
+                                <strong>{&self.full_title}</strong>
+                                <br/>
+                                <div>
+                                {
+                                    if let Some(contributions) = &self.contributions {
+                                        contributions.iter().map(|c| c.main_contribution_item_bullet_small()).collect::<Html>()
+                                    } else {
+                                        html! {}
+                                    }
+                                }
+                                </div>
+                                <br/>
+                                {
+                                    if let Some(date) = &self.publication_date {
+                                        let mut c1 = date.chars();
+                                        c1.next();
+                                        c1.next();
+                                        c1.next();
+                                        c1.next();
+                                        let year: &str = &date[..date.len() - c1.as_str().len()];
+                                        html! {<small>{place}{": "}{&self.imprint.publisher.publisher_name}{", "}{year}</small>}
+                                    } else {
+                                        html! {<small>{&self.imprint.publisher.publisher_name}</small>}
+                                    }
+                                }
+                                <br/>
+                                <small>{&doi}</small>
+                            </p>
+                        </div>
+                        <nav class="level is-mobile">
+                            <div class="level-left">
+                                <a
+                                    class="level-item button is-small"
+                                    aria-label="read"
+                                    href={format!("{}", doi)}
+                                >
+                                    <span class="icon is-small">
+                                    <i class="fas fa-book" aria-hidden="true"></i>
+                                    </span>
+                                    <span>{"Read"}</span>
+                                </a>
+
+                                <div class="level-item dropdown is-hoverable">
+                                    <div class="dropdown-trigger">
+                                        <button
+                                            class="button is-small"
+                                            aria-haspopup="true"
+                                            aria-controls="dropdown-menu"
+                                        >
+                                            <span class="icon is-small">
+                                                <i class="fas fa-file" aria-hidden="true"></i>
+                                            </span>
+                                            <span>{"Metadata"} </span>
+                                            <span class="icon is-small">
+                                                <i class="fas fa-angle-down" aria-hidden="true"></i>
+                                            </span>
+                                        </button>
+                                    </div>
+                                    <div class="dropdown-menu" id="dropdown-menu" role="menu">
+                                        <div class="dropdown-content">
+                                            <a
+                                                href={self.onix_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"ONIX"}
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </nav>
+                    </div>
+                </article>
+            </div>
         }
     }
 }

@@ -253,13 +253,19 @@ impl QueryRoot {
         description = "Query the full list of imprints",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url"
+            ),
         )
     )]
-    fn imprints(context: &Context, limit: i32, offset: i32) -> Vec<Imprint> {
+    fn imprints(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Imprint> {
         use crate::schema::imprint::dsl::*;
         let connection = context.db.get().unwrap();
         imprint
+            .filter(imprint_name.ilike(format!("%{}%", filter)))
+            .or_filter(imprint_url.ilike(format!("%{}%", filter)))
             .order(imprint_name.asc())
             .limit(limit.into())
             .offset(offset.into())
