@@ -18,6 +18,10 @@ pub struct Publisher {
 }
 
 impl Publisher {
+    pub fn create_route() -> AppRoute {
+        AppRoute::Admin(AdminRoute::NewPublisher)
+    }
+
     pub fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Publisher(self.publisher_id.clone()))
     }

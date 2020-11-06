@@ -15,7 +15,6 @@ pagination_component! {
     FetchFunders,
     FundersRequestBody,
     Variables,
-    NewFunder,
     SEARCH_FUNDERS,
     PAGINATION_COUNT_FUNDERS,
     vec!["ID".to_string(), "Funder".to_string(), "DOI".to_string()]

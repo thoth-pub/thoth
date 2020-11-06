@@ -15,7 +15,6 @@ pagination_component! {
     FetchWorks,
     WorksRequestBody,
     Variables,
-    NewWork,
     SEARCH_WORKS,
     PAGINATION_COUNT_WORKS,
     vec!["ID".to_string(), "Title".to_string(), "Type".to_string(), "Contributors".to_string(), "DOI".to_string(), "Publisher".to_string()]

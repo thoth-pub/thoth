@@ -99,6 +99,10 @@ pub struct WorkStatusValues {
 }
 
 impl Work {
+    pub fn create_route() -> AppRoute {
+        AppRoute::Admin(AdminRoute::NewWork)
+    }
+
     pub fn compile_fulltitle(&self) -> String {
         if let Some(subtitle) = &self.subtitle.clone() {
             format!("{}: {}", self.title, subtitle)

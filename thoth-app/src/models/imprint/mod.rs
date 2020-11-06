@@ -19,6 +19,10 @@ pub struct Imprint {
 }
 
 impl Imprint {
+    pub fn create_route() -> AppRoute {
+        AppRoute::Admin(AdminRoute::NewImprint)
+    }
+
     pub fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Imprint(self.imprint_id.clone()))
     }

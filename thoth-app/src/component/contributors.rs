@@ -15,7 +15,6 @@ pagination_component! {
     FetchContributors,
     ContributorsRequestBody,
     Variables,
-    NewContributor,
     SEARCH_CONTRIBUTORS,
     PAGINATION_COUNT_CONTRIBUTORS,
     vec!["ID".to_string(), "FullName".to_string(), "ORCID".to_string()]

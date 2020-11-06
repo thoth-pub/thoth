@@ -20,6 +20,10 @@ pub struct Contributor {
 }
 
 impl Contributor {
+    pub fn create_route() -> AppRoute {
+        AppRoute::Admin(AdminRoute::NewContributor)
+    }
+
     pub fn as_dropdown_item(&self, callback: Callback<MouseEvent>) -> Html {
         // since contributions dropdown has an onblur event, we need to use onmousedown instead of
         // onclick. This is not ideal, but it seems to be the only event that'd do the callback

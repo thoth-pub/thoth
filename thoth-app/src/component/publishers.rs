@@ -15,7 +15,6 @@ pagination_component! {
     FetchPublishers,
     PublishersRequestBody,
     Variables,
-    NewPublisher,
     SEARCH_PUBLISHERS,
     PAGINATION_COUNT_PUBLISHERS,
     vec!["ID".to_string(), "Name".to_string(), "ShortName".to_string(), "URL".to_string()]

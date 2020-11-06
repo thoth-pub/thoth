@@ -15,7 +15,6 @@ pagination_component! {
     FetchSerieses,
     SeriesesRequestBody,
     Variables,
-    NewSeries,
     SEARCH_SERIESES,
     PAGINATION_COUNT_SERIESES,
     vec!["ID".to_string(), "Series".to_string(), "SeriesType".to_string(), "ISSNPrint".to_string(), "ISSNDigital".to_string()]

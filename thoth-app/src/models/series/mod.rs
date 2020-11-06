@@ -49,6 +49,10 @@ impl Default for Series {
 }
 
 impl Series {
+    pub fn create_route() -> AppRoute {
+        AppRoute::Admin(AdminRoute::NewSeries)
+    }
+
     pub fn as_dropdown_item(&self, callback: Callback<MouseEvent>) -> Html {
         // since serieses dropdown has an onblur event, we need to use onmousedown instead of
         // onclick. This is not ideal, but it seems to be the only event that'd do the calback

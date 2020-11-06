@@ -15,7 +15,6 @@ pagination_component! {
     FetchImprints,
     ImprintsRequestBody,
     Variables,
-    NewImprint,
     SEARCH_IMPRINTS,
     PAGINATION_COUNT_IMPRINTS,
     vec!["ID".to_string(), "Imprint".to_string(), "Publisher".to_string(), "ImprintURL".to_string()]

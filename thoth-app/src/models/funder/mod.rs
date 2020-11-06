@@ -16,6 +16,10 @@ pub struct Funder {
 }
 
 impl Funder {
+    pub fn create_route() -> AppRoute {
+        AppRoute::Admin(AdminRoute::NewFunder)
+    }
+
     pub fn as_dropdown_item(&self, callback: Callback<MouseEvent>) -> Html {
         // since funders dropdown has an onblur event, we need to use onmousedown instead of
         // onclick. This is not ideal, but it seems to be the only event that'd do the calback

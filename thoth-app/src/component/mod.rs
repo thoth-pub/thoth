@@ -1,18 +1,13 @@
 #[macro_export]
 macro_rules! pagination_helpers {
-    ($component:ident, $pagination_text:ident, $search_text:ident, $create_route:ident) => {
+    ($component:ident, $pagination_text:ident, $search_text:ident) => {
         use crate::string::$pagination_text;
         use crate::string::$search_text;
-        use crate::route::AdminRoute;
         use crate::route::AppRoute;
 
         impl $component {
             fn search_text(&self) -> String {
                 format!("{}", $search_text)
-            }
-
-            fn create_route(&self) -> AppRoute {
-                AppRoute::Admin(AdminRoute::$create_route)
             }
 
             fn display_count(&self) -> String {
@@ -50,7 +45,6 @@ macro_rules! pagination_component {
         $fetch_data:ty,
         $request_body:ident,
         $request_variables:ident,
-        $create_route:ident,
         $search_text:ident,
         $pagination_text:ident,
         $table_headers:expr
@@ -88,7 +82,7 @@ macro_rules! pagination_component {
             router: RouteAgentDispatcher<()>,
         }
 
-        pagination_helpers! {$component, $pagination_text, $search_text, $create_route}
+        pagination_helpers! {$component, $pagination_text, $search_text}
 
         pub enum Msg {
             SetFetchState($fetch_action),
@@ -201,6 +195,7 @@ macro_rules! pagination_component {
             }
 
             fn view(&self) -> Html {
+                let route = <$entity>::create_route();
                 html! {
                     <>
                         <nav class="level">
@@ -215,7 +210,7 @@ macro_rules! pagination_component {
                                 <p class="level-item">
                                         <RouterAnchor<AppRoute>
                                             classes="button is-success"
-                                            route=self.create_route()
+                                            route={route}
                                         >
                                             {"New"}
                                         </  RouterAnchor<AppRoute>>
