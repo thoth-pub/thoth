@@ -5,6 +5,9 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contributor {
@@ -31,6 +34,24 @@ impl Contributor {
                 }
             }
             </div>
+        }
+    }
+
+    pub fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Contributor(self.contributor_id.clone()))
+    }
+
+    pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
+        let orcid = self.orcid.clone().unwrap_or_else(|| "".to_string());
+        html! {
+            <tr
+                class="row"
+                onclick=callback
+            >
+                <td>{&self.contributor_id}</td>
+                <td>{&self.full_name}</td>
+                <td>{orcid}</td>
+            </tr>
         }
     }
 }

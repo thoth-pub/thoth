@@ -242,6 +242,8 @@ impl Component for IssuesFormComponent {
                 let body = SeriesesRequestBody {
                     variables: Variables {
                         filter: Some(value),
+                        limit: Some(9999),
+                        ..Default::default()
                     },
                     ..Default::default()
                 };

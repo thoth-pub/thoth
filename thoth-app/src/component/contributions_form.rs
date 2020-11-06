@@ -291,6 +291,8 @@ impl Component for ContributionsFormComponent {
                 let body = ContributorsRequestBody {
                     variables: Variables {
                         filter: Some(value),
+                        limit: Some(9999),
+                        ..Default::default()
                     },
                     ..Default::default()
                 };

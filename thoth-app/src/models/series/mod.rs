@@ -7,6 +7,8 @@ use yew::Callback;
 use yew::MouseEvent;
 
 use super::imprint::Imprint;
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -55,6 +57,25 @@ impl Series {
             <div onmousedown=callback class="dropdown-item">
                 { format!("{} ({}, {})", self.series_name, self.issn_print, self.issn_digital) }
             </div>
+        }
+    }
+
+    pub fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Series(self.series_id.clone()))
+    }
+
+    pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
+        html! {
+            <tr
+                class="row"
+                onclick=callback
+            >
+                <td>{&self.series_id}</td>
+                <td>{&self.series_name}</td>
+                <td>{&self.series_type}</td>
+                <td>{&self.issn_print}</td>
+                <td>{&self.issn_digital}</td>
+            </tr>
         }
     }
 }

@@ -4,8 +4,8 @@ use serde::Serialize;
 use super::Imprint;
 
 const IMPRINTS_QUERY: &str = "
-    {
-        imprints(limit: 9999) {
+    query ImprintsQuery($limit: Int, $offset: Int, $filter: String) {
+        imprints(limit: $limit, offset: $offset, filter: $filter) {
             imprintId
             imprintName
             imprintUrl
@@ -16,6 +16,7 @@ const IMPRINTS_QUERY: &str = "
                 publisherUrl
             }
         }
+        imprintCount(filter: $filter)
     }
 ";
 
@@ -31,9 +32,16 @@ graphql_query_builder! {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-pub struct Variables {}
+#[serde(rename_all = "camelCase")]
+pub struct Variables {
+    pub limit: Option<i32>,
+    pub offset: Option<i32>,
+    pub filter: Option<String>,
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ImprintsResponseData {
     pub imprints: Vec<Imprint>,
+    pub imprint_count: i32,
 }
