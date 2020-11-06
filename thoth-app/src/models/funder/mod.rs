@@ -1,3 +1,5 @@
+use crate::route::AdminRoute;
+use crate::route::AppRoute;
 use serde::Deserialize;
 use serde::Serialize;
 use yew::html;
@@ -14,6 +16,10 @@ pub struct Funder {
 }
 
 impl Funder {
+    pub fn create_route() -> AppRoute {
+        AppRoute::Admin(AdminRoute::NewFunder)
+    }
+
     pub fn as_dropdown_item(&self, callback: Callback<MouseEvent>) -> Html {
         // since funders dropdown has an onblur event, we need to use onmousedown instead of
         // onclick. This is not ideal, but it seems to be the only event that'd do the calback
@@ -28,6 +34,24 @@ impl Funder {
                 }
             }
             </div>
+        }
+    }
+
+    pub fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Funder(self.funder_id.clone()))
+    }
+
+    pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
+        let funder_doi = self.funder_doi.clone().unwrap_or_else(|| "".to_string());
+        html! {
+            <tr
+                class="row"
+                onclick=callback
+            >
+                <td>{&self.funder_id}</td>
+                <td>{&self.funder_name}</td>
+                <td>{funder_doi}</td>
+            </tr>
         }
     }
 }

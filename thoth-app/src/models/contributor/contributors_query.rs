@@ -4,8 +4,8 @@ use serde::Serialize;
 use super::Contributor;
 
 pub const CONTRIBUTORS_QUERY: &str = "
-    query ContributorsQuery($filter: String) {
-        contributors(limit: 9999, filter: $filter) {
+    query ContributorsQuery($limit: Int, $offset: Int, $filter: String) {
+        contributors(limit: $limit, offset: $offset, filter: $filter) {
             contributorId
             firstName
             lastName
@@ -13,6 +13,7 @@ pub const CONTRIBUTORS_QUERY: &str = "
             orcid
             website
         }
+        contributorCount(filter: $filter)
     }
 ";
 
@@ -30,10 +31,14 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
+    pub limit: Option<i32>,
+    pub offset: Option<i32>,
     pub filter: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ContributorsResponseData {
     pub contributors: Vec<Contributor>,
+    pub contributor_count: i32,
 }

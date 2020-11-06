@@ -4,7 +4,7 @@ use serde::Serialize;
 use super::Work;
 
 pub const WORKS_QUERY: &str = "
-    query PublicationsQuery($limit: Int, $offset: Int, $filter: String) {
+    query WorksQuery($limit: Int, $offset: Int, $filter: String) {
         works(limit: $limit, offset: $offset, filter: $filter) {
             workId
             workType

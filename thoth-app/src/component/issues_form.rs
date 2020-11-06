@@ -242,6 +242,8 @@ impl Component for IssuesFormComponent {
                 let body = SeriesesRequestBody {
                     variables: Variables {
                         filter: Some(value),
+                        limit: Some(9999),
+                        ..Default::default()
                     },
                     ..Default::default()
                 };
@@ -359,7 +361,7 @@ impl Component for IssuesFormComponent {
                                     Msg::CreateIssue
                                 })
                             >
-                                { "Add Subject" }
+                                { "Add Issue" }
                             </button>
                             <button
                                 class="button"
