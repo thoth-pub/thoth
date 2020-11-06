@@ -3,7 +3,6 @@ macro_rules! pagination_helpers {
     ($component:ident, $pagination_text:ident, $search_text:ident) => {
         use crate::string::$pagination_text;
         use crate::string::$search_text;
-        use crate::route::AppRoute;
 
         impl $component {
             fn search_text(&self) -> String {
@@ -17,7 +16,7 @@ macro_rules! pagination_helpers {
                 };
                 let limit_display = match self.limit > self.result_count {
                     true => self.result_count,
-                    false => self.limit,
+                    false => self.limit + self.offset,
                 };
                 format!("{} {}-{} of {}", $pagination_text, offset_display, limit_display, self.result_count)
             }
@@ -28,6 +27,37 @@ macro_rules! pagination_helpers {
 
             fn is_next_disabled(&self) -> bool {
                 self.limit >= self.result_count
+            }
+
+            fn pagination_controls(&self) -> Html {
+                html! {
+                    <nav class="pagination is-centered" role="navigation" aria-label="pagination">
+                        <a class="pagination-previous"
+                            onclick=self.link.callback(|_| Msg::PreviousPage)
+                            disabled=self.is_previous_disabled()
+                        >{ crate::string::PREVIOUS_PAGE_BUTTON }</a>
+                        <a class="pagination-next"
+                            onclick=self.link.callback(|_| Msg::NextPage)
+                            disabled=self.is_next_disabled()
+                        >{ crate::string::NEXT_PAGE_BUTTON }</a>
+                        <div class="pagination-list">
+                            <div class="field" style="width: 80%">
+                                <p class="control is-expanded has-icons-left">
+                                    <input
+                                        class="input"
+                                        type="search"
+                                        value=self.search_term
+                                        placeholder=self.search_text()
+                                        oninput=self.link.callback(|e: InputData| Msg::Search(e.value))
+                                    />
+                                    <span class="icon is-left">
+                                        <i class="fas fa-search" aria-hidden="true"></i>
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                    </nav>
+                }
             }
         }
     }
@@ -66,8 +96,7 @@ macro_rules! pagination_component {
 
         use crate::component::utils::Loader;
         use crate::component::utils::Reloader;
-        use crate::string::NEXT_PAGE_BUTTON;
-        use crate::string::PREVIOUS_PAGE_BUTTON;
+        use crate::route::AppRoute;
 
         pub struct $component {
             limit: i32,
@@ -168,7 +197,6 @@ macro_rules! pagination_component {
                     }
                     Msg::NextPage => {
                         if self.limit < self.result_count && !self.is_next_disabled() {
-                            self.limit += self.page_size;
                             self.offset += self.page_size;
                             self.link.send_message(Msg::PaginateData);
                         }
@@ -176,7 +204,6 @@ macro_rules! pagination_component {
                     }
                     Msg::PreviousPage => {
                         if self.offset > 0 && !self.is_previous_disabled() {
-                            self.limit -= self.page_size;
                             self.offset -= self.page_size;
                             self.link.send_message(Msg::PaginateData);
                         }
@@ -217,32 +244,7 @@ macro_rules! pagination_component {
                                 </p>
                             </div>
                         </nav>
-                        <nav class="pagination is-centered" role="navigation" aria-label="pagination">
-                            <a class="pagination-previous"
-                                onclick=self.link.callback(|_| Msg::PreviousPage)
-                                disabled=self.is_previous_disabled()
-                            >{ PREVIOUS_PAGE_BUTTON }</a>
-                            <a class="pagination-next"
-                                onclick=self.link.callback(|_| Msg::NextPage)
-                                disabled=self.is_next_disabled()
-                            >{ NEXT_PAGE_BUTTON }</a>
-                            <div class="pagination-list">
-                                <div class="field" style="width: 80%">
-                                    <p class="control is-expanded has-icons-left">
-                                        <input
-                                            class="input"
-                                            type="search"
-                                            value=self.search_term
-                                            placeholder=self.search_text()
-                                            oninput=self.link.callback(|e: InputData| Msg::Search(e.value))
-                                        />
-                                        <span class="icon is-left">
-                                            <i class="fas fa-search" aria-hidden="true"></i>
-                                        </span>
-                                    </p>
-                                </div>
-                            </div>
-                        </nav>
+                        { self.pagination_controls() }
                         {
                             match self.fetch_data.as_ref().state() {
                                 FetchState::NotFetching(_) => {
