@@ -361,7 +361,7 @@ impl Component for IssuesFormComponent {
                                     Msg::CreateIssue
                                 })
                             >
-                                { "Add Subject" }
+                                { "Add Issue" }
                             </button>
                             <button
                                 class="button"

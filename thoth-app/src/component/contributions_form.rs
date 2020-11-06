@@ -446,7 +446,7 @@ impl Component for ContributionsFormComponent {
                                     Msg::CreateContribution
                                 })
                             >
-                                { "Add Subject" }
+                                { "Add Contribution" }
                             </button>
                             <button
                                 class="button"
