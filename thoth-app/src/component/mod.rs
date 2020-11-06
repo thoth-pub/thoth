@@ -29,6 +29,7 @@ macro_rules! pagination_helpers {
                 self.limit >= self.result_count
             }
 
+            #[allow(dead_code)]
             fn pagination_controls(&self) -> Html {
                 html! {
                     <nav class="pagination is-centered" role="navigation" aria-label="pagination">
