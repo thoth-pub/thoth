@@ -25,3 +25,9 @@ script:
   - cargo test --workspace --verbose
   - cargo clippy --all --all-targets --all-features -- -D warnings
   - cargo fmt --all -- --check
+deploy:
+  provider: cargo
+  token:
+    secure: eMaJ0DbEt7H8xn3738DL3h+rE8FfN3OG5dIABn9pgv+VhrgDgqBI8OQ4l7PCNaq9x+imYCxdGtknkJSWTyWM/X1QBT3M3l1thmMuEpTa9vAMxPCpMZjr9gOgLjtysKLR0ALrUdsCtHKv61CkUyYtP5q5KJaeWZTsMrj3iyL0uWkw2H27hp2sjY0JIkFhLxQAz6ad9Hfg+k2Pq9NgACBUQbOKYj+zqgrfQXFhGXYdBmUh78qNC0aYJSFjSUK3b9y8PFY62gEc2sZ6orrTn4/uUEp5lknw5ZbMMMq8QsntwpfA8F8HYhTf99gAH9uj0KJlp5fO0MhkM3jNSXSavioLEApE1PjBTWtOPEQ4SIHMbvXIVcJzpA4iW0XErbKzXpMoyPV9iW1Dyk42BiUgHOuh1mcfne/zrnTJEbzIoxMcMZRz1uZO0/oONVKiklT3UKbU7yxhR6K8bp+NLZWwh8YDk8PwxkhSIBTKbEbT5FTgq3wofVGw8svVJ9Q9NU/q+wxAiJFW6id187X3IsGi38NDZDCQjTMsSwi+j0GYsCikH/aqGdhuAjPWyOxu0biyUNp5xdupctF2gk6L+UZFZnfOPly6rX/jj5X5or2hlUDphDfPocKs8eqa/B6lhCfUdX0LYCiwTnsg0TlNUmf5S2RnrMvfpM7xKhB/t3MgdvNoOzE=
+  on:
+    tags: true

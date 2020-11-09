@@ -1838,10 +1838,6 @@ impl Price {
         self.price_id
     }
 
-    pub fn publication_id(&self) -> Uuid {
-        self.publication_id
-    }
-
     pub fn currency_code(&self) -> &CurrencyCode {
         &self.currency_code
     }

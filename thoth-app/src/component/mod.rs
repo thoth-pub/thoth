@@ -313,8 +313,6 @@ pub mod new_publisher;
 pub mod new_series;
 pub mod new_work;
 pub mod notification;
-pub mod prices_form;
-pub mod publication;
 pub mod publications;
 pub mod publications_form;
 pub mod publisher;
