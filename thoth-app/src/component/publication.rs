@@ -117,7 +117,7 @@ impl Component for PublicationComponent {
                     FetchState::Fetched(body) => match &body.data.delete_publication {
                         Some(p) => {
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Deleted {}", &p.isbn.clone().unwrap_or(p.publication_id.clone())),
+                                format!("Deleted {}", &p.isbn.clone().unwrap_or_else(|| p.publication_id.clone())),
                                 NotificationStatus::Success,
                             )));
                             self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
