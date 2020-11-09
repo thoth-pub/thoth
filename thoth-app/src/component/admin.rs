@@ -109,6 +109,15 @@ impl Component for AdminComponent {
                             AdminRoute::NewFunder => html!{<NewFunderComponent/>},
                             AdminRoute::Publications => html!{<PublicationsComponent/>},
                             AdminRoute::Publication(id) => html!{{ id }},
+                            AdminRoute::NewPublication => {
+                                html!{
+                                    <article class="message is-info">
+                                        <div class="message-body">
+                                            { "New publications can be added directly to the work." }
+                                        </div>
+                                    </article>
+                                }
+                            }
                             AdminRoute::Contributors => html!{<ContributorsComponent/>},
                             AdminRoute::Contributor(id) => html!{<ContributorComponent contributor_id = id />},
                             AdminRoute::NewContributor => html!{<NewContributorComponent/>},
