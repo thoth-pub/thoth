@@ -117,7 +117,10 @@ impl Component for PublicationComponent {
                     FetchState::Fetched(body) => match &body.data.delete_publication {
                         Some(p) => {
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Deleted {}", &p.isbn.clone().unwrap_or_else(|| p.publication_id.clone())),
+                                format!(
+                                    "Deleted {}",
+                                    &p.isbn.clone().unwrap_or_else(|| p.publication_id.clone())
+                                ),
                                 NotificationStatus::Success,
                             )));
                             self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
@@ -151,15 +154,15 @@ impl Component for PublicationComponent {
                 };
                 let request = DeletePublicationRequest { body };
                 self.delete_publication = Fetch::new(request);
-                self.link
-                    .send_future(self.delete_publication.fetch(Msg::SetPublicationDeleteState));
+                self.link.send_future(
+                    self.delete_publication
+                        .fetch(Msg::SetPublicationDeleteState),
+                );
                 self.link
                     .send_message(Msg::SetPublicationDeleteState(FetchAction::Fetching));
                 false
             }
-            Msg::UpdatePrices(prices) => {
-                self.publication.prices.neq_assign(prices)
-            }
+            Msg::UpdatePrices(prices) => self.publication.prices.neq_assign(prices),
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));

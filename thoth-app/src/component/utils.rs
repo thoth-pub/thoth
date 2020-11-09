@@ -125,7 +125,7 @@ pub struct PureFloatInput {
     #[prop_or(false)]
     pub required: bool,
     #[prop_or("any".to_string())]
-    pub step: String
+    pub step: String,
 }
 
 #[derive(Clone, PartialEq, Properties)]

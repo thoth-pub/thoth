@@ -42,6 +42,6 @@ impl Default for Publication {
 
 pub mod create_publication_mutation;
 pub mod delete_publication_mutation;
-pub mod publication_types_query;
 pub mod publication_query;
+pub mod publication_types_query;
 pub mod publications_query;
