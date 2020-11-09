@@ -35,5 +35,5 @@ impl Default for Price {
 }
 
 pub mod create_price_mutation;
-pub mod delete_price_mutation;
 pub mod currency_codes_query;
+pub mod delete_price_mutation;
