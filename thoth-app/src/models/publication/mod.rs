@@ -6,6 +6,7 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
+use super::price::Price;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
@@ -17,6 +18,7 @@ pub struct Publication {
     pub work_id: String,
     pub isbn: Option<String>,
     pub publication_url: Option<String>,
+    pub prices: Option<Vec<Price>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -72,11 +74,13 @@ impl Default for Publication {
             work_id: "".to_string(),
             isbn: None,
             publication_url: None,
+            prices: Default::default(),
         }
     }
 }
 
 pub mod create_publication_mutation;
 pub mod delete_publication_mutation;
+pub mod publication_query;
 pub mod publication_types_query;
 pub mod publications_query;
