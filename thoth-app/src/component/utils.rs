@@ -1,6 +1,7 @@
 use thoth_api::contribution::model::ContributionType;
 use thoth_api::language::model::LanguageCode;
 use thoth_api::language::model::LanguageRelation;
+use thoth_api::price::model::CurrencyCode;
 use thoth_api::publication::model::PublicationType;
 use thoth_api::series::model::SeriesType;
 use thoth_api::subject::model::SubjectType;
@@ -21,6 +22,7 @@ use crate::models::contribution::ContributionTypeValues;
 use crate::models::imprint::Imprint;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
+use crate::models::price::CurrencyCodeValues;
 use crate::models::publication::PublicationTypeValues;
 use crate::models::publisher::Publisher;
 use crate::models::series::SeriesTypeValues;
@@ -36,6 +38,7 @@ pub type FormTextarea = Pure<PureTextarea>;
 pub type FormTextInput = Pure<PureTextInput>;
 pub type FormUrlInput = Pure<PureUrlInput>;
 pub type FormDateInput = Pure<PureDateInput>;
+pub type FormFloatInput = Pure<PureFloatInput>;
 pub type FormNumberInput = Pure<PureNumberInput>;
 pub type FormWorkTypeSelect = Pure<PureWorkTypeSelect>;
 pub type FormWorkStatusSelect = Pure<PureWorkStatusSelect>;
@@ -45,6 +48,7 @@ pub type FormSeriesTypeSelect = Pure<PureSeriesTypeSelect>;
 pub type FormSubjectTypeSelect = Pure<PureSubjectTypeSelect>;
 pub type FormLanguageCodeSelect = Pure<PureLanguageCodeSelect>;
 pub type FormLanguageRelationSelect = Pure<PureLanguageRelationSelect>;
+pub type FormCurrencyCodeSelect = Pure<PureCurrencyCodeSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
 pub type FormPublisherSelect = Pure<PurePublisherSelect>;
@@ -108,6 +112,20 @@ pub struct PureDateInput {
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureFloatInput {
+    pub label: String,
+    pub value: Option<f64>,
+    #[prop_or_default]
+    pub oninput: Callback<InputData>,
+    #[prop_or_default]
+    pub onblur: Callback<FocusEvent>,
+    #[prop_or(false)]
+    pub required: bool,
+    #[prop_or("any".to_string())]
+    pub step: String
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -197,6 +215,16 @@ pub struct PureLanguageRelationSelect {
     pub label: String,
     pub data: Vec<LanguageRelationValues>,
     pub value: LanguageRelation,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureCurrencyCodeSelect {
+    pub label: String,
+    pub data: Vec<CurrencyCodeValues>,
+    pub value: CurrencyCode,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -338,6 +366,29 @@ impl PureComponent for PureNumberInput {
                 onblur=&self.onblur
                 required=self.required
             />
+        }
+    }
+}
+
+impl PureComponent for PureFloatInput {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <input
+                        class="input"
+                        type="number"
+                        placeholder=&self.label
+                        value=&self.value.unwrap_or(0.00).to_string()
+                        oninput=&self.oninput
+                        onblur=&self.onblur
+                        required=self.required
+                        step=self.step
+                        min="0"
+                    />
+                </div>
+            </div>
         }
     }
 }
@@ -488,6 +539,26 @@ impl PureComponent for PureLanguageRelationSelect {
                         onchange=&self.onchange
                     >
                         { for self.data.iter().map(|l| self.render_languagerelation(l)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+impl PureComponent for PureCurrencyCodeSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                    >
+                        { for self.data.iter().map(|c| self.render_currencycode(c)) }
                     </select>
                     </div>
                 </div>
@@ -681,6 +752,22 @@ impl PureLanguageRelationSelect {
         } else {
             html! {
                 <option value={&l.name}>{&l.name}</option>
+            }
+        }
+    }
+}
+
+impl PureCurrencyCodeSelect {
+    fn render_currencycode(&self, c: &CurrencyCodeValues) -> VNode {
+        if c.name == self.value {
+            html! {
+                <option value={&c.name} selected=true>
+                    {&c.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={&c.name}>{&c.name}</option>
             }
         }
     }
