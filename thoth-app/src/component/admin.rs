@@ -22,6 +22,7 @@ use crate::component::new_imprint::NewImprintComponent;
 use crate::component::new_publisher::NewPublisherComponent;
 use crate::component::new_series::NewSeriesComponent;
 use crate::component::new_work::NewWorkComponent;
+use crate::component::publication::PublicationComponent;
 use crate::component::publications::PublicationsComponent;
 use crate::component::publisher::PublisherComponent;
 use crate::component::publishers::PublishersComponent;
@@ -108,7 +109,16 @@ impl Component for AdminComponent {
                             AdminRoute::Funder(id) => html!{<FunderComponent funder_id = id />},
                             AdminRoute::NewFunder => html!{<NewFunderComponent/>},
                             AdminRoute::Publications => html!{<PublicationsComponent/>},
-                            AdminRoute::Publication(id) => html!{{ id }},
+                            AdminRoute::Publication(id) => html!{<PublicationComponent publication_id = id />},
+                            AdminRoute::NewPublication => {
+                                html!{
+                                    <article class="message is-info">
+                                        <div class="message-body">
+                                            { "New publications can be added directly to the work." }
+                                        </div>
+                                    </article>
+                                }
+                            }
                             AdminRoute::Contributors => html!{<ContributorsComponent/>},
                             AdminRoute::Contributor(id) => html!{<ContributorComponent contributor_id = id />},
                             AdminRoute::NewContributor => html!{<NewContributorComponent/>},

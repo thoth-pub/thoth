@@ -57,6 +57,12 @@ pub const WORK_QUERY: &str = "
                 workId
                 isbn
                 publicationUrl
+                prices {
+                    priceId
+                    publicationId
+                    currencyCode
+                    unitPrice
+                }
             }
             languages {
                 languageId
