@@ -351,14 +351,14 @@ impl PricesFormComponent {
                 </span>
                 <div class="field-body">
                     <div class="field" style="width: 8em;">
-                        <label class="label">{ "Price Code" }</label>
+                        <label class="label">{ "Currency" }</label>
                         <div class="control is-expanded">
                             {&p.currency_code}
                         </div>
                     </div>
 
                     <div class="field" style="width: 8em;">
-                        <label class="label">{ "Main" }</label>
+                        <label class="label">{ "Price" }</label>
                         <div class="control is-expanded">
                             {&p.unit_price}
                         </div>
