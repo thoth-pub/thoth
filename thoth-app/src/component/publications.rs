@@ -1,9 +1,9 @@
+use crate::models::publication::publications_query::DetailedPublication;
 use crate::models::publication::publications_query::FetchActionPublications;
 use crate::models::publication::publications_query::FetchPublications;
 use crate::models::publication::publications_query::PublicationsRequest;
 use crate::models::publication::publications_query::PublicationsRequestBody;
 use crate::models::publication::publications_query::Variables;
-use crate::models::publication::publications_query::DetailedPublication;
 
 pagination_component! {
     PublicationsComponent,
