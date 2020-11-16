@@ -5,8 +5,8 @@ use thoth_api::publication::model::PublicationType;
 use super::super::work::Work;
 
 pub const PUBLICATIONS_QUERY: &str = "
-    query PublicationsQuery($filter: String) {
-        publications(limit: 9999, filter: $filter) {
+    query PublicationsQuery($limit: Int, $offset: Int, $filter: String) {
+        publications(limit: $limit, offset: $offset, filter: $filter) {
             publicationId
             publicationType
             workId
@@ -33,6 +33,7 @@ pub const PUBLICATIONS_QUERY: &str = "
                 }
             }
         }
+        publicationCount(filter: $filter)
     }
 ";
 
@@ -50,6 +51,8 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
+    pub limit: Option<i32>,
+    pub offset: Option<i32>,
     pub filter: Option<String>,
 }
 
@@ -65,6 +68,8 @@ pub struct DetailedPublication {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct PublicationsResponseData {
     pub publications: Vec<DetailedPublication>,
+    pub publication_count: i32,
 }

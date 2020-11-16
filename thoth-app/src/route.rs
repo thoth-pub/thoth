@@ -57,6 +57,8 @@ pub enum AdminRoute {
     Publications,
     #[to = "/publication/{id}"]
     Publication(String),
+    #[to = "/publication"]
+    NewPublication,
     #[to = ""]
     Admin,
 }

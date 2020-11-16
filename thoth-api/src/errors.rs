@@ -10,6 +10,8 @@ pub type Result<T> = std::result::Result<T, failure::Error>;
 pub enum ThothError {
     #[fail(display = "{} is not a valid {} code", _0, _1)]
     InvalidSubjectCode(String, String),
+    #[fail(display = "{} is not a valid Currency Code", _0)]
+    InvalidCurrencyCode(String),
     #[fail(display = "{} is not a valid Language Code", _0)]
     InvalidLanguageCode(String),
     #[fail(display = "{} is not a valid Work Type", _0)]
