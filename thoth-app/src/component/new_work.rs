@@ -319,17 +319,29 @@ impl Component for NewWorkComponent {
                 };
                 self.work.place.neq_assign(place)
             }
-            Msg::ChangeWidth(width) => {
-                let width: i32 = width.parse().unwrap_or(0);
-                self.work.width.neq_assign(Some(width))
+            Msg::ChangeWidth(value) => {
+                let count: i32 = value.parse().unwrap_or(0);
+                let width = match count == 0 {
+                    true => None,
+                    false => Some(count),
+                };
+                self.work.width.neq_assign(width)
             }
-            Msg::ChangeHeight(height) => {
-                let height: i32 = height.parse().unwrap_or(0);
-                self.work.height.neq_assign(Some(height))
+            Msg::ChangeHeight(value) => {
+                let count: i32 = value.parse().unwrap_or(0);
+                let height = match count == 0 {
+                    true => None,
+                    false => Some(count),
+                };
+                self.work.height.neq_assign(height)
             }
-            Msg::ChangePageCount(page_count) => {
-                let page_count: i32 = page_count.parse().unwrap_or(0);
-                self.work.page_count.neq_assign(Some(page_count))
+            Msg::ChangePageCount(value) => {
+                let count: i32 = value.parse().unwrap_or(0);
+                let page_count = match count == 0 {
+                    true => None,
+                    false => Some(count),
+                };
+                self.work.page_count.neq_assign(page_count)
             }
             Msg::ChangePageBreakdown(value) => {
                 let breakdown = match value.trim().is_empty() {
@@ -338,21 +350,37 @@ impl Component for NewWorkComponent {
                 };
                 self.work.page_breakdown.neq_assign(breakdown)
             }
-            Msg::ChangeImageCount(image_count) => {
-                let image_count: i32 = image_count.parse().unwrap_or(0);
-                self.work.image_count.neq_assign(Some(image_count))
+            Msg::ChangeImageCount(value) => {
+                let count: i32 = value.parse().unwrap_or(0);
+                let image_count = match count == 0 {
+                    true => None,
+                    false => Some(count),
+                };
+                self.work.image_count.neq_assign(image_count)
             }
-            Msg::ChangeTableCount(table_count) => {
-                let table_count: i32 = table_count.parse().unwrap_or(0);
-                self.work.table_count.neq_assign(Some(table_count))
+            Msg::ChangeTableCount(value) => {
+                let count: i32 = value.parse().unwrap_or(0);
+                let table_count = match count == 0 {
+                    true => None,
+                    false => Some(count),
+                };
+                self.work.table_count.neq_assign(table_count)
             }
-            Msg::ChangeAudioCount(audio_count) => {
-                let audio_count: i32 = audio_count.parse().unwrap_or(0);
-                self.work.audio_count.neq_assign(Some(audio_count))
+            Msg::ChangeAudioCount(value) => {
+                let count: i32 = value.parse().unwrap_or(0);
+                let audio_count = match count == 0 {
+                    true => None,
+                    false => Some(count),
+                };
+                self.work.audio_count.neq_assign(audio_count)
             }
-            Msg::ChangeVideoCount(video_count) => {
-                let video_count: i32 = video_count.parse().unwrap_or(0);
-                self.work.video_count.neq_assign(Some(video_count))
+            Msg::ChangeVideoCount(value) => {
+                let count: i32 = value.parse().unwrap_or(0);
+                let video_count = match count == 0 {
+                    true => None,
+                    false => Some(count),
+                };
+                self.work.video_count.neq_assign(video_count)
             }
             Msg::ChangeLicense(value) => {
                 let license = match value.trim().is_empty() {
