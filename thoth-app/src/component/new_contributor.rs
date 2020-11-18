@@ -125,8 +125,14 @@ impl Component for NewContributorComponent {
                 };
                 self.contributor.first_name.neq_assign(first_name)
             }
-            Msg::ChangeLastName(last_name) => self.contributor.last_name.neq_assign(last_name.trim().to_owned()),
-            Msg::ChangeFullName(full_name) => self.contributor.full_name.neq_assign(full_name.trim().to_owned()),
+            Msg::ChangeLastName(last_name) => self
+                .contributor
+                .last_name
+                .neq_assign(last_name.trim().to_owned()),
+            Msg::ChangeFullName(full_name) => self
+                .contributor
+                .full_name
+                .neq_assign(full_name.trim().to_owned()),
             Msg::ChangeOrcid(value) => {
                 let orcid = match value.trim().is_empty() {
                     true => None,

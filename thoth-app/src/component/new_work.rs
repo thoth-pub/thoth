@@ -389,9 +389,10 @@ impl Component for NewWorkComponent {
                 };
                 self.work.license.neq_assign(license)
             }
-            Msg::ChangeCopyright(copyright) => {
-                self.work.copyright_holder.neq_assign(copyright.trim().to_owned())
-            }
+            Msg::ChangeCopyright(copyright) => self
+                .work
+                .copyright_holder
+                .neq_assign(copyright.trim().to_owned()),
             Msg::ChangeLandingPage(value) => {
                 let landing_page = match value.trim().is_empty() {
                     true => None,
@@ -449,7 +450,7 @@ impl Component for NewWorkComponent {
                 self.work.cover_url.neq_assign(cover_url)
             }
             Msg::ChangeCoverCaption(value) => {
-               let cover_caption = match value.trim().is_empty() {
+                let cover_caption = match value.trim().is_empty() {
                     true => None,
                     false => Some(value.trim().to_owned()),
                 };

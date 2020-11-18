@@ -295,11 +295,18 @@ impl Component for SeriesComponent {
             }
             Msg::ChangeSeriesType(series_type) => self.series.series_type.neq_assign(series_type),
             Msg::ChangeImprint(imprint_id) => self.series.imprint.imprint_id.neq_assign(imprint_id),
-            Msg::ChangeSeriesName(series_name) => self.series.series_name.neq_assign(series_name.trim().to_owned()),
-            Msg::ChangeIssnPrint(issn_print) => self.series.issn_print.neq_assign(issn_print.trim().to_owned()),
-            Msg::ChangeIssnDigital(issn_digital) => {
-                self.series.issn_digital.neq_assign(issn_digital.trim().to_owned())
-            }
+            Msg::ChangeSeriesName(series_name) => self
+                .series
+                .series_name
+                .neq_assign(series_name.trim().to_owned()),
+            Msg::ChangeIssnPrint(issn_print) => self
+                .series
+                .issn_print
+                .neq_assign(issn_print.trim().to_owned()),
+            Msg::ChangeIssnDigital(issn_digital) => self
+                .series
+                .issn_digital
+                .neq_assign(issn_digital.trim().to_owned()),
             Msg::ChangeSeriesUrl(value) => {
                 let series_url = match value.trim().is_empty() {
                     true => None,

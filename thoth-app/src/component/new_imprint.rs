@@ -154,9 +154,10 @@ impl Component for NewImprintComponent {
                 false
             }
             Msg::ChangePublisher(publisher_id) => self.publisher_id.neq_assign(publisher_id),
-            Msg::ChangeImprintName(imprint_name) => {
-                self.imprint.imprint_name.neq_assign(imprint_name.trim().to_owned())
-            }
+            Msg::ChangeImprintName(imprint_name) => self
+                .imprint
+                .imprint_name
+                .neq_assign(imprint_name.trim().to_owned()),
             Msg::ChangeImprintUrl(value) => {
                 let imprint_url = match value.trim().is_empty() {
                     true => None,

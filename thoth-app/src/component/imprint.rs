@@ -270,9 +270,10 @@ impl Component for ImprintComponent {
                     false
                 }
             }
-            Msg::ChangeImprintName(imprint_name) => {
-                self.imprint.imprint_name.neq_assign(imprint_name.trim().to_owned())
-            }
+            Msg::ChangeImprintName(imprint_name) => self
+                .imprint
+                .imprint_name
+                .neq_assign(imprint_name.trim().to_owned()),
             Msg::ChangeImprintUrl(value) => {
                 let imprint_url = match value.trim().is_empty() {
                     true => None,

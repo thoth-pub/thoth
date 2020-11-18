@@ -112,9 +112,10 @@ impl Component for NewFunderComponent {
                     .send_message(Msg::SetFunderPushState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangeFunderName(funder_name) => {
-                self.funder.funder_name.neq_assign(funder_name.trim().to_owned())
-            }
+            Msg::ChangeFunderName(funder_name) => self
+                .funder
+                .funder_name
+                .neq_assign(funder_name.trim().to_owned()),
             Msg::ChangeFunderDoi(value) => {
                 let funder_doi = match value.trim().is_empty() {
                     true => None,
