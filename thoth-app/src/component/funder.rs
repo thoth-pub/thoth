@@ -221,9 +221,9 @@ impl Component for FunderComponent {
             }
             Msg::ChangeFunderName(funder_name) => self.funder.funder_name.neq_assign(funder_name),
             Msg::ChangeFunderDoi(value) => {
-                let funder_doi = match value.is_empty() {
+                let funder_doi = match value.trim().is_empty() {
                     true => None,
-                    false => Some(value),
+                    false => Some(value.trim().to_owned()),
                 };
                 self.funder.funder_doi.neq_assign(funder_doi)
             }
