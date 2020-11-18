@@ -332,8 +332,12 @@ impl Component for WorkComponent {
                     false
                 }
             }
-            Msg::ChangeSubtitle(subtitle) => {
-                if self.work.subtitle.neq_assign(Some(subtitle)) {
+            Msg::ChangeSubtitle(value) => {
+                let subtitle = match value.is_empty() {
+                    true => None,
+                    false => Some(value),
+                };
+                if self.work.subtitle.neq_assign(subtitle) {
                     self.work.full_title = self.work.compile_fulltitle();
                     true
                 } else {
@@ -342,7 +346,13 @@ impl Component for WorkComponent {
             }
             Msg::ChangeWorkType(work_type) => self.work.work_type.neq_assign(work_type),
             Msg::ChangeWorkStatus(work_status) => self.work.work_status.neq_assign(work_status),
-            Msg::ChangeReference(reference) => self.work.reference.neq_assign(Some(reference)),
+            Msg::ChangeReference(value) => {
+                let reference = match value.is_empty() {
+                    true => None,
+                    false => Some(value),
+                };
+                self.work.reference.neq_assign(reference)
+            }
             Msg::ChangeImprint(imprint_id) => {
                 // we already have the full list of imprints
                 if let Some(index) = self
@@ -377,8 +387,12 @@ impl Component for WorkComponent {
                 let page_count: i32 = page_count.parse().unwrap_or(0);
                 self.work.page_count.neq_assign(Some(page_count))
             }
-            Msg::ChangePageBreakdown(breakdown) => {
-                self.work.page_breakdown.neq_assign(Some(breakdown))
+            Msg::ChangePageBreakdown(value) => {
+                let breakdown = match value.is_empty() {
+                    true => None,
+                    false => Some(value),
+                };
+                self.work.page_breakdown.neq_assign(breakdown)
             }
             Msg::ChangeImageCount(image_count) => {
                 let image_count: i32 = image_count.parse().unwrap_or(0);
@@ -396,24 +410,76 @@ impl Component for WorkComponent {
                 let video_count: i32 = video_count.parse().unwrap_or(0);
                 self.work.video_count.neq_assign(Some(video_count))
             }
-            Msg::ChangeLicense(license) => self.work.license.neq_assign(Some(license)),
+            Msg::ChangeLicense(value) => {
+                let license = match value.is_empty() {
+                    true => None,
+                    false => Some(value),
+                };
+                self.work.license.neq_assign(license)
+            }
             Msg::ChangeCopyright(copyright) => self.work.copyright_holder.neq_assign(copyright),
-            Msg::ChangeLandingPage(landing_page) => {
-                self.work.landing_page.neq_assign(Some(landing_page))
+            Msg::ChangeLandingPage(value) => {
+                let landing_page = match value.is_empty() {
+                    true => None,
+                    false => Some(value),
+                };
+                self.work.landing_page.neq_assign(landing_page)
             }
-            Msg::ChangeLccn(lccn) => self.work.lccn.neq_assign(Some(lccn)),
-            Msg::ChangeOclc(oclc) => self.work.oclc.neq_assign(Some(oclc)),
-            Msg::ChangeShortAbstract(short_abstract) => {
-                self.work.short_abstract.neq_assign(Some(short_abstract))
+            Msg::ChangeLccn(value) => {
+                let lccn = match value.is_empty() {
+                    true => None,
+                    false => Some(value),
+                };
+                self.work.lccn.neq_assign(lccn)
             }
-            Msg::ChangeLongAbstract(long_abstract) => {
-                self.work.long_abstract.neq_assign(Some(long_abstract))
+            Msg::ChangeOclc(value) => {
+                let oclc = match value.is_empty() {
+                    true => None,
+                    false => Some(value),
+                };
+                self.work.oclc.neq_assign(oclc)
             }
-            Msg::ChangeNote(note) => self.work.general_note.neq_assign(Some(note)),
-            Msg::ChangeToc(toc) => self.work.toc.neq_assign(Some(toc)),
-            Msg::ChangeCoverUrl(cover_url) => self.work.cover_url.neq_assign(Some(cover_url)),
-            Msg::ChangeCoverCaption(cover_caption) => {
-                self.work.cover_caption.neq_assign(Some(cover_caption))
+            Msg::ChangeShortAbstract(value) => {
+                let short_abstract = match value.is_empty() {
+                    true => None,
+                    false => Some(value),
+                };
+                self.work.short_abstract.neq_assign(short_abstract)
+            }
+            Msg::ChangeLongAbstract(value) => {
+                let long_abstract = match value.is_empty() {
+                    true => None,
+                    false => Some(value),
+                };
+                self.work.long_abstract.neq_assign(long_abstract)
+            }
+            Msg::ChangeNote(value) => {
+                let note = match value.is_empty() {
+                    true => None,
+                    false => Some(value),
+                };
+                self.work.general_note.neq_assign(note)
+            }
+            Msg::ChangeToc(value) => {
+                let toc = match value.is_empty() {
+                    true => None,
+                    false => Some(value),
+                };
+                self.work.toc.neq_assign(toc)
+            }
+            Msg::ChangeCoverUrl(value) => {
+                let cover_url = match value.is_empty() {
+                    true => None,
+                    false => Some(value),
+                };
+                self.work.cover_url.neq_assign(cover_url)
+            }
+            Msg::ChangeCoverCaption(value) => {
+                let cover_caption = match value.is_empty() {
+                    true => None,
+                    false => Some(value),
+                };
+                self.work.cover_caption.neq_assign(cover_caption)
             }
             Msg::UpdateContributions(contributions) => {
                 self.work.contributions.neq_assign(contributions)
