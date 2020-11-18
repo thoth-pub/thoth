@@ -112,8 +112,16 @@ impl Component for NewFunderComponent {
                     .send_message(Msg::SetFunderPushState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangeFunderName(funder_name) => self.funder.funder_name.neq_assign(funder_name),
-            Msg::ChangeFunderDoi(funder_doi) => self.funder.funder_doi.neq_assign(Some(funder_doi)),
+            Msg::ChangeFunderName(funder_name) => {
+                self.funder.funder_name.neq_assign(funder_name.trim().to_owned())
+            }
+            Msg::ChangeFunderDoi(value) => {
+                let funder_doi = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.funder.funder_doi.neq_assign(funder_doi)
+            }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
