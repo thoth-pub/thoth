@@ -115,7 +115,7 @@ impl Component for NewPublisherComponent {
                 false
             }
             Msg::ChangePublisherName(publisher_name) => {
-                self.publisher.publisher_name.neq_assign(publisher_name)
+                self.publisher.publisher_name.neq_assign(publisher_name.trim().to_owned())
             }
             Msg::ChangePublisherShortname(value) => {
                 let publisher_shortname = match value.trim().is_empty() {

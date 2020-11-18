@@ -325,7 +325,7 @@ impl Component for WorkComponent {
                 false
             }
             Msg::ChangeTitle(title) => {
-                if self.work.title.neq_assign(title) {
+                if self.work.title.neq_assign(title.trim().to_owned()) {
                     self.work.full_title = self.work.compile_fulltitle();
                     true
                 } else {
@@ -417,7 +417,9 @@ impl Component for WorkComponent {
                 };
                 self.work.license.neq_assign(license)
             }
-            Msg::ChangeCopyright(copyright) => self.work.copyright_holder.neq_assign(copyright),
+            Msg::ChangeCopyright(copyright) => {
+                self.work.copyright_holder.neq_assign(copyright.trim().to_owned())
+            }
             Msg::ChangeLandingPage(value) => {
                 let landing_page = match value.trim().is_empty() {
                     true => None,
