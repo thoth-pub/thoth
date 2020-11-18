@@ -333,9 +333,9 @@ impl Component for WorkComponent {
                 }
             }
             Msg::ChangeSubtitle(value) => {
-                let subtitle = match value.is_empty() {
+                let subtitle = match value.trim().is_empty() {
                     true => None,
-                    false => Some(value),
+                    false => Some(value.trim().to_owned()),
                 };
                 if self.work.subtitle.neq_assign(subtitle) {
                     self.work.full_title = self.work.compile_fulltitle();
@@ -347,9 +347,9 @@ impl Component for WorkComponent {
             Msg::ChangeWorkType(work_type) => self.work.work_type.neq_assign(work_type),
             Msg::ChangeWorkStatus(work_status) => self.work.work_status.neq_assign(work_status),
             Msg::ChangeReference(value) => {
-                let reference = match value.is_empty() {
+                let reference = match value.trim().is_empty() {
                     true => None,
-                    false => Some(value),
+                    false => Some(value.trim().to_owned()),
                 };
                 self.work.reference.neq_assign(reference)
             }
@@ -388,9 +388,9 @@ impl Component for WorkComponent {
                 self.work.page_count.neq_assign(Some(page_count))
             }
             Msg::ChangePageBreakdown(value) => {
-                let breakdown = match value.is_empty() {
+                let breakdown = match value.trim().is_empty() {
                     true => None,
-                    false => Some(value),
+                    false => Some(value.trim().to_owned()),
                 };
                 self.work.page_breakdown.neq_assign(breakdown)
             }
@@ -411,73 +411,73 @@ impl Component for WorkComponent {
                 self.work.video_count.neq_assign(Some(video_count))
             }
             Msg::ChangeLicense(value) => {
-                let license = match value.is_empty() {
+                let license = match value.trim().is_empty() {
                     true => None,
-                    false => Some(value),
+                    false => Some(value.trim().to_owned()),
                 };
                 self.work.license.neq_assign(license)
             }
             Msg::ChangeCopyright(copyright) => self.work.copyright_holder.neq_assign(copyright),
             Msg::ChangeLandingPage(value) => {
-                let landing_page = match value.is_empty() {
+                let landing_page = match value.trim().is_empty() {
                     true => None,
-                    false => Some(value),
+                    false => Some(value.trim().to_owned()),
                 };
                 self.work.landing_page.neq_assign(landing_page)
             }
             Msg::ChangeLccn(value) => {
-                let lccn = match value.is_empty() {
+                let lccn = match value.trim().is_empty() {
                     true => None,
-                    false => Some(value),
+                    false => Some(value.trim().to_owned()),
                 };
                 self.work.lccn.neq_assign(lccn)
             }
             Msg::ChangeOclc(value) => {
-                let oclc = match value.is_empty() {
+                let oclc = match value.trim().is_empty() {
                     true => None,
-                    false => Some(value),
+                    false => Some(value.trim().to_owned()),
                 };
                 self.work.oclc.neq_assign(oclc)
             }
             Msg::ChangeShortAbstract(value) => {
-                let short_abstract = match value.is_empty() {
+                let short_abstract = match value.trim().is_empty() {
                     true => None,
-                    false => Some(value),
+                    false => Some(value.trim().to_owned()),
                 };
                 self.work.short_abstract.neq_assign(short_abstract)
             }
             Msg::ChangeLongAbstract(value) => {
-                let long_abstract = match value.is_empty() {
+                let long_abstract = match value.trim().is_empty() {
                     true => None,
-                    false => Some(value),
+                    false => Some(value.trim().to_owned()),
                 };
                 self.work.long_abstract.neq_assign(long_abstract)
             }
             Msg::ChangeNote(value) => {
-                let note = match value.is_empty() {
+                let note = match value.trim().is_empty() {
                     true => None,
-                    false => Some(value),
+                    false => Some(value.trim().to_owned()),
                 };
                 self.work.general_note.neq_assign(note)
             }
             Msg::ChangeToc(value) => {
-                let toc = match value.is_empty() {
+                let toc = match value.trim().is_empty() {
                     true => None,
-                    false => Some(value),
+                    false => Some(value.trim().to_owned()),
                 };
                 self.work.toc.neq_assign(toc)
             }
             Msg::ChangeCoverUrl(value) => {
-                let cover_url = match value.is_empty() {
+                let cover_url = match value.trim().is_empty() {
                     true => None,
-                    false => Some(value),
+                    false => Some(value.trim().to_owned()),
                 };
                 self.work.cover_url.neq_assign(cover_url)
             }
             Msg::ChangeCoverCaption(value) => {
-                let cover_caption = match value.is_empty() {
+               let cover_caption = match value.trim().is_empty() {
                     true => None,
-                    false => Some(value),
+                    false => Some(value.trim().to_owned()),
                 };
                 self.work.cover_caption.neq_assign(cover_caption)
             }
