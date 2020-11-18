@@ -220,7 +220,13 @@ impl Component for FunderComponent {
                 false
             }
             Msg::ChangeFunderName(funder_name) => self.funder.funder_name.neq_assign(funder_name),
-            Msg::ChangeFunderDoi(funder_doi) => self.funder.funder_doi.neq_assign(Some(funder_doi)),
+            Msg::ChangeFunderDoi(value) => {
+                let funder_doi = match value.is_empty() {
+                    true => None,
+                    false => Some(value),
+                };
+                self.funder.funder_doi.neq_assign(funder_doi)
+            }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
