@@ -372,9 +372,21 @@ impl Component for WorkComponent {
                 let edition: i32 = edition.parse().unwrap_or(1);
                 self.work.edition.neq_assign(edition)
             }
-            Msg::ChangeDoi(doi) => self.work.doi.neq_assign(Some(doi)),
+            Msg::ChangeDoi(value) => {
+                let doi = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.doi.neq_assign(doi)
+            }
             Msg::ChangeDate(date) => self.work.publication_date.neq_assign(Some(date)),
-            Msg::ChangePlace(place) => self.work.place.neq_assign(Some(place)),
+            Msg::ChangePlace(value) => {
+                let place = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.place.neq_assign(place)
+            }
             Msg::ChangeWidth(width) => {
                 let width: i32 = width.parse().unwrap_or(0);
                 self.work.width.neq_assign(Some(width))

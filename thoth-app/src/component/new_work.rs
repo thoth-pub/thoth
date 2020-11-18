@@ -271,15 +271,19 @@ impl Component for NewWorkComponent {
                 false
             }
             Msg::ChangeTitle(title) => {
-                if self.work.title.neq_assign(title) {
+                if self.work.title.neq_assign(title.trim().to_owned()) {
                     self.work.full_title = self.work.compile_fulltitle();
                     true
                 } else {
                     false
                 }
             }
-            Msg::ChangeSubtitle(subtitle) => {
-                if self.work.subtitle.neq_assign(Some(subtitle)) {
+            Msg::ChangeSubtitle(value) => {
+                let subtitle = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                if self.work.subtitle.neq_assign(subtitle) {
                     self.work.full_title = self.work.compile_fulltitle();
                     true
                 } else {
@@ -288,15 +292,33 @@ impl Component for NewWorkComponent {
             }
             Msg::ChangeWorkType(work_type) => self.work.work_type.neq_assign(work_type),
             Msg::ChangeWorkStatus(work_status) => self.work.work_status.neq_assign(work_status),
-            Msg::ChangeReference(reference) => self.work.reference.neq_assign(Some(reference)),
+            Msg::ChangeReference(value) => {
+                let reference = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.reference.neq_assign(reference)
+            }
             Msg::ChangeImprint(imprint_id) => self.imprint_id.neq_assign(imprint_id),
             Msg::ChangeEdition(edition) => {
                 let edition: i32 = edition.parse().unwrap_or(1);
                 self.work.edition.neq_assign(edition)
             }
-            Msg::ChangeDoi(doi) => self.work.doi.neq_assign(Some(doi)),
+            Msg::ChangeDoi(value) => {
+                let doi = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.doi.neq_assign(doi)
+            }
             Msg::ChangeDate(date) => self.work.publication_date.neq_assign(Some(date)),
-            Msg::ChangePlace(place) => self.work.place.neq_assign(Some(place)),
+            Msg::ChangePlace(value) => {
+                let place = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.place.neq_assign(place)
+            }
             Msg::ChangeWidth(width) => {
                 let width: i32 = width.parse().unwrap_or(0);
                 self.work.width.neq_assign(Some(width))
@@ -309,8 +331,12 @@ impl Component for NewWorkComponent {
                 let page_count: i32 = page_count.parse().unwrap_or(0);
                 self.work.page_count.neq_assign(Some(page_count))
             }
-            Msg::ChangePageBreakdown(breakdown) => {
-                self.work.page_breakdown.neq_assign(Some(breakdown))
+            Msg::ChangePageBreakdown(value) => {
+                let breakdown = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.page_breakdown.neq_assign(breakdown)
             }
             Msg::ChangeImageCount(image_count) => {
                 let image_count: i32 = image_count.parse().unwrap_or(0);
@@ -328,24 +354,78 @@ impl Component for NewWorkComponent {
                 let video_count: i32 = video_count.parse().unwrap_or(0);
                 self.work.video_count.neq_assign(Some(video_count))
             }
-            Msg::ChangeLicense(license) => self.work.license.neq_assign(Some(license)),
-            Msg::ChangeCopyright(copyright) => self.work.copyright_holder.neq_assign(copyright),
-            Msg::ChangeLandingPage(landing_page) => {
-                self.work.landing_page.neq_assign(Some(landing_page))
+            Msg::ChangeLicense(value) => {
+                let license = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.license.neq_assign(license)
             }
-            Msg::ChangeLccn(lccn) => self.work.lccn.neq_assign(Some(lccn)),
-            Msg::ChangeOclc(oclc) => self.work.oclc.neq_assign(Some(oclc)),
-            Msg::ChangeShortAbstract(short_abstract) => {
-                self.work.short_abstract.neq_assign(Some(short_abstract))
+            Msg::ChangeCopyright(copyright) => {
+                self.work.copyright_holder.neq_assign(copyright.trim().to_owned())
             }
-            Msg::ChangeLongAbstract(long_abstract) => {
-                self.work.long_abstract.neq_assign(Some(long_abstract))
+            Msg::ChangeLandingPage(value) => {
+                let landing_page = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.landing_page.neq_assign(landing_page)
             }
-            Msg::ChangeNote(note) => self.work.general_note.neq_assign(Some(note)),
-            Msg::ChangeToc(toc) => self.work.toc.neq_assign(Some(toc)),
-            Msg::ChangeCoverUrl(cover_url) => self.work.cover_url.neq_assign(Some(cover_url)),
-            Msg::ChangeCoverCaption(cover_caption) => {
-                self.work.cover_caption.neq_assign(Some(cover_caption))
+            Msg::ChangeLccn(value) => {
+                let lccn = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.lccn.neq_assign(lccn)
+            }
+            Msg::ChangeOclc(value) => {
+                let oclc = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.oclc.neq_assign(oclc)
+            }
+            Msg::ChangeShortAbstract(value) => {
+                let short_abstract = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.short_abstract.neq_assign(short_abstract)
+            }
+            Msg::ChangeLongAbstract(value) => {
+                let long_abstract = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.long_abstract.neq_assign(long_abstract)
+            }
+            Msg::ChangeNote(value) => {
+                let note = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.general_note.neq_assign(note)
+            }
+            Msg::ChangeToc(value) => {
+                let toc = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.toc.neq_assign(toc)
+            }
+            Msg::ChangeCoverUrl(value) => {
+                let cover_url = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.cover_url.neq_assign(cover_url)
+            }
+            Msg::ChangeCoverCaption(value) => {
+               let cover_caption = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.cover_caption.neq_assign(cover_caption)
             }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);

@@ -155,10 +155,14 @@ impl Component for NewImprintComponent {
             }
             Msg::ChangePublisher(publisher_id) => self.publisher_id.neq_assign(publisher_id),
             Msg::ChangeImprintName(imprint_name) => {
-                self.imprint.imprint_name.neq_assign(imprint_name)
+                self.imprint.imprint_name.neq_assign(imprint_name.trim().to_owned())
             }
-            Msg::ChangeImprintUrl(imprint_url) => {
-                self.imprint.imprint_url.neq_assign(Some(imprint_url))
+            Msg::ChangeImprintUrl(value) => {
+                let imprint_url = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.imprint.imprint_url.neq_assign(imprint_url)
             }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
