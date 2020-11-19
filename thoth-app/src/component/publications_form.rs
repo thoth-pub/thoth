@@ -229,8 +229,20 @@ impl Component for PublicationsFormComponent {
             Msg::ChangePublicationType(val) => {
                 self.new_publication.publication_type.neq_assign(val)
             }
-            Msg::ChangeIsbn(isbn) => self.new_publication.isbn.neq_assign(Some(isbn)),
-            Msg::ChangeUrl(url) => self.new_publication.publication_url.neq_assign(Some(url)),
+            Msg::ChangeIsbn(value) => {
+                let isbn = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.new_publication.isbn.neq_assign(isbn)
+            }
+            Msg::ChangeUrl(value) => {
+                let url = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.new_publication.publication_url.neq_assign(url)
+            }
             Msg::DoNothing => false, // callbacks need to return a message
         }
     }

@@ -118,13 +118,35 @@ impl Component for NewContributorComponent {
                     .send_message(Msg::SetContributorPushState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangeFirstName(first_name) => {
-                self.contributor.first_name.neq_assign(Some(first_name))
+            Msg::ChangeFirstName(value) => {
+                let first_name = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.contributor.first_name.neq_assign(first_name)
             }
-            Msg::ChangeLastName(last_name) => self.contributor.last_name.neq_assign(last_name),
-            Msg::ChangeFullName(full_name) => self.contributor.full_name.neq_assign(full_name),
-            Msg::ChangeOrcid(orcid) => self.contributor.orcid.neq_assign(Some(orcid)),
-            Msg::ChangeWebsite(website) => self.contributor.website.neq_assign(Some(website)),
+            Msg::ChangeLastName(last_name) => self
+                .contributor
+                .last_name
+                .neq_assign(last_name.trim().to_owned()),
+            Msg::ChangeFullName(full_name) => self
+                .contributor
+                .full_name
+                .neq_assign(full_name.trim().to_owned()),
+            Msg::ChangeOrcid(value) => {
+                let orcid = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.contributor.orcid.neq_assign(orcid)
+            }
+            Msg::ChangeWebsite(value) => {
+                let website = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.contributor.website.neq_assign(website)
+            }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));

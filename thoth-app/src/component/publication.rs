@@ -218,19 +218,21 @@ impl Component for PublicationComponent {
                                     {&self.publication.publication_url.clone().unwrap_or_else(|| "".to_string())}
                                 </div>
                             </div>
-                            <hr/>
-                            <article class="message is-info">
-                                <div class="message-body">
-                                    { "Prices below are saved automatically upon change." }
-                                </div>
-                            </article>
-
-                            <PricesFormComponent
-                                prices=&self.publication.prices
-                                publication_id=&self.publication.publication_id
-                                update_prices=self.link.callback(|p: Option<Vec<Price>>| Msg::UpdatePrices(p))
-                            />
                         </form>
+
+                        <hr/>
+
+                        <article class="message is-info">
+                            <div class="message-body">
+                                { "Prices below are saved automatically upon change." }
+                            </div>
+                        </article>
+
+                        <PricesFormComponent
+                            prices=&self.publication.prices
+                            publication_id=&self.publication.publication_id
+                            update_prices=self.link.callback(|p: Option<Vec<Price>>| Msg::UpdatePrices(p))
+                        />
                     </>
                 }
             }

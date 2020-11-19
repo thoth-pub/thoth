@@ -221,15 +221,25 @@ impl Component for PublisherComponent {
                     .send_message(Msg::SetPublisherDeleteState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangePublisherName(publisher_name) => {
-                self.publisher.publisher_name.neq_assign(publisher_name)
-            }
-            Msg::ChangePublisherShortname(publisher_shortname) => self
+            Msg::ChangePublisherName(publisher_name) => self
                 .publisher
-                .publisher_shortname
-                .neq_assign(Some(publisher_shortname)),
-            Msg::ChangePublisherUrl(publisher_url) => {
-                self.publisher.publisher_url.neq_assign(Some(publisher_url))
+                .publisher_name
+                .neq_assign(publisher_name.trim().to_owned()),
+            Msg::ChangePublisherShortname(value) => {
+                let publisher_shortname = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.publisher
+                    .publisher_shortname
+                    .neq_assign(publisher_shortname)
+            }
+            Msg::ChangePublisherUrl(value) => {
+                let publisher_url = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.publisher.publisher_url.neq_assign(publisher_url)
             }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
