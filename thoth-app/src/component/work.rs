@@ -787,44 +787,46 @@ impl Component for WorkComponent {
                                     </button>
                                 </div>
                             </div>
-                            <hr/>
-                            <article class="message is-info">
-                                <div class="message-body">
-                                    { "Relations below are saved automatically upon change." }
-                                </div>
-                            </article>
-
-                            <ContributionsFormComponent
-                                contributions=&self.work.contributions
-                                work_id=&self.work.work_id
-                                update_contributions=self.link.callback(|c: Option<Vec<Contribution>>| Msg::UpdateContributions(c))
-                            />
-                            <PublicationsFormComponent
-                                publications=&self.work.publications
-                                work_id=&self.work.work_id
-                                update_publications=self.link.callback(|p: Option<Vec<Publication>>| Msg::UpdatePublications(p))
-                            />
-                            <LanguagesFormComponent
-                                languages=&self.work.languages
-                                work_id=&self.work.work_id
-                                update_languages=self.link.callback(|l: Option<Vec<Language>>| Msg::UpdateLanguages(l))
-                            />
-                            <SubjectsFormComponent
-                                subjects=&self.work.subjects
-                                work_id=&self.work.work_id
-                                update_subjects=self.link.callback(|s: Option<Vec<Subject>>| Msg::UpdateSubjects(s))
-                            />
-                            <IssuesFormComponent
-                                issues=&self.work.issues
-                                work_id=&self.work.work_id
-                                update_issues=self.link.callback(|i: Option<Vec<Issue>>| Msg::UpdateIssues(i))
-                            />
-                            <FundingsFormComponent
-                                fundings=&self.work.fundings
-                                work_id=&self.work.work_id
-                                update_fundings=self.link.callback(|f: Option<Vec<Funding>>| Msg::UpdateFundings(f))
-                            />
                         </form>
+
+                        <hr/>
+
+                        <article class="message is-info">
+                            <div class="message-body">
+                                { "Relations below are saved automatically upon change." }
+                            </div>
+                        </article>
+
+                        <ContributionsFormComponent
+                            contributions=&self.work.contributions
+                            work_id=&self.work.work_id
+                            update_contributions=self.link.callback(|c: Option<Vec<Contribution>>| Msg::UpdateContributions(c))
+                        />
+                        <PublicationsFormComponent
+                            publications=&self.work.publications
+                            work_id=&self.work.work_id
+                            update_publications=self.link.callback(|p: Option<Vec<Publication>>| Msg::UpdatePublications(p))
+                        />
+                        <LanguagesFormComponent
+                            languages=&self.work.languages
+                            work_id=&self.work.work_id
+                            update_languages=self.link.callback(|l: Option<Vec<Language>>| Msg::UpdateLanguages(l))
+                        />
+                        <SubjectsFormComponent
+                            subjects=&self.work.subjects
+                            work_id=&self.work.work_id
+                            update_subjects=self.link.callback(|s: Option<Vec<Subject>>| Msg::UpdateSubjects(s))
+                        />
+                        <IssuesFormComponent
+                            issues=&self.work.issues
+                            work_id=&self.work.work_id
+                            update_issues=self.link.callback(|i: Option<Vec<Issue>>| Msg::UpdateIssues(i))
+                        />
+                        <FundingsFormComponent
+                            fundings=&self.work.fundings
+                            work_id=&self.work.work_id
+                            update_fundings=self.link.callback(|f: Option<Vec<Funding>>| Msg::UpdateFundings(f))
+                        />
                     </>
                 }
             }
