@@ -17,7 +17,7 @@
 
 ## About
 
-**Thoth** (/θoʊθ, toʊt/) is an Open Dissemination System for Open Access books. Written purely in rust, it consists of:
+**Thoth** (/θoʊθ, toʊt/, Greek Θώθ < Coptic Ⲑⲱⲟⲩⲧ < Egyptian *ḏḥwtj*) is an Open Dissemination System for Open Access books. Written purely in rust, it consists of:
 
 * A GraphQL API, implementing a data model specifically designed for OA books
 * An actions API to export metadata in formats like ONIX, MARC, etc.
