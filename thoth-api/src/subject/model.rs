@@ -11192,6 +11192,7 @@ static BISAC_CODES: Map<&'static str, &'static str> = phf_map! {
     "SOC026030" => "Social Science / Sociology / Urban",
     "SOC026040" => "Social Science / Sociology / Social Theory",
     "SOC027000" => "Social Science / Statistics",
+    "SOC071000" => "Social Science / Technology Studies",
     "SOC028000" => "Social Science / Women's Studies",
     "SOC029000" => "Social Science / People with Disabilities",
     "SOC030000" => "Social Science / Penology",
