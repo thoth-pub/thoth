@@ -145,6 +145,7 @@ impl Component for CatalogueComponent {
     fn view(&self) -> Html {
         html! {
             <div class="container">
+                <h1 class="title">{ "Catalogue" }</h1>
                 <nav class="level">
                     <div class="level-left">
                         <p class="level-item">

@@ -7,6 +7,7 @@ use yew_router::switch::Permissive;
 
 use crate::component::admin::AdminComponent;
 use crate::component::catalogue::CatalogueComponent;
+use crate::component::hero::HeroComponent;
 use crate::component::login::LoginComponent;
 use crate::component::navbar::NavbarComponent;
 use crate::component::notification::NotificationComponent;
@@ -37,25 +38,33 @@ impl Component for RootComponent {
                     <NavbarComponent />
                 </header>
                 <NotificationComponent />
-                <div class="main section">
+                <div class="main">
                     <Router<AppRoute>
                         render = Router::render(|switch: AppRoute| {
                             match switch {
-                                AppRoute::Home => html! {<CatalogueComponent />},
-                                AppRoute::Login => html! {<LoginComponent />},
-                                AppRoute::Admin(admin_route) => {
-                                    html! {<AdminComponent route = admin_route />}
-
-                                }
-                                AppRoute::Error(Permissive(None)) => {
-                                    html! {
-                                        <div class="uk-position-center"></div>
-                                    }
-                                }
-                                AppRoute::Error(Permissive(Some(missed_route))) => {
-                                    html!{
-                                        format!("Page '{}' not found", missed_route)
-                                    }
+                                AppRoute::Home => html! {
+                                    <>
+                                        <HeroComponent />
+                                        <div class="section">
+                                            <CatalogueComponent />
+                                        </div>
+                                    </>
+                                },
+                                AppRoute::Login => html! {
+                                    <div class="section">
+                                        <LoginComponent />
+                                    </div>
+                                },
+                                AppRoute::Admin(admin_route) => html! {
+                                    <div class="section">
+                                        <AdminComponent route={admin_route} />
+                                    </div>
+                                },
+                                AppRoute::Error(Permissive(None)) => html! {
+                                    <div class="uk-position-center"></div>
+                                },
+                                AppRoute::Error(Permissive(Some(missed_route))) => html!{
+                                    format!("Page '{}' not found", missed_route)
                                 }
                             }
                         })
