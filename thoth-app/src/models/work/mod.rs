@@ -211,7 +211,7 @@ impl Work {
 
     pub fn as_catalogue_box(&self) -> Html {
         let doi = self.doi.clone().unwrap_or_else(|| "".to_string());
-        let cover_url = self.cover_url.clone().unwrap_or_else(|| "".to_string());
+        let cover_url = self.cover_url.clone().unwrap_or_else(|| "/img/cover-placeholder.jpg".to_string());
         let place = self.place.clone().unwrap_or_else(|| "".to_string());
         html! {
             <div class="box">
