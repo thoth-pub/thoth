@@ -190,6 +190,24 @@ impl Work {
         }
     }
 
+    pub fn status_tag(&self) -> Html {
+        match self.work_status {
+            WorkStatus::Unspecified => html! {},
+            WorkStatus::Cancelled => html! {<span class="tag is-danger">{ "Cancelled" }</span>},
+            WorkStatus::Forthcoming => html! {<span class="tag is-warning">{ "Forthcoming" }</span>},
+            WorkStatus::PostponedIndefinitely => html! {<span class="tag is-warning">{ "Postponed" }</span>},
+            WorkStatus::Active => html! {},
+            WorkStatus::NoLongerOurProduct => html! {},
+            WorkStatus::OutOfStockIndefinitely => html! {},
+            WorkStatus::OutOfPrint => html! {<span class="tag is-danger">{ "Out of print" }</span>},
+            WorkStatus::Inactive => html! {<span class="tag is-danger">{ "" }</span>},
+            WorkStatus::Unknown => html! {},
+            WorkStatus::Remaindered => html! {},
+            WorkStatus::WithdrawnFromSale => html! {<span class="tag is-danger">{ "Withdrawn" }</span>},
+            WorkStatus::Recalled => html! {<span class="tag is-danger">{ "Recalled" }</span>},
+        }
+    }
+
     pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let doi = self.doi.clone().unwrap_or_else(|| "".to_string());
         html! {
@@ -230,37 +248,48 @@ impl Work {
                     </div>
                     <div class="media-content">
                         <div class="content">
-                            <p>
-                                <strong>{&self.full_title}</strong>
-                                <br/>
-                                <div>
-                                {
-                                    if let Some(contributions) = &self.contributions {
-                                        contributions.iter().map(|c| c.main_contribution_item_bullet_small()).collect::<Html>()
-                                    } else {
-                                        html! {}
-                                    }
-                                }
+                            <nav class="level">
+                                <div class="level-left">
+                                    <div class="level-item">
+                                        <p>
+                                            <strong>{&self.full_title}</strong>
+                                            <br/>
+                                            <div>
+                                            {
+                                                if let Some(contributions) = &self.contributions {
+                                                    contributions.iter().map(|c| c.main_contribution_item_bullet_small()).collect::<Html>()
+                                                } else {
+                                                    html! {}
+                                                }
+                                            }
+                                            </div>
+                                            <br/>
+                                            {
+                                                if let Some(date) = &self.publication_date {
+                                                    let mut c1 = date.chars();
+                                                    c1.next();
+                                                    c1.next();
+                                                    c1.next();
+                                                    c1.next();
+                                                    let year: &str = &date[..date.len() - c1.as_str().len()];
+                                                    html! {<small>{place}{": "}{&self.imprint.publisher.publisher_name}{", "}{year}</small>}
+                                                } else {
+                                                    html! {<small>{&self.imprint.publisher.publisher_name}</small>}
+                                                }
+                                            }
+                                            <br/>
+                                            <small>{&doi}</small>
+                                        </p>
+                                    </div>
                                 </div>
-                                <br/>
-                                {
-                                    if let Some(date) = &self.publication_date {
-                                        let mut c1 = date.chars();
-                                        c1.next();
-                                        c1.next();
-                                        c1.next();
-                                        c1.next();
-                                        let year: &str = &date[..date.len() - c1.as_str().len()];
-                                        html! {<small>{place}{": "}{&self.imprint.publisher.publisher_name}{", "}{year}</small>}
-                                    } else {
-                                        html! {<small>{&self.imprint.publisher.publisher_name}</small>}
-                                    }
-                                }
-                                <br/>
-                                <small>{&doi}</small>
-                            </p>
+                                <div class="level-right">
+                                    <div class="level-item">
+                                        { self.status_tag() }
+                                    </div>
+                                </div>
+                            </nav>
                         </div>
-                        <nav class="level is-mobile">
+                        <nav class="level">
                             <div class="level-left">
                                 <a
                                     class="level-item button is-small"
