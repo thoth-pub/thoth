@@ -136,7 +136,13 @@ impl Work {
             License::from_str(&self.license.clone().unwrap_or_else(|| "".to_string())).unwrap();
         html! {
             <span class="icon is-small license">
-                <i class="fab fa-creative-commons" aria-hidden="true"></i>
+                {
+                    if license != License::Undefined {
+                        html! {<i class="fab fa-creative-commons" aria-hidden="true"></i>}
+                    } else {
+                        html! {}
+                    }
+                }
                 {
                     match license {
                         License::By =>html!{
