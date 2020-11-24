@@ -4,6 +4,14 @@ All notable changes to thoth will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [[0.2.9]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.9) - 2020-11-24
+### Changed
+  - Hide creative commons icon when license is unset in APP catalogue
+
+### Added
+  - Display book cover placeholder when cover URL is unset
+  - Status tags to APP catalogue
+
 ## [[0.2.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.8) - 2020-11-23
 ### Changed
   - Upgrade fontawesome to v5.4.0
