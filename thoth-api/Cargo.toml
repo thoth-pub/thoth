@@ -1,6 +1,6 @@
 [package]
 name = "thoth-api"
-version = "0.2.8"
+version = "0.2.9"
 authors = ["Javier Arias <javi@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
