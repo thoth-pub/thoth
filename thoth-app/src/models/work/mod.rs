@@ -194,8 +194,12 @@ impl Work {
         match self.work_status {
             WorkStatus::Unspecified => html! {},
             WorkStatus::Cancelled => html! {<span class="tag is-danger">{ "Cancelled" }</span>},
-            WorkStatus::Forthcoming => html! {<span class="tag is-warning">{ "Forthcoming" }</span>},
-            WorkStatus::PostponedIndefinitely => html! {<span class="tag is-warning">{ "Postponed" }</span>},
+            WorkStatus::Forthcoming => {
+                html! {<span class="tag is-warning">{ "Forthcoming" }</span>}
+            }
+            WorkStatus::PostponedIndefinitely => {
+                html! {<span class="tag is-warning">{ "Postponed" }</span>}
+            }
             WorkStatus::Active => html! {},
             WorkStatus::NoLongerOurProduct => html! {},
             WorkStatus::OutOfStockIndefinitely => html! {},
@@ -203,7 +207,9 @@ impl Work {
             WorkStatus::Inactive => html! {<span class="tag is-danger">{ "" }</span>},
             WorkStatus::Unknown => html! {},
             WorkStatus::Remaindered => html! {},
-            WorkStatus::WithdrawnFromSale => html! {<span class="tag is-danger">{ "Withdrawn" }</span>},
+            WorkStatus::WithdrawnFromSale => {
+                html! {<span class="tag is-danger">{ "Withdrawn" }</span>}
+            }
             WorkStatus::Recalled => html! {<span class="tag is-danger">{ "Recalled" }</span>},
         }
     }
@@ -235,7 +241,10 @@ impl Work {
 
     pub fn as_catalogue_box(&self) -> Html {
         let doi = self.doi.clone().unwrap_or_else(|| "".to_string());
-        let cover_url = self.cover_url.clone().unwrap_or_else(|| "/img/cover-placeholder.jpg".to_string());
+        let cover_url = self
+            .cover_url
+            .clone()
+            .unwrap_or_else(|| "/img/cover-placeholder.jpg".to_string());
         let place = self.place.clone().unwrap_or_else(|| "".to_string());
         html! {
             <div class="box">
