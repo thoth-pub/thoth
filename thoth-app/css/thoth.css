@@ -1,0 +1,82 @@
+.contributor:last-child > span {
+    display: none;
+}
+
+.license {
+    width: 100% !important;
+    margin-top: 0.5em;
+}
+
+.license > svg {
+    margin-left: 0.2em;
+}
+
+.row {
+    cursor: pointer;
+}
+
+.fixed-right {
+    float: right;
+    position: fixed;
+    right: 0;
+    z-index: 1;
+}
+
+.dropdown-item {
+    cursor: pointer;
+}
+
+
+.field.is-horizontal > .field:not(:last-child) {
+    margin-right: .75em;
+}
+
+.home-banner {
+    max-height: 350px;
+}
+
+.home-icons {
+    margin: 6rem auto 0;
+    max-width: 1080px;
+}
+
+.home-icons-item .item {
+    transition-duration: 172ms;
+    transition-property: color;
+}
+
+.home-icons-item .subtitle {
+    color: #000000B0;
+}
+
+.home-icons-item:nth-child(1):hover .title {
+    color: #53C2E6;
+}
+
+.home-icons-item:nth-child(2):hover .title {
+    color: #00A15B;
+}
+
+.home-icons-item:nth-child(3):hover .title {
+    color: #D04F54;
+}
+
+.home-icons-item:nth-child(4):hover .title {
+    color: #7E308E;
+}
+
+.home-icons-item:nth-child(1) figure {
+    color: #53C2E6;
+}
+
+.home-icons-item:nth-child(2) figure {
+    color: #00A15B;
+}
+
+.home-icons-item:nth-child(3) figure {
+    color: #D04F54;
+}
+
+.home-icons-item:nth-child(4) figure {
+    color: #7E308E;
+}
