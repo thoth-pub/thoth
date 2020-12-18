@@ -168,9 +168,6 @@ impl Component for ImprintComponent {
                                 format!("Saved {}", i.imprint_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Imprints,
-                            )));
                             true
                         }
                         None => {
