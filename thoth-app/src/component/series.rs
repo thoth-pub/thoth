@@ -202,9 +202,6 @@ impl Component for SeriesComponent {
                                 format!("Saved {}", s.series_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Serieses,
-                            )));
                             true
                         }
                         None => {

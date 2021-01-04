@@ -133,9 +133,6 @@ impl Component for PublisherComponent {
                                 format!("Saved {}", p.publisher_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Publishers,
-                            )));
                             true
                         }
                         None => {

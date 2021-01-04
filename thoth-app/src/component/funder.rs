@@ -132,9 +132,6 @@ impl Component for FunderComponent {
                                 format!("Saved {}", f.funder_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Funders,
-                            )));
                             true
                         }
                         None => {

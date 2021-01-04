@@ -135,9 +135,6 @@ impl Component for ContributorComponent {
                                 format!("Saved {}", c.full_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Contributors,
-                            )));
                             true
                         }
                         None => {
