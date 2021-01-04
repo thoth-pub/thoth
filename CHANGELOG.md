@@ -4,6 +4,11 @@ All notable changes to thoth will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [[0.2.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.10) - 2020-01-04
+### Changed
+  - [#127](https://github.com/thoth-pub/thoth/issues/127) - Do not exit main entity edit pages upon saving
+  - [#147](https://github.com/thoth-pub/thoth/issues/147) - Remove subject code validation for non open subject headings
+
 ## [[0.2.9]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.9) - 2020-11-24
 ### Changed
   - Hide creative commons icon when license is unset in APP catalogue
