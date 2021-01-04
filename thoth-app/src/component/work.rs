@@ -211,8 +211,6 @@ impl Component for WorkComponent {
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
                             )));
-                            self.link
-                                .send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Works)));
                             true
                         }
                         None => {
