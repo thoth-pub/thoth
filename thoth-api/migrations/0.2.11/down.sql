@@ -49,3 +49,11 @@ ALTER TABLE funder
 ALTER TABLE funding
     DROP COLUMN created_at,
     DROP COLUMN updated_at;
+
+ALTER TABLE account
+    RENAME COLUMN created_at TO registered;
+ALTER TABLE account
+    ALTER COLUMN registered TYPE TIMESTAMP WITH TIME ZONE,
+    ALTER COLUMN registered SET NOT NULL,
+    ALTER COLUMN registered SET DEFAULT now(),
+    DROP COLUMN updated_at;
