@@ -4,6 +4,14 @@ All notable changes to thoth will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [[0.2.11]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.11) - 2020-01-06
+### Changed
+  - [#151](https://github.com/thoth-pub/thoth/issues/151) - Make browser prompt user to save Onix XML to file
+  - [#143](https://github.com/thoth-pub/thoth/issues/143) - Start using Github Actions instead of Travis
+
+### Added
+  - [#121](https://github.com/thoth-pub/thoth/issues/121) - Add created and updated dates to each table
+
 ## [[0.2.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.10) - 2020-01-04
 ### Changed
   - [#127](https://github.com/thoth-pub/thoth/issues/127) - Do not exit main entity edit pages upon saving
