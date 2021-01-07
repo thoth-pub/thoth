@@ -1,3 +1,4 @@
+use chrono::naive::NaiveDateTime;
 use uuid::Uuid;
 
 #[cfg(feature = "backend")]
@@ -8,6 +9,8 @@ pub struct Issue {
     pub series_id: Uuid,
     pub work_id: Uuid,
     pub issue_ordinal: i32,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[cfg_attr(

@@ -1,5 +1,6 @@
 use phf::phf_map;
 use phf::Map;
+use chrono::naive::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -30,6 +31,8 @@ pub struct Subject {
     pub subject_type: SubjectType,
     pub subject_code: String,
     pub subject_ordinal: i32,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[cfg_attr(

@@ -1,3 +1,4 @@
+use chrono::naive::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -26,6 +27,8 @@ pub struct Language {
     pub language_code: LanguageCode,
     pub language_relation: LanguageRelation,
     pub main_language: bool,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[cfg_attr(
