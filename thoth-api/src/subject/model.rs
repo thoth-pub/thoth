@@ -1,6 +1,6 @@
+use chrono::naive::NaiveDateTime;
 use phf::phf_map;
 use phf::Map;
-use chrono::naive::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
