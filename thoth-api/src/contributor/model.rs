@@ -1,3 +1,4 @@
+use chrono::naive::NaiveDateTime;
 use uuid::Uuid;
 
 #[cfg(feature = "backend")]
@@ -11,6 +12,8 @@ pub struct Contributor {
     pub full_name: String,
     pub orcid: Option<String>,
     pub website: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[cfg_attr(

@@ -1,3 +1,4 @@
+use chrono::naive::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -26,6 +27,8 @@ pub struct Series {
     pub issn_digital: String,
     pub series_url: Option<String>,
     pub imprint_id: Uuid,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[cfg_attr(

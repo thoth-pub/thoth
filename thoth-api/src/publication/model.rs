@@ -1,3 +1,4 @@
+use chrono::naive::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -38,6 +39,8 @@ pub struct Publication {
     pub work_id: Uuid,
     pub isbn: Option<String>,
     pub publication_url: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[cfg_attr(

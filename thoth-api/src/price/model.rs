@@ -1,3 +1,4 @@
+use chrono::naive::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -13,6 +14,8 @@ pub struct Price {
     pub publication_id: Uuid,
     pub currency_code: CurrencyCode,
     pub unit_price: f64,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[cfg_attr(
