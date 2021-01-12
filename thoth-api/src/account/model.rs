@@ -17,7 +17,8 @@ pub struct Account {
     pub is_admin: bool,
     pub is_bot: bool,
     pub is_active: bool,
-    pub registered: NaiveDateTime,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
     pub token: Option<String>,
 }
 

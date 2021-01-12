@@ -1,3 +1,4 @@
+use chrono::naive::NaiveDateTime;
 use uuid::Uuid;
 
 #[cfg(feature = "backend")]
@@ -9,6 +10,8 @@ pub struct Imprint {
     pub publisher_id: Uuid,
     pub imprint_name: String,
     pub imprint_url: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[cfg_attr(

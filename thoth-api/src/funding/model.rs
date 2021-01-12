@@ -1,3 +1,4 @@
+use chrono::naive::NaiveDateTime;
 use uuid::Uuid;
 
 #[cfg(feature = "backend")]
@@ -13,6 +14,8 @@ pub struct Funding {
     pub project_shortname: Option<String>,
     pub grant_number: Option<String>,
     pub jurisdiction: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[cfg_attr(

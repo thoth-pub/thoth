@@ -11,7 +11,8 @@ table! {
         is_admin -> Bool,
         is_bot -> Bool,
         is_active -> Bool,
-        registered -> Timestamp,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
         token -> Nullable<Text>,
     }
 }
@@ -27,6 +28,8 @@ table! {
         main_contribution -> Bool,
         biography -> Nullable<Text>,
         institution -> Nullable<Text>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -40,6 +43,8 @@ table! {
         full_name -> Text,
         orcid -> Nullable<Text>,
         website -> Nullable<Text>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -50,6 +55,8 @@ table! {
         funder_id -> Uuid,
         funder_name -> Text,
         funder_doi -> Nullable<Text>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -65,6 +72,8 @@ table! {
         project_shortname -> Nullable<Text>,
         grant_number -> Nullable<Text>,
         jurisdiction -> Nullable<Text>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -76,6 +85,8 @@ table! {
         publisher_id -> Uuid,
         imprint_name -> Text,
         imprint_url -> Nullable<Text>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -86,6 +97,8 @@ table! {
         series_id -> Uuid,
         work_id -> Uuid,
         issue_ordinal -> Int4,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -100,6 +113,8 @@ table! {
         language_code -> Language_code,
         language_relation -> Language_relation,
         main_language -> Bool,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -112,6 +127,8 @@ table! {
         publication_id -> Uuid,
         currency_code -> Currency_code,
         unit_price -> Float8,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -125,6 +142,8 @@ table! {
         work_id -> Uuid,
         isbn -> Nullable<Text>,
         publication_url -> Nullable<Text>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -136,6 +155,8 @@ table! {
         publisher_name -> Text,
         publisher_shortname -> Nullable<Text>,
         publisher_url -> Nullable<Text>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -151,6 +172,8 @@ table! {
         issn_digital -> Text,
         series_url -> Nullable<Text>,
         imprint_id -> Uuid,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -164,6 +187,8 @@ table! {
         subject_type -> Subject_type,
         subject_code -> Text,
         subject_ordinal -> Int4,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -204,6 +229,8 @@ table! {
         toc -> Nullable<Text>,
         cover_url -> Nullable<Text>,
         cover_caption -> Nullable<Text>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 

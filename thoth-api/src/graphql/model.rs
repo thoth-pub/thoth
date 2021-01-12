@@ -1,4 +1,5 @@
 use chrono::naive::NaiveDate;
+use chrono::naive::NaiveDateTime;
 use diesel::prelude::*;
 use juniper::FieldError;
 use juniper::FieldResult;
@@ -1413,6 +1414,14 @@ impl Work {
         self.cover_caption.as_ref()
     }
 
+    pub fn created_at(&self) -> NaiveDateTime {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> NaiveDateTime {
+        self.updated_at
+    }
+
     pub fn imprint(&self, context: &Context) -> Imprint {
         use crate::schema::imprint::dsl::*;
         let connection = context.db.get().unwrap();
@@ -1566,6 +1575,14 @@ impl Publication {
         self.publication_url.as_ref()
     }
 
+    pub fn created_at(&self) -> NaiveDateTime {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> NaiveDateTime {
+        self.updated_at
+    }
+
     pub fn prices(&self, context: &Context) -> Vec<Price> {
         use crate::schema::price::dsl::*;
         let connection = context.db.get().unwrap();
@@ -1602,6 +1619,14 @@ impl Publisher {
         self.publisher_url.as_ref()
     }
 
+    pub fn created_at(&self) -> NaiveDateTime {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> NaiveDateTime {
+        self.updated_at
+    }
+
     pub fn imprints(&self, context: &Context) -> Vec<Imprint> {
         use crate::schema::imprint::dsl::*;
         let connection = context.db.get().unwrap();
@@ -1624,6 +1649,14 @@ impl Imprint {
 
     pub fn imprint_url(&self) -> Option<&String> {
         self.imprint_url.as_ref()
+    }
+
+    pub fn created_at(&self) -> NaiveDateTime {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> NaiveDateTime {
+        self.updated_at
     }
 
     pub fn publisher(&self, context: &Context) -> Publisher {
@@ -1670,6 +1703,14 @@ impl Contributor {
         self.website.as_ref()
     }
 
+    pub fn created_at(&self) -> NaiveDateTime {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> NaiveDateTime {
+        self.updated_at
+    }
+
     pub fn contributions(&self, context: &Context) -> Vec<Contribution> {
         use crate::schema::contribution::dsl::*;
         let connection = context.db.get().unwrap();
@@ -1704,6 +1745,14 @@ impl Contribution {
 
     pub fn institution(&self) -> Option<&String> {
         self.institution.as_ref()
+    }
+
+    pub fn created_at(&self) -> NaiveDateTime {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> NaiveDateTime {
+        self.updated_at
     }
 
     pub fn work(&self, context: &Context) -> Work {
@@ -1750,6 +1799,14 @@ impl Series {
         self.series_url.as_ref()
     }
 
+    pub fn created_at(&self) -> NaiveDateTime {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> NaiveDateTime {
+        self.updated_at
+    }
+
     pub fn imprint(&self, context: &Context) -> Imprint {
         use crate::schema::imprint::dsl::*;
         let connection = context.db.get().unwrap();
@@ -1781,6 +1838,14 @@ impl Issue {
 
     pub fn issue_ordinal(&self) -> &i32 {
         &self.issue_ordinal
+    }
+
+    pub fn created_at(&self) -> NaiveDateTime {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> NaiveDateTime {
+        self.updated_at
     }
 
     pub fn series(&self, context: &Context) -> Series {
@@ -1823,6 +1888,14 @@ impl Language {
         self.main_language
     }
 
+    pub fn created_at(&self) -> NaiveDateTime {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> NaiveDateTime {
+        self.updated_at
+    }
+
     pub fn work(&self, context: &Context) -> Work {
         use crate::schema::work::dsl::*;
         let connection = context.db.get().unwrap();
@@ -1848,6 +1921,14 @@ impl Price {
 
     pub fn unit_price(&self) -> f64 {
         self.unit_price
+    }
+
+    pub fn created_at(&self) -> NaiveDateTime {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> NaiveDateTime {
+        self.updated_at
     }
 
     pub fn publication(&self, context: &Context) -> Publication {
@@ -1882,6 +1963,14 @@ impl Subject {
         &self.subject_ordinal
     }
 
+    pub fn created_at(&self) -> NaiveDateTime {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> NaiveDateTime {
+        self.updated_at
+    }
+
     pub fn work(&self, context: &Context) -> Work {
         use crate::schema::work::dsl::*;
         let connection = context.db.get().unwrap();
@@ -1903,6 +1992,14 @@ impl Funder {
 
     pub fn funder_doi(&self) -> Option<&String> {
         self.funder_doi.as_ref()
+    }
+
+    pub fn created_at(&self) -> NaiveDateTime {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> NaiveDateTime {
+        self.updated_at
     }
 
     pub fn fundings(&self, context: &Context) -> Vec<Funding> {
@@ -1947,6 +2044,14 @@ impl Funding {
 
     pub fn jurisdiction(&self) -> Option<&String> {
         self.jurisdiction.as_ref()
+    }
+
+    pub fn created_at(&self) -> NaiveDateTime {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> NaiveDateTime {
+        self.updated_at
     }
 
     pub fn work(&self, context: &Context) -> Work {
