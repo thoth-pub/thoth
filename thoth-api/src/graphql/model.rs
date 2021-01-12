@@ -39,6 +39,18 @@ impl Context {
     }
 }
 
+#[derive(juniper::GraphQLEnum)]
+pub enum Direction {
+    ASC,
+    DESC,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+pub struct ContributionOrderBy {
+    //TODO pub field: ContributionField,
+    pub direction: Direction,
+}
+
 pub struct QueryRoot;
 
 #[juniper::object(Context = Context)]
@@ -369,14 +381,31 @@ impl QueryRoot {
         description = "Query the full list of contributions",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    ContributionOrderBy {
+                        direction: Direction::ASC
+                    }
+                },
+                description = "The order in which to sort the results"
+            ),
         )
     )]
-    fn contributions(context: &Context, limit: i32, offset: i32) -> Vec<Contribution> {
+    fn contributions(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: ContributionOrderBy,
+    ) -> Vec<Contribution> {
         use crate::schema::contribution::dsl::*;
         let connection = context.db.get().unwrap();
-        contribution
-            .order(contribution_type.asc())
+        let mut query = contribution.into_boxed();
+        match order.direction {
+            Direction::ASC => query = query.order(contribution_type.asc()),
+            Direction::DESC => query = query.order(contribution_type.desc()),
+        }
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<Contribution>(&connection)
