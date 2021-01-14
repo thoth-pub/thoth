@@ -24,16 +24,6 @@ jobs:
           push: true
           tags: openbookpublishers/thoth:latest
           build-args: |
-            THOTH_API=https://api.thoth.openbookpublishers.com
+            THOTH_API=https://api.thoth.pub
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
-      - name: Build and push
-        id: docker_staging_build
-        uses: docker/build-push-action@v2
-        with:
-          push: true
-          tags: openbookpublishers/thoth:staging
-          build-args: |
-            THOTH_API=https://api.staging.thoth.openbookpublishers.com
-      - name: Image digest
-        run: echo ${{ steps.docker_staging_build.outputs.digest }}

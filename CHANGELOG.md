@@ -4,6 +4,11 @@ All notable changes to thoth will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [[0.2.13]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.13) - 2020-01-14
+### Changed
+  - Update API URL in docker github action
+  - Remove staging tag in docker github action
+
 ## [[0.2.12]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.12) - 2020-01-12
 ### Changed
   - [#153](https://github.com/thoth-pub/thoth/issues/153) - Implement created and updated dates to each structure
