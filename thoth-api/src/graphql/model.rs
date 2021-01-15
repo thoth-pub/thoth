@@ -42,14 +42,14 @@ impl Context {
 #[derive(juniper::GraphQLEnum)]
 //TODO: #[graphql(description)]
 pub enum ContributionField {
-    WORK_ID,
-    CONTRIBUTOR_ID,
-    CONTRIBUTION_TYPE,
-    MAIN_CONTRIBUTION,
-    BIOGRAPHY,
-    INSTITUTION,
-    CREATED_AT,
-    UPDATED_AT,
+    WorkID,
+    ContributorID,
+    ContributionType,
+    MainContribution,
+    Biography,
+    Institution,
+    CreatedAt,
+    UpdatedAt,
 }
 
 #[derive(juniper::GraphQLEnum)]
@@ -398,7 +398,7 @@ impl QueryRoot {
             order(
                 default = {
                     ContributionOrderBy {
-                        field: ContributionField::CONTRIBUTION_TYPE,
+                        field: ContributionField::ContributionType,
                         direction: Direction::ASC,
                     }
                 },
@@ -416,54 +416,38 @@ impl QueryRoot {
         let connection = context.db.get().unwrap();
         let mut query = contribution.into_boxed();
         match order.field {
-            ContributionField::WORK_ID => {
-                match order.direction {
-                    Direction::ASC => query = query.order(work_id.asc()),
-                    Direction::DESC => query = query.order(work_id.desc()),
-                }
-            }
-            ContributionField::CONTRIBUTOR_ID => {
-                match order.direction {
-                    Direction::ASC => query = query.order(contributor_id.asc()),
-                    Direction::DESC => query = query.order(contributor_id.desc()),
-                }
-            }
-            ContributionField::CONTRIBUTION_TYPE => {
-                match order.direction {
-                    Direction::ASC => query = query.order(contribution_type.asc()),
-                    Direction::DESC => query = query.order(contribution_type.desc()),
-                }
-            }
-            ContributionField::MAIN_CONTRIBUTION => {
-                match order.direction {
-                    Direction::ASC => query = query.order(main_contribution.asc()),
-                    Direction::DESC => query = query.order(main_contribution.desc()),
-                }
-            }
-            ContributionField::BIOGRAPHY => {
-                match order.direction {
-                    Direction::ASC => query = query.order(biography.asc()),
-                    Direction::DESC => query = query.order(biography.desc()),
-                }
-            }
-            ContributionField::INSTITUTION => {
-                match order.direction {
-                    Direction::ASC => query = query.order(institution.asc()),
-                    Direction::DESC => query = query.order(institution.desc()),
-                }
-            }
-            ContributionField::CREATED_AT => {
-                match order.direction {
-                    Direction::ASC => query = query.order(created_at.asc()),
-                    Direction::DESC => query = query.order(created_at.desc()),
-                }
-            }
-            ContributionField::UPDATED_AT =>  {
-                match order.direction {
-                    Direction::ASC => query = query.order(updated_at.asc()),
-                    Direction::DESC => query = query.order(updated_at.desc()),
-                }
-            }
+            ContributionField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            ContributionField::ContributorID => match order.direction {
+                Direction::ASC => query = query.order(contributor_id.asc()),
+                Direction::DESC => query = query.order(contributor_id.desc()),
+            },
+            ContributionField::ContributionType => match order.direction {
+                Direction::ASC => query = query.order(contribution_type.asc()),
+                Direction::DESC => query = query.order(contribution_type.desc()),
+            },
+            ContributionField::MainContribution => match order.direction {
+                Direction::ASC => query = query.order(main_contribution.asc()),
+                Direction::DESC => query = query.order(main_contribution.desc()),
+            },
+            ContributionField::Biography => match order.direction {
+                Direction::ASC => query = query.order(biography.asc()),
+                Direction::DESC => query = query.order(biography.desc()),
+            },
+            ContributionField::Institution => match order.direction {
+                Direction::ASC => query = query.order(institution.asc()),
+                Direction::DESC => query = query.order(institution.desc()),
+            },
+            ContributionField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            ContributionField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
         }
         query
             .limit(limit.into())
