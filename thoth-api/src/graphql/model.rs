@@ -40,6 +40,19 @@ impl Context {
 }
 
 #[derive(juniper::GraphQLEnum)]
+//TODO: #[graphql(description)]
+pub enum ContributionField {
+    WORK_ID,
+    CONTRIBUTOR_ID,
+    CONTRIBUTION_TYPE,
+    MAIN_CONTRIBUTION,
+    BIOGRAPHY,
+    INSTITUTION,
+    CREATED_AT,
+    UPDATED_AT,
+}
+
+#[derive(juniper::GraphQLEnum)]
 pub enum Direction {
     ASC,
     DESC,
@@ -47,7 +60,7 @@ pub enum Direction {
 
 #[derive(juniper::GraphQLInputObject)]
 pub struct ContributionOrderBy {
-    //TODO pub field: ContributionField,
+    pub field: ContributionField,
     pub direction: Direction,
 }
 
@@ -385,7 +398,8 @@ impl QueryRoot {
             order(
                 default = {
                     ContributionOrderBy {
-                        direction: Direction::ASC
+                        field: ContributionField::CONTRIBUTION_TYPE,
+                        direction: Direction::ASC,
                     }
                 },
                 description = "The order in which to sort the results"
@@ -401,9 +415,55 @@ impl QueryRoot {
         use crate::schema::contribution::dsl::*;
         let connection = context.db.get().unwrap();
         let mut query = contribution.into_boxed();
-        match order.direction {
-            Direction::ASC => query = query.order(contribution_type.asc()),
-            Direction::DESC => query = query.order(contribution_type.desc()),
+        match order.field {
+            ContributionField::WORK_ID => {
+                match order.direction {
+                    Direction::ASC => query = query.order(work_id.asc()),
+                    Direction::DESC => query = query.order(work_id.desc()),
+                }
+            }
+            ContributionField::CONTRIBUTOR_ID => {
+                match order.direction {
+                    Direction::ASC => query = query.order(contributor_id.asc()),
+                    Direction::DESC => query = query.order(contributor_id.desc()),
+                }
+            }
+            ContributionField::CONTRIBUTION_TYPE => {
+                match order.direction {
+                    Direction::ASC => query = query.order(contribution_type.asc()),
+                    Direction::DESC => query = query.order(contribution_type.desc()),
+                }
+            }
+            ContributionField::MAIN_CONTRIBUTION => {
+                match order.direction {
+                    Direction::ASC => query = query.order(main_contribution.asc()),
+                    Direction::DESC => query = query.order(main_contribution.desc()),
+                }
+            }
+            ContributionField::BIOGRAPHY => {
+                match order.direction {
+                    Direction::ASC => query = query.order(biography.asc()),
+                    Direction::DESC => query = query.order(biography.desc()),
+                }
+            }
+            ContributionField::INSTITUTION => {
+                match order.direction {
+                    Direction::ASC => query = query.order(institution.asc()),
+                    Direction::DESC => query = query.order(institution.desc()),
+                }
+            }
+            ContributionField::CREATED_AT => {
+                match order.direction {
+                    Direction::ASC => query = query.order(created_at.asc()),
+                    Direction::DESC => query = query.order(created_at.desc()),
+                }
+            }
+            ContributionField::UPDATED_AT =>  {
+                match order.direction {
+                    Direction::ASC => query = query.order(updated_at.asc()),
+                    Direction::DESC => query = query.order(updated_at.desc()),
+                }
+            }
         }
         query
             .limit(limit.into())
