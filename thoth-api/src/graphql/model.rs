@@ -40,27 +40,100 @@ impl Context {
 }
 
 #[derive(juniper::GraphQLEnum)]
-//TODO: #[graphql(description)]
-pub enum ContributionField {
-    WorkID,
-    ContributorID,
-    ContributionType,
-    MainContribution,
-    Biography,
-    Institution,
-    CreatedAt,
-    UpdatedAt,
-}
-
-#[derive(juniper::GraphQLEnum)]
+#[graphql(description = "Order in which to sort query results (ascending or descending)")]
 pub enum Direction {
     ASC,
     DESC,
 }
 
 #[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting works list")]
+pub struct WorkOrderBy {
+    pub field: WorkField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting publications list")]
+pub struct PublicationOrderBy {
+    pub field: PublicationField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting publishers list")]
+pub struct PublisherOrderBy {
+    pub field: PublisherField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting imprints list")]
+pub struct ImprintOrderBy {
+    pub field: ImprintField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting contributors list")]
+pub struct ContributorOrderBy {
+    pub field: ContributorField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting contributions list")]
 pub struct ContributionOrderBy {
     pub field: ContributionField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting series list")]
+pub struct SeriesOrderBy {
+    pub field: SeriesField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting issues list")]
+pub struct IssueOrderBy {
+    pub field: IssueField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting languages list")]
+pub struct LanguageOrderBy {
+    pub field: LanguageField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting prices list")]
+pub struct PriceOrderBy {
+    pub field: PriceField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting subjects list")]
+pub struct SubjectOrderBy {
+    pub field: SubjectField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting funders list")]
+pub struct FunderOrderBy {
+    pub field: FunderField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting fundings list")]
+pub struct FundingOrderBy {
+    pub field: FundingField,
     pub direction: Direction,
 }
 
@@ -83,18 +156,168 @@ impl QueryRoot {
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
         ),
+        order(
+            default = {
+                WorkOrderBy {
+                    field: WorkField::FullTitle,
+                    direction: Direction::ASC,
+                }
+            },
+            description = "The order in which to sort the results"
+        ),
     )
   )]
-    fn works(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Work> {
+    fn works(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+        order: WorkOrderBy,
+    ) -> Vec<Work> {
         use crate::schema::work::dsl::*;
         let connection = context.db.get().unwrap();
-        work.filter(full_title.ilike(format!("%{}%", filter)))
+        let mut query = work.into_boxed();
+        match order.field {
+            WorkField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            WorkField::WorkType => match order.direction {
+                Direction::ASC => query = query.order(work_type.asc()),
+                Direction::DESC => query = query.order(work_type.desc()),
+            },
+            WorkField::WorkStatus => match order.direction {
+                Direction::ASC => query = query.order(work_status.asc()),
+                Direction::DESC => query = query.order(work_status.desc()),
+            },
+            WorkField::FullTitle => match order.direction {
+                Direction::ASC => query = query.order(full_title.asc()),
+                Direction::DESC => query = query.order(full_title.desc()),
+            },
+            WorkField::Title => match order.direction {
+                Direction::ASC => query = query.order(title.asc()),
+                Direction::DESC => query = query.order(title.desc()),
+            },
+            WorkField::Subtitle => match order.direction {
+                Direction::ASC => query = query.order(subtitle.asc()),
+                Direction::DESC => query = query.order(subtitle.desc()),
+            },
+            WorkField::Reference => match order.direction {
+                Direction::ASC => query = query.order(reference.asc()),
+                Direction::DESC => query = query.order(reference.desc()),
+            },
+            WorkField::Edition => match order.direction {
+                Direction::ASC => query = query.order(edition.asc()),
+                Direction::DESC => query = query.order(edition.desc()),
+            },
+            WorkField::ImprintID => match order.direction {
+                Direction::ASC => query = query.order(imprint_id.asc()),
+                Direction::DESC => query = query.order(imprint_id.desc()),
+            },
+            WorkField::DOI => match order.direction {
+                Direction::ASC => query = query.order(doi.asc()),
+                Direction::DESC => query = query.order(doi.desc()),
+            },
+            WorkField::PublicationDate => match order.direction {
+                Direction::ASC => query = query.order(publication_date.asc()),
+                Direction::DESC => query = query.order(publication_date.desc()),
+            },
+            WorkField::Place => match order.direction {
+                Direction::ASC => query = query.order(place.asc()),
+                Direction::DESC => query = query.order(place.desc()),
+            },
+            WorkField::Width => match order.direction {
+                Direction::ASC => query = query.order(width.asc()),
+                Direction::DESC => query = query.order(width.desc()),
+            },
+            WorkField::Height => match order.direction {
+                Direction::ASC => query = query.order(height.asc()),
+                Direction::DESC => query = query.order(height.desc()),
+            },
+            WorkField::PageCount => match order.direction {
+                Direction::ASC => query = query.order(page_count.asc()),
+                Direction::DESC => query = query.order(page_count.desc()),
+            },
+            WorkField::PageBreakdown => match order.direction {
+                Direction::ASC => query = query.order(page_breakdown.asc()),
+                Direction::DESC => query = query.order(page_breakdown.desc()),
+            },
+            WorkField::ImageCount => match order.direction {
+                Direction::ASC => query = query.order(image_count.asc()),
+                Direction::DESC => query = query.order(image_count.desc()),
+            },
+            WorkField::TableCount => match order.direction {
+                Direction::ASC => query = query.order(table_count.asc()),
+                Direction::DESC => query = query.order(table_count.desc()),
+            },
+            WorkField::AudioCount => match order.direction {
+                Direction::ASC => query = query.order(audio_count.asc()),
+                Direction::DESC => query = query.order(audio_count.desc()),
+            },
+            WorkField::VideoCount => match order.direction {
+                Direction::ASC => query = query.order(video_count.asc()),
+                Direction::DESC => query = query.order(video_count.desc()),
+            },
+            WorkField::License => match order.direction {
+                Direction::ASC => query = query.order(license.asc()),
+                Direction::DESC => query = query.order(license.desc()),
+            },
+            WorkField::CopyrightHolder => match order.direction {
+                Direction::ASC => query = query.order(copyright_holder.asc()),
+                Direction::DESC => query = query.order(copyright_holder.desc()),
+            },
+            WorkField::LandingPage => match order.direction {
+                Direction::ASC => query = query.order(landing_page.asc()),
+                Direction::DESC => query = query.order(landing_page.desc()),
+            },
+            WorkField::LCCN => match order.direction {
+                Direction::ASC => query = query.order(lccn.asc()),
+                Direction::DESC => query = query.order(lccn.desc()),
+            },
+            WorkField::OCLC => match order.direction {
+                Direction::ASC => query = query.order(oclc.asc()),
+                Direction::DESC => query = query.order(oclc.desc()),
+            },
+            WorkField::ShortAbstract => match order.direction {
+                Direction::ASC => query = query.order(short_abstract.asc()),
+                Direction::DESC => query = query.order(short_abstract.desc()),
+            },
+            WorkField::LongAbstract => match order.direction {
+                Direction::ASC => query = query.order(long_abstract.asc()),
+                Direction::DESC => query = query.order(long_abstract.desc()),
+            },
+            WorkField::GeneralNote => match order.direction {
+                Direction::ASC => query = query.order(general_note.asc()),
+                Direction::DESC => query = query.order(general_note.desc()),
+            },
+            WorkField::TOC => match order.direction {
+                Direction::ASC => query = query.order(toc.asc()),
+                Direction::DESC => query = query.order(toc.desc()),
+            },
+            WorkField::CoverURL => match order.direction {
+                Direction::ASC => query = query.order(cover_url.asc()),
+                Direction::DESC => query = query.order(cover_url.desc()),
+            },
+            WorkField::CoverCaption => match order.direction {
+                Direction::ASC => query = query.order(cover_caption.asc()),
+                Direction::DESC => query = query.order(cover_caption.desc()),
+            },
+            WorkField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            WorkField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
+            .filter(full_title.ilike(format!("%{}%", filter)))
             .or_filter(doi.ilike(format!("%{}%", filter)))
             .or_filter(reference.ilike(format!("%{}%", filter)))
             .or_filter(short_abstract.ilike(format!("%{}%", filter)))
             .or_filter(long_abstract.ilike(format!("%{}%", filter)))
             .or_filter(landing_page.ilike(format!("%{}%", filter)))
-            .order(full_title.asc())
             .limit(limit.into())
             .offset(offset.into())
             .load::<Work>(&connection)
@@ -152,6 +375,15 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url"
             ),
+            order(
+                default = {
+                    PublicationOrderBy {
+                        field: PublicationField::PublicationType,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results"
+            ),
         )
     )]
     fn publications(
@@ -159,13 +391,44 @@ impl QueryRoot {
         limit: i32,
         offset: i32,
         filter: String,
+        order: PublicationOrderBy,
     ) -> Vec<Publication> {
         use crate::schema::publication::dsl::*;
         let connection = context.db.get().unwrap();
-        publication
+        let mut query = publication.into_boxed();
+        match order.field {
+            PublicationField::PublicationID => match order.direction {
+                Direction::ASC => query = query.order(publication_id.asc()),
+                Direction::DESC => query = query.order(publication_id.desc()),
+            },
+            PublicationField::PublicationType => match order.direction {
+                Direction::ASC => query = query.order(publication_type.asc()),
+                Direction::DESC => query = query.order(publication_type.desc()),
+            },
+            PublicationField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            PublicationField::ISBN => match order.direction {
+                Direction::ASC => query = query.order(isbn.asc()),
+                Direction::DESC => query = query.order(isbn.desc()),
+            },
+            PublicationField::PublicationURL => match order.direction {
+                Direction::ASC => query = query.order(publication_url.asc()),
+                Direction::DESC => query = query.order(publication_url.desc()),
+            },
+            PublicationField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            PublicationField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .filter(isbn.ilike(format!("%{}%", filter)))
             .or_filter(publication_url.ilike(format!("%{}%", filter)))
-            .order(publication_type.asc())
             .limit(limit.into())
             .offset(offset.into())
             .load::<Publication>(&connection)
@@ -224,15 +487,56 @@ impl QueryRoot {
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on publisher_name and publisher_shortname"
 
         ),
+        order(
+            default = {
+                PublisherOrderBy {
+                    field: PublisherField::PublisherName,
+                    direction: Direction::ASC,
+                }
+            },
+            description = "The order in which to sort the results"
+        ),
     )
   )]
-    fn publishers(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Publisher> {
+    fn publishers(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+        order: PublisherOrderBy,
+    ) -> Vec<Publisher> {
         use crate::schema::publisher::dsl::*;
         let connection = context.db.get().unwrap();
-        publisher
+        let mut query = publisher.into_boxed();
+        match order.field {
+            PublisherField::PublisherID => match order.direction {
+                Direction::ASC => query = query.order(publisher_id.asc()),
+                Direction::DESC => query = query.order(publisher_id.desc()),
+            },
+            PublisherField::PublisherName => match order.direction {
+                Direction::ASC => query = query.order(publisher_name.asc()),
+                Direction::DESC => query = query.order(publisher_name.desc()),
+            },
+            PublisherField::PublisherShortname => match order.direction {
+                Direction::ASC => query = query.order(publisher_shortname.asc()),
+                Direction::DESC => query = query.order(publisher_shortname.desc()),
+            },
+            PublisherField::PublisherURL => match order.direction {
+                Direction::ASC => query = query.order(publisher_url.asc()),
+                Direction::DESC => query = query.order(publisher_url.desc()),
+            },
+            PublisherField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            PublisherField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .filter(publisher_name.ilike(format!("%{}%", filter)))
             .or_filter(publisher_shortname.ilike(format!("%{}%", filter)))
-            .order(publisher_name.asc())
             .limit(limit.into())
             .offset(offset.into())
             .load::<Publisher>(&connection)
@@ -284,15 +588,56 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url"
             ),
+            order(
+                default = {
+                    ImprintOrderBy {
+                        field: ImprintField::ImprintName,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results"
+            ),
         )
     )]
-    fn imprints(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Imprint> {
+    fn imprints(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+        order: ImprintOrderBy,
+    ) -> Vec<Imprint> {
         use crate::schema::imprint::dsl::*;
         let connection = context.db.get().unwrap();
-        imprint
+        let mut query = imprint.into_boxed();
+        match order.field {
+            ImprintField::ImprintID => match order.direction {
+                Direction::ASC => query = query.order(imprint_id.asc()),
+                Direction::DESC => query = query.order(imprint_id.desc()),
+            },
+            ImprintField::PublisherID => match order.direction {
+                Direction::ASC => query = query.order(publisher_id.asc()),
+                Direction::DESC => query = query.order(publisher_id.desc()),
+            },
+            ImprintField::ImprintName => match order.direction {
+                Direction::ASC => query = query.order(imprint_name.asc()),
+                Direction::DESC => query = query.order(imprint_name.desc()),
+            },
+            ImprintField::ImprintURL => match order.direction {
+                Direction::ASC => query = query.order(imprint_url.asc()),
+                Direction::DESC => query = query.order(imprint_url.desc()),
+            },
+            ImprintField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            ImprintField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .filter(imprint_name.ilike(format!("%{}%", filter)))
             .or_filter(imprint_url.ilike(format!("%{}%", filter)))
-            .order(imprint_name.asc())
             .limit(limit.into())
             .offset(offset.into())
             .load::<Imprint>(&connection)
@@ -334,6 +679,15 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_name and orcid"
             ),
+            order(
+                default = {
+                    ContributorOrderBy {
+                        field: ContributorField::FullName,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results"
+            ),
         )
     )]
     fn contributors(
@@ -341,13 +695,48 @@ impl QueryRoot {
         limit: i32,
         offset: i32,
         filter: String,
+        order: ContributorOrderBy,
     ) -> Vec<Contributor> {
         use crate::schema::contributor::dsl::*;
         let connection = context.db.get().unwrap();
-        contributor
+        let mut query = contributor.into_boxed();
+        match order.field {
+            ContributorField::ContributorID => match order.direction {
+                Direction::ASC => query = query.order(contributor_id.asc()),
+                Direction::DESC => query = query.order(contributor_id.desc()),
+            },
+            ContributorField::FirstName => match order.direction {
+                Direction::ASC => query = query.order(first_name.asc()),
+                Direction::DESC => query = query.order(first_name.desc()),
+            },
+            ContributorField::LastName => match order.direction {
+                Direction::ASC => query = query.order(last_name.asc()),
+                Direction::DESC => query = query.order(last_name.desc()),
+            },
+            ContributorField::FullName => match order.direction {
+                Direction::ASC => query = query.order(full_name.asc()),
+                Direction::DESC => query = query.order(full_name.desc()),
+            },
+            ContributorField::ORCID => match order.direction {
+                Direction::ASC => query = query.order(orcid.asc()),
+                Direction::DESC => query = query.order(orcid.desc()),
+            },
+            ContributorField::Website => match order.direction {
+                Direction::ASC => query = query.order(website.asc()),
+                Direction::DESC => query = query.order(website.desc()),
+            },
+            ContributorField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            ContributorField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .filter(full_name.ilike(format!("%{}%", filter)))
             .or_filter(orcid.ilike(format!("%{}%", filter)))
-            .order(full_name.asc())
             .limit(limit.into())
             .offset(offset.into())
             .load::<Contributor>(&connection)
@@ -498,17 +887,70 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital and series_url"
             ),
+            order(
+                default = {
+                    SeriesOrderBy {
+                        field: SeriesField::SeriesName,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results"
+            ),
         ),
     )]
-    fn serieses(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Series> {
+    fn serieses(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+        order: SeriesOrderBy,
+    ) -> Vec<Series> {
         use crate::schema::series::dsl::*;
         let connection = context.db.get().unwrap();
-        series
+        let mut query = series.into_boxed();
+        match order.field {
+            SeriesField::SeriesID => match order.direction {
+                Direction::ASC => query = query.order(series_id.asc()),
+                Direction::DESC => query = query.order(series_id.desc()),
+            },
+            SeriesField::SeriesType => match order.direction {
+                Direction::ASC => query = query.order(series_type.asc()),
+                Direction::DESC => query = query.order(series_type.desc()),
+            },
+            SeriesField::SeriesName => match order.direction {
+                Direction::ASC => query = query.order(series_name.asc()),
+                Direction::DESC => query = query.order(series_name.desc()),
+            },
+            SeriesField::ISSNPrint => match order.direction {
+                Direction::ASC => query = query.order(issn_print.asc()),
+                Direction::DESC => query = query.order(issn_print.desc()),
+            },
+            SeriesField::ISSNDigital => match order.direction {
+                Direction::ASC => query = query.order(issn_digital.asc()),
+                Direction::DESC => query = query.order(issn_digital.desc()),
+            },
+            SeriesField::SeriesURL => match order.direction {
+                Direction::ASC => query = query.order(series_url.asc()),
+                Direction::DESC => query = query.order(series_url.desc()),
+            },
+            SeriesField::ImprintID => match order.direction {
+                Direction::ASC => query = query.order(imprint_id.asc()),
+                Direction::DESC => query = query.order(imprint_id.desc()),
+            },
+            SeriesField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            SeriesField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .filter(series_name.ilike(format!("%{}%", filter)))
             .or_filter(issn_print.ilike(format!("%{}%", filter)))
             .or_filter(issn_digital.ilike(format!("%{}%", filter)))
             .or_filter(series_url.ilike(format!("%{}%", filter)))
-            .order(series_name.asc())
             .limit(limit.into())
             .offset(offset.into())
             .load::<Series>(&connection)
@@ -557,14 +999,45 @@ impl QueryRoot {
         description = "Query the full list of issues",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    IssueOrderBy {
+                        field: IssueField::IssueOrdinal,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results"
+            ),
         )
     )]
-    fn issues(context: &Context, limit: i32, offset: i32) -> Vec<Issue> {
+    fn issues(context: &Context, limit: i32, offset: i32, order: IssueOrderBy) -> Vec<Issue> {
         use crate::schema::issue::dsl::*;
         let connection = context.db.get().unwrap();
-        issue
-            .order(issue_ordinal.asc())
+        let mut query = issue.into_boxed();
+        match order.field {
+            IssueField::SeriesID => match order.direction {
+                Direction::ASC => query = query.order(series_id.asc()),
+                Direction::DESC => query = query.order(series_id.desc()),
+            },
+            IssueField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            IssueField::IssueOrdinal => match order.direction {
+                Direction::ASC => query = query.order(issue_ordinal.asc()),
+                Direction::DESC => query = query.order(issue_ordinal.desc()),
+            },
+            IssueField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            IssueField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<Issue>(&connection)
@@ -602,14 +1075,58 @@ impl QueryRoot {
         description = "Query the full list of languages",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    LanguageOrderBy {
+                        field: LanguageField::LanguageCode,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results"
+            ),
         )
     )]
-    fn languages(context: &Context, limit: i32, offset: i32) -> Vec<Language> {
+    fn languages(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: LanguageOrderBy,
+    ) -> Vec<Language> {
         use crate::schema::language::dsl::*;
         let connection = context.db.get().unwrap();
-        language
-            .order(language_code.asc())
+        let mut query = language.into_boxed();
+        match order.field {
+            LanguageField::LanguageID => match order.direction {
+                Direction::ASC => query = query.order(language_id.asc()),
+                Direction::DESC => query = query.order(language_id.desc()),
+            },
+            LanguageField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            LanguageField::LanguageCode => match order.direction {
+                Direction::ASC => query = query.order(language_code.asc()),
+                Direction::DESC => query = query.order(language_code.desc()),
+            },
+            LanguageField::LanguageRelation => match order.direction {
+                Direction::ASC => query = query.order(language_relation.asc()),
+                Direction::DESC => query = query.order(language_relation.desc()),
+            },
+            LanguageField::MainLanguage => match order.direction {
+                Direction::ASC => query = query.order(main_language.asc()),
+                Direction::DESC => query = query.order(main_language.desc()),
+            },
+            LanguageField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            LanguageField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<Language>(&connection)
@@ -646,14 +1163,49 @@ impl QueryRoot {
         description = "Query the full list of prices",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    PriceOrderBy {
+                        field: PriceField::CurrencyCode,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results"
+            ),
         )
     )]
-    fn prices(context: &Context, limit: i32, offset: i32) -> Vec<Price> {
+    fn prices(context: &Context, limit: i32, offset: i32, order: PriceOrderBy) -> Vec<Price> {
         use crate::schema::price::dsl::*;
         let connection = context.db.get().unwrap();
-        price
-            .order(currency_code.asc())
+        let mut query = price.into_boxed();
+        match order.field {
+            PriceField::PriceID => match order.direction {
+                Direction::ASC => query = query.order(price_id.asc()),
+                Direction::DESC => query = query.order(price_id.desc()),
+            },
+            PriceField::PublicationID => match order.direction {
+                Direction::ASC => query = query.order(publication_id.asc()),
+                Direction::DESC => query = query.order(publication_id.desc()),
+            },
+            PriceField::CurrencyCode => match order.direction {
+                Direction::ASC => query = query.order(currency_code.asc()),
+                Direction::DESC => query = query.order(currency_code.desc()),
+            },
+            PriceField::UnitPrice => match order.direction {
+                Direction::ASC => query = query.order(unit_price.asc()),
+                Direction::DESC => query = query.order(unit_price.desc()),
+            },
+            PriceField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            PriceField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<Price>(&connection)
@@ -690,14 +1242,53 @@ impl QueryRoot {
         description = "Query the full list of subjects",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    SubjectOrderBy {
+                        field: SubjectField::SubjectType,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results"
+            ),
         )
     )]
-    fn subjects(context: &Context, limit: i32, offset: i32) -> Vec<Subject> {
+    fn subjects(context: &Context, limit: i32, offset: i32, order: SubjectOrderBy) -> Vec<Subject> {
         use crate::schema::subject::dsl::*;
         let connection = context.db.get().unwrap();
-        subject
-            .order(subject_type.asc())
+        let mut query = subject.into_boxed();
+        match order.field {
+            SubjectField::SubjectID => match order.direction {
+                Direction::ASC => query = query.order(subject_id.asc()),
+                Direction::DESC => query = query.order(subject_id.desc()),
+            },
+            SubjectField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            SubjectField::SubjectType => match order.direction {
+                Direction::ASC => query = query.order(subject_type.asc()),
+                Direction::DESC => query = query.order(subject_type.desc()),
+            },
+            SubjectField::SubjectCode => match order.direction {
+                Direction::ASC => query = query.order(subject_code.asc()),
+                Direction::DESC => query = query.order(subject_code.desc()),
+            },
+            SubjectField::SubjectOrdinal => match order.direction {
+                Direction::ASC => query = query.order(subject_ordinal.asc()),
+                Direction::DESC => query = query.order(subject_ordinal.desc()),
+            },
+            SubjectField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            SubjectField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<Subject>(&connection)
@@ -739,15 +1330,52 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on funderName and funderDoi",
             ),
+            order(
+                default = {
+                    FunderOrderBy {
+                        field: FunderField::FunderName,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results"
+            ),
         )
     )]
-    fn funders(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Funder> {
+    fn funders(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+        order: FunderOrderBy,
+    ) -> Vec<Funder> {
         use crate::schema::funder::dsl::*;
         let connection = context.db.get().unwrap();
-        funder
+        let mut query = funder.into_boxed();
+        match order.field {
+            FunderField::FunderID => match order.direction {
+                Direction::ASC => query = query.order(funder_id.asc()),
+                Direction::DESC => query = query.order(funder_id.desc()),
+            },
+            FunderField::FunderName => match order.direction {
+                Direction::ASC => query = query.order(funder_name.asc()),
+                Direction::DESC => query = query.order(funder_name.desc()),
+            },
+            FunderField::FunderDOI => match order.direction {
+                Direction::ASC => query = query.order(funder_doi.asc()),
+                Direction::DESC => query = query.order(funder_doi.desc()),
+            },
+            FunderField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            FunderField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .filter(funder_name.ilike(format!("%{}%", filter)))
             .or_filter(funder_doi.ilike(format!("%{}%", filter)))
-            .order(funder_name.asc())
             .limit(limit.into())
             .offset(offset.into())
             .load::<Funder>(&connection)
@@ -784,14 +1412,65 @@ impl QueryRoot {
         description = "Query the full list of fundings",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    FundingOrderBy {
+                        field: FundingField::Program,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results"
+            ),
         )
     )]
-    fn fundings(context: &Context, limit: i32, offset: i32) -> Vec<Funding> {
+    fn fundings(context: &Context, limit: i32, offset: i32, order: FundingOrderBy) -> Vec<Funding> {
         use crate::schema::funding::dsl::*;
         let connection = context.db.get().unwrap();
-        funding
-            .order(program.asc())
+        let mut query = funding.into_boxed();
+        match order.field {
+            FundingField::FundingID => match order.direction {
+                Direction::ASC => query = query.order(funding_id.asc()),
+                Direction::DESC => query = query.order(funding_id.desc()),
+            },
+            FundingField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            FundingField::FunderID => match order.direction {
+                Direction::ASC => query = query.order(funder_id.asc()),
+                Direction::DESC => query = query.order(funder_id.desc()),
+            },
+            FundingField::Program => match order.direction {
+                Direction::ASC => query = query.order(program.asc()),
+                Direction::DESC => query = query.order(program.desc()),
+            },
+            FundingField::ProjectName => match order.direction {
+                Direction::ASC => query = query.order(project_name.asc()),
+                Direction::DESC => query = query.order(project_name.desc()),
+            },
+            FundingField::ProjectShortname => match order.direction {
+                Direction::ASC => query = query.order(project_shortname.asc()),
+                Direction::DESC => query = query.order(project_shortname.desc()),
+            },
+            FundingField::GrantNumber => match order.direction {
+                Direction::ASC => query = query.order(grant_number.asc()),
+                Direction::DESC => query = query.order(grant_number.desc()),
+            },
+            FundingField::Jurisdiction => match order.direction {
+                Direction::ASC => query = query.order(jurisdiction.asc()),
+                Direction::DESC => query = query.order(jurisdiction.desc()),
+            },
+            FundingField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            FundingField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<Funding>(&connection)

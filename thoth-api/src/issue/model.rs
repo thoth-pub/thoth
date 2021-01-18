@@ -4,6 +4,16 @@ use uuid::Uuid;
 #[cfg(feature = "backend")]
 use crate::schema::issue;
 
+#[derive(juniper::GraphQLEnum)]
+#[graphql(description = "Field to use when sorting issues list")]
+pub enum IssueField {
+    SeriesID,
+    WorkID,
+    IssueOrdinal,
+    CreatedAt,
+    UpdatedAt,
+}
+
 #[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Issue {
     pub series_id: Uuid,

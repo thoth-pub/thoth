@@ -4,6 +4,19 @@ use uuid::Uuid;
 #[cfg(feature = "backend")]
 use crate::schema::contributor;
 
+#[derive(juniper::GraphQLEnum)]
+#[graphql(description = "Field to use when sorting contributors list")]
+pub enum ContributorField {
+    ContributorID,
+    FirstName,
+    LastName,
+    FullName,
+    ORCID,
+    Website,
+    CreatedAt,
+    UpdatedAt,
+}
+
 #[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Contributor {
     pub contributor_id: Uuid,
