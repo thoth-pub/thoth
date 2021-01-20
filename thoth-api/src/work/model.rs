@@ -65,7 +65,6 @@ pub enum WorkField {
     Subtitle,
     Reference,
     Edition,
-    ImprintID,
     DOI,
     PublicationDate,
     Place,

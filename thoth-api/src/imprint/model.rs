@@ -11,7 +11,6 @@ use crate::schema::imprint;
 )]
 pub enum ImprintField {
     ImprintID,
-    PublisherID,
     ImprintName,
     ImprintURL,
     CreatedAt,

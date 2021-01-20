@@ -30,7 +30,6 @@ pub enum SeriesField {
     ISSNPrint,
     ISSNDigital,
     SeriesURL,
-    ImprintID,
     CreatedAt,
     UpdatedAt,
 }

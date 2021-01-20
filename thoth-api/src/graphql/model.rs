@@ -210,10 +210,6 @@ impl QueryRoot {
                 Direction::ASC => query = query.order(edition.asc()),
                 Direction::DESC => query = query.order(edition.desc()),
             },
-            WorkField::ImprintID => match order.direction {
-                Direction::ASC => query = query.order(imprint_id.asc()),
-                Direction::DESC => query = query.order(imprint_id.desc()),
-            },
             WorkField::DOI => match order.direction {
                 Direction::ASC => query = query.order(doi.asc()),
                 Direction::DESC => query = query.order(doi.desc()),
@@ -614,10 +610,6 @@ impl QueryRoot {
                 Direction::ASC => query = query.order(imprint_id.asc()),
                 Direction::DESC => query = query.order(imprint_id.desc()),
             },
-            ImprintField::PublisherID => match order.direction {
-                Direction::ASC => query = query.order(publisher_id.asc()),
-                Direction::DESC => query = query.order(publisher_id.desc()),
-            },
             ImprintField::ImprintName => match order.direction {
                 Direction::ASC => query = query.order(imprint_name.asc()),
                 Direction::DESC => query = query.order(imprint_name.desc()),
@@ -932,10 +924,6 @@ impl QueryRoot {
             SeriesField::SeriesURL => match order.direction {
                 Direction::ASC => query = query.order(series_url.asc()),
                 Direction::DESC => query = query.order(series_url.desc()),
-            },
-            SeriesField::ImprintID => match order.direction {
-                Direction::ASC => query = query.order(imprint_id.asc()),
-                Direction::DESC => query = query.order(imprint_id.desc()),
             },
             SeriesField::CreatedAt => match order.direction {
                 Direction::ASC => query = query.order(created_at.asc()),
