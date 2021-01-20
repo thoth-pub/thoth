@@ -4,8 +4,11 @@ use uuid::Uuid;
 #[cfg(feature = "backend")]
 use crate::schema::funding;
 
-#[derive(juniper::GraphQLEnum)]
-#[graphql(description = "Field to use when sorting fundings list")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting fundings list")
+)]
 pub enum FundingField {
     FundingID,
     WorkID,

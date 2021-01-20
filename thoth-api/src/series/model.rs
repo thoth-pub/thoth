@@ -18,8 +18,11 @@ pub enum SeriesType {
     BookSeries,
 }
 
-#[derive(juniper::GraphQLEnum)]
-#[graphql(description = "Field to use when sorting series list")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting series list")
+)]
 pub enum SeriesField {
     SeriesID,
     SeriesType,

@@ -4,8 +4,11 @@ use uuid::Uuid;
 #[cfg(feature = "backend")]
 use crate::schema::imprint;
 
-#[derive(juniper::GraphQLEnum)]
-#[graphql(description = "Field to use when sorting imprints list")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting imprints list")
+)]
 pub enum ImprintField {
     ImprintID,
     PublisherID,

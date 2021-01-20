@@ -8,8 +8,11 @@ use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::price;
 
-#[derive(juniper::GraphQLEnum)]
-#[graphql(description = "Field to use when sorting prices list")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting prices list")
+)]
 pub enum PriceField {
     PriceID,
     PublicationID,

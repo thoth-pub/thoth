@@ -4,8 +4,11 @@ use uuid::Uuid;
 #[cfg(feature = "backend")]
 use crate::schema::publisher;
 
-#[derive(juniper::GraphQLEnum)]
-#[graphql(description = "Field to use when sorting publishers list")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting publishers list")
+)]
 pub enum PublisherField {
     PublisherID,
     PublisherName,

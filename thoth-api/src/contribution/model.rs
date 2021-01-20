@@ -30,8 +30,11 @@ pub enum ContributionType {
     PrefaceBy,
 }
 
-#[derive(juniper::GraphQLEnum)]
-#[graphql(description = "Field to use when sorting contributions list")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting contributions list")
+)]
 pub enum ContributionField {
     WorkID,
     ContributorID,

@@ -51,8 +51,11 @@ pub enum WorkStatus {
     Recalled,
 }
 
-#[derive(juniper::GraphQLEnum)]
-#[graphql(description = "Field to use when sorting works list")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting works list")
+)]
 pub enum WorkField {
     WorkID,
     WorkType,

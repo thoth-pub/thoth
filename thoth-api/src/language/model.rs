@@ -20,8 +20,11 @@ pub enum LanguageRelation {
     TranslatedInto,
 }
 
-#[derive(juniper::GraphQLEnum)]
-#[graphql(description = "Field to use when sorting languages list")]
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting languages list")
+)]
 pub enum LanguageField {
     LanguageID,
     WorkID,
