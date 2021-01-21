@@ -51,6 +51,46 @@ pub enum WorkStatus {
     Recalled,
 }
 
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting works list")
+)]
+pub enum WorkField {
+    WorkID,
+    WorkType,
+    WorkStatus,
+    FullTitle,
+    Title,
+    Subtitle,
+    Reference,
+    Edition,
+    DOI,
+    PublicationDate,
+    Place,
+    Width,
+    Height,
+    PageCount,
+    PageBreakdown,
+    ImageCount,
+    TableCount,
+    AudioCount,
+    VideoCount,
+    License,
+    CopyrightHolder,
+    LandingPage,
+    LCCN,
+    OCLC,
+    ShortAbstract,
+    LongAbstract,
+    GeneralNote,
+    TOC,
+    CoverURL,
+    CoverCaption,
+    CreatedAt,
+    UpdatedAt,
+}
+
 #[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Work {
     pub work_id: Uuid,

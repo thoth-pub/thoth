@@ -4,6 +4,19 @@ use uuid::Uuid;
 #[cfg(feature = "backend")]
 use crate::schema::imprint;
 
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting imprints list")
+)]
+pub enum ImprintField {
+    ImprintID,
+    ImprintName,
+    ImprintURL,
+    CreatedAt,
+    UpdatedAt,
+}
+
 #[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Imprint {
     pub imprint_id: Uuid,

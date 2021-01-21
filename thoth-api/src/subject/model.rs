@@ -24,6 +24,21 @@ pub enum SubjectType {
     Keyword,
 }
 
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting subjects list")
+)]
+pub enum SubjectField {
+    SubjectID,
+    WorkID,
+    SubjectType,
+    SubjectCode,
+    SubjectOrdinal,
+    CreatedAt,
+    UpdatedAt,
+}
+
 #[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Subject {
     pub subject_id: Uuid,

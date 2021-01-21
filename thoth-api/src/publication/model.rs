@@ -32,6 +32,21 @@ pub enum PublicationType {
     Mobi,
 }
 
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting publications list")
+)]
+pub enum PublicationField {
+    PublicationID,
+    PublicationType,
+    WorkID,
+    ISBN,
+    PublicationURL,
+    CreatedAt,
+    UpdatedAt,
+}
+
 #[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct Publication {
     pub publication_id: Uuid,
