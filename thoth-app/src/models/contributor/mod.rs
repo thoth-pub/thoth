@@ -5,7 +5,6 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use super::contribution::Contribution;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
@@ -18,7 +17,6 @@ pub struct Contributor {
     pub full_name: String,
     pub orcid: Option<String>,
     pub website: Option<String>,
-    pub contributions: Option<Vec<Contribution>>,
 }
 
 impl Contributor {
