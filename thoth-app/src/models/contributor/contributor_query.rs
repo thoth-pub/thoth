@@ -12,6 +12,16 @@ pub const CONTRIBUTOR_QUERY: &str = "
             fullName
             orcid
             website
+            contributions {
+                work {
+                    title
+                    imprint {
+                        publisher {
+                            publisherName
+                        }
+                    }
+                }
+            }
         }
     }
 ";
