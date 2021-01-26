@@ -10,6 +10,9 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
+use crate::agent::contributor_links;
+use crate::agent::contributor_links::ContributorLinksAgent;
+use crate::agent::contributor_links::ContributorLinksDispatcher;
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
@@ -46,6 +49,7 @@ pub struct ContributorComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
+    contributor_links: ContributorLinksDispatcher,
 }
 
 pub enum Msg {
@@ -86,6 +90,7 @@ impl Component for ContributorComponent {
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
         let router = RouteAgentDispatcher::new();
+        let mut contributor_links = ContributorLinksAgent::dispatcher();
 
         link.send_message(Msg::GetContributor);
 
@@ -97,6 +102,7 @@ impl Component for ContributorComponent {
             link,
             router,
             notification_bus,
+            contributor_links,
         }
     }
 
