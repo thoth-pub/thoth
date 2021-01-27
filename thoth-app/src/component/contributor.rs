@@ -12,7 +12,7 @@ use yewtil::NeqAssign;
 
 use crate::agent::contributor_links;
 use crate::agent::contributor_links::ContributorLinksAgent;
-use crate::agent::contributor_links::ContributorLinksDispatcher;
+use crate::agent::contributor_links::ContributorLinksResponse;
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
@@ -49,7 +49,7 @@ pub struct ContributorComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
-    contributor_links: ContributorLinksDispatcher,
+    contributor_links: Box<dyn Bridge<ContributorLinksAgent>>,
 }
 
 pub enum Msg {
@@ -65,6 +65,7 @@ pub enum Msg {
     ChangeOrcid(String),
     ChangeWebsite(String),
     ChangeRoute(AppRoute),
+    GetContributorLinks(ContributorLinksResponse),
 }
 
 #[derive(Clone, Properties)]
@@ -90,9 +91,10 @@ impl Component for ContributorComponent {
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
         let router = RouteAgentDispatcher::new();
-        let mut contributor_links = ContributorLinksAgent::dispatcher();
+        let mut contributor_links = ContributorLinksAgent::bridge(link.callback(Msg::GetContributorLinks));
 
         link.send_message(Msg::GetContributor);
+        contributor_links.send(contributor_links::Request::ContributorLinksRequest);
 
         ContributorComponent {
             contributor,
@@ -108,6 +110,10 @@ impl Component for ContributorComponent {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
+            Msg::GetContributorLinks(ContributorLinksResponse) => {
+                //todo
+                false
+            }
             Msg::SetContributorFetchState(fetch_state) => {
                 self.fetch_contributor.apply(fetch_state);
                 match self.fetch_contributor.as_ref().state() {

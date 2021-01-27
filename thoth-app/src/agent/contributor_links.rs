@@ -1,7 +1,4 @@
-use yew::agent::Dispatcher;
 use yew::prelude::worker::*;
-
-pub type ContributorLinksDispatcher = Dispatcher<ContributorLinksAgent>;
 
 pub enum Msg {
     Fetch,
@@ -39,10 +36,10 @@ impl Agent for ContributorLinksAgent {
         }
     }
 
-    fn handle_input(&mut self, msg: Self::Input, _: HandlerId) {
+    fn handle_input(&mut self, msg: Self::Input, id: HandlerId) {
         match msg {
             Request::ContributorLinksRequest => {
-                //todo
+                self.agent_link.respond(id, ContributorLinksResponse);
             }
         }
     }
