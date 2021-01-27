@@ -80,7 +80,7 @@ impl Component for ContributorComponent {
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let body = ContributorRequestBody {
             variables: Variables {
-                contributor_id: Some(props.contributor_id),
+                contributor_id: Some(props.contributor_id.clone()),
             },
             ..Default::default()
         };
@@ -94,7 +94,7 @@ impl Component for ContributorComponent {
         let mut contributor_links = ContributorLinksAgent::bridge(link.callback(Msg::GetContributorLinks));
 
         link.send_message(Msg::GetContributor);
-        contributor_links.send(contributor_links::Request::ContributorLinksRequest);
+        contributor_links.send(contributor_links::Request::RetrieveContributorLinks(props.contributor_id));
 
         ContributorComponent {
             contributor,
