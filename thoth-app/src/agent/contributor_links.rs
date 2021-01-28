@@ -7,6 +7,7 @@ use yewtil::future::LinkFuture;
 
 use crate::agent::contributor_links_query::FetchActionContributorLinks;
 use crate::agent::contributor_links_query::FetchContributorLinks;
+use crate::agent::contributor_links_query::ContributorLink;
 use crate::agent::contributor_links_query::ContributorLinksRequest;
 use crate::agent::contributor_links_query::ContributorLinksRequestBody;
 use crate::agent::contributor_links_query::Variables;
@@ -21,7 +22,10 @@ pub enum Request {
 }
 
 //#[derive(Deserialize, Serialize)]
-pub struct ContributorLinksResponse;
+#[derive(Clone)]
+pub struct ContributorLinksResponse {
+    pub contributor_link: ContributorLink,
+}
 
 pub struct ContributorLinksAgent {
     agent_link: AgentLink<ContributorLinksAgent>,
@@ -51,9 +55,13 @@ impl Agent for ContributorLinksAgent {
                     FetchState::NotFetching(_) => (), //todo
                     FetchState::Fetching(_) => (), //todo
                     FetchState::Fetched(body) => {
-                        //todo write body into response
+                        let contributor_link = match &body.data.contributor {
+                            Some(c) => c.to_owned(),
+                            None => Default::default(),
+                        };
+                        let response = ContributorLinksResponse { contributor_link };
                         for sub in self.subscribers.iter() {
-                            self.agent_link.respond(*sub, ContributorLinksResponse);
+                            self.agent_link.respond(*sub, response.clone());
                         }
                     }
                     FetchState::Failed(_, _err) => (), //todo

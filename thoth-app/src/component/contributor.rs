@@ -50,6 +50,7 @@ pub struct ContributorComponent {
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     contributor_links: Box<dyn Bridge<ContributorLinksAgent>>,
+    contributor_links_message: String,
 }
 
 pub enum Msg {
@@ -92,6 +93,7 @@ impl Component for ContributorComponent {
         let contributor: Contributor = Default::default();
         let router = RouteAgentDispatcher::new();
         let mut contributor_links = ContributorLinksAgent::bridge(link.callback(Msg::GetContributorLinks));
+        let mut contributor_links_message = String::new();
 
         link.send_message(Msg::GetContributor);
         contributor_links.send(contributor_links::Request::RetrieveContributorLinks(props.contributor_id));
@@ -105,13 +107,18 @@ impl Component for ContributorComponent {
             router,
             notification_bus,
             contributor_links,
+            contributor_links_message,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::GetContributorLinks(ContributorLinksResponse) => {
-                //todo
+            Msg::GetContributorLinks(response) => {
+                if let Some(links) = response.contributor_link.contributions {
+                    for link in &links {
+                        self.contributor_links_message.push_str(&format!("Contributed to: {}, from: {}\n", link.work.title, link.work.imprint.publisher.publisher_name));
+                    }
+                }
                 false
             }
             Msg::SetContributorFetchState(fetch_state) => {
@@ -302,6 +309,12 @@ impl Component for ContributorComponent {
                                 </p>
                             </div>
                         </nav>
+
+                        <div class="level-left">
+                            <p class="subtitle is-4">
+                                { &self.contributor_links_message }
+                            </p>
+                        </div>
 
                         <form onsubmit=callback>
                             <FormTextInput
