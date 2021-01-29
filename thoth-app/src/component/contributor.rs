@@ -114,6 +114,7 @@ impl Component for ContributorComponent {
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::GetContributorLinks(response) => {
+                self.contributor_links_message.clear();
                 if let Some(links) = response.contributor_link.contributions {
                     for link in &links {
                         self.contributor_links_message.push_str(&format!("Contributed to: {}, from: {}\n", link.work.title, link.work.imprint.publisher.publisher_name));
