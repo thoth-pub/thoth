@@ -120,6 +120,7 @@ impl Component for ContributorComponent {
                     }
                 }
                 false
+                true
             }
             Msg::SetContributorFetchState(fetch_state) => {
                 self.fetch_contributor.apply(fetch_state);
