@@ -164,15 +164,6 @@ impl Component for WorkComponent {
         }
     }
 
-    fn rendered(&mut self, first_render: bool) {
-        if first_render {
-            self.link
-                .send_future(self.fetch_work.fetch(Msg::SetWorkFetchState));
-            self.link
-                .send_message(Msg::SetWorkFetchState(FetchAction::Fetching));
-        }
-    }
-
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::SetWorkFetchState(fetch_state) => {

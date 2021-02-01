@@ -28,18 +28,11 @@ impl Component for DashboardComponent {
     type Properties = ();
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+        link.send_message(Msg::GetStats);
+
         DashboardComponent {
             get_stats: Default::default(),
             link,
-        }
-    }
-
-    fn rendered(&mut self, first_render: bool) {
-        if first_render {
-            self.link
-                .send_future(self.get_stats.fetch(Msg::SetStatsFetchState));
-            self.link
-                .send_message(Msg::SetStatsFetchState(FetchAction::Fetching));
         }
     }
 
