@@ -319,23 +319,30 @@ impl Component for ContributorComponent {
                             </div>
                         </nav>
 
-                        <div class="notification is-link">
-                            {
-                                for self.contributor_activity.iter().map(|contribution| {
-                                    html! {
-                                        <p>
-                                            { "Contributed to: " }
-                                            <RouterAnchor<AppRoute>
-                                                route=AppRoute::Admin(AdminRoute::Work(contribution.work.work_id.clone()))
-                                            >
-                                                { &contribution.work.title }
-                                            </  RouterAnchor<AppRoute>>
-                                            { format!(", from: {}", contribution.work.imprint.publisher.publisher_name) }
-                                        </p>
+                        { if !self.contributor_activity.is_empty() {
+                            html! {
+                                <div class="notification is-link">
+                                    {
+                                        for self.contributor_activity.iter().map(|contribution| {
+                                            html! {
+                                                <p>
+                                                    { "Contributed to: " }
+                                                    <RouterAnchor<AppRoute>
+                                                        route=AppRoute::Admin(AdminRoute::Work(contribution.work.work_id.clone()))
+                                                    >
+                                                        { &contribution.work.title }
+                                                    </  RouterAnchor<AppRoute>>
+                                                    { format!(", from: {}", contribution.work.imprint.publisher.publisher_name) }
+                                                </p>
+                                            }
+                                        })
                                     }
-                                })
+                                </div>
+                                }
+                            } else {
+                                html! {}
                             }
-                        </div>
+                        }
 
                         <form onsubmit=callback>
                             <FormTextInput
