@@ -8,6 +8,7 @@ pub const CONTRIBUTOR_LINKS_QUERY: &str = "
         contributor(contributorId: $contributorId) {
             contributions {
                 work {
+                    workId
                     title
                     imprint {
                         publisher {
@@ -57,6 +58,7 @@ pub struct SlimContribution {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SlimWork {
+    pub work_id: String,
     pub title: String,
     pub imprint: SlimImprint,
 }

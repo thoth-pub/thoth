@@ -3,6 +3,7 @@ use yew::prelude::*;
 use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
+use yew_router::prelude::RouterAnchor;
 use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
@@ -13,6 +14,7 @@ use yewtil::NeqAssign;
 use crate::agent::contributor_links;
 use crate::agent::contributor_links::ContributorLinksAgent;
 use crate::agent::contributor_links::ContributorLinksResponse;
+use crate::agent::contributor_links_query::SlimContribution;
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
@@ -50,7 +52,7 @@ pub struct ContributorComponent {
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     contributor_links: Box<dyn Bridge<ContributorLinksAgent>>,
-    contributor_links_message: String,
+    contributor_links_response: Vec<SlimContribution>,
 }
 
 pub enum Msg {
@@ -93,7 +95,7 @@ impl Component for ContributorComponent {
         let contributor: Contributor = Default::default();
         let router = RouteAgentDispatcher::new();
         let mut contributor_links = ContributorLinksAgent::bridge(link.callback(Msg::GetContributorLinks));
-        let mut contributor_links_message = String::new();
+        let contributor_links_response = Default::default();
 
         link.send_message(Msg::GetContributor);
         contributor_links.send(contributor_links::Request::RetrieveContributorLinks(props.contributor_id));
@@ -107,20 +109,16 @@ impl Component for ContributorComponent {
             router,
             notification_bus,
             contributor_links,
-            contributor_links_message,
+            contributor_links_response,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::GetContributorLinks(response) => {
-                self.contributor_links_message.clear();
                 if let Some(links) = response.contributor_link.contributions {
-                    for link in &links {
-                        self.contributor_links_message.push_str(&format!("Contributed to: {}, from: {}\n", link.work.title, link.work.imprint.publisher.publisher_name));
-                    }
+                    self.contributor_links_response = links.clone();
                 }
-                false
                 true
             }
             Msg::SetContributorFetchState(fetch_state) => {
@@ -312,10 +310,22 @@ impl Component for ContributorComponent {
                             </div>
                         </nav>
 
-                        <div class="level-left">
-                            <p class="subtitle is-4">
-                                { &self.contributor_links_message }
-                            </p>
+                        <div class="notification is-link">
+                            {
+                                for self.contributor_links_response.iter().map(|c| {
+                                    html! {
+                                        <p>
+                                            { "Contributed to: " }
+                                            <RouterAnchor<AppRoute>
+                                                route=AppRoute::Admin(AdminRoute::Work(c.work.work_id.clone()))
+                                            >
+                                                { &c.work.title }
+                                            </  RouterAnchor<AppRoute>>
+                                            { format!(", from: {}", c.work.imprint.publisher.publisher_name) }
+                                        </p>
+                                    }
+                                })
+                            }
                         </div>
 
                         <form onsubmit=callback>
