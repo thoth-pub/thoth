@@ -11,10 +11,8 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
-use crate::agent::contributor_links;
-use crate::agent::contributor_links::ContributorLinksAgent;
-use crate::agent::contributor_links_query::ContributorLinksResponseData;
-use crate::agent::contributor_links_query::SlimContribution;
+use crate::agent::contributor_activity_checker::ContributorActivityChecker;
+use crate::agent::contributor_activity_checker::Request as ContributorActivityRequest;
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
@@ -22,6 +20,8 @@ use crate::agent::notification_bus::Request;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
+use crate::models::contributor::contributor_activity_query::ContributorActivityResponseData;
+use crate::models::contributor::contributor_activity_query::SlimContribution;
 use crate::models::contributor::contributor_query::ContributorRequest;
 use crate::models::contributor::contributor_query::ContributorRequestBody;
 use crate::models::contributor::contributor_query::FetchActionContributor;
@@ -51,11 +51,12 @@ pub struct ContributorComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
-    _contributor_links: Box<dyn Bridge<ContributorLinksAgent>>,
-    contributor_links_response: Vec<SlimContribution>,
+    _contributor_activity_checker: Box<dyn Bridge<ContributorActivityChecker>>,
+    contributor_activity: Vec<SlimContribution>,
 }
 
 pub enum Msg {
+    GetContributorActivity(ContributorActivityResponseData),
     SetContributorFetchState(FetchActionContributor),
     GetContributor,
     SetContributorPushState(PushActionUpdateContributor),
@@ -68,7 +69,6 @@ pub enum Msg {
     ChangeOrcid(String),
     ChangeWebsite(String),
     ChangeRoute(AppRoute),
-    GetContributorLinks(ContributorLinksResponseData),
 }
 
 #[derive(Clone, Properties)]
@@ -94,11 +94,14 @@ impl Component for ContributorComponent {
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
         let router = RouteAgentDispatcher::new();
-        let mut _contributor_links = ContributorLinksAgent::bridge(link.callback(Msg::GetContributorLinks));
-        let contributor_links_response = Default::default();
+        let mut _contributor_activity_checker =
+            ContributorActivityChecker::bridge(link.callback(Msg::GetContributorActivity));
+        let contributor_activity = Default::default();
 
         link.send_message(Msg::GetContributor);
-        _contributor_links.send(contributor_links::Request::RetrieveContributorLinks(props.contributor_id));
+        _contributor_activity_checker.send(
+            ContributorActivityRequest::RetrieveContributorActivity(props.contributor_id),
+        );
 
         ContributorComponent {
             contributor,
@@ -108,19 +111,19 @@ impl Component for ContributorComponent {
             link,
             router,
             notification_bus,
-            _contributor_links,
-            contributor_links_response,
+            _contributor_activity_checker,
+            contributor_activity,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::GetContributorLinks(response) => {
+            Msg::GetContributorActivity(response) => {
                 let mut should_render = false;
-                if let Some(c) = response.contributor {
-                    if let Some(links) = c.contributions {
-                        if !links.is_empty() {
-                            self.contributor_links_response = links.clone();
+                if let Some(contributor) = response.contributor {
+                    if let Some(contributions) = contributor.contributions {
+                        if !contributions.is_empty() {
+                            self.contributor_activity = contributions;
                             should_render = true;
                         }
                     }
@@ -318,16 +321,16 @@ impl Component for ContributorComponent {
 
                         <div class="notification is-link">
                             {
-                                for self.contributor_links_response.iter().map(|c| {
+                                for self.contributor_activity.iter().map(|contribution| {
                                     html! {
                                         <p>
                                             { "Contributed to: " }
                                             <RouterAnchor<AppRoute>
-                                                route=AppRoute::Admin(AdminRoute::Work(c.work.work_id.clone()))
+                                                route=AppRoute::Admin(AdminRoute::Work(contribution.work.work_id.clone()))
                                             >
-                                                { &c.work.title }
+                                                { &contribution.work.title }
                                             </  RouterAnchor<AppRoute>>
-                                            { format!(", from: {}", c.work.imprint.publisher.publisher_name) }
+                                            { format!(", from: {}", contribution.work.imprint.publisher.publisher_name) }
                                         </p>
                                     }
                                 })

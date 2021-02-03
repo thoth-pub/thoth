@@ -3,8 +3,8 @@ use serde::Serialize;
 
 use crate::graphql_query_builder;
 
-pub const CONTRIBUTOR_LINKS_QUERY: &str = "
-    query ContributorLinksQuery($contributorId: Uuid!) {
+pub const CONTRIBUTOR_ACTIVITY_QUERY: &str = "
+    query ContributorActivityQuery($contributorId: Uuid!) {
         contributor(contributorId: $contributorId) {
             contributions {
                 work {
@@ -22,14 +22,14 @@ pub const CONTRIBUTOR_LINKS_QUERY: &str = "
 ";
 
 graphql_query_builder! {
-    ContributorLinksRequest,
-    ContributorLinksRequestBody,
+    ContributorActivityRequest,
+    ContributorActivityRequestBody,
     Variables,
-    CONTRIBUTOR_LINKS_QUERY,
-    ContributorLinksResponseBody,
-    ContributorLinksResponseData,
-    FetchContributorLinks,
-    FetchActionContributorLinks
+    CONTRIBUTOR_ACTIVITY_QUERY,
+    ContributorActivityResponseBody,
+    ContributorActivityResponseData,
+    FetchContributorActivity,
+    FetchActionContributorActivity
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -39,13 +39,13 @@ pub struct Variables {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-pub struct ContributorLinksResponseData {
-    pub contributor: Option<ContributorLink>,
+pub struct ContributorActivityResponseData {
+    pub contributor: Option<ContributorActivity>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct ContributorLink {
+pub struct ContributorActivity {
     pub contributions: Option<Vec<SlimContribution>>,
 }
 
