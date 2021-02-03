@@ -13,7 +13,7 @@ use yewtil::NeqAssign;
 
 use crate::agent::contributor_links;
 use crate::agent::contributor_links::ContributorLinksAgent;
-use crate::agent::contributor_links::ContributorLinksResponse;
+use crate::agent::contributor_links_query::ContributorLinksResponseData;
 use crate::agent::contributor_links_query::SlimContribution;
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
@@ -51,7 +51,7 @@ pub struct ContributorComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
-    contributor_links: Box<dyn Bridge<ContributorLinksAgent>>,
+    _contributor_links: Box<dyn Bridge<ContributorLinksAgent>>,
     contributor_links_response: Vec<SlimContribution>,
 }
 
@@ -68,7 +68,7 @@ pub enum Msg {
     ChangeOrcid(String),
     ChangeWebsite(String),
     ChangeRoute(AppRoute),
-    GetContributorLinks(ContributorLinksResponse),
+    GetContributorLinks(ContributorLinksResponseData),
 }
 
 #[derive(Clone, Properties)]
@@ -94,11 +94,11 @@ impl Component for ContributorComponent {
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
         let router = RouteAgentDispatcher::new();
-        let mut contributor_links = ContributorLinksAgent::bridge(link.callback(Msg::GetContributorLinks));
+        let mut _contributor_links = ContributorLinksAgent::bridge(link.callback(Msg::GetContributorLinks));
         let contributor_links_response = Default::default();
 
         link.send_message(Msg::GetContributor);
-        contributor_links.send(contributor_links::Request::RetrieveContributorLinks(props.contributor_id));
+        _contributor_links.send(contributor_links::Request::RetrieveContributorLinks(props.contributor_id));
 
         ContributorComponent {
             contributor,
@@ -108,7 +108,7 @@ impl Component for ContributorComponent {
             link,
             router,
             notification_bus,
-            contributor_links,
+            _contributor_links,
             contributor_links_response,
         }
     }
@@ -116,10 +116,16 @@ impl Component for ContributorComponent {
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::GetContributorLinks(response) => {
-                if let Some(links) = response.contributor_link.contributions {
-                    self.contributor_links_response = links.clone();
+                let mut should_render = false;
+                if let Some(c) = response.contributor {
+                    if let Some(links) = c.contributions {
+                        if !links.is_empty() {
+                            self.contributor_links_response = links.clone();
+                            should_render = true;
+                        }
+                    }
                 }
-                true
+                should_render
             }
             Msg::SetContributorFetchState(fetch_state) => {
                 self.fetch_contributor.apply(fetch_state);

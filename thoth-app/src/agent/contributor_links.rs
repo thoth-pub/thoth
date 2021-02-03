@@ -7,24 +7,17 @@ use yewtil::future::LinkFuture;
 
 use crate::agent::contributor_links_query::FetchActionContributorLinks;
 use crate::agent::contributor_links_query::FetchContributorLinks;
-use crate::agent::contributor_links_query::ContributorLink;
 use crate::agent::contributor_links_query::ContributorLinksRequest;
 use crate::agent::contributor_links_query::ContributorLinksRequestBody;
+use crate::agent::contributor_links_query::ContributorLinksResponseData;
 use crate::agent::contributor_links_query::Variables;
 
 pub enum Msg {
     SetContributorLinksFetchState(FetchActionContributorLinks),
 }
 
-//#[derive(Deserialize, Serialize)]
 pub enum Request {
     RetrieveContributorLinks(String),
-}
-
-//#[derive(Deserialize, Serialize)]
-#[derive(Clone)]
-pub struct ContributorLinksResponse {
-    pub contributor_link: ContributorLink,
 }
 
 pub struct ContributorLinksAgent {
@@ -36,7 +29,7 @@ pub struct ContributorLinksAgent {
 impl Agent for ContributorLinksAgent {
     type Input = Request;
     type Message = Msg;
-    type Output = ContributorLinksResponse;
+    type Output = ContributorLinksResponseData;
     type Reach = Context<Self>;
 
     fn create(link: AgentLink<Self>) -> Self {
@@ -55,11 +48,7 @@ impl Agent for ContributorLinksAgent {
                     FetchState::NotFetching(_) => (), //todo
                     FetchState::Fetching(_) => (), //todo
                     FetchState::Fetched(body) => {
-                        let contributor_link = match &body.data.contributor {
-                            Some(c) => c.to_owned(),
-                            None => Default::default(),
-                        };
-                        let response = ContributorLinksResponse { contributor_link };
+                        let response = &body.data;
                         for sub in self.subscribers.iter() {
                             self.agent_link.respond(*sub, response.clone());
                         }
