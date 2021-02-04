@@ -40,7 +40,7 @@ pub fn register(
     surname: &str,
     email: &str,
     password: &str,
-    is_admin: &bool,
+    is_superuser: &bool,
     is_bot: &bool,
     pool: &PgPool,
 ) -> Result<Account, ThothError> {
@@ -50,7 +50,7 @@ pub fn register(
         surname: surname.to_owned(),
         email: email.to_owned(),
         password: password.to_owned(),
-        is_admin: is_admin.to_owned(),
+        is_superuser: is_superuser.to_owned(),
         is_bot: is_bot.to_owned(),
     };
 

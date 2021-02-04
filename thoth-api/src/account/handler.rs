@@ -56,7 +56,7 @@ impl From<AccountData> for NewAccount {
             surname,
             email,
             password,
-            is_admin,
+            is_superuser,
             is_bot,
             ..
         } = account_data;
@@ -69,7 +69,7 @@ impl From<AccountData> for NewAccount {
             email,
             hash,
             salt,
-            is_admin,
+            is_superuser,
             is_bot,
         }
     }
