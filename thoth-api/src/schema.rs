@@ -8,7 +8,7 @@ table! {
         email -> Text,
         hash -> Bytea,
         salt -> Text,
-        is_admin -> Bool,
+        is_superuser -> Bool,
         is_bot -> Bool,
         is_active -> Bool,
         created_at -> Timestamp,
@@ -162,6 +162,18 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+
+    publisher_account (account_id, publisher_id) {
+        account_id -> Uuid,
+        publisher_id -> Uuid,
+        is_admin -> Bool,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use crate::series::model::Series_type;
 
     series (series_id) {
@@ -244,11 +256,14 @@ joinable!(issue -> work (work_id));
 joinable!(language -> work (work_id));
 joinable!(price -> publication (publication_id));
 joinable!(publication -> work (work_id));
+joinable!(publisher_account -> account (account_id));
+joinable!(publisher_account -> publisher (publisher_id));
 joinable!(series -> imprint (imprint_id));
 joinable!(subject -> work (work_id));
 joinable!(work -> imprint (imprint_id));
 
 allow_tables_to_appear_in_same_query!(
+    account,
     contribution,
     contributor,
     funder,
@@ -258,6 +273,7 @@ allow_tables_to_appear_in_same_query!(
     language,
     price,
     publication,
+    publisher_account,
     publisher,
     series,
     subject,
