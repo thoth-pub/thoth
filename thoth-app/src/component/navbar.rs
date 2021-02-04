@@ -67,10 +67,10 @@ impl Component for NavbarComponent {
                             </a>
 
                             <div class="navbar-dropdown">
-                                <a class="navbar-item" href="https://github.com/OpenBookPublishers/thoth" title="Project">
+                                <a class="navbar-item" href="https://github.com/thoth-pub/thoth" title="Project">
                                     { "Project" }
                                 </a>
-                                <a class="navbar-item"  href="https://github.com/orgs/OpenBookPublishers/projects/1" title="Timeline">
+                                <a class="navbar-item"  href="https://github.com/thoth-pub/thoth/projects" title="Timeline">
                                     { "Timeline" }
                                 </a>
                                 <hr class="navbar-divider" />
