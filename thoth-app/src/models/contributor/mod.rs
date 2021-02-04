@@ -60,6 +60,7 @@ impl Contributor {
     }
 }
 
+pub mod contributor_activity_query;
 pub mod contributor_query;
 pub mod contributors_query;
 pub mod create_contributor_mutation;

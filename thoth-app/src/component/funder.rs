@@ -3,6 +3,7 @@ use yew::prelude::*;
 use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
+use yew_router::prelude::RouterAnchor;
 use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
@@ -10,6 +11,8 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
+use crate::agent::funder_activity_checker::FunderActivityChecker;
+use crate::agent::funder_activity_checker::Request as FunderActivityRequest;
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
@@ -22,6 +25,8 @@ use crate::models::funder::delete_funder_mutation::DeleteFunderRequestBody;
 use crate::models::funder::delete_funder_mutation::PushActionDeleteFunder;
 use crate::models::funder::delete_funder_mutation::PushDeleteFunder;
 use crate::models::funder::delete_funder_mutation::Variables as DeleteVariables;
+use crate::models::funder::funder_activity_query::FunderActivityResponseData;
+use crate::models::funder::funder_activity_query::SlimFunding;
 use crate::models::funder::funder_query::FetchActionFunder;
 use crate::models::funder::funder_query::FetchFunder;
 use crate::models::funder::funder_query::FunderRequest;
@@ -46,9 +51,12 @@ pub struct FunderComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
+    _funder_activity_checker: Box<dyn Bridge<FunderActivityChecker>>,
+    funder_activity: Vec<SlimFunding>,
 }
 
 pub enum Msg {
+    GetFunderActivity(FunderActivityResponseData),
     SetFunderFetchState(FetchActionFunder),
     GetFunder,
     SetFunderPushState(PushActionUpdateFunder),
@@ -72,7 +80,7 @@ impl Component for FunderComponent {
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let body = FunderRequestBody {
             variables: Variables {
-                funder_id: Some(props.funder_id),
+                funder_id: Some(props.funder_id.clone()),
             },
             ..Default::default()
         };
@@ -83,8 +91,14 @@ impl Component for FunderComponent {
         let notification_bus = NotificationBus::dispatcher();
         let funder: Funder = Default::default();
         let router = RouteAgentDispatcher::new();
+        let mut _funder_activity_checker =
+            FunderActivityChecker::bridge(link.callback(Msg::GetFunderActivity));
+        let funder_activity = Default::default();
 
         link.send_message(Msg::GetFunder);
+        _funder_activity_checker.send(FunderActivityRequest::RetrieveFunderActivity(
+            props.funder_id,
+        ));
 
         FunderComponent {
             funder,
@@ -94,11 +108,25 @@ impl Component for FunderComponent {
             link,
             router,
             notification_bus,
+            _funder_activity_checker,
+            funder_activity,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
+            Msg::GetFunderActivity(response) => {
+                let mut should_render = false;
+                if let Some(funder) = response.funder {
+                    if let Some(fundings) = funder.fundings {
+                        if !fundings.is_empty() {
+                            self.funder_activity = fundings;
+                            should_render = true;
+                        }
+                    }
+                }
+                should_render
+            }
             Msg::SetFunderFetchState(fetch_state) => {
                 self.fetch_funder.apply(fetch_state);
                 match self.fetch_funder.as_ref().state() {
@@ -264,6 +292,31 @@ impl Component for FunderComponent {
                                 </p>
                             </div>
                         </nav>
+
+                        { if !self.funder_activity.is_empty() {
+                            html! {
+                                <div class="notification is-link">
+                                    {
+                                        for self.funder_activity.iter().map(|funding| {
+                                            html! {
+                                                <p>
+                                                    { "Funded: " }
+                                                    <RouterAnchor<AppRoute>
+                                                        route=AppRoute::Admin(AdminRoute::Work(funding.work.work_id.clone()))
+                                                    >
+                                                        { &funding.work.title }
+                                                    </  RouterAnchor<AppRoute>>
+                                                    { format!(", from: {}", funding.work.imprint.publisher.publisher_name) }
+                                                </p>
+                                            }
+                                        })
+                                    }
+                                </div>
+                                }
+                            } else {
+                                html! {}
+                            }
+                        }
 
                         <form onsubmit=callback>
                             <FormTextInput
