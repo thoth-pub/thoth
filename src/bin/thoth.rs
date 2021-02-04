@@ -154,7 +154,13 @@ fn main() -> Result<()> {
                 dotenv().ok();
                 let pool = establish_connection();
                 match register(
-                    &name, &surname, &email, &password, &is_superuser, &is_bot, &pool,
+                    &name,
+                    &surname,
+                    &email,
+                    &password,
+                    &is_superuser,
+                    &is_bot,
+                    &pool,
                 ) {
                     Ok(_) => Ok(()),
                     Err(e) => Err(e.into()),
