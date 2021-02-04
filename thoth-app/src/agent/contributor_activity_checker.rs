@@ -1,10 +1,15 @@
 use std::collections::HashSet;
 use yew::prelude::worker::*;
+use yew::Dispatched;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 
+use crate::agent::notification_bus::NotificationBus;
+use crate::agent::notification_bus::NotificationDispatcher;
+use crate::agent::notification_bus::NotificationStatus;
+use crate::agent::notification_bus::Request as NotificationRequest;
 use crate::models::contributor::contributor_activity_query::ContributorActivityRequest;
 use crate::models::contributor::contributor_activity_query::ContributorActivityRequestBody;
 use crate::models::contributor::contributor_activity_query::ContributorActivityResponseData;
@@ -24,6 +29,7 @@ pub struct ContributorActivityChecker {
     agent_link: AgentLink<ContributorActivityChecker>,
     fetch_contributor_activity: FetchContributorActivity,
     subscribers: HashSet<HandlerId>,
+    notification_bus: NotificationDispatcher,
 }
 
 impl Agent for ContributorActivityChecker {
@@ -37,6 +43,7 @@ impl Agent for ContributorActivityChecker {
             agent_link: link,
             fetch_contributor_activity: Default::default(),
             subscribers: HashSet::new(),
+            notification_bus: NotificationBus::dispatcher(),
         }
     }
 
@@ -53,7 +60,13 @@ impl Agent for ContributorActivityChecker {
                             self.agent_link.respond(*sub, response.clone());
                         }
                     }
-                    FetchState::Failed(_, _err) => (), //todo
+                    FetchState::Failed(_, err) => {
+                        self.notification_bus
+                            .send(NotificationRequest::NotificationBusMsg((
+                                err.to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                    }
                 }
             }
         }
