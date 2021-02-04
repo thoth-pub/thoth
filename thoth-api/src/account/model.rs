@@ -4,6 +4,8 @@ use uuid::Uuid;
 
 #[cfg(feature = "backend")]
 use crate::schema::account;
+#[cfg(feature = "backend")]
+use crate::schema::publisher_account;
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
@@ -14,7 +16,7 @@ pub struct Account {
     pub email: String,
     pub hash: Vec<u8>,
     pub salt: String,
-    pub is_admin: bool,
+    pub is_superuser: bool,
     pub is_bot: bool,
     pub is_active: bool,
     pub created_at: NaiveDateTime,
@@ -30,7 +32,7 @@ pub struct NewAccount {
     pub email: String,
     pub hash: Vec<u8>,
     pub salt: String,
-    pub is_admin: bool,
+    pub is_superuser: bool,
     pub is_bot: bool,
 }
 
@@ -40,8 +42,25 @@ pub struct AccountData {
     pub surname: String,
     pub email: String,
     pub password: String,
-    pub is_admin: bool,
+    pub is_superuser: bool,
     pub is_bot: bool,
+}
+
+#[cfg_attr(feature = "backend", derive(Queryable))]
+pub struct PublisherAccount {
+    pub account_id: Uuid,
+    pub publisher_id: Uuid,
+    pub is_admin: bool,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+#[cfg_attr(feature = "backend", derive(Insertable))]
+#[cfg_attr(feature = "backend", table_name = "publisher_account")]
+pub struct NewPublisherAccount {
+    pub account_id: Uuid,
+    pub publisher_id: Uuid,
+    pub is_admin: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

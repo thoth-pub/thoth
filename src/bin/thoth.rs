@@ -100,10 +100,10 @@ fn main() -> Result<()> {
                                 .required(true),
                         )
                         .arg(
-                            Arg::with_name("is-admin")
-                                .long("is-admin")
+                            Arg::with_name("is-superuser")
+                                .long("is-superuser")
                                 .multiple(false)
-                                .help("Is the user an admin"),
+                                .help("Is the user a super user"),
                         )
                         .arg(
                             Arg::with_name("is-bot")
@@ -148,13 +148,19 @@ fn main() -> Result<()> {
                 let surname = register_matches.value_of("surname").unwrap();
                 let email = register_matches.value_of("email").unwrap();
                 let password = register_matches.value_of("password").unwrap();
-                let is_admin = register_matches.is_present("is-admin");
+                let is_superuser = register_matches.is_present("is-superuser");
                 let is_bot = register_matches.is_present("is-bot");
 
                 dotenv().ok();
                 let pool = establish_connection();
                 match register(
-                    &name, &surname, &email, &password, &is_admin, &is_bot, &pool,
+                    &name,
+                    &surname,
+                    &email,
+                    &password,
+                    &is_superuser,
+                    &is_bot,
+                    &pool,
                 ) {
                     Ok(_) => Ok(()),
                     Err(e) => Err(e.into()),
