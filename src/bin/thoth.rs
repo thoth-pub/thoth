@@ -12,7 +12,7 @@ use thoth_api::errors::Result;
 fn main() -> Result<()> {
     let matches = App::new(env!("CARGO_PKG_NAME"))
         .version(crate_version!())
-        .author(crate_authors!())
+        .author(crate_authors!("\n"))
         .about(env!("CARGO_PKG_DESCRIPTION"))
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .subcommand(App::new("migrate").about("Run the database migrations"))
