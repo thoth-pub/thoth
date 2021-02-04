@@ -9,16 +9,6 @@ pub const FUNDER_QUERY: &str = "
             funderId
             funderName
             funderDoi
-            fundings {
-                work {
-                    title
-                    imprint {
-                        publisher {
-                            publisherName
-                        }
-                    }
-                }
-            }
         }
     }
 ";
