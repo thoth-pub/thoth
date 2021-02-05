@@ -76,7 +76,7 @@ pub struct Token {
     pub iat: i64,
     pub jti: String,
     #[serde(rename = "https://thoth.pub/resource_access")]
-    pub namespace: Option<Vec<AccountAccess>>,
+    pub namespace: Vec<AccountAccess>,
 }
 
 #[derive(Clone)]

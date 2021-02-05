@@ -20,7 +20,7 @@ use crate::db::PgPool;
 use crate::errors::ThothError;
 
 impl Account {
-    pub fn get_permissions(&self, pool: &PgPool) -> Result<Option<Vec<AccountAccess>>, ThothError> {
+    pub fn get_permissions(&self, pool: &PgPool) -> Result<Vec<AccountAccess>, ThothError> {
         use crate::schema::publisher_account::dsl::*;
         let conn = pool.get().unwrap();
 
@@ -29,14 +29,14 @@ impl Account {
             .load::<PublisherAccount>(&conn)
             .expect("Error loading publisher accounts");
         let permissions: Vec<AccountAccess> = linked_publishers.into_iter().map(|p| p.into()).collect();
-        Ok(Some(permissions))
+        Ok(permissions)
     }
 
     pub fn issue_token(&self, pool: &PgPool) -> Result<String, ThothError> {
         const DEFAULT_TOKEN_VALIDITY: i64 = 24 * 60 * 60;
         let connection = pool.get().unwrap();
         dotenv().ok();
-        let namespace = self.get_permissions(&pool).unwrap_or(None);
+        let namespace = self.get_permissions(&pool).unwrap_or_default();
         let secret_str = env::var("SECRET_KEY").expect("SECRET_KEY must be set");
         let secret: &[u8] = secret_str.as_bytes();
         let now = SystemTime::now()
