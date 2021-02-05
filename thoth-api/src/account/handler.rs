@@ -53,7 +53,7 @@ impl Account {
             exp: now.as_secs() as i64 + DEFAULT_TOKEN_VALIDITY,
             iat: now.as_secs() as i64,
             jti: Uuid::new_v4().to_string(),
-            namespace: namespace,
+            namespace,
         };
         let token = encode(
             &Header::default(),
