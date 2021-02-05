@@ -44,6 +44,9 @@ pub enum ContributionField {
     Institution,
     CreatedAt,
     UpdatedAt,
+    FirstName,
+    LastName,
+    FullName,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -56,6 +59,9 @@ pub struct Contribution {
     pub institution: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    pub first_name: Option<String>,
+    pub last_name: String,
+    pub full_name: String,
 }
 
 #[cfg_attr(
@@ -70,6 +76,9 @@ pub struct NewContribution {
     pub main_contribution: bool,
     pub biography: Option<String>,
     pub institution: Option<String>,
+    pub first_name: Option<String>,
+    pub last_name: String,
+    pub full_name: String,
 }
 
 #[cfg_attr(
@@ -85,6 +94,9 @@ pub struct PatchContribution {
     pub main_contribution: bool,
     pub biography: Option<String>,
     pub institution: Option<String>,
+    pub first_name: Option<String>,
+    pub last_name: String,
+    pub full_name: String,
 }
 
 impl Default for ContributionType {

@@ -829,6 +829,18 @@ impl QueryRoot {
                 Direction::ASC => query = query.order(updated_at.asc()),
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
+            ContributionField::FirstName => match order.direction {
+                Direction::ASC => query = query.order(first_name.asc()),
+                Direction::DESC => query = query.order(first_name.desc()),
+            },
+            ContributionField::LastName => match order.direction {
+                Direction::ASC => query = query.order(last_name.asc()),
+                Direction::DESC => query = query.order(last_name.desc()),
+            },
+            ContributionField::FullName => match order.direction {
+                Direction::ASC => query = query.order(full_name.asc()),
+                Direction::DESC => query = query.order(full_name.desc()),
+            },
         }
         query
             .limit(limit.into())
@@ -2493,6 +2505,18 @@ impl Contribution {
 
     pub fn updated_at(&self) -> NaiveDateTime {
         self.updated_at
+    }
+
+    pub fn first_name(&self) -> Option<&String> {
+        self.first_name.as_ref()
+    }
+
+    pub fn last_name(&self) -> &String {
+        &self.last_name
+    }
+
+    pub fn full_name(&self) -> &String {
+        &self.full_name
     }
 
     pub fn work(&self, context: &Context) -> Work {
