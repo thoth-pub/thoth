@@ -29,7 +29,8 @@ impl Account {
             .filter(account_id.eq(self.account_id))
             .load::<PublisherAccount>(&conn)
             .expect("Error loading publisher accounts");
-        let permissions: Vec<LinkedPublisher> = linked_publishers.into_iter().map(|p| p.into()).collect();
+        let permissions: Vec<LinkedPublisher> =
+            linked_publishers.into_iter().map(|p| p.into()).collect();
         Ok(permissions)
     }
 
@@ -37,7 +38,8 @@ impl Account {
         const DEFAULT_TOKEN_VALIDITY: i64 = 24 * 60 * 60;
         let connection = pool.get().unwrap();
         dotenv().ok();
-        let linked_publishers: Vec<LinkedPublisher> = self.get_permissions(&pool).unwrap_or_default();
+        let linked_publishers: Vec<LinkedPublisher> =
+            self.get_permissions(&pool).unwrap_or_default();
         let namespace = AccountAccess {
             is_superuser: self.is_superuser,
             is_bot: self.is_bot,
