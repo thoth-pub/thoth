@@ -25,9 +25,6 @@ UPDATE contribution
 ALTER TABLE contribution
     ALTER COLUMN last_name SET NOT NULL,
     ALTER COLUMN full_name SET NOT NULL,
-    ADD CONSTRAINT name_length_check
-    CHECK (
-        (octet_length(first_name) >= 1)
-        AND (octet_length(last_name) >= 1)
-        AND (octet_length(full_name) >= 1)
-    );
+    ADD CONSTRAINT contribution_first_name_check CHECK (octet_length(first_name) >= 1),
+    ADD CONSTRAINT contribution_last_name_check CHECK (octet_length(last_name) >= 1),
+    ADD CONSTRAINT contribution_full_name_check CHECK (octet_length(full_name) >= 1);
