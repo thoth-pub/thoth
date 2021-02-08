@@ -362,7 +362,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                             })
                             .ok();
                         }
-                        if let Some(first_name) = &contribution.contributor.first_name {
+                        if let Some(first_name) = &contribution.first_name {
                             write_element_block("NamesBeforeKey", None, None, w, |w| {
                                 let event: XmlEvent = XmlEvent::Characters(&first_name);
                                 w.write(event).ok();
@@ -370,14 +370,14 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                             .ok();
                             write_element_block("KeyNames", None, None, w, |w| {
                                 let event: XmlEvent =
-                                    XmlEvent::Characters(&contribution.contributor.last_name);
+                                    XmlEvent::Characters(&contribution.last_name);
                                 w.write(event).ok();
                             })
                             .ok();
                         } else {
                             write_element_block("PersonName", None, None, w, |w| {
                                 let event: XmlEvent =
-                                    XmlEvent::Characters(&contribution.contributor.full_name);
+                                    XmlEvent::Characters(&contribution.full_name);
                                 w.write(event).ok();
                             })
                             .ok();
