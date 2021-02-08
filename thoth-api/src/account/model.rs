@@ -64,11 +64,28 @@ pub struct NewPublisherAccount {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountAccess {
+    pub is_superuser: bool,
+    pub is_bot: bool,
+    pub linked_publishers: Vec<LinkedPublisher>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkedPublisher {
+    pub publisher_id: Uuid,
+    pub is_admin: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Token {
     pub sub: String,
     pub exp: i64,
     pub iat: i64,
     pub jti: String,
+    #[serde(rename = "https://thoth.pub/resource_access")]
+    pub namespace: AccountAccess,
 }
 
 #[derive(Clone)]

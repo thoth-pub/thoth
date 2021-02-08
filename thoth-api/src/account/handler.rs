@@ -8,9 +8,12 @@ use std::time::UNIX_EPOCH;
 use uuid::Uuid;
 
 use crate::account::model::Account;
+use crate::account::model::AccountAccess;
 use crate::account::model::AccountData;
 use crate::account::model::DecodedToken;
+use crate::account::model::LinkedPublisher;
 use crate::account::model::NewAccount;
+use crate::account::model::PublisherAccount;
 use crate::account::model::Token;
 use crate::account::util::make_hash;
 use crate::account::util::make_salt;
@@ -18,10 +21,30 @@ use crate::db::PgPool;
 use crate::errors::ThothError;
 
 impl Account {
+    pub fn get_permissions(&self, pool: &PgPool) -> Result<Vec<LinkedPublisher>, ThothError> {
+        use crate::schema::publisher_account::dsl::*;
+        let conn = pool.get().unwrap();
+
+        let linked_publishers = publisher_account
+            .filter(account_id.eq(self.account_id))
+            .load::<PublisherAccount>(&conn)
+            .expect("Error loading publisher accounts");
+        let permissions: Vec<LinkedPublisher> =
+            linked_publishers.into_iter().map(|p| p.into()).collect();
+        Ok(permissions)
+    }
+
     pub fn issue_token(&self, pool: &PgPool) -> Result<String, ThothError> {
         const DEFAULT_TOKEN_VALIDITY: i64 = 24 * 60 * 60;
         let connection = pool.get().unwrap();
         dotenv().ok();
+        let linked_publishers: Vec<LinkedPublisher> =
+            self.get_permissions(&pool).unwrap_or_default();
+        let namespace = AccountAccess {
+            is_superuser: self.is_superuser,
+            is_bot: self.is_bot,
+            linked_publishers,
+        };
         let secret_str = env::var("SECRET_KEY").expect("SECRET_KEY must be set");
         let secret: &[u8] = secret_str.as_bytes();
         let now = SystemTime::now()
@@ -32,6 +55,7 @@ impl Account {
             exp: now.as_secs() as i64 + DEFAULT_TOKEN_VALIDITY,
             iat: now.as_secs() as i64,
             jti: Uuid::new_v4().to_string(),
+            namespace,
         };
         let token = encode(
             &Header::default(),
@@ -71,6 +95,20 @@ impl From<AccountData> for NewAccount {
             salt,
             is_superuser,
             is_bot,
+        }
+    }
+}
+
+impl From<PublisherAccount> for LinkedPublisher {
+    fn from(publisher_account: PublisherAccount) -> Self {
+        let PublisherAccount {
+            publisher_id,
+            is_admin,
+            ..
+        } = publisher_account;
+        Self {
+            publisher_id,
+            is_admin,
         }
     }
 }
