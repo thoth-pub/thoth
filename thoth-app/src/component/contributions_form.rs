@@ -503,7 +503,7 @@ impl ContributionsFormComponent {
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "Full Name" }</label>
                         <div class="control is-expanded">
-                            {&c.contributor.full_name}
+                            {&c.full_name}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">

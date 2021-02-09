@@ -23,6 +23,8 @@ pub const WORKS_QUERY: &str = "
                 contributorId
                 contributionType
                 mainContribution
+                lastName
+                fullName
                 contributor {
                     contributorId
                     lastName
