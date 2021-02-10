@@ -346,12 +346,12 @@ impl Component for ContributorComponent {
 
                         <form onsubmit=callback>
                             <FormTextInput
-                                label = "First Name"
+                                label = "Given Name"
                                 value=&self.contributor.first_name
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
                             />
                             <FormTextInput
-                                label = "Last Name"
+                                label = "Family Name"
                                 value=&self.contributor.last_name
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
                             />

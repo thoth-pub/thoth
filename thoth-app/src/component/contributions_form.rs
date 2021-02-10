@@ -417,12 +417,12 @@ impl Component for ContributionsFormComponent {
                             })
                             >
                                 <FormTextInput
-                                    label="Contributor's First Name"
+                                    label="Contributor's Given Name"
                                     value=&self.new_contribution.first_name
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
                                 />
                                 <FormTextInput
-                                    label="Contributor's Last Name"
+                                    label="Contributor's Family Name"
                                     value=&self.new_contribution.last_name
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
                                 />
