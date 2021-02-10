@@ -317,12 +317,8 @@ impl Component for ContributionsFormComponent {
                 };
                 self.new_contribution.first_name.neq_assign(value)
             }
-            Msg::ChangeLastName(val) => {
-                self.new_contribution.last_name.neq_assign(val)
-            }
-            Msg::ChangeFullName(val) => {
-                self.new_contribution.full_name.neq_assign(val)
-            }
+            Msg::ChangeLastName(val) => self.new_contribution.last_name.neq_assign(val),
+            Msg::ChangeFullName(val) => self.new_contribution.full_name.neq_assign(val),
             Msg::ChangeInstitution(val) => {
                 let value = match val.is_empty() {
                     true => None,

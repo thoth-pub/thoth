@@ -369,15 +369,13 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                             })
                             .ok();
                             write_element_block("KeyNames", None, None, w, |w| {
-                                let event: XmlEvent =
-                                    XmlEvent::Characters(&contribution.last_name);
+                                let event: XmlEvent = XmlEvent::Characters(&contribution.last_name);
                                 w.write(event).ok();
                             })
                             .ok();
                         } else {
                             write_element_block("PersonName", None, None, w, |w| {
-                                let event: XmlEvent =
-                                    XmlEvent::Characters(&contribution.full_name);
+                                let event: XmlEvent = XmlEvent::Characters(&contribution.full_name);
                                 w.write(event).ok();
                             })
                             .ok();
