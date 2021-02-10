@@ -86,7 +86,7 @@ fn main() -> Result<()> {
                                 .short("e")
                                 .long("email")
                                 .value_name("EMAIL")
-                                .help("Given name")
+                                .help("Email")
                                 .takes_value(true)
                                 .required(true),
                         )
