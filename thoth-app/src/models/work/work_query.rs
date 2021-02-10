@@ -45,6 +45,8 @@ pub const WORK_QUERY: &str = "
                 mainContribution
                 biography
                 institution
+                lastName
+                fullName
                 contributor {
                     contributorId
                     lastName

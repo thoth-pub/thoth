@@ -22,10 +22,10 @@ query WorkQuery($workId: Uuid!) {
         }
         contributions {
             contributionType
+            firstName
+            lastName
+            fullName
             contributor {
-                firstName
-                lastName
-                fullName
                 orcid
             }
         }

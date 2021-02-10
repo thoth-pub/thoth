@@ -8,9 +8,7 @@ query WorksQuery {
         place
         contributions {
             mainContribution
-            contributor {
-                fullName
-            }
+            fullName
         }
         imprint {
             publisher {

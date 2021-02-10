@@ -15,6 +15,9 @@ pub struct Contribution {
     pub main_contribution: bool,
     pub biography: Option<String>,
     pub institution: Option<String>,
+    pub first_name: Option<String>,
+    pub last_name: String,
+    pub full_name: String,
     pub contributor: Contributor,
 }
 
@@ -47,14 +50,14 @@ impl Contribution {
             if is_small {
                 html! {
                     <small class="contributor">
-                        {&self.contributor.full_name}
+                        {&self.full_name}
                         <span>{ separator }</span>
                     </small>
                 }
             } else {
                 html! {
                     <span class="contributor">
-                        {&self.contributor.full_name}
+                        {&self.full_name}
                         <span>{ ", " }</span>
                     </span>
                 }

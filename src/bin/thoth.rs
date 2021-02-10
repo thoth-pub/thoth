@@ -68,7 +68,7 @@ fn main() -> Result<()> {
                                 .short("n")
                                 .long("name")
                                 .value_name("NAME")
-                                .help("First name")
+                                .help("Given name")
                                 .takes_value(true)
                                 .required(true),
                         )
@@ -77,7 +77,7 @@ fn main() -> Result<()> {
                                 .short("s")
                                 .long("surname")
                                 .value_name("NAME")
-                                .help("Last name")
+                                .help("Family name")
                                 .takes_value(true)
                                 .required(true),
                         )
@@ -86,7 +86,7 @@ fn main() -> Result<()> {
                                 .short("e")
                                 .long("email")
                                 .value_name("EMAIL")
-                                .help("First name")
+                                .help("Email")
                                 .takes_value(true)
                                 .required(true),
                         )
