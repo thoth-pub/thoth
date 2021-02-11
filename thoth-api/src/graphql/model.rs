@@ -751,12 +751,25 @@ impl QueryRoot {
         }
     }
 
-    #[graphql(description = "Get the total number of imprints")]
-    fn imprint_count(context: &Context) -> i32 {
+    #[graphql(
+        description = "Get the total number of imprints",
+        arguments(
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url",
+            ),
+        )
+    )]
+    fn imprint_count(context: &Context, filter: String) -> i32 {
         use crate::schema::imprint::dsl::*;
         let connection = context.db.get().unwrap();
         // see comment in work_count()
         imprint
+            .filter(
+                imprint_name
+                    .ilike(format!("%{}%", filter))
+                    .or(imprint_url.ilike(format!("%{}%", filter))),
+            )
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading imprint count")
@@ -1632,12 +1645,22 @@ impl QueryRoot {
         }
     }
 
-    #[graphql(description = "Get the total number of funders")]
-    fn funder_count(context: &Context) -> i32 {
+    #[graphql(
+        description = "Get the total number of funders",
+        arguments(
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on funderName and funderDoi",
+            ),
+        )
+    )]
+    fn funder_count(context: &Context, filter: String) -> i32 {
         use crate::schema::funder::dsl::*;
         let connection = context.db.get().unwrap();
         // see comment in work_count()
         funder
+            .filter(funder_name.ilike(format!("%{}%", filter)))
+            .or_filter(funder_doi.ilike(format!("%{}%", filter)))
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading funder count")
