@@ -593,6 +593,10 @@ impl QueryRoot {
                 },
                 description = "The order in which to sort the results"
             ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs"
+            ),
         )
     )]
     fn imprints(
@@ -601,6 +605,7 @@ impl QueryRoot {
         offset: i32,
         filter: String,
         order: ImprintOrderBy,
+        publishers: Vec<Uuid>,
     ) -> Vec<Imprint> {
         use crate::schema::imprint::dsl::*;
         let connection = context.db.get().unwrap();
@@ -627,9 +632,18 @@ impl QueryRoot {
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
         }
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 OR z ILIKE $3)`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(publisher_id.eq(pub_id));
+        }
         query
-            .filter(imprint_name.ilike(format!("%{}%", filter)))
-            .or_filter(imprint_url.ilike(format!("%{}%", filter)))
+            .filter(
+                imprint_name
+                    .ilike(format!("%{}%", filter))
+                    .or(imprint_url.ilike(format!("%{}%", filter))),
+            )
             .limit(limit.into())
             .offset(offset.into())
             .load::<Imprint>(&connection)
