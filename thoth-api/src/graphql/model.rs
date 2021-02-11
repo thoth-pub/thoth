@@ -914,6 +914,10 @@ impl QueryRoot {
                 },
                 description = "The order in which to sort the results"
             ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs"
+            ),
         ),
     )]
     fn serieses(
@@ -922,10 +926,24 @@ impl QueryRoot {
         offset: i32,
         filter: String,
         order: SeriesOrderBy,
+        publishers: Vec<Uuid>,
     ) -> Vec<Series> {
         use crate::schema::series::dsl::*;
         let connection = context.db.get().unwrap();
-        let mut query = series.into_boxed();
+        let mut query = series
+            .inner_join(crate::schema::imprint::table)
+            .select((
+                series_id,
+                series_type,
+                series_name,
+                issn_print,
+                issn_digital,
+                series_url,
+                imprint_id,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
         match order.field {
             SeriesField::SeriesID => match order.direction {
                 Direction::ASC => query = query.order(series_id.asc()),
@@ -960,11 +978,20 @@ impl QueryRoot {
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
         }
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
         query
-            .filter(series_name.ilike(format!("%{}%", filter)))
-            .or_filter(issn_print.ilike(format!("%{}%", filter)))
-            .or_filter(issn_digital.ilike(format!("%{}%", filter)))
-            .or_filter(series_url.ilike(format!("%{}%", filter)))
+            .filter(
+                series_name
+                    .ilike(format!("%{}%", filter))
+                    .or(issn_print.ilike(format!("%{}%", filter)))
+                    .or(issn_digital.ilike(format!("%{}%", filter)))
+                    .or(series_url.ilike(format!("%{}%", filter))),
+            )
             .limit(limit.into())
             .offset(offset.into())
             .load::<Series>(&connection)
