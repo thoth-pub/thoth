@@ -165,6 +165,10 @@ impl QueryRoot {
             },
             description = "The order in which to sort the results"
         ),
+        publishers(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        ),
     )
   )]
     fn works(
@@ -173,10 +177,48 @@ impl QueryRoot {
         offset: i32,
         filter: String,
         order: WorkOrderBy,
+        publishers: Vec<Uuid>,
     ) -> Vec<Work> {
         use crate::schema::work::dsl::*;
         let connection = context.db.get().unwrap();
-        let mut query = work.into_boxed();
+        let mut query = work
+            .inner_join(crate::schema::imprint::table)
+            .select((
+                work_id,
+                work_type,
+                work_status,
+                full_title,
+                title,
+                subtitle,
+                reference,
+                edition,
+                imprint_id,
+                doi,
+                publication_date,
+                place,
+                width,
+                height,
+                page_count,
+                page_breakdown,
+                image_count,
+                table_count,
+                audio_count,
+                video_count,
+                license,
+                copyright_holder,
+                landing_page,
+                lccn,
+                oclc,
+                short_abstract,
+                long_abstract,
+                general_note,
+                toc,
+                cover_url,
+                cover_caption,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
         match order.field {
             WorkField::WorkID => match order.direction {
                 Direction::ASC => query = query.order(work_id.asc()),
@@ -307,13 +349,22 @@ impl QueryRoot {
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
         }
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
         query
-            .filter(full_title.ilike(format!("%{}%", filter)))
-            .or_filter(doi.ilike(format!("%{}%", filter)))
-            .or_filter(reference.ilike(format!("%{}%", filter)))
-            .or_filter(short_abstract.ilike(format!("%{}%", filter)))
-            .or_filter(long_abstract.ilike(format!("%{}%", filter)))
-            .or_filter(landing_page.ilike(format!("%{}%", filter)))
+            .filter(
+                full_title
+                    .ilike(format!("%{}%", filter))
+                    .or(doi.ilike(format!("%{}%", filter)))
+                    .or(reference.ilike(format!("%{}%", filter)))
+                    .or(short_abstract.ilike(format!("%{}%", filter)))
+                    .or(long_abstract.ilike(format!("%{}%", filter)))
+                    .or(landing_page.ilike(format!("%{}%", filter))),
+            )
             .limit(limit.into())
             .offset(offset.into())
             .load::<Work>(&connection)
@@ -380,6 +431,10 @@ impl QueryRoot {
                 },
                 description = "The order in which to sort the results"
             ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs"
+            ),
         )
     )]
     fn publications(
@@ -388,10 +443,22 @@ impl QueryRoot {
         offset: i32,
         filter: String,
         order: PublicationOrderBy,
+        publishers: Vec<Uuid>,
     ) -> Vec<Publication> {
         use crate::schema::publication::dsl::*;
         let connection = context.db.get().unwrap();
-        let mut query = publication.into_boxed();
+        let mut query = publication
+            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
+            .select((
+                publication_id,
+                publication_type,
+                work_id,
+                isbn,
+                publication_url,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
         match order.field {
             PublicationField::PublicationID => match order.direction {
                 Direction::ASC => query = query.order(publication_id.asc()),
@@ -422,9 +489,17 @@ impl QueryRoot {
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
         }
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
         query
-            .filter(isbn.ilike(format!("%{}%", filter)))
-            .or_filter(publication_url.ilike(format!("%{}%", filter)))
+            .filter(
+                isbn.ilike(format!("%{}%", filter))
+                    .or(publication_url.ilike(format!("%{}%", filter))),
+            )
             .limit(limit.into())
             .offset(offset.into())
             .load::<Publication>(&connection)
@@ -492,6 +567,10 @@ impl QueryRoot {
             },
             description = "The order in which to sort the results"
         ),
+        publishers(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        ),
     )
   )]
     fn publishers(
@@ -500,6 +579,7 @@ impl QueryRoot {
         offset: i32,
         filter: String,
         order: PublisherOrderBy,
+        publishers: Vec<Uuid>,
     ) -> Vec<Publisher> {
         use crate::schema::publisher::dsl::*;
         let connection = context.db.get().unwrap();
@@ -530,9 +610,18 @@ impl QueryRoot {
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
         }
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(publisher_id.eq(pub_id));
+        }
         query
-            .filter(publisher_name.ilike(format!("%{}%", filter)))
-            .or_filter(publisher_shortname.ilike(format!("%{}%", filter)))
+            .filter(
+                publisher_name
+                    .ilike(format!("%{}%", filter))
+                    .or(publisher_shortname.ilike(format!("%{}%", filter))),
+            )
             .limit(limit.into())
             .offset(offset.into())
             .load::<Publisher>(&connection)
@@ -633,7 +722,7 @@ impl QueryRoot {
             },
         }
         // Ordering and construction of filters is important here: result needs to be
-        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 OR z ILIKE $3)`.
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
         // Interchanging .filter, .or, and .or_filter would result in different bracketing.
         for pub_id in publishers {
             query = query.or_filter(publisher_id.eq(pub_id));
@@ -799,6 +888,10 @@ impl QueryRoot {
                 },
                 description = "The order in which to sort the results"
             ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs"
+            ),
         )
     )]
     fn contributions(
@@ -806,10 +899,26 @@ impl QueryRoot {
         limit: i32,
         offset: i32,
         order: ContributionOrderBy,
+        publishers: Vec<Uuid>,
     ) -> Vec<Contribution> {
         use crate::schema::contribution::dsl::*;
         let connection = context.db.get().unwrap();
-        let mut query = contribution.into_boxed();
+        let mut query = contribution
+            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
+            .select((
+                work_id,
+                contributor_id,
+                contribution_type,
+                main_contribution,
+                biography,
+                institution,
+                created_at,
+                updated_at,
+                first_name,
+                last_name,
+                full_name,
+            ))
+            .into_boxed();
         match order.field {
             ContributionField::WorkID => match order.direction {
                 Direction::ASC => query = query.order(work_id.asc()),
@@ -855,6 +964,9 @@ impl QueryRoot {
                 Direction::ASC => query = query.order(full_name.asc()),
                 Direction::DESC => query = query.order(full_name.desc()),
             },
+        }
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
         query
             .limit(limit.into())
@@ -1050,12 +1162,25 @@ impl QueryRoot {
                 },
                 description = "The order in which to sort the results"
             ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs"
+            ),
         )
     )]
-    fn issues(context: &Context, limit: i32, offset: i32, order: IssueOrderBy) -> Vec<Issue> {
+    fn issues(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: IssueOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> Vec<Issue> {
         use crate::schema::issue::dsl::*;
         let connection = context.db.get().unwrap();
-        let mut query = issue.into_boxed();
+        let mut query = issue
+            .inner_join(crate::schema::series::table.inner_join(crate::schema::imprint::table))
+            .select((series_id, work_id, issue_ordinal, created_at, updated_at))
+            .into_boxed();
         match order.field {
             IssueField::SeriesID => match order.direction {
                 Direction::ASC => query = query.order(series_id.asc()),
@@ -1077,6 +1202,9 @@ impl QueryRoot {
                 Direction::ASC => query = query.order(updated_at.asc()),
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
+        }
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
         query
             .limit(limit.into())
@@ -1126,6 +1254,10 @@ impl QueryRoot {
                 },
                 description = "The order in which to sort the results"
             ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs"
+            ),
         )
     )]
     fn languages(
@@ -1133,10 +1265,22 @@ impl QueryRoot {
         limit: i32,
         offset: i32,
         order: LanguageOrderBy,
+        publishers: Vec<Uuid>,
     ) -> Vec<Language> {
         use crate::schema::language::dsl::*;
         let connection = context.db.get().unwrap();
-        let mut query = language.into_boxed();
+        let mut query = language
+            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
+            .select((
+                language_id,
+                work_id,
+                language_code,
+                language_relation,
+                main_language,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
         match order.field {
             LanguageField::LanguageID => match order.direction {
                 Direction::ASC => query = query.order(language_id.asc()),
@@ -1166,6 +1310,9 @@ impl QueryRoot {
                 Direction::ASC => query = query.order(updated_at.asc()),
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
+        }
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
         query
             .limit(limit.into())
@@ -1214,12 +1361,35 @@ impl QueryRoot {
                 },
                 description = "The order in which to sort the results"
             ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs"
+            ),
         )
     )]
-    fn prices(context: &Context, limit: i32, offset: i32, order: PriceOrderBy) -> Vec<Price> {
+    fn prices(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: PriceOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> Vec<Price> {
         use crate::schema::price::dsl::*;
         let connection = context.db.get().unwrap();
-        let mut query = price.into_boxed();
+        let mut query =
+            price
+                .inner_join(crate::schema::publication::table.inner_join(
+                    crate::schema::work::table.inner_join(crate::schema::imprint::table),
+                ))
+                .select((
+                    price_id,
+                    publication_id,
+                    currency_code,
+                    unit_price,
+                    created_at,
+                    updated_at,
+                ))
+                .into_boxed();
         match order.field {
             PriceField::PriceID => match order.direction {
                 Direction::ASC => query = query.order(price_id.asc()),
@@ -1245,6 +1415,9 @@ impl QueryRoot {
                 Direction::ASC => query = query.order(updated_at.asc()),
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
+        }
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
         query
             .limit(limit.into())
@@ -1293,12 +1466,33 @@ impl QueryRoot {
                 },
                 description = "The order in which to sort the results"
             ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs"
+            ),
         )
     )]
-    fn subjects(context: &Context, limit: i32, offset: i32, order: SubjectOrderBy) -> Vec<Subject> {
+    fn subjects(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: SubjectOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> Vec<Subject> {
         use crate::schema::subject::dsl::*;
         let connection = context.db.get().unwrap();
-        let mut query = subject.into_boxed();
+        let mut query = subject
+            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
+            .select((
+                subject_id,
+                work_id,
+                subject_type,
+                subject_code,
+                subject_ordinal,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
         match order.field {
             SubjectField::SubjectID => match order.direction {
                 Direction::ASC => query = query.order(subject_id.asc()),
@@ -1328,6 +1522,9 @@ impl QueryRoot {
                 Direction::ASC => query = query.order(updated_at.asc()),
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
+        }
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
         query
             .limit(limit.into())
@@ -1463,12 +1660,36 @@ impl QueryRoot {
                 },
                 description = "The order in which to sort the results"
             ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs"
+            ),
         )
     )]
-    fn fundings(context: &Context, limit: i32, offset: i32, order: FundingOrderBy) -> Vec<Funding> {
+    fn fundings(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: FundingOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> Vec<Funding> {
         use crate::schema::funding::dsl::*;
         let connection = context.db.get().unwrap();
-        let mut query = funding.into_boxed();
+        let mut query = funding
+            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
+            .select((
+                funding_id,
+                work_id,
+                funder_id,
+                program,
+                project_name,
+                project_shortname,
+                grant_number,
+                jurisdiction,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
         match order.field {
             FundingField::FundingID => match order.direction {
                 Direction::ASC => query = query.order(funding_id.asc()),
@@ -1510,6 +1731,9 @@ impl QueryRoot {
                 Direction::ASC => query = query.order(updated_at.asc()),
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
+        }
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
         query
             .limit(limit.into())
