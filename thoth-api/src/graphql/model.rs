@@ -137,6 +137,18 @@ pub struct FundingOrderBy {
     pub direction: Direction,
 }
 
+fn get_publishers(context: &Context) -> Vec<Uuid> {
+    let mut publishers = Vec::new();
+    if let Some(jwt) = &context.token.jwt {
+        if !jwt.namespace.is_superuser {
+            for publisher in &jwt.namespace.linked_publishers {
+                publishers.push(publisher.publisher_id);
+            }
+        }
+    }
+    publishers
+}
+
 pub struct QueryRoot;
 
 #[juniper::object(Context = Context)]
@@ -352,7 +364,7 @@ impl QueryRoot {
         // Ordering and construction of filters is important here: result needs to be
         // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
         // Interchanging .filter, .or, and .or_filter would result in different bracketing.
-        for pub_id in publishers {
+        for pub_id in get_publishers(&context) {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
         query
@@ -492,7 +504,7 @@ impl QueryRoot {
         // Ordering and construction of filters is important here: result needs to be
         // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
         // Interchanging .filter, .or, and .or_filter would result in different bracketing.
-        for pub_id in publishers {
+        for pub_id in get_publishers(&context) {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
         query
@@ -613,7 +625,7 @@ impl QueryRoot {
         // Ordering and construction of filters is important here: result needs to be
         // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
         // Interchanging .filter, .or, and .or_filter would result in different bracketing.
-        for pub_id in publishers {
+        for pub_id in get_publishers(&context) {
             query = query.or_filter(publisher_id.eq(pub_id));
         }
         query
@@ -724,7 +736,7 @@ impl QueryRoot {
         // Ordering and construction of filters is important here: result needs to be
         // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
         // Interchanging .filter, .or, and .or_filter would result in different bracketing.
-        for pub_id in publishers {
+        for pub_id in get_publishers(&context) {
             query = query.or_filter(publisher_id.eq(pub_id));
         }
         query
@@ -965,7 +977,7 @@ impl QueryRoot {
                 Direction::DESC => query = query.order(full_name.desc()),
             },
         }
-        for pub_id in publishers {
+        for pub_id in get_publishers(&context) {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
         query
@@ -1093,7 +1105,7 @@ impl QueryRoot {
         // Ordering and construction of filters is important here: result needs to be
         // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
         // Interchanging .filter, .or, and .or_filter would result in different bracketing.
-        for pub_id in publishers {
+        for pub_id in get_publishers(&context) {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
         query
@@ -1203,7 +1215,7 @@ impl QueryRoot {
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
         }
-        for pub_id in publishers {
+        for pub_id in get_publishers(&context) {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
         query
@@ -1311,7 +1323,7 @@ impl QueryRoot {
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
         }
-        for pub_id in publishers {
+        for pub_id in get_publishers(&context) {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
         query
@@ -1416,7 +1428,7 @@ impl QueryRoot {
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
         }
-        for pub_id in publishers {
+        for pub_id in get_publishers(&context) {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
         query
@@ -1523,7 +1535,7 @@ impl QueryRoot {
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
         }
-        for pub_id in publishers {
+        for pub_id in get_publishers(&context) {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
         query
@@ -1732,7 +1744,7 @@ impl QueryRoot {
                 Direction::DESC => query = query.order(updated_at.desc()),
             },
         }
-        for pub_id in publishers {
+        for pub_id in get_publishers(&context) {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
         query
