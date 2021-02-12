@@ -163,11 +163,11 @@ impl QueryRoot {
                     direction: Direction::ASC,
                 }
             },
-            description = "The order in which to sort the results"
+            description = "The order in which to sort the results",
         ),
         publishers(
             default = vec![],
-            description = "If set, only shows results connected to publishers with these IDs"
+            description = "If set, only shows results connected to publishers with these IDs",
         ),
     )
   )]
@@ -388,23 +388,75 @@ impl QueryRoot {
         arguments(
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
             ),
         )
     )]
-    fn work_count(context: &Context, filter: String) -> i32 {
+    fn work_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> i32 {
         use crate::schema::work::dsl::*;
         let connection = context.db.get().unwrap();
+        let mut query = work
+            .inner_join(crate::schema::imprint::table)
+            .select((
+                work_id,
+                work_type,
+                work_status,
+                full_title,
+                title,
+                subtitle,
+                reference,
+                edition,
+                imprint_id,
+                doi,
+                publication_date,
+                place,
+                width,
+                height,
+                page_count,
+                page_breakdown,
+                image_count,
+                table_count,
+                audio_count,
+                video_count,
+                license,
+                copyright_holder,
+                landing_page,
+                lccn,
+                oclc,
+                short_abstract,
+                long_abstract,
+                general_note,
+                toc,
+                cover_url,
+                cover_caption,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        work.filter(full_title.ilike(format!("%{}%", filter)))
-            .or_filter(doi.ilike(format!("%{}%", filter)))
-            .or_filter(reference.ilike(format!("%{}%", filter)))
-            .or_filter(short_abstract.ilike(format!("%{}%", filter)))
-            .or_filter(long_abstract.ilike(format!("%{}%", filter)))
-            .or_filter(landing_page.ilike(format!("%{}%", filter)))
+        query
+            .filter(
+                full_title
+                    .ilike(format!("%{}%", filter))
+                    .or(doi.ilike(format!("%{}%", filter)))
+                    .or(reference.ilike(format!("%{}%", filter)))
+                    .or(short_abstract.ilike(format!("%{}%", filter)))
+                    .or(long_abstract.ilike(format!("%{}%", filter)))
+                    .or(landing_page.ilike(format!("%{}%", filter))),
+            )
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading work count")
@@ -429,11 +481,11 @@ impl QueryRoot {
                         direction: Direction::ASC,
                     }
                 },
-                description = "The order in which to sort the results"
+                description = "The order in which to sort the results",
             ),
             publishers(
                 default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs"
+                description = "If set, only shows results connected to publishers with these IDs",
             ),
         )
     )]
@@ -523,17 +575,41 @@ impl QueryRoot {
         arguments(
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url"
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
             ),
         )
     )]
-    fn publication_count(context: &Context, filter: String) -> i32 {
+    fn publication_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> i32 {
         use crate::schema::publication::dsl::*;
         let connection = context.db.get().unwrap();
+        let mut query = publication
+            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
+            .select((
+                publication_id,
+                publication_type,
+                work_id,
+                isbn,
+                publication_url,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
         // see comment in work_count()
-        publication
-            .filter(isbn.ilike(format!("%{}%", filter)))
-            .or_filter(publication_url.ilike(format!("%{}%", filter)))
+        query
+            .filter(
+                isbn.ilike(format!("%{}%", filter))
+                    .or(publication_url.ilike(format!("%{}%", filter))),
+            )
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading publication count")
@@ -565,11 +641,11 @@ impl QueryRoot {
                     direction: Direction::ASC,
                 }
             },
-            description = "The order in which to sort the results"
+            description = "The order in which to sort the results",
         ),
         publishers(
             default = vec![],
-            description = "If set, only shows results connected to publishers with these IDs"
+            description = "If set, only shows results connected to publishers with these IDs",
         ),
     )
   )]
@@ -647,15 +723,29 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on publisher_name and publisher_shortname",
             ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
         )
     )]
-    fn publisher_count(context: &Context, filter: String) -> i32 {
+    fn publisher_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> i32 {
         use crate::schema::publisher::dsl::*;
         let connection = context.db.get().unwrap();
+        let mut query = publisher.into_boxed();
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(publisher_id.eq(pub_id));
+        }
         // see comment in work_count()
-        publisher
-            .filter(publisher_name.ilike(format!("%{}%", filter)))
-            .or_filter(publisher_shortname.ilike(format!("%{}%", filter)))
+        query
+            .filter(
+                publisher_name
+                    .ilike(format!("%{}%", filter))
+                    .or(publisher_shortname.ilike(format!("%{}%", filter))),
+            )
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading publisher count")
@@ -680,11 +770,11 @@ impl QueryRoot {
                         direction: Direction::ASC,
                     }
                 },
-                description = "The order in which to sort the results"
+                description = "The order in which to sort the results",
             ),
             publishers(
                 default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs"
+                description = "If set, only shows results connected to publishers with these IDs",
             ),
         )
     )]
@@ -758,13 +848,24 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url",
             ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
         )
     )]
-    fn imprint_count(context: &Context, filter: String) -> i32 {
+    fn imprint_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> i32 {
         use crate::schema::imprint::dsl::*;
         let connection = context.db.get().unwrap();
+        let mut query = imprint.into_boxed();
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(publisher_id.eq(pub_id));
+        }
         // see comment in work_count()
-        imprint
+        query
             .filter(
                 imprint_name
                     .ilike(format!("%{}%", filter))
@@ -794,7 +895,7 @@ impl QueryRoot {
                         direction: Direction::ASC,
                     }
                 },
-                description = "The order in which to sort the results"
+                description = "The order in which to sort the results",
             ),
         )
     )]
@@ -899,11 +1000,11 @@ impl QueryRoot {
                         direction: Direction::ASC,
                     }
                 },
-                description = "The order in which to sort the results"
+                description = "The order in which to sort the results",
             ),
             publishers(
                 default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs"
+                description = "If set, only shows results connected to publishers with these IDs",
             ),
         )
     )]
@@ -1037,11 +1138,11 @@ impl QueryRoot {
                         direction: Direction::ASC,
                     }
                 },
-                description = "The order in which to sort the results"
+                description = "The order in which to sort the results",
             ),
             publishers(
                 default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs"
+                description = "If set, only shows results connected to publishers with these IDs",
             ),
         ),
     )]
@@ -1142,17 +1243,44 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital and series_url",
             ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
         )
     )]
-    fn series_count(context: &Context, filter: String) -> i32 {
+    fn series_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> i32 {
         use crate::schema::series::dsl::*;
         let connection = context.db.get().unwrap();
+        let mut query = series
+            .inner_join(crate::schema::imprint::table)
+            .select((
+                series_id,
+                series_type,
+                series_name,
+                issn_print,
+                issn_digital,
+                series_url,
+                imprint_id,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
         // see comment in work_count()
-        series
-            .filter(series_name.ilike(format!("%{}%", filter)))
-            .or_filter(issn_print.ilike(format!("%{}%", filter)))
-            .or_filter(issn_digital.ilike(format!("%{}%", filter)))
-            .or_filter(series_url.ilike(format!("%{}%", filter)))
+        query
+            .filter(
+                series_name
+                    .ilike(format!("%{}%", filter))
+                    .or(issn_print.ilike(format!("%{}%", filter)))
+                    .or(issn_digital.ilike(format!("%{}%", filter)))
+                    .or(series_url.ilike(format!("%{}%", filter))),
+            )
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading series count")
@@ -1173,11 +1301,11 @@ impl QueryRoot {
                         direction: Direction::ASC,
                     }
                 },
-                description = "The order in which to sort the results"
+                description = "The order in which to sort the results",
             ),
             publishers(
                 default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs"
+                description = "If set, only shows results connected to publishers with these IDs",
             ),
         )
     )]
@@ -1265,11 +1393,11 @@ impl QueryRoot {
                         direction: Direction::ASC,
                     }
                 },
-                description = "The order in which to sort the results"
+                description = "The order in which to sort the results",
             ),
             publishers(
                 default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs"
+                description = "If set, only shows results connected to publishers with these IDs",
             ),
         )
     )]
@@ -1372,11 +1500,11 @@ impl QueryRoot {
                         direction: Direction::ASC,
                     }
                 },
-                description = "The order in which to sort the results"
+                description = "The order in which to sort the results",
             ),
             publishers(
                 default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs"
+                description = "If set, only shows results connected to publishers with these IDs",
             ),
         )
     )]
@@ -1477,11 +1605,11 @@ impl QueryRoot {
                         direction: Direction::ASC,
                     }
                 },
-                description = "The order in which to sort the results"
+                description = "The order in which to sort the results",
             ),
             publishers(
                 default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs"
+                description = "If set, only shows results connected to publishers with these IDs",
             ),
         )
     )]
@@ -1588,7 +1716,7 @@ impl QueryRoot {
                         direction: Direction::ASC,
                     }
                 },
-                description = "The order in which to sort the results"
+                description = "The order in which to sort the results",
             ),
         )
     )]
@@ -1681,11 +1809,11 @@ impl QueryRoot {
                         direction: Direction::ASC,
                     }
                 },
-                description = "The order in which to sort the results"
+                description = "The order in which to sort the results",
             ),
             publishers(
                 default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs"
+                description = "If set, only shows results connected to publishers with these IDs",
             ),
         )
     )]
@@ -2550,7 +2678,11 @@ impl Work {
             offset(default = 0, description = "The number of items to skip"),
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code"
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
             ),
         )
     )]
