@@ -2680,10 +2680,6 @@ impl Work {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code",
             ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
         )
     )]
     pub fn subjects(
