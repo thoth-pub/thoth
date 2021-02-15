@@ -1,44 +1,58 @@
+use yew::services::storage::{Area, StorageService};
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 use yew_router::route::Route;
 
-use crate::SESSION_COOKIE;
+use crate::SESSION_KEY;
 use crate::route::AppRoute;
-use crate::service::cookie::CookieService;
 
 pub struct AccountService {
-    cookie_service: CookieService,
     login_route: Route,
 }
 
+const STORAGE_ERROR: &str = "local storage is disabled";
+
 impl AccountService {
     pub fn new() -> Self {
-        let cookie_service = CookieService::new();
         let login_route = Route::from(AppRoute::Login);
         Self {
-            cookie_service,
             login_route,
         }
     }
 
     pub fn get_token(&self) -> Option<String> {
-        log::debug!("Get token: {}", self.cookie_service.get(SESSION_COOKIE).ok().unwrap_or("".to_string()));
-        self.cookie_service.get(SESSION_COOKIE).ok()
+        let storage_service = StorageService::new(Area::Local).expect(STORAGE_ERROR);
+        if let Ok(token) = storage_service.restore(SESSION_KEY) {
+            log::debug!("Get token: {}", token);
+            Some(token)
+        } else {
+            None
+        }
     }
 
-    pub fn set_token(&self, token: &str) {
+    pub fn set_token(&self, token: String) {
         log::debug!("Set token: {}", token);
-        self.cookie_service.set(SESSION_COOKIE, token)
+        self.update_storage(Some(token))
+    }
+
+    fn update_storage(&self, token: Option<String>) {
+        let mut storage_service = StorageService::new(Area::Local).expect(STORAGE_ERROR);
+        if let Some(t) = token.clone() {
+            storage_service.store(SESSION_KEY, Ok(t));
+        } else {
+            storage_service.remove(SESSION_KEY);
+        }
     }
 
     pub fn is_loggedin(&self) -> bool {
-        log::debug!("is_loggedin: {}", !self.cookie_service.get(SESSION_COOKIE).is_err());
-        !self.cookie_service.get(SESSION_COOKIE).is_err()
+        let is_loggedin = self.get_token().is_some();
+        log::debug!("is_loggedin: {}", is_loggedin);
+        is_loggedin
     }
 
     pub fn logout(&self) {
         log::debug!("Logout");
-        self.cookie_service.delete(SESSION_COOKIE)
+        self.update_storage(None)
     }
 
     pub fn redirect_to_login(&self) {

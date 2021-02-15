@@ -95,7 +95,7 @@ impl Component for LoginComponent {
                 if meta.status.is_success() {
                     match body {
                         Ok(Login(Session { token })) => {
-                            self.account_service.set_token(&token);
+                            self.account_service.set_token(token);
                             self.router.send(RouteRequest::ChangeRoute(Route::from(
                                 AppRoute::Admin(AdminRoute::Admin),
                             )));

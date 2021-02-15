@@ -82,7 +82,7 @@ impl Agent for SessionTimerAgent {
                             log::info!("Scheduled session based login succeed");
 
                             // Set the retrieved session cookie
-                            self.account_service.set_token(&token);
+                            self.account_service.set_token(token);
                         }
                         _ => log::warn!("Got wrong scheduled session login response"),
                     }
