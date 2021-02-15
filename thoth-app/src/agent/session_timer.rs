@@ -14,8 +14,7 @@ use yew::services::Task;
 
 use crate::authenticated_fetch;
 use crate::models::Response;
-use crate::service::cookie::CookieService;
-use crate::SESSION_COOKIE;
+use crate::service::account::AccountService;
 
 pub type SessionTimerDispatcher = Dispatcher<SessionTimerAgent>;
 
@@ -36,7 +35,7 @@ pub struct TimerResponse;
 pub struct SessionTimerAgent {
     agent_link: AgentLink<SessionTimerAgent>,
     callback: Callback<()>,
-    cookie_service: CookieService,
+    account_service: AccountService,
     fetch_task: Option<FetchTask>,
     timer_task: Option<Box<dyn Task>>,
 }
@@ -51,7 +50,7 @@ impl Agent for SessionTimerAgent {
         Self {
             callback: link.callback(|_| Msg::Update),
             agent_link: link,
-            cookie_service: CookieService::new(),
+            account_service: AccountService::new(),
             fetch_task: None,
             timer_task: None,
         }
@@ -61,7 +60,7 @@ impl Agent for SessionTimerAgent {
         match msg {
             Msg::Update => {
                 log::info!("Updating current session");
-                if let Ok(token) = self.cookie_service.get(SESSION_COOKIE) {
+                if let Some(token) = self.account_service.get_token() {
                     self.fetch_task = authenticated_fetch! {
                         LoginSession(Session::new(token)) => "/account/token/renew",
                         token,
@@ -83,7 +82,7 @@ impl Agent for SessionTimerAgent {
                             log::info!("Scheduled session based login succeed");
 
                             // Set the retrieved session cookie
-                            self.cookie_service.set(SESSION_COOKIE, &token);
+                            self.account_service.set_token(&token);
                         }
                         _ => log::warn!("Got wrong scheduled session login response"),
                     }

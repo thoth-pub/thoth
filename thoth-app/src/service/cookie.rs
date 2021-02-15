@@ -17,6 +17,7 @@ impl CookieService {
 
     // default expiry 1 day
     pub fn set(&self, name: &str, value: &str) {
+        log::debug!("Set cookie {}: {}", name, value);
         self.set_expiring(name, value, 1)
     }
 
@@ -43,10 +44,16 @@ impl CookieService {
             .ok_or_else(|| CookieError::NotFound.into())
     }
 
+    pub fn delete(&self, name: &str) {
+        self.set_expiring(name, "", -1);
+    }
+
     fn set_expiring(&self, name: &str, value: &str, days: i32) {
+        let seconds = days * 24 * 60 * 60;
+        let cookie_str = format!("{}={};max-age={};path=/;SameSite=Strict", name, value, seconds);
+        log::debug!("{}", cookie_str);
         js! {
-            document.cookie = @{name} + "=" + (@{value} || "") +
-                ";max-age=" + (@{days} * 24 * 60 * 60) + ";path=/;SameSite=Strict";
+            document.cookie = @{cookie_str};
         }
     }
 }

@@ -19,20 +19,19 @@ use crate::fetch;
 use crate::models::Response;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::service::cookie::CookieService;
+use crate::service::account::AccountService;
 use crate::string::AUTHENTICATION_ERROR;
 use crate::string::INPUT_EMAIL;
 use crate::string::INPUT_PASSWORD;
 use crate::string::RESPONSE_ERROR;
 use crate::string::TEXT_LOGIN;
-use crate::SESSION_COOKIE;
 
 pub struct LoginComponent {
     email: String,
     password: String,
     fetch_task: Option<FetchTask>,
     link: ComponentLink<Self>,
-    cookie_service: CookieService,
+    account_service: AccountService,
     notification_bus: NotificationDispatcher,
     router: RouteAgentDispatcher<()>,
 }
@@ -51,7 +50,7 @@ impl Component for LoginComponent {
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
         let email = "".into();
         let password = "".into();
-        let cookie_service = CookieService::new();
+        let account_service = AccountService::new();
         let notification_bus = NotificationBus::dispatcher();
         let router = RouteAgentDispatcher::new();
 
@@ -60,7 +59,7 @@ impl Component for LoginComponent {
             password,
             fetch_task: None,
             link,
-            cookie_service,
+            account_service,
             notification_bus,
             router,
         }
@@ -96,7 +95,7 @@ impl Component for LoginComponent {
                 if meta.status.is_success() {
                     match body {
                         Ok(Login(Session { token })) => {
-                            self.cookie_service.set(SESSION_COOKIE, &token);
+                            self.account_service.set_token(&token);
                             self.router.send(RouteRequest::ChangeRoute(Route::from(
                                 AppRoute::Admin(AdminRoute::Admin),
                             )));
