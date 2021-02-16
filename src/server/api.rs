@@ -119,7 +119,7 @@ async fn login_session(
         .map_err(error::ErrorUnauthorized)
 }
 
-#[get("/account/details")]
+#[get("/account")]
 async fn account_details(
     token: DecodedToken,
     _id: Identity,
