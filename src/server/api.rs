@@ -129,9 +129,7 @@ async fn account_details(
 
     let email = token.jwt.unwrap().sub;
     get_account_details(&email, &pool)
-        .map(|account_details| {
-            HttpResponse::Ok().json(account_details)
-        })
+        .map(|account_details| HttpResponse::Ok().json(account_details))
         .map_err(error::ErrorUnauthorized)
 }
 

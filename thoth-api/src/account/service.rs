@@ -45,16 +45,17 @@ pub fn get_account_details(email: &str, pool: &PgPool) -> Result<AccountDetails,
         .filter(dsl::email.eq(email))
         .first::<Account>(&conn)
         .map_err(|_| ThothError::Unauthorised)?;
-    let linked_publishers: Vec<LinkedPublisher> = account.get_permissions(&pool).unwrap_or_default();
+    let linked_publishers: Vec<LinkedPublisher> =
+        account.get_permissions(&pool).unwrap_or_default();
     let resource_access = account.get_account_access(linked_publishers);
     let account_details = AccountDetails {
-            account_id: account.account_id,
-            name: account.name,
-            surname: account.surname,
-            email: account.email,
-            created_at: account.created_at,
-            updated_at: account.updated_at,
-            resource_access,
+        account_id: account.account_id,
+        name: account.name,
+        surname: account.surname,
+        email: account.email,
+        created_at: account.created_at,
+        updated_at: account.updated_at,
+        resource_access,
     };
     Ok(account_details)
 }
