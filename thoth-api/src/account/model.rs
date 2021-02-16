@@ -100,7 +100,7 @@ pub struct AccountDetails {
     pub resource_access: AccountAccess,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct DecodedToken {
     pub jwt: Option<Token>,
 }
