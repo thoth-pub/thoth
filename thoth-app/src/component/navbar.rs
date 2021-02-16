@@ -50,8 +50,8 @@ impl Component for NavbarComponent {
     fn view(&self) -> VNode {
         let auth_action = match self.account_service.is_loggedin() {
             true => self.link.callback(|e: MouseEvent| {
-                    e.prevent_default();
-                    Msg::Logout()
+                e.prevent_default();
+                Msg::Logout()
             }),
             false => self.link.callback(|e: MouseEvent| {
                 e.prevent_default();
