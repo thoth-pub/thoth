@@ -16,6 +16,7 @@ use thoth_api::account::model::Login;
 use thoth_api::account::model::LoginCredentials;
 use thoth_api::account::model::LoginSession;
 use thoth_api::account::model::Session;
+use thoth_api::account::service::get_account_details;
 use thoth_api::account::service::login;
 use thoth_api::account::service::login_with_token;
 use thoth_api::db::establish_connection;
@@ -118,6 +119,22 @@ async fn login_session(
         .map_err(error::ErrorUnauthorized)
 }
 
+#[get("/account/details")]
+async fn account_details(
+    token: DecodedToken,
+    _id: Identity,
+    pool: web::Data<PgPool>,
+) -> Result<HttpResponse, Error> {
+    token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+
+    let email = token.jwt.unwrap().sub;
+    get_account_details(&email, &pool)
+        .and_then(|account_details| {
+            Ok(HttpResponse::Ok().json(account_details))
+        })
+        .map_err(error::ErrorUnauthorized)
+}
+
 fn config(cfg: &mut web::ServiceConfig) {
     dotenv().ok();
     let pool = establish_connection();
@@ -130,6 +147,7 @@ fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(onix);
     cfg.service(login_credentials);
     cfg.service(login_session);
+    cfg.service(account_details);
 }
 
 #[actix_rt::main]

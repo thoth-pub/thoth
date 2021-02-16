@@ -88,6 +88,18 @@ pub struct Token {
     pub namespace: AccountAccess,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountDetails {
+    pub account_id: Uuid,
+    pub name: String,
+    pub surname: String,
+    pub email: String,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub resource_access: AccountAccess,
+}
+
 #[derive(Clone)]
 pub struct DecodedToken {
     pub jwt: Option<Token>,

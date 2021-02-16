@@ -34,17 +34,21 @@ impl Account {
         Ok(permissions)
     }
 
+    pub fn get_account_access(&self, linked_publishers: Vec<LinkedPublisher>) -> AccountAccess {
+        AccountAccess {
+            is_superuser: self.is_superuser,
+            is_bot: self.is_bot,
+            linked_publishers,
+        }
+    }
+
     pub fn issue_token(&self, pool: &PgPool) -> Result<String, ThothError> {
         const DEFAULT_TOKEN_VALIDITY: i64 = 24 * 60 * 60;
         let connection = pool.get().unwrap();
         dotenv().ok();
         let linked_publishers: Vec<LinkedPublisher> =
             self.get_permissions(&pool).unwrap_or_default();
-        let namespace = AccountAccess {
-            is_superuser: self.is_superuser,
-            is_bot: self.is_bot,
-            linked_publishers,
-        };
+        let namespace = self.get_account_access(linked_publishers);
         let secret_str = env::var("SECRET_KEY").expect("SECRET_KEY must be set");
         let secret: &[u8] = secret_str.as_bytes();
         let now = SystemTime::now()
