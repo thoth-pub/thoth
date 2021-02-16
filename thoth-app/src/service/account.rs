@@ -4,8 +4,8 @@ use yew_router::agent::RouteRequest;
 use yew_router::route::Route;
 
 use crate::route::AppRoute;
-use crate::SESSION_KEY;
 use crate::string::STORAGE_ERROR;
+use crate::SESSION_KEY;
 
 pub struct AccountService {
     login_route: Route,
