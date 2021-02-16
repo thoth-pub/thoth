@@ -20,7 +20,6 @@ impl AccountService {
     pub fn get_token(&self) -> Option<String> {
         let storage_service = StorageService::new(Area::Local).expect(STORAGE_ERROR);
         if let Ok(token) = storage_service.restore(SESSION_KEY) {
-            log::debug!("Get token: {}", token);
             Some(token)
         } else {
             None
@@ -28,7 +27,6 @@ impl AccountService {
     }
 
     pub fn set_token(&self, token: String) {
-        log::debug!("Set token: {}", token);
         self.update_storage(Some(token))
     }
 
@@ -42,13 +40,10 @@ impl AccountService {
     }
 
     pub fn is_loggedin(&self) -> bool {
-        let is_loggedin = self.get_token().is_some();
-        log::debug!("is_loggedin: {}", is_loggedin);
-        is_loggedin
+        self.get_token().is_some()
     }
 
     pub fn logout(&self) {
-        log::debug!("Logout");
         self.update_storage(None)
     }
 
