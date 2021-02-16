@@ -5,12 +5,11 @@ use yew_router::route::Route;
 
 use crate::route::AppRoute;
 use crate::SESSION_KEY;
+use crate::string::STORAGE_ERROR;
 
 pub struct AccountService {
     login_route: Route,
 }
-
-const STORAGE_ERROR: &str = "local storage is disabled";
 
 impl AccountService {
     pub fn new() -> Self {
