@@ -5,36 +5,60 @@ use yew_router::prelude::*;
 
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::service::cookie::CookieService;
-use crate::SESSION_COOKIE;
+use crate::service::account::AccountService;
 use crate::THOTH_API;
 
-pub struct NavbarComponent {}
+pub struct NavbarComponent {
+    link: ComponentLink<Self>,
+    account_service: AccountService,
+}
+
+pub enum Msg {
+    Login(),
+    Logout(),
+}
 
 impl Component for NavbarComponent {
-    type Message = ();
+    type Message = Msg;
     type Properties = ();
 
-    fn create(_props: Self::Properties, _link: ComponentLink<Self>) -> Self {
-        NavbarComponent {}
+    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        let account_service = AccountService::new();
+        NavbarComponent {
+            link,
+            account_service,
+        }
     }
 
     fn change(&mut self, _props: Self::Properties) -> ShouldRender {
         true
     }
 
-    fn update(&mut self, _msg: Self::Message) -> ShouldRender {
-        true
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+        match msg {
+            Msg::Login() => {
+                self.account_service.redirect_to_login();
+                true
+            }
+            Msg::Logout() => {
+                self.account_service.logout();
+                true
+            }
+        }
     }
 
     fn view(&self) -> VNode {
-        let cookie_service = CookieService::new();
-        let authenticated = cookie_service.get(SESSION_COOKIE).is_ok();
-        let auth_route = match authenticated {
-            true => AppRoute::Home, // will need to handle logout requests here
-            false => AppRoute::Login,
+        let auth_action = match self.account_service.is_loggedin() {
+            true => self.link.callback(|e: MouseEvent| {
+                e.prevent_default();
+                Msg::Logout()
+            }),
+            false => self.link.callback(|e: MouseEvent| {
+                e.prevent_default();
+                Msg::Login()
+            }),
         };
-        let auth_button = match authenticated {
+        let auth_button = match self.account_service.is_loggedin() {
             true => "Logout",
             false => "Log in",
         };
@@ -95,12 +119,12 @@ impl Component for NavbarComponent {
                             <a class="button is-danger" href="https://github.com/thoth-pub/thoth/blob/master/CHANGELOG.md">
                                 {"v"}{ env!("CARGO_PKG_VERSION") }
                             </a>
-                            <RouterAnchor<AppRoute>
-                                classes="button is-light"
-                                route=auth_route
+                            <button
+                                class="button is-light"
+                                onclick=auth_action
                             >
                                 { auth_button }
-                            </  RouterAnchor<AppRoute>>
+                            </button>
                         </div>
                     </div>
                 </div>

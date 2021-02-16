@@ -1,9 +1,6 @@
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
 
 use crate::agent::session_timer;
 use crate::agent::session_timer::SessionTimerAgent;
@@ -31,15 +28,12 @@ use crate::component::serieses::SeriesesComponent;
 use crate::component::work::WorkComponent;
 use crate::component::works::WorksComponent;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
-use crate::service::cookie::CookieService;
-use crate::SESSION_COOKIE;
+use crate::service::account::AccountService;
 
 pub struct AdminComponent {
     props: Props,
-    _cookie_service: CookieService,
+    _account_service: AccountService,
     _link: ComponentLink<Self>,
-    _router: RouteAgentDispatcher<()>,
     _session_timer_agent: SessionTimerDispatcher,
 }
 
@@ -55,21 +49,19 @@ impl Component for AdminComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let mut router = RouteAgentDispatcher::new();
-        let cookie_service = CookieService::new();
+        let account_service = AccountService::new();
         let mut session_timer_agent = SessionTimerAgent::dispatcher();
 
-        if cookie_service.get(SESSION_COOKIE).is_err() {
-            router.send(RouteRequest::ChangeRoute(Route::from(AppRoute::Login)));
+        if !account_service.is_loggedin() {
+            account_service.redirect_to_login();
         } else {
             session_timer_agent.send(session_timer::Request::Start);
         }
 
         AdminComponent {
             props,
-            _cookie_service: cookie_service,
+            _account_service: account_service,
             _link: link,
-            _router: router,
             _session_timer_agent: session_timer_agent,
         }
     }

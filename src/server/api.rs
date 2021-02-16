@@ -11,11 +11,13 @@ use actix_web::{error, web, App, Error, HttpRequest, HttpResponse, HttpServer, R
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
+use thoth_api::account::model::Account;
 use thoth_api::account::model::DecodedToken;
 use thoth_api::account::model::Login;
 use thoth_api::account::model::LoginCredentials;
 use thoth_api::account::model::LoginSession;
 use thoth_api::account::model::Session;
+use thoth_api::account::service::get_account_details;
 use thoth_api::account::service::login;
 use thoth_api::account::service::login_with_token;
 use thoth_api::db::establish_connection;
@@ -118,6 +120,30 @@ async fn login_session(
         .map_err(error::ErrorUnauthorized)
 }
 
+#[get("/account")]
+async fn account_details(
+    token: DecodedToken,
+    id: Identity,
+    pool: web::Data<PgPool>,
+) -> Result<HttpResponse, Error> {
+    let email = match id.identity() {
+        Some(id) => {
+            let account: Account =
+                serde_json::from_str(&id).map_err(|_| ThothError::Unauthorised)?;
+            account.email
+        }
+        None => {
+            token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+            let t = token.jwt.unwrap();
+            t.sub
+        }
+    };
+
+    get_account_details(&email, &pool)
+        .map(|account_details| HttpResponse::Ok().json(account_details))
+        .map_err(error::ErrorUnauthorized)
+}
+
 fn config(cfg: &mut web::ServiceConfig) {
     dotenv().ok();
     let pool = establish_connection();
@@ -130,6 +156,7 @@ fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(onix);
     cfg.service(login_credentials);
     cfg.service(login_session);
+    cfg.service(account_details);
 }
 
 #[actix_rt::main]
