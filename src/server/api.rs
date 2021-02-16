@@ -128,10 +128,10 @@ async fn account_details(
 ) -> Result<HttpResponse, Error> {
     let email = match id.identity() {
         Some(id) => {
-            let account: Account = serde_json::from_str(&id)
-                .map_err(|_| ThothError::Unauthorised)?;
+            let account: Account =
+                serde_json::from_str(&id).map_err(|_| ThothError::Unauthorised)?;
             account.email
-        },
+        }
         None => {
             token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
             let t = token.jwt.unwrap();
