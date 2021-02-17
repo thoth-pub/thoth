@@ -1954,10 +1954,10 @@ impl MutationRoot {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
 
         let account_access = context.token.get_user_permissions();
-        if !account_access.is_superuser {
-            if !account_access.id_in_linked_publishers(data.publisher_id) {
-                Err(ThothError::Unauthorised)?;
-            }
+        if !account_access.is_superuser
+            && !account_access.id_in_linked_publishers(data.publisher_id)
+        {
+            return Err(ThothError::Unauthorised.into());
         }
 
         let connection = context.db.get().unwrap();
@@ -2290,7 +2290,7 @@ impl MutationRoot {
         let account_access = context.token.get_user_permissions();
         // Early-exit allowing us to avoid unnecessary database calls
         if !account_access.is_superuser && account_access.linked_publishers.is_empty() {
-            Err(ThothError::Unauthorised)?;
+            return Err(ThothError::Unauthorised.into());
         }
 
         let connection = context.db.get().unwrap();
@@ -2307,7 +2307,7 @@ impl MutationRoot {
                 .first::<Uuid>(&connection)
                 .expect("Error checking permissions");
             if !account_access.id_in_linked_publishers(pub_id) {
-                Err(ThothError::Unauthorised)?;
+                return Err(ThothError::Unauthorised.into());
             }
         }
 
@@ -2334,7 +2334,7 @@ impl MutationRoot {
         let account_access = context.token.get_user_permissions();
         // Early-exit allowing us to avoid unnecessary database calls
         if !account_access.is_superuser && account_access.linked_publishers.is_empty() {
-            Err(ThothError::Unauthorised)?;
+            return Err(ThothError::Unauthorised.into());
         }
 
         let connection = context.db.get().unwrap();
@@ -2344,10 +2344,10 @@ impl MutationRoot {
         // Note that this may panic
         let imprint = result.unwrap();
 
-        if !account_access.is_superuser {
-            if !account_access.id_in_linked_publishers(imprint.publisher_id) {
-                Err(ThothError::Unauthorised)?;
-            }
+        if !account_access.is_superuser
+            && !account_access.id_in_linked_publishers(imprint.publisher_id)
+        {
+            return Err(ThothError::Unauthorised.into());
         }
 
         match diesel::delete(target).execute(&connection) {

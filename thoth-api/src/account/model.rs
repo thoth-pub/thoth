@@ -141,15 +141,15 @@ impl Session {
 
 impl DecodedToken {
     pub fn get_user_permissions(&self) -> AccountAccess {
-        let mut account_access = AccountAccess {
-            is_superuser: false,
-            is_bot: false,
-            linked_publishers: vec![],
-        };
         if let Some(jwt) = &self.jwt {
-            account_access = jwt.namespace.clone();
+            jwt.namespace.clone()
+        } else {
+            AccountAccess {
+                is_superuser: false,
+                is_bot: false,
+                linked_publishers: vec![],
+            }
         }
-        account_access
     }
 }
 
