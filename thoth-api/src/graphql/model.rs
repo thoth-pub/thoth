@@ -2285,13 +2285,34 @@ impl MutationRoot {
     }
 
     fn delete_work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
+        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let account_access = context.token.get_user_permissions();
+        // Early-exit allowing us to avoid unnecessary database calls
+        if !account_access.is_superuser && account_access.linked_publishers.is_empty() {
+            Err(ThothError::Unauthorised)?;
+        }
+
         let connection = context.db.get().unwrap();
 
         let target = crate::schema::work::dsl::work.find(work_id);
         let result = target.get_result::<Work>(&connection);
+        // Note that this may panic
+        let work = result.unwrap();
+
+        if !account_access.is_superuser {
+            let pub_id = imprint
+                .select(publisher_id)
+                .filter(imprint_id.eq(work.imprint_id))
+                .first::<Uuid>(&connection)
+                .expect("Error checking permissions");
+            if !account_access.id_in_linked_publishers(pub_id) {
+                Err(ThothError::Unauthorised)?;
+            }
+        }
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(work),
             Err(e) => Err(FieldError::from(e)),
         }
     }
