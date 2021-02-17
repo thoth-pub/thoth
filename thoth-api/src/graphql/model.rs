@@ -2310,12 +2310,27 @@ impl MutationRoot {
 
     fn delete_imprint(context: &Context, imprint_id: Uuid) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let account_access = context.token.get_user_permissions();
+        // Early-exit allowing us to avoid unnecessary database calls
+        if !account_access.is_superuser && account_access.linked_publishers.is_empty() {
+            Err(ThothError::Unauthorised)?;
+        }
+
         let connection = context.db.get().unwrap();
 
         let target = crate::schema::imprint::dsl::imprint.find(imprint_id);
         let result = target.get_result::<Imprint>(&connection);
+        // Note that this may panic
+        let imprint = result.unwrap();
+
+        if !account_access.is_superuser {
+            if !account_access.id_in_linked_publishers(imprint.publisher_id) {
+                Err(ThothError::Unauthorised)?;
+            }
+        }
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(imprint),
             Err(e) => Err(FieldError::from(e)),
         }
     }
