@@ -7,7 +7,7 @@ use juniper::RootNode;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::account::model::{AccountAccess, DecodedToken, LinkedPublisher};
+use crate::account::model::DecodedToken;
 use crate::contribution::model::*;
 use crate::contributor::model::*;
 use crate::db::PgPool;
@@ -1920,29 +1920,6 @@ impl QueryRoot {
     }
 }
 
-fn get_user_permissions(token: &DecodedToken) -> AccountAccess {
-    let mut account_access = AccountAccess {
-        is_superuser: false,
-        is_bot: false,
-        linked_publishers: vec![],
-    };
-    if let Some(jwt) = &token.jwt {
-        account_access = jwt.namespace.clone();
-    }
-    account_access
-}
-
-fn id_in_linked_publishers(id: Uuid, linked_publishers: Vec<LinkedPublisher>) -> bool {
-    let mut id_found = false;
-    for publisher in linked_publishers {
-        if publisher.publisher_id == id {
-            id_found = true;
-            break;
-        }
-    }
-    id_found
-}
-
 pub struct MutationRoot;
 
 #[juniper::object(Context = Context)]
@@ -1976,9 +1953,9 @@ impl MutationRoot {
     fn create_imprint(context: &Context, data: NewImprint) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
 
-        let account_access = get_user_permissions(&context.token);
+        let account_access = context.token.get_user_permissions();
         if !account_access.is_superuser {
-            if !id_in_linked_publishers(data.publisher_id, account_access.linked_publishers) {
+            if !account_access.id_in_linked_publishers(data.publisher_id) {
                 Err(ThothError::Unauthorised)?;
             }
         }

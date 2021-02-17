@@ -138,3 +138,30 @@ impl Session {
         }
     }
 }
+
+impl DecodedToken {
+    pub fn get_user_permissions(&self) -> AccountAccess {
+        let mut account_access = AccountAccess {
+            is_superuser: false,
+            is_bot: false,
+            linked_publishers: vec![],
+        };
+        if let Some(jwt) = &self.jwt {
+            account_access = jwt.namespace.clone();
+        }
+        account_access
+    }
+}
+
+impl AccountAccess {
+    pub fn id_in_linked_publishers(&self, id: Uuid) -> bool {
+        let mut id_found = false;
+        for publisher in &self.linked_publishers {
+            if publisher.publisher_id == id {
+                id_found = true;
+                break;
+            }
+        }
+        id_found
+    }
+}
