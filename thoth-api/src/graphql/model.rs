@@ -7,6 +7,7 @@ use juniper::RootNode;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
 use crate::contribution::model::*;
 use crate::contributor::model::*;
@@ -30,12 +31,17 @@ impl juniper::Context for Context {}
 #[derive(Clone)]
 pub struct Context {
     pub db: Arc<PgPool>,
+    pub account_access: AccountAccess,
     pub token: DecodedToken,
 }
 
 impl Context {
-    pub fn new(pool: Arc<PgPool>, token: DecodedToken) -> Self {
-        Self { db: pool, token }
+    pub fn new(pool: Arc<PgPool>, account_access: AccountAccess, token: DecodedToken) -> Self {
+        Self {
+            db: pool,
+            account_access,
+            token,
+        }
     }
 }
 
@@ -1952,7 +1958,7 @@ impl MutationRoot {
 
     fn create_imprint(context: &Context, data: NewImprint) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        context.token.get_user_permissions().can_edit(data.publisher_id)?;
+        context.account_access.can_edit(data.publisher_id)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(imprint::table)
@@ -2293,7 +2299,7 @@ impl MutationRoot {
             .first::<Uuid>(&connection)
             .expect("Error checking permissions");
 
-        context.token.get_user_permissions().can_edit(pub_id)?;
+        context.account_access.can_edit(pub_id)?;
 
         match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(work),
@@ -2322,7 +2328,7 @@ impl MutationRoot {
         // Note that this may panic
         let imprint = result.unwrap();
 
-        context.token.get_user_permissions().can_edit(imprint.publisher_id)?;
+        context.account_access.can_edit(imprint.publisher_id)?;
 
         match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(imprint),

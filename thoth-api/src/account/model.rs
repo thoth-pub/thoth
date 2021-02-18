@@ -168,7 +168,7 @@ impl AccountAccess {
 
     pub fn can_edit(&self, pub_id: Uuid) -> Result<(), ThothError> {
         if !self.is_superuser && !self.id_in_linked_publishers(pub_id) {
-            Err(ThothError::Unauthorised.into())
+            Err(ThothError::Unauthorised)
         } else {
             Ok(())
         }
