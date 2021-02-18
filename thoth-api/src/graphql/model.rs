@@ -1931,9 +1931,17 @@ pub struct MutationRoot;
 #[juniper::object(Context = Context)]
 impl MutationRoot {
     fn create_work(context: &Context, data: NewWork) -> FieldResult<Work> {
+        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-
         let connection = context.db.get().unwrap();
+        let pub_id = imprint
+            .select(publisher_id)
+            .filter(imprint_id.eq(data.imprint_id))
+            .first::<Uuid>(&connection)
+            .expect("Error checking permissions");
+
+        context.account_access.can_edit(pub_id)?;
+
         match diesel::insert_into(work::table)
             .values(&data)
             .get_result(&connection)
@@ -1945,6 +1953,10 @@ impl MutationRoot {
 
     fn create_publisher(context: &Context, data: NewPublisher) -> FieldResult<Publisher> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        // Only superusers can create new publishers - NewPublisher has no ID field
+        if !context.account_access.is_superuser {
+            return Err(ThothError::Unauthorised.into());
+        }
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(publisher::table)
@@ -1984,9 +1996,18 @@ impl MutationRoot {
     }
 
     fn create_contribution(context: &Context, data: NewContribution) -> FieldResult<Contribution> {
+        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-
         let connection = context.db.get().unwrap();
+        let pub_id = imprint
+            .inner_join(crate::schema::work::table)
+            .select(publisher_id)
+            .filter(crate::schema::work::work_id.eq(data.work_id))
+            .first::<Uuid>(&connection)
+            .expect("Error checking permissions");
+
+        context.account_access.can_edit(pub_id)?;
+
         match diesel::insert_into(contribution::table)
             .values(&data)
             .get_result(&connection)
@@ -1997,9 +2018,18 @@ impl MutationRoot {
     }
 
     fn create_publication(context: &Context, data: NewPublication) -> FieldResult<Publication> {
+        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-
         let connection = context.db.get().unwrap();
+        let pub_id = imprint
+            .inner_join(crate::schema::work::table)
+            .select(publisher_id)
+            .filter(crate::schema::work::work_id.eq(data.work_id))
+            .first::<Uuid>(&connection)
+            .expect("Error checking permissions");
+
+        context.account_access.can_edit(pub_id)?;
+
         match diesel::insert_into(publication::table)
             .values(&data)
             .get_result(&connection)
@@ -2010,9 +2040,17 @@ impl MutationRoot {
     }
 
     fn create_series(context: &Context, data: NewSeries) -> FieldResult<Series> {
+        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-
         let connection = context.db.get().unwrap();
+        let pub_id = imprint
+            .select(publisher_id)
+            .filter(imprint_id.eq(data.imprint_id))
+            .first::<Uuid>(&connection)
+            .expect("Error checking permissions");
+
+        context.account_access.can_edit(pub_id)?;
+
         match diesel::insert_into(series::table)
             .values(&data)
             .get_result(&connection)
@@ -2023,9 +2061,18 @@ impl MutationRoot {
     }
 
     fn create_issue(context: &Context, data: NewIssue) -> FieldResult<Issue> {
+        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-
         let connection = context.db.get().unwrap();
+        let pub_id = imprint
+            .inner_join(crate::schema::work::table)
+            .select(publisher_id)
+            .filter(crate::schema::work::work_id.eq(data.work_id))
+            .first::<Uuid>(&connection)
+            .expect("Error checking permissions");
+
+        context.account_access.can_edit(pub_id)?;
+
         match diesel::insert_into(issue::table)
             .values(&data)
             .get_result(&connection)
@@ -2036,9 +2083,18 @@ impl MutationRoot {
     }
 
     fn create_language(context: &Context, data: NewLanguage) -> FieldResult<Language> {
+        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-
         let connection = context.db.get().unwrap();
+        let pub_id = imprint
+            .inner_join(crate::schema::work::table)
+            .select(publisher_id)
+            .filter(crate::schema::work::work_id.eq(data.work_id))
+            .first::<Uuid>(&connection)
+            .expect("Error checking permissions");
+
+        context.account_access.can_edit(pub_id)?;
+
         match diesel::insert_into(language::table)
             .values(&data)
             .get_result(&connection)
@@ -2062,9 +2118,18 @@ impl MutationRoot {
     }
 
     fn create_funding(context: &Context, data: NewFunding) -> FieldResult<Funding> {
+        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-
         let connection = context.db.get().unwrap();
+        let pub_id = imprint
+            .inner_join(crate::schema::work::table)
+            .select(publisher_id)
+            .filter(crate::schema::work::work_id.eq(data.work_id))
+            .first::<Uuid>(&connection)
+            .expect("Error checking permissions");
+
+        context.account_access.can_edit(pub_id)?;
+
         match diesel::insert_into(funding::table)
             .values(&data)
             .get_result(&connection)
@@ -2075,9 +2140,18 @@ impl MutationRoot {
     }
 
     fn create_price(context: &Context, data: NewPrice) -> FieldResult<Price> {
+        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-
         let connection = context.db.get().unwrap();
+        let pub_id = imprint
+            .inner_join(crate::schema::work::table.inner_join(crate::schema::publication::table))
+            .select(publisher_id)
+            .filter(crate::schema::publication::publication_id.eq(data.publication_id))
+            .first::<Uuid>(&connection)
+            .expect("Error checking permissions");
+
+        context.account_access.can_edit(pub_id)?;
+
         match diesel::insert_into(price::table)
             .values(&data)
             .get_result(&connection)
@@ -2088,11 +2162,20 @@ impl MutationRoot {
     }
 
     fn create_subject(context: &Context, data: NewSubject) -> FieldResult<Subject> {
+        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let connection = context.db.get().unwrap();
+        let pub_id = imprint
+            .inner_join(crate::schema::work::table)
+            .select(publisher_id)
+            .filter(crate::schema::work::work_id.eq(data.work_id))
+            .first::<Uuid>(&connection)
+            .expect("Error checking permissions");
+
+        context.account_access.can_edit(pub_id)?;
 
         check_subject(&data.subject_type, &data.subject_code)?;
 
-        let connection = context.db.get().unwrap();
         match diesel::insert_into(subject::table)
             .values(&data)
             .get_result(&connection)
