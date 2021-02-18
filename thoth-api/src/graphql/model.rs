@@ -1996,18 +1996,11 @@ impl MutationRoot {
     }
 
     fn create_contribution(context: &Context, data: NewContribution) -> FieldResult<Contribution> {
-        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
-        let pub_id = imprint
-            .inner_join(crate::schema::work::table)
-            .select(publisher_id)
-            .filter(crate::schema::work::work_id.eq(data.work_id))
-            .first::<Uuid>(&connection)
-            .expect("Error checking permissions");
-
+        let pub_id = publisher_id_from_work_id(data.work_id, &context);
         context.account_access.can_edit(pub_id)?;
 
+        let connection = context.db.get().unwrap();
         match diesel::insert_into(contribution::table)
             .values(&data)
             .get_result(&connection)
@@ -2018,18 +2011,11 @@ impl MutationRoot {
     }
 
     fn create_publication(context: &Context, data: NewPublication) -> FieldResult<Publication> {
-        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
-        let pub_id = imprint
-            .inner_join(crate::schema::work::table)
-            .select(publisher_id)
-            .filter(crate::schema::work::work_id.eq(data.work_id))
-            .first::<Uuid>(&connection)
-            .expect("Error checking permissions");
-
+        let pub_id = publisher_id_from_work_id(data.work_id, &context);
         context.account_access.can_edit(pub_id)?;
 
+        let connection = context.db.get().unwrap();
         match diesel::insert_into(publication::table)
             .values(&data)
             .get_result(&connection)
@@ -2061,18 +2047,11 @@ impl MutationRoot {
     }
 
     fn create_issue(context: &Context, data: NewIssue) -> FieldResult<Issue> {
-        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
-        let pub_id = imprint
-            .inner_join(crate::schema::work::table)
-            .select(publisher_id)
-            .filter(crate::schema::work::work_id.eq(data.work_id))
-            .first::<Uuid>(&connection)
-            .expect("Error checking permissions");
-
+        let pub_id = publisher_id_from_work_id(data.work_id, &context);
         context.account_access.can_edit(pub_id)?;
 
+        let connection = context.db.get().unwrap();
         match diesel::insert_into(issue::table)
             .values(&data)
             .get_result(&connection)
@@ -2083,18 +2062,11 @@ impl MutationRoot {
     }
 
     fn create_language(context: &Context, data: NewLanguage) -> FieldResult<Language> {
-        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
-        let pub_id = imprint
-            .inner_join(crate::schema::work::table)
-            .select(publisher_id)
-            .filter(crate::schema::work::work_id.eq(data.work_id))
-            .first::<Uuid>(&connection)
-            .expect("Error checking permissions");
-
+        let pub_id = publisher_id_from_work_id(data.work_id, &context);
         context.account_access.can_edit(pub_id)?;
 
+        let connection = context.db.get().unwrap();
         match diesel::insert_into(language::table)
             .values(&data)
             .get_result(&connection)
@@ -2118,18 +2090,11 @@ impl MutationRoot {
     }
 
     fn create_funding(context: &Context, data: NewFunding) -> FieldResult<Funding> {
-        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
-        let pub_id = imprint
-            .inner_join(crate::schema::work::table)
-            .select(publisher_id)
-            .filter(crate::schema::work::work_id.eq(data.work_id))
-            .first::<Uuid>(&connection)
-            .expect("Error checking permissions");
-
+        let pub_id = publisher_id_from_work_id(data.work_id, &context);
         context.account_access.can_edit(pub_id)?;
 
+        let connection = context.db.get().unwrap();
         match diesel::insert_into(funding::table)
             .values(&data)
             .get_result(&connection)
@@ -2162,20 +2127,13 @@ impl MutationRoot {
     }
 
     fn create_subject(context: &Context, data: NewSubject) -> FieldResult<Subject> {
-        use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
-        let pub_id = imprint
-            .inner_join(crate::schema::work::table)
-            .select(publisher_id)
-            .filter(crate::schema::work::work_id.eq(data.work_id))
-            .first::<Uuid>(&connection)
-            .expect("Error checking permissions");
-
+        let pub_id = publisher_id_from_work_id(data.work_id, &context);
         context.account_access.can_edit(pub_id)?;
 
         check_subject(&data.subject_type, &data.subject_code)?;
 
+        let connection = context.db.get().unwrap();
         match diesel::insert_into(subject::table)
             .values(&data)
             .get_result(&connection)
@@ -3362,4 +3320,14 @@ pub type Schema = RootNode<'static, QueryRoot, MutationRoot>;
 
 pub fn create_schema() -> Schema {
     Schema::new(QueryRoot {}, MutationRoot {})
+}
+
+fn publisher_id_from_work_id(work_id: Uuid, context: &Context) -> Uuid {
+    use crate::schema::imprint::dsl::*;
+    imprint
+        .inner_join(crate::schema::work::table)
+        .select(publisher_id)
+        .filter(crate::schema::work::work_id.eq(work_id))
+        .first::<Uuid>(&context.db.get().unwrap())
+        .expect("Error checking permissions")
 }
