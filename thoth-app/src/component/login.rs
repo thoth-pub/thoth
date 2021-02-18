@@ -34,6 +34,12 @@ pub struct LoginComponent {
     account_service: AccountService,
     notification_bus: NotificationDispatcher,
     router: RouteAgentDispatcher<()>,
+    props: Props,
+}
+
+#[derive(PartialEq, Properties, Clone)]
+pub struct Props {
+    pub callback: Callback<()>,
 }
 
 pub enum Msg {
@@ -45,9 +51,9 @@ pub enum Msg {
 
 impl Component for LoginComponent {
     type Message = Msg;
-    type Properties = ();
+    type Properties = Props;
 
-    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let email = "".into();
         let password = "".into();
         let account_service = AccountService::new();
@@ -62,11 +68,13 @@ impl Component for LoginComponent {
             account_service,
             notification_bus,
             router,
+            props,
         }
     }
 
-    fn change(&mut self, _: Self::Properties) -> ShouldRender {
-        false
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        self.props = props;
+        true
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
@@ -96,6 +104,7 @@ impl Component for LoginComponent {
                     match body {
                         Ok(Login(Session { token })) => {
                             self.account_service.set_token(token);
+                            self.props.callback.emit(());
                             self.router.send(RouteRequest::ChangeRoute(Route::from(
                                 AppRoute::Admin(AdminRoute::Admin),
                             )));

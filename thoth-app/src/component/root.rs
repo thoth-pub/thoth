@@ -27,8 +27,8 @@ pub struct RootComponent {
 }
 
 pub enum Msg {
+    FetchCurrentUser,
     CurrentUserResponse(Result<AccountDetails, AccountError>),
-    Login(AccountDetails),
     Logout,
 }
 
@@ -48,22 +48,22 @@ impl Component for RootComponent {
 
     fn rendered(&mut self, first_render: bool) {
         if first_render && self.account_service.is_loggedin() {
-            let task = self.account_service.account_details(self.current_user_response.clone());
-            self.current_user_task = Some(task);
+            self.link.send_message(Msg::FetchCurrentUser);
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
+            Msg::FetchCurrentUser => {
+                let task = self.account_service.account_details(self.current_user_response.clone());
+                self.current_user_task = Some(task);
+            }
             Msg::CurrentUserResponse(Ok(account_details)) => {
                 self.current_user = Some(account_details);
                 self.current_user_task = None;
             }
             Msg::CurrentUserResponse(Err(_)) => {
                 self.current_user_task = None;
-            }
-            Msg::Login(account_details) => {
-                self.current_user = Some(account_details);
             }
             Msg::Logout => {
                 self.account_service.logout();
@@ -78,7 +78,7 @@ impl Component for RootComponent {
     }
 
     fn view(&self) -> VNode {
-        //let callback_login = self.link.callback(Msg::Login);
+        let callback_login = self.link.callback(|_| Msg::FetchCurrentUser);
         let callback_logout = self.link.callback(|_| Msg::Logout);
 
         html! {
@@ -89,7 +89,7 @@ impl Component for RootComponent {
                 <NotificationComponent />
                 <div class="main">
                     <Router<AppRoute>
-                        render = Router::render(|switch: AppRoute| {
+                        render = Router::render(move |switch: AppRoute| {
                             match switch {
                                 AppRoute::Home => html! {
                                     <>
@@ -101,8 +101,7 @@ impl Component for RootComponent {
                                 },
                                 AppRoute::Login => html! {
                                     <div class="section">
-                                        //<LoginComponent current_user=&self.current_user callback=callback_login/>
-                                        <LoginComponent />
+                                        <LoginComponent callback=callback_login.clone()/>
                                     </div>
                                 },
                                 AppRoute::Admin(admin_route) => html! {
