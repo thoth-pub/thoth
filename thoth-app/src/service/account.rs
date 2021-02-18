@@ -1,11 +1,32 @@
-use yew::services::storage::{Area, StorageService};
+use serde::Deserialize;
+use serde::Serialize;
+use yew::callback::Callback;
+use yew::format::Json;
+use yew::format::Nothing;
+use yew::format::Text;
+use yew::services::fetch::FetchService;
+use yew::services::fetch::FetchTask;
+use yew::services::fetch::Request;
+use yew::services::fetch::Response;
+use yew::services::storage::Area;
+use yew::services::storage::StorageService;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 use yew_router::route::Route;
+use thiserror::Error;
+use thoth_api::account::model::AccountDetails;
 
 use crate::route::AppRoute;
 use crate::string::STORAGE_ERROR;
 use crate::SESSION_KEY;
+
+#[derive(Debug, Error)]
+pub enum AccountError {
+    #[error("Authentication error")]
+    AuthenticationError,
+    #[error("Response error")]
+    ResponseError,
+}
 
 pub struct AccountService {
     login_route: Route,
@@ -50,5 +71,77 @@ impl AccountService {
     pub fn redirect_to_login(&self) {
         let mut router: RouteAgentDispatcher<()> = RouteAgentDispatcher::new();
         router.send(RouteRequest::ChangeRoute(self.login_route.clone()))
+    }
+
+    pub fn account_details(&mut self, callback: Callback<Result<AccountDetails, AccountError>>) -> FetchTask {
+        self.get_request::<AccountDetails>("/account".to_string(), callback)
+    }
+
+    fn request_builder<B, T>(
+        &mut self,
+        method: &str,
+        url: String,
+        body: B,
+        callback: Callback<Result<T, AccountError>>,
+    ) -> FetchTask
+    where
+        for<'de> T: Deserialize<'de> + 'static + std::fmt::Debug,
+        B: Into<Text> + std::fmt::Debug,
+    {
+        let handler = move |response: Response<Text>| {
+            if let (meta, Ok(data)) = response.into_parts() {
+                log::debug!("Response: {:?}", data);
+                if meta.status.is_success() {
+                    let data: Result<T, _> = serde_json::from_str(&data);
+                    if let Ok(data) = data {
+                        callback.emit(Ok(data))
+                    } else {
+                        callback.emit(Err(AccountError::ResponseError))
+                    }
+                } else {
+                    match meta.status.as_u16() {
+                        401 => callback.emit(Err(AccountError::AuthenticationError)),
+                        403 => callback.emit(Err(AccountError::AuthenticationError)),
+                        _ => callback.emit(Err(AccountError::ResponseError)),
+                    }
+                }
+            } else {
+                callback.emit(Err(AccountError::ResponseError))
+            }
+        };
+
+        let url = format!("{}{}", crate::THOTH_API, url);
+        let mut builder = Request::builder()
+            .method(method)
+            .uri(url.as_str())
+            .header("Content-Type", "application/json");
+        if let Some(token) = self.get_token() {
+            builder = builder.header("Authorization", format!("Bearer {}", token));
+        }
+        let request = builder.body(body).unwrap();
+        log::debug!("Request: {:?}", request);
+
+        FetchService::fetch(request, handler.into()).unwrap()
+    }
+
+    fn get_request<T>(&mut self, url: String, callback: Callback<Result<T, AccountError>>) -> FetchTask
+    where
+        for<'de> T: Deserialize<'de> + 'static + std::fmt::Debug,
+    {
+        self.request_builder("GET", url, Nothing, callback)
+    }
+
+    fn post_request<B, T>(
+        &mut self,
+        url: String,
+        body: B,
+        callback: Callback<Result<T, AccountError>>,
+    ) -> FetchTask
+    where
+        for<'de> T: Deserialize<'de> + 'static + std::fmt::Debug,
+        B: Serialize,
+    {
+        let body: Text = Json(&body).into();
+        self.request_builder("POST", url, body, callback)
     }
 }

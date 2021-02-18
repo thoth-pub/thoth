@@ -1,9 +1,12 @@
+use yew::Callback;
 use yew::html;
 use yew::prelude::*;
+use yew::services::fetch::FetchTask;
 use yew::virtual_dom::VNode;
 use yew_router::prelude::*;
 use yew_router::route::Route;
 use yew_router::switch::Permissive;
+use thoth_api::account::model::AccountDetails;
 
 use crate::component::admin::AdminComponent;
 use crate::component::catalogue::CatalogueComponent;
@@ -12,30 +15,76 @@ use crate::component::login::LoginComponent;
 use crate::component::navbar::NavbarComponent;
 use crate::component::notification::NotificationComponent;
 use crate::route::AppRoute;
+use crate::service::account::AccountService;
+use crate::service::account::AccountError;
 
-pub struct RootComponent {}
+pub struct RootComponent {
+    account_service: AccountService,
+    current_user: Option<AccountDetails>,
+    current_user_response: Callback<Result<AccountDetails, AccountError>>,
+    current_user_task: Option<FetchTask>,
+    link: ComponentLink<Self>,
+}
+
+pub enum Msg {
+    CurrentUserResponse(Result<AccountDetails, AccountError>),
+    Login(AccountDetails),
+    Logout,
+}
 
 impl Component for RootComponent {
-    type Message = ();
+    type Message = Msg;
     type Properties = ();
 
-    fn create(_: Self::Properties, _link: ComponentLink<Self>) -> Self {
-        RootComponent {}
+    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+        RootComponent {
+            account_service: AccountService::new(),
+            current_user: Default::default(),
+            current_user_response: link.callback(Msg::CurrentUserResponse),
+            current_user_task: Default::default(),
+            link,
+        }
+    }
+
+    fn rendered(&mut self, first_render: bool) {
+        if first_render && self.account_service.is_loggedin() {
+            let task = self.account_service.account_details(self.current_user_response.clone());
+            self.current_user_task = Some(task);
+        }
+    }
+
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+        match msg {
+            Msg::CurrentUserResponse(Ok(account_details)) => {
+                self.current_user = Some(account_details);
+                self.current_user_task = None;
+            }
+            Msg::CurrentUserResponse(Err(_)) => {
+                self.current_user_task = None;
+            }
+            Msg::Login(account_details) => {
+                self.current_user = Some(account_details);
+            }
+            Msg::Logout => {
+                self.account_service.logout();
+                self.current_user = None;
+            }
+        }
+        true
     }
 
     fn change(&mut self, _props: Self::Properties) -> ShouldRender {
         false
     }
 
-    fn update(&mut self, _msg: Self::Message) -> ShouldRender {
-        false
-    }
-
     fn view(&self) -> VNode {
+        //let callback_login = self.link.callback(Msg::Login);
+        let callback_logout = self.link.callback(|_| Msg::Logout);
+
         html! {
             <>
                 <header>
-                    <NavbarComponent />
+                    <NavbarComponent current_user=&self.current_user callback=callback_logout/>
                 </header>
                 <NotificationComponent />
                 <div class="main">
@@ -52,12 +101,14 @@ impl Component for RootComponent {
                                 },
                                 AppRoute::Login => html! {
                                     <div class="section">
+                                        //<LoginComponent current_user=&self.current_user callback=callback_login/>
                                         <LoginComponent />
                                     </div>
                                 },
                                 AppRoute::Admin(admin_route) => html! {
                                     <div class="section">
-                                        <AdminComponent route={admin_route} />
+                                        // <AdminComponent route={admin_route} current_user=&self.current_user/>
+                                        <AdminComponent route={admin_route}/>
                                     </div>
                                 },
                                 AppRoute::Error(Permissive(None)) => html! {
