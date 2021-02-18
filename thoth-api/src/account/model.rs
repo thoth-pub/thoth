@@ -2,6 +2,7 @@ use chrono::naive::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::account;
 #[cfg(feature = "backend")]
@@ -163,5 +164,13 @@ impl AccountAccess {
             }
         }
         id_found
+    }
+
+    pub fn can_edit(&self, pub_id: Uuid) -> Result<(), ThothError> {
+        if !self.is_superuser && !self.id_in_linked_publishers(pub_id) {
+            Err(ThothError::Unauthorised.into())
+        } else {
+            Ok(())
+        }
     }
 }

@@ -1952,13 +1952,7 @@ impl MutationRoot {
 
     fn create_imprint(context: &Context, data: NewImprint) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-
-        let account_access = context.token.get_user_permissions();
-        if !account_access.is_superuser
-            && !account_access.id_in_linked_publishers(data.publisher_id)
-        {
-            return Err(ThothError::Unauthorised.into());
-        }
+        context.token.get_user_permissions().can_edit(data.publisher_id)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(imprint::table)
@@ -2287,29 +2281,19 @@ impl MutationRoot {
     fn delete_work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
         use crate::schema::imprint::dsl::*;
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let account_access = context.token.get_user_permissions();
-        // Early-exit allowing us to avoid unnecessary database calls
-        if !account_access.is_superuser && account_access.linked_publishers.is_empty() {
-            return Err(ThothError::Unauthorised.into());
-        }
-
         let connection = context.db.get().unwrap();
 
         let target = crate::schema::work::dsl::work.find(work_id);
         let result = target.get_result::<Work>(&connection);
         // Note that this may panic
         let work = result.unwrap();
+        let pub_id = imprint
+            .select(publisher_id)
+            .filter(imprint_id.eq(work.imprint_id))
+            .first::<Uuid>(&connection)
+            .expect("Error checking permissions");
 
-        if !account_access.is_superuser {
-            let pub_id = imprint
-                .select(publisher_id)
-                .filter(imprint_id.eq(work.imprint_id))
-                .first::<Uuid>(&connection)
-                .expect("Error checking permissions");
-            if !account_access.id_in_linked_publishers(pub_id) {
-                return Err(ThothError::Unauthorised.into());
-            }
-        }
+        context.token.get_user_permissions().can_edit(pub_id)?;
 
         match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(work),
@@ -2331,12 +2315,6 @@ impl MutationRoot {
 
     fn delete_imprint(context: &Context, imprint_id: Uuid) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let account_access = context.token.get_user_permissions();
-        // Early-exit allowing us to avoid unnecessary database calls
-        if !account_access.is_superuser && account_access.linked_publishers.is_empty() {
-            return Err(ThothError::Unauthorised.into());
-        }
-
         let connection = context.db.get().unwrap();
 
         let target = crate::schema::imprint::dsl::imprint.find(imprint_id);
@@ -2344,11 +2322,7 @@ impl MutationRoot {
         // Note that this may panic
         let imprint = result.unwrap();
 
-        if !account_access.is_superuser
-            && !account_access.id_in_linked_publishers(imprint.publisher_id)
-        {
-            return Err(ThothError::Unauthorised.into());
-        }
+        context.token.get_user_permissions().can_edit(imprint.publisher_id)?;
 
         match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(imprint),
