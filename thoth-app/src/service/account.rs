@@ -12,6 +12,7 @@ use yew::services::storage::Area;
 use yew::services::storage::StorageService;
 use thiserror::Error;
 use thoth_api::account::model::AccountDetails;
+use thoth_api::account::model::LoginCredentials;
 
 use crate::string::STORAGE_ERROR;
 use crate::SESSION_KEY;
@@ -59,6 +60,28 @@ impl AccountService {
 
     pub fn logout(&self) {
         self.update_storage(None)
+    }
+
+   pub fn login(
+        &mut self,
+        login_credentials: LoginCredentials,
+        callback: Callback<Result<AccountDetails, AccountError>>,
+    ) -> FetchTask {
+        self.post_request::<LoginCredentials, AccountDetails>(
+            "/account/login".to_string(),
+            login_credentials,
+            callback,
+        )
+    }
+
+    pub fn renew_token(
+        &mut self,
+        callback: Callback<Result<AccountDetails, AccountError>>,
+    ) -> FetchTask {
+        self.bodyless_post_request::<AccountDetails>(
+            "/account/token/renew".to_string(),
+            callback,
+        )
     }
 
     pub fn account_details(&mut self, callback: Callback<Result<AccountDetails, AccountError>>) -> FetchTask {
@@ -115,6 +138,13 @@ impl AccountService {
         for<'de> T: Deserialize<'de> + 'static + std::fmt::Debug,
     {
         self.request_builder("GET", url, Nothing, callback)
+    }
+
+    fn bodyless_post_request<T>(&mut self, url: String, callback: Callback<Result<T, AccountError>>) -> FetchTask
+    where
+        for<'de> T: Deserialize<'de> + 'static + std::fmt::Debug,
+    {
+        self.request_builder("POST", url, Nothing, callback)
     }
 
     fn post_request<B, T>(

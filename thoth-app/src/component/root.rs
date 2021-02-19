@@ -10,6 +10,7 @@ use thoth_api::account::model::AccountDetails;
 
 use crate::agent::session_timer;
 use crate::agent::session_timer::SessionTimerAgent;
+use crate::agent::session_timer::SessionTimerDispatcher;
 use crate::component::admin::AdminComponent;
 use crate::component::catalogue::CatalogueComponent;
 use crate::component::hero::HeroComponent;
@@ -26,14 +27,20 @@ pub struct RootComponent {
     current_user: Option<AccountDetails>,
     current_user_response: Callback<Result<AccountDetails, AccountError>>,
     current_user_task: Option<FetchTask>,
+    renew_token_task: Option<FetchTask>,
+    renew_token_response: Callback<Result<AccountDetails, AccountError>>,
     _router_agent: Box<dyn Bridge<RouteAgent>>,
+    session_timer_agent: SessionTimerDispatcher,
     link: ComponentLink<Self>,
 }
 
 pub enum Msg {
     FetchCurrentUser,
     CurrentUserResponse(Result<AccountDetails, AccountError>),
+    RenewToken,
+    RenewTokenResponse(Result<AccountDetails, AccountError>),
     Route(Route),
+    Login(AccountDetails),
     Logout,
 }
 
@@ -42,6 +49,7 @@ impl Component for RootComponent {
     type Properties = ();
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+        let session_timer_agent = SessionTimerAgent::dispatcher();
         let _router_agent = RouteAgent::bridge(link.callback(Msg::Route));
         let route_service: RouteService = RouteService::new();
         let route = route_service.get_route();
@@ -52,7 +60,10 @@ impl Component for RootComponent {
             current_user: Default::default(),
             current_user_response: link.callback(Msg::CurrentUserResponse),
             current_user_task: Default::default(),
+            renew_token_task: Default::default(),
+            renew_token_response: link.callback(Msg::RenewTokenResponse),
             _router_agent,
+            session_timer_agent,
             link,
         }
     }
@@ -69,20 +80,39 @@ impl Component for RootComponent {
                 let task = self.account_service.account_details(self.current_user_response.clone());
                 self.current_user_task = Some(task);
             }
+            Msg::RenewToken => {
+                let task = self.account_service.renew_token(self.renew_token_response.clone());
+                self.renew_token_task = Some(task);
+            }
             Msg::CurrentUserResponse(Ok(account_details)) => {
-                let mut session_timer_agent = SessionTimerAgent::dispatcher();
-                session_timer_agent.send(session_timer::Request::Start);
-                self.current_user = Some(account_details);
+                self.link.send_message(Msg::Login(account_details));
                 self.current_user_task = None;
             }
             Msg::CurrentUserResponse(Err(_)) => {
+                self.link.send_message(Msg::Logout);
+                self.current_user_task = None;
+            }
+            Msg::RenewTokenResponse(Ok(account_details)) => {
+                self.link.send_message(Msg::Login(account_details));
+                self.renew_token_task = None;
+            }
+            Msg::RenewTokenResponse(Err(_)) => {
+                self.link.send_message(Msg::Logout);
                 self.current_user_task = None;
             }
             Msg::Route(route) => {
                 self.current_route = AppRoute::switch(route)
             }
+            Msg::Login(account_details) => {
+                // start session timer
+                self.session_timer_agent.send(
+                    session_timer::Request::Start(self.link.callback(|_| Msg::RenewToken))
+                );
+                self.current_user = Some(account_details);
+            }
             Msg::Logout => {
                 self.account_service.logout();
+                self.session_timer_agent.send(session_timer::Request::Stop);
                 self.current_user = None;
             }
         }
@@ -94,7 +124,7 @@ impl Component for RootComponent {
     }
 
     fn view(&self) -> VNode {
-        let callback_login = self.link.callback(|_| Msg::FetchCurrentUser);
+        let callback_login = self.link.callback(Msg::Login);
         let callback_logout = self.link.callback(|_| Msg::Logout);
 
         html! {
