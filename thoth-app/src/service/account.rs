@@ -78,7 +78,6 @@ impl AccountService {
     {
         let handler = move |response: Response<Text>| {
             if let (meta, Ok(data)) = response.into_parts() {
-                log::debug!("Response: {:?}", data);
                 if meta.status.is_success() {
                     let data: Result<T, _> = serde_json::from_str(&data);
                     if let Ok(data) = data {
@@ -107,7 +106,6 @@ impl AccountService {
             builder = builder.header("Authorization", format!("Bearer {}", token));
         }
         let request = builder.body(body).unwrap();
-        log::debug!("Request: {:?}", request);
 
         FetchService::fetch(request, handler.into()).unwrap()
     }

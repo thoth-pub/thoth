@@ -21,16 +21,20 @@ use crate::service::account::AccountService;
 use crate::service::account::AccountError;
 
 pub struct RootComponent {
+    current_route: Option<AppRoute>,
     account_service: AccountService,
     current_user: Option<AccountDetails>,
     current_user_response: Callback<Result<AccountDetails, AccountError>>,
     current_user_task: Option<FetchTask>,
+    #[allow(unused)]
+    router_agent: Box<dyn Bridge<RouteAgent>>,
     link: ComponentLink<Self>,
 }
 
 pub enum Msg {
     FetchCurrentUser,
     CurrentUserResponse(Result<AccountDetails, AccountError>),
+    Route(Route),
     Logout,
 }
 
@@ -39,11 +43,17 @@ impl Component for RootComponent {
     type Properties = ();
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+        let router_agent = RouteAgent::bridge(link.callback(Msg::Route));
+        let route_service: RouteService = RouteService::new();
+        let route = route_service.get_route();
+
         RootComponent {
+            current_route: AppRoute::switch(route),
             account_service: AccountService::new(),
             current_user: Default::default(),
             current_user_response: link.callback(Msg::CurrentUserResponse),
             current_user_task: Default::default(),
+            router_agent,
             link,
         }
     }
@@ -69,6 +79,9 @@ impl Component for RootComponent {
             Msg::CurrentUserResponse(Err(_)) => {
                 self.current_user_task = None;
             }
+            Msg::Route(route) => {
+                self.current_route = AppRoute::switch(route)
+            }
             Msg::Logout => {
                 self.account_service.logout();
                 self.current_user = None;
@@ -84,7 +97,6 @@ impl Component for RootComponent {
     fn view(&self) -> VNode {
         let callback_login = self.link.callback(|_| Msg::FetchCurrentUser);
         let callback_logout = self.link.callback(|_| Msg::Logout);
-        let current_user = self.current_user.clone();
 
         html! {
             <>
@@ -93,39 +105,38 @@ impl Component for RootComponent {
                 </header>
                 <NotificationComponent />
                 <div class="main">
-                    <Router<AppRoute>
-                        render = Router::render(move |switch: AppRoute| {
-                            match switch {
-                                AppRoute::Home => html! {
-                                    <>
-                                        <HeroComponent />
-                                        <div class="section">
-                                            <CatalogueComponent />
-                                        </div>
-                                    </>
-                                },
-                                AppRoute::Login => html! {
+                {
+                    if let Some(route) = &self.current_route {
+                        match route {
+                            AppRoute::Home => html! {
+                                <>
+                                    <HeroComponent />
                                     <div class="section">
-                                        <LoginComponent current_user=&current_user callback=callback_login.clone()/>
+                                        <CatalogueComponent />
                                     </div>
-                                },
-                                AppRoute::Admin(admin_route) => html! {
-                                    <div class="section">
-                                        <AdminComponent route={admin_route} current_user=&current_user/>
-                                    </div>
-                                },
-                                AppRoute::Error(Permissive(None)) => html! {
-                                    <div class="uk-position-center"></div>
-                                },
-                                AppRoute::Error(Permissive(Some(missed_route))) => html!{
-                                    format!("Page '{}' not found", missed_route)
-                                }
+                                </>
+                            },
+                            AppRoute::Login => html! {
+                                <div class="section">
+                                    <LoginComponent current_user=&self.current_user callback=callback_login/>
+                                </div>
+                            },
+                            AppRoute::Admin(admin_route) => html! {
+                                <div class="section">
+                                    <AdminComponent route={admin_route} current_user=&self.current_user/>
+                                </div>
+                            },
+                            AppRoute::Error(Permissive(None)) => html! {
+                                <div class="uk-position-center"></div>
+                            },
+                            AppRoute::Error(Permissive(Some(missed_route))) => html!{
+                                format!("Page '{}' not found", missed_route)
                             }
-                        })
-                        redirect = Router::redirect(|route: Route| {
-                            AppRoute::Error(Permissive(Some(route.route)))
-                        })
-                    />
+                        }
+                    } else {
+                        html! {}
+                    }
+                }
                 </div>
             </>
         }

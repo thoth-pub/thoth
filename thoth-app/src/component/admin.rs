@@ -52,7 +52,6 @@ impl Component for AdminComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        log::debug!("admin create");
         AdminComponent {
             props,
             router: RouteAgentDispatcher::new(),
@@ -61,9 +60,7 @@ impl Component for AdminComponent {
     }
 
     fn rendered(&mut self, first_render: bool) {
-        log::debug!("admin rendered");
         if first_render && !self.props.current_user.is_some() {
-            log::debug!("admin rendered - redirect");
             self.link.send_message(Msg::RedirectToLogin);
         }
     }
@@ -72,16 +69,14 @@ impl Component for AdminComponent {
         match msg {
             Msg::RedirectToLogin => {
                 self.router.send(RouteRequest::ChangeRoute(Route::from(AppRoute::Login)));
-                true
+                false
             }
         }
     }
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         self.props = props;
-        log::debug!("admin changed");
         if !self.props.current_user.is_some() {
-            log::debug!("admin changed - redirect");
             self.link.send_message(Msg::RedirectToLogin);
         }
         true

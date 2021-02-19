@@ -62,7 +62,6 @@ impl Component for LoginComponent {
         let account_service = AccountService::new();
         let notification_bus = NotificationBus::dispatcher();
         let router = RouteAgentDispatcher::new();
-
         LoginComponent {
             email,
             password,
@@ -84,6 +83,9 @@ impl Component for LoginComponent {
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         self.props = props;
+        if self.props.current_user.is_some() {
+            self.link.send_message(Msg::RedirectToAdmin);
+        }
         true
     }
 
@@ -93,7 +95,7 @@ impl Component for LoginComponent {
                 self.router.send(RouteRequest::ChangeRoute(Route::from(
                     AppRoute::Admin(AdminRoute::Admin),
                 )));
-                true
+                false
             }
             Msg::LoginRequest => {
                 self.fetch_task = fetch! {
