@@ -60,7 +60,7 @@ impl Component for AdminComponent {
     }
 
     fn rendered(&mut self, first_render: bool) {
-        if first_render && !self.props.current_user.is_some() {
+        if first_render && self.props.current_user.is_none() {
             self.link.send_message(Msg::RedirectToLogin);
         }
     }

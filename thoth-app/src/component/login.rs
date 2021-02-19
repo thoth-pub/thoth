@@ -98,7 +98,7 @@ impl Component for LoginComponent {
             }
             Msg::Response(Ok(account_details)) => {
                 let token = account_details.token.clone().unwrap();
-                self.account_service.set_token(token.clone());
+                self.account_service.set_token(token.clone);
                 self.props.callback.emit(account_details);
                 self.task = None;
                 self.link.send_message(Msg::RedirectToAdmin);

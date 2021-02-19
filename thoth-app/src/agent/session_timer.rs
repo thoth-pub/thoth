@@ -40,7 +40,7 @@ impl Agent for SessionTimerAgent {
     fn handle_input(&mut self, msg: Self::Input, _: HandlerId) {
         match msg {
             Request::Start(callback) => {
-                let handle = IntervalService::spawn(Duration::from_secs(60), callback.clone());
+                let handle = IntervalService::spawn(Duration::from_secs(60), callback);
                 self.timer_task = Some(Box::new(handle));
             }
             Request::Stop => {
