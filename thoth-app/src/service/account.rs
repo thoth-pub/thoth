@@ -1,5 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thiserror::Error;
+use thoth_api::account::model::AccountDetails;
+use thoth_api::account::model::LoginCredentials;
 use yew::callback::Callback;
 use yew::format::Json;
 use yew::format::Nothing;
@@ -10,9 +13,6 @@ use yew::services::fetch::Request;
 use yew::services::fetch::Response;
 use yew::services::storage::Area;
 use yew::services::storage::StorageService;
-use thiserror::Error;
-use thoth_api::account::model::AccountDetails;
-use thoth_api::account::model::LoginCredentials;
 
 use crate::string::STORAGE_ERROR;
 use crate::SESSION_KEY;
@@ -62,7 +62,7 @@ impl AccountService {
         self.update_storage(None)
     }
 
-   pub fn login(
+    pub fn login(
         &mut self,
         login_credentials: LoginCredentials,
         callback: Callback<Result<AccountDetails, AccountError>>,
@@ -78,13 +78,13 @@ impl AccountService {
         &mut self,
         callback: Callback<Result<AccountDetails, AccountError>>,
     ) -> FetchTask {
-        self.bodyless_post_request::<AccountDetails>(
-            "/account/token/renew".to_string(),
-            callback,
-        )
+        self.bodyless_post_request::<AccountDetails>("/account/token/renew".to_string(), callback)
     }
 
-    pub fn account_details(&mut self, callback: Callback<Result<AccountDetails, AccountError>>) -> FetchTask {
+    pub fn account_details(
+        &mut self,
+        callback: Callback<Result<AccountDetails, AccountError>>,
+    ) -> FetchTask {
         self.get_request::<AccountDetails>("/account".to_string(), callback)
     }
 
@@ -133,14 +133,22 @@ impl AccountService {
         FetchService::fetch(request, handler.into()).unwrap()
     }
 
-    fn get_request<T>(&mut self, url: String, callback: Callback<Result<T, AccountError>>) -> FetchTask
+    fn get_request<T>(
+        &mut self,
+        url: String,
+        callback: Callback<Result<T, AccountError>>,
+    ) -> FetchTask
     where
         for<'de> T: Deserialize<'de> + 'static + std::fmt::Debug,
     {
         self.request_builder("GET", url, Nothing, callback)
     }
 
-    fn bodyless_post_request<T>(&mut self, url: String, callback: Callback<Result<T, AccountError>>) -> FetchTask
+    fn bodyless_post_request<T>(
+        &mut self,
+        url: String,
+        callback: Callback<Result<T, AccountError>>,
+    ) -> FetchTask
     where
         for<'de> T: Deserialize<'de> + 'static + std::fmt::Debug,
     {

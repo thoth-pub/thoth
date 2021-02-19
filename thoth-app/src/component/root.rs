@@ -1,12 +1,12 @@
-use yew::Callback;
+use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 use yew::services::fetch::FetchTask;
 use yew::virtual_dom::VNode;
+use yew::Callback;
 use yew_router::prelude::*;
 use yew_router::route::Route;
 use yew_router::switch::Permissive;
-use thoth_api::account::model::AccountDetails;
 
 use crate::agent::session_timer;
 use crate::agent::session_timer::SessionTimerAgent;
@@ -18,8 +18,8 @@ use crate::component::login::LoginComponent;
 use crate::component::navbar::NavbarComponent;
 use crate::component::notification::NotificationComponent;
 use crate::route::AppRoute;
-use crate::service::account::AccountService;
 use crate::service::account::AccountError;
+use crate::service::account::AccountService;
 
 pub struct RootComponent {
     current_route: Option<AppRoute>,
@@ -77,11 +77,15 @@ impl Component for RootComponent {
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::FetchCurrentUser => {
-                let task = self.account_service.account_details(self.current_user_response.clone());
+                let task = self
+                    .account_service
+                    .account_details(self.current_user_response.clone());
                 self.current_user_task = Some(task);
             }
             Msg::RenewToken => {
-                let task = self.account_service.renew_token(self.renew_token_response.clone());
+                let task = self
+                    .account_service
+                    .renew_token(self.renew_token_response.clone());
                 self.renew_token_task = Some(task);
             }
             Msg::CurrentUserResponse(Ok(account_details)) => {
@@ -100,14 +104,12 @@ impl Component for RootComponent {
                 self.link.send_message(Msg::Logout);
                 self.current_user_task = None;
             }
-            Msg::Route(route) => {
-                self.current_route = AppRoute::switch(route)
-            }
+            Msg::Route(route) => self.current_route = AppRoute::switch(route),
             Msg::Login(account_details) => {
                 // start session timer
-                self.session_timer_agent.send(
-                    session_timer::Request::Start(self.link.callback(|_| Msg::RenewToken))
-                );
+                self.session_timer_agent.send(session_timer::Request::Start(
+                    self.link.callback(|_| Msg::RenewToken),
+                ));
                 self.current_user = Some(account_details);
             }
             Msg::Logout => {

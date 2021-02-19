@@ -1,8 +1,8 @@
+use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 use yew::virtual_dom::VNode;
 use yew_router::prelude::*;
-use thoth_api::account::model::AccountDetails;
 
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
@@ -28,10 +28,7 @@ impl Component for NavbarComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        NavbarComponent {
-            props,
-            link,
-        }
+        NavbarComponent { props, link }
     }
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {

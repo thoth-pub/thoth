@@ -68,7 +68,8 @@ impl Component for AdminComponent {
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::RedirectToLogin => {
-                self.router.send(RouteRequest::ChangeRoute(Route::from(AppRoute::Login)));
+                self.router
+                    .send(RouteRequest::ChangeRoute(Route::from(AppRoute::Login)));
                 false
             }
         }

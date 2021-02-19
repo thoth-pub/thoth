@@ -15,8 +15,8 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::service::account::AccountService;
 use crate::service::account::AccountError;
+use crate::service::account::AccountService;
 use crate::string::AUTHENTICATION_ERROR;
 use crate::string::INPUT_EMAIL;
 use crate::string::INPUT_PASSWORD;
@@ -83,13 +83,17 @@ impl Component for LoginComponent {
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::RedirectToAdmin => {
-                self.router.send(RouteRequest::ChangeRoute(Route::from(
-                    AppRoute::Admin(AdminRoute::Admin),
-                )));
+                self.router
+                    .send(RouteRequest::ChangeRoute(Route::from(AppRoute::Admin(
+                        AdminRoute::Admin,
+                    ))));
                 false
             }
             Msg::Request => {
-                self.task = Some(self.account_service.login(self.request.clone(), self.response.clone()));
+                self.task = Some(
+                    self.account_service
+                        .login(self.request.clone(), self.response.clone()),
+                );
                 true
             }
             Msg::Response(Ok(account_details)) => {
