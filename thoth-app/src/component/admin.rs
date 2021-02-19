@@ -55,7 +55,7 @@ impl Component for AdminComponent {
         AdminComponent {
             props,
             router: RouteAgentDispatcher::new(),
-            link: link,
+            link,
         }
     }
 
