@@ -77,7 +77,7 @@ impl Component for AdminComponent {
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         self.props = props;
-        if !self.props.current_user.is_some() {
+        if self.props.current_user.is_none() {
             self.link.send_message(Msg::RedirectToLogin);
         }
         true
