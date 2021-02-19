@@ -106,7 +106,7 @@ pub struct DecodedToken {
     pub jwt: Option<Token>,
 }
 
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize, Default)]
 pub struct LoginCredentials {
     pub email: String,
     pub password: String,
