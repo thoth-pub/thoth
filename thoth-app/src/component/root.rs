@@ -8,6 +8,8 @@ use yew_router::route::Route;
 use yew_router::switch::Permissive;
 use thoth_api::account::model::AccountDetails;
 
+use crate::agent::session_timer;
+use crate::agent::session_timer::SessionTimerAgent;
 use crate::component::admin::AdminComponent;
 use crate::component::catalogue::CatalogueComponent;
 use crate::component::hero::HeroComponent;
@@ -59,6 +61,8 @@ impl Component for RootComponent {
                 self.current_user_task = Some(task);
             }
             Msg::CurrentUserResponse(Ok(account_details)) => {
+                let mut session_timer_agent = SessionTimerAgent::dispatcher();
+                session_timer_agent.send(session_timer::Request::Start);
                 self.current_user = Some(account_details);
                 self.current_user_task = None;
             }
@@ -80,6 +84,7 @@ impl Component for RootComponent {
     fn view(&self) -> VNode {
         let callback_login = self.link.callback(|_| Msg::FetchCurrentUser);
         let callback_logout = self.link.callback(|_| Msg::Logout);
+        let current_user = self.current_user.clone();
 
         html! {
             <>
@@ -101,13 +106,12 @@ impl Component for RootComponent {
                                 },
                                 AppRoute::Login => html! {
                                     <div class="section">
-                                        <LoginComponent callback=callback_login.clone()/>
+                                        <LoginComponent current_user=&current_user callback=callback_login.clone()/>
                                     </div>
                                 },
                                 AppRoute::Admin(admin_route) => html! {
                                     <div class="section">
-                                        // <AdminComponent route={admin_route} current_user=&self.current_user/>
-                                        <AdminComponent route={admin_route}/>
+                                        <AdminComponent route={admin_route} current_user=&current_user/>
                                     </div>
                                 },
                                 AppRoute::Error(Permissive(None)) => html! {

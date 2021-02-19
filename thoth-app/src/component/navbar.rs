@@ -6,17 +6,14 @@ use thoth_api::account::model::AccountDetails;
 
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::service::account::AccountService;
 use crate::THOTH_API;
 
 pub struct NavbarComponent {
     props: Props,
     link: ComponentLink<Self>,
-    account_service: AccountService,
 }
 
 pub enum Msg {
-    Login,
     Logout,
 }
 
@@ -31,11 +28,9 @@ impl Component for NavbarComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let account_service = AccountService::new();
         NavbarComponent {
             props,
             link,
-            account_service,
         }
     }
 
@@ -46,10 +41,6 @@ impl Component for NavbarComponent {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::Login => {
-                self.account_service.redirect_to_login();
-                true
-            }
             Msg::Logout => {
                 self.props.callback.emit(());
                 true
@@ -58,20 +49,10 @@ impl Component for NavbarComponent {
     }
 
     fn view(&self) -> VNode {
-        let auth_action = match &self.props.current_user.is_some() {
-            true => self.link.callback(|e: MouseEvent| {
-                e.prevent_default();
-                Msg::Logout
-            }),
-            false => self.link.callback(|e: MouseEvent| {
-                e.prevent_default();
-                Msg::Login
-            }),
-        };
-        let auth_button = match &self.props.current_user.is_some() {
-            true => "Logout",
-            false => "Log in",
-        };
+        let logout = self.link.callback(|e: MouseEvent| {
+            e.prevent_default();
+            Msg::Logout
+        });
         html! {
             <nav class="navbar is-warning" role="navigation" aria-label="main navigation">
                 <div class="navbar-brand">
@@ -129,12 +110,21 @@ impl Component for NavbarComponent {
                             <a class="button is-danger" href="https://github.com/thoth-pub/thoth/blob/master/CHANGELOG.md">
                                 {"v"}{ env!("CARGO_PKG_VERSION") }
                             </a>
-                            <button
-                                class="button is-light"
-                                onclick=auth_action
-                            >
-                                { auth_button }
-                            </button>
+                            {
+                                if self.props.current_user.is_some() {
+                                    html! {
+                                        <button class="button is-light" onclick=logout>
+                                            { "Logout" }
+                                        </button>
+                                    }
+                                } else {
+                                    html! {
+                                        <RouterAnchor<AppRoute> classes="button is-light" route=AppRoute::Login>
+                                            {"Login"}
+                                        </  RouterAnchor<AppRoute>>
+                                    }
+                                }
+                            }
                         </div>
                     </div>
                 </div>

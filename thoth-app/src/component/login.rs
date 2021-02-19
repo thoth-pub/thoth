@@ -1,3 +1,4 @@
+use thoth_api::account::model::AccountDetails;
 use thoth_api::account::model::Login;
 use thoth_api::account::model::LoginCredentials;
 use thoth_api::account::model::Session;
@@ -37,12 +38,14 @@ pub struct LoginComponent {
     props: Props,
 }
 
-#[derive(PartialEq, Properties, Clone)]
+#[derive(Properties, Clone)]
 pub struct Props {
     pub callback: Callback<()>,
+    pub current_user: Option<AccountDetails>,
 }
 
 pub enum Msg {
+    RedirectToAdmin,
     LoginRequest,
     Fetch(Response<Login>),
     ChangeEmail(String),
@@ -72,6 +75,13 @@ impl Component for LoginComponent {
         }
     }
 
+    fn rendered(&mut self, first_render: bool) {
+        // if user is logged in there's no point in seeing the login page
+        if first_render && self.props.current_user.is_some() {
+            self.link.send_message(Msg::RedirectToAdmin);
+        }
+    }
+
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         self.props = props;
         true
@@ -79,6 +89,12 @@ impl Component for LoginComponent {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
+            Msg::RedirectToAdmin => {
+                self.router.send(RouteRequest::ChangeRoute(Route::from(
+                    AppRoute::Admin(AdminRoute::Admin),
+                )));
+                true
+            }
             Msg::LoginRequest => {
                 self.fetch_task = fetch! {
                     LoginCredentials {
@@ -105,9 +121,7 @@ impl Component for LoginComponent {
                         Ok(Login(Session { token })) => {
                             self.account_service.set_token(token);
                             self.props.callback.emit(());
-                            self.router.send(RouteRequest::ChangeRoute(Route::from(
-                                AppRoute::Admin(AdminRoute::Admin),
-                            )));
+                            self.link.send_message(Msg::RedirectToAdmin);
                         }
                         _ => {
                             self.notification_bus.send(Request::NotificationBusMsg((

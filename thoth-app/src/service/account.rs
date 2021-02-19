@@ -10,13 +10,9 @@ use yew::services::fetch::Request;
 use yew::services::fetch::Response;
 use yew::services::storage::Area;
 use yew::services::storage::StorageService;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
 use thiserror::Error;
 use thoth_api::account::model::AccountDetails;
 
-use crate::route::AppRoute;
 use crate::string::STORAGE_ERROR;
 use crate::SESSION_KEY;
 
@@ -28,14 +24,11 @@ pub enum AccountError {
     ResponseError,
 }
 
-pub struct AccountService {
-    login_route: Route,
-}
+pub struct AccountService {}
 
 impl AccountService {
     pub fn new() -> Self {
-        let login_route = Route::from(AppRoute::Login);
-        Self { login_route }
+        Self {}
     }
 
     pub fn get_token(&self) -> Option<String> {
@@ -66,11 +59,6 @@ impl AccountService {
 
     pub fn logout(&self) {
         self.update_storage(None)
-    }
-
-    pub fn redirect_to_login(&self) {
-        let mut router: RouteAgentDispatcher<()> = RouteAgentDispatcher::new();
-        router.send(RouteRequest::ChangeRoute(self.login_route.clone()))
     }
 
     pub fn account_details(&mut self, callback: Callback<Result<AccountDetails, AccountError>>) -> FetchTask {

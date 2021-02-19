@@ -1,10 +1,11 @@
+use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 
-use crate::agent::session_timer;
-use crate::agent::session_timer::SessionTimerAgent;
-use crate::agent::session_timer::SessionTimerDispatcher;
 use crate::component::contributor::ContributorComponent;
 use crate::component::contributors::ContributorsComponent;
 use crate::component::dashboard::DashboardComponent;
@@ -28,20 +29,22 @@ use crate::component::serieses::SeriesesComponent;
 use crate::component::work::WorkComponent;
 use crate::component::works::WorksComponent;
 use crate::route::AdminRoute;
-use crate::service::account::AccountService;
+use crate::route::AppRoute;
 
 pub struct AdminComponent {
     props: Props,
-    _account_service: AccountService,
-    _link: ComponentLink<Self>,
-    _session_timer_agent: SessionTimerDispatcher,
+    router: RouteAgentDispatcher<()>,
+    link: ComponentLink<Self>,
 }
 
-pub enum Msg {}
+pub enum Msg {
+    RedirectToLogin,
+}
 
 #[derive(Clone, Properties)]
 pub struct Props {
     pub route: AdminRoute,
+    pub current_user: Option<AccountDetails>,
 }
 
 impl Component for AdminComponent {
@@ -49,80 +52,93 @@ impl Component for AdminComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let account_service = AccountService::new();
-        let mut session_timer_agent = SessionTimerAgent::dispatcher();
-
-        if !account_service.is_loggedin() {
-            account_service.redirect_to_login();
-        } else {
-            session_timer_agent.send(session_timer::Request::Start);
-        }
-
+        log::debug!("admin create");
         AdminComponent {
             props,
-            _account_service: account_service,
-            _link: link,
-            _session_timer_agent: session_timer_agent,
+            router: RouteAgentDispatcher::new(),
+            link: link,
         }
     }
 
-    fn update(&mut self, _msg: Self::Message) -> ShouldRender {
-        false
+    fn rendered(&mut self, first_render: bool) {
+        log::debug!("admin rendered");
+        if first_render && !self.props.current_user.is_some() {
+            log::debug!("admin rendered - redirect");
+            self.link.send_message(Msg::RedirectToLogin);
+        }
+    }
+
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+        match msg {
+            Msg::RedirectToLogin => {
+                self.router.send(RouteRequest::ChangeRoute(Route::from(AppRoute::Login)));
+                true
+            }
+        }
     }
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         self.props = props;
+        log::debug!("admin changed");
+        if !self.props.current_user.is_some() {
+            log::debug!("admin changed - redirect");
+            self.link.send_message(Msg::RedirectToLogin);
+        }
         true
     }
 
     fn view(&self) -> Html {
-        html! {
-            <div class="columns">
-                <div class="column">
-                    <div class="container">
-                        <MenuComponent route = &self.props.route />
+        if self.props.current_user.is_some() {
+            html! {
+                <div class="columns">
+                    <div class="column">
+                        <div class="container">
+                            <MenuComponent route = &self.props.route />
+                        </div>
                     </div>
-                </div>
-                <div class="column is-four-fifths">
-                    <div class="container">
-                    {
-                        match &self.props.route {
-                            AdminRoute::Dashboard => html!{<DashboardComponent/>},
-                            AdminRoute::Works => html!{<WorksComponent/>},
-                            AdminRoute::Work(id) => html!{<WorkComponent work_id = id />},
-                            AdminRoute::NewWork => html!{<NewWorkComponent/>},
-                            AdminRoute::Publishers => html!{<PublishersComponent/>},
-                            AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id = id />},
-                            AdminRoute::NewPublisher => html!{<NewPublisherComponent/>},
-                            AdminRoute::Imprints => html!{<ImprintsComponent/>},
-                            AdminRoute::Imprint(id) => html!{<ImprintComponent imprint_id = id />},
-                            AdminRoute::NewImprint => html!{<NewImprintComponent/>},
-                            AdminRoute::Funders => html!{<FundersComponent/>},
-                            AdminRoute::Funder(id) => html!{<FunderComponent funder_id = id />},
-                            AdminRoute::NewFunder => html!{<NewFunderComponent/>},
-                            AdminRoute::Publications => html!{<PublicationsComponent/>},
-                            AdminRoute::Publication(id) => html!{<PublicationComponent publication_id = id />},
-                            AdminRoute::NewPublication => {
-                                html!{
-                                    <article class="message is-info">
-                                        <div class="message-body">
-                                            { "New publications can be added directly to the work." }
-                                        </div>
-                                    </article>
+                    <div class="column is-four-fifths">
+                        <div class="container">
+                        {
+                            match &self.props.route {
+                                AdminRoute::Dashboard => html!{<DashboardComponent/>},
+                                AdminRoute::Works => html!{<WorksComponent/>},
+                                AdminRoute::Work(id) => html!{<WorkComponent work_id = id />},
+                                AdminRoute::NewWork => html!{<NewWorkComponent/>},
+                                AdminRoute::Publishers => html!{<PublishersComponent/>},
+                                AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id = id />},
+                                AdminRoute::NewPublisher => html!{<NewPublisherComponent/>},
+                                AdminRoute::Imprints => html!{<ImprintsComponent/>},
+                                AdminRoute::Imprint(id) => html!{<ImprintComponent imprint_id = id />},
+                                AdminRoute::NewImprint => html!{<NewImprintComponent/>},
+                                AdminRoute::Funders => html!{<FundersComponent/>},
+                                AdminRoute::Funder(id) => html!{<FunderComponent funder_id = id />},
+                                AdminRoute::NewFunder => html!{<NewFunderComponent/>},
+                                AdminRoute::Publications => html!{<PublicationsComponent/>},
+                                AdminRoute::Publication(id) => html!{<PublicationComponent publication_id = id />},
+                                AdminRoute::NewPublication => {
+                                    html!{
+                                        <article class="message is-info">
+                                            <div class="message-body">
+                                                { "New publications can be added directly to the work." }
+                                            </div>
+                                        </article>
+                                    }
                                 }
+                                AdminRoute::Contributors => html!{<ContributorsComponent/>},
+                                AdminRoute::Contributor(id) => html!{<ContributorComponent contributor_id = id />},
+                                AdminRoute::NewContributor => html!{<NewContributorComponent/>},
+                                AdminRoute::Serieses => html!{<SeriesesComponent/>},
+                                AdminRoute::NewSeries => html!{<NewSeriesComponent/>},
+                                AdminRoute::Series(id) => html!{<SeriesComponent series_id = id />},
+                                AdminRoute::Admin => html!{<DashboardComponent/>},
                             }
-                            AdminRoute::Contributors => html!{<ContributorsComponent/>},
-                            AdminRoute::Contributor(id) => html!{<ContributorComponent contributor_id = id />},
-                            AdminRoute::NewContributor => html!{<NewContributorComponent/>},
-                            AdminRoute::Serieses => html!{<SeriesesComponent/>},
-                            AdminRoute::NewSeries => html!{<NewSeriesComponent/>},
-                            AdminRoute::Series(id) => html!{<SeriesComponent series_id = id />},
-                            AdminRoute::Admin => html!{<DashboardComponent/>},
                         }
-                    }
+                        </div>
                     </div>
                 </div>
-            </div>
+            }
+        } else {
+            html! {}
         }
     }
 }
