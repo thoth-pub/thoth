@@ -26,8 +26,7 @@ pub struct RootComponent {
     current_user: Option<AccountDetails>,
     current_user_response: Callback<Result<AccountDetails, AccountError>>,
     current_user_task: Option<FetchTask>,
-    #[allow(unused)]
-    router_agent: Box<dyn Bridge<RouteAgent>>,
+    _router_agent: Box<dyn Bridge<RouteAgent>>,
     link: ComponentLink<Self>,
 }
 
@@ -43,7 +42,7 @@ impl Component for RootComponent {
     type Properties = ();
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let router_agent = RouteAgent::bridge(link.callback(Msg::Route));
+        let _router_agent = RouteAgent::bridge(link.callback(Msg::Route));
         let route_service: RouteService = RouteService::new();
         let route = route_service.get_route();
 
@@ -53,7 +52,7 @@ impl Component for RootComponent {
             current_user: Default::default(),
             current_user_response: link.callback(Msg::CurrentUserResponse),
             current_user_task: Default::default(),
-            router_agent,
+            _router_agent,
             link,
         }
     }
