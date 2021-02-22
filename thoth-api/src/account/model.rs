@@ -2,6 +2,7 @@ use chrono::naive::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::errors::Result;
 use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::account;
@@ -155,22 +156,21 @@ impl DecodedToken {
 }
 
 impl AccountAccess {
-    pub fn id_in_linked_publishers(&self, id: Uuid) -> bool {
-        let mut id_found = false;
-        for publisher in &self.linked_publishers {
-            if publisher.publisher_id == id {
-                id_found = true;
-                break;
-            }
-        }
-        id_found
-    }
-
-    pub fn can_edit(&self, pub_id: Uuid) -> Result<(), ThothError> {
-        if !self.is_superuser && !self.id_in_linked_publishers(pub_id) {
-            Err(ThothError::Unauthorised)
-        } else {
+    pub fn can_edit(&self, pub_id: Uuid) -> Result<()> {
+        if self.is_superuser {
             Ok(())
+        } else {
+            let mut id_found = false;
+            for publisher in &self.linked_publishers {
+                if publisher.publisher_id == pub_id {
+                    id_found = true;
+                    break;
+                }
+            }
+            match id_found {
+                true => Ok(()),
+                false => Err(ThothError::Unauthorised.into()),
+            }
         }
     }
 }
