@@ -109,7 +109,7 @@ pub fn update_password(email: &str, password: &str, pool: &PgPool) -> Result<Acc
     let account_obj = dsl::account
         .filter(dsl::email.eq(email))
         .first::<Account>(&connection)
-        .map_err(|e| ThothError::from(e))?;
+        .map_err(ThothError::from)?;
 
     match diesel::update(dsl::account.find(&account_obj.account_id))
         .set(&new_password)

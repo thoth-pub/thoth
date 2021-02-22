@@ -170,7 +170,7 @@ impl NewPassword {
         let salt = make_salt();
         let hash = make_hash(&password, &salt).to_vec();
         Self {
-            email: email.into(),
+            email,
             hash,
             salt,
         }
