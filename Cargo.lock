@@ -3686,6 +3686,7 @@ dependencies = [
  "anyhow",
  "log",
  "serde",
+ "serde_json",
  "thiserror",
  "thoth-api",
  "url 2.1.1",

@@ -11,15 +11,12 @@ use actix_web::{error, web, App, Error, HttpRequest, HttpResponse, HttpServer, R
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
-use thoth_api::account::model::Account;
+use thoth_api::account::model::AccountDetails;
 use thoth_api::account::model::DecodedToken;
-use thoth_api::account::model::Login;
 use thoth_api::account::model::LoginCredentials;
-use thoth_api::account::model::LoginSession;
-use thoth_api::account::model::Session;
+use thoth_api::account::service::get_account;
 use thoth_api::account::service::get_account_details;
 use thoth_api::account::service::login;
-use thoth_api::account::service::login_with_token;
 use thoth_api::db::establish_connection;
 use thoth_api::db::PgPool;
 use thoth_api::errors::ThothError;
@@ -90,32 +87,43 @@ async fn login_credentials(
 
     login(&r.email, &r.password, &pool)
         .and_then(|account| {
-            let token = account.issue_token(&pool).unwrap();
-            let user_string = serde_json::to_string(&account)
+            account.issue_token(&pool)?;
+            let details = get_account_details(&account.email, &pool).unwrap();
+            let user_string = serde_json::to_string(&details)
                 .map_err(|_| ThothError::InternalError("Serder error".into()))?;
             id.remember(user_string);
-            Ok(HttpResponse::Ok().json(Login(Session { token })))
+            Ok(HttpResponse::Ok().json(details))
         })
         .map_err(error::ErrorUnauthorized)
 }
 
 #[post("/account/token/renew")]
 async fn login_session(
-    payload: web::Json<LoginSession>,
     token: DecodedToken,
     id: Identity,
     pool: web::Data<PgPool>,
 ) -> Result<HttpResponse, Error> {
-    let r = payload.into_inner();
-    token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+    let email = match id.identity() {
+        Some(id) => {
+            let details: AccountDetails =
+                serde_json::from_str(&id).map_err(|_| ThothError::Unauthorised)?;
+            details.email
+        }
+        None => {
+            token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+            let t = token.jwt.unwrap();
+            t.sub
+        }
+    };
 
-    login_with_token(&r.0.token, &pool)
+    get_account(&email, &pool)
         .and_then(|account| {
-            let token = account.issue_token(&pool).unwrap();
-            let user_string = serde_json::to_string(&account)
+            account.issue_token(&pool)?;
+            let details = get_account_details(&account.email, &pool).unwrap();
+            let user_string = serde_json::to_string(&details)
                 .map_err(|_| ThothError::InternalError("Serder error".into()))?;
             id.remember(user_string);
-            Ok(HttpResponse::Ok().json(Login(Session { token })))
+            Ok(HttpResponse::Ok().json(details))
         })
         .map_err(error::ErrorUnauthorized)
 }
@@ -128,9 +136,9 @@ async fn account_details(
 ) -> Result<HttpResponse, Error> {
     let email = match id.identity() {
         Some(id) => {
-            let account: Account =
+            let details: AccountDetails =
                 serde_json::from_str(&id).map_err(|_| ThothError::Unauthorised)?;
-            account.email
+            details.email
         }
         None => {
             token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
