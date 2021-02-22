@@ -169,10 +169,6 @@ impl NewPassword {
     pub fn new(email: String, password: String) -> Self {
         let salt = make_salt();
         let hash = make_hash(&password, &salt).to_vec();
-        Self {
-            email,
-            hash,
-            salt,
-        }
+        Self { email, hash, salt }
     }
 }
