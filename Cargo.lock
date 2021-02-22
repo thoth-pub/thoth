@@ -116,7 +116,7 @@ dependencies = [
  "percent-encoding 2.1.0",
  "pin-project",
  "rand 0.7.3",
- "regex 1.4.1",
+ "regex 1.4.3",
  "serde",
  "serde_json",
  "serde_urlencoded 0.6.1",
@@ -163,7 +163,7 @@ dependencies = [
  "percent-encoding 2.1.0",
  "pin-project",
  "rand 0.7.3",
- "regex 1.4.1",
+ "regex 1.4.3",
  "serde",
  "serde_json",
  "serde_urlencoded 0.6.1",
@@ -205,7 +205,7 @@ dependencies = [
  "bytestring",
  "http 0.2.0",
  "log",
- "regex 1.4.1",
+ "regex 1.4.3",
  "serde",
 ]
 
@@ -362,7 +362,7 @@ dependencies = [
  "log",
  "mime",
  "pin-project",
- "regex 1.4.1",
+ "regex 1.4.3",
  "serde",
  "serde_json",
  "serde_urlencoded 0.6.1",
@@ -912,7 +912,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "libc",
  "parking_lot 0.10.0",
- "regex 1.4.1",
+ "regex 1.4.3",
  "termios",
  "unicode-width",
  "winapi 0.3.8",
@@ -920,16 +920,15 @@ dependencies = [
 
 [[package]]
 name = "console"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0b1aacfaffdbff75be81c15a399b4bedf78aaefe840e8af1d299ac2ade885d2"
+checksum = "a50aab2529019abfabfa93f1e6c41ef392f91fbf179b347a7e96abb524884a08"
 dependencies = [
  "encode_unicode",
  "lazy_static 1.4.0",
  "libc",
- "regex 1.4.1",
+ "regex 1.4.3",
  "terminal_size",
- "termios",
  "unicode-width",
  "winapi 0.3.8",
  "winapi-util",
@@ -1144,9 +1143,21 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ad1c29a0368928e78c551354dbff79f103a962ad820519724ef0d74f1c62fa9"
 dependencies = [
- "console 0.12.0",
+ "console 0.13.0",
  "lazy_static 1.4.0",
  "tempfile 2.2.0",
+]
+
+[[package]]
+name = "dialoguer"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70f807b2943dc90f9747497d9d65d7e92472149be0b88bf4ce1201b4ac979c26"
+dependencies = [
+ "console 0.13.0",
+ "lazy_static 1.4.0",
+ "tempfile 3.1.0",
+ "zeroize",
 ]
 
 [[package]]
@@ -1298,7 +1309,7 @@ dependencies = [
  "atty",
  "humantime",
  "log",
- "regex 1.4.1",
+ "regex 1.4.3",
  "termcolor",
 ]
 
@@ -2438,7 +2449,7 @@ version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7edc011af0ae98b7f88cf7e4a83b70a54a75d2b8cb013d6efd02e5956207e9eb"
 dependencies = [
- "regex 1.4.1",
+ "regex 1.4.3",
 ]
 
 [[package]]
@@ -2531,7 +2542,7 @@ checksum = "59698ea79df9bf77104aefd39cc3ec990cb9693fb59c3b0a70ddf2646fdffb4b"
 dependencies = [
  "base64 0.12.3",
  "once_cell",
- "regex 1.4.1",
+ "regex 1.4.3",
 ]
 
 [[package]]
@@ -2697,7 +2708,7 @@ dependencies = [
  "error-chain",
  "idna 0.2.0",
  "lazy_static 1.4.0",
- "regex 1.4.1",
+ "regex 1.4.3",
  "url 2.1.1",
 ]
 
@@ -2970,13 +2981,13 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.4.1"
+version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8963b85b8ce3074fecffde43b4b0dded83ce2f367dc8d363afc56679f3ee820b"
+checksum = "d9251239e129e16308e70d853559389de218ac275b515068abc96829d05b948a"
 dependencies = [
  "aho-corasick 0.7.8",
  "memchr",
- "regex-syntax 0.6.20",
+ "regex-syntax 0.6.22",
  "thread_local 1.0.1",
 ]
 
@@ -2991,9 +3002,9 @@ dependencies = [
 
 [[package]]
 name = "regex-syntax"
-version = "0.6.20"
+version = "0.6.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cab7a364d15cde1e505267766a2d3c4e22a843e1a601f0fa7564c0f82ced11c"
+checksum = "b5eb417147ba9860a96cfe72a0b93bf88fee1744b5636ec99ab20c1aa9376581"
 
 [[package]]
 name = "remove_dir_all"
@@ -3577,9 +3588,9 @@ dependencies = [
 
 [[package]]
 name = "terminal_size"
-version = "0.1.13"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a14cd9f8c72704232f0bfc8455c0e861f0ad4eb60cc9ec8a170e231414c1e13"
+checksum = "86ca8ced750734db02076f44132d802af0b33b09942331f4459dde8636fd2406"
 dependencies = [
  "libc",
  "winapi 0.3.8",
@@ -3635,6 +3646,7 @@ dependencies = [
  "cargo-husky",
  "chrono",
  "clap",
+ "dialoguer 0.7.1",
  "dotenv",
  "env_logger 0.7.1",
  "juniper",
@@ -3670,7 +3682,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "phf",
  "rand 0.7.3",
- "regex 1.4.1",
+ "regex 1.4.3",
  "reqwest 0.10.3",
  "serde",
  "serde_derive",
@@ -4412,7 +4424,7 @@ dependencies = [
  "chrono",
  "console 0.6.2",
  "curl",
- "dialoguer",
+ "dialoguer 0.3.0",
  "dirs",
  "env_logger 0.5.13",
  "failure",
@@ -4660,6 +4672,12 @@ dependencies = [
  "quote 1.0.2",
  "syn 1.0.33",
 ]
+
+[[package]]
+name = "zeroize"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45af6a010d13e4cf5b54c94ba5a2b2eba5596b9e46bf5875612d332a1f2b3f86"
 
 [[package]]
 name = "zip"

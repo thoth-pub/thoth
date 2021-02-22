@@ -128,6 +128,13 @@ pub struct Logout(pub Session);
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub struct LogoutResponse;
 
+#[cfg_attr(feature = "backend", derive(AsChangeset), table_name = "account")]
+pub struct NewPassword {
+    pub email: String,
+    pub hash: Vec<u8>,
+    pub salt: String,
+}
+
 impl Session {
     pub fn new<T>(token: T) -> Self
     where

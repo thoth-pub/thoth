@@ -1,10 +1,13 @@
 extern crate clap;
 use clap::{crate_authors, crate_version, App, AppSettings, Arg};
+use dialoguer::{console::Term, theme::ColorfulTheme, Password, Select};
 use dotenv::dotenv;
 
 use thoth::server::api::start_server as api_server;
 use thoth::server::app::start_server as app_server;
+use thoth_api::account::service::all_emails;
 use thoth_api::account::service::register;
+use thoth_api::account::service::update_password;
 use thoth_api::db::establish_connection;
 use thoth_api::db::run_migrations;
 use thoth_api::errors::Result;
@@ -111,7 +114,8 @@ fn main() -> Result<()> {
                                 .multiple(false)
                                 .help("Is the user a bot"),
                         ),
-                ),
+                )
+                .subcommand(App::new("password").about("Reset a password")),
         )
         .get_matches();
 
@@ -162,6 +166,27 @@ fn main() -> Result<()> {
                     &is_bot,
                     &pool,
                 ) {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(e.into()),
+                }
+            }
+            ("password", Some(_)) => {
+                dotenv().ok();
+                let pool = establish_connection();
+
+                let all_emails = all_emails(&pool).unwrap();
+                let email_selection = Select::with_theme(&ColorfulTheme::default())
+                    .items(&all_emails)
+                    .interact_on(&Term::stdout())?;
+                let password = Password::new()
+                    .with_prompt("New Password")
+                    .with_confirmation("Confirm password", "Passwords do not match")
+                    .interact_on(&Term::stdout())?;
+                let email = all_emails.get(email_selection).unwrap();
+
+                dotenv().ok();
+                let pool = establish_connection();
+                match update_password(&email, &password, &pool) {
                     Ok(_) => Ok(()),
                     Err(e) => Err(e.into()),
                 }

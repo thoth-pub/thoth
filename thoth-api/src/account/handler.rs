@@ -13,6 +13,7 @@ use crate::account::model::AccountData;
 use crate::account::model::DecodedToken;
 use crate::account::model::LinkedPublisher;
 use crate::account::model::NewAccount;
+use crate::account::model::NewPassword;
 use crate::account::model::PublisherAccount;
 use crate::account::model::Token;
 use crate::account::util::make_hash;
@@ -161,5 +162,17 @@ impl actix_web::FromRequest for DecodedToken {
                 Err(_) => DecodedToken { jwt: None },
             },
         }))
+    }
+}
+
+impl NewPassword {
+    pub fn new(email: String, password: String) -> Self {
+        let salt = make_salt();
+        let hash = make_hash(&password, &salt).to_vec();
+        Self {
+            email: email.into(),
+            hash,
+            salt,
+        }
     }
 }
