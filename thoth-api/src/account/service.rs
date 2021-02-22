@@ -102,7 +102,6 @@ pub fn all_emails(pool: &PgPool) -> Result<Vec<String>, ThothError> {
 
 pub fn update_password(email: &str, password: &str, pool: &PgPool) -> Result<Account, ThothError> {
     let connection = pool.get().unwrap();
-    println!("email: {}; password: {}", email, password);
 
     let new_password = NewPassword::new(email.to_string(), password.to_string());
     use crate::schema::account::dsl;
