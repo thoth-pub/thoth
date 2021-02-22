@@ -37,10 +37,10 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(pool: Arc<PgPool>, account_access: AccountAccess, token: DecodedToken) -> Self {
+    pub fn new(pool: Arc<PgPool>, token: DecodedToken) -> Self {
         Self {
             db: pool,
-            account_access,
+            account_access: token.get_user_permissions(),
             token,
         }
     }
@@ -2191,21 +2191,11 @@ impl MutationRoot {
 
         let connection = context.db.get().unwrap();
 
-        use crate::schema::contribution::dsl;
-        let target = dsl::contribution
-            .filter(dsl::work_id.eq(&data.work_id))
-            .filter(dsl::contributor_id.eq(&data.contributor_id))
-            .filter(dsl::contribution_type.eq(&data.contribution_type));
-
-        let contribution = dsl::contribution
-            .filter(dsl::work_id.eq(&data.work_id))
-            .filter(dsl::contributor_id.eq(&data.contributor_id))
-            .filter(dsl::contribution_type.eq(&data.contribution_type))
-            .get_result::<Contribution>(&connection)
-            .unwrap();
-        if !(data.work_id == contribution.work_id) {
-            user_can_edit_work(contribution.work_id, context)?;
-        }
+        use crate::schema::contribution::dsl::*;
+        let target = contribution
+            .filter(work_id.eq(&data.work_id))
+            .filter(contributor_id.eq(&data.contributor_id))
+            .filter(contribution_type.eq(&data.contribution_type));
 
         match diesel::update(target).set(&data).get_result(&connection) {
             Ok(c) => Ok(c),
@@ -2253,19 +2243,10 @@ impl MutationRoot {
 
         let connection = context.db.get().unwrap();
 
-        use crate::schema::issue::dsl;
-        let target = dsl::issue
-            .filter(dsl::series_id.eq(&data.series_id))
-            .filter(dsl::work_id.eq(&data.work_id));
-
-        let issue = dsl::issue
-            .filter(dsl::series_id.eq(&data.series_id))
-            .filter(dsl::work_id.eq(&data.work_id))
-            .get_result::<Issue>(&connection)
-            .unwrap();
-        if !(data.work_id == issue.work_id) {
-            user_can_edit_work(issue.work_id, context)?;
-        }
+        use crate::schema::issue::dsl::*;
+        let target = issue
+            .filter(series_id.eq(&data.series_id))
+            .filter(work_id.eq(&data.work_id));
 
         match diesel::update(target).set(&data).get_result(&connection) {
             Ok(c) => Ok(c),

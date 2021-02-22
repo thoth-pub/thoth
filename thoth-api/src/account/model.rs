@@ -156,21 +156,17 @@ impl DecodedToken {
 }
 
 impl AccountAccess {
-    pub fn can_edit(&self, pub_id: Uuid) -> Result<()> {
+    pub fn can_edit(&self, publisher_id: Uuid) -> Result<()> {
         if self.is_superuser {
             Ok(())
+        } else if let Some(_found) = &self
+            .linked_publishers
+            .iter()
+            .position(|publisher| publisher.publisher_id == publisher_id)
+        {
+            Ok(())
         } else {
-            let mut id_found = false;
-            for publisher in &self.linked_publishers {
-                if publisher.publisher_id == pub_id {
-                    id_found = true;
-                    break;
-                }
-            }
-            match id_found {
-                true => Ok(()),
-                false => Err(ThothError::Unauthorised.into()),
-            }
+            Err(ThothError::Unauthorised.into())
         }
     }
 }
