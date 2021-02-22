@@ -25,6 +25,9 @@ pub enum AccountError {
     ResponseError,
 }
 
+const HTTP_UNAUTHORIZED: u16 = 401;
+const HTTP_FORBIDDEN: u16 = 403;
+
 pub struct AccountService {}
 
 impl AccountService {
@@ -110,8 +113,8 @@ impl AccountService {
                     }
                 } else {
                     match meta.status.as_u16() {
-                        401 => callback.emit(Err(AccountError::AuthenticationError)),
-                        403 => callback.emit(Err(AccountError::AuthenticationError)),
+                        HTTP_UNAUTHORIZED => callback.emit(Err(AccountError::AuthenticationError)),
+                        HTTP_FORBIDDEN => callback.emit(Err(AccountError::AuthenticationError)),
                         _ => callback.emit(Err(AccountError::ResponseError)),
                     }
                 }
