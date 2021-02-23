@@ -1,6 +1,6 @@
 use chrono::naive::NaiveDateTime;
-use uuid::Uuid;
 use std::fmt;
+use uuid::Uuid;
 
 #[cfg(feature = "backend")]
 use crate::schema::publisher;

@@ -10,9 +10,9 @@ use crate::account::model::NewPassword;
 use crate::account::model::NewPublisherAccount;
 use crate::account::model::PublisherAccount;
 use crate::account::util::verify;
-use crate::publisher::model::Publisher;
 use crate::db::PgPool;
 use crate::errors::ThothError;
+use crate::publisher::model::Publisher;
 
 pub fn login(user_email: &str, user_password: &str, pool: &PgPool) -> Result<Account, ThothError> {
     use crate::schema::account::dsl;

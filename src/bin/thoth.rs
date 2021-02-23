@@ -125,7 +125,7 @@ fn main() -> Result<()> {
                     .default(false)
                     .interact_text()?;
 
-                let chosen : Vec<usize> = MultiSelect::new()
+                let chosen: Vec<usize> = MultiSelect::new()
                     .items(&publishers)
                     .with_prompt("Select publishers to link this account to")
                     .interact_on(&Term::stdout())?;
@@ -133,7 +133,10 @@ fn main() -> Result<()> {
                 for index in chosen {
                     let publisher = publishers.get(index).unwrap();
                     let is_admin: bool = Input::new()
-                        .with_prompt(format!("Make user an admin of '{}'?", publisher.publisher_name))
+                        .with_prompt(format!(
+                            "Make user an admin of '{}'?",
+                            publisher.publisher_name
+                        ))
                         .default(false)
                         .interact_text()?;
                     let linked_publisher = LinkedPublisher {
