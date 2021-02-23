@@ -28,14 +28,14 @@ jobs:
       run: rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js
     - name: Build binary
       uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --verbose
+      with:
+        command: build
+        args: --verbose
     - name: Run tests
       uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --workspace --verbose
+      with:
+        command: test
+        args: --workspace --verbose
     - name: Run linting
       uses: actions-rs/cargo@v1
         with:
@@ -52,6 +52,6 @@ jobs:
             override: true
       - name: Run format
         uses: actions-rs/cargo@v1
-          with:
-            command: fmt
-            args: --all -- --check
+        with:
+          command: fmt
+          args: --all -- --check
