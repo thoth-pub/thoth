@@ -102,7 +102,6 @@ fn main() -> Result<()> {
             ("register", Some(_)) => {
                 dotenv().ok();
                 let pool = establish_connection();
-                let publishers = all_publishers(&pool).expect("Unable to fetch publishers.");
 
                 let name: String = Input::new()
                     .with_prompt("Enter given name")
@@ -126,25 +125,28 @@ fn main() -> Result<()> {
                     .default(false)
                     .interact_text()?;
 
-                let chosen: Vec<usize> = MultiSelect::new()
-                    .items(&publishers)
-                    .with_prompt("Select publishers to link this account to")
-                    .interact_on(&Term::stdout())?;
-                let mut linked_publishers = vec![];
-                for index in chosen {
-                    let publisher = publishers.get(index).unwrap();
-                    let is_admin: bool = Input::new()
-                        .with_prompt(format!(
-                            "Make user an admin of '{}'?",
-                            publisher.publisher_name
-                        ))
-                        .default(false)
-                        .interact_text()?;
-                    let linked_publisher = LinkedPublisher {
-                        publisher_id: publisher.publisher_id,
-                        is_admin,
-                    };
-                    linked_publishers.push(linked_publisher);
+                let linked_publishers = vec![];
+                if let Ok(publishers) = all_publishers(&pool) {
+                    let chosen: Vec<usize> = MultiSelect::new()
+                        .items(&publishers)
+                        .with_prompt("Select publishers to link this account to")
+                        .interact_on(&Term::stdout())?;
+                    let mut linked_publishers = vec![];
+                    for index in chosen {
+                        let publisher = publishers.get(index).unwrap();
+                        let is_admin: bool = Input::new()
+                            .with_prompt(format!(
+                                "Make user an admin of '{}'?",
+                                publisher.publisher_name
+                            ))
+                            .default(false)
+                            .interact_text()?;
+                        let linked_publisher = LinkedPublisher {
+                            publisher_id: publisher.publisher_id,
+                            is_admin,
+                        };
+                        linked_publishers.push(linked_publisher);
+                    }
                 }
                 let account_data = AccountData {
                     name,
