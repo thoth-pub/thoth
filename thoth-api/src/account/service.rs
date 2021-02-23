@@ -7,7 +7,10 @@ use crate::account::model::AccountDetails;
 use crate::account::model::LinkedPublisher;
 use crate::account::model::NewAccount;
 use crate::account::model::NewPassword;
+use crate::account::model::NewPublisherAccount;
+use crate::account::model::PublisherAccount;
 use crate::account::util::verify;
+use crate::publisher::model::Publisher;
 use crate::db::PgPool;
 use crate::errors::ThothError;
 
@@ -69,6 +72,7 @@ pub fn register(
     password: &str,
     is_superuser: &bool,
     is_bot: &bool,
+    linked_publishers: &Vec<LinkedPublisher>,
     pool: &PgPool,
 ) -> Result<Account, ThothError> {
     let connection = pool.get().unwrap();
@@ -81,11 +85,22 @@ pub fn register(
         is_bot: is_bot.to_owned(),
     };
 
-    use crate::schema::account::dsl;
+    use crate::schema::account;
+    use crate::schema::publisher_account;
     let account: NewAccount = account_data.into();
-    let created_account: Account = diesel::insert_into(dsl::account)
+    let created_account: Account = diesel::insert_into(account::dsl::account)
         .values(&account)
         .get_result::<Account>(&connection)?;
+    for linked_publisher in linked_publishers {
+        let publisher_account = NewPublisherAccount {
+            account_id: created_account.account_id,
+            publisher_id: linked_publisher.publisher_id,
+            is_admin: linked_publisher.is_admin,
+        };
+        diesel::insert_into(publisher_account::dsl::publisher_account)
+            .values(&publisher_account)
+            .get_result::<PublisherAccount>(&connection)?;
+    }
     Ok(created_account)
 }
 
@@ -99,6 +114,17 @@ pub fn all_emails(pool: &PgPool) -> Result<Vec<String>, ThothError> {
         .load::<String>(&connection)
         .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
     Ok(emails)
+}
+
+pub fn all_publishers(pool: &PgPool) -> Result<Vec<Publisher>, ThothError> {
+    let connection = pool.get().unwrap();
+
+    use crate::schema::publisher::dsl;
+    let publishers = dsl::publisher
+        .order(dsl::publisher_name.asc())
+        .load::<Publisher>(&connection)
+        .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
+    Ok(publishers)
 }
 
 pub fn update_password(email: &str, password: &str, pool: &PgPool) -> Result<Account, ThothError> {

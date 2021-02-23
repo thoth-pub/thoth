@@ -1,11 +1,13 @@
 extern crate clap;
 use clap::{crate_authors, crate_version, App, AppSettings, Arg};
-use dialoguer::{console::Term, theme::ColorfulTheme, Input, Password, Select};
+use dialoguer::{console::Term, theme::ColorfulTheme, Input, MultiSelect, Password, Select};
 use dotenv::dotenv;
 
 use thoth::server::api::start_server as api_server;
 use thoth::server::app::start_server as app_server;
+use thoth_api::account::model::LinkedPublisher;
 use thoth_api::account::service::all_emails;
+use thoth_api::account::service::all_publishers;
 use thoth_api::account::service::register;
 use thoth_api::account::service::update_password;
 use thoth_api::db::establish_connection;
@@ -97,6 +99,10 @@ fn main() -> Result<()> {
         }
         ("account", Some(account_matches)) => match account_matches.subcommand() {
             ("register", Some(_)) => {
+                dotenv().ok();
+                let pool = establish_connection();
+                let publishers = all_publishers(&pool).expect("Unable to fetch publishers.");
+
                 let name: String = Input::new()
                     .with_prompt("Enter given name")
                     .interact_text()?;
@@ -119,8 +125,24 @@ fn main() -> Result<()> {
                     .default(false)
                     .interact_text()?;
 
-                dotenv().ok();
-                let pool = establish_connection();
+                let chosen : Vec<usize> = MultiSelect::new()
+                    .items(&publishers)
+                    .with_prompt("Select publishers to link this account to")
+                    .interact_on(&Term::stdout())?;
+                let mut linked_publishers = vec![];
+                for index in chosen {
+                    let publisher = publishers.get(index).unwrap();
+                    let is_admin: bool = Input::new()
+                        .with_prompt(format!("Make user an admin of '{}'?", publisher.publisher_name))
+                        .default(false)
+                        .interact_text()?;
+                    let linked_publisher = LinkedPublisher {
+                        publisher_id: publisher.publisher_id,
+                        is_admin,
+                    };
+                    linked_publishers.push(linked_publisher);
+                }
+
                 match register(
                     &name,
                     &surname,
@@ -128,6 +150,7 @@ fn main() -> Result<()> {
                     &password,
                     &is_superuser,
                     &is_bot,
+                    &linked_publishers,
                     &pool,
                 ) {
                     Ok(_) => Ok(()),
