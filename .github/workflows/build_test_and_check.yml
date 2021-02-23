@@ -38,9 +38,9 @@ jobs:
         args: --workspace --verbose
     - name: Run linting
       uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all --all-targets --all-features -- -D warnings
+      with:
+        command: clippy
+        args: --all --all-targets --all-features -- -D warnings
   format_check:
     runs-on: ubuntu-latest
     steps:
