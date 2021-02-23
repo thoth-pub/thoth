@@ -24,7 +24,9 @@ graphql_query_builder! {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-pub struct Variables {}
+pub struct Variables {
+    pub publishers: Vec<String>,
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

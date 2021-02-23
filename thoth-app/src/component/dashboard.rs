@@ -19,7 +19,6 @@ use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
 pub struct DashboardComponent {
-    props: Props,
     get_stats: FetchStats,
     link: ComponentLink<Self>,
 }
@@ -39,9 +38,20 @@ impl Component for DashboardComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        let mut publishers = vec![];
+        if let Some(account) = props.current_user {
+            if !account.resource_access.is_superuser {
+                publishers = account
+                    .resource_access
+                    .linked_publishers
+                    .iter()
+                    .map(|publisher| publisher.publisher_id.to_string())
+                    .collect();
+            }
+        }
         let body = StatsRequestBody {
             variables: Variables {
-
+                publishers: publishers,
             },
             ..Default::default()
         };
@@ -50,7 +60,6 @@ impl Component for DashboardComponent {
         link.send_message(Msg::GetStats);
 
         DashboardComponent {
-            props,
             get_stats,
             link,
         }
