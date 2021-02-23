@@ -7,10 +7,12 @@ use juniper::RootNode;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
 use crate::contribution::model::*;
 use crate::contributor::model::*;
 use crate::db::PgPool;
+use crate::errors::Result;
 use crate::errors::ThothError;
 use crate::funder::model::*;
 use crate::funding::model::*;
@@ -30,12 +32,17 @@ impl juniper::Context for Context {}
 #[derive(Clone)]
 pub struct Context {
     pub db: Arc<PgPool>,
+    pub account_access: AccountAccess,
     pub token: DecodedToken,
 }
 
 impl Context {
     pub fn new(pool: Arc<PgPool>, token: DecodedToken) -> Self {
-        Self { db: pool, token }
+        Self {
+            db: pool,
+            account_access: token.get_user_permissions(),
+            token,
+        }
     }
 }
 
@@ -1926,6 +1933,7 @@ pub struct MutationRoot;
 impl MutationRoot {
     fn create_work(context: &Context, data: NewWork) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_imprint(data.imprint_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(work::table)
@@ -1939,6 +1947,10 @@ impl MutationRoot {
 
     fn create_publisher(context: &Context, data: NewPublisher) -> FieldResult<Publisher> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        // Only superusers can create new publishers - NewPublisher has no ID field
+        if !context.account_access.is_superuser {
+            return Err(ThothError::Unauthorised.into());
+        }
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(publisher::table)
@@ -1952,6 +1964,7 @@ impl MutationRoot {
 
     fn create_imprint(context: &Context, data: NewImprint) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context.account_access.can_edit(data.publisher_id)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(imprint::table)
@@ -1978,6 +1991,7 @@ impl MutationRoot {
 
     fn create_contribution(context: &Context, data: NewContribution) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(contribution::table)
@@ -1991,6 +2005,7 @@ impl MutationRoot {
 
     fn create_publication(context: &Context, data: NewPublication) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(publication::table)
@@ -2004,6 +2019,7 @@ impl MutationRoot {
 
     fn create_series(context: &Context, data: NewSeries) -> FieldResult<Series> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_imprint(data.imprint_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(series::table)
@@ -2017,6 +2033,7 @@ impl MutationRoot {
 
     fn create_issue(context: &Context, data: NewIssue) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(issue::table)
@@ -2030,6 +2047,7 @@ impl MutationRoot {
 
     fn create_language(context: &Context, data: NewLanguage) -> FieldResult<Language> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(language::table)
@@ -2056,6 +2074,7 @@ impl MutationRoot {
 
     fn create_funding(context: &Context, data: NewFunding) -> FieldResult<Funding> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(funding::table)
@@ -2069,6 +2088,7 @@ impl MutationRoot {
 
     fn create_price(context: &Context, data: NewPrice) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_publication(data.publication_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(price::table)
@@ -2082,6 +2102,7 @@ impl MutationRoot {
 
     fn create_subject(context: &Context, data: NewSubject) -> FieldResult<Subject> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
 
         check_subject(&data.subject_type, &data.subject_code)?;
 
@@ -2097,12 +2118,16 @@ impl MutationRoot {
 
     fn update_work(context: &Context, data: PatchWork) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_imprint(data.imprint_id, context)?;
 
-        match diesel::update(crate::schema::work::dsl::work.find(&data.work_id))
-            .set(&data)
-            .get_result(&connection)
-        {
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::work::dsl::work.find(data.work_id);
+        let work = target.get_result::<Work>(&connection).unwrap();
+        if !(data.imprint_id == work.imprint_id) {
+            user_can_edit_imprint(work.imprint_id, context)?;
+        }
+
+        match diesel::update(target).set(&data).get_result(&connection) {
             Ok(c) => Ok(c),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -2110,12 +2135,16 @@ impl MutationRoot {
 
     fn update_publisher(context: &Context, data: PatchPublisher) -> FieldResult<Publisher> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        context.account_access.can_edit(data.publisher_id)?;
 
-        match diesel::update(crate::schema::publisher::dsl::publisher.find(&data.publisher_id))
-            .set(&data)
-            .get_result(&connection)
-        {
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::publisher::dsl::publisher.find(&data.publisher_id);
+        let publisher = target.get_result::<Publisher>(&connection).unwrap();
+        if !(data.publisher_id == publisher.publisher_id) {
+            context.account_access.can_edit(publisher.publisher_id)?;
+        }
+
+        match diesel::update(target).set(&data).get_result(&connection) {
             Ok(c) => Ok(c),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -2123,12 +2152,16 @@ impl MutationRoot {
 
     fn update_imprint(context: &Context, data: PatchImprint) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        context.account_access.can_edit(data.publisher_id)?;
 
-        match diesel::update(crate::schema::imprint::dsl::imprint.find(&data.imprint_id))
-            .set(&data)
-            .get_result(&connection)
-        {
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::imprint::dsl::imprint.find(&data.imprint_id);
+        let imprint = target.get_result::<Imprint>(&connection).unwrap();
+        if !(data.publisher_id == imprint.publisher_id) {
+            context.account_access.can_edit(imprint.publisher_id)?;
+        }
+
+        match diesel::update(target).set(&data).get_result(&connection) {
             Ok(c) => Ok(c),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -2154,6 +2187,8 @@ impl MutationRoot {
         data: PatchContribution,
     ) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
+
         let connection = context.db.get().unwrap();
 
         use crate::schema::contribution::dsl::*;
@@ -2170,14 +2205,16 @@ impl MutationRoot {
 
     fn update_publication(context: &Context, data: PatchPublication) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_work(data.work_id, context)?;
 
-        match diesel::update(
-            crate::schema::publication::dsl::publication.find(&data.publication_id),
-        )
-        .set(&data)
-        .get_result(&connection)
-        {
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::publication::dsl::publication.find(&data.publication_id);
+        let publication = target.get_result::<Publication>(&connection).unwrap();
+        if !(data.work_id == publication.work_id) {
+            user_can_edit_work(publication.work_id, context)?;
+        }
+
+        match diesel::update(target).set(&data).get_result(&connection) {
             Ok(c) => Ok(c),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -2185,12 +2222,16 @@ impl MutationRoot {
 
     fn update_series(context: &Context, data: PatchSeries) -> FieldResult<Series> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_imprint(data.imprint_id, context)?;
 
-        match diesel::update(crate::schema::series::dsl::series.find(&data.series_id))
-            .set(&data)
-            .get_result(&connection)
-        {
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::series::dsl::series.find(&data.series_id);
+        let series = target.get_result::<Series>(&connection).unwrap();
+        if !(data.imprint_id == series.imprint_id) {
+            user_can_edit_imprint(series.imprint_id, context)?;
+        }
+
+        match diesel::update(target).set(&data).get_result(&connection) {
             Ok(c) => Ok(c),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -2198,6 +2239,8 @@ impl MutationRoot {
 
     fn update_issue(context: &Context, data: PatchIssue) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
+
         let connection = context.db.get().unwrap();
 
         use crate::schema::issue::dsl::*;
@@ -2213,12 +2256,16 @@ impl MutationRoot {
 
     fn update_language(context: &Context, data: PatchLanguage) -> FieldResult<Language> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_work(data.work_id, context)?;
 
-        match diesel::update(crate::schema::language::dsl::language.find(&data.language_id))
-            .set(&data)
-            .get_result(&connection)
-        {
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::language::dsl::language.find(&data.language_id);
+        let language = target.get_result::<Language>(&connection).unwrap();
+        if !(data.work_id == language.work_id) {
+            user_can_edit_work(language.work_id, context)?;
+        }
+
+        match diesel::update(target).set(&data).get_result(&connection) {
             Ok(c) => Ok(c),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -2239,12 +2286,16 @@ impl MutationRoot {
 
     fn update_funding(context: &Context, data: PatchFunding) -> FieldResult<Funding> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_work(data.work_id, context)?;
 
-        match diesel::update(crate::schema::funding::dsl::funding.find(&data.funding_id))
-            .set(&data)
-            .get_result(&connection)
-        {
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::funding::dsl::funding.find(&data.funding_id);
+        let funding = target.get_result::<Funding>(&connection).unwrap();
+        if !(data.work_id == funding.work_id) {
+            user_can_edit_work(funding.work_id, context)?;
+        }
+
+        match diesel::update(target).set(&data).get_result(&connection) {
             Ok(c) => Ok(c),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -2252,12 +2303,17 @@ impl MutationRoot {
 
     fn update_price(context: &Context, data: PatchPrice) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_publication(data.publication_id, context)?;
 
-        match diesel::update(crate::schema::price::dsl::price.find(&data.price_id))
-            .set(&data)
-            .get_result(&connection)
-        {
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::price::dsl::price.find(&data.price_id);
+        let result = target.get_result::<Price>(&connection);
+        let price = result.unwrap();
+        if !(data.publication_id == price.publication_id) {
+            user_can_edit_publication(price.publication_id, context)?;
+        }
+
+        match diesel::update(target).set(&data).get_result(&connection) {
             Ok(c) => Ok(c),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -2265,13 +2321,18 @@ impl MutationRoot {
 
     fn update_subject(context: &Context, data: PatchSubject) -> FieldResult<Subject> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        check_subject(&data.subject_type, &data.subject_code)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_work(data.work_id, context)?;
 
-        match diesel::update(crate::schema::subject::dsl::subject.find(&data.subject_id))
-            .set(&data)
-            .get_result(&connection)
-        {
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::subject::dsl::subject.find(&data.subject_id);
+        let subject = target.get_result::<Subject>(&connection).unwrap();
+        if !(data.work_id == subject.work_id) {
+            user_can_edit_work(subject.work_id, context)?;
+        }
+
+        check_subject(&data.subject_type, &data.subject_code)?;
+
+        match diesel::update(target).set(&data).get_result(&connection) {
             Ok(c) => Ok(c),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -2279,8 +2340,9 @@ impl MutationRoot {
 
     fn delete_work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_work(work_id, context)?;
 
+        let connection = context.db.get().unwrap();
         let target = crate::schema::work::dsl::work.find(work_id);
         let result = target.get_result::<Work>(&connection);
         match diesel::delete(target).execute(&connection) {
@@ -2291,8 +2353,9 @@ impl MutationRoot {
 
     fn delete_publisher(context: &Context, publisher_id: Uuid) -> FieldResult<Publisher> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        context.account_access.can_edit(publisher_id)?;
 
+        let connection = context.db.get().unwrap();
         let target = crate::schema::publisher::dsl::publisher.find(publisher_id);
         let result = target.get_result::<Publisher>(&connection);
         match diesel::delete(target).execute(&connection) {
@@ -2307,8 +2370,11 @@ impl MutationRoot {
 
         let target = crate::schema::imprint::dsl::imprint.find(imprint_id);
         let result = target.get_result::<Imprint>(&connection);
+        let imprint = result.unwrap();
+        context.account_access.can_edit(imprint.publisher_id)?;
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(imprint),
             Err(e) => Err(FieldError::from(e)),
         }
     }
@@ -2332,6 +2398,8 @@ impl MutationRoot {
         contribution_type: ContributionType,
     ) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(work_id, context)?;
+
         let connection = context.db.get().unwrap();
 
         use crate::schema::contribution::dsl;
@@ -2352,10 +2420,12 @@ impl MutationRoot {
 
     fn delete_publication(context: &Context, publication_id: Uuid) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_publication(publication_id, context)?;
 
+        let connection = context.db.get().unwrap();
         let target = crate::schema::publication::dsl::publication.find(publication_id);
         let result = target.get_result::<Publication>(&connection);
+
         match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(result.unwrap()),
             Err(e) => Err(FieldError::from(e)),
@@ -2368,14 +2438,19 @@ impl MutationRoot {
 
         let target = crate::schema::series::dsl::series.find(series_id);
         let result = target.get_result::<Series>(&connection);
+        let series = result.unwrap();
+        user_can_edit_imprint(series.imprint_id, context)?;
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(series),
             Err(e) => Err(FieldError::from(e)),
         }
     }
 
     fn delete_issue(context: &Context, series_id: Uuid, work_id: Uuid) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(work_id, context)?;
+
         let connection = context.db.get().unwrap();
 
         use crate::schema::issue::dsl;
@@ -2398,8 +2473,11 @@ impl MutationRoot {
 
         let target = crate::schema::language::dsl::language.find(language_id);
         let result = target.get_result::<Language>(&connection);
+        let language = result.unwrap();
+        user_can_edit_work(language.work_id, context)?;
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(language),
             Err(e) => Err(FieldError::from(e)),
         }
     }
@@ -2422,8 +2500,11 @@ impl MutationRoot {
 
         let target = crate::schema::funding::dsl::funding.find(funding_id);
         let result = target.get_result::<Funding>(&connection);
+        let funding = result.unwrap();
+        user_can_edit_work(funding.work_id, context)?;
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(funding),
             Err(e) => Err(FieldError::from(e)),
         }
     }
@@ -2434,8 +2515,11 @@ impl MutationRoot {
 
         let target = crate::schema::price::dsl::price.find(price_id);
         let result = target.get_result::<Price>(&connection);
+        let price = result.unwrap();
+        user_can_edit_publication(price.publication_id, context)?;
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(price),
             Err(e) => Err(FieldError::from(e)),
         }
     }
@@ -2446,8 +2530,11 @@ impl MutationRoot {
 
         let target = crate::schema::subject::dsl::subject.find(subject_id);
         let result = target.get_result::<Subject>(&connection);
+        let subject = result.unwrap();
+        user_can_edit_work(subject.work_id, context)?;
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(subject),
             Err(e) => Err(FieldError::from(e)),
         }
     }
@@ -3256,4 +3343,36 @@ pub type Schema = RootNode<'static, QueryRoot, MutationRoot>;
 
 pub fn create_schema() -> Schema {
     Schema::new(QueryRoot {}, MutationRoot {})
+}
+
+fn user_can_edit_imprint(imprint_id: Uuid, context: &Context) -> Result<()> {
+    use crate::schema::imprint::dsl;
+    let pub_id = dsl::imprint
+        .select(dsl::publisher_id)
+        .filter(dsl::imprint_id.eq(imprint_id))
+        .first::<Uuid>(&context.db.get().unwrap())
+        .expect("Error checking permissions");
+    context.account_access.can_edit(pub_id)
+}
+
+fn user_can_edit_work(work_id: Uuid, context: &Context) -> Result<()> {
+    use crate::schema::imprint::dsl::*;
+    let pub_id = imprint
+        .inner_join(crate::schema::work::table)
+        .select(publisher_id)
+        .filter(crate::schema::work::work_id.eq(work_id))
+        .first::<Uuid>(&context.db.get().unwrap())
+        .expect("Error checking permissions");
+    context.account_access.can_edit(pub_id)
+}
+
+fn user_can_edit_publication(publication_id: Uuid, context: &Context) -> Result<()> {
+    use crate::schema::imprint::dsl::*;
+    let pub_id = imprint
+        .inner_join(crate::schema::work::table.inner_join(crate::schema::publication::table))
+        .select(publisher_id)
+        .filter(crate::schema::publication::publication_id.eq(publication_id))
+        .first::<Uuid>(&context.db.get().unwrap())
+        .expect("Error checking permissions");
+    context.account_access.can_edit(pub_id)
 }

@@ -2,6 +2,8 @@ use chrono::naive::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::errors::Result;
+use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::account;
 #[cfg(feature = "backend")]
@@ -110,4 +112,34 @@ pub struct DecodedToken {
 pub struct LoginCredentials {
     pub email: String,
     pub password: String,
+}
+
+impl DecodedToken {
+    pub fn get_user_permissions(&self) -> AccountAccess {
+        if let Some(jwt) = &self.jwt {
+            jwt.namespace.clone()
+        } else {
+            AccountAccess {
+                is_superuser: false,
+                is_bot: false,
+                linked_publishers: vec![],
+            }
+        }
+    }
+}
+
+impl AccountAccess {
+    pub fn can_edit(&self, publisher_id: Uuid) -> Result<()> {
+        if self.is_superuser {
+            Ok(())
+        } else if let Some(_found) = &self
+            .linked_publishers
+            .iter()
+            .position(|publisher| publisher.publisher_id == publisher_id)
+        {
+            Ok(())
+        } else {
+            Err(ThothError::Unauthorised.into())
+        }
+    }
 }
