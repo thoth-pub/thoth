@@ -97,6 +97,7 @@ pub struct AccountDetails {
     pub name: String,
     pub surname: String,
     pub email: String,
+    pub token: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     pub resource_access: AccountAccess,
@@ -107,38 +108,10 @@ pub struct DecodedToken {
     pub jwt: Option<Token>,
 }
 
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
-pub struct Session {
-    pub token: String,
-}
-
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize, Default)]
 pub struct LoginCredentials {
     pub email: String,
     pub password: String,
-}
-
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
-pub struct Login(pub Session);
-
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
-pub struct LoginSession(pub Session);
-
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
-pub struct Logout(pub Session);
-
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
-pub struct LogoutResponse;
-
-impl Session {
-    pub fn new<T>(token: T) -> Self
-    where
-        String: From<T>,
-    {
-        Self {
-            token: token.into(),
-        }
-    }
 }
 
 impl DecodedToken {

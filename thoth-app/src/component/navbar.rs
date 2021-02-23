@@ -1,3 +1,4 @@
+use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 use yew::virtual_dom::VNode;
@@ -5,63 +6,50 @@ use yew_router::prelude::*;
 
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::service::account::AccountService;
 use crate::THOTH_API;
 
 pub struct NavbarComponent {
+    props: Props,
     link: ComponentLink<Self>,
-    account_service: AccountService,
 }
 
 pub enum Msg {
-    Login(),
-    Logout(),
+    Logout,
+}
+
+#[derive(Properties, Clone)]
+pub struct Props {
+    pub current_user: Option<AccountDetails>,
+    pub callback: Callback<()>,
 }
 
 impl Component for NavbarComponent {
     type Message = Msg;
-    type Properties = ();
+    type Properties = Props;
 
-    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let account_service = AccountService::new();
-        NavbarComponent {
-            link,
-            account_service,
-        }
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        NavbarComponent { props, link }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        self.props = props;
         true
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::Login() => {
-                self.account_service.redirect_to_login();
-                true
-            }
-            Msg::Logout() => {
-                self.account_service.logout();
+            Msg::Logout => {
+                self.props.callback.emit(());
                 true
             }
         }
     }
 
     fn view(&self) -> VNode {
-        let auth_action = match self.account_service.is_loggedin() {
-            true => self.link.callback(|e: MouseEvent| {
-                e.prevent_default();
-                Msg::Logout()
-            }),
-            false => self.link.callback(|e: MouseEvent| {
-                e.prevent_default();
-                Msg::Login()
-            }),
-        };
-        let auth_button = match self.account_service.is_loggedin() {
-            true => "Logout",
-            false => "Log in",
-        };
+        let logout = self.link.callback(|e: MouseEvent| {
+            e.prevent_default();
+            Msg::Logout
+        });
         html! {
             <nav class="navbar is-warning" role="navigation" aria-label="main navigation">
                 <div class="navbar-brand">
@@ -119,12 +107,21 @@ impl Component for NavbarComponent {
                             <a class="button is-danger" href="https://github.com/thoth-pub/thoth/blob/master/CHANGELOG.md">
                                 {"v"}{ env!("CARGO_PKG_VERSION") }
                             </a>
-                            <button
-                                class="button is-light"
-                                onclick=auth_action
-                            >
-                                { auth_button }
-                            </button>
+                            {
+                                if self.props.current_user.is_some() {
+                                    html! {
+                                        <button class="button is-light" onclick=logout>
+                                            { "Logout" }
+                                        </button>
+                                    }
+                                } else {
+                                    html! {
+                                        <RouterAnchor<AppRoute> classes="button is-light" route=AppRoute::Login>
+                                            {"Login"}
+                                        </  RouterAnchor<AppRoute>>
+                                    }
+                                }
+                            }
                         </div>
                     </div>
                 </div>
