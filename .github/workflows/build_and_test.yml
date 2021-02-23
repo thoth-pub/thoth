@@ -26,34 +26,21 @@ jobs:
       run: wasm-pack build thoth-app/ --target web --release
     - name: Pack APP
       run: rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js
+    - name: Build binary
     - uses: actions-rs/cargo@v1
       with:
         command: build
         args: --verbose
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-            toolchain: stable
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --workspace --verbose
-  clippy_check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-            toolchain: stable
-            components: clippy
-            override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all --all-targets --all-features -- -D warnings
+    - name: Run tests
+    - uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --workspace --verbose
+    - name: Run linting
+    - uses: actions-rs/cargo@v1
+      with:
+        command: clippy
+        args: --all --all-targets --all-features -- -D warnings
   format_check:
     runs-on: ubuntu-latest
     steps:
