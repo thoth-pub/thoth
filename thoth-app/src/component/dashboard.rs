@@ -1,7 +1,9 @@
+use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
 use yew_router::prelude::RouterAnchor;
+use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
@@ -10,10 +12,14 @@ use crate::component::utils::Loader;
 use crate::component::utils::Reloader;
 use crate::models::stats::stats_query::FetchActionStats;
 use crate::models::stats::stats_query::FetchStats;
+use crate::models::stats::stats_query::StatsRequest;
+use crate::models::stats::stats_query::StatsRequestBody;
+use crate::models::stats::stats_query::Variables;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
 pub struct DashboardComponent {
+    props: Props,
     get_stats: FetchStats,
     link: ComponentLink<Self>,
 }
@@ -22,16 +28,30 @@ pub enum Msg {
     SetStatsFetchState(FetchActionStats),
     GetStats,
 }
+#[derive(Clone, Properties)]
+pub struct Props {
+    #[prop_or_default]
+    pub current_user: Option<AccountDetails>,
+}
 
 impl Component for DashboardComponent {
     type Message = Msg;
-    type Properties = ();
+    type Properties = Props;
 
-    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        let body = StatsRequestBody {
+            variables: Variables {
+
+            },
+            ..Default::default()
+        };
+        let request = StatsRequest { body };
+        let get_stats = Fetch::new(request);
         link.send_message(Msg::GetStats);
 
         DashboardComponent {
-            get_stats: Default::default(),
+            props,
+            get_stats,
             link,
         }
     }
