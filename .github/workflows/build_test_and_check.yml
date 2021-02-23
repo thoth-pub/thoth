@@ -1,6 +1,6 @@
-name: build-and-test
+name: build-test-and-check
 
-on: [push]
+on: [pull_request]
 
 env:
   CARGO_TERM_COLOR: always
@@ -36,3 +36,21 @@ jobs:
       with:
         command: test
         args: --workspace --verbose
+    - name: Run linting
+    - uses: actions-rs/cargo@v1
+      with:
+        command: clippy
+        args: --all --all-targets --all-features -- -D warnings
+  format_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+            toolchain: stable
+            components: rustfmt
+            override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
