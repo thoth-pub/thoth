@@ -174,12 +174,14 @@ fn main() -> Result<()> {
                 dotenv().ok();
                 let pool = establish_connection();
 
-                let all_emails = all_emails(&pool).unwrap();
+                let all_emails = all_emails(&pool).expect("No user accounts present in database.");
                 let email_selection = Select::with_theme(&ColorfulTheme::default())
                     .items(&all_emails)
+                    .default(0)
+                    .with_prompt("Select a user account")
                     .interact_on(&Term::stdout())?;
                 let password = Password::new()
-                    .with_prompt("New Password")
+                    .with_prompt("Enter new password")
                     .with_confirmation("Confirm password", "Passwords do not match")
                     .interact_on(&Term::stdout())?;
                 let email = all_emails.get(email_selection).unwrap();
