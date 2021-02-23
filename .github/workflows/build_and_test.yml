@@ -7,7 +7,7 @@ env:
   THOTH_API: https://api.thoth.openbookpublishers.com
 
 jobs:
-  build_and_test:
+  build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -28,9 +28,33 @@ jobs:
       run: rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js
     - name: Build binary
       run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --workspace --verbose
-    - name: Run linting
-      run: cargo clippy --all --all-targets --all-features -- -D warnings
-    - name: Check style
-      run: cargo fmt --all -- --check
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+            toolchain: stable
+        run: cargo test --workspace --verbose
+  clippy_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+            toolchain: stable
+            components: clippy
+            override: true
+      - uses: actions-rs/clippy-check@v1
+        with:
+          args: --all --all-targets --all-features -- -D warnings
+  format_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+            toolchain: stable
+            components: rustfmt
+            override: true
+        run: cargo fmt --all -- --check
