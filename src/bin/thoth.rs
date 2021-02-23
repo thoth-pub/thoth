@@ -5,6 +5,7 @@ use dotenv::dotenv;
 
 use thoth::server::api::start_server as api_server;
 use thoth::server::app::start_server as app_server;
+use thoth_api::account::model::AccountData;
 use thoth_api::account::model::LinkedPublisher;
 use thoth_api::account::service::all_emails;
 use thoth_api::account::service::all_publishers;
@@ -145,17 +146,15 @@ fn main() -> Result<()> {
                     };
                     linked_publishers.push(linked_publisher);
                 }
-
-                match register(
-                    &name,
-                    &surname,
-                    &email,
-                    &password,
-                    &is_superuser,
-                    &is_bot,
-                    &linked_publishers,
-                    &pool,
-                ) {
+                let account_data = AccountData {
+                    name,
+                    surname,
+                    email,
+                    password,
+                    is_superuser,
+                    is_bot,
+                };
+                match register(account_data, linked_publishers, &pool) {
                     Ok(_) => Ok(()),
                     Err(e) => Err(e.into()),
                 }

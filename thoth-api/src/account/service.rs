@@ -66,29 +66,15 @@ pub fn get_account_details(email: &str, pool: &PgPool) -> Result<AccountDetails,
 }
 
 pub fn register(
-    name: &str,
-    surname: &str,
-    email: &str,
-    password: &str,
-    is_superuser: &bool,
-    is_bot: &bool,
-    linked_publishers: &Vec<LinkedPublisher>,
+    account_data: AccountData,
+    linked_publishers: Vec<LinkedPublisher>,
     pool: &PgPool,
 ) -> Result<Account, ThothError> {
-    let connection = pool.get().unwrap();
-    let account_data = AccountData {
-        name: name.to_owned(),
-        surname: surname.to_owned(),
-        email: email.to_owned(),
-        password: password.to_owned(),
-        is_superuser: is_superuser.to_owned(),
-        is_bot: is_bot.to_owned(),
-    };
+    use crate::schema;
 
-    use crate::schema::account;
-    use crate::schema::publisher_account;
+    let connection = pool.get().unwrap();
     let account: NewAccount = account_data.into();
-    let created_account: Account = diesel::insert_into(account::dsl::account)
+    let created_account: Account = diesel::insert_into(schema::account::dsl::account)
         .values(&account)
         .get_result::<Account>(&connection)?;
     for linked_publisher in linked_publishers {
@@ -97,7 +83,7 @@ pub fn register(
             publisher_id: linked_publisher.publisher_id,
             is_admin: linked_publisher.is_admin,
         };
-        diesel::insert_into(publisher_account::dsl::publisher_account)
+        diesel::insert_into(schema::publisher_account::dsl::publisher_account)
             .values(&publisher_account)
             .get_result::<PublisherAccount>(&connection)?;
     }
