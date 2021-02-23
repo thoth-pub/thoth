@@ -29,7 +29,6 @@ pub enum Msg {
 }
 #[derive(Clone, Properties)]
 pub struct Props {
-    #[prop_or_default]
     pub current_user: Option<AccountDetails>,
 }
 
@@ -50,19 +49,14 @@ impl Component for DashboardComponent {
             }
         }
         let body = StatsRequestBody {
-            variables: Variables {
-                publishers: publishers,
-            },
+            variables: Variables { publishers },
             ..Default::default()
         };
         let request = StatsRequest { body };
         let get_stats = Fetch::new(request);
         link.send_message(Msg::GetStats);
 
-        DashboardComponent {
-            get_stats,
-            link,
-        }
+        DashboardComponent { get_stats, link }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {

@@ -126,7 +126,7 @@ impl Component for AdminComponent {
                                 AdminRoute::Serieses => html!{<SeriesesComponent/>},
                                 AdminRoute::NewSeries => html!{<NewSeriesComponent/>},
                                 AdminRoute::Series(id) => html!{<SeriesComponent series_id = id />},
-                                AdminRoute::Admin => html!{<DashboardComponent/>},
+                                AdminRoute::Admin => html!{<DashboardComponent current_user = &self.props.current_user />},
                             }
                         }
                         </div>

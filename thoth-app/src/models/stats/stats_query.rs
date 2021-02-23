@@ -2,13 +2,13 @@ use serde::Deserialize;
 use serde::Serialize;
 
 const STATS_QUERY: &str = "
-    {
-        workCount
-        publisherCount
-        imprintCount
-        seriesCount
+    query StatsQuery($publishers: [Uuid!]) {
+        workCount(publishers: $publishers)
+        publisherCount(publishers: $publishers)
+        imprintCount(publishers: $publishers)
+        seriesCount(publishers: $publishers)
         contributorCount
-        publicationCount
+        publicationCount(publishers: $publishers)
     }
 ";
 
