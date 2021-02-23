@@ -96,6 +96,7 @@ impl Component for AdminComponent {
                         <div class="container">
                         {
                             match &self.props.route {
+                                AdminRoute::Admin => html!{<DashboardComponent current_user = &self.props.current_user />},
                                 AdminRoute::Dashboard => html!{<DashboardComponent current_user = &self.props.current_user />},
                                 AdminRoute::Works => html!{<WorksComponent/>},
                                 AdminRoute::Work(id) => html!{<WorkComponent work_id = id />},
@@ -126,7 +127,6 @@ impl Component for AdminComponent {
                                 AdminRoute::Serieses => html!{<SeriesesComponent/>},
                                 AdminRoute::NewSeries => html!{<NewSeriesComponent/>},
                                 AdminRoute::Series(id) => html!{<SeriesComponent series_id = id />},
-                                AdminRoute::Admin => html!{<DashboardComponent current_user = &self.props.current_user />},
                             }
                         }
                         </div>
