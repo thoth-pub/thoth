@@ -105,13 +105,13 @@ fn main() -> Result<()> {
 
                 let name: String = Input::new()
                     .with_prompt("Enter given name")
-                    .interact_text()?;
+                    .interact()?;
                 let surname: String = Input::new()
                     .with_prompt("Enter family name")
-                    .interact_text()?;
+                    .interact()?;
                 let email: String = Input::new()
                     .with_prompt("Enter email address")
-                    .interact_text()?;
+                    .interact()?;
                 let password = Password::new()
                     .with_prompt("Enter password")
                     .with_confirmation("Confirm password", "Passwords do not match")
@@ -119,11 +119,11 @@ fn main() -> Result<()> {
                 let is_superuser: bool = Input::new()
                     .with_prompt("Is this a superuser account")
                     .default(false)
-                    .interact_text()?;
+                    .interact()?;
                 let is_bot: bool = Input::new()
                     .with_prompt("Is this a bot account")
                     .default(false)
-                    .interact_text()?;
+                    .interact()?;
 
                 let linked_publishers = vec![];
                 if let Ok(publishers) = all_publishers(&pool) {
@@ -140,7 +140,7 @@ fn main() -> Result<()> {
                                 publisher.publisher_name
                             ))
                             .default(false)
-                            .interact_text()?;
+                            .interact()?;
                         let linked_publisher = LinkedPublisher {
                             publisher_id: publisher.publisher_id,
                             is_admin,
