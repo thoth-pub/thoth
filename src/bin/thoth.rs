@@ -1,6 +1,6 @@
 extern crate clap;
 use clap::{crate_authors, crate_version, App, AppSettings, Arg};
-use dialoguer::{console::Term, theme::ColorfulTheme, Password, Select};
+use dialoguer::{console::Term, theme::ColorfulTheme, Input, Password, Select};
 use dotenv::dotenv;
 
 use thoth::server::api::start_server as api_server;
@@ -65,55 +65,7 @@ fn main() -> Result<()> {
                 .setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommand(
                     App::new("register")
-                        .about("Create a new user account")
-                        .arg(
-                            Arg::with_name("name")
-                                .short("n")
-                                .long("name")
-                                .value_name("NAME")
-                                .help("Given name")
-                                .takes_value(true)
-                                .required(true),
-                        )
-                        .arg(
-                            Arg::with_name("surname")
-                                .short("s")
-                                .long("surname")
-                                .value_name("NAME")
-                                .help("Family name")
-                                .takes_value(true)
-                                .required(true),
-                        )
-                        .arg(
-                            Arg::with_name("email")
-                                .short("e")
-                                .long("email")
-                                .value_name("EMAIL")
-                                .help("Email")
-                                .takes_value(true)
-                                .required(true),
-                        )
-                        .arg(
-                            Arg::with_name("password")
-                                .short("p")
-                                .long("password")
-                                .value_name("password")
-                                .help("User password")
-                                .takes_value(true)
-                                .required(true),
-                        )
-                        .arg(
-                            Arg::with_name("is-superuser")
-                                .long("is-superuser")
-                                .multiple(false)
-                                .help("Is the user a super user"),
-                        )
-                        .arg(
-                            Arg::with_name("is-bot")
-                                .long("is-bot")
-                                .multiple(false)
-                                .help("Is the user a bot"),
-                        ),
+                        .about("Create a new user account"),
                 )
                 .subcommand(App::new("password").about("Reset a password")),
         )
@@ -147,13 +99,28 @@ fn main() -> Result<()> {
             }
         }
         ("account", Some(account_matches)) => match account_matches.subcommand() {
-            ("register", Some(register_matches)) => {
-                let name = register_matches.value_of("name").unwrap();
-                let surname = register_matches.value_of("surname").unwrap();
-                let email = register_matches.value_of("email").unwrap();
-                let password = register_matches.value_of("password").unwrap();
-                let is_superuser = register_matches.is_present("is-superuser");
-                let is_bot = register_matches.is_present("is-bot");
+            ("register", Some(_)) => {
+                let name: String = Input::new()
+                    .with_prompt("Enter given name")
+                    .interact_text()?;
+                let surname: String = Input::new()
+                    .with_prompt("Enter family name")
+                    .interact_text()?;
+                let email: String = Input::new()
+                    .with_prompt("Enter email address")
+                    .interact_text()?;
+                let password = Password::new()
+                    .with_prompt("Enter password")
+                    .with_confirmation("Confirm password", "Passwords do not match")
+                    .interact_on(&Term::stdout())?;
+                let is_superuser: bool = Input::new()
+                    .with_prompt("Is this a superuser account")
+                    .default(false)
+                    .interact_text()?;
+                let is_bot: bool = Input::new()
+                    .with_prompt("Is this a bot account")
+                    .default(false)
+                    .interact_text()?;
 
                 dotenv().ok();
                 let pool = establish_connection();
