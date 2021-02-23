@@ -63,10 +63,7 @@ fn main() -> Result<()> {
             App::new("account")
                 .about("Manage user accounts")
                 .setting(AppSettings::SubcommandRequiredElseHelp)
-                .subcommand(
-                    App::new("register")
-                        .about("Create a new user account"),
-                )
+                .subcommand(App::new("register").about("Create a new user account"))
                 .subcommand(App::new("password").about("Reset a password")),
         )
         .get_matches();
