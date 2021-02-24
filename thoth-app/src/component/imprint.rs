@@ -1,3 +1,4 @@
+use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -36,6 +37,9 @@ use crate::models::imprint::update_imprint_mutation::Variables as UpdateVariable
 use crate::models::imprint::Imprint;
 use crate::models::publisher::publishers_query::FetchActionPublishers;
 use crate::models::publisher::publishers_query::FetchPublishers;
+use crate::models::publisher::publishers_query::PublishersRequest;
+use crate::models::publisher::publishers_query::PublishersRequestBody;
+use crate::models::publisher::publishers_query::Variables as PublishersVariables;
 use crate::models::publisher::Publisher;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
@@ -77,6 +81,7 @@ pub enum Msg {
 #[derive(Clone, Properties)]
 pub struct Props {
     pub imprint_id: String,
+    pub current_user: Option<AccountDetails>,
 }
 
 impl Component for ImprintComponent {
@@ -93,7 +98,23 @@ impl Component for ImprintComponent {
         let request = ImprintRequest { body };
         let fetch_imprint = Fetch::new(request);
         let data: ImprintFormData = Default::default();
-        let fetch_publishers: FetchPublishers = Default::default();
+
+        let mut publishers = None;
+        if let Some(account) = props.current_user {
+            publishers = account.resource_access.restricted_to();
+        }
+        let body = PublishersRequestBody {
+            variables: PublishersVariables {
+                limit: None,
+                offset: None,
+                filter: None,
+                publishers,
+            },
+            ..Default::default()
+        };
+        let request = PublishersRequest { body };
+        let fetch_publishers = Fetch::new(request);
+
         let push_imprint = Default::default();
         let delete_imprint = Default::default();
         let notification_bus = NotificationBus::dispatcher();

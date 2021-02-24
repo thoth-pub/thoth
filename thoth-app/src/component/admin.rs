@@ -105,7 +105,7 @@ impl Component for AdminComponent {
                                 AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id = id />},
                                 AdminRoute::NewPublisher => html!{<NewPublisherComponent/>},
                                 AdminRoute::Imprints => html!{<ImprintsComponent current_user = &self.props.current_user />},
-                                AdminRoute::Imprint(id) => html!{<ImprintComponent imprint_id = id />},
+                                AdminRoute::Imprint(id) => html!{<ImprintComponent imprint_id = id, current_user = &self.props.current_user />},
                                 AdminRoute::NewImprint => html!{<NewImprintComponent/>},
                                 AdminRoute::Funders => html!{<FundersComponent/>},
                                 AdminRoute::Funder(id) => html!{<FunderComponent funder_id = id />},
