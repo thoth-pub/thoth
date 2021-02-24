@@ -7,7 +7,7 @@ env:
   THOTH_API: https://api.thoth.openbookpublishers.com
 
 jobs:
-  build:
+  build_test_and_lint:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
