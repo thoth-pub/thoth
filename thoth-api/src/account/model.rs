@@ -114,6 +114,13 @@ pub struct LoginCredentials {
     pub password: String,
 }
 
+#[cfg_attr(feature = "backend", derive(AsChangeset), table_name = "account")]
+pub struct NewPassword {
+    pub email: String,
+    pub hash: Vec<u8>,
+    pub salt: String,
+}
+
 impl DecodedToken {
     pub fn get_user_permissions(&self) -> AccountAccess {
         if let Some(jwt) = &self.jwt {
