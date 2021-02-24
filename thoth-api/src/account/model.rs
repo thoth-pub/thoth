@@ -149,4 +149,18 @@ impl AccountAccess {
             Err(ThothError::Unauthorised.into())
         }
     }
+
+    pub fn restricted_to(&self) -> Option<Vec<Uuid>> {
+        if self.is_superuser {
+            None
+        } else {
+            Some(
+                self
+                    .linked_publishers
+                    .iter()
+                    .map(|publisher| publisher.publisher_id)
+                    .collect(),
+            )
+        }
+    }
 }
