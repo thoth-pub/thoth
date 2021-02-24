@@ -37,15 +37,17 @@ impl Component for DashboardComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let mut publishers = vec![];
+        let mut publishers = None;
         if let Some(account) = props.current_user {
             if !account.resource_access.is_superuser {
-                publishers = account
-                    .resource_access
-                    .linked_publishers
-                    .iter()
-                    .map(|publisher| publisher.publisher_id.to_string())
-                    .collect();
+                publishers = Some(
+                    account
+                        .resource_access
+                        .linked_publishers
+                        .iter()
+                        .map(|publisher| publisher.publisher_id.to_string())
+                        .collect(),
+                );
             }
         }
         let body = StatsRequestBody {

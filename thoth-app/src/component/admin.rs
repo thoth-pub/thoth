@@ -98,19 +98,19 @@ impl Component for AdminComponent {
                             match &self.props.route {
                                 AdminRoute::Admin => html!{<DashboardComponent current_user = &self.props.current_user />},
                                 AdminRoute::Dashboard => html!{<DashboardComponent current_user = &self.props.current_user />},
-                                AdminRoute::Works => html!{<WorksComponent/>},
+                                AdminRoute::Works => html!{<WorksComponent current_user = &self.props.current_user />},
                                 AdminRoute::Work(id) => html!{<WorkComponent work_id = id />},
                                 AdminRoute::NewWork => html!{<NewWorkComponent/>},
-                                AdminRoute::Publishers => html!{<PublishersComponent/>},
+                                AdminRoute::Publishers => html!{<PublishersComponent current_user = &self.props.current_user />},
                                 AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id = id />},
                                 AdminRoute::NewPublisher => html!{<NewPublisherComponent/>},
-                                AdminRoute::Imprints => html!{<ImprintsComponent/>},
+                                AdminRoute::Imprints => html!{<ImprintsComponent current_user = &self.props.current_user />},
                                 AdminRoute::Imprint(id) => html!{<ImprintComponent imprint_id = id />},
                                 AdminRoute::NewImprint => html!{<NewImprintComponent/>},
                                 AdminRoute::Funders => html!{<FundersComponent/>},
                                 AdminRoute::Funder(id) => html!{<FunderComponent funder_id = id />},
                                 AdminRoute::NewFunder => html!{<NewFunderComponent/>},
-                                AdminRoute::Publications => html!{<PublicationsComponent/>},
+                                AdminRoute::Publications => html!{<PublicationsComponent current_user = &self.props.current_user />},
                                 AdminRoute::Publication(id) => html!{<PublicationComponent publication_id = id />},
                                 AdminRoute::NewPublication => {
                                     html!{
@@ -124,7 +124,7 @@ impl Component for AdminComponent {
                                 AdminRoute::Contributors => html!{<ContributorsComponent/>},
                                 AdminRoute::Contributor(id) => html!{<ContributorComponent contributor_id = id />},
                                 AdminRoute::NewContributor => html!{<NewContributorComponent/>},
-                                AdminRoute::Serieses => html!{<SeriesesComponent/>},
+                                AdminRoute::Serieses => html!{<SeriesesComponent current_user = &self.props.current_user />},
                                 AdminRoute::NewSeries => html!{<NewSeriesComponent/>},
                                 AdminRoute::Series(id) => html!{<SeriesComponent series_id = id />},
                             }

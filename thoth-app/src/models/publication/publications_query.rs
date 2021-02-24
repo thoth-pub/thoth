@@ -5,8 +5,8 @@ use thoth_api::publication::model::PublicationType;
 use super::super::work::Work;
 
 pub const PUBLICATIONS_QUERY: &str = "
-    query PublicationsQuery($limit: Int, $offset: Int, $filter: String) {
-        publications(limit: $limit, offset: $offset, filter: $filter) {
+    query PublicationsQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!]) {
+        publications(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers) {
             publicationId
             publicationType
             workId
@@ -33,7 +33,7 @@ pub const PUBLICATIONS_QUERY: &str = "
                 }
             }
         }
-        publicationCount(filter: $filter)
+        publicationCount(filter: $filter, publishers: $publishers)
     }
 ";
 
@@ -54,6 +54,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
+    pub publishers: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

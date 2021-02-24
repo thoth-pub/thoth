@@ -80,10 +80,12 @@ macro_rules! pagination_component {
         $pagination_text:ident,
         $table_headers:expr
     ) => {
+        use thoth_api::account::model::AccountDetails;
         use yew::html;
         use yew::prelude::Component;
         use yew::prelude::Html;
         use yew::prelude::InputData;
+        use yew::prelude::Properties;
         use yew::prelude::ShouldRender;
         use yew::ComponentLink;
         use yew_router::agent::RouteAgentDispatcher;
@@ -110,6 +112,7 @@ macro_rules! pagination_component {
             fetch_data: $fetch_data,
             link: ComponentLink<Self>,
             router: RouteAgentDispatcher<()>,
+            props: Props,
         }
 
         pagination_helpers! {$component, $pagination_text, $search_text}
@@ -124,11 +127,17 @@ macro_rules! pagination_component {
             ChangeRoute(AppRoute),
         }
 
+        #[derive(Clone, Properties)]
+        pub struct Props {
+            #[prop_or_default]
+            pub current_user: Option<AccountDetails>,
+        }
+
         impl Component for $component {
             type Message = Msg;
-            type Properties = ();
+            type Properties = Props;
 
-            fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+            fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
                 let router = RouteAgentDispatcher::new();
                 let offset: i32 = Default::default();
                 let page_size: i32 = 20;
@@ -152,6 +161,7 @@ macro_rules! pagination_component {
                     fetch_data,
                     link,
                     router,
+                    props,
                 }
             }
 
@@ -177,12 +187,26 @@ macro_rules! pagination_component {
                         false
                     }
                     Msg::PaginateData => {
+                        let mut publishers = None;
+                        if let Some(account) = &self.props.current_user {
+                            if !account.resource_access.is_superuser {
+                                publishers = Some(
+                                    account
+                                        .resource_access
+                                        .linked_publishers
+                                        .iter()
+                                        .map(|publisher| publisher.publisher_id.to_string())
+                                        .collect(),
+                                );
+                            }
+                        }
                         let filter = self.search_term.clone();
                         let body = $request_body {
                             variables: $request_variables {
                                 limit: Some(self.limit),
                                 offset: Some(self.offset),
                                 filter: Some(filter),
+                                publishers,
                             },
                             ..Default::default()
                         };

@@ -25,7 +25,7 @@ graphql_query_builder! {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Variables {
-    pub publishers: Vec<String>,
+    pub publishers: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
