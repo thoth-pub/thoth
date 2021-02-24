@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::account::model::AccountDetails;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
 use yew::html;
@@ -128,6 +129,7 @@ pub enum Msg {
 #[derive(Clone, Properties)]
 pub struct Props {
     pub work_id: String,
+    pub current_user: Option<AccountDetails>,
 }
 
 impl Component for WorkComponent {
@@ -135,9 +137,14 @@ impl Component for WorkComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        let mut publishers = None;
+        if let Some(account) = props.current_user {
+            publishers = account.resource_access.restricted_to();
+        }
         let body = WorkRequestBody {
             variables: Variables {
                 work_id: Some(props.work_id),
+                publishers,
             },
             ..Default::default()
         };

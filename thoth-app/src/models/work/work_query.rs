@@ -7,7 +7,7 @@ use super::WorkStatusDefinition;
 use super::WorkTypeDefinition;
 
 pub const WORK_QUERY: &str = "
-    query WorkQuery($workId: Uuid!) {
+    query WorkQuery($workId: Uuid!, $publishers: [Uuid!]) {
         work(workId: $workId) {
             workId
             workType
@@ -128,7 +128,7 @@ pub const WORK_QUERY: &str = "
                 }
             }
         }
-        imprints(limit: 9999) {
+        imprints(limit: 9999, publishers: $publishers) {
             imprintId
             imprintName
             publisher {
@@ -166,6 +166,7 @@ graphql_query_builder! {
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub work_id: Option<String>,
+    pub publishers: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

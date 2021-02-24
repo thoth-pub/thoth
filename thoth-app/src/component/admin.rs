@@ -99,7 +99,7 @@ impl Component for AdminComponent {
                                 AdminRoute::Admin => html!{<DashboardComponent current_user = &self.props.current_user />},
                                 AdminRoute::Dashboard => html!{<DashboardComponent current_user = &self.props.current_user />},
                                 AdminRoute::Works => html!{<WorksComponent current_user = &self.props.current_user />},
-                                AdminRoute::Work(id) => html!{<WorkComponent work_id = id />},
+                                AdminRoute::Work(id) => html!{<WorkComponent work_id = id, current_user = &self.props.current_user />},
                                 AdminRoute::NewWork => html!{<NewWorkComponent/>},
                                 AdminRoute::Publishers => html!{<PublishersComponent current_user = &self.props.current_user />},
                                 AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id = id />},
