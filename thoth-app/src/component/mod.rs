@@ -112,7 +112,7 @@ macro_rules! pagination_component {
             fetch_data: $fetch_data,
             link: ComponentLink<Self>,
             router: RouteAgentDispatcher<()>,
-            props: Props,
+            publishers: Option<Vec<String>>,
         }
 
         pagination_helpers! {$component, $pagination_text, $search_text}
@@ -148,6 +148,11 @@ macro_rules! pagination_component {
                 let fetch_data = Default::default();
                 let table_headers = $table_headers;
 
+                let mut publishers = None;
+                if let Some(account) = props.current_user {
+                    publishers = account.resource_access.restricted_to();
+                }
+
                 link.send_message(Msg::PaginateData);
 
                 $component {
@@ -161,7 +166,7 @@ macro_rules! pagination_component {
                     fetch_data,
                     link,
                     router,
-                    props,
+                    publishers,
                 }
             }
 
@@ -187,26 +192,13 @@ macro_rules! pagination_component {
                         false
                     }
                     Msg::PaginateData => {
-                        let mut publishers = None;
-                        if let Some(account) = &self.props.current_user {
-                            if !account.resource_access.is_superuser {
-                                publishers = Some(
-                                    account
-                                        .resource_access
-                                        .linked_publishers
-                                        .iter()
-                                        .map(|publisher| publisher.publisher_id.to_string())
-                                        .collect(),
-                                );
-                            }
-                        }
                         let filter = self.search_term.clone();
                         let body = $request_body {
                             variables: $request_variables {
                                 limit: Some(self.limit),
                                 offset: Some(self.offset),
                                 filter: Some(filter),
-                                publishers,
+                                publishers: self.publishers.clone(),
                             },
                             ..Default::default()
                         };
