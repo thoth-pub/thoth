@@ -150,15 +150,14 @@ impl AccountAccess {
         }
     }
 
-    pub fn restricted_to(&self) -> Option<Vec<Uuid>> {
+    pub fn restricted_to(&self) -> Option<Vec<String>> {
         if self.is_superuser {
             None
         } else {
             Some(
-                self
-                    .linked_publishers
+                self.linked_publishers
                     .iter()
-                    .map(|publisher| publisher.publisher_id)
+                    .map(|publisher| publisher.publisher_id.to_string())
                     .collect(),
             )
         }

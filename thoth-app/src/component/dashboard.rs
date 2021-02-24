@@ -39,11 +39,7 @@ impl Component for DashboardComponent {
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let mut publishers = None;
         if let Some(account) = props.current_user {
-            publishers = account
-                .resource_access
-                .restricted_to()
-                .map(|vec| vec.into_iter().map(|id| id.to_string())
-                .collect());
+            publishers = account.resource_access.restricted_to();
         }
         let body = StatsRequestBody {
             variables: Variables { publishers },
