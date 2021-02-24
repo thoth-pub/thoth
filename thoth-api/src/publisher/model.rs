@@ -1,4 +1,5 @@
 use chrono::naive::NaiveDateTime;
+use std::fmt;
 use uuid::Uuid;
 
 #[cfg(feature = "backend")]
@@ -50,4 +51,10 @@ pub struct PatchPublisher {
     pub publisher_name: String,
     pub publisher_shortname: Option<String>,
     pub publisher_url: Option<String>,
+}
+
+impl fmt::Display for Publisher {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.publisher_name)
+    }
 }
