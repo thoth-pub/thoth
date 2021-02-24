@@ -1,3 +1,4 @@
+use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -25,6 +26,9 @@ use crate::models::imprint::create_imprint_mutation::Variables;
 use crate::models::imprint::Imprint;
 use crate::models::publisher::publishers_query::FetchActionPublishers;
 use crate::models::publisher::publishers_query::FetchPublishers;
+use crate::models::publisher::publishers_query::PublishersRequest;
+use crate::models::publisher::publishers_query::PublishersRequestBody;
+use crate::models::publisher::publishers_query::Variables as PublishersVariables;
 use crate::models::publisher::Publisher;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
@@ -56,19 +60,38 @@ pub enum Msg {
     ChangeImprintUrl(String),
     ChangeRoute(AppRoute),
 }
+#[derive(Clone, Properties)]
+pub struct Props {
+    pub current_user: Option<AccountDetails>,
+}
 
 impl Component for NewImprintComponent {
     type Message = Msg;
-    type Properties = ();
+    type Properties = Props;
 
-    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let push_imprint = Default::default();
         let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let imprint: Imprint = Default::default();
         let publisher_id: String = Default::default();
         let data: ImprintFormData = Default::default();
-        let fetch_publishers: FetchPublishers = Default::default();
+
+        let mut publishers = None;
+        if let Some(account) = props.current_user {
+            publishers = account.resource_access.restricted_to();
+        }
+        let body = PublishersRequestBody {
+            variables: PublishersVariables {
+                limit: None,
+                offset: None,
+                filter: None,
+                publishers,
+            },
+            ..Default::default()
+        };
+        let request = PublishersRequest { body };
+        let fetch_publishers = Fetch::new(request);
 
         link.send_message(Msg::GetPublishers);
 
