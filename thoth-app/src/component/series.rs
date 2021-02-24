@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::account::model::AccountDetails;
 use thoth_api::series::model::SeriesType;
 use yew::html;
 use yew::prelude::*;
@@ -23,6 +24,9 @@ use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
 use crate::models::imprint::imprints_query::FetchActionImprints;
 use crate::models::imprint::imprints_query::FetchImprints;
+use crate::models::imprint::imprints_query::ImprintsRequest;
+use crate::models::imprint::imprints_query::ImprintsRequestBody;
+use crate::models::imprint::imprints_query::Variables as ImprintsVariables;
 use crate::models::imprint::Imprint;
 use crate::models::series::delete_series_mutation::DeleteSeriesRequest;
 use crate::models::series::delete_series_mutation::DeleteSeriesRequestBody;
@@ -91,6 +95,7 @@ pub enum Msg {
 #[derive(Clone, Properties)]
 pub struct Props {
     pub series_id: String,
+    pub current_user: Option<AccountDetails>,
 }
 
 impl Component for SeriesComponent {
@@ -111,9 +116,24 @@ impl Component for SeriesComponent {
         let notification_bus = NotificationBus::dispatcher();
         let series: Series = Default::default();
         let data: SeriesFormData = Default::default();
-        let fetch_imprints: FetchImprints = Default::default();
         let fetch_series_types: FetchSeriesTypes = Default::default();
         let router = RouteAgentDispatcher::new();
+
+        let mut publishers = None;
+        if let Some(account) = props.current_user {
+            publishers = account.resource_access.restricted_to();
+        }
+        let body = ImprintsRequestBody {
+            variables: ImprintsVariables {
+                limit: None,
+                offset: None,
+                filter: None,
+                publishers,
+            },
+            ..Default::default()
+        };
+        let request = ImprintsRequest { body };
+        let fetch_imprints = Fetch::new(request);
 
         link.send_message(Msg::GetSeries);
         link.send_message(Msg::GetImprints);

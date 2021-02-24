@@ -125,8 +125,8 @@ impl Component for AdminComponent {
                                 AdminRoute::Contributor(id) => html!{<ContributorComponent contributor_id = id />},
                                 AdminRoute::NewContributor => html!{<NewContributorComponent/>},
                                 AdminRoute::Serieses => html!{<SeriesesComponent current_user = &self.props.current_user />},
-                                AdminRoute::NewSeries => html!{<NewSeriesComponent/>},
-                                AdminRoute::Series(id) => html!{<SeriesComponent series_id = id />},
+                                AdminRoute::NewSeries => html!{<NewSeriesComponent current_user = &self.props.current_user />},
+                                AdminRoute::Series(id) => html!{<SeriesComponent series_id = id, current_user = &self.props.current_user />},
                             }
                         }
                         </div>
