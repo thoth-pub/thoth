@@ -107,7 +107,7 @@ impl Component for AdminComponent {
                                 AdminRoute::Imprints => html!{<ImprintsComponent current_user = &self.props.current_user />},
                                 AdminRoute::Imprint(id) => html!{<ImprintComponent imprint_id = id, current_user = &self.props.current_user />},
                                 AdminRoute::NewImprint => html!{<NewImprintComponent current_user = &self.props.current_user />},
-                                AdminRoute::Funders => html!{<FundersComponent/>},
+                                AdminRoute::Funders => html!{<FundersComponent current_user = &self.props.current_user />},
                                 AdminRoute::Funder(id) => html!{<FunderComponent funder_id = id />},
                                 AdminRoute::NewFunder => html!{<NewFunderComponent/>},
                                 AdminRoute::Publications => html!{<PublicationsComponent current_user = &self.props.current_user />},
@@ -121,7 +121,7 @@ impl Component for AdminComponent {
                                         </article>
                                     }
                                 }
-                                AdminRoute::Contributors => html!{<ContributorsComponent/>},
+                                AdminRoute::Contributors => html!{<ContributorsComponent current_user = &self.props.current_user />},
                                 AdminRoute::Contributor(id) => html!{<ContributorComponent contributor_id = id />},
                                 AdminRoute::NewContributor => html!{<NewContributorComponent/>},
                                 AdminRoute::Serieses => html!{<SeriesesComponent current_user = &self.props.current_user />},
