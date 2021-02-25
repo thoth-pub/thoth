@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::account::model::AccountDetails;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
 use yew::html;
@@ -27,6 +28,9 @@ use crate::component::utils::FormWorkStatusSelect;
 use crate::component::utils::FormWorkTypeSelect;
 use crate::models::imprint::imprints_query::FetchActionImprints;
 use crate::models::imprint::imprints_query::FetchImprints;
+use crate::models::imprint::imprints_query::ImprintsRequest;
+use crate::models::imprint::imprints_query::ImprintsRequestBody;
+use crate::models::imprint::imprints_query::Variables as ImprintsVariables;
 use crate::models::imprint::Imprint;
 use crate::models::work::create_work_mutation::CreateWorkRequest;
 use crate::models::work::create_work_mutation::CreateWorkRequestBody;
@@ -104,21 +108,38 @@ pub enum Msg {
     ChangeCoverCaption(String),
     ChangeRoute(AppRoute),
 }
+#[derive(Clone, Properties)]
+pub struct Props {
+    pub current_user: Option<AccountDetails>,
+}
 
 impl Component for NewWorkComponent {
     type Message = Msg;
-    type Properties = ();
+    type Properties = Props;
 
-    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let push_work = Default::default();
         let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let work: Work = Default::default();
         let imprint_id: String = Default::default();
         let data: WorkFormData = Default::default();
-        let fetch_imprints: FetchImprints = Default::default();
         let fetch_work_types: FetchWorkTypes = Default::default();
         let fetch_work_statuses: FetchWorkStatuses = Default::default();
+
+        let mut publishers = None;
+        if let Some(account) = props.current_user {
+            publishers = account.resource_access.restricted_to();
+        }
+        let body = ImprintsRequestBody {
+            variables: ImprintsVariables {
+                publishers,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let request = ImprintsRequest { body };
+        let fetch_imprints = Fetch::new(request);
 
         link.send_message(Msg::GetImprints);
         link.send_message(Msg::GetWorkTypes);

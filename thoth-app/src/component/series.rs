@@ -125,10 +125,8 @@ impl Component for SeriesComponent {
         }
         let body = ImprintsRequestBody {
             variables: ImprintsVariables {
-                limit: None,
-                offset: None,
-                filter: None,
                 publishers,
+                ..Default::default()
             },
             ..Default::default()
         };

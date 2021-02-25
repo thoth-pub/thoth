@@ -105,10 +105,8 @@ impl Component for ImprintComponent {
         }
         let body = PublishersRequestBody {
             variables: PublishersVariables {
-                limit: None,
-                offset: None,
-                filter: None,
                 publishers,
+                ..Default::default()
             },
             ..Default::default()
         };

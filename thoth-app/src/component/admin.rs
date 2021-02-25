@@ -100,7 +100,7 @@ impl Component for AdminComponent {
                                 AdminRoute::Dashboard => html!{<DashboardComponent current_user = &self.props.current_user />},
                                 AdminRoute::Works => html!{<WorksComponent current_user = &self.props.current_user />},
                                 AdminRoute::Work(id) => html!{<WorkComponent work_id = id, current_user = &self.props.current_user />},
-                                AdminRoute::NewWork => html!{<NewWorkComponent/>},
+                                AdminRoute::NewWork => html!{<NewWorkComponent current_user = &self.props.current_user />},
                                 AdminRoute::Publishers => html!{<PublishersComponent current_user = &self.props.current_user />},
                                 AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id = id />},
                                 AdminRoute::NewPublisher => html!{<NewPublisherComponent/>},
