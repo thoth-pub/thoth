@@ -29,7 +29,7 @@ pub enum Msg {
 }
 #[derive(Clone, Properties)]
 pub struct Props {
-    pub current_user: Option<AccountDetails>,
+    pub current_user: AccountDetails,
 }
 
 impl Component for DashboardComponent {
@@ -37,10 +37,7 @@ impl Component for DashboardComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let mut publishers = None;
-        if let Some(account) = props.current_user {
-            publishers = account.resource_access.restricted_to();
-        }
+        let publishers = props.current_user.resource_access.restricted_to();
         let body = StatsRequestBody {
             variables: Variables { publishers },
             ..Default::default()

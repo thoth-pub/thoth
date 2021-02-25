@@ -129,8 +129,7 @@ macro_rules! pagination_component {
 
         #[derive(Clone, Properties)]
         pub struct Props {
-            #[prop_or_default]
-            pub current_user: Option<AccountDetails>,
+            pub current_user: AccountDetails,
         }
 
         impl Component for $component {
@@ -147,11 +146,7 @@ macro_rules! pagination_component {
                 let data = Default::default();
                 let fetch_data = Default::default();
                 let table_headers = $table_headers;
-
-                let mut publishers = None;
-                if let Some(account) = props.current_user {
-                    publishers = account.resource_access.restricted_to();
-                }
+                let publishers = props.current_user.resource_access.restricted_to();
 
                 link.send_message(Msg::PaginateData);
 

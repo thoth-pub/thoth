@@ -71,7 +71,7 @@ pub enum Msg {
 pub struct Props {
     pub issues: Option<Vec<Issue>>,
     pub work_id: String,
-    pub current_user: Option<AccountDetails>,
+    pub current_user: AccountDetails,
     pub update_issues: Callback<Option<Vec<Issue>>>,
 }
 
@@ -88,10 +88,7 @@ impl Component for IssuesFormComponent {
         let delete_issue = Default::default();
         let notification_bus = NotificationBus::dispatcher();
 
-        let mut publishers = None;
-        if let Some(account) = &props.current_user {
-            publishers = account.resource_access.restricted_to();
-        }
+        let publishers = props.current_user.resource_access.restricted_to();
         let body = SeriesesRequestBody {
             variables: Variables {
                 publishers,
@@ -254,10 +251,7 @@ impl Component for IssuesFormComponent {
                 true
             }
             Msg::SearchSeries(value) => {
-                let mut publishers = None;
-                if let Some(account) = &self.props.current_user {
-                    publishers = account.resource_access.restricted_to();
-                }
+                let publishers = self.props.current_user.resource_access.restricted_to();
                 let body = SeriesesRequestBody {
                     variables: Variables {
                         filter: Some(value),

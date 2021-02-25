@@ -110,7 +110,7 @@ pub enum Msg {
 }
 #[derive(Clone, Properties)]
 pub struct Props {
-    pub current_user: Option<AccountDetails>,
+    pub current_user: AccountDetails,
 }
 
 impl Component for NewWorkComponent {
@@ -127,10 +127,7 @@ impl Component for NewWorkComponent {
         let fetch_work_types: FetchWorkTypes = Default::default();
         let fetch_work_statuses: FetchWorkStatuses = Default::default();
 
-        let mut publishers = None;
-        if let Some(account) = props.current_user {
-            publishers = account.resource_access.restricted_to();
-        }
+        let publishers = props.current_user.resource_access.restricted_to();
         let body = ImprintsRequestBody {
             variables: ImprintsVariables {
                 publishers,
