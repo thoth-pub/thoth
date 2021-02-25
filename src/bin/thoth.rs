@@ -125,13 +125,12 @@ fn main() -> Result<()> {
                     .default(false)
                     .interact_on(&Term::stdout())?;
 
-                let linked_publishers = vec![];
+                let mut linked_publishers = vec![];
                 if let Ok(publishers) = all_publishers(&pool) {
                     let chosen: Vec<usize> = MultiSelect::new()
                         .items(&publishers)
                         .with_prompt("Select publishers to link this account to")
                         .interact_on(&Term::stdout())?;
-                    let mut linked_publishers = vec![];
                     for index in chosen {
                         let publisher = publishers.get(index).unwrap();
                         let is_admin: bool = Input::new()
