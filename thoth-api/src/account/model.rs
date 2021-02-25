@@ -65,7 +65,7 @@ pub struct NewPublisherAccount {
     pub is_admin: bool,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountAccess {
     pub is_superuser: bool,
@@ -73,7 +73,7 @@ pub struct AccountAccess {
     pub linked_publishers: Vec<LinkedPublisher>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LinkedPublisher {
     pub publisher_id: Uuid,
@@ -90,7 +90,7 @@ pub struct Token {
     pub namespace: AccountAccess,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountDetails {
     pub account_id: Uuid,

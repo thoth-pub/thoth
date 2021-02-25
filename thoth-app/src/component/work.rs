@@ -72,6 +72,7 @@ pub struct WorkComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
+    current_user: Option<AccountDetails>,
 }
 
 #[derive(Default)]
@@ -138,7 +139,7 @@ impl Component for WorkComponent {
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let mut publishers = None;
-        if let Some(account) = props.current_user {
+        if let Some(account) = &props.current_user {
             publishers = account.resource_access.restricted_to();
         }
         let body = WorkRequestBody {
@@ -156,6 +157,7 @@ impl Component for WorkComponent {
         let work: Work = Default::default();
         let data: WorkFormData = Default::default();
         let router = RouteAgentDispatcher::new();
+        let current_user = props.current_user;
 
         link.send_message(Msg::GetWork);
 
@@ -168,6 +170,7 @@ impl Component for WorkComponent {
             link,
             router,
             notification_bus,
+            current_user,
         }
     }
 
@@ -816,6 +819,7 @@ impl Component for WorkComponent {
                         <IssuesFormComponent
                             issues=&self.work.issues
                             work_id=&self.work.work_id
+                            current_user=&self.current_user
                             update_issues=self.link.callback(|i: Option<Vec<Issue>>| Msg::UpdateIssues(i))
                         />
                         <FundingsFormComponent

@@ -1,3 +1,4 @@
+use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -70,6 +71,7 @@ pub enum Msg {
 pub struct Props {
     pub issues: Option<Vec<Issue>>,
     pub work_id: String,
+    pub current_user: Option<AccountDetails>,
     pub update_issues: Callback<Option<Vec<Issue>>>,
 }
 
@@ -82,10 +84,23 @@ impl Component for IssuesFormComponent {
         let new_issue: Issue = Default::default();
         let show_add_form = false;
         let show_results = false;
-        let fetch_serieses = Default::default();
         let push_issue = Default::default();
         let delete_issue = Default::default();
         let notification_bus = NotificationBus::dispatcher();
+
+        let mut publishers = None;
+        if let Some(account) = &props.current_user {
+            publishers = account.resource_access.restricted_to();
+        }
+        let body = SeriesesRequestBody {
+            variables: Variables {
+                publishers,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let request = SeriesesRequest { body };
+        let fetch_serieses = Fetch::new(request);
 
         link.send_message(Msg::GetSerieses);
 
@@ -239,10 +254,15 @@ impl Component for IssuesFormComponent {
                 true
             }
             Msg::SearchSeries(value) => {
+                let mut publishers = None;
+                if let Some(account) = &self.props.current_user {
+                    publishers = account.resource_access.restricted_to();
+                }
                 let body = SeriesesRequestBody {
                     variables: Variables {
                         filter: Some(value),
                         limit: Some(9999),
+                        publishers,
                         ..Default::default()
                     },
                     ..Default::default()
