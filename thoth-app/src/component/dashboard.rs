@@ -73,8 +73,12 @@ impl Component for DashboardComponent {
     }
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        let old_permissions = self.props.current_user.resource_access.clone();
         self.props = props;
-        true
+        if !(old_permissions == self.props.current_user.resource_access) {
+            self.link.send_message(Msg::GetStats);
+        }
+        false
     }
 
     fn view(&self) -> Html {

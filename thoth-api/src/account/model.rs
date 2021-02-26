@@ -90,7 +90,7 @@ pub struct Token {
     pub namespace: AccountAccess,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountDetails {
     pub account_id: Uuid,

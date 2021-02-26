@@ -67,7 +67,7 @@ pub enum Msg {
     DoNothing,
 }
 
-#[derive(Clone, Properties, PartialEq)]
+#[derive(Clone, Properties)]
 pub struct Props {
     pub issues: Option<Vec<Issue>>,
     pub work_id: String,
@@ -275,9 +275,12 @@ impl Component for IssuesFormComponent {
     }
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        // Note that with the addition of current_user to Props,
-        // this will always return True, as current_user.token will have changed
-        self.props.neq_assign(props)
+        let old_permissions = self.props.current_user.resource_access.clone();
+        self.props = props;
+        if !(old_permissions == self.props.current_user.resource_access) {
+            self.link.send_message(Msg::GetSerieses);
+        }
+        false
     }
 
     fn view(&self) -> Html {
