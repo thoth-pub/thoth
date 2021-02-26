@@ -14,7 +14,7 @@ macro_rules! pagination_helpers {
                     true => 1,
                     false => self.offset,
                 };
-                let limit_display = match self.limit > self.result_count {
+                let limit_display = match (self.limit + self.offset) > self.result_count {
                     true => self.result_count,
                     false => self.limit + self.offset,
                 };
@@ -26,7 +26,7 @@ macro_rules! pagination_helpers {
             }
 
             fn is_next_disabled(&self) -> bool {
-                self.limit >= self.result_count
+                self.limit + self.offset >= self.result_count
             }
 
             #[allow(dead_code)]
