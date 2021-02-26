@@ -21,6 +21,7 @@ use crate::route::AppRoute;
 pub struct DashboardComponent {
     get_stats: FetchStats,
     link: ComponentLink<Self>,
+    props: Props,
 }
 
 pub enum Msg {
@@ -37,16 +38,13 @@ impl Component for DashboardComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let publishers = props.current_user.resource_access.restricted_to();
-        let body = StatsRequestBody {
-            variables: Variables { publishers },
-            ..Default::default()
-        };
-        let request = StatsRequest { body };
-        let get_stats = Fetch::new(request);
         link.send_message(Msg::GetStats);
 
-        DashboardComponent { get_stats, link }
+        DashboardComponent {
+            get_stats: Default::default(),
+            link,
+            props,
+        }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
@@ -56,6 +54,15 @@ impl Component for DashboardComponent {
                 true
             }
             Msg::GetStats => {
+                let body = StatsRequestBody {
+                    variables: Variables {
+                        publishers: self.props.current_user.resource_access.restricted_to(),
+                    },
+                    ..Default::default()
+                };
+                let request = StatsRequest { body };
+                self.get_stats = Fetch::new(request);
+
                 self.link
                     .send_future(self.get_stats.fetch(Msg::SetStatsFetchState));
                 self.link
@@ -65,8 +72,9 @@ impl Component for DashboardComponent {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        false
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        self.props = props;
+        true
     }
 
     fn view(&self) -> Html {
