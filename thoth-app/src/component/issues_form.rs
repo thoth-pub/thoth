@@ -84,20 +84,10 @@ impl Component for IssuesFormComponent {
         let new_issue: Issue = Default::default();
         let show_add_form = false;
         let show_results = false;
+        let fetch_serieses = Default::default();
         let push_issue = Default::default();
         let delete_issue = Default::default();
         let notification_bus = NotificationBus::dispatcher();
-
-        let publishers = props.current_user.resource_access.restricted_to();
-        let body = SeriesesRequestBody {
-            variables: Variables {
-                publishers,
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-        let request = SeriesesRequest { body };
-        let fetch_serieses = Fetch::new(request);
 
         link.send_message(Msg::GetSerieses);
 
@@ -132,6 +122,16 @@ impl Component for IssuesFormComponent {
                 true
             }
             Msg::GetSerieses => {
+                let body = SeriesesRequestBody {
+                    variables: Variables {
+                        publishers: self.props.current_user.resource_access.restricted_to(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                };
+                let request = SeriesesRequest { body };
+                self.fetch_serieses = Fetch::new(request);
+
                 self.link
                     .send_future(self.fetch_serieses.fetch(Msg::SetSeriesesFetchState));
                 self.link
@@ -251,12 +251,11 @@ impl Component for IssuesFormComponent {
                 true
             }
             Msg::SearchSeries(value) => {
-                let publishers = self.props.current_user.resource_access.restricted_to();
                 let body = SeriesesRequestBody {
                     variables: Variables {
                         filter: Some(value),
                         limit: Some(9999),
-                        publishers,
+                        publishers: self.props.current_user.resource_access.restricted_to(),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -276,6 +275,8 @@ impl Component for IssuesFormComponent {
     }
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        // Note that with the addition of current_user to Props,
+        // this will always return True, as current_user.token will have changed
         self.props.neq_assign(props)
     }
 

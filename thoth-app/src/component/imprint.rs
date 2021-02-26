@@ -56,6 +56,7 @@ pub struct ImprintComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
+    props: Props,
 }
 
 #[derive(Default)]
@@ -89,27 +90,9 @@ impl Component for ImprintComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let body = ImprintRequestBody {
-            variables: Variables {
-                imprint_id: Some(props.imprint_id),
-            },
-            ..Default::default()
-        };
-        let request = ImprintRequest { body };
-        let fetch_imprint = Fetch::new(request);
+        let fetch_imprint: FetchImprint = Default::default();
         let data: ImprintFormData = Default::default();
-
-        let publishers = props.current_user.resource_access.restricted_to();
-        let body = PublishersRequestBody {
-            variables: PublishersVariables {
-                publishers,
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-        let request = PublishersRequest { body };
-        let fetch_publishers = Fetch::new(request);
-
+        let fetch_publishers: FetchPublishers = Default::default();
         let push_imprint = Default::default();
         let delete_imprint = Default::default();
         let notification_bus = NotificationBus::dispatcher();
@@ -129,6 +112,7 @@ impl Component for ImprintComponent {
             link,
             router,
             notification_bus,
+            props,
         }
     }
 
@@ -145,6 +129,16 @@ impl Component for ImprintComponent {
                 true
             }
             Msg::GetPublishers => {
+                let body = PublishersRequestBody {
+                    variables: PublishersVariables {
+                        publishers: self.props.current_user.resource_access.restricted_to(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                };
+                let request = PublishersRequest { body };
+                self.fetch_publishers = Fetch::new(request);
+
                 self.link
                     .send_future(self.fetch_publishers.fetch(Msg::SetPublishersFetchState));
                 self.link
@@ -167,6 +161,15 @@ impl Component for ImprintComponent {
                 }
             }
             Msg::GetImprint => {
+                let body = ImprintRequestBody {
+                    variables: Variables {
+                        imprint_id: Some(self.props.imprint_id.clone()),
+                    },
+                    ..Default::default()
+                };
+                let request = ImprintRequest { body };
+                self.fetch_imprint = Fetch::new(request);
+
                 self.link
                     .send_future(self.fetch_imprint.fetch(Msg::SetImprintFetchState));
                 self.link
@@ -302,8 +305,9 @@ impl Component for ImprintComponent {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        false
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        self.props = props;
+        true
     }
 
     fn view(&self) -> Html {

@@ -72,7 +72,7 @@ pub struct WorkComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
-    current_user: AccountDetails,
+    props: Props,
 }
 
 #[derive(Default)]
@@ -138,23 +138,13 @@ impl Component for WorkComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let publishers = props.current_user.resource_access.restricted_to();
-        let body = WorkRequestBody {
-            variables: Variables {
-                work_id: Some(props.work_id),
-                publishers,
-            },
-            ..Default::default()
-        };
-        let request = WorkRequest { body };
-        let fetch_work = Fetch::new(request);
+        let fetch_work: FetchWork = Default::default();
         let push_work = Default::default();
         let delete_work = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let work: Work = Default::default();
         let data: WorkFormData = Default::default();
         let router = RouteAgentDispatcher::new();
-        let current_user = props.current_user;
 
         link.send_message(Msg::GetWork);
 
@@ -167,7 +157,7 @@ impl Component for WorkComponent {
             link,
             router,
             notification_bus,
-            current_user,
+            props,
         }
     }
 
@@ -192,6 +182,16 @@ impl Component for WorkComponent {
                 }
             }
             Msg::GetWork => {
+                let body = WorkRequestBody {
+                    variables: Variables {
+                        work_id: Some(self.props.work_id.clone()),
+                        publishers: self.props.current_user.resource_access.restricted_to(),
+                    },
+                    ..Default::default()
+                };
+                let request = WorkRequest { body };
+                self.fetch_work = Fetch::new(request);
+
                 self.link
                     .send_future(self.fetch_work.fetch(Msg::SetWorkFetchState));
                 self.link
@@ -816,7 +816,7 @@ impl Component for WorkComponent {
                         <IssuesFormComponent
                             issues=&self.work.issues
                             work_id=&self.work.work_id
-                            current_user=&self.current_user
+                            current_user=&self.props.current_user
                             update_issues=self.link.callback(|i: Option<Vec<Issue>>| Msg::UpdateIssues(i))
                         />
                         <FundingsFormComponent

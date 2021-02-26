@@ -43,6 +43,7 @@ pub struct NewImprintComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
+    props: Props,
 }
 
 #[derive(Default)]
@@ -76,17 +77,7 @@ impl Component for NewImprintComponent {
         let imprint: Imprint = Default::default();
         let publisher_id: String = Default::default();
         let data: ImprintFormData = Default::default();
-
-        let publishers = props.current_user.resource_access.restricted_to();
-        let body = PublishersRequestBody {
-            variables: PublishersVariables {
-                publishers,
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-        let request = PublishersRequest { body };
-        let fetch_publishers = Fetch::new(request);
+        let fetch_publishers: FetchPublishers = Default::default();
 
         link.send_message(Msg::GetPublishers);
 
@@ -99,6 +90,7 @@ impl Component for NewImprintComponent {
             link,
             router,
             notification_bus,
+            props,
         }
     }
 
@@ -115,6 +107,16 @@ impl Component for NewImprintComponent {
                 true
             }
             Msg::GetPublishers => {
+                let body = PublishersRequestBody {
+                    variables: PublishersVariables {
+                        publishers: self.props.current_user.resource_access.restricted_to(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                };
+                let request = PublishersRequest { body };
+                self.fetch_publishers = Fetch::new(request);
+
                 self.link
                     .send_future(self.fetch_publishers.fetch(Msg::SetPublishersFetchState));
                 self.link
@@ -191,8 +193,9 @@ impl Component for NewImprintComponent {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        false
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        self.props = props;
+        true
     }
 
     fn view(&self) -> Html {

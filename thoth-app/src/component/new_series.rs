@@ -49,6 +49,7 @@ pub struct NewSeriesComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
+    props: Props,
 }
 
 #[derive(Default)]
@@ -86,19 +87,9 @@ impl Component for NewSeriesComponent {
         let notification_bus = NotificationBus::dispatcher();
         let series: Series = Default::default();
         let data: SeriesFormData = Default::default();
+        let fetch_imprints: FetchImprints = Default::default();
         let fetch_series_types: FetchSeriesTypes = Default::default();
         let router = RouteAgentDispatcher::new();
-
-        let publishers = props.current_user.resource_access.restricted_to();
-        let body = ImprintsRequestBody {
-            variables: ImprintsVariables {
-                publishers,
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-        let request = ImprintsRequest { body };
-        let fetch_imprints = Fetch::new(request);
 
         link.send_message(Msg::GetImprints);
         link.send_message(Msg::GetSeriesTypes);
@@ -112,6 +103,7 @@ impl Component for NewSeriesComponent {
             link,
             router,
             notification_bus,
+            props,
         }
     }
 
@@ -128,6 +120,16 @@ impl Component for NewSeriesComponent {
                 true
             }
             Msg::GetImprints => {
+                let body = ImprintsRequestBody {
+                    variables: ImprintsVariables {
+                        publishers: self.props.current_user.resource_access.restricted_to(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                };
+                let request = ImprintsRequest { body };
+                self.fetch_imprints = Fetch::new(request);
+
                 self.link
                     .send_future(self.fetch_imprints.fetch(Msg::SetImprintsFetchState));
                 self.link
@@ -233,8 +235,9 @@ impl Component for NewSeriesComponent {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        false
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        self.props = props;
+        true
     }
 
     fn view(&self) -> Html {

@@ -112,7 +112,7 @@ macro_rules! pagination_component {
             fetch_data: $fetch_data,
             link: ComponentLink<Self>,
             router: RouteAgentDispatcher<()>,
-            publishers: Option<Vec<String>>,
+            props: Props,
         }
 
         pagination_helpers! {$component, $pagination_text, $search_text}
@@ -146,7 +146,6 @@ macro_rules! pagination_component {
                 let data = Default::default();
                 let fetch_data = Default::default();
                 let table_headers = $table_headers;
-                let publishers = props.current_user.resource_access.restricted_to();
 
                 link.send_message(Msg::PaginateData);
 
@@ -161,7 +160,7 @@ macro_rules! pagination_component {
                     fetch_data,
                     link,
                     router,
-                    publishers,
+                    props,
                 }
             }
 
@@ -193,7 +192,7 @@ macro_rules! pagination_component {
                                 limit: Some(self.limit),
                                 offset: Some(self.offset),
                                 filter: Some(filter),
-                                publishers: self.publishers.clone(),
+                                publishers: self.props.current_user.resource_access.restricted_to(),
                             },
                             ..Default::default()
                         };
@@ -231,8 +230,9 @@ macro_rules! pagination_component {
                 }
             }
 
-            fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-                false
+            fn change(&mut self, props: Self::Properties) -> ShouldRender {
+                self.props = props;
+                true
             }
 
             fn view(&self) -> Html {

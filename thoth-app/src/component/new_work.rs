@@ -59,6 +59,7 @@ pub struct NewWorkComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
+    props: Props,
 }
 
 #[derive(Default)]
@@ -124,19 +125,9 @@ impl Component for NewWorkComponent {
         let work: Work = Default::default();
         let imprint_id: String = Default::default();
         let data: WorkFormData = Default::default();
+        let fetch_imprints: FetchImprints = Default::default();
         let fetch_work_types: FetchWorkTypes = Default::default();
         let fetch_work_statuses: FetchWorkStatuses = Default::default();
-
-        let publishers = props.current_user.resource_access.restricted_to();
-        let body = ImprintsRequestBody {
-            variables: ImprintsVariables {
-                publishers,
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-        let request = ImprintsRequest { body };
-        let fetch_imprints = Fetch::new(request);
 
         link.send_message(Msg::GetImprints);
         link.send_message(Msg::GetWorkTypes);
@@ -153,6 +144,7 @@ impl Component for NewWorkComponent {
             link,
             router,
             notification_bus,
+            props,
         }
     }
 
@@ -169,6 +161,16 @@ impl Component for NewWorkComponent {
                 true
             }
             Msg::GetImprints => {
+                let body = ImprintsRequestBody {
+                    variables: ImprintsVariables {
+                        publishers: self.props.current_user.resource_access.restricted_to(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                };
+                let request = ImprintsRequest { body };
+                self.fetch_imprints = Fetch::new(request);
+
                 self.link
                     .send_future(self.fetch_imprints.fetch(Msg::SetImprintsFetchState));
                 self.link
@@ -482,8 +484,9 @@ impl Component for NewWorkComponent {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        false
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        self.props = props;
+        true
     }
 
     fn view(&self) -> Html {
