@@ -6,6 +6,10 @@ use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 use yew_router::route::Route;
 
+use crate::agent::notification_bus::NotificationBus;
+use crate::agent::notification_bus::NotificationDispatcher;
+use crate::agent::notification_bus::NotificationStatus;
+use crate::agent::notification_bus::Request;
 use crate::component::contributor::ContributorComponent;
 use crate::component::contributors::ContributorsComponent;
 use crate::component::dashboard::DashboardComponent;
@@ -30,9 +34,11 @@ use crate::component::work::WorkComponent;
 use crate::component::works::WorksComponent;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
+use crate::string::PERMISSIONS_ERROR;
 
 pub struct AdminComponent {
     props: Props,
+    notification_bus: NotificationDispatcher,
     router: RouteAgentDispatcher<()>,
     link: ComponentLink<Self>,
 }
@@ -54,14 +60,30 @@ impl Component for AdminComponent {
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         AdminComponent {
             props,
+            notification_bus: NotificationBus::dispatcher(),
             router: RouteAgentDispatcher::new(),
             link,
         }
     }
 
     fn rendered(&mut self, first_render: bool) {
-        if first_render && self.props.current_user.is_none() {
-            self.link.send_message(Msg::RedirectToLogin);
+        if first_render {
+            if self.props.current_user.is_none() {
+                self.link.send_message(Msg::RedirectToLogin);
+            } else if self
+                .props
+                .current_user
+                .as_ref()
+                .unwrap()
+                .resource_access
+                .restricted_to()
+                == Some(vec![])
+            {
+                self.notification_bus.send(Request::NotificationBusMsg((
+                    PERMISSIONS_ERROR.into(),
+                    NotificationStatus::Danger,
+                )));
+            }
         }
     }
 
@@ -79,12 +101,34 @@ impl Component for AdminComponent {
         self.props = props;
         if self.props.current_user.is_none() {
             self.link.send_message(Msg::RedirectToLogin);
+        } else if self
+            .props
+            .current_user
+            .as_ref()
+            .unwrap()
+            .resource_access
+            .restricted_to()
+            == Some(vec![])
+        {
+            self.notification_bus.send(Request::NotificationBusMsg((
+                PERMISSIONS_ERROR.into(),
+                NotificationStatus::Danger,
+            )));
         }
         true
     }
 
     fn view(&self) -> Html {
-        if self.props.current_user.is_some() {
+        if self.props.current_user.is_some()
+            && self
+                .props
+                .current_user
+                .as_ref()
+                .unwrap()
+                .resource_access
+                .restricted_to()
+                != Some(vec![])
+        {
             html! {
                 <div class="columns">
                     <div class="column">
