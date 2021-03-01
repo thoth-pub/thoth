@@ -176,6 +176,19 @@ impl Component for WorkComponent {
                         self.data.imprints = body.data.imprints.to_owned();
                         self.data.work_types = body.data.work_types.enum_values.to_owned();
                         self.data.work_statuses = body.data.work_statuses.enum_values.to_owned();
+
+                        // If user doesn't have permission to edit this object, redirect to dashboard
+                        if let Some(publishers) =
+                            self.props.current_user.resource_access.restricted_to()
+                        {
+                            if !publishers
+                                .contains(&self.work.imprint.publisher.publisher_id.to_string())
+                            {
+                                self.router.send(RouteRequest::ChangeRoute(Route::from(
+                                    AppRoute::Admin(AdminRoute::Dashboard),
+                                )));
+                            }
+                        }
                         true
                     }
                     FetchState::Failed(_, _err) => false,
