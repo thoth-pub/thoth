@@ -3,10 +3,10 @@ use diesel::prelude::*;
 use uuid::Uuid;
 
 use crate::errors::ThothError;
+use crate::schema::work_history;
 use crate::work::model::NewWorkHistory;
 use crate::work::model::Work;
 use crate::work::model::WorkHistory;
-use crate::schema::work_history;
 
 impl NewWorkHistory {
     pub fn new(work: Work, account_id: Uuid) -> Self {

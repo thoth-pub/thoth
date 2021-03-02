@@ -89,11 +89,7 @@ pub struct SeriesHistory {
     pub timestamp: NaiveDateTime,
 }
 
-#[cfg_attr(
-    feature = "backend",
-    derive(Insertable),
-    table_name = "series_history"
-)]
+#[cfg_attr(feature = "backend", derive(Insertable), table_name = "series_history")]
 pub struct NewSeriesHistory {
     pub series_id: Uuid,
     pub account_id: Uuid,

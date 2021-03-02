@@ -63,11 +63,7 @@ pub struct IssueHistory {
     pub timestamp: NaiveDateTime,
 }
 
-#[cfg_attr(
-    feature = "backend",
-    derive(Insertable),
-    table_name = "issue_history"
-)]
+#[cfg_attr(feature = "backend", derive(Insertable), table_name = "issue_history")]
 pub struct NewIssueHistory {
     pub series_id: Uuid,
     pub work_id: Uuid,

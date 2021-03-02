@@ -61,11 +61,7 @@ pub struct FunderHistory {
     pub timestamp: NaiveDateTime,
 }
 
-#[cfg_attr(
-    feature = "backend",
-    derive(Insertable),
-    table_name = "funder_history"
-)]
+#[cfg_attr(feature = "backend", derive(Insertable), table_name = "funder_history")]
 pub struct NewFunderHistory {
     pub funder_id: Uuid,
     pub account_id: Uuid,

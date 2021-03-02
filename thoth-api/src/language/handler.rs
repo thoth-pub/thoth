@@ -3,9 +3,9 @@ use diesel::prelude::*;
 use uuid::Uuid;
 
 use crate::errors::ThothError;
-use crate::language::model::NewLanguageHistory;
 use crate::language::model::Language;
 use crate::language::model::LanguageHistory;
+use crate::language::model::NewLanguageHistory;
 use crate::schema::language_history;
 
 impl NewLanguageHistory {

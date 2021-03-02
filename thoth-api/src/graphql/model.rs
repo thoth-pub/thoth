@@ -2227,7 +2227,8 @@ impl MutationRoot {
             .filter(work_id.eq(&data.work_id))
             .filter(contributor_id.eq(&data.contributor_id))
             .filter(contribution_type.eq(&data.contribution_type))
-            .get_result::<Contribution>(&connection).unwrap();
+            .get_result::<Contribution>(&connection)
+            .unwrap();
         let target = contribution
             .filter(work_id.eq(&data.work_id))
             .filter(contributor_id.eq(&data.contributor_id))
@@ -2237,7 +2238,9 @@ impl MutationRoot {
             || match diesel::update(target).set(&data).get_result(&connection) {
                 Ok(c) => {
                     let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-                    match NewContributionHistory::new(target_contribution, account_id).insert(&connection) {
+                    match NewContributionHistory::new(target_contribution, account_id)
+                        .insert(&connection)
+                    {
                         Ok(_) => Ok(c),
                         Err(e) => Err(FieldError::from(e)),
                     }

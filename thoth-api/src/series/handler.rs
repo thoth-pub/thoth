@@ -3,10 +3,10 @@ use diesel::prelude::*;
 use uuid::Uuid;
 
 use crate::errors::ThothError;
+use crate::schema::series_history;
 use crate::series::model::NewSeriesHistory;
 use crate::series::model::Series;
 use crate::series::model::SeriesHistory;
-use crate::schema::series_history;
 
 impl NewSeriesHistory {
     pub fn new(series: Series, account_id: Uuid) -> Self {

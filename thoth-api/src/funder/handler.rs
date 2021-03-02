@@ -3,9 +3,9 @@ use diesel::prelude::*;
 use uuid::Uuid;
 
 use crate::errors::ThothError;
-use crate::funder::model::NewFunderHistory;
 use crate::funder::model::Funder;
 use crate::funder::model::FunderHistory;
+use crate::funder::model::NewFunderHistory;
 use crate::schema::funder_history;
 
 impl NewFunderHistory {

@@ -2,10 +2,10 @@ use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
-use crate::contributor::model::NewContributorHistory;
 use crate::contributor::model::Contributor;
 use crate::contributor::model::ContributorHistory;
+use crate::contributor::model::NewContributorHistory;
+use crate::errors::ThothError;
 use crate::schema::contributor_history;
 
 impl NewContributorHistory {

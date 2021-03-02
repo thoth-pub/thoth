@@ -218,11 +218,7 @@ pub struct WorkHistory {
     pub timestamp: NaiveDateTime,
 }
 
-#[cfg_attr(
-    feature = "backend",
-    derive(Insertable),
-    table_name = "work_history"
-)]
+#[cfg_attr(feature = "backend", derive(Insertable), table_name = "work_history")]
 pub struct NewWorkHistory {
     pub work_id: Uuid,
     pub account_id: Uuid,

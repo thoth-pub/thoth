@@ -3,9 +3,9 @@ use diesel::prelude::*;
 use uuid::Uuid;
 
 use crate::errors::ThothError;
-use crate::imprint::model::NewImprintHistory;
 use crate::imprint::model::Imprint;
 use crate::imprint::model::ImprintHistory;
+use crate::imprint::model::NewImprintHistory;
 use crate::schema::imprint_history;
 
 impl NewImprintHistory {

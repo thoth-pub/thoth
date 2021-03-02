@@ -3,10 +3,10 @@ use diesel::prelude::*;
 use uuid::Uuid;
 
 use crate::errors::ThothError;
+use crate::schema::subject_history;
 use crate::subject::model::NewSubjectHistory;
 use crate::subject::model::Subject;
 use crate::subject::model::SubjectHistory;
-use crate::schema::subject_history;
 
 impl NewSubjectHistory {
     pub fn new(subject: Subject, account_id: Uuid) -> Self {

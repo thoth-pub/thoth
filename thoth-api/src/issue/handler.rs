@@ -3,9 +3,9 @@ use diesel::prelude::*;
 use uuid::Uuid;
 
 use crate::errors::ThothError;
-use crate::issue::model::NewIssueHistory;
 use crate::issue::model::Issue;
 use crate::issue::model::IssueHistory;
+use crate::issue::model::NewIssueHistory;
 use crate::schema::issue_history;
 
 impl NewIssueHistory {

@@ -377,11 +377,7 @@ pub struct PriceHistory {
     pub timestamp: NaiveDateTime,
 }
 
-#[cfg_attr(
-    feature = "backend",
-    derive(Insertable),
-    table_name = "price_history"
-)]
+#[cfg_attr(feature = "backend", derive(Insertable), table_name = "price_history")]
 pub struct NewPriceHistory {
     pub price_id: Uuid,
     pub account_id: Uuid,
