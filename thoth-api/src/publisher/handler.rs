@@ -18,7 +18,6 @@ impl NewPublisherHistory {
         }
     }
 
-    #[cfg(feature = "backend")]
     pub fn insert(self: &Self, connection: &PgConnection) -> Result<PublisherHistory, ThothError> {
         match diesel::insert_into(publisher_history::table)
             .values(self)
