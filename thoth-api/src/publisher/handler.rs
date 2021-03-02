@@ -1,6 +1,5 @@
 use diesel::prelude::*;
 use diesel::pg::PgConnection;
-use serde_json;
 use uuid::Uuid;
 
 use crate::publisher::model::Publisher;
@@ -18,7 +17,7 @@ impl NewPublisherHistory {
         }
     }
 
-    pub fn insert(self: &Self, connection: &PgConnection) -> Result<PublisherHistory, ThothError> {
+    pub fn insert(&self, connection: &PgConnection) -> Result<PublisherHistory, ThothError> {
         match diesel::insert_into(publisher_history::table)
             .values(self)
             .get_result(connection)

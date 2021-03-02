@@ -1,6 +1,5 @@
 use chrono::naive::NaiveDateTime;
 use std::fmt;
-use serde_json;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
