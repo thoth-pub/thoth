@@ -266,7 +266,7 @@ impl Component for IssuesFormComponent {
                 false
             }
             Msg::ChangeOrdinal(ordinal) => {
-                let ordinal = ordinal.parse::<i32>().unwrap();
+                let ordinal = ordinal.parse::<i32>().unwrap_or(0);
                 self.new_issue.issue_ordinal.neq_assign(ordinal);
                 false // otherwise we re-render the component and reset the value
             }
