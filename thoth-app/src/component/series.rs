@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::account::model::AccountDetails;
 use thoth_api::series::model::SeriesType;
 use yew::html;
 use yew::prelude::*;
@@ -23,6 +24,9 @@ use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
 use crate::models::imprint::imprints_query::FetchActionImprints;
 use crate::models::imprint::imprints_query::FetchImprints;
+use crate::models::imprint::imprints_query::ImprintsRequest;
+use crate::models::imprint::imprints_query::ImprintsRequestBody;
+use crate::models::imprint::imprints_query::Variables as ImprintsVariables;
 use crate::models::imprint::Imprint;
 use crate::models::series::delete_series_mutation::DeleteSeriesRequest;
 use crate::models::series::delete_series_mutation::DeleteSeriesRequestBody;
@@ -59,6 +63,7 @@ pub struct SeriesComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
+    props: Props,
 }
 
 #[derive(Default)]
@@ -91,6 +96,7 @@ pub enum Msg {
 #[derive(Clone, Properties)]
 pub struct Props {
     pub series_id: String,
+    pub current_user: AccountDetails,
 }
 
 impl Component for SeriesComponent {
@@ -98,14 +104,7 @@ impl Component for SeriesComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let body = SeriesRequestBody {
-            variables: Variables {
-                series_id: Some(props.series_id),
-            },
-            ..Default::default()
-        };
-        let request = SeriesRequest { body };
-        let fetch_series = Fetch::new(request);
+        let fetch_series: FetchSeries = Default::default();
         let push_series = Default::default();
         let delete_series = Default::default();
         let notification_bus = NotificationBus::dispatcher();
@@ -130,6 +129,7 @@ impl Component for SeriesComponent {
             link,
             router,
             notification_bus,
+            props,
         }
     }
 
@@ -146,6 +146,16 @@ impl Component for SeriesComponent {
                 true
             }
             Msg::GetImprints => {
+                let body = ImprintsRequestBody {
+                    variables: ImprintsVariables {
+                        publishers: self.props.current_user.resource_access.restricted_to(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                };
+                let request = ImprintsRequest { body };
+                self.fetch_imprints = Fetch::new(request);
+
                 self.link
                     .send_future(self.fetch_imprints.fetch(Msg::SetImprintsFetchState));
                 self.link
@@ -179,12 +189,33 @@ impl Component for SeriesComponent {
                             Some(c) => c.to_owned(),
                             None => Default::default(),
                         };
+                        // If user doesn't have permission to edit this object, redirect to dashboard
+                        if let Some(publishers) =
+                            self.props.current_user.resource_access.restricted_to()
+                        {
+                            if !publishers
+                                .contains(&self.series.imprint.publisher.publisher_id.to_string())
+                            {
+                                self.router.send(RouteRequest::ChangeRoute(Route::from(
+                                    AppRoute::Admin(AdminRoute::Dashboard),
+                                )));
+                            }
+                        }
                         true
                     }
                     FetchState::Failed(_, _err) => false,
                 }
             }
             Msg::GetSeries => {
+                let body = SeriesRequestBody {
+                    variables: Variables {
+                        series_id: Some(self.props.series_id.clone()),
+                    },
+                    ..Default::default()
+                };
+                let request = SeriesRequest { body };
+                self.fetch_series = Fetch::new(request);
+
                 self.link
                     .send_future(self.fetch_series.fetch(Msg::SetSeriesFetchState));
                 self.link
@@ -319,7 +350,13 @@ impl Component for SeriesComponent {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        let updated_permissions =
+            self.props.current_user.resource_access != props.current_user.resource_access;
+        self.props = props;
+        if updated_permissions {
+            self.link.send_message(Msg::GetImprints);
+        }
         false
     }
 

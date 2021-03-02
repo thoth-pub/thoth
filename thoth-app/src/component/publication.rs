@@ -1,3 +1,4 @@
+use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -39,6 +40,7 @@ pub struct PublicationComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
+    props: Props,
 }
 
 pub enum Msg {
@@ -53,6 +55,7 @@ pub enum Msg {
 #[derive(Clone, Properties)]
 pub struct Props {
     pub publication_id: String,
+    pub current_user: AccountDetails,
 }
 
 impl Component for PublicationComponent {
@@ -60,14 +63,7 @@ impl Component for PublicationComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let body = PublicationRequestBody {
-            variables: Variables {
-                publication_id: Some(props.publication_id),
-            },
-            ..Default::default()
-        };
-        let request = PublicationRequest { body };
-        let fetch_publication = Fetch::new(request);
+        let fetch_publication: FetchPublication = Default::default();
         let delete_publication = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let publication: Publication = Default::default();
@@ -82,6 +78,7 @@ impl Component for PublicationComponent {
             link,
             router,
             notification_bus,
+            props,
         }
     }
 
@@ -97,12 +94,39 @@ impl Component for PublicationComponent {
                             Some(c) => c.to_owned(),
                             None => Default::default(),
                         };
+                        // If user doesn't have permission to edit this object, redirect to dashboard
+                        if let Some(publishers) =
+                            self.props.current_user.resource_access.restricted_to()
+                        {
+                            if !publishers.contains(
+                                &self
+                                    .publication
+                                    .work
+                                    .imprint
+                                    .publisher
+                                    .publisher_id
+                                    .to_string(),
+                            ) {
+                                self.router.send(RouteRequest::ChangeRoute(Route::from(
+                                    AppRoute::Admin(AdminRoute::Dashboard),
+                                )));
+                            }
+                        }
                         true
                     }
                     FetchState::Failed(_, _err) => false,
                 }
             }
             Msg::GetPublication => {
+                let body = PublicationRequestBody {
+                    variables: Variables {
+                        publication_id: Some(self.props.publication_id.clone()),
+                    },
+                    ..Default::default()
+                };
+                let request = PublicationRequest { body };
+                self.fetch_publication = Fetch::new(request);
+
                 self.link
                     .send_future(self.fetch_publication.fetch(Msg::SetPublicationFetchState));
                 self.link
@@ -171,8 +195,9 @@ impl Component for PublicationComponent {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        false
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        self.props = props;
+        true
     }
 
     fn view(&self) -> Html {

@@ -40,4 +40,5 @@ strings! {
     SEARCH_CONTRIBUTORS => "Search by name or ORCID",
     SEARCH_PUBLICATIONS => "Search by ISBN or URL",
     STORAGE_ERROR => "local storage is disabled",
+    PERMISSIONS_ERROR => "This account is not permitted to access any data",
 }

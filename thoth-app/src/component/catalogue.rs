@@ -99,6 +99,8 @@ impl Component for CatalogueComponent {
                         limit: Some(self.limit),
                         offset: Some(self.offset),
                         filter: Some(filter),
+                        // Catalogue is public so results should never be filtered by logged-in user
+                        publishers: None,
                     },
                     ..Default::default()
                 };

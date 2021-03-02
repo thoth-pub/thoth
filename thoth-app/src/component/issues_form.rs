@@ -1,3 +1,4 @@
+use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -66,10 +67,11 @@ pub enum Msg {
     DoNothing,
 }
 
-#[derive(Clone, Properties, PartialEq)]
+#[derive(Clone, Properties)]
 pub struct Props {
     pub issues: Option<Vec<Issue>>,
     pub work_id: String,
+    pub current_user: AccountDetails,
     pub update_issues: Callback<Option<Vec<Issue>>>,
 }
 
@@ -120,6 +122,16 @@ impl Component for IssuesFormComponent {
                 true
             }
             Msg::GetSerieses => {
+                let body = SeriesesRequestBody {
+                    variables: Variables {
+                        publishers: self.props.current_user.resource_access.restricted_to(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                };
+                let request = SeriesesRequest { body };
+                self.fetch_serieses = Fetch::new(request);
+
                 self.link
                     .send_future(self.fetch_serieses.fetch(Msg::SetSeriesesFetchState));
                 self.link
@@ -243,6 +255,7 @@ impl Component for IssuesFormComponent {
                     variables: Variables {
                         filter: Some(value),
                         limit: Some(9999),
+                        publishers: self.props.current_user.resource_access.restricted_to(),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -262,7 +275,13 @@ impl Component for IssuesFormComponent {
     }
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        self.props.neq_assign(props)
+        let updated_permissions =
+            self.props.current_user.resource_access != props.current_user.resource_access;
+        self.props = props;
+        if updated_permissions {
+            self.link.send_message(Msg::GetSerieses);
+        }
+        false
     }
 
     fn view(&self) -> Html {
