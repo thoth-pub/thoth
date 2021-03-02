@@ -189,6 +189,18 @@ impl Component for SeriesComponent {
                             Some(c) => c.to_owned(),
                             None => Default::default(),
                         };
+                        // If user doesn't have permission to edit this object, redirect to dashboard
+                        if let Some(publishers) =
+                            self.props.current_user.resource_access.restricted_to()
+                        {
+                            if !publishers
+                                .contains(&self.series.imprint.publisher.publisher_id.to_string())
+                            {
+                                self.router.send(RouteRequest::ChangeRoute(Route::from(
+                                    AppRoute::Admin(AdminRoute::Dashboard),
+                                )));
+                            }
+                        }
                         true
                     }
                     FetchState::Failed(_, _err) => false,

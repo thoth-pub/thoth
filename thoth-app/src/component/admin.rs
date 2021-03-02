@@ -153,7 +153,7 @@ impl Component for AdminComponent {
                                 AdminRoute::Work(id) => html!{<WorkComponent work_id = id, current_user = self.props.current_user.as_ref().unwrap() />},
                                 AdminRoute::NewWork => html!{<NewWorkComponent current_user = self.props.current_user.as_ref().unwrap() />},
                                 AdminRoute::Publishers => html!{<PublishersComponent current_user = self.props.current_user.as_ref().unwrap() />},
-                                AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id = id />},
+                                AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id = id, current_user = self.props.current_user.as_ref().unwrap() />},
                                 AdminRoute::NewPublisher => html!{<NewPublisherComponent/>},
                                 AdminRoute::Imprints => html!{<ImprintsComponent current_user = self.props.current_user.as_ref().unwrap() />},
                                 AdminRoute::Imprint(id) => html!{<ImprintComponent imprint_id = id, current_user = self.props.current_user.as_ref().unwrap() />},
