@@ -1,8 +1,11 @@
 use chrono::naive::NaiveDateTime;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[cfg(feature = "backend")]
 use crate::schema::imprint;
+#[cfg(feature = "backend")]
+use crate::schema::imprint_history;
 
 #[cfg_attr(
     feature = "backend",
@@ -18,6 +21,7 @@ pub enum ImprintField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
+#[derive(Serialize, Deserialize)]
 pub struct Imprint {
     pub imprint_id: Uuid,
     pub publisher_id: Uuid,
@@ -49,4 +53,24 @@ pub struct PatchImprint {
     pub publisher_id: Uuid,
     pub imprint_name: String,
     pub imprint_url: Option<String>,
+}
+
+#[cfg_attr(feature = "backend", derive(Queryable))]
+pub struct ImprintHistory {
+    pub imprint_history_id: Uuid,
+    pub imprint_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
+    pub timestamp: NaiveDateTime,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(Insertable),
+    table_name = "imprint_history"
+)]
+pub struct NewImprintHistory {
+    pub imprint_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
 }
