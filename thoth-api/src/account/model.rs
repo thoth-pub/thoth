@@ -65,7 +65,7 @@ pub struct NewPublisherAccount {
     pub is_admin: bool,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountAccess {
     pub is_superuser: bool,
@@ -73,7 +73,7 @@ pub struct AccountAccess {
     pub linked_publishers: Vec<LinkedPublisher>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LinkedPublisher {
     pub publisher_id: Uuid,
@@ -147,6 +147,19 @@ impl AccountAccess {
             Ok(())
         } else {
             Err(ThothError::Unauthorised.into())
+        }
+    }
+
+    pub fn restricted_to(&self) -> Option<Vec<String>> {
+        if self.is_superuser {
+            None
+        } else {
+            Some(
+                self.linked_publishers
+                    .iter()
+                    .map(|publisher| publisher.publisher_id.to_string())
+                    .collect(),
+            )
         }
     }
 }

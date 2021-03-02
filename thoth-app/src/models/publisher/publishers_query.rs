@@ -4,14 +4,14 @@ use serde::Serialize;
 use super::Publisher;
 
 const PUBLISHERS_QUERY: &str = "
-    query PublishersQuery($limit: Int, $offset: Int, $filter: String) {
-        publishers(limit: $limit, offset: $offset, filter: $filter) {
+    query PublishersQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!]) {
+        publishers(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers) {
             publisherId
             publisherName
             publisherShortname
             publisherUrl
         }
-        publisherCount(filter: $filter)
+        publisherCount(filter: $filter, publishers: $publishers)
     }
 ";
 
@@ -32,6 +32,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
+    pub publishers: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

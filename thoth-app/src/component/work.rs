@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::account::model::AccountDetails;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
 use yew::html;
@@ -71,6 +72,7 @@ pub struct WorkComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
+    props: Props,
 }
 
 #[derive(Default)]
@@ -128,6 +130,7 @@ pub enum Msg {
 #[derive(Clone, Properties)]
 pub struct Props {
     pub work_id: String,
+    pub current_user: AccountDetails,
 }
 
 impl Component for WorkComponent {
@@ -135,14 +138,7 @@ impl Component for WorkComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let body = WorkRequestBody {
-            variables: Variables {
-                work_id: Some(props.work_id),
-            },
-            ..Default::default()
-        };
-        let request = WorkRequest { body };
-        let fetch_work = Fetch::new(request);
+        let fetch_work: FetchWork = Default::default();
         let push_work = Default::default();
         let delete_work = Default::default();
         let notification_bus = NotificationBus::dispatcher();
@@ -161,6 +157,7 @@ impl Component for WorkComponent {
             link,
             router,
             notification_bus,
+            props,
         }
     }
 
@@ -179,12 +176,35 @@ impl Component for WorkComponent {
                         self.data.imprints = body.data.imprints.to_owned();
                         self.data.work_types = body.data.work_types.enum_values.to_owned();
                         self.data.work_statuses = body.data.work_statuses.enum_values.to_owned();
+
+                        // If user doesn't have permission to edit this object, redirect to dashboard
+                        if let Some(publishers) =
+                            self.props.current_user.resource_access.restricted_to()
+                        {
+                            if !publishers
+                                .contains(&self.work.imprint.publisher.publisher_id.to_string())
+                            {
+                                self.router.send(RouteRequest::ChangeRoute(Route::from(
+                                    AppRoute::Admin(AdminRoute::Dashboard),
+                                )));
+                            }
+                        }
                         true
                     }
                     FetchState::Failed(_, _err) => false,
                 }
             }
             Msg::GetWork => {
+                let body = WorkRequestBody {
+                    variables: Variables {
+                        work_id: Some(self.props.work_id.clone()),
+                        publishers: self.props.current_user.resource_access.restricted_to(),
+                    },
+                    ..Default::default()
+                };
+                let request = WorkRequest { body };
+                self.fetch_work = Fetch::new(request);
+
                 self.link
                     .send_future(self.fetch_work.fetch(Msg::SetWorkFetchState));
                 self.link
@@ -531,7 +551,14 @@ impl Component for WorkComponent {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        let updated_permissions =
+            self.props.current_user.resource_access != props.current_user.resource_access;
+        self.props = props;
+        if updated_permissions {
+            // Required in order to retrieve updated list of imprints for dropdown
+            self.link.send_message(Msg::GetWork);
+        }
         false
     }
 
@@ -809,6 +836,7 @@ impl Component for WorkComponent {
                         <IssuesFormComponent
                             issues=&self.work.issues
                             work_id=&self.work.work_id
+                            current_user=&self.props.current_user
                             update_issues=self.link.callback(|i: Option<Vec<Issue>>| Msg::UpdateIssues(i))
                         />
                         <FundingsFormComponent

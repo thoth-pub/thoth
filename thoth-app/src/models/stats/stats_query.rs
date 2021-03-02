@@ -2,13 +2,13 @@ use serde::Deserialize;
 use serde::Serialize;
 
 const STATS_QUERY: &str = "
-    {
-        workCount
-        publisherCount
-        imprintCount
-        seriesCount
+    query StatsQuery($publishers: [Uuid!]) {
+        workCount(publishers: $publishers)
+        publisherCount(publishers: $publishers)
+        imprintCount(publishers: $publishers)
+        seriesCount(publishers: $publishers)
         contributorCount
-        publicationCount
+        publicationCount(publishers: $publishers)
     }
 ";
 
@@ -24,7 +24,9 @@ graphql_query_builder! {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-pub struct Variables {}
+pub struct Variables {
+    pub publishers: Option<Vec<String>>,
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
