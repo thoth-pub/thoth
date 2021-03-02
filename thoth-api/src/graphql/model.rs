@@ -2144,8 +2144,8 @@ impl MutationRoot {
             context.account_access.can_edit(publisher.publisher_id)?;
         }
 
-        connection.transaction(|| {
-            match diesel::update(target).set(&data).get_result(&connection) {
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
                 Ok(c) => {
                     let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
                     match NewPublisherHistory::new(publisher, account_id).insert(&connection) {
@@ -2154,8 +2154,8 @@ impl MutationRoot {
                     }
                 }
                 Err(e) => Err(FieldError::from(e)),
-            }
-        })
+            },
+        )
     }
 
     fn update_imprint(context: &Context, data: PatchImprint) -> FieldResult<Imprint> {

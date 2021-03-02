@@ -1,12 +1,12 @@
-use diesel::prelude::*;
 use diesel::pg::PgConnection;
+use diesel::prelude::*;
 use uuid::Uuid;
 
-use crate::publisher::model::Publisher;
+use crate::errors::ThothError;
 use crate::publisher::model::NewPublisherHistory;
+use crate::publisher::model::Publisher;
 use crate::publisher::model::PublisherHistory;
 use crate::schema::publisher_history;
-use crate::errors::ThothError;
 
 impl NewPublisherHistory {
     pub fn new(publisher: Publisher, account_id: Uuid) -> Self {
