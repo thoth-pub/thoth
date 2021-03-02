@@ -2293,11 +2293,20 @@ impl MutationRoot {
         let target = issue
             .filter(series_id.eq(&data.series_id))
             .filter(work_id.eq(&data.work_id));
+        let target_issue = target.get_result::<Issue>(&connection).unwrap();
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewIssueHistory::new(target_issue, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_language(context: &Context, data: PatchLanguage) -> FieldResult<Language> {
