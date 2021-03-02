@@ -1,9 +1,13 @@
 use chrono::naive::NaiveDateTime;
 use std::fmt;
+use serde_json;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[cfg(feature = "backend")]
 use crate::schema::publisher;
+#[cfg(feature = "backend")]
+use crate::schema::publisher_history;
 
 #[cfg_attr(
     feature = "backend",
@@ -20,6 +24,7 @@ pub enum PublisherField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
+#[derive(Serialize, Deserialize)]
 pub struct Publisher {
     pub publisher_id: Uuid,
     pub publisher_name: String,
@@ -51,6 +56,26 @@ pub struct PatchPublisher {
     pub publisher_name: String,
     pub publisher_shortname: Option<String>,
     pub publisher_url: Option<String>,
+}
+
+#[cfg_attr(feature = "backend", derive(Queryable))]
+pub struct PublisherHistory {
+    pub publisher_history_id: Uuid,
+    pub publisher_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
+    pub timestamp: NaiveDateTime,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(Insertable),
+    table_name = "publisher_history"
+)]
+pub struct NewPublisherHistory {
+    pub publisher_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
 }
 
 impl fmt::Display for Publisher {
