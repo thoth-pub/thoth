@@ -2127,10 +2127,18 @@ impl MutationRoot {
             user_can_edit_imprint(work.imprint_id, context)?;
         }
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewWorkHistory::new(work, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_publisher(context: &Context, data: PatchPublisher) -> FieldResult<Publisher> {

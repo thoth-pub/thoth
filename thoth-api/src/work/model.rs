@@ -8,6 +8,8 @@ use uuid::Uuid;
 use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::work;
+#[cfg(feature = "backend")]
+use crate::schema::work_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Work_type")]
@@ -92,6 +94,7 @@ pub enum WorkField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
+#[derive(Serialize, Deserialize)]
 pub struct Work {
     pub work_id: Uuid,
     pub work_type: WorkType,
@@ -204,6 +207,26 @@ pub struct PatchWork {
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
+}
+
+#[cfg_attr(feature = "backend", derive(Queryable))]
+pub struct WorkHistory {
+    pub work_history_id: Uuid,
+    pub work_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
+    pub timestamp: NaiveDateTime,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(Insertable),
+    table_name = "work_history"
+)]
+pub struct NewWorkHistory {
+    pub work_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
 }
 
 impl Default for WorkType {
