@@ -2222,15 +2222,29 @@ impl MutationRoot {
         let connection = context.db.get().unwrap();
 
         use crate::schema::contribution::dsl::*;
+        // need to duplicate these otherwise the query gets moved
+        let target_contribution = contribution
+            .filter(work_id.eq(&data.work_id))
+            .filter(contributor_id.eq(&data.contributor_id))
+            .filter(contribution_type.eq(&data.contribution_type))
+            .get_result::<Contribution>(&connection).unwrap();
         let target = contribution
             .filter(work_id.eq(&data.work_id))
             .filter(contributor_id.eq(&data.contributor_id))
             .filter(contribution_type.eq(&data.contribution_type));
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewContributionHistory::new(target_contribution, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_publication(context: &Context, data: PatchPublication) -> FieldResult<Publication> {
