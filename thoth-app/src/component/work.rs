@@ -552,9 +552,10 @@ impl Component for WorkComponent {
     }
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        let old_permissions = self.props.current_user.resource_access.clone();
+        let updated_permissions =
+            self.props.current_user.resource_access != props.current_user.resource_access;
         self.props = props;
-        if !(old_permissions == self.props.current_user.resource_access) {
+        if updated_permissions {
             // Required in order to retrieve updated list of imprints for dropdown
             self.link.send_message(Msg::GetWork);
         }
