@@ -2328,14 +2328,21 @@ impl MutationRoot {
     fn update_funder(context: &Context, data: PatchFunder) -> FieldResult<Funder> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let connection = context.db.get().unwrap();
+        let target = crate::schema::funder::dsl::funder.find(&data.funder_id);
+        let funder = target.get_result::<Funder>(&connection).unwrap();
 
-        match diesel::update(crate::schema::funder::dsl::funder.find(&data.funder_id))
-            .set(&data)
-            .get_result(&connection)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewFunderHistory::new(funder, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_funding(context: &Context, data: PatchFunding) -> FieldResult<Funding> {
