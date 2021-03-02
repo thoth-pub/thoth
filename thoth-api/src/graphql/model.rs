@@ -2195,15 +2195,21 @@ impl MutationRoot {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let connection = context.db.get().unwrap();
 
-        match diesel::update(
-            crate::schema::contributor::dsl::contributor.find(&data.contributor_id),
+        let target = crate::schema::contributor::dsl::contributor.find(&data.contributor_id);
+        let contributor = target.get_result::<Contributor>(&connection).unwrap();
+
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewContributorHistory::new(contributor, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
         )
-        .set(&data)
-        .get_result(&connection)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
     }
 
     fn update_contribution(
