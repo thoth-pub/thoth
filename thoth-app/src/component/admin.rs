@@ -162,7 +162,7 @@ impl Component for AdminComponent {
                                 AdminRoute::Funder(id) => html!{<FunderComponent funder_id = id />},
                                 AdminRoute::NewFunder => html!{<NewFunderComponent/>},
                                 AdminRoute::Publications => html!{<PublicationsComponent current_user = self.props.current_user.as_ref().unwrap() />},
-                                AdminRoute::Publication(id) => html!{<PublicationComponent publication_id = id />},
+                                AdminRoute::Publication(id) => html!{<PublicationComponent publication_id = id, current_user = self.props.current_user.as_ref().unwrap() />},
                                 AdminRoute::NewPublication => {
                                     html!{
                                         <article class="message is-info">

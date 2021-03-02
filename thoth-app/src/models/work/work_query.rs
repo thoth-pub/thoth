@@ -65,6 +65,13 @@ pub const WORK_QUERY: &str = "
                     currencyCode
                     unitPrice
                 }
+                work {
+                    imprint {
+                        publisher {
+                            publisherId
+                        }
+                    }
+                }
             }
             languages {
                 languageId

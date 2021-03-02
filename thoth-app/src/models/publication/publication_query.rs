@@ -17,6 +17,13 @@ pub const PUBLICATION_QUERY: &str = "
                 currencyCode
                 unitPrice
             }
+            work {
+                imprint {
+                    publisher {
+                        publisherId
+                    }
+                }
+            }
         }
     }
 ";
