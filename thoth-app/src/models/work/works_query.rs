@@ -4,8 +4,8 @@ use serde::Serialize;
 use super::Work;
 
 pub const WORKS_QUERY: &str = "
-    query WorksQuery($limit: Int, $offset: Int, $filter: String) {
-        works(limit: $limit, offset: $offset, filter: $filter) {
+    query WorksQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!]) {
+        works(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers) {
             workId
             workType
             workStatus
@@ -42,7 +42,7 @@ pub const WORKS_QUERY: &str = "
                 }
             }
         }
-        workCount(filter: $filter)
+        workCount(filter: $filter, publishers: $publishers)
     }
 ";
 
@@ -63,6 +63,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
+    pub publishers: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

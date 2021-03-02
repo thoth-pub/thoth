@@ -19,6 +19,25 @@ pub struct Publication {
     pub isbn: Option<String>,
     pub publication_url: Option<String>,
     pub prices: Option<Vec<Price>>,
+    pub work: SlimWork,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SlimWork {
+    pub imprint: SlimImprint,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SlimImprint {
+    pub publisher: SlimPublisher,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SlimPublisher {
+    pub publisher_id: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -75,6 +94,7 @@ impl Default for Publication {
             isbn: None,
             publication_url: None,
             prices: Default::default(),
+            work: Default::default(),
         }
     }
 }

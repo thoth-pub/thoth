@@ -1,3 +1,4 @@
+use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -25,6 +26,9 @@ use crate::models::imprint::create_imprint_mutation::Variables;
 use crate::models::imprint::Imprint;
 use crate::models::publisher::publishers_query::FetchActionPublishers;
 use crate::models::publisher::publishers_query::FetchPublishers;
+use crate::models::publisher::publishers_query::PublishersRequest;
+use crate::models::publisher::publishers_query::PublishersRequestBody;
+use crate::models::publisher::publishers_query::Variables as PublishersVariables;
 use crate::models::publisher::Publisher;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
@@ -39,6 +43,7 @@ pub struct NewImprintComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
+    props: Props,
 }
 
 #[derive(Default)]
@@ -56,12 +61,16 @@ pub enum Msg {
     ChangeImprintUrl(String),
     ChangeRoute(AppRoute),
 }
+#[derive(Clone, Properties)]
+pub struct Props {
+    pub current_user: AccountDetails,
+}
 
 impl Component for NewImprintComponent {
     type Message = Msg;
-    type Properties = ();
+    type Properties = Props;
 
-    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let push_imprint = Default::default();
         let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
@@ -81,6 +90,7 @@ impl Component for NewImprintComponent {
             link,
             router,
             notification_bus,
+            props,
         }
     }
 
@@ -97,6 +107,16 @@ impl Component for NewImprintComponent {
                 true
             }
             Msg::GetPublishers => {
+                let body = PublishersRequestBody {
+                    variables: PublishersVariables {
+                        publishers: self.props.current_user.resource_access.restricted_to(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                };
+                let request = PublishersRequest { body };
+                self.fetch_publishers = Fetch::new(request);
+
                 self.link
                     .send_future(self.fetch_publishers.fetch(Msg::SetPublishersFetchState));
                 self.link
@@ -173,7 +193,13 @@ impl Component for NewImprintComponent {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        let updated_permissions =
+            self.props.current_user.resource_access != props.current_user.resource_access;
+        self.props = props;
+        if updated_permissions {
+            self.link.send_message(Msg::GetPublishers);
+        }
         false
     }
 
