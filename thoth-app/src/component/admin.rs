@@ -30,6 +30,7 @@ use crate::component::work::WorkComponent;
 use crate::component::works::WorksComponent;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
+use crate::service::account::AccountService;
 
 pub struct AdminComponent {
     props: Props,
@@ -41,7 +42,7 @@ pub enum Msg {
     RedirectToLogin,
 }
 
-#[derive(Clone, Properties)]
+#[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub route: AdminRoute,
     pub current_user: Option<AccountDetails>,
@@ -52,16 +53,14 @@ impl Component for AdminComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        if !AccountService::new().is_loggedin() {
+            link.send_message(Msg::RedirectToLogin);
+        }
+
         AdminComponent {
             props,
             router: RouteAgentDispatcher::new(),
             link,
-        }
-    }
-
-    fn rendered(&mut self, first_render: bool) {
-        if first_render && self.props.current_user.is_none() {
-            self.link.send_message(Msg::RedirectToLogin);
         }
     }
 
@@ -76,11 +75,15 @@ impl Component for AdminComponent {
     }
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        self.props = props;
-        if self.props.current_user.is_none() {
-            self.link.send_message(Msg::RedirectToLogin);
+        if self.props != props {
+            self.props = props;
+            if self.props.current_user.is_none() {
+                self.link.send_message(Msg::RedirectToLogin);
+            }
+            true
+        } else {
+            false
         }
-        true
     }
 
     fn view(&self) -> Html {
