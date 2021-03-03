@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [#185](https://github.com/thoth-pub/thoth/issues/185) - Allow resetting user passwords through CLI
   - Allow creating publisher accounts through CLI
 
+### Fixed
+  - [#181](https://github.com/thoth-pub/thoth/issues/181) - Enforce numeric values for issue ordinal
+
 ## [[0.2.13]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.13) - 2020-01-14
 ### Changed
   - Update API URL in docker github action
