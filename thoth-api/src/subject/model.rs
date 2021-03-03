@@ -10,6 +10,8 @@ use crate::errors::Result;
 use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::subject;
+#[cfg(feature = "backend")]
+use crate::schema::subject_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Subject_type")]
@@ -40,6 +42,7 @@ pub enum SubjectField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
+#[derive(Serialize, Deserialize)]
 pub struct Subject {
     pub subject_id: Uuid,
     pub work_id: Uuid,
@@ -74,6 +77,26 @@ pub struct PatchSubject {
     pub subject_type: SubjectType,
     pub subject_code: String,
     pub subject_ordinal: i32,
+}
+
+#[cfg_attr(feature = "backend", derive(Queryable))]
+pub struct SubjectHistory {
+    pub subject_history_id: Uuid,
+    pub subject_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
+    pub timestamp: NaiveDateTime,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(Insertable),
+    table_name = "subject_history"
+)]
+pub struct NewSubjectHistory {
+    pub subject_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
 }
 
 pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<()> {

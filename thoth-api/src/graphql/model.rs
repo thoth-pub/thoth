@@ -2127,10 +2127,18 @@ impl MutationRoot {
             user_can_edit_imprint(work.imprint_id, context)?;
         }
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewWorkHistory::new(work, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_publisher(context: &Context, data: PatchPublisher) -> FieldResult<Publisher> {
@@ -2144,10 +2152,18 @@ impl MutationRoot {
             context.account_access.can_edit(publisher.publisher_id)?;
         }
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewPublisherHistory::new(publisher, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_imprint(context: &Context, data: PatchImprint) -> FieldResult<Imprint> {
@@ -2161,25 +2177,39 @@ impl MutationRoot {
             context.account_access.can_edit(imprint.publisher_id)?;
         }
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewImprintHistory::new(imprint, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_contributor(context: &Context, data: PatchContributor) -> FieldResult<Contributor> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let connection = context.db.get().unwrap();
 
-        match diesel::update(
-            crate::schema::contributor::dsl::contributor.find(&data.contributor_id),
+        let target = crate::schema::contributor::dsl::contributor.find(&data.contributor_id);
+        let contributor = target.get_result::<Contributor>(&connection).unwrap();
+
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewContributorHistory::new(contributor, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
         )
-        .set(&data)
-        .get_result(&connection)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
     }
 
     fn update_contribution(
@@ -2192,15 +2222,32 @@ impl MutationRoot {
         let connection = context.db.get().unwrap();
 
         use crate::schema::contribution::dsl::*;
+        // need to duplicate these otherwise the query gets moved
+        let target_contribution = contribution
+            .filter(work_id.eq(&data.work_id))
+            .filter(contributor_id.eq(&data.contributor_id))
+            .filter(contribution_type.eq(&data.contribution_type))
+            .get_result::<Contribution>(&connection)
+            .unwrap();
         let target = contribution
             .filter(work_id.eq(&data.work_id))
             .filter(contributor_id.eq(&data.contributor_id))
             .filter(contribution_type.eq(&data.contribution_type));
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewContributionHistory::new(target_contribution, account_id)
+                        .insert(&connection)
+                    {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_publication(context: &Context, data: PatchPublication) -> FieldResult<Publication> {
@@ -2214,10 +2261,18 @@ impl MutationRoot {
             user_can_edit_work(publication.work_id, context)?;
         }
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewPublicationHistory::new(publication, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_series(context: &Context, data: PatchSeries) -> FieldResult<Series> {
@@ -2231,10 +2286,18 @@ impl MutationRoot {
             user_can_edit_imprint(series.imprint_id, context)?;
         }
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewSeriesHistory::new(series, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_issue(context: &Context, data: PatchIssue) -> FieldResult<Issue> {
@@ -2247,11 +2310,20 @@ impl MutationRoot {
         let target = issue
             .filter(series_id.eq(&data.series_id))
             .filter(work_id.eq(&data.work_id));
+        let target_issue = target.get_result::<Issue>(&connection).unwrap();
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewIssueHistory::new(target_issue, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_language(context: &Context, data: PatchLanguage) -> FieldResult<Language> {
@@ -2265,23 +2337,38 @@ impl MutationRoot {
             user_can_edit_work(language.work_id, context)?;
         }
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewLanguageHistory::new(language, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_funder(context: &Context, data: PatchFunder) -> FieldResult<Funder> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let connection = context.db.get().unwrap();
+        let target = crate::schema::funder::dsl::funder.find(&data.funder_id);
+        let funder = target.get_result::<Funder>(&connection).unwrap();
 
-        match diesel::update(crate::schema::funder::dsl::funder.find(&data.funder_id))
-            .set(&data)
-            .get_result(&connection)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewFunderHistory::new(funder, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_funding(context: &Context, data: PatchFunding) -> FieldResult<Funding> {
@@ -2295,10 +2382,18 @@ impl MutationRoot {
             user_can_edit_work(funding.work_id, context)?;
         }
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewFundingHistory::new(funding, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_price(context: &Context, data: PatchPrice) -> FieldResult<Price> {
@@ -2313,10 +2408,18 @@ impl MutationRoot {
             user_can_edit_publication(price.publication_id, context)?;
         }
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewPriceHistory::new(price, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_subject(context: &Context, data: PatchSubject) -> FieldResult<Subject> {
@@ -2332,10 +2435,18 @@ impl MutationRoot {
 
         check_subject(&data.subject_type, &data.subject_code)?;
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewSubjectHistory::new(subject, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn delete_work(context: &Context, work_id: Uuid) -> FieldResult<Work> {

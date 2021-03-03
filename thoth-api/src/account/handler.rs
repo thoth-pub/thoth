@@ -16,6 +16,7 @@ use crate::account::model::NewAccount;
 use crate::account::model::NewPassword;
 use crate::account::model::PublisherAccount;
 use crate::account::model::Token;
+use crate::account::service::get_account;
 use crate::account::util::make_hash;
 use crate::account::util::make_salt;
 use crate::db::PgPool;
@@ -131,6 +132,10 @@ impl Token {
         )
         .map_err(|_| ThothError::InvalidToken)?;
         Ok(data.claims)
+    }
+
+    pub fn account_id(&self, pool: &PgPool) -> Uuid {
+        get_account(&self.sub, pool).unwrap().account_id
     }
 }
 

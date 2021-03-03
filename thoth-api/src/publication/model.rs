@@ -7,6 +7,8 @@ use uuid::Uuid;
 use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::publication;
+#[cfg(feature = "backend")]
+use crate::schema::publication_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Publication_type")]
@@ -48,6 +50,7 @@ pub enum PublicationField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
+#[derive(Serialize, Deserialize)]
 pub struct Publication {
     pub publication_id: Uuid,
     pub publication_type: PublicationType,
@@ -82,6 +85,26 @@ pub struct PatchPublication {
     pub work_id: Uuid,
     pub isbn: Option<String>,
     pub publication_url: Option<String>,
+}
+
+#[cfg_attr(feature = "backend", derive(Queryable))]
+pub struct PublicationHistory {
+    pub publication_history_id: Uuid,
+    pub publication_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
+    pub timestamp: NaiveDateTime,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(Insertable),
+    table_name = "publication_history"
+)]
+pub struct NewPublicationHistory {
+    pub publication_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
 }
 
 impl Default for PublicationType {
