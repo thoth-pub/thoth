@@ -27,7 +27,9 @@ ALTER TABLE contribution
     ALTER COLUMN full_name SET NOT NULL,
     ADD CONSTRAINT contribution_first_name_check CHECK (octet_length(first_name) >= 1),
     ADD CONSTRAINT contribution_last_name_check CHECK (octet_length(last_name) >= 1),
-    ADD CONSTRAINT contribution_full_name_check CHECK (octet_length(full_name) >= 1);CREATE TABLE publisher_history (
+    ADD CONSTRAINT contribution_full_name_check CHECK (octet_length(full_name) >= 1);
+
+CREATE TABLE publisher_history (
     publisher_history_id     UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     publisher_id             UUID NOT NULL REFERENCES publisher(publisher_id) ON DELETE CASCADE,
     account_id               UUID NOT NULL REFERENCES account(account_id),
