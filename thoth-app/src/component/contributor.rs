@@ -53,6 +53,7 @@ pub struct ContributorComponent {
     notification_bus: NotificationDispatcher,
     _contributor_activity_checker: Box<dyn Bridge<ContributorActivityChecker>>,
     contributor_activity: Vec<SlimContribution>,
+    show_confirm_delete: bool,
 }
 
 pub enum Msg {
@@ -69,6 +70,7 @@ pub enum Msg {
     ChangeOrcid(String),
     ChangeWebsite(String),
     ChangeRoute(AppRoute),
+    ToggleConfirmDeleteDisplay(bool),
 }
 
 #[derive(Clone, Properties)]
@@ -97,6 +99,7 @@ impl Component for ContributorComponent {
         let mut _contributor_activity_checker =
             ContributorActivityChecker::bridge(link.callback(Msg::GetContributorActivity));
         let contributor_activity = Default::default();
+        let show_confirm_delete = false;
 
         link.send_message(Msg::GetContributor);
         _contributor_activity_checker.send(
@@ -113,6 +116,7 @@ impl Component for ContributorComponent {
             notification_bus,
             _contributor_activity_checker,
             contributor_activity,
+            show_confirm_delete,
         }
     }
 
@@ -286,6 +290,10 @@ impl Component for ContributorComponent {
                 self.router.send(RouteRequest::ChangeRoute(route));
                 false
             }
+            Msg::ToggleConfirmDeleteDisplay(value) => {
+                self.show_confirm_delete = value;
+                true
+            }
         }
     }
 
@@ -302,6 +310,14 @@ impl Component for ContributorComponent {
                     event.prevent_default();
                     Msg::UpdateContributor
                 });
+                let open_modal = self.link.callback(|e: MouseEvent| {
+                    e.prevent_default();
+                    Msg::ToggleConfirmDeleteDisplay(true)
+                });
+                let close_modal = self.link.callback(|e: MouseEvent| {
+                    e.prevent_default();
+                    Msg::ToggleConfirmDeleteDisplay(false)
+                });
                 html! {
                     <>
                         <nav class="level">
@@ -312,10 +328,38 @@ impl Component for ContributorComponent {
                             </div>
                             <div class="level-right">
                                 <p class="level-item">
-                                    <button class="button is-danger" onclick=self.link.callback(|_| Msg::DeleteContributor)>
+                                    <button class="button is-danger" onclick=open_modal>
                                         { DELETE_BUTTON }
                                     </button>
                                 </p>
+                            </div>
+                            <div class=self.confirm_delete_status()>
+                                <div class="modal-background" onclick=&close_modal></div>
+                                <div class="modal-card">
+                                    <header class="modal-card-head">
+                                        <p class="modal-card-title">{ "Confirm deletion" }</p>
+                                    </header>
+                                    <section class="modal-card-body">
+                                        <p>{ "Are you sure you want to delete this object?" }</p>
+                                    </section>
+                                    <footer class="modal-card-foot">
+                                        <button
+                                            class="button is-success"
+                                            onclick=self.link.callback(|e: MouseEvent| {
+                                                e.prevent_default();
+                                                Msg::DeleteContributor
+                                            })
+                                        >
+                                            { "Delete" }
+                                        </button>
+                                        <button
+                                            class="button"
+                                            onclick=&close_modal
+                                        >
+                                            { "Cancel" }
+                                        </button>
+                                    </footer>
+                                </div>
                             </div>
                         </nav>
 
@@ -384,6 +428,15 @@ impl Component for ContributorComponent {
                 }
             }
             FetchState::Failed(_, err) => html! {&err},
+        }
+    }
+}
+
+impl ContributorComponent {
+    fn confirm_delete_status(&self) -> String {
+        match self.show_confirm_delete {
+            true => "modal is-active".to_string(),
+            false => "modal".to_string(),
         }
     }
 }
