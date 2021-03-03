@@ -1,32 +1,16 @@
 use serde::Deserialize;
 use serde::Serialize;
 use std::time::Duration;
-use thoth_api::account::model::Login;
-use thoth_api::account::model::LoginSession;
-use thoth_api::account::model::Session;
 use yew::agent::Dispatcher;
-use yew::format::Json;
 use yew::prelude::worker::*;
 use yew::prelude::*;
-use yew::services::fetch::FetchTask;
 use yew::services::IntervalService;
 use yew::services::Task;
 
-use crate::authenticated_fetch;
-use crate::models::Response;
-use crate::service::cookie::CookieService;
-use crate::SESSION_COOKIE;
-
 pub type SessionTimerDispatcher = Dispatcher<SessionTimerAgent>;
 
-pub enum Msg {
-    Fetch(Response<Login>),
-    Update,
-}
-
-#[derive(Deserialize, Serialize)]
 pub enum Request {
-    Start,
+    Start(Callback<()>),
     Stop,
 }
 
@@ -34,77 +18,29 @@ pub enum Request {
 pub struct TimerResponse;
 
 pub struct SessionTimerAgent {
-    agent_link: AgentLink<SessionTimerAgent>,
-    callback: Callback<()>,
-    cookie_service: CookieService,
-    fetch_task: Option<FetchTask>,
+    _link: AgentLink<SessionTimerAgent>,
     timer_task: Option<Box<dyn Task>>,
 }
 
 impl Agent for SessionTimerAgent {
     type Input = Request;
-    type Message = Msg;
+    type Message = ();
     type Output = TimerResponse;
     type Reach = Context<Self>;
 
-    fn create(link: AgentLink<Self>) -> Self {
+    fn create(_link: AgentLink<Self>) -> Self {
         Self {
-            callback: link.callback(|_| Msg::Update),
-            agent_link: link,
-            cookie_service: CookieService::new(),
-            fetch_task: None,
+            _link,
             timer_task: None,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) {
-        match msg {
-            Msg::Update => {
-                log::info!("Updating current session");
-                if let Ok(token) = self.cookie_service.get(SESSION_COOKIE) {
-                    self.fetch_task = authenticated_fetch! {
-                        LoginSession(Session::new(token)) => "/account/token/renew",
-                        token,
-                        self.agent_link, Msg::Fetch,
-                        || {},
-                        || {
-                            log::warn!("Unable to create scheduled session login request");
-                        }
-                    };
-                }
-            }
-            Msg::Fetch(response) => {
-                let (meta, Json(body)) = response.into_parts();
-
-                // Check the response type
-                if meta.status.is_success() {
-                    match body {
-                        Ok(Login(Session { token })) => {
-                            log::info!("Scheduled session based login succeed");
-
-                            // Set the retrieved session cookie
-                            self.cookie_service.set(SESSION_COOKIE, &token);
-                        }
-                        _ => log::warn!("Got wrong scheduled session login response"),
-                    }
-                } else {
-                    // Authentication failed
-                    log::info!(
-                        "Scheduled session login failed with status: {}",
-                        meta.status
-                    );
-                }
-
-                // Remove the ongoing task
-                self.fetch_task = None;
-            }
-        }
-    }
+    fn update(&mut self, _msg: Self::Message) {}
 
     fn handle_input(&mut self, msg: Self::Input, _: HandlerId) {
         match msg {
-            Request::Start => {
-                let handle = IntervalService::spawn(Duration::from_secs(60), self.callback.clone());
+            Request::Start(callback) => {
+                let handle = IntervalService::spawn(Duration::from_secs(60), callback);
                 self.timer_task = Some(Box::new(handle));
             }
             Request::Stop => {

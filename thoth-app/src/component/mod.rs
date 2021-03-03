@@ -14,7 +14,7 @@ macro_rules! pagination_helpers {
                     true => 1,
                     false => self.offset,
                 };
-                let limit_display = match self.limit > self.result_count {
+                let limit_display = match (self.limit + self.offset) > self.result_count {
                     true => self.result_count,
                     false => self.limit + self.offset,
                 };
@@ -26,7 +26,7 @@ macro_rules! pagination_helpers {
             }
 
             fn is_next_disabled(&self) -> bool {
-                self.limit >= self.result_count
+                self.limit + self.offset >= self.result_count
             }
 
             #[allow(dead_code)]
@@ -80,10 +80,12 @@ macro_rules! pagination_component {
         $pagination_text:ident,
         $table_headers:expr
     ) => {
+        use thoth_api::account::model::AccountDetails;
         use yew::html;
         use yew::prelude::Component;
         use yew::prelude::Html;
         use yew::prelude::InputData;
+        use yew::prelude::Properties;
         use yew::prelude::ShouldRender;
         use yew::ComponentLink;
         use yew_router::agent::RouteAgentDispatcher;
@@ -110,6 +112,7 @@ macro_rules! pagination_component {
             fetch_data: $fetch_data,
             link: ComponentLink<Self>,
             router: RouteAgentDispatcher<()>,
+            props: Props,
         }
 
         pagination_helpers! {$component, $pagination_text, $search_text}
@@ -124,11 +127,16 @@ macro_rules! pagination_component {
             ChangeRoute(AppRoute),
         }
 
+        #[derive(Clone, Properties)]
+        pub struct Props {
+            pub current_user: AccountDetails,
+        }
+
         impl Component for $component {
             type Message = Msg;
-            type Properties = ();
+            type Properties = Props;
 
-            fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+            fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
                 let router = RouteAgentDispatcher::new();
                 let offset: i32 = Default::default();
                 let page_size: i32 = 20;
@@ -152,6 +160,7 @@ macro_rules! pagination_component {
                     fetch_data,
                     link,
                     router,
+                    props,
                 }
             }
 
@@ -183,6 +192,7 @@ macro_rules! pagination_component {
                                 limit: Some(self.limit),
                                 offset: Some(self.offset),
                                 filter: Some(filter),
+                                publishers: self.props.current_user.resource_access.restricted_to(),
                             },
                             ..Default::default()
                         };
@@ -220,7 +230,13 @@ macro_rules! pagination_component {
                 }
             }
 
-            fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+            fn change(&mut self, props: Self::Properties) -> ShouldRender {
+                let updated_permissions =
+                    self.props.current_user.resource_access != props.current_user.resource_access;
+                self.props = props;
+                if updated_permissions {
+                    self.link.send_message(Msg::PaginateData);
+                }
                 false
             }
 

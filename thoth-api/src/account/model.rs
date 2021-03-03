@@ -2,8 +2,12 @@ use chrono::naive::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::errors::Result;
+use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::account;
+#[cfg(feature = "backend")]
+use crate::schema::publisher_account;
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
@@ -14,7 +18,7 @@ pub struct Account {
     pub email: String,
     pub hash: Vec<u8>,
     pub salt: String,
-    pub is_admin: bool,
+    pub is_superuser: bool,
     pub is_bot: bool,
     pub is_active: bool,
     pub created_at: NaiveDateTime,
@@ -30,7 +34,7 @@ pub struct NewAccount {
     pub email: String,
     pub hash: Vec<u8>,
     pub salt: String,
-    pub is_admin: bool,
+    pub is_superuser: bool,
     pub is_bot: bool,
 }
 
@@ -40,8 +44,40 @@ pub struct AccountData {
     pub surname: String,
     pub email: String,
     pub password: String,
-    pub is_admin: bool,
+    pub is_superuser: bool,
     pub is_bot: bool,
+}
+
+#[cfg_attr(feature = "backend", derive(Queryable))]
+pub struct PublisherAccount {
+    pub account_id: Uuid,
+    pub publisher_id: Uuid,
+    pub is_admin: bool,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+#[cfg_attr(feature = "backend", derive(Insertable))]
+#[cfg_attr(feature = "backend", table_name = "publisher_account")]
+pub struct NewPublisherAccount {
+    pub account_id: Uuid,
+    pub publisher_id: Uuid,
+    pub is_admin: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountAccess {
+    pub is_superuser: bool,
+    pub is_bot: bool,
+    pub linked_publishers: Vec<LinkedPublisher>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkedPublisher {
+    pub publisher_id: Uuid,
+    pub is_admin: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -50,43 +86,80 @@ pub struct Token {
     pub exp: i64,
     pub iat: i64,
     pub jti: String,
+    #[serde(rename = "https://thoth.pub/resource_access")]
+    pub namespace: AccountAccess,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountDetails {
+    pub account_id: Uuid,
+    pub name: String,
+    pub surname: String,
+    pub email: String,
+    pub token: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub resource_access: AccountAccess,
+}
+
+#[derive(Debug, Clone)]
 pub struct DecodedToken {
     pub jwt: Option<Token>,
 }
 
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
-pub struct Session {
-    pub token: String,
-}
-
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize, Default)]
 pub struct LoginCredentials {
     pub email: String,
     pub password: String,
 }
 
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
-pub struct Login(pub Session);
+#[cfg_attr(feature = "backend", derive(AsChangeset), table_name = "account")]
+pub struct NewPassword {
+    pub email: String,
+    pub hash: Vec<u8>,
+    pub salt: String,
+}
 
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
-pub struct LoginSession(pub Session);
+impl DecodedToken {
+    pub fn get_user_permissions(&self) -> AccountAccess {
+        if let Some(jwt) = &self.jwt {
+            jwt.namespace.clone()
+        } else {
+            AccountAccess {
+                is_superuser: false,
+                is_bot: false,
+                linked_publishers: vec![],
+            }
+        }
+    }
+}
 
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
-pub struct Logout(pub Session);
+impl AccountAccess {
+    pub fn can_edit(&self, publisher_id: Uuid) -> Result<()> {
+        if self.is_superuser {
+            Ok(())
+        } else if let Some(_found) = &self
+            .linked_publishers
+            .iter()
+            .position(|publisher| publisher.publisher_id == publisher_id)
+        {
+            Ok(())
+        } else {
+            Err(ThothError::Unauthorised.into())
+        }
+    }
 
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
-pub struct LogoutResponse;
-
-impl Session {
-    pub fn new<T>(token: T) -> Self
-    where
-        String: From<T>,
-    {
-        Self {
-            token: token.into(),
+    pub fn restricted_to(&self) -> Option<Vec<String>> {
+        if self.is_superuser {
+            None
+        } else {
+            Some(
+                self.linked_publishers
+                    .iter()
+                    .map(|publisher| publisher.publisher_id.to_string())
+                    .collect(),
+            )
         }
     }
 }

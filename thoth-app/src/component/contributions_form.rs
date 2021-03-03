@@ -74,6 +74,9 @@ pub enum Msg {
     SetContributionDeleteState(PushActionDeleteContribution),
     DeleteContribution(String, ContributionType),
     AddContribution(Contributor),
+    ChangeFirstName(String),
+    ChangeLastName(String),
+    ChangeFullName(String),
     ChangeInstitution(String),
     ChangeBiography(String),
     ChangeContributiontype(ContributionType),
@@ -205,10 +208,13 @@ impl Component for ContributionsFormComponent {
                     variables: CreateVariables {
                         work_id: self.props.work_id.clone(),
                         contributor_id: self.new_contribution.contributor_id.clone(),
-                        contribution_type: self.new_contribution.contribution_type.clone(),
+                        contribution_type: self.new_contribution.contribution_type,
                         main_contribution: self.new_contribution.main_contribution,
                         biography: self.new_contribution.biography.clone(),
                         institution: self.new_contribution.institution.clone(),
+                        first_name: self.new_contribution.first_name.clone(),
+                        last_name: self.new_contribution.last_name.clone(),
+                        full_name: self.new_contribution.full_name.clone(),
                     },
                     ..Default::default()
                 };
@@ -235,7 +241,7 @@ impl Component for ContributionsFormComponent {
                                 .into_iter()
                                 .filter(|c| {
                                     c.contributor_id != contribution.contributor_id
-                                        && c.contribution_type != contribution.contribution_type
+                                        || c.contribution_type != contribution.contribution_type
                                 })
                                 .collect();
                             self.props.update_contributions.emit(Some(to_keep));
@@ -279,6 +285,9 @@ impl Component for ContributionsFormComponent {
             }
             Msg::AddContribution(contributor) => {
                 self.new_contribution.contributor_id = contributor.contributor_id.clone();
+                self.new_contribution.first_name = contributor.first_name.clone();
+                self.new_contribution.last_name = contributor.last_name.clone();
+                self.new_contribution.full_name = contributor.full_name.clone();
                 self.new_contribution.contributor = contributor;
                 self.link.send_message(Msg::ToggleAddFormDisplay(true));
                 true
@@ -301,6 +310,15 @@ impl Component for ContributionsFormComponent {
                 self.link.send_message(Msg::GetContributors);
                 false
             }
+            Msg::ChangeFirstName(val) => {
+                let value = match val.is_empty() {
+                    true => None,
+                    false => Some(val),
+                };
+                self.new_contribution.first_name.neq_assign(value)
+            }
+            Msg::ChangeLastName(val) => self.new_contribution.last_name.neq_assign(val),
+            Msg::ChangeFullName(val) => self.new_contribution.full_name.neq_assign(val),
             Msg::ChangeInstitution(val) => {
                 let value = match val.is_empty() {
                     true => None,
@@ -394,12 +412,21 @@ impl Component for ContributionsFormComponent {
                                 Msg::DoNothing
                             })
                             >
-                                <div class="field">
-                                    <label class="label">{ "Contributor" }</label>
-                                    <div class="control is-expanded">
-                                        {&self.new_contribution.contributor.full_name}
-                                    </div>
-                                </div>
+                                <FormTextInput
+                                    label="Contributor's Given Name"
+                                    value=&self.new_contribution.first_name
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
+                                />
+                                <FormTextInput
+                                    label="Contributor's Family Name"
+                                    value=&self.new_contribution.last_name
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
+                                />
+                                <FormTextInput
+                                    label="Contributor's Full Name"
+                                    value=&self.new_contribution.full_name
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
+                                />
                                 <FormContributionTypeSelect
                                     label = "Contribution Type"
                                     value=&self.new_contribution.contribution_type
@@ -493,7 +520,7 @@ impl ContributionsFormComponent {
         // of contributor_id and take ownership of them so they can be passed on to
         // the callback functions
         let contributor_id = c.contributor_id.clone();
-        let contribution_type = c.contribution_type.clone();
+        let contribution_type = c.contribution_type;
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -503,7 +530,7 @@ impl ContributionsFormComponent {
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "Full Name" }</label>
                         <div class="control is-expanded">
-                            {&c.contributor.full_name}
+                            {&c.full_name}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">

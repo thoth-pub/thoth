@@ -7,8 +7,25 @@ use uuid::Uuid;
 use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::price;
+#[cfg(feature = "backend")]
+use crate::schema::price_history;
+
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting prices list")
+)]
+pub enum PriceField {
+    PriceID,
+    PublicationID,
+    CurrencyCode,
+    UnitPrice,
+    CreatedAt,
+    UpdatedAt,
+}
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
+#[derive(Serialize, Deserialize)]
 pub struct Price {
     pub price_id: Uuid,
     pub publication_id: Uuid,
@@ -349,6 +366,22 @@ pub enum CurrencyCode {
     Zwl,
     Zwn,
     Zwr,
+}
+
+#[cfg_attr(feature = "backend", derive(Queryable))]
+pub struct PriceHistory {
+    pub price_history_id: Uuid,
+    pub price_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
+    pub timestamp: NaiveDateTime,
+}
+
+#[cfg_attr(feature = "backend", derive(Insertable), table_name = "price_history")]
+pub struct NewPriceHistory {
+    pub price_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
 }
 
 impl Default for CurrencyCode {

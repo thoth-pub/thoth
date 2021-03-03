@@ -7,6 +7,8 @@ use uuid::Uuid;
 use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::language;
+#[cfg(feature = "backend")]
+use crate::schema::language_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Language_relation")]
@@ -20,7 +22,23 @@ pub enum LanguageRelation {
     TranslatedInto,
 }
 
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting languages list")
+)]
+pub enum LanguageField {
+    LanguageID,
+    WorkID,
+    LanguageCode,
+    LanguageRelation,
+    MainLanguage,
+    CreatedAt,
+    UpdatedAt,
+}
+
 #[cfg_attr(feature = "backend", derive(Queryable))]
+#[derive(Serialize, Deserialize)]
 pub struct Language {
     pub language_id: Uuid,
     pub work_id: Uuid,
@@ -549,6 +567,26 @@ pub enum LanguageCode {
     Zun,
     Zxx,
     Zza,
+}
+
+#[cfg_attr(feature = "backend", derive(Queryable))]
+pub struct LanguageHistory {
+    pub language_history_id: Uuid,
+    pub language_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
+    pub timestamp: NaiveDateTime,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(Insertable),
+    table_name = "language_history"
+)]
+pub struct NewLanguageHistory {
+    pub language_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
 }
 
 impl Default for LanguageCode {

@@ -3,6 +3,7 @@ use yew::prelude::*;
 use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
+use yew_router::prelude::RouterAnchor;
 use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
@@ -10,6 +11,8 @@ use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
+use crate::agent::contributor_activity_checker::ContributorActivityChecker;
+use crate::agent::contributor_activity_checker::Request as ContributorActivityRequest;
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
@@ -17,6 +20,8 @@ use crate::agent::notification_bus::Request;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
+use crate::models::contributor::contributor_activity_query::ContributorActivityResponseData;
+use crate::models::contributor::contributor_activity_query::SlimContribution;
 use crate::models::contributor::contributor_query::ContributorRequest;
 use crate::models::contributor::contributor_query::ContributorRequestBody;
 use crate::models::contributor::contributor_query::FetchActionContributor;
@@ -46,9 +51,12 @@ pub struct ContributorComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
+    _contributor_activity_checker: Box<dyn Bridge<ContributorActivityChecker>>,
+    contributor_activity: Vec<SlimContribution>,
 }
 
 pub enum Msg {
+    GetContributorActivity(ContributorActivityResponseData),
     SetContributorFetchState(FetchActionContributor),
     GetContributor,
     SetContributorPushState(PushActionUpdateContributor),
@@ -75,7 +83,7 @@ impl Component for ContributorComponent {
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let body = ContributorRequestBody {
             variables: Variables {
-                contributor_id: Some(props.contributor_id),
+                contributor_id: Some(props.contributor_id.clone()),
             },
             ..Default::default()
         };
@@ -86,8 +94,14 @@ impl Component for ContributorComponent {
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
         let router = RouteAgentDispatcher::new();
+        let mut _contributor_activity_checker =
+            ContributorActivityChecker::bridge(link.callback(Msg::GetContributorActivity));
+        let contributor_activity = Default::default();
 
         link.send_message(Msg::GetContributor);
+        _contributor_activity_checker.send(
+            ContributorActivityRequest::RetrieveContributorActivity(props.contributor_id),
+        );
 
         ContributorComponent {
             contributor,
@@ -97,11 +111,25 @@ impl Component for ContributorComponent {
             link,
             router,
             notification_bus,
+            _contributor_activity_checker,
+            contributor_activity,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
+            Msg::GetContributorActivity(response) => {
+                let mut should_render = false;
+                if let Some(contributor) = response.contributor {
+                    if let Some(contributions) = contributor.contributions {
+                        if !contributions.is_empty() {
+                            self.contributor_activity = contributions;
+                            should_render = true;
+                        }
+                    }
+                }
+                should_render
+            }
             Msg::SetContributorFetchState(fetch_state) => {
                 self.fetch_contributor.apply(fetch_state);
                 match self.fetch_contributor.as_ref().state() {
@@ -291,14 +319,39 @@ impl Component for ContributorComponent {
                             </div>
                         </nav>
 
+                        { if !self.contributor_activity.is_empty() {
+                            html! {
+                                <div class="notification is-link">
+                                    {
+                                        for self.contributor_activity.iter().map(|contribution| {
+                                            html! {
+                                                <p>
+                                                    { "Contributed to: " }
+                                                    <RouterAnchor<AppRoute>
+                                                        route=AppRoute::Admin(AdminRoute::Work(contribution.work.work_id.clone()))
+                                                    >
+                                                        { &contribution.work.title }
+                                                    </  RouterAnchor<AppRoute>>
+                                                    { format!(", from: {}", contribution.work.imprint.publisher.publisher_name) }
+                                                </p>
+                                            }
+                                        })
+                                    }
+                                </div>
+                                }
+                            } else {
+                                html! {}
+                            }
+                        }
+
                         <form onsubmit=callback>
                             <FormTextInput
-                                label = "First Name"
+                                label = "Given Name"
                                 value=&self.contributor.first_name
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
                             />
                             <FormTextInput
-                                label = "Last Name"
+                                label = "Family Name"
                                 value=&self.contributor.last_name
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
                             />

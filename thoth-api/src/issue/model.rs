@@ -1,10 +1,27 @@
 use chrono::naive::NaiveDateTime;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[cfg(feature = "backend")]
 use crate::schema::issue;
+#[cfg(feature = "backend")]
+use crate::schema::issue_history;
+
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting issues list")
+)]
+pub enum IssueField {
+    SeriesID,
+    WorkID,
+    IssueOrdinal,
+    CreatedAt,
+    UpdatedAt,
+}
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
+#[derive(Serialize, Deserialize)]
 pub struct Issue {
     pub series_id: Uuid,
     pub work_id: Uuid,
@@ -34,4 +51,22 @@ pub struct PatchIssue {
     pub series_id: Uuid,
     pub work_id: Uuid,
     pub issue_ordinal: i32,
+}
+
+#[cfg_attr(feature = "backend", derive(Queryable))]
+pub struct IssueHistory {
+    pub issue_history_id: Uuid,
+    pub series_id: Uuid,
+    pub work_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
+    pub timestamp: NaiveDateTime,
+}
+
+#[cfg_attr(feature = "backend", derive(Insertable), table_name = "issue_history")]
+pub struct NewIssueHistory {
+    pub series_id: Uuid,
+    pub work_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
 }

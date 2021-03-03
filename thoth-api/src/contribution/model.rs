@@ -7,10 +7,12 @@ use uuid::Uuid;
 use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::contribution;
+#[cfg(feature = "backend")]
+use crate::schema::contribution_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Contribution_type")]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ContributionType {
     Author,
@@ -30,7 +32,27 @@ pub enum ContributionType {
     PrefaceBy,
 }
 
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting contributions list")
+)]
+pub enum ContributionField {
+    WorkID,
+    ContributorID,
+    ContributionType,
+    MainContribution,
+    Biography,
+    Institution,
+    CreatedAt,
+    UpdatedAt,
+    FirstName,
+    LastName,
+    FullName,
+}
+
 #[cfg_attr(feature = "backend", derive(Queryable))]
+#[derive(Serialize, Deserialize)]
 pub struct Contribution {
     pub work_id: Uuid,
     pub contributor_id: Uuid,
@@ -40,6 +62,9 @@ pub struct Contribution {
     pub institution: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    pub first_name: Option<String>,
+    pub last_name: String,
+    pub full_name: String,
 }
 
 #[cfg_attr(
@@ -54,6 +79,9 @@ pub struct NewContribution {
     pub main_contribution: bool,
     pub biography: Option<String>,
     pub institution: Option<String>,
+    pub first_name: Option<String>,
+    pub last_name: String,
+    pub full_name: String,
 }
 
 #[cfg_attr(
@@ -69,6 +97,33 @@ pub struct PatchContribution {
     pub main_contribution: bool,
     pub biography: Option<String>,
     pub institution: Option<String>,
+    pub first_name: Option<String>,
+    pub last_name: String,
+    pub full_name: String,
+}
+
+#[cfg_attr(feature = "backend", derive(Queryable))]
+pub struct ContributionHistory {
+    pub contribution_history_id: Uuid,
+    pub work_id: Uuid,
+    pub contributor_id: Uuid,
+    pub contribution_type: ContributionType,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
+    pub timestamp: NaiveDateTime,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(Insertable),
+    table_name = "contribution_history"
+)]
+pub struct NewContributionHistory {
+    pub work_id: Uuid,
+    pub contributor_id: Uuid,
+    pub contribution_type: ContributionType,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
 }
 
 impl Default for ContributionType {

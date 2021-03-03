@@ -7,10 +7,12 @@ use juniper::RootNode;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
 use crate::contribution::model::*;
 use crate::contributor::model::*;
 use crate::db::PgPool;
+use crate::errors::Result;
 use crate::errors::ThothError;
 use crate::funder::model::*;
 use crate::funding::model::*;
@@ -30,13 +32,116 @@ impl juniper::Context for Context {}
 #[derive(Clone)]
 pub struct Context {
     pub db: Arc<PgPool>,
+    pub account_access: AccountAccess,
     pub token: DecodedToken,
 }
 
 impl Context {
     pub fn new(pool: Arc<PgPool>, token: DecodedToken) -> Self {
-        Self { db: pool, token }
+        Self {
+            db: pool,
+            account_access: token.get_user_permissions(),
+            token,
+        }
     }
+}
+
+#[derive(juniper::GraphQLEnum)]
+#[graphql(description = "Order in which to sort query results (ascending or descending)")]
+pub enum Direction {
+    ASC,
+    DESC,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting works list")]
+pub struct WorkOrderBy {
+    pub field: WorkField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting publications list")]
+pub struct PublicationOrderBy {
+    pub field: PublicationField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting publishers list")]
+pub struct PublisherOrderBy {
+    pub field: PublisherField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting imprints list")]
+pub struct ImprintOrderBy {
+    pub field: ImprintField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting contributors list")]
+pub struct ContributorOrderBy {
+    pub field: ContributorField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting contributions list")]
+pub struct ContributionOrderBy {
+    pub field: ContributionField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting series list")]
+pub struct SeriesOrderBy {
+    pub field: SeriesField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting issues list")]
+pub struct IssueOrderBy {
+    pub field: IssueField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting languages list")]
+pub struct LanguageOrderBy {
+    pub field: LanguageField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting prices list")]
+pub struct PriceOrderBy {
+    pub field: PriceField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting subjects list")]
+pub struct SubjectOrderBy {
+    pub field: SubjectField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting funders list")]
+pub struct FunderOrderBy {
+    pub field: FunderField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting fundings list")]
+pub struct FundingOrderBy {
+    pub field: FundingField,
+    pub direction: Direction,
 }
 
 pub struct QueryRoot;
@@ -58,18 +163,215 @@ impl QueryRoot {
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
         ),
+        order(
+            default = {
+                WorkOrderBy {
+                    field: WorkField::FullTitle,
+                    direction: Direction::ASC,
+                }
+            },
+            description = "The order in which to sort the results",
+        ),
+        publishers(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs",
+        ),
     )
   )]
-    fn works(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Work> {
+    fn works(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+        order: WorkOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> Vec<Work> {
         use crate::schema::work::dsl::*;
         let connection = context.db.get().unwrap();
-        work.filter(full_title.ilike(format!("%{}%", filter)))
-            .or_filter(doi.ilike(format!("%{}%", filter)))
-            .or_filter(reference.ilike(format!("%{}%", filter)))
-            .or_filter(short_abstract.ilike(format!("%{}%", filter)))
-            .or_filter(long_abstract.ilike(format!("%{}%", filter)))
-            .or_filter(landing_page.ilike(format!("%{}%", filter)))
-            .order(full_title.asc())
+        let mut query = work
+            .inner_join(crate::schema::imprint::table)
+            .select((
+                work_id,
+                work_type,
+                work_status,
+                full_title,
+                title,
+                subtitle,
+                reference,
+                edition,
+                imprint_id,
+                doi,
+                publication_date,
+                place,
+                width,
+                height,
+                page_count,
+                page_breakdown,
+                image_count,
+                table_count,
+                audio_count,
+                video_count,
+                license,
+                copyright_holder,
+                landing_page,
+                lccn,
+                oclc,
+                short_abstract,
+                long_abstract,
+                general_note,
+                toc,
+                cover_url,
+                cover_caption,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
+        match order.field {
+            WorkField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            WorkField::WorkType => match order.direction {
+                Direction::ASC => query = query.order(work_type.asc()),
+                Direction::DESC => query = query.order(work_type.desc()),
+            },
+            WorkField::WorkStatus => match order.direction {
+                Direction::ASC => query = query.order(work_status.asc()),
+                Direction::DESC => query = query.order(work_status.desc()),
+            },
+            WorkField::FullTitle => match order.direction {
+                Direction::ASC => query = query.order(full_title.asc()),
+                Direction::DESC => query = query.order(full_title.desc()),
+            },
+            WorkField::Title => match order.direction {
+                Direction::ASC => query = query.order(title.asc()),
+                Direction::DESC => query = query.order(title.desc()),
+            },
+            WorkField::Subtitle => match order.direction {
+                Direction::ASC => query = query.order(subtitle.asc()),
+                Direction::DESC => query = query.order(subtitle.desc()),
+            },
+            WorkField::Reference => match order.direction {
+                Direction::ASC => query = query.order(reference.asc()),
+                Direction::DESC => query = query.order(reference.desc()),
+            },
+            WorkField::Edition => match order.direction {
+                Direction::ASC => query = query.order(edition.asc()),
+                Direction::DESC => query = query.order(edition.desc()),
+            },
+            WorkField::DOI => match order.direction {
+                Direction::ASC => query = query.order(doi.asc()),
+                Direction::DESC => query = query.order(doi.desc()),
+            },
+            WorkField::PublicationDate => match order.direction {
+                Direction::ASC => query = query.order(publication_date.asc()),
+                Direction::DESC => query = query.order(publication_date.desc()),
+            },
+            WorkField::Place => match order.direction {
+                Direction::ASC => query = query.order(place.asc()),
+                Direction::DESC => query = query.order(place.desc()),
+            },
+            WorkField::Width => match order.direction {
+                Direction::ASC => query = query.order(width.asc()),
+                Direction::DESC => query = query.order(width.desc()),
+            },
+            WorkField::Height => match order.direction {
+                Direction::ASC => query = query.order(height.asc()),
+                Direction::DESC => query = query.order(height.desc()),
+            },
+            WorkField::PageCount => match order.direction {
+                Direction::ASC => query = query.order(page_count.asc()),
+                Direction::DESC => query = query.order(page_count.desc()),
+            },
+            WorkField::PageBreakdown => match order.direction {
+                Direction::ASC => query = query.order(page_breakdown.asc()),
+                Direction::DESC => query = query.order(page_breakdown.desc()),
+            },
+            WorkField::ImageCount => match order.direction {
+                Direction::ASC => query = query.order(image_count.asc()),
+                Direction::DESC => query = query.order(image_count.desc()),
+            },
+            WorkField::TableCount => match order.direction {
+                Direction::ASC => query = query.order(table_count.asc()),
+                Direction::DESC => query = query.order(table_count.desc()),
+            },
+            WorkField::AudioCount => match order.direction {
+                Direction::ASC => query = query.order(audio_count.asc()),
+                Direction::DESC => query = query.order(audio_count.desc()),
+            },
+            WorkField::VideoCount => match order.direction {
+                Direction::ASC => query = query.order(video_count.asc()),
+                Direction::DESC => query = query.order(video_count.desc()),
+            },
+            WorkField::License => match order.direction {
+                Direction::ASC => query = query.order(license.asc()),
+                Direction::DESC => query = query.order(license.desc()),
+            },
+            WorkField::CopyrightHolder => match order.direction {
+                Direction::ASC => query = query.order(copyright_holder.asc()),
+                Direction::DESC => query = query.order(copyright_holder.desc()),
+            },
+            WorkField::LandingPage => match order.direction {
+                Direction::ASC => query = query.order(landing_page.asc()),
+                Direction::DESC => query = query.order(landing_page.desc()),
+            },
+            WorkField::LCCN => match order.direction {
+                Direction::ASC => query = query.order(lccn.asc()),
+                Direction::DESC => query = query.order(lccn.desc()),
+            },
+            WorkField::OCLC => match order.direction {
+                Direction::ASC => query = query.order(oclc.asc()),
+                Direction::DESC => query = query.order(oclc.desc()),
+            },
+            WorkField::ShortAbstract => match order.direction {
+                Direction::ASC => query = query.order(short_abstract.asc()),
+                Direction::DESC => query = query.order(short_abstract.desc()),
+            },
+            WorkField::LongAbstract => match order.direction {
+                Direction::ASC => query = query.order(long_abstract.asc()),
+                Direction::DESC => query = query.order(long_abstract.desc()),
+            },
+            WorkField::GeneralNote => match order.direction {
+                Direction::ASC => query = query.order(general_note.asc()),
+                Direction::DESC => query = query.order(general_note.desc()),
+            },
+            WorkField::TOC => match order.direction {
+                Direction::ASC => query = query.order(toc.asc()),
+                Direction::DESC => query = query.order(toc.desc()),
+            },
+            WorkField::CoverURL => match order.direction {
+                Direction::ASC => query = query.order(cover_url.asc()),
+                Direction::DESC => query = query.order(cover_url.desc()),
+            },
+            WorkField::CoverCaption => match order.direction {
+                Direction::ASC => query = query.order(cover_caption.asc()),
+                Direction::DESC => query = query.order(cover_caption.desc()),
+            },
+            WorkField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            WorkField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
+        query
+            .filter(
+                full_title
+                    .ilike(format!("%{}%", filter))
+                    .or(doi.ilike(format!("%{}%", filter)))
+                    .or(reference.ilike(format!("%{}%", filter)))
+                    .or(short_abstract.ilike(format!("%{}%", filter)))
+                    .or(long_abstract.ilike(format!("%{}%", filter)))
+                    .or(landing_page.ilike(format!("%{}%", filter))),
+            )
             .limit(limit.into())
             .offset(offset.into())
             .load::<Work>(&connection)
@@ -93,23 +395,75 @@ impl QueryRoot {
         arguments(
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
             ),
         )
     )]
-    fn work_count(context: &Context, filter: String) -> i32 {
+    fn work_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> i32 {
         use crate::schema::work::dsl::*;
         let connection = context.db.get().unwrap();
+        let mut query = work
+            .inner_join(crate::schema::imprint::table)
+            .select((
+                work_id,
+                work_type,
+                work_status,
+                full_title,
+                title,
+                subtitle,
+                reference,
+                edition,
+                imprint_id,
+                doi,
+                publication_date,
+                place,
+                width,
+                height,
+                page_count,
+                page_breakdown,
+                image_count,
+                table_count,
+                audio_count,
+                video_count,
+                license,
+                copyright_holder,
+                landing_page,
+                lccn,
+                oclc,
+                short_abstract,
+                long_abstract,
+                general_note,
+                toc,
+                cover_url,
+                cover_caption,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        work.filter(full_title.ilike(format!("%{}%", filter)))
-            .or_filter(doi.ilike(format!("%{}%", filter)))
-            .or_filter(reference.ilike(format!("%{}%", filter)))
-            .or_filter(short_abstract.ilike(format!("%{}%", filter)))
-            .or_filter(long_abstract.ilike(format!("%{}%", filter)))
-            .or_filter(landing_page.ilike(format!("%{}%", filter)))
+        query
+            .filter(
+                full_title
+                    .ilike(format!("%{}%", filter))
+                    .or(doi.ilike(format!("%{}%", filter)))
+                    .or(reference.ilike(format!("%{}%", filter)))
+                    .or(short_abstract.ilike(format!("%{}%", filter)))
+                    .or(long_abstract.ilike(format!("%{}%", filter)))
+                    .or(landing_page.ilike(format!("%{}%", filter))),
+            )
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading work count")
@@ -127,6 +481,19 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url"
             ),
+            order(
+                default = {
+                    PublicationOrderBy {
+                        field: PublicationField::PublicationType,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
         )
     )]
     fn publications(
@@ -134,13 +501,64 @@ impl QueryRoot {
         limit: i32,
         offset: i32,
         filter: String,
+        order: PublicationOrderBy,
+        publishers: Vec<Uuid>,
     ) -> Vec<Publication> {
         use crate::schema::publication::dsl::*;
         let connection = context.db.get().unwrap();
-        publication
-            .filter(isbn.ilike(format!("%{}%", filter)))
-            .or_filter(publication_url.ilike(format!("%{}%", filter)))
-            .order(publication_type.asc())
+        let mut query = publication
+            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
+            .select((
+                publication_id,
+                publication_type,
+                work_id,
+                isbn,
+                publication_url,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
+        match order.field {
+            PublicationField::PublicationID => match order.direction {
+                Direction::ASC => query = query.order(publication_id.asc()),
+                Direction::DESC => query = query.order(publication_id.desc()),
+            },
+            PublicationField::PublicationType => match order.direction {
+                Direction::ASC => query = query.order(publication_type.asc()),
+                Direction::DESC => query = query.order(publication_type.desc()),
+            },
+            PublicationField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            PublicationField::ISBN => match order.direction {
+                Direction::ASC => query = query.order(isbn.asc()),
+                Direction::DESC => query = query.order(isbn.desc()),
+            },
+            PublicationField::PublicationURL => match order.direction {
+                Direction::ASC => query = query.order(publication_url.asc()),
+                Direction::DESC => query = query.order(publication_url.desc()),
+            },
+            PublicationField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            PublicationField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
+        query
+            .filter(
+                isbn.ilike(format!("%{}%", filter))
+                    .or(publication_url.ilike(format!("%{}%", filter))),
+            )
             .limit(limit.into())
             .offset(offset.into())
             .load::<Publication>(&connection)
@@ -164,17 +582,41 @@ impl QueryRoot {
         arguments(
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url"
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
             ),
         )
     )]
-    fn publication_count(context: &Context, filter: String) -> i32 {
+    fn publication_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> i32 {
         use crate::schema::publication::dsl::*;
         let connection = context.db.get().unwrap();
+        let mut query = publication
+            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
+            .select((
+                publication_id,
+                publication_type,
+                work_id,
+                isbn,
+                publication_url,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
         // see comment in work_count()
-        publication
-            .filter(isbn.ilike(format!("%{}%", filter)))
-            .or_filter(publication_url.ilike(format!("%{}%", filter)))
+        query
+            .filter(
+                isbn.ilike(format!("%{}%", filter))
+                    .or(publication_url.ilike(format!("%{}%", filter))),
+            )
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading publication count")
@@ -199,15 +641,70 @@ impl QueryRoot {
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on publisher_name and publisher_shortname"
 
         ),
+        order(
+            default = {
+                PublisherOrderBy {
+                    field: PublisherField::PublisherName,
+                    direction: Direction::ASC,
+                }
+            },
+            description = "The order in which to sort the results",
+        ),
+        publishers(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs",
+        ),
     )
   )]
-    fn publishers(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Publisher> {
+    fn publishers(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+        order: PublisherOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> Vec<Publisher> {
         use crate::schema::publisher::dsl::*;
         let connection = context.db.get().unwrap();
-        publisher
-            .filter(publisher_name.ilike(format!("%{}%", filter)))
-            .or_filter(publisher_shortname.ilike(format!("%{}%", filter)))
-            .order(publisher_name.asc())
+        let mut query = publisher.into_boxed();
+        match order.field {
+            PublisherField::PublisherID => match order.direction {
+                Direction::ASC => query = query.order(publisher_id.asc()),
+                Direction::DESC => query = query.order(publisher_id.desc()),
+            },
+            PublisherField::PublisherName => match order.direction {
+                Direction::ASC => query = query.order(publisher_name.asc()),
+                Direction::DESC => query = query.order(publisher_name.desc()),
+            },
+            PublisherField::PublisherShortname => match order.direction {
+                Direction::ASC => query = query.order(publisher_shortname.asc()),
+                Direction::DESC => query = query.order(publisher_shortname.desc()),
+            },
+            PublisherField::PublisherURL => match order.direction {
+                Direction::ASC => query = query.order(publisher_url.asc()),
+                Direction::DESC => query = query.order(publisher_url.desc()),
+            },
+            PublisherField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            PublisherField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(publisher_id.eq(pub_id));
+        }
+        query
+            .filter(
+                publisher_name
+                    .ilike(format!("%{}%", filter))
+                    .or(publisher_shortname.ilike(format!("%{}%", filter))),
+            )
             .limit(limit.into())
             .offset(offset.into())
             .load::<Publisher>(&connection)
@@ -233,15 +730,29 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on publisher_name and publisher_shortname",
             ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
         )
     )]
-    fn publisher_count(context: &Context, filter: String) -> i32 {
+    fn publisher_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> i32 {
         use crate::schema::publisher::dsl::*;
         let connection = context.db.get().unwrap();
+        let mut query = publisher.into_boxed();
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(publisher_id.eq(pub_id));
+        }
         // see comment in work_count()
-        publisher
-            .filter(publisher_name.ilike(format!("%{}%", filter)))
-            .or_filter(publisher_shortname.ilike(format!("%{}%", filter)))
+        query
+            .filter(
+                publisher_name
+                    .ilike(format!("%{}%", filter))
+                    .or(publisher_shortname.ilike(format!("%{}%", filter))),
+            )
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading publisher count")
@@ -259,15 +770,66 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url"
             ),
+            order(
+                default = {
+                    ImprintOrderBy {
+                        field: ImprintField::ImprintName,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
         )
     )]
-    fn imprints(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Imprint> {
+    fn imprints(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+        order: ImprintOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> Vec<Imprint> {
         use crate::schema::imprint::dsl::*;
         let connection = context.db.get().unwrap();
-        imprint
-            .filter(imprint_name.ilike(format!("%{}%", filter)))
-            .or_filter(imprint_url.ilike(format!("%{}%", filter)))
-            .order(imprint_name.asc())
+        let mut query = imprint.into_boxed();
+        match order.field {
+            ImprintField::ImprintID => match order.direction {
+                Direction::ASC => query = query.order(imprint_id.asc()),
+                Direction::DESC => query = query.order(imprint_id.desc()),
+            },
+            ImprintField::ImprintName => match order.direction {
+                Direction::ASC => query = query.order(imprint_name.asc()),
+                Direction::DESC => query = query.order(imprint_name.desc()),
+            },
+            ImprintField::ImprintURL => match order.direction {
+                Direction::ASC => query = query.order(imprint_url.asc()),
+                Direction::DESC => query = query.order(imprint_url.desc()),
+            },
+            ImprintField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            ImprintField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(publisher_id.eq(pub_id));
+        }
+        query
+            .filter(
+                imprint_name
+                    .ilike(format!("%{}%", filter))
+                    .or(imprint_url.ilike(format!("%{}%", filter))),
+            )
             .limit(limit.into())
             .offset(offset.into())
             .load::<Imprint>(&connection)
@@ -286,12 +848,36 @@ impl QueryRoot {
         }
     }
 
-    #[graphql(description = "Get the total number of imprints")]
-    fn imprint_count(context: &Context) -> i32 {
+    #[graphql(
+        description = "Get the total number of imprints",
+        arguments(
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
+        )
+    )]
+    fn imprint_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> i32 {
         use crate::schema::imprint::dsl::*;
         let connection = context.db.get().unwrap();
+        let mut query = imprint.into_boxed();
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(publisher_id.eq(pub_id));
+        }
         // see comment in work_count()
-        imprint
+        query
+            .filter(
+                imprint_name
+                    .ilike(format!("%{}%", filter))
+                    .or(imprint_url.ilike(format!("%{}%", filter))),
+            )
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading imprint count")
@@ -309,6 +895,15 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_name and orcid"
             ),
+            order(
+                default = {
+                    ContributorOrderBy {
+                        field: ContributorField::FullName,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
         )
     )]
     fn contributors(
@@ -316,13 +911,48 @@ impl QueryRoot {
         limit: i32,
         offset: i32,
         filter: String,
+        order: ContributorOrderBy,
     ) -> Vec<Contributor> {
         use crate::schema::contributor::dsl::*;
         let connection = context.db.get().unwrap();
-        contributor
+        let mut query = contributor.into_boxed();
+        match order.field {
+            ContributorField::ContributorID => match order.direction {
+                Direction::ASC => query = query.order(contributor_id.asc()),
+                Direction::DESC => query = query.order(contributor_id.desc()),
+            },
+            ContributorField::FirstName => match order.direction {
+                Direction::ASC => query = query.order(first_name.asc()),
+                Direction::DESC => query = query.order(first_name.desc()),
+            },
+            ContributorField::LastName => match order.direction {
+                Direction::ASC => query = query.order(last_name.asc()),
+                Direction::DESC => query = query.order(last_name.desc()),
+            },
+            ContributorField::FullName => match order.direction {
+                Direction::ASC => query = query.order(full_name.asc()),
+                Direction::DESC => query = query.order(full_name.desc()),
+            },
+            ContributorField::ORCID => match order.direction {
+                Direction::ASC => query = query.order(orcid.asc()),
+                Direction::DESC => query = query.order(orcid.desc()),
+            },
+            ContributorField::Website => match order.direction {
+                Direction::ASC => query = query.order(website.asc()),
+                Direction::DESC => query = query.order(website.desc()),
+            },
+            ContributorField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            ContributorField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .filter(full_name.ilike(format!("%{}%", filter)))
             .or_filter(orcid.ilike(format!("%{}%", filter)))
-            .order(full_name.asc())
             .limit(limit.into())
             .offset(offset.into())
             .load::<Contributor>(&connection)
@@ -369,14 +999,97 @@ impl QueryRoot {
         description = "Query the full list of contributions",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    ContributionOrderBy {
+                        field: ContributionField::ContributionType,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
         )
     )]
-    fn contributions(context: &Context, limit: i32, offset: i32) -> Vec<Contribution> {
+    fn contributions(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: ContributionOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> Vec<Contribution> {
         use crate::schema::contribution::dsl::*;
         let connection = context.db.get().unwrap();
-        contribution
-            .order(contribution_type.asc())
+        let mut query = contribution
+            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
+            .select((
+                work_id,
+                contributor_id,
+                contribution_type,
+                main_contribution,
+                biography,
+                institution,
+                created_at,
+                updated_at,
+                first_name,
+                last_name,
+                full_name,
+            ))
+            .into_boxed();
+        match order.field {
+            ContributionField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            ContributionField::ContributorID => match order.direction {
+                Direction::ASC => query = query.order(contributor_id.asc()),
+                Direction::DESC => query = query.order(contributor_id.desc()),
+            },
+            ContributionField::ContributionType => match order.direction {
+                Direction::ASC => query = query.order(contribution_type.asc()),
+                Direction::DESC => query = query.order(contribution_type.desc()),
+            },
+            ContributionField::MainContribution => match order.direction {
+                Direction::ASC => query = query.order(main_contribution.asc()),
+                Direction::DESC => query = query.order(main_contribution.desc()),
+            },
+            ContributionField::Biography => match order.direction {
+                Direction::ASC => query = query.order(biography.asc()),
+                Direction::DESC => query = query.order(biography.desc()),
+            },
+            ContributionField::Institution => match order.direction {
+                Direction::ASC => query = query.order(institution.asc()),
+                Direction::DESC => query = query.order(institution.desc()),
+            },
+            ContributionField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            ContributionField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+            ContributionField::FirstName => match order.direction {
+                Direction::ASC => query = query.order(first_name.asc()),
+                Direction::DESC => query = query.order(first_name.desc()),
+            },
+            ContributionField::LastName => match order.direction {
+                Direction::ASC => query = query.order(last_name.asc()),
+                Direction::DESC => query = query.order(last_name.desc()),
+            },
+            ContributionField::FullName => match order.direction {
+                Direction::ASC => query = query.order(full_name.asc()),
+                Direction::DESC => query = query.order(full_name.desc()),
+            },
+        }
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<Contribution>(&connection)
@@ -425,17 +1138,93 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital and series_url"
             ),
+            order(
+                default = {
+                    SeriesOrderBy {
+                        field: SeriesField::SeriesName,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
         ),
     )]
-    fn serieses(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Series> {
+    fn serieses(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+        order: SeriesOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> Vec<Series> {
         use crate::schema::series::dsl::*;
         let connection = context.db.get().unwrap();
-        series
-            .filter(series_name.ilike(format!("%{}%", filter)))
-            .or_filter(issn_print.ilike(format!("%{}%", filter)))
-            .or_filter(issn_digital.ilike(format!("%{}%", filter)))
-            .or_filter(series_url.ilike(format!("%{}%", filter)))
-            .order(series_name.asc())
+        let mut query = series
+            .inner_join(crate::schema::imprint::table)
+            .select((
+                series_id,
+                series_type,
+                series_name,
+                issn_print,
+                issn_digital,
+                series_url,
+                imprint_id,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
+        match order.field {
+            SeriesField::SeriesID => match order.direction {
+                Direction::ASC => query = query.order(series_id.asc()),
+                Direction::DESC => query = query.order(series_id.desc()),
+            },
+            SeriesField::SeriesType => match order.direction {
+                Direction::ASC => query = query.order(series_type.asc()),
+                Direction::DESC => query = query.order(series_type.desc()),
+            },
+            SeriesField::SeriesName => match order.direction {
+                Direction::ASC => query = query.order(series_name.asc()),
+                Direction::DESC => query = query.order(series_name.desc()),
+            },
+            SeriesField::ISSNPrint => match order.direction {
+                Direction::ASC => query = query.order(issn_print.asc()),
+                Direction::DESC => query = query.order(issn_print.desc()),
+            },
+            SeriesField::ISSNDigital => match order.direction {
+                Direction::ASC => query = query.order(issn_digital.asc()),
+                Direction::DESC => query = query.order(issn_digital.desc()),
+            },
+            SeriesField::SeriesURL => match order.direction {
+                Direction::ASC => query = query.order(series_url.asc()),
+                Direction::DESC => query = query.order(series_url.desc()),
+            },
+            SeriesField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            SeriesField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
+        query
+            .filter(
+                series_name
+                    .ilike(format!("%{}%", filter))
+                    .or(issn_print.ilike(format!("%{}%", filter)))
+                    .or(issn_digital.ilike(format!("%{}%", filter)))
+                    .or(series_url.ilike(format!("%{}%", filter))),
+            )
             .limit(limit.into())
             .offset(offset.into())
             .load::<Series>(&connection)
@@ -461,17 +1250,44 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital and series_url",
             ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
         )
     )]
-    fn series_count(context: &Context, filter: String) -> i32 {
+    fn series_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> i32 {
         use crate::schema::series::dsl::*;
         let connection = context.db.get().unwrap();
+        let mut query = series
+            .inner_join(crate::schema::imprint::table)
+            .select((
+                series_id,
+                series_type,
+                series_name,
+                issn_print,
+                issn_digital,
+                series_url,
+                imprint_id,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
         // see comment in work_count()
-        series
-            .filter(series_name.ilike(format!("%{}%", filter)))
-            .or_filter(issn_print.ilike(format!("%{}%", filter)))
-            .or_filter(issn_digital.ilike(format!("%{}%", filter)))
-            .or_filter(series_url.ilike(format!("%{}%", filter)))
+        query
+            .filter(
+                series_name
+                    .ilike(format!("%{}%", filter))
+                    .or(issn_print.ilike(format!("%{}%", filter)))
+                    .or(issn_digital.ilike(format!("%{}%", filter)))
+                    .or(series_url.ilike(format!("%{}%", filter))),
+            )
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading series count")
@@ -484,14 +1300,61 @@ impl QueryRoot {
         description = "Query the full list of issues",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    IssueOrderBy {
+                        field: IssueField::IssueOrdinal,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
         )
     )]
-    fn issues(context: &Context, limit: i32, offset: i32) -> Vec<Issue> {
+    fn issues(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: IssueOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> Vec<Issue> {
         use crate::schema::issue::dsl::*;
         let connection = context.db.get().unwrap();
-        issue
-            .order(issue_ordinal.asc())
+        let mut query = issue
+            .inner_join(crate::schema::series::table.inner_join(crate::schema::imprint::table))
+            .select((series_id, work_id, issue_ordinal, created_at, updated_at))
+            .into_boxed();
+        match order.field {
+            IssueField::SeriesID => match order.direction {
+                Direction::ASC => query = query.order(series_id.asc()),
+                Direction::DESC => query = query.order(series_id.desc()),
+            },
+            IssueField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            IssueField::IssueOrdinal => match order.direction {
+                Direction::ASC => query = query.order(issue_ordinal.asc()),
+                Direction::DESC => query = query.order(issue_ordinal.desc()),
+            },
+            IssueField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            IssueField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<Issue>(&connection)
@@ -529,14 +1392,77 @@ impl QueryRoot {
         description = "Query the full list of languages",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    LanguageOrderBy {
+                        field: LanguageField::LanguageCode,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
         )
     )]
-    fn languages(context: &Context, limit: i32, offset: i32) -> Vec<Language> {
+    fn languages(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: LanguageOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> Vec<Language> {
         use crate::schema::language::dsl::*;
         let connection = context.db.get().unwrap();
-        language
-            .order(language_code.asc())
+        let mut query = language
+            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
+            .select((
+                language_id,
+                work_id,
+                language_code,
+                language_relation,
+                main_language,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
+        match order.field {
+            LanguageField::LanguageID => match order.direction {
+                Direction::ASC => query = query.order(language_id.asc()),
+                Direction::DESC => query = query.order(language_id.desc()),
+            },
+            LanguageField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            LanguageField::LanguageCode => match order.direction {
+                Direction::ASC => query = query.order(language_code.asc()),
+                Direction::DESC => query = query.order(language_code.desc()),
+            },
+            LanguageField::LanguageRelation => match order.direction {
+                Direction::ASC => query = query.order(language_relation.asc()),
+                Direction::DESC => query = query.order(language_relation.desc()),
+            },
+            LanguageField::MainLanguage => match order.direction {
+                Direction::ASC => query = query.order(main_language.asc()),
+                Direction::DESC => query = query.order(main_language.desc()),
+            },
+            LanguageField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            LanguageField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<Language>(&connection)
@@ -573,14 +1499,75 @@ impl QueryRoot {
         description = "Query the full list of prices",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    PriceOrderBy {
+                        field: PriceField::CurrencyCode,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
         )
     )]
-    fn prices(context: &Context, limit: i32, offset: i32) -> Vec<Price> {
+    fn prices(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: PriceOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> Vec<Price> {
         use crate::schema::price::dsl::*;
         let connection = context.db.get().unwrap();
-        price
-            .order(currency_code.asc())
+        let mut query =
+            price
+                .inner_join(crate::schema::publication::table.inner_join(
+                    crate::schema::work::table.inner_join(crate::schema::imprint::table),
+                ))
+                .select((
+                    price_id,
+                    publication_id,
+                    currency_code,
+                    unit_price,
+                    created_at,
+                    updated_at,
+                ))
+                .into_boxed();
+        match order.field {
+            PriceField::PriceID => match order.direction {
+                Direction::ASC => query = query.order(price_id.asc()),
+                Direction::DESC => query = query.order(price_id.desc()),
+            },
+            PriceField::PublicationID => match order.direction {
+                Direction::ASC => query = query.order(publication_id.asc()),
+                Direction::DESC => query = query.order(publication_id.desc()),
+            },
+            PriceField::CurrencyCode => match order.direction {
+                Direction::ASC => query = query.order(currency_code.asc()),
+                Direction::DESC => query = query.order(currency_code.desc()),
+            },
+            PriceField::UnitPrice => match order.direction {
+                Direction::ASC => query = query.order(unit_price.asc()),
+                Direction::DESC => query = query.order(unit_price.desc()),
+            },
+            PriceField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            PriceField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<Price>(&connection)
@@ -617,14 +1604,77 @@ impl QueryRoot {
         description = "Query the full list of subjects",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    SubjectOrderBy {
+                        field: SubjectField::SubjectType,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
         )
     )]
-    fn subjects(context: &Context, limit: i32, offset: i32) -> Vec<Subject> {
+    fn subjects(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: SubjectOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> Vec<Subject> {
         use crate::schema::subject::dsl::*;
         let connection = context.db.get().unwrap();
-        subject
-            .order(subject_type.asc())
+        let mut query = subject
+            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
+            .select((
+                subject_id,
+                work_id,
+                subject_type,
+                subject_code,
+                subject_ordinal,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
+        match order.field {
+            SubjectField::SubjectID => match order.direction {
+                Direction::ASC => query = query.order(subject_id.asc()),
+                Direction::DESC => query = query.order(subject_id.desc()),
+            },
+            SubjectField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            SubjectField::SubjectType => match order.direction {
+                Direction::ASC => query = query.order(subject_type.asc()),
+                Direction::DESC => query = query.order(subject_type.desc()),
+            },
+            SubjectField::SubjectCode => match order.direction {
+                Direction::ASC => query = query.order(subject_code.asc()),
+                Direction::DESC => query = query.order(subject_code.desc()),
+            },
+            SubjectField::SubjectOrdinal => match order.direction {
+                Direction::ASC => query = query.order(subject_ordinal.asc()),
+                Direction::DESC => query = query.order(subject_ordinal.desc()),
+            },
+            SubjectField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            SubjectField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<Subject>(&connection)
@@ -666,15 +1716,52 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on funderName and funderDoi",
             ),
+            order(
+                default = {
+                    FunderOrderBy {
+                        field: FunderField::FunderName,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
         )
     )]
-    fn funders(context: &Context, limit: i32, offset: i32, filter: String) -> Vec<Funder> {
+    fn funders(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+        order: FunderOrderBy,
+    ) -> Vec<Funder> {
         use crate::schema::funder::dsl::*;
         let connection = context.db.get().unwrap();
-        funder
+        let mut query = funder.into_boxed();
+        match order.field {
+            FunderField::FunderID => match order.direction {
+                Direction::ASC => query = query.order(funder_id.asc()),
+                Direction::DESC => query = query.order(funder_id.desc()),
+            },
+            FunderField::FunderName => match order.direction {
+                Direction::ASC => query = query.order(funder_name.asc()),
+                Direction::DESC => query = query.order(funder_name.desc()),
+            },
+            FunderField::FunderDOI => match order.direction {
+                Direction::ASC => query = query.order(funder_doi.asc()),
+                Direction::DESC => query = query.order(funder_doi.desc()),
+            },
+            FunderField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            FunderField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .filter(funder_name.ilike(format!("%{}%", filter)))
             .or_filter(funder_doi.ilike(format!("%{}%", filter)))
-            .order(funder_name.asc())
             .limit(limit.into())
             .offset(offset.into())
             .load::<Funder>(&connection)
@@ -693,12 +1780,22 @@ impl QueryRoot {
         }
     }
 
-    #[graphql(description = "Get the total number of funders")]
-    fn funder_count(context: &Context) -> i32 {
+    #[graphql(
+        description = "Get the total number of funders",
+        arguments(
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on funderName and funderDoi",
+            ),
+        )
+    )]
+    fn funder_count(context: &Context, filter: String) -> i32 {
         use crate::schema::funder::dsl::*;
         let connection = context.db.get().unwrap();
         // see comment in work_count()
         funder
+            .filter(funder_name.ilike(format!("%{}%", filter)))
+            .or_filter(funder_doi.ilike(format!("%{}%", filter)))
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading funder count")
@@ -711,14 +1808,92 @@ impl QueryRoot {
         description = "Query the full list of fundings",
         arguments(
             limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip")
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    FundingOrderBy {
+                        field: FundingField::Program,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
         )
     )]
-    fn fundings(context: &Context, limit: i32, offset: i32) -> Vec<Funding> {
+    fn fundings(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: FundingOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> Vec<Funding> {
         use crate::schema::funding::dsl::*;
         let connection = context.db.get().unwrap();
-        funding
-            .order(program.asc())
+        let mut query = funding
+            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
+            .select((
+                funding_id,
+                work_id,
+                funder_id,
+                program,
+                project_name,
+                project_shortname,
+                grant_number,
+                jurisdiction,
+                created_at,
+                updated_at,
+            ))
+            .into_boxed();
+        match order.field {
+            FundingField::FundingID => match order.direction {
+                Direction::ASC => query = query.order(funding_id.asc()),
+                Direction::DESC => query = query.order(funding_id.desc()),
+            },
+            FundingField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            FundingField::FunderID => match order.direction {
+                Direction::ASC => query = query.order(funder_id.asc()),
+                Direction::DESC => query = query.order(funder_id.desc()),
+            },
+            FundingField::Program => match order.direction {
+                Direction::ASC => query = query.order(program.asc()),
+                Direction::DESC => query = query.order(program.desc()),
+            },
+            FundingField::ProjectName => match order.direction {
+                Direction::ASC => query = query.order(project_name.asc()),
+                Direction::DESC => query = query.order(project_name.desc()),
+            },
+            FundingField::ProjectShortname => match order.direction {
+                Direction::ASC => query = query.order(project_shortname.asc()),
+                Direction::DESC => query = query.order(project_shortname.desc()),
+            },
+            FundingField::GrantNumber => match order.direction {
+                Direction::ASC => query = query.order(grant_number.asc()),
+                Direction::DESC => query = query.order(grant_number.desc()),
+            },
+            FundingField::Jurisdiction => match order.direction {
+                Direction::ASC => query = query.order(jurisdiction.asc()),
+                Direction::DESC => query = query.order(jurisdiction.desc()),
+            },
+            FundingField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            FundingField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        for pub_id in publishers {
+            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<Funding>(&connection)
@@ -758,6 +1933,7 @@ pub struct MutationRoot;
 impl MutationRoot {
     fn create_work(context: &Context, data: NewWork) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_imprint(data.imprint_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(work::table)
@@ -771,6 +1947,10 @@ impl MutationRoot {
 
     fn create_publisher(context: &Context, data: NewPublisher) -> FieldResult<Publisher> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        // Only superusers can create new publishers - NewPublisher has no ID field
+        if !context.account_access.is_superuser {
+            return Err(ThothError::Unauthorised.into());
+        }
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(publisher::table)
@@ -784,6 +1964,7 @@ impl MutationRoot {
 
     fn create_imprint(context: &Context, data: NewImprint) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context.account_access.can_edit(data.publisher_id)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(imprint::table)
@@ -810,6 +1991,7 @@ impl MutationRoot {
 
     fn create_contribution(context: &Context, data: NewContribution) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(contribution::table)
@@ -823,6 +2005,7 @@ impl MutationRoot {
 
     fn create_publication(context: &Context, data: NewPublication) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(publication::table)
@@ -836,6 +2019,7 @@ impl MutationRoot {
 
     fn create_series(context: &Context, data: NewSeries) -> FieldResult<Series> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_imprint(data.imprint_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(series::table)
@@ -849,6 +2033,7 @@ impl MutationRoot {
 
     fn create_issue(context: &Context, data: NewIssue) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(issue::table)
@@ -862,6 +2047,7 @@ impl MutationRoot {
 
     fn create_language(context: &Context, data: NewLanguage) -> FieldResult<Language> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(language::table)
@@ -888,6 +2074,7 @@ impl MutationRoot {
 
     fn create_funding(context: &Context, data: NewFunding) -> FieldResult<Funding> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(funding::table)
@@ -901,6 +2088,7 @@ impl MutationRoot {
 
     fn create_price(context: &Context, data: NewPrice) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_publication(data.publication_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(price::table)
@@ -914,6 +2102,7 @@ impl MutationRoot {
 
     fn create_subject(context: &Context, data: NewSubject) -> FieldResult<Subject> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
 
         check_subject(&data.subject_type, &data.subject_code)?;
 
@@ -929,56 +2118,98 @@ impl MutationRoot {
 
     fn update_work(context: &Context, data: PatchWork) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_imprint(data.imprint_id, context)?;
 
-        match diesel::update(crate::schema::work::dsl::work.find(&data.work_id))
-            .set(&data)
-            .get_result(&connection)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::work::dsl::work.find(data.work_id);
+        let work = target.get_result::<Work>(&connection).unwrap();
+        if !(data.imprint_id == work.imprint_id) {
+            user_can_edit_imprint(work.imprint_id, context)?;
         }
+
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewWorkHistory::new(work, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_publisher(context: &Context, data: PatchPublisher) -> FieldResult<Publisher> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        context.account_access.can_edit(data.publisher_id)?;
 
-        match diesel::update(crate::schema::publisher::dsl::publisher.find(&data.publisher_id))
-            .set(&data)
-            .get_result(&connection)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::publisher::dsl::publisher.find(&data.publisher_id);
+        let publisher = target.get_result::<Publisher>(&connection).unwrap();
+        if !(data.publisher_id == publisher.publisher_id) {
+            context.account_access.can_edit(publisher.publisher_id)?;
         }
+
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewPublisherHistory::new(publisher, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_imprint(context: &Context, data: PatchImprint) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        context.account_access.can_edit(data.publisher_id)?;
 
-        match diesel::update(crate::schema::imprint::dsl::imprint.find(&data.imprint_id))
-            .set(&data)
-            .get_result(&connection)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::imprint::dsl::imprint.find(&data.imprint_id);
+        let imprint = target.get_result::<Imprint>(&connection).unwrap();
+        if !(data.publisher_id == imprint.publisher_id) {
+            context.account_access.can_edit(imprint.publisher_id)?;
         }
+
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewImprintHistory::new(imprint, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_contributor(context: &Context, data: PatchContributor) -> FieldResult<Contributor> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let connection = context.db.get().unwrap();
 
-        match diesel::update(
-            crate::schema::contributor::dsl::contributor.find(&data.contributor_id),
+        let target = crate::schema::contributor::dsl::contributor.find(&data.contributor_id);
+        let contributor = target.get_result::<Contributor>(&connection).unwrap();
+
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewContributorHistory::new(contributor, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
         )
-        .set(&data)
-        .get_result(&connection)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
     }
 
     fn update_contribution(
@@ -986,133 +2217,243 @@ impl MutationRoot {
         data: PatchContribution,
     ) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
+
         let connection = context.db.get().unwrap();
 
         use crate::schema::contribution::dsl::*;
+        // need to duplicate these otherwise the query gets moved
+        let target_contribution = contribution
+            .filter(work_id.eq(&data.work_id))
+            .filter(contributor_id.eq(&data.contributor_id))
+            .filter(contribution_type.eq(&data.contribution_type))
+            .get_result::<Contribution>(&connection)
+            .unwrap();
         let target = contribution
             .filter(work_id.eq(&data.work_id))
             .filter(contributor_id.eq(&data.contributor_id))
             .filter(contribution_type.eq(&data.contribution_type));
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewContributionHistory::new(target_contribution, account_id)
+                        .insert(&connection)
+                    {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_publication(context: &Context, data: PatchPublication) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_work(data.work_id, context)?;
 
-        match diesel::update(
-            crate::schema::publication::dsl::publication.find(&data.publication_id),
-        )
-        .set(&data)
-        .get_result(&connection)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::publication::dsl::publication.find(&data.publication_id);
+        let publication = target.get_result::<Publication>(&connection).unwrap();
+        if !(data.work_id == publication.work_id) {
+            user_can_edit_work(publication.work_id, context)?;
         }
+
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewPublicationHistory::new(publication, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_series(context: &Context, data: PatchSeries) -> FieldResult<Series> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_imprint(data.imprint_id, context)?;
 
-        match diesel::update(crate::schema::series::dsl::series.find(&data.series_id))
-            .set(&data)
-            .get_result(&connection)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::series::dsl::series.find(&data.series_id);
+        let series = target.get_result::<Series>(&connection).unwrap();
+        if !(data.imprint_id == series.imprint_id) {
+            user_can_edit_imprint(series.imprint_id, context)?;
         }
+
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewSeriesHistory::new(series, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_issue(context: &Context, data: PatchIssue) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(data.work_id, context)?;
+
         let connection = context.db.get().unwrap();
 
         use crate::schema::issue::dsl::*;
         let target = issue
             .filter(series_id.eq(&data.series_id))
             .filter(work_id.eq(&data.work_id));
+        let target_issue = target.get_result::<Issue>(&connection).unwrap();
 
-        match diesel::update(target).set(&data).get_result(&connection) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewIssueHistory::new(target_issue, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_language(context: &Context, data: PatchLanguage) -> FieldResult<Language> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_work(data.work_id, context)?;
 
-        match diesel::update(crate::schema::language::dsl::language.find(&data.language_id))
-            .set(&data)
-            .get_result(&connection)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::language::dsl::language.find(&data.language_id);
+        let language = target.get_result::<Language>(&connection).unwrap();
+        if !(data.work_id == language.work_id) {
+            user_can_edit_work(language.work_id, context)?;
         }
+
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewLanguageHistory::new(language, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_funder(context: &Context, data: PatchFunder) -> FieldResult<Funder> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let connection = context.db.get().unwrap();
+        let target = crate::schema::funder::dsl::funder.find(&data.funder_id);
+        let funder = target.get_result::<Funder>(&connection).unwrap();
 
-        match diesel::update(crate::schema::funder::dsl::funder.find(&data.funder_id))
-            .set(&data)
-            .get_result(&connection)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewFunderHistory::new(funder, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_funding(context: &Context, data: PatchFunding) -> FieldResult<Funding> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_work(data.work_id, context)?;
 
-        match diesel::update(crate::schema::funding::dsl::funding.find(&data.funding_id))
-            .set(&data)
-            .get_result(&connection)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::funding::dsl::funding.find(&data.funding_id);
+        let funding = target.get_result::<Funding>(&connection).unwrap();
+        if !(data.work_id == funding.work_id) {
+            user_can_edit_work(funding.work_id, context)?;
         }
+
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewFundingHistory::new(funding, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_price(context: &Context, data: PatchPrice) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_publication(data.publication_id, context)?;
 
-        match diesel::update(crate::schema::price::dsl::price.find(&data.price_id))
-            .set(&data)
-            .get_result(&connection)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::price::dsl::price.find(&data.price_id);
+        let result = target.get_result::<Price>(&connection);
+        let price = result.unwrap();
+        if !(data.publication_id == price.publication_id) {
+            user_can_edit_publication(price.publication_id, context)?;
         }
+
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewPriceHistory::new(price, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn update_subject(context: &Context, data: PatchSubject) -> FieldResult<Subject> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        check_subject(&data.subject_type, &data.subject_code)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_work(data.work_id, context)?;
 
-        match diesel::update(crate::schema::subject::dsl::subject.find(&data.subject_id))
-            .set(&data)
-            .get_result(&connection)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
+        let connection = context.db.get().unwrap();
+        let target = crate::schema::subject::dsl::subject.find(&data.subject_id);
+        let subject = target.get_result::<Subject>(&connection).unwrap();
+        if !(data.work_id == subject.work_id) {
+            user_can_edit_work(subject.work_id, context)?;
         }
+
+        check_subject(&data.subject_type, &data.subject_code)?;
+
+        connection.transaction(
+            || match diesel::update(target).set(&data).get_result(&connection) {
+                Ok(c) => {
+                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+                    match NewSubjectHistory::new(subject, account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(FieldError::from(e)),
+                    }
+                }
+                Err(e) => Err(FieldError::from(e)),
+            },
+        )
     }
 
     fn delete_work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_work(work_id, context)?;
 
+        let connection = context.db.get().unwrap();
         let target = crate::schema::work::dsl::work.find(work_id);
         let result = target.get_result::<Work>(&connection);
         match diesel::delete(target).execute(&connection) {
@@ -1123,8 +2464,9 @@ impl MutationRoot {
 
     fn delete_publisher(context: &Context, publisher_id: Uuid) -> FieldResult<Publisher> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        context.account_access.can_edit(publisher_id)?;
 
+        let connection = context.db.get().unwrap();
         let target = crate::schema::publisher::dsl::publisher.find(publisher_id);
         let result = target.get_result::<Publisher>(&connection);
         match diesel::delete(target).execute(&connection) {
@@ -1139,8 +2481,11 @@ impl MutationRoot {
 
         let target = crate::schema::imprint::dsl::imprint.find(imprint_id);
         let result = target.get_result::<Imprint>(&connection);
+        let imprint = result.unwrap();
+        context.account_access.can_edit(imprint.publisher_id)?;
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(imprint),
             Err(e) => Err(FieldError::from(e)),
         }
     }
@@ -1164,6 +2509,8 @@ impl MutationRoot {
         contribution_type: ContributionType,
     ) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(work_id, context)?;
+
         let connection = context.db.get().unwrap();
 
         use crate::schema::contribution::dsl;
@@ -1184,10 +2531,12 @@ impl MutationRoot {
 
     fn delete_publication(context: &Context, publication_id: Uuid) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
+        user_can_edit_publication(publication_id, context)?;
 
+        let connection = context.db.get().unwrap();
         let target = crate::schema::publication::dsl::publication.find(publication_id);
         let result = target.get_result::<Publication>(&connection);
+
         match diesel::delete(target).execute(&connection) {
             Ok(c) => Ok(result.unwrap()),
             Err(e) => Err(FieldError::from(e)),
@@ -1200,14 +2549,19 @@ impl MutationRoot {
 
         let target = crate::schema::series::dsl::series.find(series_id);
         let result = target.get_result::<Series>(&connection);
+        let series = result.unwrap();
+        user_can_edit_imprint(series.imprint_id, context)?;
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(series),
             Err(e) => Err(FieldError::from(e)),
         }
     }
 
     fn delete_issue(context: &Context, series_id: Uuid, work_id: Uuid) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        user_can_edit_work(work_id, context)?;
+
         let connection = context.db.get().unwrap();
 
         use crate::schema::issue::dsl;
@@ -1230,8 +2584,11 @@ impl MutationRoot {
 
         let target = crate::schema::language::dsl::language.find(language_id);
         let result = target.get_result::<Language>(&connection);
+        let language = result.unwrap();
+        user_can_edit_work(language.work_id, context)?;
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(language),
             Err(e) => Err(FieldError::from(e)),
         }
     }
@@ -1254,8 +2611,11 @@ impl MutationRoot {
 
         let target = crate::schema::funding::dsl::funding.find(funding_id);
         let result = target.get_result::<Funding>(&connection);
+        let funding = result.unwrap();
+        user_can_edit_work(funding.work_id, context)?;
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(funding),
             Err(e) => Err(FieldError::from(e)),
         }
     }
@@ -1266,8 +2626,11 @@ impl MutationRoot {
 
         let target = crate::schema::price::dsl::price.find(price_id);
         let result = target.get_result::<Price>(&connection);
+        let price = result.unwrap();
+        user_can_edit_publication(price.publication_id, context)?;
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(price),
             Err(e) => Err(FieldError::from(e)),
         }
     }
@@ -1278,8 +2641,11 @@ impl MutationRoot {
 
         let target = crate::schema::subject::dsl::subject.find(subject_id);
         let result = target.get_result::<Subject>(&connection);
+        let subject = result.unwrap();
+        user_can_edit_work(subject.work_id, context)?;
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(subject),
             Err(e) => Err(FieldError::from(e)),
         }
     }
@@ -1510,7 +2876,7 @@ impl Work {
             offset(default = 0, description = "The number of items to skip"),
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code"
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code",
             ),
         )
     )]
@@ -1753,6 +3119,18 @@ impl Contribution {
 
     pub fn updated_at(&self) -> NaiveDateTime {
         self.updated_at
+    }
+
+    pub fn first_name(&self) -> Option<&String> {
+        self.first_name.as_ref()
+    }
+
+    pub fn last_name(&self) -> &String {
+        &self.last_name
+    }
+
+    pub fn full_name(&self) -> &String {
+        &self.full_name
     }
 
     pub fn work(&self, context: &Context) -> Work {
@@ -2076,4 +3454,36 @@ pub type Schema = RootNode<'static, QueryRoot, MutationRoot>;
 
 pub fn create_schema() -> Schema {
     Schema::new(QueryRoot {}, MutationRoot {})
+}
+
+fn user_can_edit_imprint(imprint_id: Uuid, context: &Context) -> Result<()> {
+    use crate::schema::imprint::dsl;
+    let pub_id = dsl::imprint
+        .select(dsl::publisher_id)
+        .filter(dsl::imprint_id.eq(imprint_id))
+        .first::<Uuid>(&context.db.get().unwrap())
+        .expect("Error checking permissions");
+    context.account_access.can_edit(pub_id)
+}
+
+fn user_can_edit_work(work_id: Uuid, context: &Context) -> Result<()> {
+    use crate::schema::imprint::dsl::*;
+    let pub_id = imprint
+        .inner_join(crate::schema::work::table)
+        .select(publisher_id)
+        .filter(crate::schema::work::work_id.eq(work_id))
+        .first::<Uuid>(&context.db.get().unwrap())
+        .expect("Error checking permissions");
+    context.account_access.can_edit(pub_id)
+}
+
+fn user_can_edit_publication(publication_id: Uuid, context: &Context) -> Result<()> {
+    use crate::schema::imprint::dsl::*;
+    let pub_id = imprint
+        .inner_join(crate::schema::work::table.inner_join(crate::schema::publication::table))
+        .select(publisher_id)
+        .filter(crate::schema::publication::publication_id.eq(publication_id))
+        .first::<Uuid>(&context.db.get().unwrap())
+        .expect("Error checking permissions");
+    context.account_access.can_edit(pub_id)
 }

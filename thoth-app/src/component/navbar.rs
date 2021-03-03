@@ -1,3 +1,4 @@
+use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 use yew::virtual_dom::VNode;
@@ -5,39 +6,50 @@ use yew_router::prelude::*;
 
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::service::cookie::CookieService;
-use crate::SESSION_COOKIE;
 use crate::THOTH_API;
 
-pub struct NavbarComponent {}
+pub struct NavbarComponent {
+    props: Props,
+    link: ComponentLink<Self>,
+}
+
+pub enum Msg {
+    Logout,
+}
+
+#[derive(Properties, Clone)]
+pub struct Props {
+    pub current_user: Option<AccountDetails>,
+    pub callback: Callback<()>,
+}
 
 impl Component for NavbarComponent {
-    type Message = ();
-    type Properties = ();
+    type Message = Msg;
+    type Properties = Props;
 
-    fn create(_props: Self::Properties, _link: ComponentLink<Self>) -> Self {
-        NavbarComponent {}
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        NavbarComponent { props, link }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        self.props = props;
         true
     }
 
-    fn update(&mut self, _msg: Self::Message) -> ShouldRender {
-        true
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+        match msg {
+            Msg::Logout => {
+                self.props.callback.emit(());
+                true
+            }
+        }
     }
 
     fn view(&self) -> VNode {
-        let cookie_service = CookieService::new();
-        let authenticated = cookie_service.get(SESSION_COOKIE).is_ok();
-        let auth_route = match authenticated {
-            true => AppRoute::Home, // will need to handle logout requests here
-            false => AppRoute::Login,
-        };
-        let auth_button = match authenticated {
-            true => "Logout",
-            false => "Log in",
-        };
+        let logout = self.link.callback(|e: MouseEvent| {
+            e.prevent_default();
+            Msg::Logout
+        });
         html! {
             <nav class="navbar is-warning" role="navigation" aria-label="main navigation">
                 <div class="navbar-brand">
@@ -67,10 +79,10 @@ impl Component for NavbarComponent {
                             </a>
 
                             <div class="navbar-dropdown">
-                                <a class="navbar-item" href="https://github.com/OpenBookPublishers/thoth" title="Project">
+                                <a class="navbar-item" href="https://github.com/thoth-pub/thoth" title="Project">
                                     { "Project" }
                                 </a>
-                                <a class="navbar-item"  href="https://github.com/orgs/OpenBookPublishers/projects/1" title="Timeline">
+                                <a class="navbar-item"  href="https://github.com/thoth-pub/thoth/projects" title="Timeline">
                                     { "Timeline" }
                                 </a>
                                 <hr class="navbar-divider" />
@@ -95,12 +107,21 @@ impl Component for NavbarComponent {
                             <a class="button is-danger" href="https://github.com/thoth-pub/thoth/blob/master/CHANGELOG.md">
                                 {"v"}{ env!("CARGO_PKG_VERSION") }
                             </a>
-                            <RouterAnchor<AppRoute>
-                                classes="button is-light"
-                                route=auth_route
-                            >
-                                { auth_button }
-                            </  RouterAnchor<AppRoute>>
+                            {
+                                if self.props.current_user.is_some() {
+                                    html! {
+                                        <button class="button is-light" onclick=logout>
+                                            { "Logout" }
+                                        </button>
+                                    }
+                                } else {
+                                    html! {
+                                        <RouterAnchor<AppRoute> classes="button is-light" route=AppRoute::Login>
+                                            {"Login"}
+                                        </  RouterAnchor<AppRoute>>
+                                    }
+                                }
+                            }
                         </div>
                     </div>
                 </div>

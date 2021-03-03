@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::account::model::AccountDetails;
 use thoth_api::series::model::SeriesType;
 use yew::html;
 use yew::prelude::*;
@@ -22,6 +23,9 @@ use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::models::imprint::imprints_query::FetchActionImprints;
 use crate::models::imprint::imprints_query::FetchImprints;
+use crate::models::imprint::imprints_query::ImprintsRequest;
+use crate::models::imprint::imprints_query::ImprintsRequestBody;
+use crate::models::imprint::imprints_query::Variables as ImprintsVariables;
 use crate::models::imprint::Imprint;
 use crate::models::series::create_series_mutation::CreateSeriesRequest;
 use crate::models::series::create_series_mutation::CreateSeriesRequestBody;
@@ -45,6 +49,7 @@ pub struct NewSeriesComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
+    props: Props,
 }
 
 #[derive(Default)]
@@ -68,12 +73,16 @@ pub enum Msg {
     ChangeSeriesUrl(String),
     ChangeRoute(AppRoute),
 }
+#[derive(Clone, Properties)]
+pub struct Props {
+    pub current_user: AccountDetails,
+}
 
 impl Component for NewSeriesComponent {
     type Message = Msg;
-    type Properties = ();
+    type Properties = Props;
 
-    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let push_series = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let series: Series = Default::default();
@@ -94,6 +103,7 @@ impl Component for NewSeriesComponent {
             link,
             router,
             notification_bus,
+            props,
         }
     }
 
@@ -110,6 +120,16 @@ impl Component for NewSeriesComponent {
                 true
             }
             Msg::GetImprints => {
+                let body = ImprintsRequestBody {
+                    variables: ImprintsVariables {
+                        publishers: self.props.current_user.resource_access.restricted_to(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                };
+                let request = ImprintsRequest { body };
+                self.fetch_imprints = Fetch::new(request);
+
                 self.link
                     .send_future(self.fetch_imprints.fetch(Msg::SetImprintsFetchState));
                 self.link
@@ -215,7 +235,13 @@ impl Component for NewSeriesComponent {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        let updated_permissions =
+            self.props.current_user.resource_access != props.current_user.resource_access;
+        self.props = props;
+        if updated_permissions {
+            self.link.send_message(Msg::GetImprints);
+        }
         false
     }
 

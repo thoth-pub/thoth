@@ -79,4 +79,4 @@ docker build --build-arg THOTH_API=https://api.thoth.openbookpublishers.com . -t
 
 ## Acknowledgements
 
-Thoth is being developed as part of the [COPIM](https://www.copim.ac.uk) project, an international effort to build community-owned, open systems and infrastructures to enable Open Access book publishing to flourish. COPIM is funded by the [Research England Development Fund](https://re.ukri.org/funding/our-funds-overview/research-england-development-red-fund/) (REDFund) and [Arcadia](https://www.arcadiafund.org.uk/).
+Thoth is being developed as part of the [COPIM](https://www.copim.ac.uk) project, an international effort to build community-owned, open systems and infrastructures to enable Open Access book publishing to flourish. COPIM is funded by the [Research England Development (RED) Fund](https://re.ukri.org/funding/our-funds-overview/research-england-development-red-fund/), and [Arcadia](https://www.arcadiafund.org.uk/), a charitable fund of Lisbet Rausing and Peter Baldwin.

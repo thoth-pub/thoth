@@ -7,6 +7,8 @@ use uuid::Uuid;
 use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::series;
+#[cfg(feature = "backend")]
+use crate::schema::series_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Series_type")]
@@ -18,7 +20,24 @@ pub enum SeriesType {
     BookSeries,
 }
 
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Field to use when sorting series list")
+)]
+pub enum SeriesField {
+    SeriesID,
+    SeriesType,
+    SeriesName,
+    ISSNPrint,
+    ISSNDigital,
+    SeriesURL,
+    CreatedAt,
+    UpdatedAt,
+}
+
 #[cfg_attr(feature = "backend", derive(Queryable))]
+#[derive(Serialize, Deserialize)]
 pub struct Series {
     pub series_id: Uuid,
     pub series_type: SeriesType,
@@ -59,6 +78,22 @@ pub struct PatchSeries {
     pub issn_digital: String,
     pub series_url: Option<String>,
     pub imprint_id: Uuid,
+}
+
+#[cfg_attr(feature = "backend", derive(Queryable))]
+pub struct SeriesHistory {
+    pub series_history_id: Uuid,
+    pub series_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
+    pub timestamp: NaiveDateTime,
+}
+
+#[cfg_attr(feature = "backend", derive(Insertable), table_name = "series_history")]
+pub struct NewSeriesHistory {
+    pub series_id: Uuid,
+    pub account_id: Uuid,
+    pub data: serde_json::Value,
 }
 
 impl Default for SeriesType {

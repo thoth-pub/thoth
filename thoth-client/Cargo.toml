@@ -1,7 +1,7 @@
 [package]
 name = "thoth-client"
-version = "0.2.13"
-authors = ["Javier Arias <javi@openbookpublishers.com>"]
+version = "0.3.0"
+authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
 description = "GraphQL Client for bibliographic data"
@@ -9,7 +9,7 @@ repository = "https://github.com/thoth-pub/thoth"
 readme = "README.md"
 
 [dependencies]
-thoth-api = {version = "0.2.13", path = "../thoth-api" }
+thoth-api = {version = "0.3.0", path = "../thoth-api" }
 graphql_client = "0.9.0"
 chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.10", features = ["json"] }

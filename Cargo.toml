@@ -1,7 +1,7 @@
 [package]
 name = "thoth"
-version = "0.2.13"
-authors = ["Javier Arias <javi@openbookpublishers.com>"]
+version = "0.3.0"
+authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
 description = "GraphQL API for bibliographic data"
@@ -16,15 +16,16 @@ maintenance = { status = "actively-developed" }
 members = ["thoth-api", "thoth-app", "thoth-client"]
 
 [dependencies]
-thoth-api = {version = "0.2.13", path = "thoth-api", features = ["backend"] }
-thoth-client = {version = "0.2.13", path = "thoth-client" }
+thoth-api = {version = "0.3.0", path = "thoth-api", features = ["backend"] }
+thoth-client = {version = "0.3.0", path = "thoth-client" }
 actix-http = "1.0.1"
 actix-rt = "1.0.0"
 actix-web = "3.0.0"
 actix-cors = "0.4.1"
 actix-identity = "0.3.1"
 chrono = { version = "0.4", features = ["serde"] }
-clap = "2.33.0"
+clap = "2.33.3"
+dialoguer = "0.7.1"
 log = "0.4.11"
 env_logger ="0.7.1"
 dotenv = "0.9.0"

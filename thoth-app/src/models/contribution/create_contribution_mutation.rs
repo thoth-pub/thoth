@@ -12,6 +12,9 @@ const CREATE_CONTRIBUTION_MUTATION: &str = "
         $mainContribution: Boolean!,
         $biography: String,
         $institution: String,
+        $firstName: String,
+        $lastName: String!,
+        $fullName: String!,
     ) {
         createContribution(data: {
             workId: $workId
@@ -20,6 +23,9 @@ const CREATE_CONTRIBUTION_MUTATION: &str = "
             mainContribution: $mainContribution
             biography: $biography
             institution: $institution
+            firstName: $firstName
+            lastName: $lastName
+            fullName: $fullName
         }){
             workId
             contributorId
@@ -27,6 +33,9 @@ const CREATE_CONTRIBUTION_MUTATION: &str = "
             mainContribution
             institution
             biography
+            firstName
+            lastName
+            fullName
             contributor {
                 contributorId
                 lastName
@@ -56,6 +65,9 @@ pub struct Variables {
     pub main_contribution: bool,
     pub biography: Option<String>,
     pub institution: Option<String>,
+    pub first_name: Option<String>,
+    pub last_name: String,
+    pub full_name: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

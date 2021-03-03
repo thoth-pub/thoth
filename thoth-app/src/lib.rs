@@ -14,9 +14,9 @@ mod string;
 use crate::component::root::RootComponent;
 
 pub const THOTH_API: &str = env!("THOTH_API");
-const SESSION_COOKIE: &str = "sessionToken";
+const SESSION_KEY: &str = "thoth.token";
 
-#[wasm_bindgen(start)]
+#[wasm_bindgen]
 pub fn run_app() -> Result<(), JsValue> {
     wasm_logger::init(wasm_logger::Config::default());
 

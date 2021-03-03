@@ -4,8 +4,8 @@ use serde::Serialize;
 use super::Series;
 
 pub const SERIESES_QUERY: &str = "
-    query SeriesesQuery($limit: Int, $offset: Int, $filter: String) {
-        serieses(limit: $limit, offset: $offset, filter: $filter) {
+    query SeriesesQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!]) {
+        serieses(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers) {
             seriesId
             seriesType
             seriesName
@@ -23,7 +23,7 @@ pub const SERIESES_QUERY: &str = "
                 }
             }
         }
-        seriesCount(filter: $filter)
+        seriesCount(filter: $filter, publishers: $publishers)
     }
 ";
 
@@ -44,6 +44,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
+    pub publishers: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

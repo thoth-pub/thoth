@@ -4,8 +4,8 @@ use serde::Serialize;
 use super::Imprint;
 
 const IMPRINTS_QUERY: &str = "
-    query ImprintsQuery($limit: Int, $offset: Int, $filter: String) {
-        imprints(limit: $limit, offset: $offset, filter: $filter) {
+    query ImprintsQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!]) {
+        imprints(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers) {
             imprintId
             imprintName
             imprintUrl
@@ -16,7 +16,7 @@ const IMPRINTS_QUERY: &str = "
                 publisherUrl
             }
         }
-        imprintCount(filter: $filter)
+        imprintCount(filter: $filter, publishers: $publishers)
     }
 ";
 
@@ -37,6 +37,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
+    pub publishers: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

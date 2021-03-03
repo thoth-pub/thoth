@@ -19,6 +19,8 @@ const DELETE_CONTRIBUTION_MUTATION: &str = "
             contributorId
             contributionType
             mainContribution
+            lastName
+            fullName
             contributor {
                 contributorId
                 lastName

@@ -8,7 +8,7 @@ table! {
         email -> Text,
         hash -> Bytea,
         salt -> Text,
-        is_admin -> Bool,
+        is_superuser -> Bool,
         is_bot -> Bool,
         is_active -> Bool,
         created_at -> Timestamp,
@@ -30,6 +30,24 @@ table! {
         institution -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        first_name -> Nullable<Text>,
+        last_name -> Text,
+        full_name -> Text,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use crate::contribution::model::Contribution_type;
+
+    contribution_history (contribution_history_id) {
+        contribution_history_id -> Uuid,
+        work_id -> Uuid,
+        contributor_id -> Uuid,
+        contribution_type -> Contribution_type,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamp,
     }
 }
 
@@ -51,12 +69,36 @@ table! {
 table! {
     use diesel::sql_types::*;
 
+    contributor_history (contributor_history_id) {
+        contributor_history_id -> Uuid,
+        contributor_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamp,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
     funder (funder_id) {
         funder_id -> Uuid,
         funder_name -> Text,
         funder_doi -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    funder_history (funder_history_id) {
+        funder_history_id -> Uuid,
+        funder_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamp,
     }
 }
 
@@ -80,6 +122,18 @@ table! {
 table! {
     use diesel::sql_types::*;
 
+    funding_history (funding_history_id) {
+        funding_history_id -> Uuid,
+        funding_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamp,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
     imprint (imprint_id) {
         imprint_id -> Uuid,
         publisher_id -> Uuid,
@@ -93,12 +147,37 @@ table! {
 table! {
     use diesel::sql_types::*;
 
+    imprint_history (imprint_history_id) {
+        imprint_history_id -> Uuid,
+        imprint_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamp,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
     issue (series_id, work_id) {
         series_id -> Uuid,
         work_id -> Uuid,
         issue_ordinal -> Int4,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    issue_history (issue_history_id) {
+        issue_history_id -> Uuid,
+        series_id -> Uuid,
+        work_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamp,
     }
 }
 
@@ -120,6 +199,18 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+
+    language_history (language_history_id) {
+        language_history_id -> Uuid,
+        language_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamp,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use crate::price::model::Currency_code;
 
     price (price_id) {
@@ -129,6 +220,18 @@ table! {
         unit_price -> Float8,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    price_history (price_history_id) {
+        price_history_id -> Uuid,
+        price_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamp,
     }
 }
 
@@ -150,6 +253,18 @@ table! {
 table! {
     use diesel::sql_types::*;
 
+    publication_history (publication_history_id) {
+        publication_history_id -> Uuid,
+        publication_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamp,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
     publisher (publisher_id) {
         publisher_id -> Uuid,
         publisher_name -> Text,
@@ -157,6 +272,30 @@ table! {
         publisher_url -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    publisher_account (account_id, publisher_id) {
+        account_id -> Uuid,
+        publisher_id -> Uuid,
+        is_admin -> Bool,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    publisher_history (publisher_history_id) {
+        publisher_history_id -> Uuid,
+        publisher_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamp,
     }
 }
 
@@ -179,6 +318,18 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+
+    series_history (series_history_id) {
+        series_history_id -> Uuid,
+        series_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamp,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use crate::subject::model::Subject_type;
 
     subject (subject_id) {
@@ -189,6 +340,18 @@ table! {
         subject_ordinal -> Int4,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    subject_history (subject_history_id) {
+        subject_history_id -> Uuid,
+        subject_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamp,
     }
 }
 
@@ -234,32 +397,85 @@ table! {
     }
 }
 
+table! {
+    use diesel::sql_types::*;
+
+    work_history (work_history_id) {
+        work_history_id -> Uuid,
+        work_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamp,
+    }
+}
+
 joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
+joinable!(contribution_history -> account (account_id));
+joinable!(contributor_history -> account (account_id));
+joinable!(contributor_history -> contributor (contributor_id));
+joinable!(funder_history -> account (account_id));
+joinable!(funder_history -> funder (funder_id));
 joinable!(funding -> funder (funder_id));
 joinable!(funding -> work (work_id));
+joinable!(funding_history -> account (account_id));
+joinable!(funding_history -> funding (funding_id));
 joinable!(imprint -> publisher (publisher_id));
+joinable!(imprint_history -> account (account_id));
+joinable!(imprint_history -> imprint (imprint_id));
 joinable!(issue -> series (series_id));
 joinable!(issue -> work (work_id));
+joinable!(issue_history -> account (account_id));
 joinable!(language -> work (work_id));
+joinable!(language_history -> account (account_id));
+joinable!(language_history -> language (language_id));
 joinable!(price -> publication (publication_id));
+joinable!(price_history -> account (account_id));
+joinable!(price_history -> price (price_id));
 joinable!(publication -> work (work_id));
+joinable!(publication_history -> account (account_id));
+joinable!(publication_history -> publication (publication_id));
+joinable!(publisher_account -> account (account_id));
+joinable!(publisher_account -> publisher (publisher_id));
+joinable!(publisher_history -> account (account_id));
+joinable!(publisher_history -> publisher (publisher_id));
 joinable!(series -> imprint (imprint_id));
+joinable!(series_history -> account (account_id));
+joinable!(series_history -> series (series_id));
 joinable!(subject -> work (work_id));
+joinable!(subject_history -> account (account_id));
+joinable!(subject_history -> subject (subject_id));
 joinable!(work -> imprint (imprint_id));
+joinable!(work_history -> account (account_id));
+joinable!(work_history -> work (work_id));
 
 allow_tables_to_appear_in_same_query!(
+    account,
     contribution,
+    contribution_history,
     contributor,
+    contributor_history,
     funder,
+    funder_history,
     funding,
+    funding_history,
     imprint,
+    imprint_history,
     issue,
+    issue_history,
     language,
+    language_history,
     price,
+    price_history,
     publication,
+    publication_history,
     publisher,
+    publisher_account,
+    publisher_history,
     series,
+    series_history,
     subject,
+    subject_history,
     work,
+    work_history,
 );
