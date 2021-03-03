@@ -34,6 +34,7 @@ use crate::component::work::WorkComponent;
 use crate::component::works::WorksComponent;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
+use crate::service::account::AccountService;
 use crate::string::PERMISSIONS_ERROR;
 
 pub struct AdminComponent {
@@ -47,7 +48,7 @@ pub enum Msg {
     RedirectToLogin,
 }
 
-#[derive(Clone, Properties)]
+#[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub route: AdminRoute,
     pub current_user: Option<AccountDetails>,
@@ -58,32 +59,15 @@ impl Component for AdminComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        if !AccountService::new().is_loggedin() {
+            link.send_message(Msg::RedirectToLogin);
+        }
+
         AdminComponent {
             props,
             notification_bus: NotificationBus::dispatcher(),
             router: RouteAgentDispatcher::new(),
             link,
-        }
-    }
-
-    fn rendered(&mut self, first_render: bool) {
-        if first_render {
-            if self.props.current_user.is_none() {
-                self.link.send_message(Msg::RedirectToLogin);
-            } else if self
-                .props
-                .current_user
-                .as_ref()
-                .unwrap()
-                .resource_access
-                .restricted_to()
-                == Some(vec![])
-            {
-                self.notification_bus.send(Request::NotificationBusMsg((
-                    PERMISSIONS_ERROR.into(),
-                    NotificationStatus::Danger,
-                )));
-            }
         }
     }
 
@@ -98,31 +82,35 @@ impl Component for AdminComponent {
     }
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        let old_details = self.props.current_user.clone();
-        self.props = props;
-        if self.props.current_user.is_none() {
-            self.link.send_message(Msg::RedirectToLogin);
-        } else {
-            let new_permissions = self
-                .props
-                .current_user
-                .as_ref()
-                .unwrap()
-                .resource_access
-                .clone();
-            // Raise an error if user's permission set is empty,
-            // but avoid raising repeated errors if permissions are unchanged
-            if new_permissions.restricted_to() == Some(vec![])
-                && (old_details.is_none()
-                    || (old_details.as_ref().unwrap().resource_access != new_permissions))
-            {
-                self.notification_bus.send(Request::NotificationBusMsg((
-                    PERMISSIONS_ERROR.into(),
-                    NotificationStatus::Danger,
-                )));
+        if self.props != props {
+            let old_details = self.props.current_user.clone();
+            self.props = props;
+            if self.props.current_user.is_none() {
+                self.link.send_message(Msg::RedirectToLogin);
+            } else {
+                let new_permissions = self
+                    .props
+                    .current_user
+                    .as_ref()
+                    .unwrap()
+                    .resource_access
+                    .clone();
+                // Raise an error if user's permission set is empty,
+                // but avoid raising repeated errors if permissions are unchanged
+                if new_permissions.restricted_to() == Some(vec![])
+                    && (old_details.is_none()
+                        || (old_details.as_ref().unwrap().resource_access != new_permissions))
+                {
+                    self.notification_bus.send(Request::NotificationBusMsg((
+                        PERMISSIONS_ERROR.into(),
+                        NotificationStatus::Danger,
+                    )));
+                }
             }
+            true
+        } else {
+            false
         }
-        true
     }
 
     fn view(&self) -> Html {
