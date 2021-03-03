@@ -1172,6 +1172,7 @@ dependencies = [
  "diesel_derives",
  "pq-sys",
  "r2d2",
+ "serde_json",
  "uuid 0.7.4",
 ]
 

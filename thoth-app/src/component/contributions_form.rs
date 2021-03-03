@@ -208,7 +208,7 @@ impl Component for ContributionsFormComponent {
                     variables: CreateVariables {
                         work_id: self.props.work_id.clone(),
                         contributor_id: self.new_contribution.contributor_id.clone(),
-                        contribution_type: self.new_contribution.contribution_type.clone(),
+                        contribution_type: self.new_contribution.contribution_type,
                         main_contribution: self.new_contribution.main_contribution,
                         biography: self.new_contribution.biography.clone(),
                         institution: self.new_contribution.institution.clone(),
@@ -520,7 +520,7 @@ impl ContributionsFormComponent {
         // of contributor_id and take ownership of them so they can be passed on to
         // the callback functions
         let contributor_id = c.contributor_id.clone();
-        let contribution_type = c.contribution_type.clone();
+        let contribution_type = c.contribution_type;
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
