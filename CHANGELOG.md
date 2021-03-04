@@ -4,6 +4,27 @@ All notable changes to thoth will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [[0.3.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.1) - 2020-03-04
+### Fixed
+  - [#197](https://github.com/thoth-pub/thoth/issues/197) - Error deserialising publications in APP
+
+## [[0.3.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.0) - 2020-03-03
+### Changed
+  - [#162](https://github.com/thoth-pub/thoth/issues/162) - Only records linked to publishers user has access to are listed in APP
+  - [#167](https://github.com/thoth-pub/thoth/issues/167) - Make work contribution the canonical source of contributor names in ONIX output
+
+### Added
+  - [#177](https://github.com/thoth-pub/thoth/issues/177) - Allow querying objects by linked publisher(s)
+  - [#159](https://github.com/thoth-pub/thoth/issues/159), [#160](https://github.com/thoth-pub/thoth/issues/160), [#161](https://github.com/thoth-pub/thoth/issues/161) - Add publisher accounts
+  - [#163](https://github.com/thoth-pub/thoth/issues/163) - Save a snapshot of each object upon update
+  - [#164](https://github.com/thoth-pub/thoth/issues/164), [#165](https://github.com/thoth-pub/thoth/issues/165) - Add contributor names to contribution
+  - [#168](https://github.com/thoth-pub/thoth/issues/168) - Warn users when editing a contributor or a funder that is linked to a work
+  - [#185](https://github.com/thoth-pub/thoth/issues/185) - Allow resetting user passwords through CLI
+  - Allow creating publisher accounts through CLI
+
+### Fixed
+  - [#181](https://github.com/thoth-pub/thoth/issues/181) - Enforce numeric values for issue ordinal
+
 ## [[0.2.13]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.13) - 2020-01-14
 ### Changed
   - Update API URL in docker github action

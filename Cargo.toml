@@ -1,6 +1,6 @@
 [package]
 name = "thoth"
-version = "0.2.13"
+version = "0.3.1"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -16,8 +16,8 @@ maintenance = { status = "actively-developed" }
 members = ["thoth-api", "thoth-app", "thoth-client"]
 
 [dependencies]
-thoth-api = {version = "0.2.13", path = "thoth-api", features = ["backend"] }
-thoth-client = {version = "0.2.13", path = "thoth-client" }
+thoth-api = {version = "0.3.1", path = "thoth-api", features = ["backend"] }
+thoth-client = {version = "0.3.1", path = "thoth-client" }
 actix-http = "1.0.1"
 actix-rt = "1.0.0"
 actix-web = "3.0.0"
