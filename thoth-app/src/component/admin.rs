@@ -71,6 +71,25 @@ impl Component for AdminComponent {
         }
     }
 
+    fn rendered(&mut self, _first_render: bool) {
+        if self.props.current_user.is_some()
+            && self
+                .props
+                .current_user
+                .as_ref()
+                .unwrap()
+                .resource_access
+                .restricted_to()
+                == Some(vec![])
+        {
+            // Raise an error if user's permission set is empty
+            self.notification_bus.send(Request::NotificationBusMsg((
+                PERMISSIONS_ERROR.into(),
+                NotificationStatus::Danger,
+            )));
+        }
+    }
+
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::RedirectToLogin => {
@@ -83,29 +102,9 @@ impl Component for AdminComponent {
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         if self.props != props {
-            let old_details = self.props.current_user.clone();
             self.props = props;
             if self.props.current_user.is_none() {
                 self.link.send_message(Msg::RedirectToLogin);
-            } else {
-                let new_permissions = self
-                    .props
-                    .current_user
-                    .as_ref()
-                    .unwrap()
-                    .resource_access
-                    .clone();
-                // Raise an error if user's permission set is empty,
-                // but avoid raising repeated errors if permissions are unchanged
-                if new_permissions.restricted_to() == Some(vec![])
-                    && (old_details.is_none()
-                        || (old_details.as_ref().unwrap().resource_access != new_permissions))
-                {
-                    self.notification_bus.send(Request::NotificationBusMsg((
-                        PERMISSIONS_ERROR.into(),
-                        NotificationStatus::Danger,
-                    )));
-                }
             }
             true
         } else {

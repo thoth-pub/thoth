@@ -4,6 +4,10 @@ All notable changes to thoth will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [[0.3.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.1) - 2020-03-04
+### Fixed
+  - [#197](https://github.com/thoth-pub/thoth/issues/197) - Error deserialising publications in APP
+
 ## [[0.3.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.0) - 2020-03-03
 ### Changed
   - [#162](https://github.com/thoth-pub/thoth/issues/162) - Only records linked to publishers user has access to are listed in APP
