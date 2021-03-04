@@ -22,6 +22,13 @@ const CREATE_PUBLICATION_MUTATION: &str = "
             isbn
             publicationUrl
             workId
+            work {
+                imprint {
+                    publisher {
+                        publisherId
+                    }
+                }
+            }
         }
     }
 ";
