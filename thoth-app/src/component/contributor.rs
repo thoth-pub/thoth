@@ -17,6 +17,7 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::component::utils::FormConfirmDelete;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
@@ -314,10 +315,6 @@ impl Component for ContributorComponent {
                     e.prevent_default();
                     Msg::ToggleConfirmDeleteDisplay(true)
                 });
-                let close_modal = self.link.callback(|e: MouseEvent| {
-                    e.prevent_default();
-                    Msg::ToggleConfirmDeleteDisplay(false)
-                });
                 html! {
                     <>
                         <nav class="level">
@@ -333,34 +330,11 @@ impl Component for ContributorComponent {
                                     </button>
                                 </p>
                             </div>
-                            <div class=self.confirm_delete_status()>
-                                <div class="modal-background" onclick=&close_modal></div>
-                                <div class="modal-card">
-                                    <header class="modal-card-head">
-                                        <p class="modal-card-title">{ "Confirm deletion" }</p>
-                                    </header>
-                                    <section class="modal-card-body">
-                                        <p>{ "Are you sure you want to delete this object?" }</p>
-                                    </section>
-                                    <footer class="modal-card-foot">
-                                        <button
-                                            class="button is-success"
-                                            onclick=self.link.callback(|e: MouseEvent| {
-                                                e.prevent_default();
-                                                Msg::DeleteContributor
-                                            })
-                                        >
-                                            { "Delete" }
-                                        </button>
-                                        <button
-                                            class="button"
-                                            onclick=&close_modal
-                                        >
-                                            { "Cancel" }
-                                        </button>
-                                    </footer>
-                                </div>
-                            </div>
+                            <FormConfirmDelete
+                                onclick=self.link.callback(|_| Msg::DeleteContributor)
+                                oncancel=self.link.callback(|_| Msg::ToggleConfirmDeleteDisplay(false))
+                                show=self.show_confirm_delete
+                            />
                         </nav>
 
                         { if !self.contributor_activity.is_empty() {
@@ -428,15 +402,6 @@ impl Component for ContributorComponent {
                 }
             }
             FetchState::Failed(_, err) => html! {&err},
-        }
-    }
-}
-
-impl ContributorComponent {
-    fn confirm_delete_status(&self) -> String {
-        match self.show_confirm_delete {
-            true => "modal is-active".to_string(),
-            false => "modal".to_string(),
         }
     }
 }

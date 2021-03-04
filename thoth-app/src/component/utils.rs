@@ -52,6 +52,7 @@ pub type FormCurrencyCodeSelect = Pure<PureCurrencyCodeSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
 pub type FormPublisherSelect = Pure<PurePublisherSelect>;
+pub type FormConfirmDelete = Pure<PureConfirmDelete>;
 pub type Loader = Pure<PureLoader>;
 pub type Reloader = Pure<PureReloader>;
 
@@ -259,6 +260,13 @@ pub struct PurePublisherSelect {
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureConfirmDelete {
+    pub onclick: Callback<MouseEvent>,
+    pub oncancel: Callback<MouseEvent>,
+    pub show: bool,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -629,6 +637,38 @@ impl PureComponent for PurePublisherSelect {
     }
 }
 
+impl PureComponent for PureConfirmDelete {
+    fn render(&self) -> VNode {
+        html! {
+            <div class=self.confirm_delete_status()>
+                <div class="modal-background"></div>
+                <div class="modal-card">
+                    <header class="modal-card-head">
+                        <p class="modal-card-title">{ "Confirm deletion" }</p>
+                    </header>
+                    <section class="modal-card-body">
+                        <p>{ "Are you sure you want to delete this object?" }</p>
+                    </section>
+                    <footer class="modal-card-foot">
+                        <button
+                            class="button is-success"
+                            onclick=&self.onclick
+                        >
+                            { "Delete" }
+                        </button>
+                        <button
+                            class="button"
+                            onclick=&self.oncancel
+                        >
+                            { "Cancel" }
+                        </button>
+                    </footer>
+                </div>
+            </div>
+        }
+    }
+}
+
 impl PureWorkTypeSelect {
     fn render_worktype(&self, w: &WorkTypeValues) -> VNode {
         if w.name == self.value {
@@ -803,6 +843,15 @@ impl PurePublisherSelect {
             html! {
                 <option value={&p.publisher_id}>{&p.publisher_name}</option>
             }
+        }
+    }
+}
+
+impl PureConfirmDelete {
+    fn confirm_delete_status(&self) -> String {
+        match self.show {
+            true => "modal is-active".to_string(),
+            false => "modal".to_string(),
         }
     }
 }
