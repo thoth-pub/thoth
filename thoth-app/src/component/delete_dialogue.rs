@@ -10,6 +10,7 @@ pub struct ConfirmDeleteComponent {
 #[derive(Clone, Properties)]
 pub struct Props {
     pub onclick: Callback<MouseEvent>,
+    pub object_name: String,
     #[prop_or(false)]
     pub show: bool,
 }
@@ -60,7 +61,11 @@ impl Component for ConfirmDeleteComponent {
                             <p class="modal-card-title">{ "Confirm deletion" }</p>
                         </header>
                         <section class="modal-card-body">
-                            <p>{ "Are you sure you want to delete this object?" }</p>
+                            <p>
+                                { "Are you sure you want to delete " }
+                                <i>{ &self.props.object_name }</i>
+                                { "?" }
+                            </p>
                         </section>
                         <footer class="modal-card-foot">
                             <button

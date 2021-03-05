@@ -314,6 +314,7 @@ impl Component for ContributorComponent {
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
                                         onclick=self.link.callback(|_| Msg::DeleteContributor)
+                                        object_name=&self.contributor.full_name
                                     />
                                 </p>
                             </div>
