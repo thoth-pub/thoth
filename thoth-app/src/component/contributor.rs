@@ -17,7 +17,7 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
-use crate::component::utils::FormConfirmDelete;
+use crate::component::delete_dialogue::ConfirmDeleteComponent;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
@@ -41,7 +41,6 @@ use crate::models::contributor::update_contributor_mutation::Variables as Update
 use crate::models::contributor::Contributor;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::string::DELETE_BUTTON;
 use crate::string::SAVE_BUTTON;
 
 pub struct ContributorComponent {
@@ -54,7 +53,6 @@ pub struct ContributorComponent {
     notification_bus: NotificationDispatcher,
     _contributor_activity_checker: Box<dyn Bridge<ContributorActivityChecker>>,
     contributor_activity: Vec<SlimContribution>,
-    show_confirm_delete: bool,
 }
 
 pub enum Msg {
@@ -71,7 +69,6 @@ pub enum Msg {
     ChangeOrcid(String),
     ChangeWebsite(String),
     ChangeRoute(AppRoute),
-    ToggleConfirmDeleteDisplay(bool),
 }
 
 #[derive(Clone, Properties)]
@@ -100,7 +97,6 @@ impl Component for ContributorComponent {
         let mut _contributor_activity_checker =
             ContributorActivityChecker::bridge(link.callback(Msg::GetContributorActivity));
         let contributor_activity = Default::default();
-        let show_confirm_delete = false;
 
         link.send_message(Msg::GetContributor);
         _contributor_activity_checker.send(
@@ -117,7 +113,6 @@ impl Component for ContributorComponent {
             notification_bus,
             _contributor_activity_checker,
             contributor_activity,
-            show_confirm_delete,
         }
     }
 
@@ -291,10 +286,6 @@ impl Component for ContributorComponent {
                 self.router.send(RouteRequest::ChangeRoute(route));
                 false
             }
-            Msg::ToggleConfirmDeleteDisplay(value) => {
-                self.show_confirm_delete = value;
-                true
-            }
         }
     }
 
@@ -311,10 +302,6 @@ impl Component for ContributorComponent {
                     event.prevent_default();
                     Msg::UpdateContributor
                 });
-                let open_modal = self.link.callback(|e: MouseEvent| {
-                    e.prevent_default();
-                    Msg::ToggleConfirmDeleteDisplay(true)
-                });
                 html! {
                     <>
                         <nav class="level">
@@ -325,16 +312,11 @@ impl Component for ContributorComponent {
                             </div>
                             <div class="level-right">
                                 <p class="level-item">
-                                    <button class="button is-danger" onclick=open_modal>
-                                        { DELETE_BUTTON }
-                                    </button>
+                                    <ConfirmDeleteComponent
+                                        onclick=self.link.callback(|_| Msg::DeleteContributor)
+                                    />
                                 </p>
                             </div>
-                            <FormConfirmDelete
-                                onclick=self.link.callback(|_| Msg::DeleteContributor)
-                                oncancel=self.link.callback(|_| Msg::ToggleConfirmDeleteDisplay(false))
-                                show=self.show_confirm_delete
-                            />
                         </nav>
 
                         { if !self.contributor_activity.is_empty() {
