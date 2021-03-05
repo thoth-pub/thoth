@@ -554,11 +554,14 @@ impl QueryRoot {
         for pub_id in publishers {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
-        query
-            .filter(
+        // ISBN and URL fields are both nullable, so searching with an empty filter could fail
+        if !filter.is_empty() {
+            query = query.filter(
                 isbn.ilike(format!("%{}%", filter))
                     .or(publication_url.ilike(format!("%{}%", filter))),
-            )
+            );
+        }
+        query
             .limit(limit.into())
             .offset(offset.into())
             .load::<Publication>(&connection)
@@ -611,12 +614,15 @@ impl QueryRoot {
         for pub_id in publishers {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
-        // see comment in work_count()
-        query
-            .filter(
+        // ISBN and URL fields are both nullable, so searching with an empty filter could fail
+        if !filter.is_empty() {
+            query = query.filter(
                 isbn.ilike(format!("%{}%", filter))
                     .or(publication_url.ilike(format!("%{}%", filter))),
-            )
+            );
+        }
+        // see comment in work_count()
+        query
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading publication count")
@@ -2840,13 +2846,18 @@ impl Work {
         if let Some(pub_type) = publication_type {
             use crate::schema::publication::dsl::*;
 
-            publication
+            let mut query = publication
+                .into_boxed()
                 .filter(work_id.eq(self.work_id))
-                .filter(publication_type.eq(pub_type))
-                .filter(
+                .filter(publication_type.eq(pub_type));
+            // ISBN and URL fields are both nullable, so searching with an empty filter could fail
+            if !filter.is_empty() {
+                query = query.filter(
                     isbn.ilike(format!("%{}%", filter))
                         .or(publication_url.ilike(format!("%{}%", filter))),
-                )
+                );
+            }
+            query
                 .order(publication_type.asc())
                 .limit(limit.into())
                 .offset(offset.into())
@@ -2855,12 +2866,15 @@ impl Work {
         } else {
             use crate::schema::publication::dsl::*;
 
-            publication
-                .filter(work_id.eq(self.work_id))
-                .filter(
+            let mut query = publication.into_boxed().filter(work_id.eq(self.work_id));
+            // ISBN and URL fields are both nullable, so searching with an empty filter could fail
+            if !filter.is_empty() {
+                query = query.filter(
                     isbn.ilike(format!("%{}%", filter))
                         .or(publication_url.ilike(format!("%{}%", filter))),
-                )
+                );
+            }
+            query
                 .order(publication_type.asc())
                 .limit(limit.into())
                 .offset(offset.into())
