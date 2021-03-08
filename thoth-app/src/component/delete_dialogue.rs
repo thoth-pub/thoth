@@ -1,3 +1,4 @@
+use crate::string::CANCEL_BUTTON;
 use crate::string::DELETE_BUTTON;
 use yew::html;
 use yew::prelude::*;
@@ -55,10 +56,15 @@ impl Component for ConfirmDeleteComponent {
                     { DELETE_BUTTON }
                 </button>
                 <div class=self.confirm_delete_status()>
-                    <div class="modal-background"></div>
+                    <div class="modal-background" onclick=&close_modal></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
                             <p class="modal-card-title">{ "Confirm deletion" }</p>
+                            <button
+                                class="delete"
+                                aria-label="close"
+                                onclick=&close_modal
+                            ></button>
                         </header>
                         <section class="modal-card-body">
                             <p>
@@ -72,13 +78,13 @@ impl Component for ConfirmDeleteComponent {
                                 class="button is-success"
                                 onclick=&self.props.onclick
                             >
-                                { "Delete" }
+                                { DELETE_BUTTON }
                             </button>
                             <button
                                 class="button"
                                 onclick=&close_modal
                             >
-                                { "Cancel" }
+                                { CANCEL_BUTTON }
                             </button>
                         </footer>
                     </div>

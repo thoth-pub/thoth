@@ -34,6 +34,7 @@ use crate::models::language::language_relations_query::FetchLanguageRelations;
 use crate::models::language::Language;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
+use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_LANGUAGES;
 use crate::string::NO;
 use crate::string::REMOVE_BUTTON;
@@ -368,7 +369,7 @@ impl Component for LanguagesFormComponent {
                                 class="button"
                                 onclick=&close_modal
                             >
-                                { "Cancel" }
+                                { CANCEL_BUTTON }
                             </button>
                         </footer>
                     </div>

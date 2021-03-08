@@ -29,6 +29,7 @@ use crate::models::price::delete_price_mutation::PushDeletePrice;
 use crate::models::price::delete_price_mutation::Variables as DeleteVariables;
 use crate::models::price::CurrencyCodeValues;
 use crate::models::price::Price;
+use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_PRICES;
 use crate::string::REMOVE_BUTTON;
 
@@ -313,7 +314,7 @@ impl Component for PricesFormComponent {
                                 class="button"
                                 onclick=&close_modal
                             >
-                                { "Cancel" }
+                                { CANCEL_BUTTON }
                             </button>
                         </footer>
                     </div>

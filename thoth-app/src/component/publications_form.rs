@@ -30,6 +30,7 @@ use crate::models::publication::publication_types_query::FetchActionPublicationT
 use crate::models::publication::publication_types_query::FetchPublicationTypes;
 use crate::models::publication::Publication;
 use crate::models::publication::PublicationTypeValues;
+use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_PUBLICATIONS;
 use crate::string::REMOVE_BUTTON;
 
@@ -332,7 +333,7 @@ impl Component for PublicationsFormComponent {
                                 class="button"
                                 onclick=&close_modal
                             >
-                                { "Cancel" }
+                                { CANCEL_BUTTON }
                             </button>
                         </footer>
                     </div>
