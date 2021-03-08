@@ -176,6 +176,8 @@ impl QueryRoot {
             default = vec![],
             description = "If set, only shows results connected to publishers with these IDs",
         ),
+        work_type(description = "A specific type to filter by"),
+        work_status(description = "A specific status to filter by"),
     )
   )]
     fn works(
@@ -185,175 +187,177 @@ impl QueryRoot {
         filter: String,
         order: WorkOrderBy,
         publishers: Vec<Uuid>,
+        work_type: Option<WorkType>,
+        work_status: Option<WorkStatus>,
     ) -> Vec<Work> {
-        use crate::schema::work::dsl::*;
+        use crate::schema::work::dsl;
         let connection = context.db.get().unwrap();
-        let mut query = work
+        let mut query = dsl::work
             .inner_join(crate::schema::imprint::table)
             .select((
-                work_id,
-                work_type,
-                work_status,
-                full_title,
-                title,
-                subtitle,
-                reference,
-                edition,
-                imprint_id,
-                doi,
-                publication_date,
-                place,
-                width,
-                height,
-                page_count,
-                page_breakdown,
-                image_count,
-                table_count,
-                audio_count,
-                video_count,
-                license,
-                copyright_holder,
-                landing_page,
-                lccn,
-                oclc,
-                short_abstract,
-                long_abstract,
-                general_note,
-                toc,
-                cover_url,
-                cover_caption,
-                created_at,
-                updated_at,
+                dsl::work_id,
+                dsl::work_type,
+                dsl::work_status,
+                dsl::full_title,
+                dsl::title,
+                dsl::subtitle,
+                dsl::reference,
+                dsl::edition,
+                dsl::imprint_id,
+                dsl::doi,
+                dsl::publication_date,
+                dsl::place,
+                dsl::width,
+                dsl::height,
+                dsl::page_count,
+                dsl::page_breakdown,
+                dsl::image_count,
+                dsl::table_count,
+                dsl::audio_count,
+                dsl::video_count,
+                dsl::license,
+                dsl::copyright_holder,
+                dsl::landing_page,
+                dsl::lccn,
+                dsl::oclc,
+                dsl::short_abstract,
+                dsl::long_abstract,
+                dsl::general_note,
+                dsl::toc,
+                dsl::cover_url,
+                dsl::cover_caption,
+                dsl::created_at,
+                dsl::updated_at,
             ))
             .into_boxed();
         match order.field {
             WorkField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(work_id.asc()),
-                Direction::DESC => query = query.order(work_id.desc()),
+                Direction::ASC => query = query.order(dsl::work_id.asc()),
+                Direction::DESC => query = query.order(dsl::work_id.desc()),
             },
             WorkField::WorkType => match order.direction {
-                Direction::ASC => query = query.order(work_type.asc()),
-                Direction::DESC => query = query.order(work_type.desc()),
+                Direction::ASC => query = query.order(dsl::work_type.asc()),
+                Direction::DESC => query = query.order(dsl::work_type.desc()),
             },
             WorkField::WorkStatus => match order.direction {
-                Direction::ASC => query = query.order(work_status.asc()),
-                Direction::DESC => query = query.order(work_status.desc()),
+                Direction::ASC => query = query.order(dsl::work_status.asc()),
+                Direction::DESC => query = query.order(dsl::work_status.desc()),
             },
             WorkField::FullTitle => match order.direction {
-                Direction::ASC => query = query.order(full_title.asc()),
-                Direction::DESC => query = query.order(full_title.desc()),
+                Direction::ASC => query = query.order(dsl::full_title.asc()),
+                Direction::DESC => query = query.order(dsl::full_title.desc()),
             },
             WorkField::Title => match order.direction {
-                Direction::ASC => query = query.order(title.asc()),
-                Direction::DESC => query = query.order(title.desc()),
+                Direction::ASC => query = query.order(dsl::title.asc()),
+                Direction::DESC => query = query.order(dsl::title.desc()),
             },
             WorkField::Subtitle => match order.direction {
-                Direction::ASC => query = query.order(subtitle.asc()),
-                Direction::DESC => query = query.order(subtitle.desc()),
+                Direction::ASC => query = query.order(dsl::subtitle.asc()),
+                Direction::DESC => query = query.order(dsl::subtitle.desc()),
             },
             WorkField::Reference => match order.direction {
-                Direction::ASC => query = query.order(reference.asc()),
-                Direction::DESC => query = query.order(reference.desc()),
+                Direction::ASC => query = query.order(dsl::reference.asc()),
+                Direction::DESC => query = query.order(dsl::reference.desc()),
             },
             WorkField::Edition => match order.direction {
-                Direction::ASC => query = query.order(edition.asc()),
-                Direction::DESC => query = query.order(edition.desc()),
+                Direction::ASC => query = query.order(dsl::edition.asc()),
+                Direction::DESC => query = query.order(dsl::edition.desc()),
             },
             WorkField::DOI => match order.direction {
-                Direction::ASC => query = query.order(doi.asc()),
-                Direction::DESC => query = query.order(doi.desc()),
+                Direction::ASC => query = query.order(dsl::doi.asc()),
+                Direction::DESC => query = query.order(dsl::doi.desc()),
             },
             WorkField::PublicationDate => match order.direction {
-                Direction::ASC => query = query.order(publication_date.asc()),
-                Direction::DESC => query = query.order(publication_date.desc()),
+                Direction::ASC => query = query.order(dsl::publication_date.asc()),
+                Direction::DESC => query = query.order(dsl::publication_date.desc()),
             },
             WorkField::Place => match order.direction {
-                Direction::ASC => query = query.order(place.asc()),
-                Direction::DESC => query = query.order(place.desc()),
+                Direction::ASC => query = query.order(dsl::place.asc()),
+                Direction::DESC => query = query.order(dsl::place.desc()),
             },
             WorkField::Width => match order.direction {
-                Direction::ASC => query = query.order(width.asc()),
-                Direction::DESC => query = query.order(width.desc()),
+                Direction::ASC => query = query.order(dsl::width.asc()),
+                Direction::DESC => query = query.order(dsl::width.desc()),
             },
             WorkField::Height => match order.direction {
-                Direction::ASC => query = query.order(height.asc()),
-                Direction::DESC => query = query.order(height.desc()),
+                Direction::ASC => query = query.order(dsl::height.asc()),
+                Direction::DESC => query = query.order(dsl::height.desc()),
             },
             WorkField::PageCount => match order.direction {
-                Direction::ASC => query = query.order(page_count.asc()),
-                Direction::DESC => query = query.order(page_count.desc()),
+                Direction::ASC => query = query.order(dsl::page_count.asc()),
+                Direction::DESC => query = query.order(dsl::page_count.desc()),
             },
             WorkField::PageBreakdown => match order.direction {
-                Direction::ASC => query = query.order(page_breakdown.asc()),
-                Direction::DESC => query = query.order(page_breakdown.desc()),
+                Direction::ASC => query = query.order(dsl::page_breakdown.asc()),
+                Direction::DESC => query = query.order(dsl::page_breakdown.desc()),
             },
             WorkField::ImageCount => match order.direction {
-                Direction::ASC => query = query.order(image_count.asc()),
-                Direction::DESC => query = query.order(image_count.desc()),
+                Direction::ASC => query = query.order(dsl::image_count.asc()),
+                Direction::DESC => query = query.order(dsl::image_count.desc()),
             },
             WorkField::TableCount => match order.direction {
-                Direction::ASC => query = query.order(table_count.asc()),
-                Direction::DESC => query = query.order(table_count.desc()),
+                Direction::ASC => query = query.order(dsl::table_count.asc()),
+                Direction::DESC => query = query.order(dsl::table_count.desc()),
             },
             WorkField::AudioCount => match order.direction {
-                Direction::ASC => query = query.order(audio_count.asc()),
-                Direction::DESC => query = query.order(audio_count.desc()),
+                Direction::ASC => query = query.order(dsl::audio_count.asc()),
+                Direction::DESC => query = query.order(dsl::audio_count.desc()),
             },
             WorkField::VideoCount => match order.direction {
-                Direction::ASC => query = query.order(video_count.asc()),
-                Direction::DESC => query = query.order(video_count.desc()),
+                Direction::ASC => query = query.order(dsl::video_count.asc()),
+                Direction::DESC => query = query.order(dsl::video_count.desc()),
             },
             WorkField::License => match order.direction {
-                Direction::ASC => query = query.order(license.asc()),
-                Direction::DESC => query = query.order(license.desc()),
+                Direction::ASC => query = query.order(dsl::license.asc()),
+                Direction::DESC => query = query.order(dsl::license.desc()),
             },
             WorkField::CopyrightHolder => match order.direction {
-                Direction::ASC => query = query.order(copyright_holder.asc()),
-                Direction::DESC => query = query.order(copyright_holder.desc()),
+                Direction::ASC => query = query.order(dsl::copyright_holder.asc()),
+                Direction::DESC => query = query.order(dsl::copyright_holder.desc()),
             },
             WorkField::LandingPage => match order.direction {
-                Direction::ASC => query = query.order(landing_page.asc()),
-                Direction::DESC => query = query.order(landing_page.desc()),
+                Direction::ASC => query = query.order(dsl::landing_page.asc()),
+                Direction::DESC => query = query.order(dsl::landing_page.desc()),
             },
             WorkField::LCCN => match order.direction {
-                Direction::ASC => query = query.order(lccn.asc()),
-                Direction::DESC => query = query.order(lccn.desc()),
+                Direction::ASC => query = query.order(dsl::lccn.asc()),
+                Direction::DESC => query = query.order(dsl::lccn.desc()),
             },
             WorkField::OCLC => match order.direction {
-                Direction::ASC => query = query.order(oclc.asc()),
-                Direction::DESC => query = query.order(oclc.desc()),
+                Direction::ASC => query = query.order(dsl::oclc.asc()),
+                Direction::DESC => query = query.order(dsl::oclc.desc()),
             },
             WorkField::ShortAbstract => match order.direction {
-                Direction::ASC => query = query.order(short_abstract.asc()),
-                Direction::DESC => query = query.order(short_abstract.desc()),
+                Direction::ASC => query = query.order(dsl::short_abstract.asc()),
+                Direction::DESC => query = query.order(dsl::short_abstract.desc()),
             },
             WorkField::LongAbstract => match order.direction {
-                Direction::ASC => query = query.order(long_abstract.asc()),
-                Direction::DESC => query = query.order(long_abstract.desc()),
+                Direction::ASC => query = query.order(dsl::long_abstract.asc()),
+                Direction::DESC => query = query.order(dsl::long_abstract.desc()),
             },
             WorkField::GeneralNote => match order.direction {
-                Direction::ASC => query = query.order(general_note.asc()),
-                Direction::DESC => query = query.order(general_note.desc()),
+                Direction::ASC => query = query.order(dsl::general_note.asc()),
+                Direction::DESC => query = query.order(dsl::general_note.desc()),
             },
             WorkField::TOC => match order.direction {
-                Direction::ASC => query = query.order(toc.asc()),
-                Direction::DESC => query = query.order(toc.desc()),
+                Direction::ASC => query = query.order(dsl::toc.asc()),
+                Direction::DESC => query = query.order(dsl::toc.desc()),
             },
             WorkField::CoverURL => match order.direction {
-                Direction::ASC => query = query.order(cover_url.asc()),
-                Direction::DESC => query = query.order(cover_url.desc()),
+                Direction::ASC => query = query.order(dsl::cover_url.asc()),
+                Direction::DESC => query = query.order(dsl::cover_url.desc()),
             },
             WorkField::CoverCaption => match order.direction {
-                Direction::ASC => query = query.order(cover_caption.asc()),
-                Direction::DESC => query = query.order(cover_caption.desc()),
+                Direction::ASC => query = query.order(dsl::cover_caption.asc()),
+                Direction::DESC => query = query.order(dsl::cover_caption.desc()),
             },
             WorkField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::ASC => query = query.order(dsl::created_at.asc()),
+                Direction::DESC => query = query.order(dsl::created_at.desc()),
             },
             WorkField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::ASC => query = query.order(dsl::updated_at.asc()),
+                Direction::DESC => query = query.order(dsl::updated_at.desc()),
             },
         }
         // Ordering and construction of filters is important here: result needs to be
@@ -362,15 +366,21 @@ impl QueryRoot {
         for pub_id in publishers {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
+        if let Some(wk_type) = work_type {
+            query = query.filter(dsl::work_type.eq(wk_type))
+        }
+        if let Some(wk_status) = work_status {
+            query = query.filter(dsl::work_status.eq(wk_status))
+        }
         query
             .filter(
-                full_title
+                dsl::full_title
                     .ilike(format!("%{}%", filter))
-                    .or(doi.ilike(format!("%{}%", filter)))
-                    .or(reference.ilike(format!("%{}%", filter)))
-                    .or(short_abstract.ilike(format!("%{}%", filter)))
-                    .or(long_abstract.ilike(format!("%{}%", filter)))
-                    .or(landing_page.ilike(format!("%{}%", filter))),
+                    .or(dsl::doi.ilike(format!("%{}%", filter)))
+                    .or(dsl::reference.ilike(format!("%{}%", filter)))
+                    .or(dsl::short_abstract.ilike(format!("%{}%", filter)))
+                    .or(dsl::long_abstract.ilike(format!("%{}%", filter)))
+                    .or(dsl::landing_page.ilike(format!("%{}%", filter))),
             )
             .limit(limit.into())
             .offset(offset.into())
@@ -1025,6 +1035,7 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
+            contribution_type(description = "A specific type to filter by"),
         )
     )]
     fn contributions(
@@ -1033,73 +1044,80 @@ impl QueryRoot {
         offset: i32,
         order: ContributionOrderBy,
         publishers: Vec<Uuid>,
+        contribution_type: Option<ContributionType>,
     ) -> Vec<Contribution> {
-        use crate::schema::contribution::dsl::*;
+        use crate::schema::contribution::dsl;
         let connection = context.db.get().unwrap();
-        let mut query = contribution
+        let mut query = dsl::contribution
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select((
-                work_id,
-                contributor_id,
-                contribution_type,
-                main_contribution,
-                biography,
-                institution,
-                created_at,
-                updated_at,
-                first_name,
-                last_name,
-                full_name,
+                dsl::work_id,
+                dsl::contributor_id,
+                dsl::contribution_type,
+                dsl::main_contribution,
+                dsl::biography,
+                dsl::institution,
+                dsl::created_at,
+                dsl::updated_at,
+                dsl::first_name,
+                dsl::last_name,
+                dsl::full_name,
             ))
             .into_boxed();
         match order.field {
             ContributionField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(work_id.asc()),
-                Direction::DESC => query = query.order(work_id.desc()),
+                Direction::ASC => query = query.order(dsl::work_id.asc()),
+                Direction::DESC => query = query.order(dsl::work_id.desc()),
             },
             ContributionField::ContributorID => match order.direction {
-                Direction::ASC => query = query.order(contributor_id.asc()),
-                Direction::DESC => query = query.order(contributor_id.desc()),
+                Direction::ASC => query = query.order(dsl::contributor_id.asc()),
+                Direction::DESC => query = query.order(dsl::contributor_id.desc()),
             },
             ContributionField::ContributionType => match order.direction {
-                Direction::ASC => query = query.order(contribution_type.asc()),
-                Direction::DESC => query = query.order(contribution_type.desc()),
+                Direction::ASC => query = query.order(dsl::contribution_type.asc()),
+                Direction::DESC => query = query.order(dsl::contribution_type.desc()),
             },
             ContributionField::MainContribution => match order.direction {
-                Direction::ASC => query = query.order(main_contribution.asc()),
-                Direction::DESC => query = query.order(main_contribution.desc()),
+                Direction::ASC => query = query.order(dsl::main_contribution.asc()),
+                Direction::DESC => query = query.order(dsl::main_contribution.desc()),
             },
             ContributionField::Biography => match order.direction {
-                Direction::ASC => query = query.order(biography.asc()),
-                Direction::DESC => query = query.order(biography.desc()),
+                Direction::ASC => query = query.order(dsl::biography.asc()),
+                Direction::DESC => query = query.order(dsl::biography.desc()),
             },
             ContributionField::Institution => match order.direction {
-                Direction::ASC => query = query.order(institution.asc()),
-                Direction::DESC => query = query.order(institution.desc()),
+                Direction::ASC => query = query.order(dsl::institution.asc()),
+                Direction::DESC => query = query.order(dsl::institution.desc()),
             },
             ContributionField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::ASC => query = query.order(dsl::created_at.asc()),
+                Direction::DESC => query = query.order(dsl::created_at.desc()),
             },
             ContributionField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::ASC => query = query.order(dsl::updated_at.asc()),
+                Direction::DESC => query = query.order(dsl::updated_at.desc()),
             },
             ContributionField::FirstName => match order.direction {
-                Direction::ASC => query = query.order(first_name.asc()),
-                Direction::DESC => query = query.order(first_name.desc()),
+                Direction::ASC => query = query.order(dsl::first_name.asc()),
+                Direction::DESC => query = query.order(dsl::first_name.desc()),
             },
             ContributionField::LastName => match order.direction {
-                Direction::ASC => query = query.order(last_name.asc()),
-                Direction::DESC => query = query.order(last_name.desc()),
+                Direction::ASC => query = query.order(dsl::last_name.asc()),
+                Direction::DESC => query = query.order(dsl::last_name.desc()),
             },
             ContributionField::FullName => match order.direction {
-                Direction::ASC => query = query.order(full_name.asc()),
-                Direction::DESC => query = query.order(full_name.desc()),
+                Direction::ASC => query = query.order(dsl::full_name.asc()),
+                Direction::DESC => query = query.order(dsl::full_name.desc()),
             },
         }
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
         for pub_id in publishers {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
+        if let Some(cont_type) = contribution_type {
+            query = query.filter(dsl::contribution_type.eq(cont_type))
         }
         query
             .limit(limit.into())
@@ -1163,6 +1181,7 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
+            series_type(description = "A specific type to filter by"),
         ),
     )]
     fn serieses(
@@ -1172,55 +1191,56 @@ impl QueryRoot {
         filter: String,
         order: SeriesOrderBy,
         publishers: Vec<Uuid>,
+        series_type: Option<SeriesType>,
     ) -> Vec<Series> {
-        use crate::schema::series::dsl::*;
+        use crate::schema::series::dsl;
         let connection = context.db.get().unwrap();
-        let mut query = series
+        let mut query = dsl::series
             .inner_join(crate::schema::imprint::table)
             .select((
-                series_id,
-                series_type,
-                series_name,
-                issn_print,
-                issn_digital,
-                series_url,
-                imprint_id,
-                created_at,
-                updated_at,
+                dsl::series_id,
+                dsl::series_type,
+                dsl::series_name,
+                dsl::issn_print,
+                dsl::issn_digital,
+                dsl::series_url,
+                dsl::imprint_id,
+                dsl::created_at,
+                dsl::updated_at,
             ))
             .into_boxed();
         match order.field {
             SeriesField::SeriesID => match order.direction {
-                Direction::ASC => query = query.order(series_id.asc()),
-                Direction::DESC => query = query.order(series_id.desc()),
+                Direction::ASC => query = query.order(dsl::series_id.asc()),
+                Direction::DESC => query = query.order(dsl::series_id.desc()),
             },
             SeriesField::SeriesType => match order.direction {
-                Direction::ASC => query = query.order(series_type.asc()),
-                Direction::DESC => query = query.order(series_type.desc()),
+                Direction::ASC => query = query.order(dsl::series_type.asc()),
+                Direction::DESC => query = query.order(dsl::series_type.desc()),
             },
             SeriesField::SeriesName => match order.direction {
-                Direction::ASC => query = query.order(series_name.asc()),
-                Direction::DESC => query = query.order(series_name.desc()),
+                Direction::ASC => query = query.order(dsl::series_name.asc()),
+                Direction::DESC => query = query.order(dsl::series_name.desc()),
             },
             SeriesField::ISSNPrint => match order.direction {
-                Direction::ASC => query = query.order(issn_print.asc()),
-                Direction::DESC => query = query.order(issn_print.desc()),
+                Direction::ASC => query = query.order(dsl::issn_print.asc()),
+                Direction::DESC => query = query.order(dsl::issn_print.desc()),
             },
             SeriesField::ISSNDigital => match order.direction {
-                Direction::ASC => query = query.order(issn_digital.asc()),
-                Direction::DESC => query = query.order(issn_digital.desc()),
+                Direction::ASC => query = query.order(dsl::issn_digital.asc()),
+                Direction::DESC => query = query.order(dsl::issn_digital.desc()),
             },
             SeriesField::SeriesURL => match order.direction {
-                Direction::ASC => query = query.order(series_url.asc()),
-                Direction::DESC => query = query.order(series_url.desc()),
+                Direction::ASC => query = query.order(dsl::series_url.asc()),
+                Direction::DESC => query = query.order(dsl::series_url.desc()),
             },
             SeriesField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::ASC => query = query.order(dsl::created_at.asc()),
+                Direction::DESC => query = query.order(dsl::created_at.desc()),
             },
             SeriesField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::ASC => query = query.order(dsl::updated_at.asc()),
+                Direction::DESC => query = query.order(dsl::updated_at.desc()),
             },
         }
         // Ordering and construction of filters is important here: result needs to be
@@ -1229,13 +1249,16 @@ impl QueryRoot {
         for pub_id in publishers {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
+        if let Some(ser_type) = series_type {
+            query = query.filter(dsl::series_type.eq(ser_type))
+        }
         query
             .filter(
-                series_name
+                dsl::series_name
                     .ilike(format!("%{}%", filter))
-                    .or(issn_print.ilike(format!("%{}%", filter)))
-                    .or(issn_digital.ilike(format!("%{}%", filter)))
-                    .or(series_url.ilike(format!("%{}%", filter))),
+                    .or(dsl::issn_print.ilike(format!("%{}%", filter)))
+                    .or(dsl::issn_digital.ilike(format!("%{}%", filter)))
+                    .or(dsl::series_url.ilike(format!("%{}%", filter))),
             )
             .limit(limit.into())
             .offset(offset.into())
@@ -1418,6 +1441,8 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
+            language_code(description = "A specific language to filter by"),
+            language_relation(description = "A specific relation to filter by"),
         )
     )]
     fn languages(
@@ -1426,53 +1451,64 @@ impl QueryRoot {
         offset: i32,
         order: LanguageOrderBy,
         publishers: Vec<Uuid>,
+        language_code: Option<LanguageCode>,
+        language_relation: Option<LanguageRelation>,
     ) -> Vec<Language> {
-        use crate::schema::language::dsl::*;
+        use crate::schema::language::dsl;
         let connection = context.db.get().unwrap();
-        let mut query = language
+        let mut query = dsl::language
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select((
-                language_id,
-                work_id,
-                language_code,
-                language_relation,
-                main_language,
-                created_at,
-                updated_at,
+                dsl::language_id,
+                dsl::work_id,
+                dsl::language_code,
+                dsl::language_relation,
+                dsl::main_language,
+                dsl::created_at,
+                dsl::updated_at,
             ))
             .into_boxed();
         match order.field {
             LanguageField::LanguageID => match order.direction {
-                Direction::ASC => query = query.order(language_id.asc()),
-                Direction::DESC => query = query.order(language_id.desc()),
+                Direction::ASC => query = query.order(dsl::language_id.asc()),
+                Direction::DESC => query = query.order(dsl::language_id.desc()),
             },
             LanguageField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(work_id.asc()),
-                Direction::DESC => query = query.order(work_id.desc()),
+                Direction::ASC => query = query.order(dsl::work_id.asc()),
+                Direction::DESC => query = query.order(dsl::work_id.desc()),
             },
             LanguageField::LanguageCode => match order.direction {
-                Direction::ASC => query = query.order(language_code.asc()),
-                Direction::DESC => query = query.order(language_code.desc()),
+                Direction::ASC => query = query.order(dsl::language_code.asc()),
+                Direction::DESC => query = query.order(dsl::language_code.desc()),
             },
             LanguageField::LanguageRelation => match order.direction {
-                Direction::ASC => query = query.order(language_relation.asc()),
-                Direction::DESC => query = query.order(language_relation.desc()),
+                Direction::ASC => query = query.order(dsl::language_relation.asc()),
+                Direction::DESC => query = query.order(dsl::language_relation.desc()),
             },
             LanguageField::MainLanguage => match order.direction {
-                Direction::ASC => query = query.order(main_language.asc()),
-                Direction::DESC => query = query.order(main_language.desc()),
+                Direction::ASC => query = query.order(dsl::main_language.asc()),
+                Direction::DESC => query = query.order(dsl::main_language.desc()),
             },
             LanguageField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::ASC => query = query.order(dsl::created_at.asc()),
+                Direction::DESC => query = query.order(dsl::created_at.desc()),
             },
             LanguageField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::ASC => query = query.order(dsl::updated_at.asc()),
+                Direction::DESC => query = query.order(dsl::updated_at.desc()),
             },
         }
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
         for pub_id in publishers {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
+        if let Some(lang_code) = language_code {
+            query = query.filter(dsl::language_code.eq(lang_code))
+        }
+        if let Some(lang_relation) = language_relation {
+            query = query.filter(dsl::language_relation.eq(lang_relation))
         }
         query
             .limit(limit.into())
@@ -1525,6 +1561,7 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
+            currency_code(description = "A specific currency to filter by"),
         )
     )]
     fn prices(
@@ -1533,51 +1570,58 @@ impl QueryRoot {
         offset: i32,
         order: PriceOrderBy,
         publishers: Vec<Uuid>,
+        currency_code: Option<CurrencyCode>,
     ) -> Vec<Price> {
-        use crate::schema::price::dsl::*;
+        use crate::schema::price::dsl;
         let connection = context.db.get().unwrap();
         let mut query =
-            price
+            dsl::price
                 .inner_join(crate::schema::publication::table.inner_join(
                     crate::schema::work::table.inner_join(crate::schema::imprint::table),
                 ))
                 .select((
-                    price_id,
-                    publication_id,
-                    currency_code,
-                    unit_price,
-                    created_at,
-                    updated_at,
+                    dsl::price_id,
+                    dsl::publication_id,
+                    dsl::currency_code,
+                    dsl::unit_price,
+                    dsl::created_at,
+                    dsl::updated_at,
                 ))
                 .into_boxed();
         match order.field {
             PriceField::PriceID => match order.direction {
-                Direction::ASC => query = query.order(price_id.asc()),
-                Direction::DESC => query = query.order(price_id.desc()),
+                Direction::ASC => query = query.order(dsl::price_id.asc()),
+                Direction::DESC => query = query.order(dsl::price_id.desc()),
             },
             PriceField::PublicationID => match order.direction {
-                Direction::ASC => query = query.order(publication_id.asc()),
-                Direction::DESC => query = query.order(publication_id.desc()),
+                Direction::ASC => query = query.order(dsl::publication_id.asc()),
+                Direction::DESC => query = query.order(dsl::publication_id.desc()),
             },
             PriceField::CurrencyCode => match order.direction {
-                Direction::ASC => query = query.order(currency_code.asc()),
-                Direction::DESC => query = query.order(currency_code.desc()),
+                Direction::ASC => query = query.order(dsl::currency_code.asc()),
+                Direction::DESC => query = query.order(dsl::currency_code.desc()),
             },
             PriceField::UnitPrice => match order.direction {
-                Direction::ASC => query = query.order(unit_price.asc()),
-                Direction::DESC => query = query.order(unit_price.desc()),
+                Direction::ASC => query = query.order(dsl::unit_price.asc()),
+                Direction::DESC => query = query.order(dsl::unit_price.desc()),
             },
             PriceField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::ASC => query = query.order(dsl::created_at.asc()),
+                Direction::DESC => query = query.order(dsl::created_at.desc()),
             },
             PriceField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::ASC => query = query.order(dsl::updated_at.asc()),
+                Direction::DESC => query = query.order(dsl::updated_at.desc()),
             },
         }
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
         for pub_id in publishers {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
+        if let Some(curr_code) = currency_code {
+            query = query.filter(dsl::currency_code.eq(curr_code))
         }
         query
             .limit(limit.into())
@@ -1630,6 +1674,7 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
+            subject_type(description = "A specific type to filter by"),
         )
     )]
     fn subjects(
@@ -1638,53 +1683,60 @@ impl QueryRoot {
         offset: i32,
         order: SubjectOrderBy,
         publishers: Vec<Uuid>,
+        subject_type: Option<SubjectType>,
     ) -> Vec<Subject> {
-        use crate::schema::subject::dsl::*;
+        use crate::schema::subject::dsl;
         let connection = context.db.get().unwrap();
-        let mut query = subject
+        let mut query = dsl::subject
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select((
-                subject_id,
-                work_id,
-                subject_type,
-                subject_code,
-                subject_ordinal,
-                created_at,
-                updated_at,
+                dsl::subject_id,
+                dsl::work_id,
+                dsl::subject_type,
+                dsl::subject_code,
+                dsl::subject_ordinal,
+                dsl::created_at,
+                dsl::updated_at,
             ))
             .into_boxed();
         match order.field {
             SubjectField::SubjectID => match order.direction {
-                Direction::ASC => query = query.order(subject_id.asc()),
-                Direction::DESC => query = query.order(subject_id.desc()),
+                Direction::ASC => query = query.order(dsl::subject_id.asc()),
+                Direction::DESC => query = query.order(dsl::subject_id.desc()),
             },
             SubjectField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(work_id.asc()),
-                Direction::DESC => query = query.order(work_id.desc()),
+                Direction::ASC => query = query.order(dsl::work_id.asc()),
+                Direction::DESC => query = query.order(dsl::work_id.desc()),
             },
             SubjectField::SubjectType => match order.direction {
-                Direction::ASC => query = query.order(subject_type.asc()),
-                Direction::DESC => query = query.order(subject_type.desc()),
+                Direction::ASC => query = query.order(dsl::subject_type.asc()),
+                Direction::DESC => query = query.order(dsl::subject_type.desc()),
             },
             SubjectField::SubjectCode => match order.direction {
-                Direction::ASC => query = query.order(subject_code.asc()),
-                Direction::DESC => query = query.order(subject_code.desc()),
+                Direction::ASC => query = query.order(dsl::subject_code.asc()),
+                Direction::DESC => query = query.order(dsl::subject_code.desc()),
             },
             SubjectField::SubjectOrdinal => match order.direction {
-                Direction::ASC => query = query.order(subject_ordinal.asc()),
-                Direction::DESC => query = query.order(subject_ordinal.desc()),
+                Direction::ASC => query = query.order(dsl::subject_ordinal.asc()),
+                Direction::DESC => query = query.order(dsl::subject_ordinal.desc()),
             },
             SubjectField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::ASC => query = query.order(dsl::created_at.asc()),
+                Direction::DESC => query = query.order(dsl::created_at.desc()),
             },
             SubjectField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::ASC => query = query.order(dsl::updated_at.asc()),
+                Direction::DESC => query = query.order(dsl::updated_at.desc()),
             },
         }
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
         for pub_id in publishers {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        }
+        if let Some(sub_type) = subject_type {
+            query = query.filter(dsl::subject_type.eq(sub_type))
         }
         query
             .limit(limit.into())
