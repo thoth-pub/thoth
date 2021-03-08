@@ -400,6 +400,18 @@ impl QueryRoot {
         }
     }
 
+    #[graphql(description = "Query a single work using its DOI")]
+    fn work_by_doi(context: &Context, doi: String) -> FieldResult<Work> {
+        let connection = context.db.get().unwrap();
+        match crate::schema::work::dsl::work
+            .filter(crate::schema::work::dsl::doi.ilike(format!("%{}%", doi)))
+            .first::<Work>(&connection)
+        {
+            Ok(work) => Ok(work),
+            Err(e) => Err(FieldError::from(e)),
+        }
+    }
+
     #[graphql(
         description = "Get the total number of works",
         arguments(
