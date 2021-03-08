@@ -2848,45 +2848,27 @@ impl Work {
         publication_type: Option<PublicationType>,
     ) -> Vec<Publication> {
         let connection = context.db.get().unwrap();
-
+        use crate::schema::publication::dsl;
+        let mut query = dsl::publication
+            .into_boxed()
+            .filter(dsl::work_id.eq(self.work_id));
         if let Some(pub_type) = publication_type {
-            use crate::schema::publication::dsl::*;
-
-            let mut query = publication
-                .into_boxed()
-                .filter(work_id.eq(self.work_id))
-                .filter(publication_type.eq(pub_type));
-            // ISBN and URL fields are both nullable, so searching with an empty filter could fail
-            if !filter.is_empty() {
-                query = query.filter(
-                    isbn.ilike(format!("%{}%", filter))
-                        .or(publication_url.ilike(format!("%{}%", filter))),
-                );
-            }
-            query
-                .order(publication_type.asc())
-                .limit(limit.into())
-                .offset(offset.into())
-                .load::<Publication>(&connection)
-                .expect("Error loading publications")
-        } else {
-            use crate::schema::publication::dsl::*;
-
-            let mut query = publication.into_boxed().filter(work_id.eq(self.work_id));
-            // ISBN and URL fields are both nullable, so searching with an empty filter could fail
-            if !filter.is_empty() {
-                query = query.filter(
-                    isbn.ilike(format!("%{}%", filter))
-                        .or(publication_url.ilike(format!("%{}%", filter))),
-                );
-            }
-            query
-                .order(publication_type.asc())
-                .limit(limit.into())
-                .offset(offset.into())
-                .load::<Publication>(&connection)
-                .expect("Error loading publications")
+            query = query.filter(dsl::publication_type.eq(pub_type));
         }
+        // ISBN and URL fields are both nullable, so searching with an empty filter could fail
+        if !filter.is_empty() {
+            query = query.filter(
+                dsl::isbn
+                    .ilike(format!("%{}%", filter))
+                    .or(dsl::publication_url.ilike(format!("%{}%", filter))),
+            );
+        }
+        query
+            .order(dsl::publication_type.asc())
+            .limit(limit.into())
+            .offset(offset.into())
+            .load::<Publication>(&connection)
+            .expect("Error loading publications")
     }
 
     #[graphql(
