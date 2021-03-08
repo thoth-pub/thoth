@@ -17,6 +17,7 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::component::delete_dialogue::ConfirmDeleteComponent;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
@@ -40,7 +41,6 @@ use crate::models::contributor::update_contributor_mutation::Variables as Update
 use crate::models::contributor::Contributor;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::string::DELETE_BUTTON;
 use crate::string::SAVE_BUTTON;
 
 pub struct ContributorComponent {
@@ -312,9 +312,10 @@ impl Component for ContributorComponent {
                             </div>
                             <div class="level-right">
                                 <p class="level-item">
-                                    <button class="button is-danger" onclick=self.link.callback(|_| Msg::DeleteContributor)>
-                                        { DELETE_BUTTON }
-                                    </button>
+                                    <ConfirmDeleteComponent
+                                        onclick=self.link.callback(|_| Msg::DeleteContributor)
+                                        object_name=&self.contributor.full_name
+                                    />
                                 </p>
                             </div>
                         </nav>

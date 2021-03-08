@@ -15,6 +15,7 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::component::delete_dialogue::ConfirmDeleteComponent;
 use crate::component::utils::FormPublisherSelect;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
@@ -43,7 +44,6 @@ use crate::models::publisher::publishers_query::Variables as PublishersVariables
 use crate::models::publisher::Publisher;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::string::DELETE_BUTTON;
 use crate::string::SAVE_BUTTON;
 
 pub struct ImprintComponent {
@@ -346,9 +346,10 @@ impl Component for ImprintComponent {
                             </div>
                             <div class="level-right">
                                 <p class="level-item">
-                                    <button class="button is-danger" onclick=self.link.callback(|_| Msg::DeleteImprint)>
-                                        { DELETE_BUTTON }
-                                    </button>
+                                    <ConfirmDeleteComponent
+                                        onclick=self.link.callback(|_| Msg::DeleteImprint)
+                                        object_name=&self.imprint.imprint_name
+                                    />
                                 </p>
                             </div>
                         </nav>

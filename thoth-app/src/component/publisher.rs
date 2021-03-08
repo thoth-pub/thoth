@@ -15,6 +15,7 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::component::delete_dialogue::ConfirmDeleteComponent;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
@@ -36,7 +37,6 @@ use crate::models::publisher::update_publisher_mutation::Variables as UpdateVari
 use crate::models::publisher::Publisher;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::string::DELETE_BUTTON;
 use crate::string::SAVE_BUTTON;
 
 pub struct PublisherComponent {
@@ -286,9 +286,10 @@ impl Component for PublisherComponent {
                             </div>
                             <div class="level-right">
                                 <p class="level-item">
-                                    <button class="button is-danger" onclick=self.link.callback(|_| Msg::DeletePublisher)>
-                                        { DELETE_BUTTON }
-                                    </button>
+                                    <ConfirmDeleteComponent
+                                        onclick=self.link.callback(|_| Msg::DeletePublisher)
+                                        object_name=&self.publisher.publisher_name
+                                    />
                                 </p>
                             </div>
                         </nav>

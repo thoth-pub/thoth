@@ -17,6 +17,7 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::component::delete_dialogue::ConfirmDeleteComponent;
 use crate::component::utils::FormImprintSelect;
 use crate::component::utils::FormSeriesTypeSelect;
 use crate::component::utils::FormTextInput;
@@ -49,7 +50,6 @@ use crate::models::series::Series;
 use crate::models::series::SeriesTypeValues;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::string::DELETE_BUTTON;
 use crate::string::SAVE_BUTTON;
 
 pub struct SeriesComponent {
@@ -379,9 +379,10 @@ impl Component for SeriesComponent {
                             </div>
                             <div class="level-right">
                                 <p class="level-item">
-                                    <button class="button is-danger" onclick=self.link.callback(|_| Msg::DeleteSeries)>
-                                        { DELETE_BUTTON }
-                                    </button>
+                                    <ConfirmDeleteComponent
+                                        onclick=self.link.callback(|_| Msg::DeleteSeries)
+                                        object_name=&self.series.series_name
+                                    />
                                 </p>
                             </div>
                         </nav>
