@@ -494,6 +494,7 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
+            publication_type(description = "A specific type to filter by"),
         )
     )]
     fn publications(
@@ -503,49 +504,50 @@ impl QueryRoot {
         filter: String,
         order: PublicationOrderBy,
         publishers: Vec<Uuid>,
+        publication_type: Option<PublicationType>,
     ) -> Vec<Publication> {
-        use crate::schema::publication::dsl::*;
+        use crate::schema::publication::dsl;
         let connection = context.db.get().unwrap();
-        let mut query = publication
+        let mut query = dsl::publication
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select((
-                publication_id,
-                publication_type,
-                work_id,
-                isbn,
-                publication_url,
-                created_at,
-                updated_at,
+                dsl::publication_id,
+                dsl::publication_type,
+                dsl::work_id,
+                dsl::isbn,
+                dsl::publication_url,
+                dsl::created_at,
+                dsl::updated_at,
             ))
             .into_boxed();
         match order.field {
             PublicationField::PublicationID => match order.direction {
-                Direction::ASC => query = query.order(publication_id.asc()),
-                Direction::DESC => query = query.order(publication_id.desc()),
+                Direction::ASC => query = query.order(dsl::publication_id.asc()),
+                Direction::DESC => query = query.order(dsl::publication_id.desc()),
             },
             PublicationField::PublicationType => match order.direction {
-                Direction::ASC => query = query.order(publication_type.asc()),
-                Direction::DESC => query = query.order(publication_type.desc()),
+                Direction::ASC => query = query.order(dsl::publication_type.asc()),
+                Direction::DESC => query = query.order(dsl::publication_type.desc()),
             },
             PublicationField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(work_id.asc()),
-                Direction::DESC => query = query.order(work_id.desc()),
+                Direction::ASC => query = query.order(dsl::work_id.asc()),
+                Direction::DESC => query = query.order(dsl::work_id.desc()),
             },
             PublicationField::ISBN => match order.direction {
-                Direction::ASC => query = query.order(isbn.asc()),
-                Direction::DESC => query = query.order(isbn.desc()),
+                Direction::ASC => query = query.order(dsl::isbn.asc()),
+                Direction::DESC => query = query.order(dsl::isbn.desc()),
             },
             PublicationField::PublicationURL => match order.direction {
-                Direction::ASC => query = query.order(publication_url.asc()),
-                Direction::DESC => query = query.order(publication_url.desc()),
+                Direction::ASC => query = query.order(dsl::publication_url.asc()),
+                Direction::DESC => query = query.order(dsl::publication_url.desc()),
             },
             PublicationField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::ASC => query = query.order(dsl::created_at.asc()),
+                Direction::DESC => query = query.order(dsl::created_at.desc()),
             },
             PublicationField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::ASC => query = query.order(dsl::updated_at.asc()),
+                Direction::DESC => query = query.order(dsl::updated_at.desc()),
             },
         }
         // Ordering and construction of filters is important here: result needs to be
@@ -557,9 +559,13 @@ impl QueryRoot {
         // ISBN and URL fields are both nullable, so searching with an empty filter could fail
         if !filter.is_empty() {
             query = query.filter(
-                isbn.ilike(format!("%{}%", filter))
-                    .or(publication_url.ilike(format!("%{}%", filter))),
+                dsl::isbn
+                    .ilike(format!("%{}%", filter))
+                    .or(dsl::publication_url.ilike(format!("%{}%", filter))),
             );
+        }
+        if let Some(pub_type) = publication_type {
+            query = query.filter(dsl::publication_type.eq(pub_type))
         }
         query
             .limit(limit.into())
