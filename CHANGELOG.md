@@ -4,6 +4,15 @@ All notable changes to thoth will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [[0.3.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.2) - 2020-03-09
+### Added
+  - [#202](https://github.com/thoth-pub/thoth/issues/202) - Enum type filtering in GraphQL queries
+  - [#202](https://github.com/thoth-pub/thoth/issues/202) - Query works by DOI
+  - [#195](https://github.com/thoth-pub/thoth/issues/195) - Prompt confirmation upon delete
+
+### Fixed
+  - [#199](https://github.com/thoth-pub/thoth/issues/199), [#201](https://github.com/thoth-pub/thoth/issues/201) - Error displaying publications if filtering on empty ISBN or URL
+
 ## [[0.3.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.1) - 2020-03-04
 ### Fixed
   - [#197](https://github.com/thoth-pub/thoth/issues/197) - Error deserialising publications in APP
