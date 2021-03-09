@@ -12,6 +12,7 @@ strings! {
     TEXT_LOGIN => "Login",
     SAVE_BUTTON => "Save",
     DELETE_BUTTON => "Delete",
+    CANCEL_BUTTON => "Cancel",
     REMOVE_BUTTON => "Remove",
     RELOAD_BUTTON => "Reload",
     NEXT_PAGE_BUTTON => "Next page",

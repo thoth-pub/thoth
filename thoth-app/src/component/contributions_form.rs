@@ -36,6 +36,7 @@ use crate::models::contributor::contributors_query::FetchActionContributors;
 use crate::models::contributor::contributors_query::FetchContributors;
 use crate::models::contributor::contributors_query::Variables;
 use crate::models::contributor::Contributor;
+use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_CONTRIBUTIONS;
 use crate::string::NO;
 use crate::string::REMOVE_BUTTON;
@@ -479,7 +480,7 @@ impl Component for ContributionsFormComponent {
                                 class="button"
                                 onclick=&close_modal
                             >
-                                { "Cancel" }
+                                { CANCEL_BUTTON }
                             </button>
                         </footer>
                     </div>

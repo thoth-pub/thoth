@@ -17,6 +17,7 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::component::delete_dialogue::ConfirmDeleteComponent;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
@@ -40,7 +41,6 @@ use crate::models::funder::update_funder_mutation::Variables as UpdateVariables;
 use crate::models::funder::Funder;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::string::DELETE_BUTTON;
 use crate::string::SAVE_BUTTON;
 
 pub struct FunderComponent {
@@ -286,9 +286,10 @@ impl Component for FunderComponent {
                             </div>
                             <div class="level-right">
                                 <p class="level-item">
-                                    <button class="button is-danger" onclick=self.link.callback(|_| Msg::DeleteFunder)>
-                                        { DELETE_BUTTON }
-                                    </button>
+                                    <ConfirmDeleteComponent
+                                        onclick=self.link.callback(|_| Msg::DeleteFunder)
+                                        object_name=&self.funder.funder_name
+                                    />
                                 </p>
                             </div>
                         </nav>

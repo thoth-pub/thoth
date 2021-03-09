@@ -30,6 +30,7 @@ use crate::models::series::serieses_query::SeriesesRequest;
 use crate::models::series::serieses_query::SeriesesRequestBody;
 use crate::models::series::serieses_query::Variables;
 use crate::models::series::Series;
+use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_ISSUES;
 use crate::string::REMOVE_BUTTON;
 
@@ -386,7 +387,7 @@ impl Component for IssuesFormComponent {
                                 class="button"
                                 onclick=&close_modal
                             >
-                                { "Cancel" }
+                                { CANCEL_BUTTON }
                             </button>
                         </footer>
                     </div>

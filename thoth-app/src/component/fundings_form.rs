@@ -29,6 +29,7 @@ use crate::models::funding::delete_funding_mutation::PushActionDeleteFunding;
 use crate::models::funding::delete_funding_mutation::PushDeleteFunding;
 use crate::models::funding::delete_funding_mutation::Variables as DeleteVariables;
 use crate::models::funding::Funding;
+use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_FUNDINGS;
 use crate::string::REMOVE_BUTTON;
 
@@ -413,7 +414,7 @@ impl Component for FundingsFormComponent {
                                 class="button"
                                 onclick=&close_modal
                             >
-                                { "Cancel" }
+                                { CANCEL_BUTTON }
                             </button>
                         </footer>
                     </div>

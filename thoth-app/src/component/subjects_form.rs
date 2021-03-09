@@ -30,6 +30,7 @@ use crate::models::subject::subject_types_query::FetchActionSubjectTypes;
 use crate::models::subject::subject_types_query::FetchSubjectTypes;
 use crate::models::subject::Subject;
 use crate::models::subject::SubjectTypeValues;
+use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_SUBJECTS;
 use crate::string::REMOVE_BUTTON;
 
@@ -319,7 +320,7 @@ impl Component for SubjectsFormComponent {
                                 class="button"
                                 onclick=&close_modal
                             >
-                                { "Cancel" }
+                                { CANCEL_BUTTON }
                             </button>
                         </footer>
                     </div>
