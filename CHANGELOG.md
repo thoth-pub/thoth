@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
   - [#199](https://github.com/thoth-pub/thoth/issues/199), [#201](https://github.com/thoth-pub/thoth/issues/201) - Error displaying publications if filtering on empty ISBN or URL
+  - Trigger a warning when the current user does not have any editting permissions
 
 ## [[0.3.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.1) - 2020-03-04
 ### Fixed
