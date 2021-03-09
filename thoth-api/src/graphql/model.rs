@@ -403,9 +403,13 @@ impl QueryRoot {
     #[graphql(description = "Query a single work using its DOI")]
     fn work_by_doi(context: &Context, doi: String) -> FieldResult<Work> {
         let connection = context.db.get().unwrap();
+        use diesel::sql_types::Nullable;
+        use diesel::sql_types::Text;
+        // Allow case-insensitive searching (DOIs in database may have mixed casing)
+        sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
         match crate::schema::work::dsl::work
-            .filter(crate::schema::work::dsl::doi.ilike(format!("%{}%", doi)))
-            .first::<Work>(&connection)
+            .filter(lower(crate::schema::work::dsl::doi).eq(doi.to_lowercase()))
+            .get_result::<Work>(&connection)
         {
             Ok(work) => Ok(work),
             Err(e) => Err(FieldError::from(e)),
@@ -423,47 +427,55 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
+            work_type(description = "A specific type to filter by"),
+            work_status(description = "A specific status to filter by"),
         )
     )]
-    fn work_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> i32 {
-        use crate::schema::work::dsl::*;
+    fn work_count(
+        context: &Context,
+        filter: String,
+        publishers: Vec<Uuid>,
+        work_type: Option<WorkType>,
+        work_status: Option<WorkStatus>,
+    ) -> i32 {
+        use crate::schema::work::dsl;
         let connection = context.db.get().unwrap();
-        let mut query = work
+        let mut query = dsl::work
             .inner_join(crate::schema::imprint::table)
             .select((
-                work_id,
-                work_type,
-                work_status,
-                full_title,
-                title,
-                subtitle,
-                reference,
-                edition,
-                imprint_id,
-                doi,
-                publication_date,
-                place,
-                width,
-                height,
-                page_count,
-                page_breakdown,
-                image_count,
-                table_count,
-                audio_count,
-                video_count,
-                license,
-                copyright_holder,
-                landing_page,
-                lccn,
-                oclc,
-                short_abstract,
-                long_abstract,
-                general_note,
-                toc,
-                cover_url,
-                cover_caption,
-                created_at,
-                updated_at,
+                dsl::work_id,
+                dsl::work_type,
+                dsl::work_status,
+                dsl::full_title,
+                dsl::title,
+                dsl::subtitle,
+                dsl::reference,
+                dsl::edition,
+                dsl::imprint_id,
+                dsl::doi,
+                dsl::publication_date,
+                dsl::place,
+                dsl::width,
+                dsl::height,
+                dsl::page_count,
+                dsl::page_breakdown,
+                dsl::image_count,
+                dsl::table_count,
+                dsl::audio_count,
+                dsl::video_count,
+                dsl::license,
+                dsl::copyright_holder,
+                dsl::landing_page,
+                dsl::lccn,
+                dsl::oclc,
+                dsl::short_abstract,
+                dsl::long_abstract,
+                dsl::general_note,
+                dsl::toc,
+                dsl::cover_url,
+                dsl::cover_caption,
+                dsl::created_at,
+                dsl::updated_at,
             ))
             .into_boxed();
         // Ordering and construction of filters is important here: result needs to be
@@ -472,19 +484,25 @@ impl QueryRoot {
         for pub_id in publishers {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
+        if let Some(wk_type) = work_type {
+            query = query.filter(dsl::work_type.eq(wk_type))
+        }
+        if let Some(wk_status) = work_status {
+            query = query.filter(dsl::work_status.eq(wk_status))
+        }
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
         query
             .filter(
-                full_title
+                dsl::full_title
                     .ilike(format!("%{}%", filter))
-                    .or(doi.ilike(format!("%{}%", filter)))
-                    .or(reference.ilike(format!("%{}%", filter)))
-                    .or(short_abstract.ilike(format!("%{}%", filter)))
-                    .or(long_abstract.ilike(format!("%{}%", filter)))
-                    .or(landing_page.ilike(format!("%{}%", filter))),
+                    .or(dsl::doi.ilike(format!("%{}%", filter)))
+                    .or(dsl::reference.ilike(format!("%{}%", filter)))
+                    .or(dsl::short_abstract.ilike(format!("%{}%", filter)))
+                    .or(dsl::long_abstract.ilike(format!("%{}%", filter)))
+                    .or(dsl::landing_page.ilike(format!("%{}%", filter))),
             )
             .count()
             .get_result::<i64>(&connection)
@@ -619,21 +637,27 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
+            publication_type(description = "A specific type to filter by"),
         )
     )]
-    fn publication_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> i32 {
-        use crate::schema::publication::dsl::*;
+    fn publication_count(
+        context: &Context,
+        filter: String,
+        publishers: Vec<Uuid>,
+        publication_type: Option<PublicationType>,
+    ) -> i32 {
+        use crate::schema::publication::dsl;
         let connection = context.db.get().unwrap();
-        let mut query = publication
+        let mut query = dsl::publication
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select((
-                publication_id,
-                publication_type,
-                work_id,
-                isbn,
-                publication_url,
-                created_at,
-                updated_at,
+                dsl::publication_id,
+                dsl::publication_type,
+                dsl::work_id,
+                dsl::isbn,
+                dsl::publication_url,
+                dsl::created_at,
+                dsl::updated_at,
             ))
             .into_boxed();
         // Ordering and construction of filters is important here: result needs to be
@@ -645,9 +669,13 @@ impl QueryRoot {
         // ISBN and URL fields are both nullable, so searching with an empty filter could fail
         if !filter.is_empty() {
             query = query.filter(
-                isbn.ilike(format!("%{}%", filter))
-                    .or(publication_url.ilike(format!("%{}%", filter))),
+                dsl::isbn
+                    .ilike(format!("%{}%", filter))
+                    .or(dsl::publication_url.ilike(format!("%{}%", filter))),
             );
+        }
+        if let Some(pub_type) = publication_type {
+            query = query.filter(dsl::publication_type.eq(pub_type))
         }
         // see comment in work_count()
         query
@@ -1158,11 +1186,15 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Get the total number of contributions")]
-    fn contribution_count(context: &Context) -> i32 {
-        use crate::schema::contribution::dsl::*;
+    fn contribution_count(context: &Context, contribution_type: Option<ContributionType>) -> i32 {
+        use crate::schema::contribution::dsl;
         let connection = context.db.get().unwrap();
+        let mut query = dsl::contribution.into_boxed();
+        if let Some(cont_type) = contribution_type {
+            query = query.filter(dsl::contribution_type.eq(cont_type))
+        }
         // see comment in work_count()
-        contribution
+        query
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading contribution count")
@@ -1301,23 +1333,29 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
+            series_type(description = "A specific type to filter by"),
         )
     )]
-    fn series_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> i32 {
-        use crate::schema::series::dsl::*;
+    fn series_count(
+        context: &Context,
+        filter: String,
+        publishers: Vec<Uuid>,
+        series_type: Option<SeriesType>,
+    ) -> i32 {
+        use crate::schema::series::dsl;
         let connection = context.db.get().unwrap();
-        let mut query = series
+        let mut query = dsl::series
             .inner_join(crate::schema::imprint::table)
             .select((
-                series_id,
-                series_type,
-                series_name,
-                issn_print,
-                issn_digital,
-                series_url,
-                imprint_id,
-                created_at,
-                updated_at,
+                dsl::series_id,
+                dsl::series_type,
+                dsl::series_name,
+                dsl::issn_print,
+                dsl::issn_digital,
+                dsl::series_url,
+                dsl::imprint_id,
+                dsl::created_at,
+                dsl::updated_at,
             ))
             .into_boxed();
         // Ordering and construction of filters is important here: result needs to be
@@ -1326,14 +1364,17 @@ impl QueryRoot {
         for pub_id in publishers {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
+        if let Some(ser_type) = series_type {
+            query = query.filter(dsl::series_type.eq(ser_type))
+        }
         // see comment in work_count()
         query
             .filter(
-                series_name
+                dsl::series_name
                     .ilike(format!("%{}%", filter))
-                    .or(issn_print.ilike(format!("%{}%", filter)))
-                    .or(issn_digital.ilike(format!("%{}%", filter)))
-                    .or(series_url.ilike(format!("%{}%", filter))),
+                    .or(dsl::issn_print.ilike(format!("%{}%", filter)))
+                    .or(dsl::issn_digital.ilike(format!("%{}%", filter)))
+                    .or(dsl::series_url.ilike(format!("%{}%", filter))),
             )
             .count()
             .get_result::<i64>(&connection)
@@ -1542,11 +1583,22 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Get the total number of languages associated to works")]
-    fn language_count(context: &Context) -> i32 {
-        use crate::schema::language::dsl::*;
+    fn language_count(
+        context: &Context,
+        language_code: Option<LanguageCode>,
+        language_relation: Option<LanguageRelation>,
+    ) -> i32 {
+        use crate::schema::language::dsl;
         let connection = context.db.get().unwrap();
+        let mut query = dsl::language.into_boxed();
+        if let Some(lang_code) = language_code {
+            query = query.filter(dsl::language_code.eq(lang_code))
+        }
+        if let Some(lang_relation) = language_relation {
+            query = query.filter(dsl::language_relation.eq(lang_relation))
+        }
         // see comment in work_count()
-        language
+        query
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading language count")
@@ -1655,11 +1707,15 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Get the total number of prices associated to works")]
-    fn price_count(context: &Context) -> i32 {
-        use crate::schema::price::dsl::*;
+    fn price_count(context: &Context, currency_code: Option<CurrencyCode>) -> i32 {
+        use crate::schema::price::dsl;
         let connection = context.db.get().unwrap();
+        let mut query = dsl::price.into_boxed();
+        if let Some(curr_code) = currency_code {
+            query = query.filter(dsl::currency_code.eq(curr_code))
+        }
         // see comment in work_count()
-        price
+        query
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading price count")
@@ -1770,11 +1826,15 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Get the total number of subjects associated to works")]
-    fn subject_count(context: &Context) -> i32 {
-        use crate::schema::subject::dsl::*;
+    fn subject_count(context: &Context, subject_type: Option<SubjectType>) -> i32 {
+        use crate::schema::subject::dsl;
         let connection = context.db.get().unwrap();
+        let mut query = dsl::subject.into_boxed();
+        if let Some(sub_type) = subject_type {
+            query = query.filter(dsl::subject_type.eq(sub_type))
+        }
         // see comment in work_count()
-        subject
+        query
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading subject count")
