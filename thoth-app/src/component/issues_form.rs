@@ -68,7 +68,7 @@ pub enum Msg {
     DoNothing,
 }
 
-#[derive(Clone, Properties)]
+#[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub issues: Option<Vec<Issue>>,
     pub work_id: String,
@@ -278,11 +278,13 @@ impl Component for IssuesFormComponent {
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         let updated_permissions =
             self.props.current_user.resource_access != props.current_user.resource_access;
-        self.props = props;
+        let should_render = self.props.neq_assign(props);
         if updated_permissions {
             self.link.send_message(Msg::GetSerieses);
         }
-        false
+        // Don't need to re-render if permissions props changed, as another re-render
+        // will be triggered when the message query response is received.
+        should_render && !updated_permissions
     }
 
     fn view(&self) -> Html {
