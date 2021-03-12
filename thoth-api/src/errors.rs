@@ -38,6 +38,8 @@ pub enum ThothError {
     InvalidToken,
     #[fail(display = "No cookie found.")]
     CookieError(),
+    #[fail(display = "Issue's Work and Series cannot have different Imprints.")]
+    IssueImprintsError,
 }
 
 impl juniper::IntoFieldError for ThothError {
