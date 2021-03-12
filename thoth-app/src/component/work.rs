@@ -571,6 +571,12 @@ impl Component for WorkComponent {
                     event.prevent_default();
                     Msg::UpdateWork
                 });
+                // FormImprintSelect: while the work has any related issues, the imprint cannot
+                // be changed, because an issue's series and work must both have the same imprint.
+                let imprints = match self.work.issues.as_ref().unwrap_or(&vec![]).is_empty() {
+                    true => self.data.imprints.clone(),
+                    false => vec![self.work.imprint.clone()],
+                };
                 html! {
                     <>
                         <nav class="level">
@@ -621,7 +627,7 @@ impl Component for WorkComponent {
                                     <FormImprintSelect
                                         label = "Imprint"
                                         value=&self.work.imprint.imprint_id
-                                        data=&self.data.imprints
+                                        data=&imprints
                                         onchange=self.link.callback(|event| match event {
                                             ChangeData::Select(elem) => {
                                                 let value = elem.value();
