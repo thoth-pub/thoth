@@ -843,6 +843,7 @@ impl Component for WorkComponent {
                         <IssuesFormComponent
                             issues=&self.work.issues
                             work_id=&self.work.work_id
+                            imprint_id=&self.work.imprint.imprint_id
                             current_user=&self.props.current_user
                             update_issues=self.link.callback(|i: Option<Vec<Issue>>| Msg::UpdateIssues(i))
                         />

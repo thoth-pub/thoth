@@ -72,6 +72,7 @@ pub enum Msg {
 pub struct Props {
     pub issues: Option<Vec<Issue>>,
     pub work_id: String,
+    pub imprint_id: String,
     pub current_user: AccountDetails,
     pub update_issues: Callback<Option<Vec<Issue>>>,
 }
@@ -331,6 +332,9 @@ impl Component for IssuesFormComponent {
                                             .iter()
                                             .position(|ser| ser.series_id == series.series_id)
                                         {
+                                            html! {}
+                                        // avoid listing series whose imprint doesn't match work
+                                        } else if series.imprint.imprint_id != self.props.imprint_id {
                                             html! {}
                                         } else {
                                             s.as_dropdown_item(
