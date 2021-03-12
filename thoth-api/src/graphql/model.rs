@@ -2262,6 +2262,7 @@ impl MutationRoot {
         let work = target.get_result::<Work>(&connection).unwrap();
         if !(data.imprint_id == work.imprint_id) {
             user_can_edit_imprint(work.imprint_id, context)?;
+            can_update_work_imprint(work.work_id, context)?;
         }
 
         connection.transaction(
@@ -3628,6 +3629,26 @@ fn issue_imprints_match(work_id: Uuid, series_id: Uuid, context: &Context) -> Re
         .first::<Uuid>(&context.db.get().unwrap())
         .expect("Error loading work for issue");
     if work_imprint == series_imprint {
+        Ok(())
+    } else {
+        Err(ThothError::IssueImprintsError.into())
+    }
+}
+
+fn can_update_work_imprint(work_id: Uuid, context: &Context) -> Result<()> {
+    use crate::schema::issue::dsl;
+    // see comment in work_count()
+    let issue_count = dsl::issue
+        .filter(dsl::work_id.eq(work_id))
+        .count()
+        .get_result::<i64>(&context.db.get().unwrap())
+        .expect("Error loading issue count for work")
+        .to_string()
+        .parse::<i32>()
+        .unwrap();
+    // If a work has any related issues, its imprint cannot be changed,
+    // because an issue's series and work must both have the same imprint.
+    if issue_count == 0 {
         Ok(())
     } else {
         Err(ThothError::IssueImprintsError.into())
