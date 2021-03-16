@@ -31,6 +31,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
+    pub order: Option<String>,
     // Unused, but required by pagination_component macro
     pub publishers: Option<Vec<String>>,
 }

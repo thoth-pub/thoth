@@ -63,6 +63,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
+    pub order: Option<String>,
     pub publishers: Option<Vec<String>>,
 }
 

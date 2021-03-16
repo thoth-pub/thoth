@@ -106,6 +106,7 @@ macro_rules! pagination_component {
             offset: i32,
             page_size: i32,
             search_term: String,
+            order: String,
             data: Vec<$entity>,
             table_headers: Vec<String>,
             result_count: i32,
@@ -125,6 +126,7 @@ macro_rules! pagination_component {
             NextPage,
             PreviousPage,
             ChangeRoute(AppRoute),
+            SortColumn(String),
         }
 
         #[derive(Clone, Properties)]
@@ -142,6 +144,7 @@ macro_rules! pagination_component {
                 let page_size: i32 = 20;
                 let limit: i32 = page_size;
                 let search_term: String = Default::default();
+                let order: String = Default::default();
                 let result_count: i32 = Default::default();
                 let data = Default::default();
                 let fetch_data = Default::default();
@@ -154,6 +157,7 @@ macro_rules! pagination_component {
                     offset,
                     page_size,
                     search_term,
+                    order,
                     data,
                     table_headers,
                     result_count,
@@ -187,11 +191,13 @@ macro_rules! pagination_component {
                     }
                     Msg::PaginateData => {
                         let filter = self.search_term.clone();
+                        let order = self.order.clone();
                         let body = $request_body {
                             variables: $request_variables {
                                 limit: Some(self.limit),
                                 offset: Some(self.offset),
                                 filter: Some(filter),
+                                order: Some(order),
                                 publishers: self.props.current_user.resource_access.restricted_to(),
                             },
                             ..Default::default()
@@ -225,6 +231,13 @@ macro_rules! pagination_component {
                     Msg::ChangeRoute(r) => {
                         let route = Route::from(r);
                         self.router.send(RouteRequest::ChangeRoute(route));
+                        false
+                    }
+                    Msg::SortColumn(column) => {
+                        self.limit = self.page_size;
+                        self.offset = 0;
+                        self.order = column;
+                        self.link.send_message(Msg::PaginateData);
                         false
                     }
                 }
@@ -276,7 +289,16 @@ macro_rules! pagination_component {
                                             <tr>
                                                 {
                                                     for self.table_headers.iter().map(|h| {
-                                                        html! {<th>{h}</th>}
+                                                        let header = h.clone();
+                                                        html! {
+                                                            <th
+                                                                onclick=self.link.callback(move |_| {
+                                                                    Msg::SortColumn(header.clone())
+                                                                })
+                                                            >
+                                                                {h}
+                                                            </th>
+                                                        }
                                                     })
                                                 }
                                             </tr>
