@@ -197,7 +197,7 @@ macro_rules! pagination_component {
                                 limit: Some(self.limit),
                                 offset: Some(self.offset),
                                 filter: Some(filter),
-                                order: Some(order),
+                                order: Some(order.into()),
                                 publishers: self.props.current_user.resource_access.restricted_to(),
                             },
                             ..Default::default()

@@ -8,6 +8,8 @@ use yew::MouseEvent;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
+use super::Direction;
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contributor {
@@ -56,6 +58,49 @@ impl Contributor {
                 <td>{&self.full_name}</td>
                 <td>{orcid}</td>
             </tr>
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ContributorField {
+    #[serde(rename = "CONTRIBUTOR_ID")]
+    ContributorID,
+    FirstName,
+    LastName,
+    FullName,
+    #[serde(rename = "ORCID")]
+    ORCID,
+    Website,
+    CreatedAt,
+    UpdatedAt,
+}
+
+impl From<String> for ContributorField {
+    fn from(input: String) -> Self {
+        match input.as_ref() {
+            // Only match the headers which are currently defined/sortable in the UI
+            "ID" => ContributorField::ContributorID,
+            "FullName" => ContributorField::FullName,
+            "ORCID" => ContributorField::ORCID,
+            // Default to full name (although ideally we'd default to Null)
+            _ => ContributorField::FullName,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ContributorOrderBy {
+    pub field: ContributorField,
+    pub direction: Direction,
+}
+
+impl From<String> for ContributorOrderBy {
+    fn from(input: String) -> Self {
+        ContributorOrderBy {
+            field: input.into(),
+            direction: Direction::ASC,
         }
     }
 }

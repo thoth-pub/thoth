@@ -2,10 +2,11 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::Contributor;
+use super::ContributorOrderBy;
 
 pub const CONTRIBUTORS_QUERY: &str = "
-    query ContributorsQuery($limit: Int, $offset: Int, $filter: String) {
-        contributors(limit: $limit, offset: $offset, filter: $filter) {
+    query ContributorsQuery($limit: Int, $offset: Int, $filter: String, $order: ContributorOrderBy) {
+        contributors(limit: $limit, offset: $offset, filter: $filter, order: $order) {
             contributorId
             firstName
             lastName
@@ -34,7 +35,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
-    pub order: Option<String>,
+    pub order: Option<ContributorOrderBy>,
     // Unused, but required by pagination_component macro
     pub publishers: Option<Vec<String>>,
 }
