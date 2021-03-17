@@ -1,7 +1,7 @@
 use chrono::naive::NaiveDateTime;
 use serde::Deserialize;
 use serde::Serialize;
-use std::str::FromStr;
+use std::convert::TryFrom;
 use uuid::Uuid;
 
 use crate::errors::ThothError;
@@ -31,10 +31,11 @@ pub enum ContributorField {
     UpdatedAt,
 }
 
-impl FromStr for ContributorField {
-    type Err = ThothError;
 
-    fn from_str(input: &str) -> Result<ContributorField, ThothError> {
+impl TryFrom<&str> for ContributorField {
+    type Error = ThothError;
+
+    fn try_from(input: &str) -> Result<Self, Self::Error> {
         match input {
             "ID" => Ok(ContributorField::ContributorID),
             "FullName" => Ok(ContributorField::FullName),
