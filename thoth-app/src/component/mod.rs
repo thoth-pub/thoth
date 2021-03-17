@@ -78,11 +78,13 @@ macro_rules! pagination_component {
         $request_variables:ident,
         $search_text:ident,
         $pagination_text:ident,
-        $table_headers:expr
+        $table_headers:expr,
+        $order_struct:ty,
+        $order_field:ty,
     ) => {
+        use std::str::FromStr;
         use thoth_api::account::model::AccountDetails;
         use thoth_api::graphql::utils::Direction;
-        use thoth_api::graphql::utils::GenericOrderBy;
         use yew::html;
         use yew::prelude::Component;
         use yew::prelude::Html;
@@ -109,7 +111,7 @@ macro_rules! pagination_component {
             offset: i32,
             page_size: i32,
             search_term: String,
-            order: GenericOrderBy,
+            order: $order_struct,
             data: Vec<$entity>,
             table_headers: Vec<String>,
             result_count: i32,
@@ -147,7 +149,7 @@ macro_rules! pagination_component {
                 let page_size: i32 = 20;
                 let limit: i32 = page_size;
                 let search_term: String = Default::default();
-                let order: GenericOrderBy = Default::default();
+                let order = Default::default();
                 let result_count: i32 = Default::default();
                 let data = Default::default();
                 let fetch_data = Default::default();
@@ -200,7 +202,7 @@ macro_rules! pagination_component {
                                 limit: Some(self.limit),
                                 offset: Some(self.offset),
                                 filter: Some(filter),
-                                order: Some(order.into()),
+                                order: Some(order),
                                 publishers: self.props.current_user.resource_access.restricted_to(),
                             },
                             ..Default::default()
@@ -237,7 +239,7 @@ macro_rules! pagination_component {
                         false
                     }
                     Msg::SortColumn(column) => {
-                        match self.order.field.neq_assign(column) {
+                        match self.order.field.neq_assign(<$order_field>::from_str(&column).unwrap_or_default()) {
                             true => self.order.direction = Direction::ASC,
                             false => self.order.direction = match self.order.direction {
                                 Direction::ASC => Direction::DESC,
@@ -299,14 +301,24 @@ macro_rules! pagination_component {
                                                 {
                                                     for self.table_headers.iter().map(|h| {
                                                         let header = h.clone();
-                                                        html! {
-                                                            <th
-                                                                onclick=self.link.callback(move |_| {
-                                                                    Msg::SortColumn(header.clone())
-                                                                })
-                                                            >
-                                                                {h}
-                                                            </th>
+                                                        {
+                                                            if <$order_field>::from_str(&header).is_ok() {
+                                                                html! {
+                                                                    <th
+                                                                        onclick=self.link.callback(move |_| {
+                                                                            Msg::SortColumn(header.clone())
+                                                                        })
+                                                                    >
+                                                                        {h}
+                                                                    </th>
+                                                                }
+                                                            } else {
+                                                                html! {
+                                                                    <th>
+                                                                        {h}
+                                                                    </th>
+                                                                }
+                                                            }
                                                         }
                                                     })
                                                 }

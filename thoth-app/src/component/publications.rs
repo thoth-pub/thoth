@@ -4,6 +4,8 @@ use crate::models::publication::publications_query::FetchPublications;
 use crate::models::publication::publications_query::PublicationsRequest;
 use crate::models::publication::publications_query::PublicationsRequestBody;
 use crate::models::publication::publications_query::Variables;
+use thoth_api::contributor::model::ContributorField;
+use thoth_api::contributor::model::ContributorOrderBy;
 
 pagination_component! {
     PublicationsComponent,
@@ -17,5 +19,7 @@ pagination_component! {
     Variables,
     SEARCH_PUBLICATIONS,
     PAGINATION_COUNT_PUBLICATIONS,
-    vec!["ID".to_string(), "Work Title".to_string(), "Work DOI".to_string(), "Publisher".to_string(), "Type".to_string(), "ISBN".to_string(), "URL".to_string()]
+    vec!["ID".to_string(), "Work Title".to_string(), "Work DOI".to_string(), "Publisher".to_string(), "Type".to_string(), "ISBN".to_string(), "URL".to_string()],
+    ContributorOrderBy,
+    ContributorField,
 }

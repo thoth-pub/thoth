@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::graphql::utils::GenericOrderBy;
+use thoth_api::contributor::model::ContributorOrderBy;
 
 use super::Work;
 
@@ -64,7 +64,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
-    pub order: Option<GenericOrderBy>,
+    pub order: Option<ContributorOrderBy>,
     pub publishers: Option<Vec<String>>,
 }
 

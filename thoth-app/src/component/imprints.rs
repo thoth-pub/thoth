@@ -4,6 +4,8 @@ use crate::models::imprint::imprints_query::ImprintsRequest;
 use crate::models::imprint::imprints_query::ImprintsRequestBody;
 use crate::models::imprint::imprints_query::Variables;
 use crate::models::imprint::Imprint;
+use thoth_api::contributor::model::ContributorField;
+use thoth_api::contributor::model::ContributorOrderBy;
 
 pagination_component! {
     ImprintsComponent,
@@ -17,5 +19,7 @@ pagination_component! {
     Variables,
     SEARCH_IMPRINTS,
     PAGINATION_COUNT_IMPRINTS,
-    vec!["ID".to_string(), "Imprint".to_string(), "Publisher".to_string(), "ImprintURL".to_string()]
+    vec!["ID".to_string(), "Imprint".to_string(), "Publisher".to_string(), "ImprintURL".to_string()],
+    ContributorOrderBy,
+    ContributorField,
 }

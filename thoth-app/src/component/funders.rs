@@ -4,6 +4,8 @@ use crate::models::funder::funders_query::FundersRequest;
 use crate::models::funder::funders_query::FundersRequestBody;
 use crate::models::funder::funders_query::Variables;
 use crate::models::funder::Funder;
+use thoth_api::contributor::model::ContributorField;
+use thoth_api::contributor::model::ContributorOrderBy;
 
 pagination_component! {
     FundersComponent,
@@ -17,5 +19,7 @@ pagination_component! {
     Variables,
     SEARCH_FUNDERS,
     PAGINATION_COUNT_FUNDERS,
-    vec!["ID".to_string(), "Funder".to_string(), "DOI".to_string()]
+    vec!["ID".to_string(), "Funder".to_string(), "DOI".to_string()],
+    ContributorOrderBy,
+    ContributorField,
 }

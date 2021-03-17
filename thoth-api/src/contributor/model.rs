@@ -6,7 +6,6 @@ use uuid::Uuid;
 
 use crate::errors::ThothError;
 use crate::graphql::utils::Direction;
-use crate::graphql::utils::GenericOrderBy;
 #[cfg(feature = "backend")]
 use crate::schema::contributor;
 #[cfg(feature = "backend")]
@@ -45,25 +44,23 @@ impl FromStr for ContributorField {
     }
 }
 
+impl Default for ContributorField {
+    fn default() -> Self {
+        ContributorField::FullName
+    }
+}
+
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject),
     graphql(description = "Field and order to use when sorting contributors list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ContributorOrderBy {
     pub field: ContributorField,
     pub direction: Direction,
 }
 
-impl From<GenericOrderBy> for ContributorOrderBy {
-    fn from(input: GenericOrderBy) -> Self {
-        ContributorOrderBy {
-            field: ContributorField::from_str(&input.field).unwrap_or(ContributorField::FullName),
-            direction: input.direction,
-        }
-    }
-}
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
 #[derive(Serialize, Deserialize)]
