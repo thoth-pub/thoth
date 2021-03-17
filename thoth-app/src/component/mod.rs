@@ -82,8 +82,7 @@ macro_rules! pagination_component {
         $order_struct:ty,
         $order_field:ty,
     ) => {
-        use std::convert::TryFrom;
-        use std::convert::TryInto;
+        use std::str::FromStr;
         use thoth_api::account::model::AccountDetails;
         use thoth_api::graphql::utils::Direction;
         use yew::html;
@@ -240,7 +239,7 @@ macro_rules! pagination_component {
                         false
                     }
                     Msg::SortColumn(column) => {
-                        match self.order.field.neq_assign(column.as_str().try_into().unwrap_or_default()) {
+                        match self.order.field.neq_assign(<$order_field>::from_str(&column).unwrap_or_default()) {
                             true => self.order.direction = Direction::ASC,
                             false => self.order.direction = match self.order.direction {
                                 Direction::ASC => Direction::DESC,
@@ -303,7 +302,7 @@ macro_rules! pagination_component {
                                                     for self.table_headers.iter().map(|h| {
                                                         let header = h.clone();
                                                         {
-                                                            if <$order_field>::try_from(header.as_str()).is_ok() {
+                                                            if <$order_field>::from_str(&header).is_ok() {
                                                                 html! {
                                                                     <th
                                                                         onclick=self.link.callback(move |_| {

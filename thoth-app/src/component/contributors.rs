@@ -19,7 +19,6 @@ pagination_component! {
     Variables,
     SEARCH_CONTRIBUTORS,
     PAGINATION_COUNT_CONTRIBUTORS,
-    // If syntax allows, use TryFrom to obtain strings from ContributorField members where applicable
     vec!["ID".to_string(), "FullName".to_string(), "ORCID".to_string()],
     ContributorOrderBy,
     ContributorField,
