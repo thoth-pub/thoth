@@ -81,6 +81,8 @@ macro_rules! pagination_component {
         $table_headers:expr
     ) => {
         use thoth_api::account::model::AccountDetails;
+        use thoth_api::graphql::utils::Direction;
+        use thoth_api::graphql::utils::GenericOrderBy;
         use yew::html;
         use yew::prelude::Component;
         use yew::prelude::Html;
@@ -96,6 +98,7 @@ macro_rules! pagination_component {
         use yewtil::fetch::FetchAction;
         use yewtil::fetch::FetchState;
         use yewtil::future::LinkFuture;
+        use yewtil::NeqAssign;
 
         use crate::component::utils::Loader;
         use crate::component::utils::Reloader;
@@ -106,7 +109,7 @@ macro_rules! pagination_component {
             offset: i32,
             page_size: i32,
             search_term: String,
-            order: String,
+            order: GenericOrderBy,
             data: Vec<$entity>,
             table_headers: Vec<String>,
             result_count: i32,
@@ -144,7 +147,7 @@ macro_rules! pagination_component {
                 let page_size: i32 = 20;
                 let limit: i32 = page_size;
                 let search_term: String = Default::default();
-                let order: String = Default::default();
+                let order: GenericOrderBy = Default::default();
                 let result_count: i32 = Default::default();
                 let data = Default::default();
                 let fetch_data = Default::default();
@@ -234,9 +237,15 @@ macro_rules! pagination_component {
                         false
                     }
                     Msg::SortColumn(column) => {
+                        match self.order.field.neq_assign(column) {
+                            true => self.order.direction = Direction::ASC,
+                            false => self.order.direction = match self.order.direction {
+                                Direction::ASC => Direction::DESC,
+                                Direction::DESC => Direction::ASC,
+                            },
+                        }
                         self.limit = self.page_size;
                         self.offset = 0;
-                        self.order = column;
                         self.link.send_message(Msg::PaginateData);
                         false
                     }

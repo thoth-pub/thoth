@@ -7,3 +7,15 @@ pub enum Direction {
     ASC,
     DESC,
 }
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct GenericOrderBy {
+    pub field: String,
+    pub direction: Direction,
+}
+
+impl Default for Direction {
+    fn default() -> Direction {
+        Direction::ASC
+    }
+}

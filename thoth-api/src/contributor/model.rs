@@ -1,9 +1,12 @@
 use chrono::naive::NaiveDateTime;
 use serde::Deserialize;
 use serde::Serialize;
+use std::str::FromStr;
 use uuid::Uuid;
 
+use crate::errors::ThothError;
 use crate::graphql::utils::Direction;
+use crate::graphql::utils::GenericOrderBy;
 #[cfg(feature = "backend")]
 use crate::schema::contributor;
 #[cfg(feature = "backend")]
@@ -29,15 +32,15 @@ pub enum ContributorField {
     UpdatedAt,
 }
 
-impl From<String> for ContributorField {
-    fn from(input: String) -> Self {
-        match input.as_ref() {
-            // Only match the headers which are currently defined/sortable in the UI
-            "ID" => ContributorField::ContributorID,
-            "FullName" => ContributorField::FullName,
-            "ORCID" => ContributorField::ORCID,
-            // Default to full name (although ideally we'd default to Null)
-            _ => ContributorField::FullName,
+impl FromStr for ContributorField {
+    type Err = ThothError;
+
+    fn from_str(input: &str) -> Result<ContributorField, ThothError> {
+        match input {
+            "ID" => Ok(ContributorField::ContributorID),
+            "FullName" => Ok(ContributorField::FullName),
+            "ORCID" => Ok(ContributorField::ORCID),
+            _ => Err(ThothError::InternalError("placeholder!".to_string())),
         }
     }
 }
@@ -53,11 +56,11 @@ pub struct ContributorOrderBy {
     pub direction: Direction,
 }
 
-impl From<String> for ContributorOrderBy {
-    fn from(input: String) -> Self {
+impl From<GenericOrderBy> for ContributorOrderBy {
+    fn from(input: GenericOrderBy) -> Self {
         ContributorOrderBy {
-            field: input.into(),
-            direction: Direction::ASC,
+            field: ContributorField::from_str(&input.field).unwrap_or(ContributorField::FullName),
+            direction: input.direction,
         }
     }
 }

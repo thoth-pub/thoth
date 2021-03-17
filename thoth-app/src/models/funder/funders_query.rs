@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::graphql::utils::GenericOrderBy;
 
 use super::Funder;
 
@@ -31,7 +32,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
-    pub order: Option<String>,
+    pub order: Option<GenericOrderBy>,
     // Unused, but required by pagination_component macro
     pub publishers: Option<Vec<String>>,
 }
