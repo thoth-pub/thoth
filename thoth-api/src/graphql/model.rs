@@ -27,6 +27,8 @@ use crate::series::model::*;
 use crate::subject::model::*;
 use crate::work::model::*;
 
+use super::utils::Direction;
+
 impl juniper::Context for Context {}
 
 #[derive(Clone)]
@@ -44,13 +46,6 @@ impl Context {
             token,
         }
     }
-}
-
-#[derive(juniper::GraphQLEnum)]
-#[graphql(description = "Order in which to sort query results (ascending or descending)")]
-pub enum Direction {
-    ASC,
-    DESC,
 }
 
 #[derive(juniper::GraphQLInputObject)]
@@ -78,13 +73,6 @@ pub struct PublisherOrderBy {
 #[graphql(description = "Field and order to use when sorting imprints list")]
 pub struct ImprintOrderBy {
     pub field: ImprintField,
-    pub direction: Direction,
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting contributors list")]
-pub struct ContributorOrderBy {
-    pub field: ContributorField,
     pub direction: Direction,
 }
 

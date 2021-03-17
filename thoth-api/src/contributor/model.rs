@@ -1,7 +1,9 @@
 use chrono::naive::NaiveDateTime;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use uuid::Uuid;
 
+use crate::graphql::utils::Direction;
 #[cfg(feature = "backend")]
 use crate::schema::contributor;
 #[cfg(feature = "backend")]
@@ -12,15 +14,52 @@ use crate::schema::contributor_history;
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting contributors list")
 )]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ContributorField {
+    #[serde(rename = "CONTRIBUTOR_ID")]
     ContributorID,
     FirstName,
     LastName,
     FullName,
+    #[serde(rename = "ORCID")]
     ORCID,
     Website,
     CreatedAt,
     UpdatedAt,
+}
+
+impl From<String> for ContributorField {
+    fn from(input: String) -> Self {
+        match input.as_ref() {
+            // Only match the headers which are currently defined/sortable in the UI
+            "ID" => ContributorField::ContributorID,
+            "FullName" => ContributorField::FullName,
+            "ORCID" => ContributorField::ORCID,
+            // Default to full name (although ideally we'd default to Null)
+            _ => ContributorField::FullName,
+        }
+    }
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Field and order to use when sorting contributors list")
+)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ContributorOrderBy {
+    pub field: ContributorField,
+    pub direction: Direction,
+}
+
+impl From<String> for ContributorOrderBy {
+    fn from(input: String) -> Self {
+        ContributorOrderBy {
+            field: input.into(),
+            direction: Direction::ASC,
+        }
+    }
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]

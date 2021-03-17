@@ -87,15 +87,6 @@ macro_rules! graphql_query_builder {
     };
 }
 
-use serde::Deserialize;
-use serde::Serialize;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum Direction {
-    ASC,
-    DESC,
-}
-
 pub mod contribution;
 pub mod contributor;
 pub mod funder;
