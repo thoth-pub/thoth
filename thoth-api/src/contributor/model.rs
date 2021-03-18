@@ -31,41 +31,6 @@ pub enum ContributorField {
     UpdatedAt,
 }
 
-impl FromStr for ContributorField {
-    type Err = ThothError;
-
-    fn from_str(input: &str) -> Result<ContributorField, ThothError> {
-        match input {
-            // Only match the headers which are currently defined/sortable in the UI
-            "ID" => Ok(ContributorField::ContributorID),
-            "FullName" => Ok(ContributorField::FullName),
-            "ORCID" => Ok(ContributorField::ORCID),
-            "Updated" => Ok(ContributorField::UpdatedAt),
-            _ => Err(ThothError::SortFieldError(
-                input.to_string(),
-                "Contributor".to_string(),
-            )),
-        }
-    }
-}
-
-impl Default for ContributorField {
-    fn default() -> Self {
-        ContributorField::FullName
-    }
-}
-
-#[cfg_attr(
-    feature = "backend",
-    derive(juniper::GraphQLInputObject),
-    graphql(description = "Field and order to use when sorting contributors list")
-)]
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ContributorOrderBy {
-    pub field: ContributorField,
-    pub direction: Direction,
-}
-
 #[cfg_attr(feature = "backend", derive(Queryable))]
 #[derive(Serialize, Deserialize)]
 pub struct Contributor {
@@ -125,4 +90,61 @@ pub struct NewContributorHistory {
     pub contributor_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Field and order to use when sorting contributors list")
+)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ContributorOrderBy {
+    pub field: ContributorField,
+    pub direction: Direction,
+}
+
+impl Default for ContributorField {
+    fn default() -> Self {
+        ContributorField::FullName
+    }
+}
+
+impl FromStr for ContributorField {
+    type Err = ThothError;
+
+    fn from_str(input: &str) -> Result<ContributorField, ThothError> {
+        match input {
+            // Only match the headers which are currently defined/sortable in the UI
+            "ID" => Ok(ContributorField::ContributorID),
+            "FullName" => Ok(ContributorField::FullName),
+            "ORCID" => Ok(ContributorField::ORCID),
+            "Updated" => Ok(ContributorField::UpdatedAt),
+            _ => Err(ThothError::SortFieldError(
+                input.to_string(),
+                "Contributor".to_string(),
+            )),
+        }
+    }
+}
+
+#[test]
+fn test_contributorfield_fromstr() {
+    assert_eq!(
+        ContributorField::from_str("ID").unwrap(),
+        ContributorField::ContributorID
+    );
+    assert_eq!(
+        ContributorField::from_str("FullName").unwrap(),
+        ContributorField::FullName
+    );
+    assert_eq!(
+        ContributorField::from_str("ORCID").unwrap(),
+        ContributorField::ORCID
+    );
+    assert_eq!(
+        ContributorField::from_str("Updated").unwrap(),
+        ContributorField::UpdatedAt
+    );
+    assert!(ContributorField::from_str("Website").is_err());
+    assert!(ContributorField::from_str("Created").is_err());
 }
