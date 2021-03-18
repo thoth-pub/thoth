@@ -20,6 +20,7 @@ wasm-pack = "0.9.1"
 
 [dependencies]
 anyhow = "1.0.32"
+chrono = { version = "0.4", features = ["serde"] }
 log = "0.4.11"
 thiserror = "1.0.20"
 yew = "0.17.3"

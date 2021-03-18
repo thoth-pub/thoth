@@ -3697,6 +3697,7 @@ name = "thoth-app"
 version = "0.3.2"
 dependencies = [
  "anyhow",
+ "chrono",
  "log",
  "serde",
  "serde_json",

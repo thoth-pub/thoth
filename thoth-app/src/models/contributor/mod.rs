@@ -1,3 +1,4 @@
+use chrono::naive::NaiveDateTime;
 use serde::Deserialize;
 use serde::Serialize;
 use yew::html;
@@ -48,6 +49,8 @@ impl Contributor {
 
     pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let orcid = self.orcid.clone().unwrap_or_else(|| "".to_string());
+        let updated =
+            NaiveDateTime::from_timestamp(self.updated_at.as_f64().unwrap_or(0.0) as i64, 0);
         html! {
             <tr
                 class="row"
@@ -56,7 +59,7 @@ impl Contributor {
                 <td>{&self.contributor_id}</td>
                 <td>{&self.full_name}</td>
                 <td>{orcid}</td>
-                <td>{&self.updated_at}</td>
+                <td>{updated}</td>
             </tr>
         }
     }
