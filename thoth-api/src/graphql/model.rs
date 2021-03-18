@@ -946,12 +946,7 @@ impl QueryRoot {
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_name and orcid"
             ),
             order(
-                default = {
-                    ContributorOrderBy {
-                        field: ContributorField::FullName,
-                        direction: Direction::ASC,
-                    }
-                },
+                default = ContributorOrderBy::default(),
                 description = "The order in which to sort the results",
             ),
         )

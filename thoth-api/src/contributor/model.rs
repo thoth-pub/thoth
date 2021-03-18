@@ -36,10 +36,14 @@ impl FromStr for ContributorField {
 
     fn from_str(input: &str) -> Result<ContributorField, ThothError> {
         match input {
+            // Only match the headers which are currently defined/sortable in the UI
             "ID" => Ok(ContributorField::ContributorID),
             "FullName" => Ok(ContributorField::FullName),
             "ORCID" => Ok(ContributorField::ORCID),
-            _ => Err(ThothError::InternalError("placeholder!".to_string())),
+            _ => Err(ThothError::SortFieldError(
+                input.to_string(),
+                "Contributor".to_string(),
+            )),
         }
     }
 }
@@ -60,7 +64,6 @@ pub struct ContributorOrderBy {
     pub field: ContributorField,
     pub direction: Direction,
 }
-
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
 #[derive(Serialize, Deserialize)]

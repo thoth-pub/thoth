@@ -84,7 +84,7 @@ macro_rules! pagination_component {
     ) => {
         use std::str::FromStr;
         use thoth_api::account::model::AccountDetails;
-        use thoth_api::graphql::utils::Direction;
+        use thoth_api::graphql::utils::Direction::*;
         use yew::html;
         use yew::prelude::Component;
         use yew::prelude::Html;
@@ -131,7 +131,7 @@ macro_rules! pagination_component {
             NextPage,
             PreviousPage,
             ChangeRoute(AppRoute),
-            SortColumn(String),
+            SortColumn($order_field),
         }
 
         #[derive(Clone, Properties)]
@@ -238,14 +238,16 @@ macro_rules! pagination_component {
                         self.router.send(RouteRequest::ChangeRoute(route));
                         false
                     }
-                    Msg::SortColumn(column) => {
-                        match self.order.field.neq_assign(<$order_field>::from_str(&column).unwrap_or_default()) {
-                            true => self.order.direction = Direction::ASC,
-                            false => self.order.direction = match self.order.direction {
-                                Direction::ASC => Direction::DESC,
-                                Direction::DESC => Direction::ASC,
+                    Msg::SortColumn(header) => {
+                        // Clicking on a header, if enabled, sorts the table by that column ascending
+                        // Clicking on the current sort column header reverses the sort direction
+                        self.order.direction = match self.order.field.neq_assign(header) {
+                            true => ASC,
+                            false => match self.order.direction {
+                                ASC => DESC,
+                                DESC => ASC,
                             },
-                        }
+                        };
                         self.limit = self.page_size;
                         self.offset = 0;
                         self.link.send_message(Msg::PaginateData);
@@ -300,23 +302,26 @@ macro_rules! pagination_component {
                                             <tr>
                                                 {
                                                     for self.table_headers.iter().map(|h| {
-                                                        let header = h.clone();
                                                         {
-                                                            if <$order_field>::from_str(&header).is_ok() {
-                                                                html! {
-                                                                    <th
-                                                                        onclick=self.link.callback(move |_| {
-                                                                            Msg::SortColumn(header.clone())
-                                                                        })
-                                                                    >
-                                                                        {h}
-                                                                    </th>
+                                                            // If the header is a sortable field, make it clickable
+                                                            match <$order_field>::from_str(&h) {
+                                                                Ok(header) => {
+                                                                    html! {
+                                                                        <th
+                                                                            onclick=self.link.callback(move |_| {
+                                                                                Msg::SortColumn(header.clone())
+                                                                            })
+                                                                        >
+                                                                            {h}
+                                                                        </th>
+                                                                    }
                                                                 }
-                                                            } else {
-                                                                html! {
-                                                                    <th>
-                                                                        {h}
-                                                                    </th>
+                                                                Err(_) => {
+                                                                    html! {
+                                                                        <th>
+                                                                            {h}
+                                                                        </th>
+                                                                    }
                                                                 }
                                                             }
                                                         }
