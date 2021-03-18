@@ -40,6 +40,7 @@ impl FromStr for ContributorField {
             "ID" => Ok(ContributorField::ContributorID),
             "FullName" => Ok(ContributorField::FullName),
             "ORCID" => Ok(ContributorField::ORCID),
+            "Updated" => Ok(ContributorField::UpdatedAt),
             _ => Err(ThothError::SortFieldError(
                 input.to_string(),
                 "Contributor".to_string(),

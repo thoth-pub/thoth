@@ -17,6 +17,7 @@ pub struct Contributor {
     pub full_name: String,
     pub orcid: Option<String>,
     pub website: Option<String>,
+    pub updated_at: serde_json::Value,
 }
 
 impl Contributor {
@@ -55,6 +56,7 @@ impl Contributor {
                 <td>{&self.contributor_id}</td>
                 <td>{&self.full_name}</td>
                 <td>{orcid}</td>
+                <td>{&self.updated_at}</td>
             </tr>
         }
     }

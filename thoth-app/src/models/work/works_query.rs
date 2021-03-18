@@ -30,6 +30,7 @@ pub const WORKS_QUERY: &str = "
                     contributorId
                     lastName
                     fullName
+                    updatedAt
                 }
             }
             imprint {

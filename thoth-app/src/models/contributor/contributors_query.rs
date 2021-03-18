@@ -13,6 +13,7 @@ pub const CONTRIBUTORS_QUERY: &str = "
             fullName
             orcid
             website
+            updatedAt
         }
         contributorCount(filter: $filter)
     }
