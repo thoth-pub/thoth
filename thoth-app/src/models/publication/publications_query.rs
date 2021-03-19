@@ -13,6 +13,7 @@ pub const PUBLICATIONS_QUERY: &str = "
             workId
             isbn
             publicationUrl
+            updatedAt
             work {
                 workId
                 workType
@@ -22,14 +23,17 @@ pub const PUBLICATIONS_QUERY: &str = "
                 title
                 edition
                 copyrightHolder
+                updatedAt
                 imprint {
                     imprintId
                     imprintName
+                    updatedAt
                     publisher {
                         publisherId
                         publisherName
                         publisherShortname
                         publisherUrl
+                        updatedAt
                     }
                 }
             }
@@ -67,6 +71,7 @@ pub struct DetailedPublication {
     pub work_id: String,
     pub isbn: Option<String>,
     pub publication_url: Option<String>,
+    pub updated_at: serde_json::Value,
     pub work: Work,
 }
 

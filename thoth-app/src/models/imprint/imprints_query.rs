@@ -10,11 +10,13 @@ const IMPRINTS_QUERY: &str = "
             imprintId
             imprintName
             imprintUrl
+            updatedAt
             publisher {
                 publisherId
                 publisherName
                 publisherShortname
                 publisherUrl
+                updatedAt
             }
         }
         imprintCount(filter: $filter, publishers: $publishers)

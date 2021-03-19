@@ -1,3 +1,4 @@
+use chrono::naive::NaiveDateTime;
 use serde::Deserialize;
 use serde::Serialize;
 use yew::html;
@@ -14,6 +15,7 @@ pub struct Funder {
     pub funder_id: String,
     pub funder_name: String,
     pub funder_doi: Option<String>,
+    pub updated_at: serde_json::Value,
 }
 
 impl Funder {
@@ -44,6 +46,8 @@ impl Funder {
 
     pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let funder_doi = self.funder_doi.clone().unwrap_or_else(|| "".to_string());
+        let updated =
+            NaiveDateTime::from_timestamp(self.updated_at.as_f64().unwrap_or(0.0) as i64, 0);
         html! {
             <tr
                 class="row"
@@ -52,6 +56,7 @@ impl Funder {
                 <td>{&self.funder_id}</td>
                 <td>{&self.funder_name}</td>
                 <td>{funder_doi}</td>
+                <td>{updated}</td>
             </tr>
         }
     }

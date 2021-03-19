@@ -1,3 +1,4 @@
+use chrono::naive::NaiveDateTime;
 use serde::Deserialize;
 use serde::Serialize;
 use yew::html;
@@ -15,6 +16,7 @@ pub struct Imprint {
     pub imprint_id: String,
     pub imprint_name: String,
     pub imprint_url: Option<String>,
+    pub updated_at: serde_json::Value,
     pub publisher: Publisher,
 }
 
@@ -29,6 +31,8 @@ impl Imprint {
 
     pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let imprint_url = self.imprint_url.clone().unwrap_or_else(|| "".to_string());
+        let updated =
+            NaiveDateTime::from_timestamp(self.updated_at.as_f64().unwrap_or(0.0) as i64, 0);
         html! {
             <tr
                 class="row"
@@ -38,6 +42,7 @@ impl Imprint {
                 <td>{&self.imprint_name}</td>
                 <td>{&self.publisher.publisher_name}</td>
                 <td>{imprint_url}</td>
+                <td>{updated}</td>
             </tr>
         }
     }
@@ -49,6 +54,7 @@ impl Default for Imprint {
             imprint_id: "".to_string(),
             imprint_name: "".to_string(),
             imprint_url: None,
+            updated_at: Default::default(),
             publisher: Default::default(),
         }
     }

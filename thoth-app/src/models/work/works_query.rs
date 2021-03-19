@@ -19,6 +19,7 @@ pub const WORKS_QUERY: &str = "
             license
             place
             publicationDate
+            updatedAt
             contributions {
                 workId
                 contributorId
@@ -36,11 +37,13 @@ pub const WORKS_QUERY: &str = "
             imprint {
                 imprintId
                 imprintName
+                updatedAt
                 publisher {
                     publisherId
                     publisherName
                     publisherShortname
                     publisherUrl
+                    updatedAt
                 }
             }
         }

@@ -12,6 +12,7 @@ const DELETE_FUNDER_MUTATION: &str = "
         ){
             funderId
             funderName
+            updatedAt
         }
     }
 ";

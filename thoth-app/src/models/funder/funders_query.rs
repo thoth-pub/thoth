@@ -10,6 +10,7 @@ pub const FUNDERS_QUERY: &str = "
             funderId
             funderName
             funderDoi
+            updatedAt
         }
         funderCount(filter: $filter)
     }

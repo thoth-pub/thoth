@@ -1,3 +1,4 @@
+use chrono::naive::NaiveDateTime;
 use serde::Deserialize;
 use serde::Serialize;
 use std::str::FromStr;
@@ -53,6 +54,7 @@ pub struct Work {
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
+    pub updated_at: serde_json::Value,
     pub contributions: Option<Vec<Contribution>>,
     pub publications: Option<Vec<Publication>>,
     pub languages: Option<Vec<Language>>,
@@ -216,6 +218,8 @@ impl Work {
 
     pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let doi = self.doi.clone().unwrap_or_else(|| "".to_string());
+        let updated =
+            NaiveDateTime::from_timestamp(self.updated_at.as_f64().unwrap_or(0.0) as i64, 0);
         html! {
             <tr
                 class="row"
@@ -235,6 +239,7 @@ impl Work {
                 </td>
                 <td>{doi}</td>
                 <td>{&self.publisher()}</td>
+                <td>{updated}</td>
             </tr>
         }
     }
@@ -453,6 +458,7 @@ impl Default for Work {
             toc: None,
             cover_url: None,
             cover_caption: None,
+            updated_at: Default::default(),
             contributions: None,
             publications: None,
             languages: None,

@@ -24,14 +24,17 @@ const CREATE_ISSUE_MUTATION: &str = "
                 issnPrint
                 issnDigital
                 seriesUrl
+                updatedAt
                 imprint {
                     imprintId
                     imprintName
+                    updatedAt
                     publisher {
                         publisherId
                         publisherName
                         publisherShortname
                         publisherUrl
+                        updatedAt
                     }
                 }
             }

@@ -1,3 +1,4 @@
+use chrono::naive::NaiveDateTime;
 use serde::Deserialize;
 use serde::Serialize;
 use yew::html;
@@ -15,6 +16,7 @@ pub struct Publisher {
     pub publisher_name: String,
     pub publisher_shortname: Option<String>,
     pub publisher_url: Option<String>,
+    pub updated_at: serde_json::Value,
 }
 
 impl Publisher {
@@ -32,6 +34,8 @@ impl Publisher {
             .clone()
             .unwrap_or_else(|| "".to_string());
         let publisher_url = self.publisher_url.clone().unwrap_or_else(|| "".to_string());
+        let updated =
+            NaiveDateTime::from_timestamp(self.updated_at.as_f64().unwrap_or(0.0) as i64, 0);
         html! {
             <tr
                 class="row"
@@ -41,6 +45,7 @@ impl Publisher {
                 <td>{&self.publisher_name}</td>
                 <td>{publisher_shortname}</td>
                 <td>{publisher_url}</td>
+                <td>{updated}</td>
             </tr>
         }
     }
@@ -53,6 +58,7 @@ impl Default for Publisher {
             publisher_name: "".to_string(),
             publisher_shortname: None,
             publisher_url: None,
+            updated_at: Default::default(),
         }
     }
 }
