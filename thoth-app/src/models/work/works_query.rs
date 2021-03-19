@@ -5,8 +5,8 @@ use thoth_api::work::model::WorkOrderBy;
 use super::Work;
 
 pub const WORKS_QUERY: &str = "
-    query WorksQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!]) {
-        works(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers) {
+    query WorksQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: WorkOrderBy) {
+        works(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers, order: $order) {
             workId
             workType
             workStatus

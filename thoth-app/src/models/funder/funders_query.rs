@@ -5,8 +5,8 @@ use thoth_api::funder::model::FunderOrderBy;
 use super::Funder;
 
 pub const FUNDERS_QUERY: &str = "
-    query FundersQuery($limit: Int, $offset: Int, $filter: String) {
-        funders(limit: $limit, offset: $offset, filter: $filter) {
+    query FundersQuery($limit: Int, $offset: Int, $filter: String, $order: FunderOrderBy) {
+        funders(limit: $limit, offset: $offset, filter: $filter, order: $order) {
             funderId
             funderName
             funderDoi

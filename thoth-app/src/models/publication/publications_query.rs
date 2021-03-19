@@ -6,8 +6,8 @@ use thoth_api::publication::model::PublicationType;
 use super::super::work::Work;
 
 pub const PUBLICATIONS_QUERY: &str = "
-    query PublicationsQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!]) {
-        publications(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers) {
+    query PublicationsQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: PublicationOrderBy) {
+        publications(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers, order: $order) {
             publicationId
             publicationType
             workId

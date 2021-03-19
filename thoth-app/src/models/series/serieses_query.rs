@@ -5,8 +5,8 @@ use thoth_api::series::model::SeriesOrderBy;
 use super::Series;
 
 pub const SERIESES_QUERY: &str = "
-    query SeriesesQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!]) {
-        serieses(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers) {
+    query SeriesesQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: SeriesOrderBy) {
+        serieses(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers, order: $order) {
             seriesId
             seriesType
             seriesName

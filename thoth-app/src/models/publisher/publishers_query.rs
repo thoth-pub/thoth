@@ -5,8 +5,8 @@ use thoth_api::publisher::model::PublisherOrderBy;
 use super::Publisher;
 
 const PUBLISHERS_QUERY: &str = "
-    query PublishersQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!]) {
-        publishers(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers) {
+    query PublishersQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: PublisherOrderBy) {
+        publishers(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers, order: $order) {
             publisherId
             publisherName
             publisherShortname

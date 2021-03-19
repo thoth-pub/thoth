@@ -5,8 +5,8 @@ use thoth_api::imprint::model::ImprintOrderBy;
 use super::Imprint;
 
 const IMPRINTS_QUERY: &str = "
-    query ImprintsQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!]) {
-        imprints(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers) {
+    query ImprintsQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: ImprintOrderBy) {
+        imprints(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers, order: $order) {
             imprintId
             imprintName
             imprintUrl
