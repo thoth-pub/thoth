@@ -6,6 +6,7 @@ use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::errors::ThothError;
+use crate::graphql::utils::Direction;
 #[cfg(feature = "backend")]
 use crate::schema::work;
 #[cfg(feature = "backend")]
@@ -58,7 +59,10 @@ pub enum WorkStatus {
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting works list")
 )]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum WorkField {
+    #[serde(rename = "WORK_ID")]
     WorkID,
     WorkType,
     WorkStatus,
@@ -67,6 +71,7 @@ pub enum WorkField {
     Subtitle,
     Reference,
     Edition,
+    #[serde(rename = "DOI")]
     DOI,
     PublicationDate,
     Place,
@@ -81,12 +86,16 @@ pub enum WorkField {
     License,
     CopyrightHolder,
     LandingPage,
+    #[serde(rename = "LCCN")]
     LCCN,
+    #[serde(rename = "OCLC")]
     OCLC,
     ShortAbstract,
     LongAbstract,
     GeneralNote,
+    #[serde(rename = "TOC")]
     TOC,
+    #[serde(rename = "COVER_URL")]
     CoverURL,
     CoverCaption,
     CreatedAt,
@@ -225,6 +234,17 @@ pub struct NewWorkHistory {
     pub data: serde_json::Value,
 }
 
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Field and order to use when sorting works list")
+)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct WorkOrderBy {
+    pub field: WorkField,
+    pub direction: Direction,
+}
+
 impl Default for WorkType {
     fn default() -> WorkType {
         WorkType::Monograph
@@ -234,6 +254,12 @@ impl Default for WorkType {
 impl Default for WorkStatus {
     fn default() -> WorkStatus {
         WorkStatus::Inactive
+    }
+}
+
+impl Default for WorkField {
+    fn default() -> Self {
+        WorkField::FullTitle
     }
 }
 
@@ -309,6 +335,25 @@ impl FromStr for WorkStatus {
     }
 }
 
+impl FromStr for WorkField {
+    type Err = ThothError;
+
+    fn from_str(input: &str) -> Result<WorkField, ThothError> {
+        match input {
+            // Only match the headers which are currently defined/sortable in the UI
+            "ID" => Ok(WorkField::WorkID),
+            "Title" => Ok(WorkField::FullTitle),
+            "Type" => Ok(WorkField::WorkType),
+            "DOI" => Ok(WorkField::DOI),
+            "Updated" => Ok(WorkField::UpdatedAt),
+            _ => Err(ThothError::SortFieldError(
+                input.to_string(),
+                "Work".to_string(),
+            )),
+        }
+    }
+}
+
 #[test]
 fn test_worktype_default() {
     let worktype: WorkType = Default::default();
@@ -319,6 +364,12 @@ fn test_worktype_default() {
 fn test_workstatus_default() {
     let workstatus: WorkStatus = Default::default();
     assert_eq!(workstatus, WorkStatus::Inactive);
+}
+
+#[test]
+fn test_workfield_default() {
+    let workfield: WorkField = Default::default();
+    assert_eq!(workfield, WorkField::FullTitle);
 }
 
 #[test]
@@ -438,4 +489,18 @@ fn test_workstatus_fromstr() {
 
     assert!(WorkStatus::from_str("Published").is_err());
     assert!(WorkStatus::from_str("Unpublished").is_err());
+}
+
+#[test]
+fn test_workfield_fromstr() {
+    assert_eq!(WorkField::from_str("ID").unwrap(), WorkField::WorkID);
+    assert_eq!(WorkField::from_str("Title").unwrap(), WorkField::FullTitle);
+    assert_eq!(WorkField::from_str("Type").unwrap(), WorkField::WorkType);
+    assert_eq!(WorkField::from_str("DOI").unwrap(), WorkField::DOI);
+    assert_eq!(
+        WorkField::from_str("Updated").unwrap(),
+        WorkField::UpdatedAt
+    );
+    assert!(WorkField::from_str("Contributors").is_err());
+    assert!(WorkField::from_str("Created").is_err());
 }

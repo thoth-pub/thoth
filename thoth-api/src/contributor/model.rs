@@ -128,6 +128,12 @@ impl FromStr for ContributorField {
 }
 
 #[test]
+fn test_contributorfield_default() {
+    let contfield: ContributorField = Default::default();
+    assert_eq!(contfield, ContributorField::FullName);
+}
+
+#[test]
 fn test_contributorfield_fromstr() {
     assert_eq!(
         ContributorField::from_str("ID").unwrap(),

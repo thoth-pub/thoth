@@ -49,44 +49,9 @@ impl Context {
 }
 
 #[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting works list")]
-pub struct WorkOrderBy {
-    pub field: WorkField,
-    pub direction: Direction,
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting publications list")]
-pub struct PublicationOrderBy {
-    pub field: PublicationField,
-    pub direction: Direction,
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting publishers list")]
-pub struct PublisherOrderBy {
-    pub field: PublisherField,
-    pub direction: Direction,
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting imprints list")]
-pub struct ImprintOrderBy {
-    pub field: ImprintField,
-    pub direction: Direction,
-}
-
-#[derive(juniper::GraphQLInputObject)]
 #[graphql(description = "Field and order to use when sorting contributions list")]
 pub struct ContributionOrderBy {
     pub field: ContributionField,
-    pub direction: Direction,
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting series list")]
-pub struct SeriesOrderBy {
-    pub field: SeriesField,
     pub direction: Direction,
 }
 
@@ -119,13 +84,6 @@ pub struct SubjectOrderBy {
 }
 
 #[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting funders list")]
-pub struct FunderOrderBy {
-    pub field: FunderField,
-    pub direction: Direction,
-}
-
-#[derive(juniper::GraphQLInputObject)]
 #[graphql(description = "Field and order to use when sorting fundings list")]
 pub struct FundingOrderBy {
     pub field: FundingField,
@@ -152,12 +110,7 @@ impl QueryRoot {
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
         ),
         order(
-            default = {
-                WorkOrderBy {
-                    field: WorkField::FullTitle,
-                    direction: Direction::ASC,
-                }
-            },
+            default = WorkOrderBy::default(),
             description = "The order in which to sort the results",
         ),
         publishers(
@@ -510,12 +463,7 @@ impl QueryRoot {
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url"
             ),
             order(
-                default = {
-                    PublicationOrderBy {
-                        field: PublicationField::PublicationType,
-                        direction: Direction::ASC,
-                    }
-                },
+                default = PublicationOrderBy::default(),
                 description = "The order in which to sort the results",
             ),
             publishers(
@@ -692,12 +640,7 @@ impl QueryRoot {
 
         ),
         order(
-            default = {
-                PublisherOrderBy {
-                    field: PublisherField::PublisherName,
-                    direction: Direction::ASC,
-                }
-            },
+            default = PublisherOrderBy::default(),
             description = "The order in which to sort the results",
         ),
         publishers(
@@ -821,12 +764,7 @@ impl QueryRoot {
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url"
             ),
             order(
-                default = {
-                    ImprintOrderBy {
-                        field: ImprintField::ImprintName,
-                        direction: Direction::ASC,
-                    }
-                },
+                default = ImprintOrderBy::default(),
                 description = "The order in which to sort the results",
             ),
             publishers(
@@ -1196,12 +1134,7 @@ impl QueryRoot {
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital and series_url"
             ),
             order(
-                default = {
-                    SeriesOrderBy {
-                        field: SeriesField::SeriesName,
-                        direction: Direction::ASC,
-                    }
-                },
+                default = SeriesOrderBy::default(),
                 description = "The order in which to sort the results",
             ),
             publishers(
@@ -1836,12 +1769,7 @@ impl QueryRoot {
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on funderName and funderDoi",
             ),
             order(
-                default = {
-                    FunderOrderBy {
-                        field: FunderField::FunderName,
-                        direction: Direction::ASC,
-                    }
-                },
+                default = FunderOrderBy::default(),
                 description = "The order in which to sort the results",
             ),
         )

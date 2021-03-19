@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::contributor::model::ContributorOrderBy;
+use thoth_api::imprint::model::ImprintOrderBy;
 
 use super::Imprint;
 
@@ -38,7 +38,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
-    pub order: Option<ContributorOrderBy>,
+    pub order: Option<ImprintOrderBy>,
     pub publishers: Option<Vec<String>>,
 }
 

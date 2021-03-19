@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::contributor::model::ContributorOrderBy;
+use thoth_api::publication::model::PublicationOrderBy;
 use thoth_api::publication::model::PublicationType;
 
 use super::super::work::Work;
@@ -55,7 +55,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
-    pub order: Option<ContributorOrderBy>,
+    pub order: Option<PublicationOrderBy>,
     pub publishers: Option<Vec<String>>,
 }
 

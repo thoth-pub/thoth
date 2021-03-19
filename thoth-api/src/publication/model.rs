@@ -5,6 +5,7 @@ use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::errors::ThothError;
+use crate::graphql::utils::Direction;
 #[cfg(feature = "backend")]
 use crate::schema::publication;
 #[cfg(feature = "backend")]
@@ -39,11 +40,17 @@ pub enum PublicationType {
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting publications list")
 )]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublicationField {
+    #[serde(rename = "PUBLICATION_ID")]
     PublicationID,
     PublicationType,
+    #[serde(rename = "WORK_ID")]
     WorkID,
+    #[serde(rename = "ISBN")]
     ISBN,
+    #[serde(rename = "PUBLICATION_URL")]
     PublicationURL,
     CreatedAt,
     UpdatedAt,
@@ -107,9 +114,26 @@ pub struct NewPublicationHistory {
     pub data: serde_json::Value,
 }
 
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Field and order to use when sorting publications list")
+)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PublicationOrderBy {
+    pub field: PublicationField,
+    pub direction: Direction,
+}
+
 impl Default for PublicationType {
     fn default() -> PublicationType {
         PublicationType::Paperback
+    }
+}
+
+impl Default for PublicationField {
+    fn default() -> Self {
+        PublicationField::PublicationType
     }
 }
 
@@ -144,10 +168,35 @@ impl FromStr for PublicationType {
     }
 }
 
+impl FromStr for PublicationField {
+    type Err = ThothError;
+
+    fn from_str(input: &str) -> Result<PublicationField, ThothError> {
+        match input {
+            // Only match the headers which are currently defined/sortable in the UI
+            "ID" => Ok(PublicationField::PublicationID),
+            "Type" => Ok(PublicationField::PublicationType),
+            "ISBN" => Ok(PublicationField::ISBN),
+            "URL" => Ok(PublicationField::PublicationURL),
+            "Updated" => Ok(PublicationField::UpdatedAt),
+            _ => Err(ThothError::SortFieldError(
+                input.to_string(),
+                "Publication".to_string(),
+            )),
+        }
+    }
+}
+
 #[test]
 fn test_publicationtype_default() {
     let pubtype: PublicationType = Default::default();
     assert_eq!(pubtype, PublicationType::Paperback);
+}
+
+#[test]
+fn test_publicationfield_default() {
+    let pubfield: PublicationField = Default::default();
+    assert_eq!(pubfield, PublicationField::PublicationType);
 }
 
 #[test]
@@ -194,4 +243,30 @@ fn test_publicationtype_fromstr() {
 
     assert!(PublicationType::from_str("PNG").is_err());
     assert!(PublicationType::from_str("Latex").is_err());
+}
+
+#[test]
+fn test_publicationfield_fromstr() {
+    assert_eq!(
+        PublicationField::from_str("ID").unwrap(),
+        PublicationField::PublicationID
+    );
+    assert_eq!(
+        PublicationField::from_str("Type").unwrap(),
+        PublicationField::PublicationType
+    );
+    assert_eq!(
+        PublicationField::from_str("ISBN").unwrap(),
+        PublicationField::ISBN
+    );
+    assert_eq!(
+        PublicationField::from_str("URL").unwrap(),
+        PublicationField::PublicationURL
+    );
+    assert_eq!(
+        PublicationField::from_str("Updated").unwrap(),
+        PublicationField::UpdatedAt
+    );
+    assert!(PublicationField::from_str("Work Title").is_err());
+    assert!(PublicationField::from_str("Created").is_err());
 }

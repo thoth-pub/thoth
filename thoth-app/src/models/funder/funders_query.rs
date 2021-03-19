@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::contributor::model::ContributorOrderBy;
+use thoth_api::funder::model::FunderOrderBy;
 
 use super::Funder;
 
@@ -32,7 +32,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
-    pub order: Option<ContributorOrderBy>,
+    pub order: Option<FunderOrderBy>,
     // Unused, but required by pagination_component macro
     pub publishers: Option<Vec<String>>,
 }

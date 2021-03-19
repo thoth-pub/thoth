@@ -5,6 +5,7 @@ use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::errors::ThothError;
+use crate::graphql::utils::Direction;
 #[cfg(feature = "backend")]
 use crate::schema::series;
 #[cfg(feature = "backend")]
@@ -25,12 +26,18 @@ pub enum SeriesType {
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting series list")
 )]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SeriesField {
+    #[serde(rename = "SERIES_ID")]
     SeriesID,
     SeriesType,
     SeriesName,
+    #[serde(rename = "ISSNPRINT")]
     ISSNPrint,
+    #[serde(rename = "ISSNDIGITAL")]
     ISSNDigital,
+    #[serde(rename = "SERIES_URL")]
     SeriesURL,
     CreatedAt,
     UpdatedAt,
@@ -96,9 +103,26 @@ pub struct NewSeriesHistory {
     pub data: serde_json::Value,
 }
 
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Field and order to use when sorting seriess list")
+)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SeriesOrderBy {
+    pub field: SeriesField,
+    pub direction: Direction,
+}
+
 impl Default for SeriesType {
     fn default() -> SeriesType {
         SeriesType::BookSeries
+    }
+}
+
+impl Default for SeriesField {
+    fn default() -> Self {
+        SeriesField::SeriesName
     }
 }
 
@@ -123,10 +147,36 @@ impl FromStr for SeriesType {
     }
 }
 
+impl FromStr for SeriesField {
+    type Err = ThothError;
+
+    fn from_str(input: &str) -> Result<SeriesField, ThothError> {
+        match input {
+            // Only match the headers which are currently defined/sortable in the UI
+            "ID" => Ok(SeriesField::SeriesID),
+            "Series" => Ok(SeriesField::SeriesName),
+            "SeriesType" => Ok(SeriesField::SeriesType),
+            "ISSNPrint" => Ok(SeriesField::ISSNPrint),
+            "ISSNDigital" => Ok(SeriesField::ISSNDigital),
+            "Updated" => Ok(SeriesField::UpdatedAt),
+            _ => Err(ThothError::SortFieldError(
+                input.to_string(),
+                "Series".to_string(),
+            )),
+        }
+    }
+}
+
 #[test]
 fn test_seriestype_default() {
     let seriestype: SeriesType = Default::default();
     assert_eq!(seriestype, SeriesType::BookSeries);
+}
+
+#[test]
+fn test_seriesfield_default() {
+    let seriesfield: SeriesField = Default::default();
+    assert_eq!(seriesfield, SeriesField::SeriesName);
 }
 
 #[test]
@@ -148,4 +198,31 @@ fn test_seriestype_fromstr() {
 
     assert!(SeriesType::from_str("bookseries").is_err());
     assert!(SeriesType::from_str("Collection").is_err());
+}
+
+#[test]
+fn test_seriesfield_fromstr() {
+    assert_eq!(SeriesField::from_str("ID").unwrap(), SeriesField::SeriesID);
+    assert_eq!(
+        SeriesField::from_str("Series").unwrap(),
+        SeriesField::SeriesName
+    );
+    assert_eq!(
+        SeriesField::from_str("SeriesType").unwrap(),
+        SeriesField::SeriesType
+    );
+    assert_eq!(
+        SeriesField::from_str("ISSNPrint").unwrap(),
+        SeriesField::ISSNPrint
+    );
+    assert_eq!(
+        SeriesField::from_str("ISSNDigital").unwrap(),
+        SeriesField::ISSNDigital
+    );
+    assert_eq!(
+        SeriesField::from_str("Updated").unwrap(),
+        SeriesField::UpdatedAt
+    );
+    assert!(SeriesField::from_str("URL").is_err());
+    assert!(SeriesField::from_str("Created").is_err());
 }
