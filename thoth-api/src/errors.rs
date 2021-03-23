@@ -10,24 +10,6 @@ pub type Result<T> = std::result::Result<T, failure::Error>;
 pub enum ThothError {
     #[fail(display = "{} is not a valid {} code", _0, _1)]
     InvalidSubjectCode(String, String),
-    #[fail(display = "{} is not a valid Currency Code", _0)]
-    InvalidCurrencyCode(String),
-    #[fail(display = "{} is not a valid Language Code", _0)]
-    InvalidLanguageCode(String),
-    #[fail(display = "{} is not a valid Work Type", _0)]
-    InvalidWorkType(String),
-    #[fail(display = "{} is not a valid Work Status", _0)]
-    InvalidWorkStatus(String),
-    #[fail(display = "{} is not a valid Contribution Type", _0)]
-    InvalidContributionType(String),
-    #[fail(display = "{} is not a valid Publication Type", _0)]
-    InvalidPublicationType(String),
-    #[fail(display = "{} is not a valid Series Type", _0)]
-    InvalidSeriesType(String),
-    #[fail(display = "{} is not a valid Subject Type", _0)]
-    InvalidSubjectType(String),
-    #[fail(display = "{} is not a valid Language Relation", _0)]
-    InvalidLanguageRelation(String),
     #[fail(display = "Database error: {}", _0)]
     DatabaseError(String),
     #[fail(display = "Internal error: {}", _0)]

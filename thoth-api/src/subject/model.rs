@@ -2,8 +2,8 @@ use chrono::naive::NaiveDateTime;
 use phf::phf_map;
 use phf::Map;
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::str::FromStr;
+use strum::Display;
+use strum::EnumString;
 use uuid::Uuid;
 
 use crate::errors::Result;
@@ -15,12 +15,15 @@ use crate::schema::subject_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Subject_type")]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SubjectType {
+    #[strum(serialize = "BIC")]
     Bic,
+    #[strum(serialize = "BISAC")]
     Bisac,
     Thema,
+    #[strum(serialize = "LCC")]
     Lcc,
     Custom,
     Keyword,
@@ -121,35 +124,6 @@ impl Default for SubjectType {
     }
 }
 
-impl fmt::Display for SubjectType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            SubjectType::Bic => write!(f, "BIC"),
-            SubjectType::Bisac => write!(f, "BISAC"),
-            SubjectType::Thema => write!(f, "Thema"),
-            SubjectType::Lcc => write!(f, "LCC"),
-            SubjectType::Custom => write!(f, "Custom"),
-            SubjectType::Keyword => write!(f, "Keyword"),
-        }
-    }
-}
-
-impl FromStr for SubjectType {
-    type Err = ThothError;
-
-    fn from_str(input: &str) -> std::result::Result<SubjectType, ThothError> {
-        match input {
-            "BIC" => Ok(SubjectType::Bic),
-            "BISAC" => Ok(SubjectType::Bisac),
-            "Thema" => Ok(SubjectType::Thema),
-            "LCC" => Ok(SubjectType::Lcc),
-            "Custom" => Ok(SubjectType::Custom),
-            "Keyword" => Ok(SubjectType::Keyword),
-            _ => Err(ThothError::InvalidSubjectType(input.to_string())),
-        }
-    }
-}
-
 #[test]
 fn test_subjecttype_default() {
     let subjecttype: SubjectType = Default::default();
@@ -168,6 +142,7 @@ fn test_subjecttype_display() {
 
 #[test]
 fn test_subjecttype_fromstr() {
+    use std::str::FromStr;
     assert_eq!(SubjectType::from_str("BIC").unwrap(), SubjectType::Bic);
     assert_eq!(SubjectType::from_str("BISAC").unwrap(), SubjectType::Bisac);
     assert_eq!(SubjectType::from_str("Thema").unwrap(), SubjectType::Thema);

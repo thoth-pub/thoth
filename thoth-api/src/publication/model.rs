@@ -1,12 +1,9 @@
 use chrono::naive::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::str::FromStr;
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
 use crate::graphql::utils::Direction;
 #[cfg(feature = "backend")]
 use crate::schema::publication;
@@ -15,7 +12,7 @@ use crate::schema::publication_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Publication_type")]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublicationType {
     #[cfg_attr(feature = "backend", db_rename = "Paperback")]
@@ -142,37 +139,6 @@ impl Default for PublicationField {
     }
 }
 
-impl fmt::Display for PublicationType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            PublicationType::Paperback => write!(f, "Paperback"),
-            PublicationType::Hardback => write!(f, "Hardback"),
-            PublicationType::PDF => write!(f, "PDF"),
-            PublicationType::HTML => write!(f, "HTML"),
-            PublicationType::XML => write!(f, "XML"),
-            PublicationType::Epub => write!(f, "Epub"),
-            PublicationType::Mobi => write!(f, "Mobi"),
-        }
-    }
-}
-
-impl FromStr for PublicationType {
-    type Err = ThothError;
-
-    fn from_str(input: &str) -> Result<PublicationType, ThothError> {
-        match input {
-            "Paperback" => Ok(PublicationType::Paperback),
-            "Hardback" => Ok(PublicationType::Hardback),
-            "PDF" => Ok(PublicationType::PDF),
-            "HTML" => Ok(PublicationType::HTML),
-            "XML" => Ok(PublicationType::XML),
-            "Epub" => Ok(PublicationType::Epub),
-            "Mobi" => Ok(PublicationType::Mobi),
-            _ => Err(ThothError::InvalidPublicationType(input.to_string())),
-        }
-    }
-}
-
 #[test]
 fn test_publicationtype_default() {
     let pubtype: PublicationType = Default::default();
@@ -198,6 +164,7 @@ fn test_publicationtype_display() {
 
 #[test]
 fn test_publicationtype_fromstr() {
+    use std::str::FromStr;
     assert_eq!(
         PublicationType::from_str("Paperback").unwrap(),
         PublicationType::Paperback
@@ -244,6 +211,7 @@ fn test_publicationfield_display() {
 
 #[test]
 fn test_publicationfield_fromstr() {
+    use std::str::FromStr;
     assert_eq!(
         PublicationField::from_str("ID").unwrap(),
         PublicationField::PublicationID

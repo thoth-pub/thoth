@@ -1,13 +1,10 @@
 use chrono::naive::NaiveDate;
 use chrono::naive::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::str::FromStr;
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
 use crate::graphql::utils::Direction;
 #[cfg(feature = "backend")]
 use crate::schema::work;
@@ -16,8 +13,9 @@ use crate::schema::work_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Work_type")]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[strum(serialize_all = "title_case")]
 pub enum WorkType {
     #[cfg_attr(feature = "backend", db_rename = "book-chapter")]
     BookChapter,
@@ -33,8 +31,9 @@ pub enum WorkType {
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Work_status")]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[strum(serialize_all = "title_case")]
 pub enum WorkStatus {
     Unspecified,
     Cancelled,
@@ -269,78 +268,6 @@ impl Default for WorkField {
     }
 }
 
-impl fmt::Display for WorkType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            WorkType::BookChapter => write!(f, "Book Chapter"),
-            WorkType::Monograph => write!(f, "Monograph"),
-            WorkType::EditedBook => write!(f, "Edited Book"),
-            WorkType::Textbook => write!(f, "Textbook"),
-            WorkType::JournalIssue => write!(f, "Journal Issue"),
-            WorkType::BookSet => write!(f, "Book Set"),
-        }
-    }
-}
-
-impl FromStr for WorkType {
-    type Err = ThothError;
-
-    fn from_str(input: &str) -> Result<WorkType, ThothError> {
-        match input {
-            "Book Chapter" => Ok(WorkType::BookChapter),
-            "Monograph" => Ok(WorkType::Monograph),
-            "Edited Book" => Ok(WorkType::EditedBook),
-            "Textbook" => Ok(WorkType::Textbook),
-            "Journal Issue" => Ok(WorkType::JournalIssue),
-            "Book Set" => Ok(WorkType::BookSet),
-            _ => Err(ThothError::InvalidWorkType(input.to_string())),
-        }
-    }
-}
-
-impl fmt::Display for WorkStatus {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            WorkStatus::Unspecified => write!(f, "Unspecified"),
-            WorkStatus::Cancelled => write!(f, "Cancelled"),
-            WorkStatus::Forthcoming => write!(f, "Forthcoming"),
-            WorkStatus::PostponedIndefinitely => write!(f, "Postponed Indefinitely"),
-            WorkStatus::Active => write!(f, "Active"),
-            WorkStatus::NoLongerOurProduct => write!(f, "No Longer Our Product"),
-            WorkStatus::OutOfStockIndefinitely => write!(f, "Out Of Stock Indefinitely"),
-            WorkStatus::OutOfPrint => write!(f, "Out Of Print"),
-            WorkStatus::Inactive => write!(f, "Inactive"),
-            WorkStatus::Unknown => write!(f, "Unknown"),
-            WorkStatus::Remaindered => write!(f, "Remaindered"),
-            WorkStatus::WithdrawnFromSale => write!(f, "Withdrawn From Sale"),
-            WorkStatus::Recalled => write!(f, "Recalled"),
-        }
-    }
-}
-
-impl FromStr for WorkStatus {
-    type Err = ThothError;
-
-    fn from_str(input: &str) -> Result<WorkStatus, ThothError> {
-        match input {
-            "Unspecified" => Ok(WorkStatus::Unspecified),
-            "Cancelled" => Ok(WorkStatus::Cancelled),
-            "Forthcoming" => Ok(WorkStatus::Forthcoming),
-            "Postponed Indefinitely" => Ok(WorkStatus::PostponedIndefinitely),
-            "Active" => Ok(WorkStatus::Active),
-            "No Longer Our Product" => Ok(WorkStatus::NoLongerOurProduct),
-            "Out Of Stock Indefinitely" => Ok(WorkStatus::OutOfStockIndefinitely),
-            "Out Of Print" => Ok(WorkStatus::OutOfPrint),
-            "Inactive" => Ok(WorkStatus::Inactive),
-            "Unknown" => Ok(WorkStatus::Unknown),
-            "Remaindered" => Ok(WorkStatus::Remaindered),
-            "Withdrawn From Sale" => Ok(WorkStatus::WithdrawnFromSale),
-            "Recalled" => Ok(WorkStatus::Recalled),
-            _ => Err(ThothError::InvalidWorkStatus(input.to_string())),
-        }
-    }
-}
-
 #[test]
 fn test_worktype_default() {
     let worktype: WorkType = Default::default();
@@ -399,6 +326,7 @@ fn test_workstatus_display() {
 
 #[test]
 fn test_worktype_fromstr() {
+    use std::str::FromStr;
     assert_eq!(
         WorkType::from_str("Book Chapter").unwrap(),
         WorkType::BookChapter
@@ -424,6 +352,7 @@ fn test_worktype_fromstr() {
 
 #[test]
 fn test_workstatus_fromstr() {
+    use std::str::FromStr;
     assert_eq!(
         WorkStatus::from_str("Unspecified").unwrap(),
         WorkStatus::Unspecified
@@ -516,6 +445,7 @@ fn test_workfield_display() {
 
 #[test]
 fn test_workfield_fromstr() {
+    use std::str::FromStr;
     assert_eq!(WorkField::from_str("ID").unwrap(), WorkField::WorkID);
     assert_eq!(WorkField::from_str("Type").unwrap(), WorkField::WorkType);
     assert_eq!(

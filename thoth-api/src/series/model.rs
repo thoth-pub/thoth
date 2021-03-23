@@ -1,12 +1,9 @@
 use chrono::naive::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::str::FromStr;
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
 use crate::graphql::utils::Direction;
 #[cfg(feature = "backend")]
 use crate::schema::series;
@@ -15,8 +12,9 @@ use crate::schema::series_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Series_type")]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[strum(serialize_all = "title_case")]
 pub enum SeriesType {
     Journal,
     #[cfg_attr(feature = "backend", db_rename = "book-series")]
@@ -130,27 +128,6 @@ impl Default for SeriesField {
     }
 }
 
-impl fmt::Display for SeriesType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            SeriesType::Journal => write!(f, "Journal"),
-            SeriesType::BookSeries => write!(f, "Book Series"),
-        }
-    }
-}
-
-impl FromStr for SeriesType {
-    type Err = ThothError;
-
-    fn from_str(input: &str) -> Result<SeriesType, ThothError> {
-        match input {
-            "Journal" => Ok(SeriesType::Journal),
-            "Book Series" => Ok(SeriesType::BookSeries),
-            _ => Err(ThothError::InvalidSeriesType(input.to_string())),
-        }
-    }
-}
-
 #[test]
 fn test_seriestype_default() {
     let seriestype: SeriesType = Default::default();
@@ -171,6 +148,7 @@ fn test_seriestype_display() {
 
 #[test]
 fn test_seriestype_fromstr() {
+    use std::str::FromStr;
     assert_eq!(
         SeriesType::from_str("Journal").unwrap(),
         SeriesType::Journal
@@ -198,6 +176,7 @@ fn test_seriesfield_display() {
 
 #[test]
 fn test_seriesfield_fromstr() {
+    use std::str::FromStr;
     assert_eq!(SeriesField::from_str("ID").unwrap(), SeriesField::SeriesID);
     assert_eq!(
         SeriesField::from_str("SeriesType").unwrap(),
