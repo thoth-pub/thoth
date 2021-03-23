@@ -1,10 +1,10 @@
 use chrono::naive::NaiveDateTime;
 use serde::Deserialize;
 use serde::Serialize;
-use std::str::FromStr;
+use strum::Display;
+use strum::EnumString;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
 use crate::graphql::utils::Direction;
 #[cfg(feature = "backend")]
 use crate::schema::imprint;
@@ -16,11 +16,13 @@ use crate::schema::imprint_history;
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting imprints list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ImprintField {
     #[serde(rename = "IMPRINT_ID")]
+    #[strum(serialize = "ID")]
     ImprintID,
+    #[strum(serialize = "Imprint")]
     ImprintName,
     #[serde(rename = "IMPRINT_URL")]
     ImprintURL,
@@ -100,24 +102,6 @@ impl Default for ImprintField {
     }
 }
 
-impl FromStr for ImprintField {
-    type Err = ThothError;
-
-    fn from_str(input: &str) -> Result<ImprintField, ThothError> {
-        match input {
-            // Only match the headers which are currently defined/sortable in the UI
-            "ID" => Ok(ImprintField::ImprintID),
-            "Imprint" => Ok(ImprintField::ImprintName),
-            "ImprintURL" => Ok(ImprintField::ImprintURL),
-            "Updated" => Ok(ImprintField::UpdatedAt),
-            _ => Err(ThothError::SortFieldError(
-                input.to_string(),
-                "Imprint".to_string(),
-            )),
-        }
-    }
-}
-
 #[test]
 fn test_imprintfield_default() {
     let impfield: ImprintField = Default::default();
@@ -125,7 +109,17 @@ fn test_imprintfield_default() {
 }
 
 #[test]
+fn test_imprintfield_display() {
+    assert_eq!(format!("{}", ImprintField::ImprintID), "ID");
+    assert_eq!(format!("{}", ImprintField::ImprintName), "Imprint");
+    assert_eq!(format!("{}", ImprintField::ImprintURL), "ImprintURL");
+    assert_eq!(format!("{}", ImprintField::CreatedAt), "CreatedAt");
+    assert_eq!(format!("{}", ImprintField::UpdatedAt), "UpdatedAt");
+}
+
+#[test]
 fn test_imprintfield_fromstr() {
+    use std::str::FromStr;
     assert_eq!(
         ImprintField::from_str("ID").unwrap(),
         ImprintField::ImprintID
@@ -139,9 +133,14 @@ fn test_imprintfield_fromstr() {
         ImprintField::ImprintURL
     );
     assert_eq!(
-        ImprintField::from_str("Updated").unwrap(),
+        ImprintField::from_str("CreatedAt").unwrap(),
+        ImprintField::CreatedAt
+    );
+    assert_eq!(
+        ImprintField::from_str("UpdatedAt").unwrap(),
         ImprintField::UpdatedAt
     );
+    assert!(ImprintField::from_str("ImprintID").is_err());
     assert!(ImprintField::from_str("Publisher").is_err());
-    assert!(ImprintField::from_str("Created").is_err());
+    assert!(ImprintField::from_str("Website").is_err());
 }

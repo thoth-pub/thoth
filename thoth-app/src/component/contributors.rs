@@ -19,7 +19,12 @@ pagination_component! {
     Variables,
     SEARCH_CONTRIBUTORS,
     PAGINATION_COUNT_CONTRIBUTORS,
-    vec!["ID".to_string(), "FullName".to_string(), "ORCID".to_string(), "Updated".to_string()],
+    vec![
+        ContributorField::ContributorID.to_string(),
+        ContributorField::FullName.to_string(),
+        ContributorField::ORCID.to_string(),
+        ContributorField::UpdatedAt.to_string(),
+    ],
     ContributorOrderBy,
     ContributorField,
 }

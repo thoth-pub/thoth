@@ -3,6 +3,8 @@ use chrono::naive::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
+use strum::Display;
+use strum::EnumString;
 use uuid::Uuid;
 
 use crate::errors::ThothError;
@@ -59,14 +61,18 @@ pub enum WorkStatus {
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting works list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum WorkField {
     #[serde(rename = "WORK_ID")]
+    #[strum(serialize = "ID")]
     WorkID,
+    #[strum(serialize = "Type")]
     WorkType,
     WorkStatus,
+    #[strum(serialize = "Title")]
     FullTitle,
+    #[strum(serialize = "ShortTitle")]
     Title,
     Subtitle,
     Reference,
@@ -335,25 +341,6 @@ impl FromStr for WorkStatus {
     }
 }
 
-impl FromStr for WorkField {
-    type Err = ThothError;
-
-    fn from_str(input: &str) -> Result<WorkField, ThothError> {
-        match input {
-            // Only match the headers which are currently defined/sortable in the UI
-            "ID" => Ok(WorkField::WorkID),
-            "Title" => Ok(WorkField::FullTitle),
-            "Type" => Ok(WorkField::WorkType),
-            "DOI" => Ok(WorkField::DOI),
-            "Updated" => Ok(WorkField::UpdatedAt),
-            _ => Err(ThothError::SortFieldError(
-                input.to_string(),
-                "Work".to_string(),
-            )),
-        }
-    }
-}
-
 #[test]
 fn test_worktype_default() {
     let worktype: WorkType = Default::default();
@@ -492,15 +479,133 @@ fn test_workstatus_fromstr() {
 }
 
 #[test]
+fn test_workfield_display() {
+    assert_eq!(format!("{}", WorkField::WorkID), "ID");
+    assert_eq!(format!("{}", WorkField::WorkType), "Type");
+    assert_eq!(format!("{}", WorkField::WorkStatus), "WorkStatus");
+    assert_eq!(format!("{}", WorkField::FullTitle), "Title");
+    assert_eq!(format!("{}", WorkField::Title), "ShortTitle");
+    assert_eq!(format!("{}", WorkField::Subtitle), "Subtitle");
+    assert_eq!(format!("{}", WorkField::Reference), "Reference");
+    assert_eq!(format!("{}", WorkField::Edition), "Edition");
+    assert_eq!(format!("{}", WorkField::DOI), "DOI");
+    assert_eq!(format!("{}", WorkField::PublicationDate), "PublicationDate");
+    assert_eq!(format!("{}", WorkField::Place), "Place");
+    assert_eq!(format!("{}", WorkField::Width), "Width");
+    assert_eq!(format!("{}", WorkField::Height), "Height");
+    assert_eq!(format!("{}", WorkField::PageCount), "PageCount");
+    assert_eq!(format!("{}", WorkField::PageBreakdown), "PageBreakdown");
+    assert_eq!(format!("{}", WorkField::ImageCount), "ImageCount");
+    assert_eq!(format!("{}", WorkField::TableCount), "TableCount");
+    assert_eq!(format!("{}", WorkField::AudioCount), "AudioCount");
+    assert_eq!(format!("{}", WorkField::VideoCount), "VideoCount");
+    assert_eq!(format!("{}", WorkField::License), "License");
+    assert_eq!(format!("{}", WorkField::CopyrightHolder), "CopyrightHolder");
+    assert_eq!(format!("{}", WorkField::LandingPage), "LandingPage");
+    assert_eq!(format!("{}", WorkField::LCCN), "LCCN");
+    assert_eq!(format!("{}", WorkField::OCLC), "OCLC");
+    assert_eq!(format!("{}", WorkField::ShortAbstract), "ShortAbstract");
+    assert_eq!(format!("{}", WorkField::LongAbstract), "LongAbstract");
+    assert_eq!(format!("{}", WorkField::GeneralNote), "GeneralNote");
+    assert_eq!(format!("{}", WorkField::TOC), "TOC");
+    assert_eq!(format!("{}", WorkField::CoverURL), "CoverURL");
+    assert_eq!(format!("{}", WorkField::CoverCaption), "CoverCaption");
+    assert_eq!(format!("{}", WorkField::CreatedAt), "CreatedAt");
+    assert_eq!(format!("{}", WorkField::UpdatedAt), "UpdatedAt");
+}
+
+#[test]
 fn test_workfield_fromstr() {
     assert_eq!(WorkField::from_str("ID").unwrap(), WorkField::WorkID);
-    assert_eq!(WorkField::from_str("Title").unwrap(), WorkField::FullTitle);
     assert_eq!(WorkField::from_str("Type").unwrap(), WorkField::WorkType);
+    assert_eq!(
+        WorkField::from_str("WorkStatus").unwrap(),
+        WorkField::WorkStatus
+    );
+    assert_eq!(WorkField::from_str("Title").unwrap(), WorkField::FullTitle);
+    assert_eq!(WorkField::from_str("ShortTitle").unwrap(), WorkField::Title);
+    assert_eq!(
+        WorkField::from_str("Subtitle").unwrap(),
+        WorkField::Subtitle
+    );
+    assert_eq!(
+        WorkField::from_str("Reference").unwrap(),
+        WorkField::Reference
+    );
+    assert_eq!(WorkField::from_str("Edition").unwrap(), WorkField::Edition);
     assert_eq!(WorkField::from_str("DOI").unwrap(), WorkField::DOI);
     assert_eq!(
-        WorkField::from_str("Updated").unwrap(),
+        WorkField::from_str("PublicationDate").unwrap(),
+        WorkField::PublicationDate
+    );
+    assert_eq!(WorkField::from_str("Place").unwrap(), WorkField::Place);
+    assert_eq!(WorkField::from_str("Width").unwrap(), WorkField::Width);
+    assert_eq!(WorkField::from_str("Height").unwrap(), WorkField::Height);
+    assert_eq!(
+        WorkField::from_str("PageCount").unwrap(),
+        WorkField::PageCount
+    );
+    assert_eq!(
+        WorkField::from_str("PageBreakdown").unwrap(),
+        WorkField::PageBreakdown
+    );
+    assert_eq!(
+        WorkField::from_str("ImageCount").unwrap(),
+        WorkField::ImageCount
+    );
+    assert_eq!(
+        WorkField::from_str("TableCount").unwrap(),
+        WorkField::TableCount
+    );
+    assert_eq!(
+        WorkField::from_str("AudioCount").unwrap(),
+        WorkField::AudioCount
+    );
+    assert_eq!(
+        WorkField::from_str("VideoCount").unwrap(),
+        WorkField::VideoCount
+    );
+    assert_eq!(WorkField::from_str("License").unwrap(), WorkField::License);
+    assert_eq!(
+        WorkField::from_str("CopyrightHolder").unwrap(),
+        WorkField::CopyrightHolder
+    );
+    assert_eq!(
+        WorkField::from_str("LandingPage").unwrap(),
+        WorkField::LandingPage
+    );
+    assert_eq!(WorkField::from_str("LCCN").unwrap(), WorkField::LCCN);
+    assert_eq!(WorkField::from_str("OCLC").unwrap(), WorkField::OCLC);
+    assert_eq!(
+        WorkField::from_str("ShortAbstract").unwrap(),
+        WorkField::ShortAbstract
+    );
+    assert_eq!(
+        WorkField::from_str("LongAbstract").unwrap(),
+        WorkField::LongAbstract
+    );
+    assert_eq!(
+        WorkField::from_str("GeneralNote").unwrap(),
+        WorkField::GeneralNote
+    );
+    assert_eq!(WorkField::from_str("TOC").unwrap(), WorkField::TOC);
+    assert_eq!(
+        WorkField::from_str("CoverURL").unwrap(),
+        WorkField::CoverURL
+    );
+    assert_eq!(
+        WorkField::from_str("CoverCaption").unwrap(),
+        WorkField::CoverCaption
+    );
+    assert_eq!(
+        WorkField::from_str("CreatedAt").unwrap(),
+        WorkField::CreatedAt
+    );
+    assert_eq!(
+        WorkField::from_str("UpdatedAt").unwrap(),
         WorkField::UpdatedAt
     );
+    assert!(WorkField::from_str("WorkID").is_err());
     assert!(WorkField::from_str("Contributors").is_err());
-    assert!(WorkField::from_str("Created").is_err());
+    assert!(WorkField::from_str("Publisher").is_err());
 }

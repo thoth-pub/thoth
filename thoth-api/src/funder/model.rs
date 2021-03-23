@@ -1,10 +1,10 @@
 use chrono::naive::NaiveDateTime;
 use serde::Deserialize;
 use serde::Serialize;
-use std::str::FromStr;
+use strum::Display;
+use strum::EnumString;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
 use crate::graphql::utils::Direction;
 #[cfg(feature = "backend")]
 use crate::schema::funder;
@@ -16,13 +16,16 @@ use crate::schema::funder_history;
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting funders list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum FunderField {
     #[serde(rename = "FUNDER_ID")]
+    #[strum(serialize = "ID")]
     FunderID,
+    #[strum(serialize = "Funder")]
     FunderName,
     #[serde(rename = "FUNDER_DOI")]
+    #[strum(serialize = "DOI")]
     FunderDOI,
     CreatedAt,
     UpdatedAt,
@@ -93,24 +96,6 @@ impl Default for FunderField {
     }
 }
 
-impl FromStr for FunderField {
-    type Err = ThothError;
-
-    fn from_str(input: &str) -> Result<FunderField, ThothError> {
-        match input {
-            // Only match the headers which are currently defined/sortable in the UI
-            "ID" => Ok(FunderField::FunderID),
-            "Funder" => Ok(FunderField::FunderName),
-            "DOI" => Ok(FunderField::FunderDOI),
-            "Updated" => Ok(FunderField::UpdatedAt),
-            _ => Err(ThothError::SortFieldError(
-                input.to_string(),
-                "Funder".to_string(),
-            )),
-        }
-    }
-}
-
 #[test]
 fn test_funderfield_default() {
     let fundfield: FunderField = Default::default();
@@ -118,7 +103,17 @@ fn test_funderfield_default() {
 }
 
 #[test]
+fn test_funderfield_display() {
+    assert_eq!(format!("{}", FunderField::FunderID), "ID");
+    assert_eq!(format!("{}", FunderField::FunderName), "Funder");
+    assert_eq!(format!("{}", FunderField::FunderDOI), "DOI");
+    assert_eq!(format!("{}", FunderField::CreatedAt), "CreatedAt");
+    assert_eq!(format!("{}", FunderField::UpdatedAt), "UpdatedAt");
+}
+
+#[test]
 fn test_funderfield_fromstr() {
+    use std::str::FromStr;
     assert_eq!(FunderField::from_str("ID").unwrap(), FunderField::FunderID);
     assert_eq!(
         FunderField::from_str("Funder").unwrap(),
@@ -129,9 +124,14 @@ fn test_funderfield_fromstr() {
         FunderField::FunderDOI
     );
     assert_eq!(
-        FunderField::from_str("Updated").unwrap(),
+        FunderField::from_str("CreatedAt").unwrap(),
+        FunderField::CreatedAt
+    );
+    assert_eq!(
+        FunderField::from_str("UpdatedAt").unwrap(),
         FunderField::UpdatedAt
     );
+    assert!(FunderField::from_str("FunderID").is_err());
     assert!(FunderField::from_str("Website").is_err());
-    assert!(FunderField::from_str("Created").is_err());
+    assert!(FunderField::from_str("Fundings").is_err());
 }

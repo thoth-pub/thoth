@@ -1,10 +1,10 @@
 use chrono::naive::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::str::FromStr;
+use strum::Display;
+use strum::EnumString;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
 use crate::graphql::utils::Direction;
 #[cfg(feature = "backend")]
 use crate::schema::publisher;
@@ -16,14 +16,18 @@ use crate::schema::publisher_history;
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting publishers list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublisherField {
     #[serde(rename = "PUBLISHER_ID")]
+    #[strum(serialize = "ID")]
     PublisherID,
+    #[strum(serialize = "Name")]
     PublisherName,
+    #[strum(serialize = "ShortName")]
     PublisherShortname,
     #[serde(rename = "PUBLISHER_URL")]
+    #[strum(serialize = "URL")]
     PublisherURL,
     CreatedAt,
     UpdatedAt,
@@ -107,25 +111,6 @@ impl fmt::Display for Publisher {
     }
 }
 
-impl FromStr for PublisherField {
-    type Err = ThothError;
-
-    fn from_str(input: &str) -> Result<PublisherField, ThothError> {
-        match input {
-            // Only match the headers which are currently defined/sortable in the UI
-            "ID" => Ok(PublisherField::PublisherID),
-            "Name" => Ok(PublisherField::PublisherName),
-            "ShortName" => Ok(PublisherField::PublisherShortname),
-            "URL" => Ok(PublisherField::PublisherURL),
-            "Updated" => Ok(PublisherField::UpdatedAt),
-            _ => Err(ThothError::SortFieldError(
-                input.to_string(),
-                "Publisher".to_string(),
-            )),
-        }
-    }
-}
-
 #[test]
 fn test_publisherfield_default() {
     let pubfield: PublisherField = Default::default();
@@ -133,7 +118,21 @@ fn test_publisherfield_default() {
 }
 
 #[test]
+fn test_publisherfield_display() {
+    assert_eq!(format!("{}", PublisherField::PublisherID), "ID");
+    assert_eq!(format!("{}", PublisherField::PublisherName), "Name");
+    assert_eq!(
+        format!("{}", PublisherField::PublisherShortname),
+        "ShortName"
+    );
+    assert_eq!(format!("{}", PublisherField::PublisherURL), "URL");
+    assert_eq!(format!("{}", PublisherField::CreatedAt), "CreatedAt");
+    assert_eq!(format!("{}", PublisherField::UpdatedAt), "UpdatedAt");
+}
+
+#[test]
 fn test_publisherfield_fromstr() {
+    use std::str::FromStr;
     assert_eq!(
         PublisherField::from_str("ID").unwrap(),
         PublisherField::PublisherID
@@ -151,9 +150,14 @@ fn test_publisherfield_fromstr() {
         PublisherField::PublisherURL
     );
     assert_eq!(
-        PublisherField::from_str("Updated").unwrap(),
+        PublisherField::from_str("CreatedAt").unwrap(),
+        PublisherField::CreatedAt
+    );
+    assert_eq!(
+        PublisherField::from_str("UpdatedAt").unwrap(),
         PublisherField::UpdatedAt
     );
+    assert!(PublisherField::from_str("PublisherID").is_err());
     assert!(PublisherField::from_str("Website").is_err());
-    assert!(PublisherField::from_str("Created").is_err());
+    assert!(PublisherField::from_str("Imprint").is_err());
 }

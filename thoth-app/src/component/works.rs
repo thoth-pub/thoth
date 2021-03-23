@@ -19,7 +19,15 @@ pagination_component! {
     Variables,
     SEARCH_WORKS,
     PAGINATION_COUNT_WORKS,
-    vec!["ID".to_string(), "Title".to_string(), "Type".to_string(), "Contributors".to_string(), "DOI".to_string(), "Publisher".to_string(), "Updated".to_string()],
+    vec![
+        WorkField::WorkID.to_string(),
+        WorkField::FullTitle.to_string(),
+        WorkField::WorkType.to_string(),
+        "Contributors".to_string(),
+        WorkField::DOI.to_string(),
+        "Publisher".to_string(),
+        WorkField::UpdatedAt.to_string(),
+    ],
     WorkOrderBy,
     WorkField,
 }

@@ -28,8 +28,6 @@ pub enum ThothError {
     InvalidSubjectType(String),
     #[fail(display = "{} is not a valid Language Relation", _0)]
     InvalidLanguageRelation(String),
-    #[fail(display = "{} is not a sortable {} field", _0, _1)]
-    SortFieldError(String, String),
     #[fail(display = "Database error: {}", _0)]
     DatabaseError(String),
     #[fail(display = "Internal error: {}", _0)]

@@ -19,7 +19,14 @@ pagination_component! {
     Variables,
     SEARCH_SERIESES,
     PAGINATION_COUNT_SERIESES,
-    vec!["ID".to_string(), "Series".to_string(), "SeriesType".to_string(), "ISSNPrint".to_string(), "ISSNDigital".to_string(), "Updated".to_string()],
+    vec![
+        SeriesField::SeriesID.to_string(),
+        SeriesField::SeriesName.to_string(),
+        SeriesField::SeriesType.to_string(),
+        SeriesField::ISSNPrint.to_string(),
+        SeriesField::ISSNDigital.to_string(),
+        SeriesField::UpdatedAt.to_string(),
+    ],
     SeriesOrderBy,
     SeriesField,
 }

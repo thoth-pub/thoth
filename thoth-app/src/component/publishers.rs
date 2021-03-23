@@ -19,7 +19,13 @@ pagination_component! {
     Variables,
     SEARCH_PUBLISHERS,
     PAGINATION_COUNT_PUBLISHERS,
-    vec!["ID".to_string(), "Name".to_string(), "ShortName".to_string(), "URL".to_string(), "Updated".to_string()],
+    vec![
+        PublisherField::PublisherID.to_string(),
+        PublisherField::PublisherName.to_string(),
+        PublisherField::PublisherShortname.to_string(),
+        PublisherField::PublisherURL.to_string(),
+        PublisherField::UpdatedAt.to_string(),
+    ],
     PublisherOrderBy,
     PublisherField,
 }

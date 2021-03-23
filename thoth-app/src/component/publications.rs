@@ -19,7 +19,16 @@ pagination_component! {
     Variables,
     SEARCH_PUBLICATIONS,
     PAGINATION_COUNT_PUBLICATIONS,
-    vec!["ID".to_string(), "Work Title".to_string(), "Work DOI".to_string(), "Publisher".to_string(), "Type".to_string(), "ISBN".to_string(), "URL".to_string(), "Updated".to_string()],
+    vec![
+        PublicationField::PublicationID.to_string(),
+        "Work Title".to_string(),
+        "Work DOI".to_string(),
+        "Publisher".to_string(),
+        PublicationField::PublicationType.to_string(),
+        PublicationField::ISBN.to_string(),
+        PublicationField::PublicationURL.to_string(),
+        PublicationField::UpdatedAt.to_string(),
+    ],
     PublicationOrderBy,
     PublicationField,
 }
