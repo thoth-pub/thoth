@@ -68,10 +68,11 @@ pub enum Msg {
     DoNothing,
 }
 
-#[derive(Clone, Properties)]
+#[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub issues: Option<Vec<Issue>>,
     pub work_id: String,
+    pub imprint_id: String,
     pub current_user: AccountDetails,
     pub update_issues: Callback<Option<Vec<Issue>>>,
 }
@@ -278,11 +279,13 @@ impl Component for IssuesFormComponent {
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         let updated_permissions =
             self.props.current_user.resource_access != props.current_user.resource_access;
-        self.props = props;
+        let should_render = self.props.neq_assign(props);
         if updated_permissions {
             self.link.send_message(Msg::GetSerieses);
         }
-        false
+        // Don't need to re-render if permissions props changed, as another re-render
+        // will be triggered when the message query response is received.
+        should_render && !updated_permissions
     }
 
     fn view(&self) -> Html {
@@ -329,6 +332,9 @@ impl Component for IssuesFormComponent {
                                             .iter()
                                             .position(|ser| ser.series_id == series.series_id)
                                         {
+                                            html! {}
+                                        // avoid listing series whose imprint doesn't match work
+                                        } else if series.imprint.imprint_id != self.props.imprint_id {
                                             html! {}
                                         } else {
                                             s.as_dropdown_item(

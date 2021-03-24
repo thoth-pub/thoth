@@ -2177,6 +2177,7 @@ impl MutationRoot {
     fn create_issue(context: &Context, data: NewIssue) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         user_can_edit_work(data.work_id, context)?;
+        issue_imprints_match(data.work_id, data.series_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(issue::table)
@@ -2268,6 +2269,7 @@ impl MutationRoot {
         let work = target.get_result::<Work>(&connection).unwrap();
         if !(data.imprint_id == work.imprint_id) {
             user_can_edit_imprint(work.imprint_id, context)?;
+            can_update_work_imprint(work.work_id, context)?;
         }
 
         connection.transaction(
@@ -2446,6 +2448,7 @@ impl MutationRoot {
     fn update_issue(context: &Context, data: PatchIssue) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         user_can_edit_work(data.work_id, context)?;
+        issue_imprints_match(data.work_id, data.series_id, context)?;
 
         let connection = context.db.get().unwrap();
 
@@ -4363,4 +4366,42 @@ fn user_can_edit_publication(publication_id: Uuid, context: &Context) -> Result<
         .first::<Uuid>(&context.db.get().unwrap())
         .expect("Error checking permissions");
     context.account_access.can_edit(pub_id)
+}
+
+fn issue_imprints_match(work_id: Uuid, series_id: Uuid, context: &Context) -> Result<()> {
+    let series_imprint = crate::schema::series::table
+        .select(crate::schema::series::imprint_id)
+        .filter(crate::schema::series::series_id.eq(series_id))
+        .first::<Uuid>(&context.db.get().unwrap())
+        .expect("Error loading series for issue");
+    let work_imprint = crate::schema::work::table
+        .select(crate::schema::work::imprint_id)
+        .filter(crate::schema::work::work_id.eq(work_id))
+        .first::<Uuid>(&context.db.get().unwrap())
+        .expect("Error loading work for issue");
+    if work_imprint == series_imprint {
+        Ok(())
+    } else {
+        Err(ThothError::IssueImprintsError.into())
+    }
+}
+
+fn can_update_work_imprint(work_id: Uuid, context: &Context) -> Result<()> {
+    use crate::schema::issue::dsl;
+    // see comment in work_count()
+    let issue_count = dsl::issue
+        .filter(dsl::work_id.eq(work_id))
+        .count()
+        .get_result::<i64>(&context.db.get().unwrap())
+        .expect("Error loading issue count for work")
+        .to_string()
+        .parse::<i32>()
+        .unwrap();
+    // If a work has any related issues, its imprint cannot be changed,
+    // because an issue's series and work must both have the same imprint.
+    if issue_count == 0 {
+        Ok(())
+    } else {
+        Err(ThothError::IssueImprintsError.into())
+    }
 }
