@@ -13,3 +13,9 @@ impl Default for Direction {
         Direction::ASC
     }
 }
+
+#[test]
+fn test_direction_default() {
+    let dir: Direction = Default::default();
+    assert_eq!(dir, Direction::ASC);
+}

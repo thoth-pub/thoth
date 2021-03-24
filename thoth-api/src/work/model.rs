@@ -326,6 +326,42 @@ fn test_workstatus_display() {
 }
 
 #[test]
+fn test_workfield_display() {
+    assert_eq!(format!("{}", WorkField::WorkID), "ID");
+    assert_eq!(format!("{}", WorkField::WorkType), "Type");
+    assert_eq!(format!("{}", WorkField::WorkStatus), "WorkStatus");
+    assert_eq!(format!("{}", WorkField::FullTitle), "Title");
+    assert_eq!(format!("{}", WorkField::Title), "ShortTitle");
+    assert_eq!(format!("{}", WorkField::Subtitle), "Subtitle");
+    assert_eq!(format!("{}", WorkField::Reference), "Reference");
+    assert_eq!(format!("{}", WorkField::Edition), "Edition");
+    assert_eq!(format!("{}", WorkField::DOI), "DOI");
+    assert_eq!(format!("{}", WorkField::PublicationDate), "PublicationDate");
+    assert_eq!(format!("{}", WorkField::Place), "Place");
+    assert_eq!(format!("{}", WorkField::Width), "Width");
+    assert_eq!(format!("{}", WorkField::Height), "Height");
+    assert_eq!(format!("{}", WorkField::PageCount), "PageCount");
+    assert_eq!(format!("{}", WorkField::PageBreakdown), "PageBreakdown");
+    assert_eq!(format!("{}", WorkField::ImageCount), "ImageCount");
+    assert_eq!(format!("{}", WorkField::TableCount), "TableCount");
+    assert_eq!(format!("{}", WorkField::AudioCount), "AudioCount");
+    assert_eq!(format!("{}", WorkField::VideoCount), "VideoCount");
+    assert_eq!(format!("{}", WorkField::License), "License");
+    assert_eq!(format!("{}", WorkField::CopyrightHolder), "CopyrightHolder");
+    assert_eq!(format!("{}", WorkField::LandingPage), "LandingPage");
+    assert_eq!(format!("{}", WorkField::LCCN), "LCCN");
+    assert_eq!(format!("{}", WorkField::OCLC), "OCLC");
+    assert_eq!(format!("{}", WorkField::ShortAbstract), "ShortAbstract");
+    assert_eq!(format!("{}", WorkField::LongAbstract), "LongAbstract");
+    assert_eq!(format!("{}", WorkField::GeneralNote), "GeneralNote");
+    assert_eq!(format!("{}", WorkField::TOC), "TOC");
+    assert_eq!(format!("{}", WorkField::CoverURL), "CoverURL");
+    assert_eq!(format!("{}", WorkField::CoverCaption), "CoverCaption");
+    assert_eq!(format!("{}", WorkField::CreatedAt), "CreatedAt");
+    assert_eq!(format!("{}", WorkField::UpdatedAt), "UpdatedAt");
+}
+
+#[test]
 fn test_worktype_fromstr() {
     use std::str::FromStr;
     assert_eq!(
@@ -406,42 +442,6 @@ fn test_workstatus_fromstr() {
 
     assert!(WorkStatus::from_str("Published").is_err());
     assert!(WorkStatus::from_str("Unpublished").is_err());
-}
-
-#[test]
-fn test_workfield_display() {
-    assert_eq!(format!("{}", WorkField::WorkID), "ID");
-    assert_eq!(format!("{}", WorkField::WorkType), "Type");
-    assert_eq!(format!("{}", WorkField::WorkStatus), "WorkStatus");
-    assert_eq!(format!("{}", WorkField::FullTitle), "Title");
-    assert_eq!(format!("{}", WorkField::Title), "ShortTitle");
-    assert_eq!(format!("{}", WorkField::Subtitle), "Subtitle");
-    assert_eq!(format!("{}", WorkField::Reference), "Reference");
-    assert_eq!(format!("{}", WorkField::Edition), "Edition");
-    assert_eq!(format!("{}", WorkField::DOI), "DOI");
-    assert_eq!(format!("{}", WorkField::PublicationDate), "PublicationDate");
-    assert_eq!(format!("{}", WorkField::Place), "Place");
-    assert_eq!(format!("{}", WorkField::Width), "Width");
-    assert_eq!(format!("{}", WorkField::Height), "Height");
-    assert_eq!(format!("{}", WorkField::PageCount), "PageCount");
-    assert_eq!(format!("{}", WorkField::PageBreakdown), "PageBreakdown");
-    assert_eq!(format!("{}", WorkField::ImageCount), "ImageCount");
-    assert_eq!(format!("{}", WorkField::TableCount), "TableCount");
-    assert_eq!(format!("{}", WorkField::AudioCount), "AudioCount");
-    assert_eq!(format!("{}", WorkField::VideoCount), "VideoCount");
-    assert_eq!(format!("{}", WorkField::License), "License");
-    assert_eq!(format!("{}", WorkField::CopyrightHolder), "CopyrightHolder");
-    assert_eq!(format!("{}", WorkField::LandingPage), "LandingPage");
-    assert_eq!(format!("{}", WorkField::LCCN), "LCCN");
-    assert_eq!(format!("{}", WorkField::OCLC), "OCLC");
-    assert_eq!(format!("{}", WorkField::ShortAbstract), "ShortAbstract");
-    assert_eq!(format!("{}", WorkField::LongAbstract), "LongAbstract");
-    assert_eq!(format!("{}", WorkField::GeneralNote), "GeneralNote");
-    assert_eq!(format!("{}", WorkField::TOC), "TOC");
-    assert_eq!(format!("{}", WorkField::CoverURL), "CoverURL");
-    assert_eq!(format!("{}", WorkField::CoverCaption), "CoverCaption");
-    assert_eq!(format!("{}", WorkField::CreatedAt), "CreatedAt");
-    assert_eq!(format!("{}", WorkField::UpdatedAt), "UpdatedAt");
 }
 
 #[test]

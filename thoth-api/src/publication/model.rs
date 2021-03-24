@@ -164,6 +164,17 @@ fn test_publicationtype_display() {
 }
 
 #[test]
+fn test_publicationfield_display() {
+    assert_eq!(format!("{}", PublicationField::PublicationID), "ID");
+    assert_eq!(format!("{}", PublicationField::PublicationType), "Type");
+    assert_eq!(format!("{}", PublicationField::WorkID), "WorkID");
+    assert_eq!(format!("{}", PublicationField::ISBN), "ISBN");
+    assert_eq!(format!("{}", PublicationField::PublicationURL), "URL");
+    assert_eq!(format!("{}", PublicationField::CreatedAt), "CreatedAt");
+    assert_eq!(format!("{}", PublicationField::UpdatedAt), "UpdatedAt");
+}
+
+#[test]
 fn test_publicationtype_fromstr() {
     use std::str::FromStr;
     assert_eq!(
@@ -197,17 +208,6 @@ fn test_publicationtype_fromstr() {
 
     assert!(PublicationType::from_str("PNG").is_err());
     assert!(PublicationType::from_str("Latex").is_err());
-}
-
-#[test]
-fn test_publicationfield_display() {
-    assert_eq!(format!("{}", PublicationField::PublicationID), "ID");
-    assert_eq!(format!("{}", PublicationField::PublicationType), "Type");
-    assert_eq!(format!("{}", PublicationField::WorkID), "WorkID");
-    assert_eq!(format!("{}", PublicationField::ISBN), "ISBN");
-    assert_eq!(format!("{}", PublicationField::PublicationURL), "URL");
-    assert_eq!(format!("{}", PublicationField::CreatedAt), "CreatedAt");
-    assert_eq!(format!("{}", PublicationField::UpdatedAt), "UpdatedAt");
 }
 
 #[test]

@@ -213,7 +213,6 @@ macro_rules! pagination_component {
                         false
                     }
                     Msg::Search(term) => {
-                        self.limit = self.page_size;
                         self.offset = 0;
                         self.search_term = term;
                         self.link.send_message(Msg::PaginateData);
@@ -248,7 +247,6 @@ macro_rules! pagination_component {
                                 DESC => ASC,
                             },
                         };
-                        self.limit = self.page_size;
                         self.offset = 0;
                         self.link.send_message(Msg::PaginateData);
                         false
@@ -317,11 +315,7 @@ macro_rules! pagination_component {
                                                                     }
                                                                 }
                                                                 Err(_) => {
-                                                                    html! {
-                                                                        <th>
-                                                                            {h}
-                                                                        </th>
-                                                                    }
+                                                                    html! {<th>{h}</th>}
                                                                 }
                                                             }
                                                         }

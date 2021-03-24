@@ -148,6 +148,18 @@ fn test_seriestype_display() {
 }
 
 #[test]
+fn test_seriesfield_display() {
+    assert_eq!(format!("{}", SeriesField::SeriesID), "ID");
+    assert_eq!(format!("{}", SeriesField::SeriesType), "SeriesType");
+    assert_eq!(format!("{}", SeriesField::SeriesName), "Series");
+    assert_eq!(format!("{}", SeriesField::ISSNPrint), "ISSNPrint");
+    assert_eq!(format!("{}", SeriesField::ISSNDigital), "ISSNDigital");
+    assert_eq!(format!("{}", SeriesField::SeriesURL), "SeriesURL");
+    assert_eq!(format!("{}", SeriesField::CreatedAt), "CreatedAt");
+    assert_eq!(format!("{}", SeriesField::UpdatedAt), "UpdatedAt");
+}
+
+#[test]
 fn test_seriestype_fromstr() {
     use std::str::FromStr;
     assert_eq!(
@@ -161,18 +173,6 @@ fn test_seriestype_fromstr() {
 
     assert!(SeriesType::from_str("bookseries").is_err());
     assert!(SeriesType::from_str("Collection").is_err());
-}
-
-#[test]
-fn test_seriesfield_display() {
-    assert_eq!(format!("{}", SeriesField::SeriesID), "ID");
-    assert_eq!(format!("{}", SeriesField::SeriesType), "SeriesType");
-    assert_eq!(format!("{}", SeriesField::SeriesName), "Series");
-    assert_eq!(format!("{}", SeriesField::ISSNPrint), "ISSNPrint");
-    assert_eq!(format!("{}", SeriesField::ISSNDigital), "ISSNDigital");
-    assert_eq!(format!("{}", SeriesField::SeriesURL), "SeriesURL");
-    assert_eq!(format!("{}", SeriesField::CreatedAt), "CreatedAt");
-    assert_eq!(format!("{}", SeriesField::UpdatedAt), "UpdatedAt");
 }
 
 #[test]
