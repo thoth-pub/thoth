@@ -21,5 +21,5 @@ build-app: build-wasm
 	THOTH_API=$(THOTH_API) cargo build
 
 build-wasm:
-	wasm-pack build thoth-app/ --target web && \
+	wasm-pack build --debug thoth-app/ --target web && \
 		rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js
