@@ -65,6 +65,7 @@ use crate::string::SAVE_BUTTON;
 
 pub struct WorkComponent {
     work: Work,
+    imprint_id: String,
     data: WorkFormData,
     fetch_work: FetchWork,
     push_work: PushUpdateWork,
@@ -143,6 +144,8 @@ impl Component for WorkComponent {
         let delete_work = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let work: Work = Default::default();
+        // Track imprint stored in database, as distinct from imprint selected in dropdown
+        let imprint_id = work.imprint.imprint_id.clone();
         let data: WorkFormData = Default::default();
         let router = RouteAgentDispatcher::new();
 
@@ -150,6 +153,7 @@ impl Component for WorkComponent {
 
         WorkComponent {
             work,
+            imprint_id,
             data,
             fetch_work,
             push_work,
@@ -173,6 +177,7 @@ impl Component for WorkComponent {
                             Some(w) => w.to_owned(),
                             None => Default::default(),
                         };
+                        self.imprint_id = self.work.imprint.imprint_id.clone();
                         self.data.imprints = body.data.imprints.to_owned();
                         self.data.work_types = body.data.work_types.enum_values.to_owned();
                         self.data.work_statuses = body.data.work_statuses.enum_values.to_owned();
@@ -222,6 +227,7 @@ impl Component for WorkComponent {
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
                             )));
+                            self.imprint_id = self.work.imprint.imprint_id.clone();
                             true
                         }
                         None => {
@@ -571,6 +577,12 @@ impl Component for WorkComponent {
                     event.prevent_default();
                     Msg::UpdateWork
                 });
+                // FormImprintSelect: while the work has any related issues, the imprint cannot
+                // be changed, because an issue's series and work must both have the same imprint.
+                let imprints = match self.work.issues.as_ref().unwrap_or(&vec![]).is_empty() {
+                    true => self.data.imprints.clone(),
+                    false => vec![self.work.imprint.clone()],
+                };
                 html! {
                     <>
                         <nav class="level">
@@ -621,7 +633,7 @@ impl Component for WorkComponent {
                                     <FormImprintSelect
                                         label = "Imprint"
                                         value=&self.work.imprint.imprint_id
-                                        data=&self.data.imprints
+                                        data=&imprints
                                         onchange=self.link.callback(|event| match event {
                                             ChangeData::Select(elem) => {
                                                 let value = elem.value();
@@ -837,6 +849,7 @@ impl Component for WorkComponent {
                         <IssuesFormComponent
                             issues=&self.work.issues
                             work_id=&self.work.work_id
+                            imprint_id=&self.imprint_id
                             current_user=&self.props.current_user
                             update_issues=self.link.callback(|i: Option<Vec<Issue>>| Msg::UpdateIssues(i))
                         />
