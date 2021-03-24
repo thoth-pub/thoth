@@ -1646,6 +1646,10 @@ impl QueryRoot {
         arguments(
             limit(default = 100, description = "The number of items to return"),
             offset(default = 0, description = "The number of items to skip"),
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code",
+            ),
             order(
                 default = {
                     SubjectOrderBy {
@@ -1666,6 +1670,7 @@ impl QueryRoot {
         context: &Context,
         limit: i32,
         offset: i32,
+        filter: String,
         order: SubjectOrderBy,
         publishers: Vec<Uuid>,
         subject_type: Option<SubjectType>,
@@ -1724,6 +1729,7 @@ impl QueryRoot {
             query = query.filter(dsl::subject_type.eq(sub_type))
         }
         query
+            .filter(dsl::subject_code.ilike(format!("%{}%", filter)))
             .limit(limit.into())
             .offset(offset.into())
             .load::<Subject>(&connection)
@@ -1743,7 +1749,7 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Get the total number of subjects associated to works")]
-    fn subject_count(context: &Context, subject_type: Option<SubjectType>) -> i32 {
+    fn subject_count(context: &Context, filter: String, subject_type: Option<SubjectType>) -> i32 {
         use crate::schema::subject::dsl;
         let connection = context.db.get().unwrap();
         let mut query = dsl::subject.into_boxed();
@@ -1752,6 +1758,7 @@ impl QueryRoot {
         }
         // see comment in work_count()
         query
+            .filter(dsl::subject_code.ilike(format!("%{}%", filter)))
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading subject count")
@@ -2082,6 +2089,7 @@ impl MutationRoot {
     fn create_issue(context: &Context, data: NewIssue) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         user_can_edit_work(data.work_id, context)?;
+        issue_imprints_match(data.work_id, data.series_id, context)?;
 
         let connection = context.db.get().unwrap();
         match diesel::insert_into(issue::table)
@@ -2173,6 +2181,7 @@ impl MutationRoot {
         let work = target.get_result::<Work>(&connection).unwrap();
         if !(data.imprint_id == work.imprint_id) {
             user_can_edit_imprint(work.imprint_id, context)?;
+            can_update_work_imprint(work.work_id, context)?;
         }
 
         connection.transaction(
@@ -2351,6 +2360,7 @@ impl MutationRoot {
     fn update_issue(context: &Context, data: PatchIssue) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         user_can_edit_work(data.work_id, context)?;
+        issue_imprints_match(data.work_id, data.series_id, context)?;
 
         let connection = context.db.get().unwrap();
 
@@ -2845,20 +2855,149 @@ impl Work {
             .expect("Error loading imprint")
     }
 
-    pub fn contributions(&self, context: &Context) -> Vec<Contribution> {
-        use crate::schema::contribution::dsl::*;
+    #[graphql(
+        description = "Get contributions linked to this work",
+        arguments(
+            order(
+                default = {
+                    ContributionOrderBy {
+                        field: ContributionField::ContributionType,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            contribution_type(description = "A specific type to filter by"),
+        )
+    )]
+    pub fn contributions(
+        &self,
+        context: &Context,
+        order: ContributionOrderBy,
+        contribution_type: Option<ContributionType>,
+    ) -> Vec<Contribution> {
+        use crate::schema::contribution::dsl;
         let connection = context.db.get().unwrap();
-        contribution
-            .filter(work_id.eq(self.work_id))
+        let mut query = dsl::contribution.into_boxed();
+        match order.field {
+            ContributionField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(dsl::work_id.asc()),
+                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            },
+            ContributionField::ContributorID => match order.direction {
+                Direction::ASC => query = query.order(dsl::contributor_id.asc()),
+                Direction::DESC => query = query.order(dsl::contributor_id.desc()),
+            },
+            ContributionField::ContributionType => match order.direction {
+                Direction::ASC => query = query.order(dsl::contribution_type.asc()),
+                Direction::DESC => query = query.order(dsl::contribution_type.desc()),
+            },
+            ContributionField::MainContribution => match order.direction {
+                Direction::ASC => query = query.order(dsl::main_contribution.asc()),
+                Direction::DESC => query = query.order(dsl::main_contribution.desc()),
+            },
+            ContributionField::Biography => match order.direction {
+                Direction::ASC => query = query.order(dsl::biography.asc()),
+                Direction::DESC => query = query.order(dsl::biography.desc()),
+            },
+            ContributionField::Institution => match order.direction {
+                Direction::ASC => query = query.order(dsl::institution.asc()),
+                Direction::DESC => query = query.order(dsl::institution.desc()),
+            },
+            ContributionField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(dsl::created_at.asc()),
+                Direction::DESC => query = query.order(dsl::created_at.desc()),
+            },
+            ContributionField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(dsl::updated_at.asc()),
+                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+            },
+            ContributionField::FirstName => match order.direction {
+                Direction::ASC => query = query.order(dsl::first_name.asc()),
+                Direction::DESC => query = query.order(dsl::first_name.desc()),
+            },
+            ContributionField::LastName => match order.direction {
+                Direction::ASC => query = query.order(dsl::last_name.asc()),
+                Direction::DESC => query = query.order(dsl::last_name.desc()),
+            },
+            ContributionField::FullName => match order.direction {
+                Direction::ASC => query = query.order(dsl::full_name.asc()),
+                Direction::DESC => query = query.order(dsl::full_name.desc()),
+            },
+        }
+        if let Some(cont_type) = contribution_type {
+            query = query.filter(dsl::contribution_type.eq(cont_type))
+        }
+        query
+            .filter(dsl::work_id.eq(self.work_id))
             .load::<Contribution>(&connection)
             .expect("Error loading contributions")
     }
 
-    pub fn languages(&self, context: &Context) -> Vec<Language> {
-        use crate::schema::language::dsl::*;
+    #[graphql(
+        description = "Get languages linked to this work",
+        arguments(
+            order(
+                default = {
+                    LanguageOrderBy {
+                        field: LanguageField::LanguageCode,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            language_code(description = "A specific language to filter by"),
+            language_relation(description = "A specific relation to filter by"),
+        )
+    )]
+    pub fn languages(
+        &self,
+        context: &Context,
+        order: LanguageOrderBy,
+        language_code: Option<LanguageCode>,
+        language_relation: Option<LanguageRelation>,
+    ) -> Vec<Language> {
+        use crate::schema::language::dsl;
         let connection = context.db.get().unwrap();
-        language
-            .filter(work_id.eq(self.work_id))
+        let mut query = dsl::language.into_boxed();
+        match order.field {
+            LanguageField::LanguageID => match order.direction {
+                Direction::ASC => query = query.order(dsl::language_id.asc()),
+                Direction::DESC => query = query.order(dsl::language_id.desc()),
+            },
+            LanguageField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(dsl::work_id.asc()),
+                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            },
+            LanguageField::LanguageCode => match order.direction {
+                Direction::ASC => query = query.order(dsl::language_code.asc()),
+                Direction::DESC => query = query.order(dsl::language_code.desc()),
+            },
+            LanguageField::LanguageRelation => match order.direction {
+                Direction::ASC => query = query.order(dsl::language_relation.asc()),
+                Direction::DESC => query = query.order(dsl::language_relation.desc()),
+            },
+            LanguageField::MainLanguage => match order.direction {
+                Direction::ASC => query = query.order(dsl::main_language.asc()),
+                Direction::DESC => query = query.order(dsl::main_language.desc()),
+            },
+            LanguageField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(dsl::created_at.asc()),
+                Direction::DESC => query = query.order(dsl::created_at.desc()),
+            },
+            LanguageField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(dsl::updated_at.asc()),
+                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+            },
+        }
+        if let Some(lang_code) = language_code {
+            query = query.filter(dsl::language_code.eq(lang_code))
+        }
+        if let Some(lang_relation) = language_relation {
+            query = query.filter(dsl::language_relation.eq(lang_relation))
+        }
+        query
+            .filter(dsl::work_id.eq(self.work_id))
             .load::<Language>(&connection)
             .expect("Error loading languages")
     }
@@ -2872,6 +3011,15 @@ impl Work {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url"
             ),
+            order(
+                default = {
+                    PublicationOrderBy {
+                        field: PublicationField::PublicationType,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
             publication_type(description = "A specific type to filter by"),
         )
     )]
@@ -2881,13 +3029,42 @@ impl Work {
         limit: i32,
         offset: i32,
         filter: String,
+        order: PublicationOrderBy,
         publication_type: Option<PublicationType>,
     ) -> Vec<Publication> {
         let connection = context.db.get().unwrap();
         use crate::schema::publication::dsl;
-        let mut query = dsl::publication
-            .into_boxed()
-            .filter(dsl::work_id.eq(self.work_id));
+        let mut query = dsl::publication.into_boxed();
+        match order.field {
+            PublicationField::PublicationID => match order.direction {
+                Direction::ASC => query = query.order(dsl::publication_id.asc()),
+                Direction::DESC => query = query.order(dsl::publication_id.desc()),
+            },
+            PublicationField::PublicationType => match order.direction {
+                Direction::ASC => query = query.order(dsl::publication_type.asc()),
+                Direction::DESC => query = query.order(dsl::publication_type.desc()),
+            },
+            PublicationField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(dsl::work_id.asc()),
+                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            },
+            PublicationField::ISBN => match order.direction {
+                Direction::ASC => query = query.order(dsl::isbn.asc()),
+                Direction::DESC => query = query.order(dsl::isbn.desc()),
+            },
+            PublicationField::PublicationURL => match order.direction {
+                Direction::ASC => query = query.order(dsl::publication_url.asc()),
+                Direction::DESC => query = query.order(dsl::publication_url.desc()),
+            },
+            PublicationField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(dsl::created_at.asc()),
+                Direction::DESC => query = query.order(dsl::created_at.desc()),
+            },
+            PublicationField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(dsl::updated_at.asc()),
+                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+            },
+        }
         if let Some(pub_type) = publication_type {
             query = query.filter(dsl::publication_type.eq(pub_type));
         }
@@ -2900,7 +3077,7 @@ impl Work {
             );
         }
         query
-            .order(dsl::publication_type.asc())
+            .filter(dsl::work_id.eq(self.work_id))
             .limit(limit.into())
             .offset(offset.into())
             .load::<Publication>(&connection)
@@ -2916,6 +3093,16 @@ impl Work {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code",
             ),
+            order(
+                default = {
+                    SubjectOrderBy {
+                        field: SubjectField::SubjectType,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            subject_type(description = "A specific type to filter by"),
         )
     )]
     pub fn subjects(
@@ -2924,33 +3111,162 @@ impl Work {
         limit: i32,
         offset: i32,
         filter: String,
+        order: SubjectOrderBy,
+        subject_type: Option<SubjectType>,
     ) -> Vec<Subject> {
-        use crate::schema::subject::dsl::*;
+        use crate::schema::subject::dsl;
         let connection = context.db.get().unwrap();
-        subject
-            .filter(work_id.eq(self.work_id))
-            .filter(subject_code.ilike(format!("%{}%", filter)))
-            .order(subject_type.asc())
-            .then_order_by(subject_code.asc())
+        let mut query = dsl::subject.into_boxed();
+        match order.field {
+            SubjectField::SubjectID => match order.direction {
+                Direction::ASC => query = query.order(dsl::subject_id.asc()),
+                Direction::DESC => query = query.order(dsl::subject_id.desc()),
+            },
+            SubjectField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(dsl::work_id.asc()),
+                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            },
+            SubjectField::SubjectType => match order.direction {
+                Direction::ASC => query = query.order(dsl::subject_type.asc()),
+                Direction::DESC => query = query.order(dsl::subject_type.desc()),
+            },
+            SubjectField::SubjectCode => match order.direction {
+                Direction::ASC => query = query.order(dsl::subject_code.asc()),
+                Direction::DESC => query = query.order(dsl::subject_code.desc()),
+            },
+            SubjectField::SubjectOrdinal => match order.direction {
+                Direction::ASC => query = query.order(dsl::subject_ordinal.asc()),
+                Direction::DESC => query = query.order(dsl::subject_ordinal.desc()),
+            },
+            SubjectField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(dsl::created_at.asc()),
+                Direction::DESC => query = query.order(dsl::created_at.desc()),
+            },
+            SubjectField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(dsl::updated_at.asc()),
+                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+            },
+        }
+        if let Some(sub_type) = subject_type {
+            query = query.filter(dsl::subject_type.eq(sub_type))
+        }
+        query
+            .filter(dsl::work_id.eq(self.work_id))
+            .filter(dsl::subject_code.ilike(format!("%{}%", filter)))
+            .then_order_by(dsl::subject_code.asc())
             .limit(limit.into())
             .offset(offset.into())
             .load::<Subject>(&connection)
             .expect("Error loading subjects")
     }
 
-    pub fn fundings(&self, context: &Context) -> Vec<Funding> {
+    #[graphql(
+        description = "Get fundings linked to this work",
+        arguments(
+            order(
+                default = {
+                    FundingOrderBy {
+                        field: FundingField::Program,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+        )
+    )]
+    pub fn fundings(&self, context: &Context, order: FundingOrderBy) -> Vec<Funding> {
         use crate::schema::funding::dsl::*;
         let connection = context.db.get().unwrap();
-        funding
+        let mut query = funding.into_boxed();
+        match order.field {
+            FundingField::FundingID => match order.direction {
+                Direction::ASC => query = query.order(funding_id.asc()),
+                Direction::DESC => query = query.order(funding_id.desc()),
+            },
+            FundingField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            FundingField::FunderID => match order.direction {
+                Direction::ASC => query = query.order(funder_id.asc()),
+                Direction::DESC => query = query.order(funder_id.desc()),
+            },
+            FundingField::Program => match order.direction {
+                Direction::ASC => query = query.order(program.asc()),
+                Direction::DESC => query = query.order(program.desc()),
+            },
+            FundingField::ProjectName => match order.direction {
+                Direction::ASC => query = query.order(project_name.asc()),
+                Direction::DESC => query = query.order(project_name.desc()),
+            },
+            FundingField::ProjectShortname => match order.direction {
+                Direction::ASC => query = query.order(project_shortname.asc()),
+                Direction::DESC => query = query.order(project_shortname.desc()),
+            },
+            FundingField::GrantNumber => match order.direction {
+                Direction::ASC => query = query.order(grant_number.asc()),
+                Direction::DESC => query = query.order(grant_number.desc()),
+            },
+            FundingField::Jurisdiction => match order.direction {
+                Direction::ASC => query = query.order(jurisdiction.asc()),
+                Direction::DESC => query = query.order(jurisdiction.desc()),
+            },
+            FundingField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            FundingField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .filter(work_id.eq(self.work_id))
             .load::<Funding>(&connection)
             .expect("Error loading fundings")
     }
 
-    pub fn issues(&self, context: &Context) -> Vec<Issue> {
+    #[graphql(
+        description = "Get issues linked to this work",
+        arguments(
+            order(
+                default = {
+                    IssueOrderBy {
+                        field: IssueField::IssueOrdinal,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+        )
+    )]
+    pub fn issues(&self, context: &Context, order: IssueOrderBy) -> Vec<Issue> {
         use crate::schema::issue::dsl::*;
         let connection = context.db.get().unwrap();
-        issue
+        let mut query = issue.into_boxed();
+        match order.field {
+            IssueField::SeriesID => match order.direction {
+                Direction::ASC => query = query.order(series_id.asc()),
+                Direction::DESC => query = query.order(series_id.desc()),
+            },
+            IssueField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            IssueField::IssueOrdinal => match order.direction {
+                Direction::ASC => query = query.order(issue_ordinal.asc()),
+                Direction::DESC => query = query.order(issue_ordinal.desc()),
+            },
+            IssueField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            IssueField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .filter(work_id.eq(self.work_id))
             .load::<Issue>(&connection)
             .expect("Error loading issues")
@@ -2987,11 +3303,61 @@ impl Publication {
         self.updated_at
     }
 
-    pub fn prices(&self, context: &Context) -> Vec<Price> {
-        use crate::schema::price::dsl::*;
+    #[graphql(
+        description = "Get prices linked to this publication",
+        arguments(
+            order(
+                default = {
+                    PriceOrderBy {
+                        field: PriceField::CurrencyCode,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            currency_code(description = "A specific currency to filter by"),
+        )
+    )]
+    pub fn prices(
+        &self,
+        context: &Context,
+        order: PriceOrderBy,
+        currency_code: Option<CurrencyCode>,
+    ) -> Vec<Price> {
+        use crate::schema::price::dsl;
         let connection = context.db.get().unwrap();
-        price
-            .filter(publication_id.eq(self.publication_id))
+        let mut query = dsl::price.into_boxed();
+        match order.field {
+            PriceField::PriceID => match order.direction {
+                Direction::ASC => query = query.order(dsl::price_id.asc()),
+                Direction::DESC => query = query.order(dsl::price_id.desc()),
+            },
+            PriceField::PublicationID => match order.direction {
+                Direction::ASC => query = query.order(dsl::publication_id.asc()),
+                Direction::DESC => query = query.order(dsl::publication_id.desc()),
+            },
+            PriceField::CurrencyCode => match order.direction {
+                Direction::ASC => query = query.order(dsl::currency_code.asc()),
+                Direction::DESC => query = query.order(dsl::currency_code.desc()),
+            },
+            PriceField::UnitPrice => match order.direction {
+                Direction::ASC => query = query.order(dsl::unit_price.asc()),
+                Direction::DESC => query = query.order(dsl::unit_price.desc()),
+            },
+            PriceField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(dsl::created_at.asc()),
+                Direction::DESC => query = query.order(dsl::created_at.desc()),
+            },
+            PriceField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(dsl::updated_at.asc()),
+                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+            },
+        }
+        if let Some(curr_code) = currency_code {
+            query = query.filter(dsl::currency_code.eq(curr_code))
+        }
+        query
+            .filter(dsl::publication_id.eq(self.publication_id))
             .load::<Price>(&connection)
             .expect("Error loading price")
     }
@@ -3031,11 +3397,62 @@ impl Publisher {
         self.updated_at
     }
 
-    pub fn imprints(&self, context: &Context) -> Vec<Imprint> {
+    #[graphql(
+        description = "Get imprints linked to this publisher",
+        arguments(
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url"
+            ),
+            order(
+                default = {
+                    ImprintOrderBy {
+                        field: ImprintField::ImprintName,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+        )
+    )]
+    pub fn imprints(
+        &self,
+        context: &Context,
+        filter: String,
+        order: ImprintOrderBy,
+    ) -> Vec<Imprint> {
         use crate::schema::imprint::dsl::*;
         let connection = context.db.get().unwrap();
-        imprint
+        let mut query = imprint.into_boxed();
+        match order.field {
+            ImprintField::ImprintID => match order.direction {
+                Direction::ASC => query = query.order(imprint_id.asc()),
+                Direction::DESC => query = query.order(imprint_id.desc()),
+            },
+            ImprintField::ImprintName => match order.direction {
+                Direction::ASC => query = query.order(imprint_name.asc()),
+                Direction::DESC => query = query.order(imprint_name.desc()),
+            },
+            ImprintField::ImprintURL => match order.direction {
+                Direction::ASC => query = query.order(imprint_url.asc()),
+                Direction::DESC => query = query.order(imprint_url.desc()),
+            },
+            ImprintField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            ImprintField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .filter(publisher_id.eq(self.publisher_id))
+            .filter(
+                imprint_name
+                    .ilike(format!("%{}%", filter))
+                    .or(imprint_url.ilike(format!("%{}%", filter))),
+            )
             .load::<Imprint>(&connection)
             .expect("Error loading imprints")
     }
@@ -3072,10 +3489,183 @@ impl Imprint {
             .expect("Error loading publisher")
     }
 
-    pub fn works(&self, context: &Context) -> Vec<Work> {
-        use crate::schema::work::dsl::*;
+    #[graphql(
+    description="Get works linked to this imprint",
+    arguments(
+        filter(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
+        ),
+        order(
+            default = {
+                WorkOrderBy {
+                    field: WorkField::FullTitle,
+                    direction: Direction::ASC,
+                }
+            },
+            description = "The order in which to sort the results",
+        ),
+        work_type(description = "A specific type to filter by"),
+        work_status(description = "A specific status to filter by"),
+    )
+  )]
+    pub fn works(
+        context: &Context,
+        filter: String,
+        order: WorkOrderBy,
+        work_type: Option<WorkType>,
+        work_status: Option<WorkStatus>,
+    ) -> Vec<Work> {
+        use crate::schema::work::dsl;
         let connection = context.db.get().unwrap();
-        work.filter(imprint_id.eq(self.imprint_id))
+        let mut query = dsl::work.into_boxed();
+        match order.field {
+            WorkField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(dsl::work_id.asc()),
+                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            },
+            WorkField::WorkType => match order.direction {
+                Direction::ASC => query = query.order(dsl::work_type.asc()),
+                Direction::DESC => query = query.order(dsl::work_type.desc()),
+            },
+            WorkField::WorkStatus => match order.direction {
+                Direction::ASC => query = query.order(dsl::work_status.asc()),
+                Direction::DESC => query = query.order(dsl::work_status.desc()),
+            },
+            WorkField::FullTitle => match order.direction {
+                Direction::ASC => query = query.order(dsl::full_title.asc()),
+                Direction::DESC => query = query.order(dsl::full_title.desc()),
+            },
+            WorkField::Title => match order.direction {
+                Direction::ASC => query = query.order(dsl::title.asc()),
+                Direction::DESC => query = query.order(dsl::title.desc()),
+            },
+            WorkField::Subtitle => match order.direction {
+                Direction::ASC => query = query.order(dsl::subtitle.asc()),
+                Direction::DESC => query = query.order(dsl::subtitle.desc()),
+            },
+            WorkField::Reference => match order.direction {
+                Direction::ASC => query = query.order(dsl::reference.asc()),
+                Direction::DESC => query = query.order(dsl::reference.desc()),
+            },
+            WorkField::Edition => match order.direction {
+                Direction::ASC => query = query.order(dsl::edition.asc()),
+                Direction::DESC => query = query.order(dsl::edition.desc()),
+            },
+            WorkField::DOI => match order.direction {
+                Direction::ASC => query = query.order(dsl::doi.asc()),
+                Direction::DESC => query = query.order(dsl::doi.desc()),
+            },
+            WorkField::PublicationDate => match order.direction {
+                Direction::ASC => query = query.order(dsl::publication_date.asc()),
+                Direction::DESC => query = query.order(dsl::publication_date.desc()),
+            },
+            WorkField::Place => match order.direction {
+                Direction::ASC => query = query.order(dsl::place.asc()),
+                Direction::DESC => query = query.order(dsl::place.desc()),
+            },
+            WorkField::Width => match order.direction {
+                Direction::ASC => query = query.order(dsl::width.asc()),
+                Direction::DESC => query = query.order(dsl::width.desc()),
+            },
+            WorkField::Height => match order.direction {
+                Direction::ASC => query = query.order(dsl::height.asc()),
+                Direction::DESC => query = query.order(dsl::height.desc()),
+            },
+            WorkField::PageCount => match order.direction {
+                Direction::ASC => query = query.order(dsl::page_count.asc()),
+                Direction::DESC => query = query.order(dsl::page_count.desc()),
+            },
+            WorkField::PageBreakdown => match order.direction {
+                Direction::ASC => query = query.order(dsl::page_breakdown.asc()),
+                Direction::DESC => query = query.order(dsl::page_breakdown.desc()),
+            },
+            WorkField::ImageCount => match order.direction {
+                Direction::ASC => query = query.order(dsl::image_count.asc()),
+                Direction::DESC => query = query.order(dsl::image_count.desc()),
+            },
+            WorkField::TableCount => match order.direction {
+                Direction::ASC => query = query.order(dsl::table_count.asc()),
+                Direction::DESC => query = query.order(dsl::table_count.desc()),
+            },
+            WorkField::AudioCount => match order.direction {
+                Direction::ASC => query = query.order(dsl::audio_count.asc()),
+                Direction::DESC => query = query.order(dsl::audio_count.desc()),
+            },
+            WorkField::VideoCount => match order.direction {
+                Direction::ASC => query = query.order(dsl::video_count.asc()),
+                Direction::DESC => query = query.order(dsl::video_count.desc()),
+            },
+            WorkField::License => match order.direction {
+                Direction::ASC => query = query.order(dsl::license.asc()),
+                Direction::DESC => query = query.order(dsl::license.desc()),
+            },
+            WorkField::CopyrightHolder => match order.direction {
+                Direction::ASC => query = query.order(dsl::copyright_holder.asc()),
+                Direction::DESC => query = query.order(dsl::copyright_holder.desc()),
+            },
+            WorkField::LandingPage => match order.direction {
+                Direction::ASC => query = query.order(dsl::landing_page.asc()),
+                Direction::DESC => query = query.order(dsl::landing_page.desc()),
+            },
+            WorkField::LCCN => match order.direction {
+                Direction::ASC => query = query.order(dsl::lccn.asc()),
+                Direction::DESC => query = query.order(dsl::lccn.desc()),
+            },
+            WorkField::OCLC => match order.direction {
+                Direction::ASC => query = query.order(dsl::oclc.asc()),
+                Direction::DESC => query = query.order(dsl::oclc.desc()),
+            },
+            WorkField::ShortAbstract => match order.direction {
+                Direction::ASC => query = query.order(dsl::short_abstract.asc()),
+                Direction::DESC => query = query.order(dsl::short_abstract.desc()),
+            },
+            WorkField::LongAbstract => match order.direction {
+                Direction::ASC => query = query.order(dsl::long_abstract.asc()),
+                Direction::DESC => query = query.order(dsl::long_abstract.desc()),
+            },
+            WorkField::GeneralNote => match order.direction {
+                Direction::ASC => query = query.order(dsl::general_note.asc()),
+                Direction::DESC => query = query.order(dsl::general_note.desc()),
+            },
+            WorkField::TOC => match order.direction {
+                Direction::ASC => query = query.order(dsl::toc.asc()),
+                Direction::DESC => query = query.order(dsl::toc.desc()),
+            },
+            WorkField::CoverURL => match order.direction {
+                Direction::ASC => query = query.order(dsl::cover_url.asc()),
+                Direction::DESC => query = query.order(dsl::cover_url.desc()),
+            },
+            WorkField::CoverCaption => match order.direction {
+                Direction::ASC => query = query.order(dsl::cover_caption.asc()),
+                Direction::DESC => query = query.order(dsl::cover_caption.desc()),
+            },
+            WorkField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(dsl::created_at.asc()),
+                Direction::DESC => query = query.order(dsl::created_at.desc()),
+            },
+            WorkField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(dsl::updated_at.asc()),
+                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+            },
+        }
+        if let Some(wk_type) = work_type {
+            query = query.filter(dsl::work_type.eq(wk_type))
+        }
+        if let Some(wk_status) = work_status {
+            query = query.filter(dsl::work_status.eq(wk_status))
+        }
+        query
+            .filter(dsl::imprint_id.eq(self.imprint_id))
+            .filter(
+                dsl::full_title
+                    .ilike(format!("%{}%", filter))
+                    .or(dsl::doi.ilike(format!("%{}%", filter)))
+                    .or(dsl::reference.ilike(format!("%{}%", filter)))
+                    .or(dsl::short_abstract.ilike(format!("%{}%", filter)))
+                    .or(dsl::long_abstract.ilike(format!("%{}%", filter)))
+                    .or(dsl::landing_page.ilike(format!("%{}%", filter))),
+            )
             .load::<Work>(&connection)
             .expect("Error loading works")
     }
@@ -3115,11 +3705,81 @@ impl Contributor {
         self.updated_at
     }
 
-    pub fn contributions(&self, context: &Context) -> Vec<Contribution> {
-        use crate::schema::contribution::dsl::*;
+    #[graphql(
+        description = "Get contributions linked to this contributor",
+        arguments(
+            order(
+                default = {
+                    ContributionOrderBy {
+                        field: ContributionField::ContributionType,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            contribution_type(description = "A specific type to filter by"),
+        )
+    )]
+    pub fn contributions(
+        &self,
+        context: &Context,
+        order: ContributionOrderBy,
+        contribution_type: Option<ContributionType>,
+    ) -> Vec<Contribution> {
+        use crate::schema::contribution::dsl;
         let connection = context.db.get().unwrap();
-        contribution
-            .filter(contributor_id.eq(self.contributor_id))
+        let mut query = dsl::contribution.into_boxed();
+        match order.field {
+            ContributionField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(dsl::work_id.asc()),
+                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            },
+            ContributionField::ContributorID => match order.direction {
+                Direction::ASC => query = query.order(dsl::contributor_id.asc()),
+                Direction::DESC => query = query.order(dsl::contributor_id.desc()),
+            },
+            ContributionField::ContributionType => match order.direction {
+                Direction::ASC => query = query.order(dsl::contribution_type.asc()),
+                Direction::DESC => query = query.order(dsl::contribution_type.desc()),
+            },
+            ContributionField::MainContribution => match order.direction {
+                Direction::ASC => query = query.order(dsl::main_contribution.asc()),
+                Direction::DESC => query = query.order(dsl::main_contribution.desc()),
+            },
+            ContributionField::Biography => match order.direction {
+                Direction::ASC => query = query.order(dsl::biography.asc()),
+                Direction::DESC => query = query.order(dsl::biography.desc()),
+            },
+            ContributionField::Institution => match order.direction {
+                Direction::ASC => query = query.order(dsl::institution.asc()),
+                Direction::DESC => query = query.order(dsl::institution.desc()),
+            },
+            ContributionField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(dsl::created_at.asc()),
+                Direction::DESC => query = query.order(dsl::created_at.desc()),
+            },
+            ContributionField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(dsl::updated_at.asc()),
+                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+            },
+            ContributionField::FirstName => match order.direction {
+                Direction::ASC => query = query.order(dsl::first_name.asc()),
+                Direction::DESC => query = query.order(dsl::first_name.desc()),
+            },
+            ContributionField::LastName => match order.direction {
+                Direction::ASC => query = query.order(dsl::last_name.asc()),
+                Direction::DESC => query = query.order(dsl::last_name.desc()),
+            },
+            ContributionField::FullName => match order.direction {
+                Direction::ASC => query = query.order(dsl::full_name.asc()),
+                Direction::DESC => query = query.order(dsl::full_name.desc()),
+            },
+        }
+        if let Some(cont_type) = contribution_type {
+            query = query.filter(dsl::contribution_type.eq(cont_type))
+        }
+        query
+            .filter(dsl::contributor_id.eq(self.contributor_id))
             .load::<Contribution>(&connection)
             .expect("Error loading contributions")
     }
@@ -3232,10 +3892,47 @@ impl Series {
             .expect("Error loading imprint")
     }
 
-    pub fn issues(&self, context: &Context) -> Vec<Issue> {
+    #[graphql(
+        description = "Get issues linked to this series",
+        arguments(
+            order(
+                default = {
+                    IssueOrderBy {
+                        field: IssueField::IssueOrdinal,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+        )
+    )]
+    pub fn issues(&self, context: &Context, order: IssueOrderBy) -> Vec<Issue> {
         use crate::schema::issue::dsl::*;
         let connection = context.db.get().unwrap();
-        issue
+        let mut query = issue.into_boxed();
+        match order.field {
+            IssueField::SeriesID => match order.direction {
+                Direction::ASC => query = query.order(series_id.asc()),
+                Direction::DESC => query = query.order(series_id.desc()),
+            },
+            IssueField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            IssueField::IssueOrdinal => match order.direction {
+                Direction::ASC => query = query.order(issue_ordinal.asc()),
+                Direction::DESC => query = query.order(issue_ordinal.desc()),
+            },
+            IssueField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            IssueField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .filter(series_id.eq(self.series_id))
             .load::<Issue>(&connection)
             .expect("Error loading issues")
@@ -3418,10 +4115,67 @@ impl Funder {
         self.updated_at
     }
 
-    pub fn fundings(&self, context: &Context) -> Vec<Funding> {
+    #[graphql(
+        description = "Get fundings linked to this funder",
+        arguments(
+            order(
+                default = {
+                    FundingOrderBy {
+                        field: FundingField::Program,
+                        direction: Direction::ASC,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+        )
+    )]
+    pub fn fundings(&self, context: &Context, order: FundingOrderBy) -> Vec<Funding> {
         use crate::schema::funding::dsl::*;
         let connection = context.db.get().unwrap();
-        funding
+        let mut query = funding.into_boxed();
+        match order.field {
+            FundingField::FundingID => match order.direction {
+                Direction::ASC => query = query.order(funding_id.asc()),
+                Direction::DESC => query = query.order(funding_id.desc()),
+            },
+            FundingField::WorkID => match order.direction {
+                Direction::ASC => query = query.order(work_id.asc()),
+                Direction::DESC => query = query.order(work_id.desc()),
+            },
+            FundingField::FunderID => match order.direction {
+                Direction::ASC => query = query.order(funder_id.asc()),
+                Direction::DESC => query = query.order(funder_id.desc()),
+            },
+            FundingField::Program => match order.direction {
+                Direction::ASC => query = query.order(program.asc()),
+                Direction::DESC => query = query.order(program.desc()),
+            },
+            FundingField::ProjectName => match order.direction {
+                Direction::ASC => query = query.order(project_name.asc()),
+                Direction::DESC => query = query.order(project_name.desc()),
+            },
+            FundingField::ProjectShortname => match order.direction {
+                Direction::ASC => query = query.order(project_shortname.asc()),
+                Direction::DESC => query = query.order(project_shortname.desc()),
+            },
+            FundingField::GrantNumber => match order.direction {
+                Direction::ASC => query = query.order(grant_number.asc()),
+                Direction::DESC => query = query.order(grant_number.desc()),
+            },
+            FundingField::Jurisdiction => match order.direction {
+                Direction::ASC => query = query.order(jurisdiction.asc()),
+                Direction::DESC => query = query.order(jurisdiction.desc()),
+            },
+            FundingField::CreatedAt => match order.direction {
+                Direction::ASC => query = query.order(created_at.asc()),
+                Direction::DESC => query = query.order(created_at.desc()),
+            },
+            FundingField::UpdatedAt => match order.direction {
+                Direction::ASC => query = query.order(updated_at.asc()),
+                Direction::DESC => query = query.order(updated_at.desc()),
+            },
+        }
+        query
             .filter(funder_id.eq(self.funder_id))
             .load::<Funding>(&connection)
             .expect("Error loading fundings")
@@ -3524,4 +4278,42 @@ fn user_can_edit_publication(publication_id: Uuid, context: &Context) -> Result<
         .first::<Uuid>(&context.db.get().unwrap())
         .expect("Error checking permissions");
     context.account_access.can_edit(pub_id)
+}
+
+fn issue_imprints_match(work_id: Uuid, series_id: Uuid, context: &Context) -> Result<()> {
+    let series_imprint = crate::schema::series::table
+        .select(crate::schema::series::imprint_id)
+        .filter(crate::schema::series::series_id.eq(series_id))
+        .first::<Uuid>(&context.db.get().unwrap())
+        .expect("Error loading series for issue");
+    let work_imprint = crate::schema::work::table
+        .select(crate::schema::work::imprint_id)
+        .filter(crate::schema::work::work_id.eq(work_id))
+        .first::<Uuid>(&context.db.get().unwrap())
+        .expect("Error loading work for issue");
+    if work_imprint == series_imprint {
+        Ok(())
+    } else {
+        Err(ThothError::IssueImprintsError.into())
+    }
+}
+
+fn can_update_work_imprint(work_id: Uuid, context: &Context) -> Result<()> {
+    use crate::schema::issue::dsl;
+    // see comment in work_count()
+    let issue_count = dsl::issue
+        .filter(dsl::work_id.eq(work_id))
+        .count()
+        .get_result::<i64>(&context.db.get().unwrap())
+        .expect("Error loading issue count for work")
+        .to_string()
+        .parse::<i32>()
+        .unwrap();
+    // If a work has any related issues, its imprint cannot be changed,
+    // because an issue's series and work must both have the same imprint.
+    if issue_count == 0 {
+        Ok(())
+    } else {
+        Err(ThothError::IssueImprintsError.into())
+    }
 }
