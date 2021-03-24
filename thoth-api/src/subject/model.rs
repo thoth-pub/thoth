@@ -1,4 +1,5 @@
-use chrono::naive::NaiveDateTime;
+use chrono::DateTime;
+use chrono::Utc;
 use phf::phf_map;
 use phf::Map;
 use serde::{Deserialize, Serialize};
@@ -52,8 +53,8 @@ pub struct Subject {
     pub subject_type: SubjectType,
     pub subject_code: String,
     pub subject_ordinal: i32,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[cfg_attr(
@@ -88,7 +89,7 @@ pub struct SubjectHistory {
     pub subject_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: NaiveDateTime,
+    pub timestamp: DateTime<Utc>,
 }
 
 #[cfg_attr(

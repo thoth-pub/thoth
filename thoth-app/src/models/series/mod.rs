@@ -1,4 +1,5 @@
-use chrono::naive::NaiveDateTime;
+use chrono::DateTime;
+use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::series::model::SeriesType;
@@ -20,7 +21,7 @@ pub struct Series {
     pub issn_print: String,
     pub issn_digital: String,
     pub series_url: Option<String>,
-    pub updated_at: serde_json::Value,
+    pub updated_at: DateTime<Utc>,
     pub imprint: Imprint,
 }
 
@@ -40,12 +41,12 @@ impl Default for Series {
     fn default() -> Series {
         Series {
             series_id: "".to_string(),
-            series_type: SeriesType::BookSeries,
+            series_type: Default::default(),
             series_name: "".to_string(),
             issn_print: "".to_string(),
             issn_digital: "".to_string(),
             series_url: None,
-            updated_at: Default::default(),
+            updated_at: DateTime::<Utc>::from(chrono::TimeZone::timestamp(&Utc, 0, 0)),
             imprint: Default::default(),
         }
     }
@@ -72,8 +73,6 @@ impl Series {
     }
 
     pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
-        let updated =
-            NaiveDateTime::from_timestamp(self.updated_at.as_f64().unwrap_or(0.0) as i64, 0);
         html! {
             <tr
                 class="row"
@@ -84,7 +83,7 @@ impl Series {
                 <td>{&self.series_type}</td>
                 <td>{&self.issn_print}</td>
                 <td>{&self.issn_digital}</td>
-                <td>{updated}</td>
+                <td>{&self.updated_at.format("%F %T")}</td>
             </tr>
         }
     }

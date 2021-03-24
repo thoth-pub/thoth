@@ -1,4 +1,5 @@
-use chrono::naive::NaiveDateTime;
+use chrono::DateTime;
+use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use yew::html;
@@ -9,7 +10,7 @@ use yew::MouseEvent;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contributor {
     pub contributor_id: String,
@@ -18,7 +19,7 @@ pub struct Contributor {
     pub full_name: String,
     pub orcid: Option<String>,
     pub website: Option<String>,
-    pub updated_at: serde_json::Value,
+    pub updated_at: DateTime<Utc>,
 }
 
 impl Contributor {
@@ -49,8 +50,6 @@ impl Contributor {
 
     pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let orcid = self.orcid.clone().unwrap_or_else(|| "".to_string());
-        let updated =
-            NaiveDateTime::from_timestamp(self.updated_at.as_f64().unwrap_or(0.0) as i64, 0);
         html! {
             <tr
                 class="row"
@@ -59,8 +58,22 @@ impl Contributor {
                 <td>{&self.contributor_id}</td>
                 <td>{&self.full_name}</td>
                 <td>{orcid}</td>
-                <td>{updated}</td>
+                <td>{&self.updated_at.format("%F %T")}</td>
             </tr>
+        }
+    }
+}
+
+impl Default for Contributor {
+    fn default() -> Contributor {
+        Contributor {
+            contributor_id: "".to_string(),
+            first_name: None,
+            last_name: "".to_string(),
+            full_name: "".to_string(),
+            orcid: None,
+            website: None,
+            updated_at: DateTime::<Utc>::from(chrono::TimeZone::timestamp(&Utc, 0, 0)),
         }
     }
 }

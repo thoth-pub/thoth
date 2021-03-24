@@ -1,4 +1,3 @@
-use chrono::naive::NaiveDateTime;
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::publication::model::PublicationType;
@@ -69,8 +68,6 @@ impl crate::models::publication::publications_query::DetailedPublication {
             .publication_url
             .clone()
             .unwrap_or_else(|| "".to_string());
-        let updated =
-            NaiveDateTime::from_timestamp(self.updated_at.as_f64().unwrap_or(0.0) as i64, 0);
         html! {
             <tr
                 class="row"
@@ -83,7 +80,7 @@ impl crate::models::publication::publications_query::DetailedPublication {
                 <td>{&self.publication_type}</td>
                 <td>{isbn}</td>
                 <td>{publication_url}</td>
-                <td>{updated}</td>
+                <td>{&self.updated_at.format("%F %T")}</td>
             </tr>
         }
     }

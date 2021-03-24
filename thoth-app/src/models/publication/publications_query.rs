@@ -1,3 +1,5 @@
+use chrono::DateTime;
+use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::publication::model::PublicationOrderBy;
@@ -63,7 +65,7 @@ pub struct Variables {
     pub publishers: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DetailedPublication {
     pub publication_id: String,
@@ -71,7 +73,7 @@ pub struct DetailedPublication {
     pub work_id: String,
     pub isbn: Option<String>,
     pub publication_url: Option<String>,
-    pub updated_at: serde_json::Value,
+    pub updated_at: DateTime<Utc>,
     pub work: Work,
 }
 
@@ -80,4 +82,18 @@ pub struct DetailedPublication {
 pub struct PublicationsResponseData {
     pub publications: Vec<DetailedPublication>,
     pub publication_count: i32,
+}
+
+impl Default for DetailedPublication {
+    fn default() -> DetailedPublication {
+        DetailedPublication {
+            publication_id: "".to_string(),
+            publication_type: Default::default(),
+            work_id: "".to_string(),
+            isbn: None,
+            publication_url: None,
+            updated_at: DateTime::<Utc>::from(chrono::TimeZone::timestamp(&Utc, 0, 0)),
+            work: Default::default(),
+        }
+    }
 }

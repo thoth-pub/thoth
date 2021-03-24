@@ -1,4 +1,5 @@
-use chrono::naive::NaiveDateTime;
+use chrono::DateTime;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use strum::EnumString;
@@ -30,8 +31,8 @@ pub struct Price {
     pub publication_id: Uuid,
     pub currency_code: CurrencyCode,
     pub unit_price: f64,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[cfg_attr(
@@ -374,7 +375,7 @@ pub struct PriceHistory {
     pub price_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: NaiveDateTime,
+    pub timestamp: DateTime<Utc>,
 }
 
 #[cfg_attr(feature = "backend", derive(Insertable), table_name = "price_history")]

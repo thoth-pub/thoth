@@ -1,5 +1,6 @@
 use chrono::naive::NaiveDate;
-use chrono::naive::NaiveDateTime;
+use chrono::DateTime;
+use chrono::Utc;
 use diesel::prelude::*;
 use juniper::FieldError;
 use juniper::FieldResult;
@@ -2827,11 +2828,11 @@ impl Work {
         self.cover_caption.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -2978,11 +2979,11 @@ impl Publication {
         self.publication_url.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3022,11 +3023,11 @@ impl Publisher {
         self.publisher_url.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3054,11 +3055,11 @@ impl Imprint {
         self.imprint_url.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3106,11 +3107,11 @@ impl Contributor {
         self.website.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3150,11 +3151,11 @@ impl Contribution {
         self.institution.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3214,11 +3215,11 @@ impl Series {
         self.series_url.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3255,11 +3256,11 @@ impl Issue {
         &self.issue_ordinal
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3303,11 +3304,11 @@ impl Language {
         self.main_language
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3338,11 +3339,11 @@ impl Price {
         self.unit_price
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3378,11 +3379,11 @@ impl Subject {
         &self.subject_ordinal
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3409,11 +3410,11 @@ impl Funder {
         self.funder_doi.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3461,11 +3462,11 @@ impl Funding {
         self.jurisdiction.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 

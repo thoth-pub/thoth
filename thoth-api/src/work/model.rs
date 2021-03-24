@@ -1,5 +1,6 @@
 use chrono::naive::NaiveDate;
-use chrono::naive::NaiveDateTime;
+use chrono::DateTime;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use strum::EnumString;
@@ -141,8 +142,8 @@ pub struct Work {
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[cfg_attr(
@@ -229,7 +230,7 @@ pub struct WorkHistory {
     pub work_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: NaiveDateTime,
+    pub timestamp: DateTime<Utc>,
 }
 
 #[cfg_attr(feature = "backend", derive(Insertable), table_name = "work_history")]

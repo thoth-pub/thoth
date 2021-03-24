@@ -1,4 +1,5 @@
-use chrono::naive::NaiveDateTime;
+use chrono::DateTime;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use strum::EnumString;
@@ -60,8 +61,8 @@ pub struct Contribution {
     pub main_contribution: bool,
     pub biography: Option<String>,
     pub institution: Option<String>,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
@@ -110,7 +111,7 @@ pub struct ContributionHistory {
     pub contribution_type: ContributionType,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: NaiveDateTime,
+    pub timestamp: DateTime<Utc>,
 }
 
 #[cfg_attr(
