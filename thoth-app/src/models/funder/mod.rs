@@ -67,7 +67,7 @@ impl Default for Funder {
             funder_id: "".to_string(),
             funder_name: "".to_string(),
             funder_doi: None,
-            updated_at: DateTime::<Utc>::from(chrono::TimeZone::timestamp(&Utc, 0, 0)),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
         }
     }
 }

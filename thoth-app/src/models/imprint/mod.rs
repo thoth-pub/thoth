@@ -53,7 +53,7 @@ impl Default for Imprint {
             imprint_id: "".to_string(),
             imprint_name: "".to_string(),
             imprint_url: None,
-            updated_at: DateTime::<Utc>::from(chrono::TimeZone::timestamp(&Utc, 0, 0)),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
             publisher: Default::default(),
         }
     }

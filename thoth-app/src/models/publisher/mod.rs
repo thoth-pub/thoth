@@ -57,7 +57,7 @@ impl Default for Publisher {
             publisher_name: "".to_string(),
             publisher_shortname: None,
             publisher_url: None,
-            updated_at: DateTime::<Utc>::from(chrono::TimeZone::timestamp(&Utc, 0, 0)),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
         }
     }
 }

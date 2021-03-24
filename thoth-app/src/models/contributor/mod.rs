@@ -73,7 +73,7 @@ impl Default for Contributor {
             full_name: "".to_string(),
             orcid: None,
             website: None,
-            updated_at: DateTime::<Utc>::from(chrono::TimeZone::timestamp(&Utc, 0, 0)),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
         }
     }
 }

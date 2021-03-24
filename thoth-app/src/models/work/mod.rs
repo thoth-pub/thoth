@@ -457,7 +457,7 @@ impl Default for Work {
             toc: None,
             cover_url: None,
             cover_caption: None,
-            updated_at: DateTime::<Utc>::from(chrono::TimeZone::timestamp(&Utc, 0, 0)),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
             contributions: None,
             publications: None,
             languages: None,

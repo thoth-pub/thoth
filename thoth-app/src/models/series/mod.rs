@@ -46,7 +46,7 @@ impl Default for Series {
             issn_print: "".to_string(),
             issn_digital: "".to_string(),
             series_url: None,
-            updated_at: DateTime::<Utc>::from(chrono::TimeZone::timestamp(&Utc, 0, 0)),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
             imprint: Default::default(),
         }
     }
