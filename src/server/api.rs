@@ -65,7 +65,10 @@ async fn onix(req: HttpRequest, path: web::Path<(Uuid,)>) -> HttpResponse {
     if let Ok(work) = get_work(work_id, thoth_url).await {
         if let Ok(body) = generate_onix_3(work) {
             HttpResponse::Ok()
-                .header("Content-Disposition", "attachment")
+                .header(
+                    "Content-Disposition",
+                    format!("attachment; filename=\"{}.xml\"", work_id),
+                )
                 .content_type("text/xml; charset=utf-8")
                 .body(String::from_utf8(body).unwrap())
         } else {
