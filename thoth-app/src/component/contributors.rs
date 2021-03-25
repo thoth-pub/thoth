@@ -4,6 +4,8 @@ use crate::models::contributor::contributors_query::FetchActionContributors;
 use crate::models::contributor::contributors_query::FetchContributors;
 use crate::models::contributor::contributors_query::Variables;
 use crate::models::contributor::Contributor;
+use thoth_api::contributor::model::ContributorField;
+use thoth_api::contributor::model::ContributorOrderBy;
 
 pagination_component! {
     ContributorsComponent,
@@ -17,5 +19,12 @@ pagination_component! {
     Variables,
     SEARCH_CONTRIBUTORS,
     PAGINATION_COUNT_CONTRIBUTORS,
-    vec!["ID".to_string(), "FullName".to_string(), "ORCID".to_string()]
+    vec![
+        ContributorField::ContributorID.to_string(),
+        ContributorField::FullName.to_string(),
+        ContributorField::ORCID.to_string(),
+        ContributorField::UpdatedAt.to_string(),
+    ],
+    ContributorOrderBy,
+    ContributorField,
 }

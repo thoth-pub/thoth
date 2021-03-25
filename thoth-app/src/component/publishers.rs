@@ -4,6 +4,8 @@ use crate::models::publisher::publishers_query::PublishersRequest;
 use crate::models::publisher::publishers_query::PublishersRequestBody;
 use crate::models::publisher::publishers_query::Variables;
 use crate::models::publisher::Publisher;
+use thoth_api::publisher::model::PublisherField;
+use thoth_api::publisher::model::PublisherOrderBy;
 
 pagination_component! {
     PublishersComponent,
@@ -17,5 +19,13 @@ pagination_component! {
     Variables,
     SEARCH_PUBLISHERS,
     PAGINATION_COUNT_PUBLISHERS,
-    vec!["ID".to_string(), "Name".to_string(), "ShortName".to_string(), "URL".to_string()]
+    vec![
+        PublisherField::PublisherID.to_string(),
+        PublisherField::PublisherName.to_string(),
+        PublisherField::PublisherShortname.to_string(),
+        PublisherField::PublisherURL.to_string(),
+        PublisherField::UpdatedAt.to_string(),
+    ],
+    PublisherOrderBy,
+    PublisherField,
 }

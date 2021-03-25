@@ -18,6 +18,7 @@ const UPDATE_PUBLISHER_MUTATION: &str = "
         }){
             publisherId
             publisherName
+            updatedAt
         }
     }
 ";

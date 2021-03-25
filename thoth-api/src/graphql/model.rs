@@ -1,5 +1,6 @@
 use chrono::naive::NaiveDate;
-use chrono::naive::NaiveDateTime;
+use chrono::DateTime;
+use chrono::Utc;
 use diesel::prelude::*;
 use juniper::FieldError;
 use juniper::FieldResult;
@@ -27,6 +28,8 @@ use crate::series::model::*;
 use crate::subject::model::*;
 use crate::work::model::*;
 
+use super::utils::Direction;
+
 impl juniper::Context for Context {}
 
 #[derive(Clone)]
@@ -46,59 +49,10 @@ impl Context {
     }
 }
 
-#[derive(juniper::GraphQLEnum)]
-#[graphql(description = "Order in which to sort query results (ascending or descending)")]
-pub enum Direction {
-    ASC,
-    DESC,
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting works list")]
-pub struct WorkOrderBy {
-    pub field: WorkField,
-    pub direction: Direction,
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting publications list")]
-pub struct PublicationOrderBy {
-    pub field: PublicationField,
-    pub direction: Direction,
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting publishers list")]
-pub struct PublisherOrderBy {
-    pub field: PublisherField,
-    pub direction: Direction,
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting imprints list")]
-pub struct ImprintOrderBy {
-    pub field: ImprintField,
-    pub direction: Direction,
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting contributors list")]
-pub struct ContributorOrderBy {
-    pub field: ContributorField,
-    pub direction: Direction,
-}
-
 #[derive(juniper::GraphQLInputObject)]
 #[graphql(description = "Field and order to use when sorting contributions list")]
 pub struct ContributionOrderBy {
     pub field: ContributionField,
-    pub direction: Direction,
-}
-
-#[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting series list")]
-pub struct SeriesOrderBy {
-    pub field: SeriesField,
     pub direction: Direction,
 }
 
@@ -131,13 +85,6 @@ pub struct SubjectOrderBy {
 }
 
 #[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting funders list")]
-pub struct FunderOrderBy {
-    pub field: FunderField,
-    pub direction: Direction,
-}
-
-#[derive(juniper::GraphQLInputObject)]
 #[graphql(description = "Field and order to use when sorting fundings list")]
 pub struct FundingOrderBy {
     pub field: FundingField,
@@ -164,12 +111,7 @@ impl QueryRoot {
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
         ),
         order(
-            default = {
-                WorkOrderBy {
-                    field: WorkField::FullTitle,
-                    direction: Direction::ASC,
-                }
-            },
+            default = WorkOrderBy::default(),
             description = "The order in which to sort the results",
         ),
         publishers(
@@ -522,12 +464,7 @@ impl QueryRoot {
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url"
             ),
             order(
-                default = {
-                    PublicationOrderBy {
-                        field: PublicationField::PublicationType,
-                        direction: Direction::ASC,
-                    }
-                },
+                default = PublicationOrderBy::default(),
                 description = "The order in which to sort the results",
             ),
             publishers(
@@ -704,12 +641,7 @@ impl QueryRoot {
 
         ),
         order(
-            default = {
-                PublisherOrderBy {
-                    field: PublisherField::PublisherName,
-                    direction: Direction::ASC,
-                }
-            },
+            default = PublisherOrderBy::default(),
             description = "The order in which to sort the results",
         ),
         publishers(
@@ -833,12 +765,7 @@ impl QueryRoot {
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url"
             ),
             order(
-                default = {
-                    ImprintOrderBy {
-                        field: ImprintField::ImprintName,
-                        direction: Direction::ASC,
-                    }
-                },
+                default = ImprintOrderBy::default(),
                 description = "The order in which to sort the results",
             ),
             publishers(
@@ -958,12 +885,7 @@ impl QueryRoot {
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_name and orcid"
             ),
             order(
-                default = {
-                    ContributorOrderBy {
-                        field: ContributorField::FullName,
-                        direction: Direction::ASC,
-                    }
-                },
+                default = ContributorOrderBy::default(),
                 description = "The order in which to sort the results",
             ),
         )
@@ -1213,12 +1135,7 @@ impl QueryRoot {
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital and series_url"
             ),
             order(
-                default = {
-                    SeriesOrderBy {
-                        field: SeriesField::SeriesName,
-                        direction: Direction::ASC,
-                    }
-                },
+                default = SeriesOrderBy::default(),
                 description = "The order in which to sort the results",
             ),
             publishers(
@@ -1860,12 +1777,7 @@ impl QueryRoot {
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on funderName and funderDoi",
             ),
             order(
-                default = {
-                    FunderOrderBy {
-                        field: FunderField::FunderName,
-                        direction: Direction::ASC,
-                    }
-                },
+                default = FunderOrderBy::default(),
                 description = "The order in which to sort the results",
             ),
         )
@@ -2926,11 +2838,11 @@ impl Work {
         self.cover_caption.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3383,11 +3295,11 @@ impl Publication {
         self.publication_url.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3477,11 +3389,11 @@ impl Publisher {
         self.publisher_url.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3560,11 +3472,11 @@ impl Imprint {
         self.imprint_url.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3785,11 +3697,11 @@ impl Contributor {
         self.website.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3899,11 +3811,11 @@ impl Contribution {
         self.institution.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -3963,11 +3875,11 @@ impl Series {
         self.series_url.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -4041,11 +3953,11 @@ impl Issue {
         &self.issue_ordinal
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -4089,11 +4001,11 @@ impl Language {
         self.main_language
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -4124,11 +4036,11 @@ impl Price {
         self.unit_price
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -4164,11 +4076,11 @@ impl Subject {
         &self.subject_ordinal
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -4195,11 +4107,11 @@ impl Funder {
         self.funder_doi.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 
@@ -4304,11 +4216,11 @@ impl Funding {
         self.jurisdiction.as_ref()
     }
 
-    pub fn created_at(&self) -> NaiveDateTime {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> NaiveDateTime {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
 

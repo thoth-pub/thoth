@@ -1,14 +1,16 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::funder::model::FunderOrderBy;
 
 use super::Funder;
 
 pub const FUNDERS_QUERY: &str = "
-    query FundersQuery($limit: Int, $offset: Int, $filter: String) {
-        funders(limit: $limit, offset: $offset, filter: $filter) {
+    query FundersQuery($limit: Int, $offset: Int, $filter: String, $order: FunderOrderBy) {
+        funders(limit: $limit, offset: $offset, filter: $filter, order: $order) {
             funderId
             funderName
             funderDoi
+            updatedAt
         }
         funderCount(filter: $filter)
     }
@@ -31,6 +33,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
+    pub order: Option<FunderOrderBy>,
     // Unused, but required by pagination_component macro
     pub publishers: Option<Vec<String>>,
 }

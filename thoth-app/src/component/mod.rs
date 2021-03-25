@@ -78,9 +78,13 @@ macro_rules! pagination_component {
         $request_variables:ident,
         $search_text:ident,
         $pagination_text:ident,
-        $table_headers:expr
+        $table_headers:expr,
+        $order_struct:ty,
+        $order_field:ty,
     ) => {
+        use std::str::FromStr;
         use thoth_api::account::model::AccountDetails;
+        use thoth_api::graphql::utils::Direction::*;
         use yew::html;
         use yew::prelude::Component;
         use yew::prelude::Html;
@@ -96,6 +100,7 @@ macro_rules! pagination_component {
         use yewtil::fetch::FetchAction;
         use yewtil::fetch::FetchState;
         use yewtil::future::LinkFuture;
+        use yewtil::NeqAssign;
 
         use crate::component::utils::Loader;
         use crate::component::utils::Reloader;
@@ -106,6 +111,7 @@ macro_rules! pagination_component {
             offset: i32,
             page_size: i32,
             search_term: String,
+            order: $order_struct,
             data: Vec<$entity>,
             table_headers: Vec<String>,
             result_count: i32,
@@ -125,6 +131,7 @@ macro_rules! pagination_component {
             NextPage,
             PreviousPage,
             ChangeRoute(AppRoute),
+            SortColumn($order_field),
         }
 
         #[derive(Clone, Properties)]
@@ -142,6 +149,7 @@ macro_rules! pagination_component {
                 let page_size: i32 = 20;
                 let limit: i32 = page_size;
                 let search_term: String = Default::default();
+                let order = Default::default();
                 let result_count: i32 = Default::default();
                 let data = Default::default();
                 let fetch_data = Default::default();
@@ -154,6 +162,7 @@ macro_rules! pagination_component {
                     offset,
                     page_size,
                     search_term,
+                    order,
                     data,
                     table_headers,
                     result_count,
@@ -187,11 +196,13 @@ macro_rules! pagination_component {
                     }
                     Msg::PaginateData => {
                         let filter = self.search_term.clone();
+                        let order = self.order.clone();
                         let body = $request_body {
                             variables: $request_variables {
                                 limit: Some(self.limit),
                                 offset: Some(self.offset),
                                 filter: Some(filter),
+                                order: Some(order),
                                 publishers: self.props.current_user.resource_access.restricted_to(),
                             },
                             ..Default::default()
@@ -202,7 +213,6 @@ macro_rules! pagination_component {
                         false
                     }
                     Msg::Search(term) => {
-                        self.limit = self.page_size;
                         self.offset = 0;
                         self.search_term = term;
                         self.link.send_message(Msg::PaginateData);
@@ -225,6 +235,20 @@ macro_rules! pagination_component {
                     Msg::ChangeRoute(r) => {
                         let route = Route::from(r);
                         self.router.send(RouteRequest::ChangeRoute(route));
+                        false
+                    }
+                    Msg::SortColumn(header) => {
+                        // Clicking on a header, if enabled, sorts the table by that column ascending
+                        // Clicking on the current sort column header reverses the sort direction
+                        self.order.direction = match self.order.field.neq_assign(header) {
+                            true => ASC,
+                            false => match self.order.direction {
+                                ASC => DESC,
+                                DESC => ASC,
+                            },
+                        };
+                        self.offset = 0;
+                        self.link.send_message(Msg::PaginateData);
                         false
                     }
                 }
@@ -276,7 +300,25 @@ macro_rules! pagination_component {
                                             <tr>
                                                 {
                                                     for self.table_headers.iter().map(|h| {
-                                                        html! {<th>{h}</th>}
+                                                        {
+                                                            // If the header is a sortable field, make it clickable
+                                                            match <$order_field>::from_str(&h) {
+                                                                Ok(header) => {
+                                                                    html! {
+                                                                        <th class="th is-clickable"
+                                                                            onclick=self.link.callback(move |_| {
+                                                                                Msg::SortColumn(header.clone())
+                                                                            })
+                                                                        >
+                                                                            {h}
+                                                                        </th>
+                                                                    }
+                                                                }
+                                                                Err(_) => {
+                                                                    html! {<th>{h}</th>}
+                                                                }
+                                                            }
+                                                        }
                                                     })
                                                 }
                                             </tr>

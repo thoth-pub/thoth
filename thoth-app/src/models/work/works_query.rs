@@ -1,11 +1,12 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::work::model::WorkOrderBy;
 
 use super::Work;
 
 pub const WORKS_QUERY: &str = "
-    query WorksQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!]) {
-        works(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers) {
+    query WorksQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: WorkOrderBy) {
+        works(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers, order: $order) {
             workId
             workType
             workStatus
@@ -18,6 +19,7 @@ pub const WORKS_QUERY: &str = "
             license
             place
             publicationDate
+            updatedAt
             contributions {
                 workId
                 contributorId
@@ -29,16 +31,19 @@ pub const WORKS_QUERY: &str = "
                     contributorId
                     lastName
                     fullName
+                    updatedAt
                 }
             }
             imprint {
                 imprintId
                 imprintName
+                updatedAt
                 publisher {
                     publisherId
                     publisherName
                     publisherShortname
                     publisherUrl
+                    updatedAt
                 }
             }
         }
@@ -63,6 +68,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
+    pub order: Option<WorkOrderBy>,
     pub publishers: Option<Vec<String>>,
 }
 

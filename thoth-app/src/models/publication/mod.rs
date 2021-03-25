@@ -80,6 +80,7 @@ impl crate::models::publication::publications_query::DetailedPublication {
                 <td>{&self.publication_type}</td>
                 <td>{isbn}</td>
                 <td>{publication_url}</td>
+                <td>{&self.updated_at.format("%F %T")}</td>
             </tr>
         }
     }

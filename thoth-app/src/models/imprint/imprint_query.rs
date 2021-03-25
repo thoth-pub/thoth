@@ -9,11 +9,13 @@ pub const IMPRINT_QUERY: &str = "
             imprintId
             imprintName
             imprintUrl
+            updatedAt
             publisher {
                 publisherId
                 publisherName
                 publisherShortname
                 publisherUrl
+                updatedAt
             }
         }
     }

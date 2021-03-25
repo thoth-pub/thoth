@@ -1,4 +1,5 @@
-use chrono::naive::NaiveDateTime;
+use chrono::DateTime;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -21,8 +22,8 @@ pub struct Account {
     pub is_superuser: bool,
     pub is_bot: bool,
     pub is_active: bool,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub token: Option<String>,
 }
 
@@ -53,8 +54,8 @@ pub struct PublisherAccount {
     pub account_id: Uuid,
     pub publisher_id: Uuid,
     pub is_admin: bool,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[cfg_attr(feature = "backend", derive(Insertable))]
@@ -98,8 +99,8 @@ pub struct AccountDetails {
     pub surname: String,
     pub email: String,
     pub token: Option<String>,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub resource_access: AccountAccess,
 }
 

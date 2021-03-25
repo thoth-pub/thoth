@@ -1,10 +1,10 @@
-use chrono::naive::NaiveDateTime;
+use chrono::DateTime;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::str::FromStr;
+use strum::Display;
+use strum::EnumString;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
 #[cfg(feature = "backend")]
 use crate::schema::contribution;
 #[cfg(feature = "backend")]
@@ -12,8 +12,9 @@ use crate::schema::contribution_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Contribution_type")]
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[strum(serialize_all = "title_case")]
 pub enum ContributionType {
     Author,
     Editor,
@@ -60,8 +61,8 @@ pub struct Contribution {
     pub main_contribution: bool,
     pub biography: Option<String>,
     pub institution: Option<String>,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
@@ -110,7 +111,7 @@ pub struct ContributionHistory {
     pub contribution_type: ContributionType,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: NaiveDateTime,
+    pub timestamp: DateTime<Utc>,
 }
 
 #[cfg_attr(
@@ -129,43 +130,6 @@ pub struct NewContributionHistory {
 impl Default for ContributionType {
     fn default() -> ContributionType {
         ContributionType::Author
-    }
-}
-
-impl fmt::Display for ContributionType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ContributionType::Author => write!(f, "Author"),
-            ContributionType::Editor => write!(f, "Editor"),
-            ContributionType::Translator => write!(f, "Translator"),
-            ContributionType::Photographer => write!(f, "Photographer"),
-            ContributionType::Ilustrator => write!(f, "Ilustrator"),
-            ContributionType::MusicEditor => write!(f, "Music Editor"),
-            ContributionType::ForewordBy => write!(f, "Foreword By"),
-            ContributionType::IntroductionBy => write!(f, "Introduction By"),
-            ContributionType::AfterwordBy => write!(f, "Afterword By"),
-            ContributionType::PrefaceBy => write!(f, "Preface By"),
-        }
-    }
-}
-
-impl FromStr for ContributionType {
-    type Err = ThothError;
-
-    fn from_str(input: &str) -> Result<ContributionType, ThothError> {
-        match input {
-            "Author" => Ok(ContributionType::Author),
-            "Editor" => Ok(ContributionType::Editor),
-            "Translator" => Ok(ContributionType::Translator),
-            "Photographer" => Ok(ContributionType::Photographer),
-            "Ilustrator" => Ok(ContributionType::Ilustrator),
-            "Music Editor" => Ok(ContributionType::MusicEditor),
-            "Foreword By" => Ok(ContributionType::ForewordBy),
-            "Introduction By" => Ok(ContributionType::IntroductionBy),
-            "Afterword By" => Ok(ContributionType::AfterwordBy),
-            "Preface By" => Ok(ContributionType::PrefaceBy),
-            _ => Err(ThothError::InvalidContributionType(input.to_string())),
-        }
     }
 }
 
@@ -197,6 +161,7 @@ fn test_contributiontype_display() {
 
 #[test]
 fn test_contributiontype_fromstr() {
+    use std::str::FromStr;
     assert_eq!(
         ContributionType::from_str("Author").unwrap(),
         ContributionType::Author

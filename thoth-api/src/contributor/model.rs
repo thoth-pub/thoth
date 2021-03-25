@@ -1,7 +1,12 @@
-use chrono::naive::NaiveDateTime;
-use serde::{Deserialize, Serialize};
+use chrono::DateTime;
+use chrono::Utc;
+use serde::Deserialize;
+use serde::Serialize;
+use strum::Display;
+use strum::EnumString;
 use uuid::Uuid;
 
+use crate::graphql::utils::Direction;
 #[cfg(feature = "backend")]
 use crate::schema::contributor;
 #[cfg(feature = "backend")]
@@ -12,11 +17,16 @@ use crate::schema::contributor_history;
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting contributors list")
 )]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ContributorField {
+    #[serde(rename = "CONTRIBUTOR_ID")]
+    #[strum(serialize = "ID")]
     ContributorID,
     FirstName,
     LastName,
     FullName,
+    #[serde(rename = "ORCID")]
     ORCID,
     Website,
     CreatedAt,
@@ -32,8 +42,8 @@ pub struct Contributor {
     pub full_name: String,
     pub orcid: Option<String>,
     pub website: Option<String>,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[cfg_attr(
@@ -70,7 +80,7 @@ pub struct ContributorHistory {
     pub contributor_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: NaiveDateTime,
+    pub timestamp: DateTime<Utc>,
 }
 
 #[cfg_attr(
@@ -82,4 +92,71 @@ pub struct NewContributorHistory {
     pub contributor_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Field and order to use when sorting contributors list")
+)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ContributorOrderBy {
+    pub field: ContributorField,
+    pub direction: Direction,
+}
+
+impl Default for ContributorField {
+    fn default() -> Self {
+        ContributorField::FullName
+    }
+}
+
+#[test]
+fn test_contributorfield_default() {
+    let contfield: ContributorField = Default::default();
+    assert_eq!(contfield, ContributorField::FullName);
+}
+
+#[test]
+fn test_contributorfield_display() {
+    assert_eq!(format!("{}", ContributorField::ContributorID), "ID");
+    assert_eq!(format!("{}", ContributorField::FirstName), "FirstName");
+    assert_eq!(format!("{}", ContributorField::LastName), "LastName");
+    assert_eq!(format!("{}", ContributorField::FullName), "FullName");
+    assert_eq!(format!("{}", ContributorField::ORCID), "ORCID");
+    assert_eq!(format!("{}", ContributorField::Website), "Website");
+    assert_eq!(format!("{}", ContributorField::CreatedAt), "CreatedAt");
+    assert_eq!(format!("{}", ContributorField::UpdatedAt), "UpdatedAt");
+}
+
+#[test]
+fn test_contributorfield_fromstr() {
+    use std::str::FromStr;
+    assert_eq!(
+        ContributorField::from_str("ID").unwrap(),
+        ContributorField::ContributorID
+    );
+    assert_eq!(
+        ContributorField::from_str("FirstName").unwrap(),
+        ContributorField::FirstName
+    );
+    assert_eq!(
+        ContributorField::from_str("LastName").unwrap(),
+        ContributorField::LastName
+    );
+    assert_eq!(
+        ContributorField::from_str("FullName").unwrap(),
+        ContributorField::FullName
+    );
+    assert_eq!(
+        ContributorField::from_str("ORCID").unwrap(),
+        ContributorField::ORCID
+    );
+    assert_eq!(
+        ContributorField::from_str("UpdatedAt").unwrap(),
+        ContributorField::UpdatedAt
+    );
+    assert!(ContributorField::from_str("ContributorID").is_err());
+    assert!(ContributorField::from_str("Biography").is_err());
+    assert!(ContributorField::from_str("Institution").is_err());
 }

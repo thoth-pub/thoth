@@ -1,25 +1,29 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::series::model::SeriesOrderBy;
 
 use super::Series;
 
 pub const SERIESES_QUERY: &str = "
-    query SeriesesQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!]) {
-        serieses(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers) {
+    query SeriesesQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: SeriesOrderBy) {
+        serieses(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers, order: $order) {
             seriesId
             seriesType
             seriesName
             issnPrint
             issnDigital
             seriesUrl
+            updatedAt
             imprint {
                 imprintId
                 imprintName
+                updatedAt
                 publisher {
                     publisherId
                     publisherName
                     publisherShortname
                     publisherUrl
+                    updatedAt
                 }
             }
         }
@@ -44,6 +48,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
+    pub order: Option<SeriesOrderBy>,
     pub publishers: Option<Vec<String>>,
 }
 

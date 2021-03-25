@@ -1,4 +1,5 @@
-use chrono::naive::NaiveDateTime;
+use chrono::DateTime;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -26,8 +27,8 @@ pub struct Issue {
     pub series_id: Uuid,
     pub work_id: Uuid,
     pub issue_ordinal: i32,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[cfg_attr(
@@ -60,7 +61,7 @@ pub struct IssueHistory {
     pub work_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: NaiveDateTime,
+    pub timestamp: DateTime<Utc>,
 }
 
 #[cfg_attr(feature = "backend", derive(Insertable), table_name = "issue_history")]

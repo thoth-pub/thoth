@@ -1,3 +1,5 @@
+use chrono::DateTime;
+use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::series::model::SeriesType;
@@ -19,6 +21,7 @@ pub struct Series {
     pub issn_print: String,
     pub issn_digital: String,
     pub series_url: Option<String>,
+    pub updated_at: DateTime<Utc>,
     pub imprint: Imprint,
 }
 
@@ -38,11 +41,12 @@ impl Default for Series {
     fn default() -> Series {
         Series {
             series_id: "".to_string(),
-            series_type: SeriesType::BookSeries,
+            series_type: Default::default(),
             series_name: "".to_string(),
             issn_print: "".to_string(),
             issn_digital: "".to_string(),
             series_url: None,
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
             imprint: Default::default(),
         }
     }
@@ -79,6 +83,7 @@ impl Series {
                 <td>{&self.series_type}</td>
                 <td>{&self.issn_print}</td>
                 <td>{&self.issn_digital}</td>
+                <td>{&self.updated_at.format("%F %T")}</td>
             </tr>
         }
     }

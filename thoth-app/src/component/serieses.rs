@@ -4,6 +4,8 @@ use crate::models::series::serieses_query::SeriesesRequest;
 use crate::models::series::serieses_query::SeriesesRequestBody;
 use crate::models::series::serieses_query::Variables;
 use crate::models::series::Series;
+use thoth_api::series::model::SeriesField;
+use thoth_api::series::model::SeriesOrderBy;
 
 pagination_component! {
     SeriesesComponent,
@@ -17,5 +19,14 @@ pagination_component! {
     Variables,
     SEARCH_SERIESES,
     PAGINATION_COUNT_SERIESES,
-    vec!["ID".to_string(), "Series".to_string(), "SeriesType".to_string(), "ISSNPrint".to_string(), "ISSNDigital".to_string()]
+    vec![
+        SeriesField::SeriesID.to_string(),
+        SeriesField::SeriesName.to_string(),
+        SeriesField::SeriesType.to_string(),
+        SeriesField::ISSNPrint.to_string(),
+        SeriesField::ISSNDigital.to_string(),
+        SeriesField::UpdatedAt.to_string(),
+    ],
+    SeriesOrderBy,
+    SeriesField,
 }
