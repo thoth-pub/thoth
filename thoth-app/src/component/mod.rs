@@ -305,7 +305,7 @@ macro_rules! pagination_component {
                                                             match <$order_field>::from_str(&h) {
                                                                 Ok(header) => {
                                                                     html! {
-                                                                        <th
+                                                                        <th class="th is-clickable"
                                                                             onclick=self.link.callback(move |_| {
                                                                                 Msg::SortColumn(header.clone())
                                                                             })

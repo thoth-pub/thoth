@@ -36,9 +36,11 @@ pub enum SeriesField {
     SeriesType,
     #[strum(serialize = "Series")]
     SeriesName,
-    #[serde(rename = "ISSNPRINT")]
+    #[cfg_attr(feature = "backend", graphql(name = "ISSN_PRINT"))]
+    #[serde(rename = "ISSN_PRINT")]
     ISSNPrint,
-    #[serde(rename = "ISSNDIGITAL")]
+    #[cfg_attr(feature = "backend", graphql(name = "ISSN_DIGITAL"))]
+    #[serde(rename = "ISSN_DIGITAL")]
     ISSNDigital,
     #[serde(rename = "SERIES_URL")]
     SeriesURL,
