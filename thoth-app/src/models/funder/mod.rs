@@ -1,3 +1,5 @@
+use chrono::DateTime;
+use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use yew::html;
@@ -8,12 +10,13 @@ use yew::MouseEvent;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Funder {
     pub funder_id: String,
     pub funder_name: String,
     pub funder_doi: Option<String>,
+    pub updated_at: DateTime<Utc>,
 }
 
 impl Funder {
@@ -52,7 +55,19 @@ impl Funder {
                 <td>{&self.funder_id}</td>
                 <td>{&self.funder_name}</td>
                 <td>{funder_doi}</td>
+                <td>{&self.updated_at.format("%F %T")}</td>
             </tr>
+        }
+    }
+}
+
+impl Default for Funder {
+    fn default() -> Funder {
+        Funder {
+            funder_id: "".to_string(),
+            funder_name: "".to_string(),
+            funder_doi: None,
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
         }
     }
 }

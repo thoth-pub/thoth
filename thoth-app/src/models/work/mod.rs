@@ -1,3 +1,5 @@
+use chrono::DateTime;
+use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use std::str::FromStr;
@@ -53,6 +55,7 @@ pub struct Work {
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
+    pub updated_at: DateTime<Utc>,
     pub contributions: Option<Vec<Contribution>>,
     pub publications: Option<Vec<Publication>>,
     pub languages: Option<Vec<Language>>,
@@ -235,6 +238,7 @@ impl Work {
                 </td>
                 <td>{doi}</td>
                 <td>{&self.publisher()}</td>
+                <td>{&self.updated_at.format("%F %T")}</td>
             </tr>
         }
     }
@@ -453,6 +457,7 @@ impl Default for Work {
             toc: None,
             cover_url: None,
             cover_caption: None,
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
             contributions: None,
             publications: None,
             languages: None,

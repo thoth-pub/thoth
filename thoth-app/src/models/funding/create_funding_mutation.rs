@@ -33,6 +33,7 @@ const CREATE_FUNDING_MUTATION: &str = "
             funder {
                 funderId
                 funderName
+                updatedAt
             }
         }
     }

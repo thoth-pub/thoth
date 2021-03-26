@@ -10,6 +10,7 @@ pub const PUBLISHER_QUERY: &str = "
             publisherName
             publisherShortname
             publisherUrl
+            updatedAt
         }
     }
 ";

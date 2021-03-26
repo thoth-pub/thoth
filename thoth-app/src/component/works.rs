@@ -4,6 +4,8 @@ use crate::models::work::works_query::Variables;
 use crate::models::work::works_query::WorksRequest;
 use crate::models::work::works_query::WorksRequestBody;
 use crate::models::work::Work;
+use thoth_api::work::model::WorkField;
+use thoth_api::work::model::WorkOrderBy;
 
 pagination_component! {
     WorksComponent,
@@ -17,5 +19,15 @@ pagination_component! {
     Variables,
     SEARCH_WORKS,
     PAGINATION_COUNT_WORKS,
-    vec!["ID".to_string(), "Title".to_string(), "Type".to_string(), "Contributors".to_string(), "DOI".to_string(), "Publisher".to_string()]
+    vec![
+        WorkField::WorkID.to_string(),
+        WorkField::FullTitle.to_string(),
+        WorkField::WorkType.to_string(),
+        "Contributors".to_string(),
+        WorkField::DOI.to_string(),
+        "Publisher".to_string(),
+        WorkField::UpdatedAt.to_string(),
+    ],
+    WorkOrderBy,
+    WorkField,
 }

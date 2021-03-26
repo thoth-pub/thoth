@@ -1,3 +1,5 @@
+use chrono::DateTime;
+use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use yew::html;
@@ -15,6 +17,7 @@ pub struct Publisher {
     pub publisher_name: String,
     pub publisher_shortname: Option<String>,
     pub publisher_url: Option<String>,
+    pub updated_at: DateTime<Utc>,
 }
 
 impl Publisher {
@@ -41,6 +44,7 @@ impl Publisher {
                 <td>{&self.publisher_name}</td>
                 <td>{publisher_shortname}</td>
                 <td>{publisher_url}</td>
+                <td>{&self.updated_at.format("%F %T")}</td>
             </tr>
         }
     }
@@ -53,6 +57,7 @@ impl Default for Publisher {
             publisher_name: "".to_string(),
             publisher_shortname: None,
             publisher_url: None,
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
         }
     }
 }

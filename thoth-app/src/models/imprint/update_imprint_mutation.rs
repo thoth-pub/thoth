@@ -19,11 +19,13 @@ const UPDATE_IMPRINT_MUTATION: &str = "
             imprintId
             imprintName
             imprintUrl
+            updatedAt
             publisher {
                 publisherId
                 publisherName
                 publisherShortname
                 publisherUrl
+                updatedAt
             }
         }
     }

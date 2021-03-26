@@ -38,6 +38,7 @@ pub const WORK_QUERY: &str = "
             toc
             coverUrl
             coverCaption
+            updatedAt
             contributions {
                 workId
                 contributorId
@@ -51,6 +52,7 @@ pub const WORK_QUERY: &str = "
                     contributorId
                     lastName
                     fullName
+                    updatedAt
                 }
             }
             publications {
@@ -92,6 +94,7 @@ pub const WORK_QUERY: &str = "
                 funder {
                     funderId
                     funderName
+                    updatedAt
                 }
             }
             subjects {
@@ -112,14 +115,17 @@ pub const WORK_QUERY: &str = "
                     issnPrint
                     issnDigital
                     seriesUrl
+                    updatedAt
                     imprint {
                         imprintId
                         imprintName
+                        updatedAt
                         publisher {
                             publisherId
                             publisherName
                             publisherShortname
                             publisherUrl
+                            updatedAt
                         }
                     }
                 }
@@ -127,22 +133,26 @@ pub const WORK_QUERY: &str = "
             imprint {
                 imprintId
                 imprintName
+                updatedAt
                 publisher {
                     publisherId
                     publisherName
                     publisherShortname
                     publisherUrl
+                    updatedAt
                 }
             }
         }
         imprints(limit: 9999, publishers: $publishers) {
             imprintId
             imprintName
+            updatedAt
             publisher {
                 publisherId
                 publisherName
                 publisherShortname
                 publisherUrl
+                updatedAt
             }
         }
         work_types: __type(name: \"WorkType\") {

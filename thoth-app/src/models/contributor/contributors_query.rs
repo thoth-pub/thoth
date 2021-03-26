@@ -1,17 +1,19 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::contributor::model::ContributorOrderBy;
 
 use super::Contributor;
 
 pub const CONTRIBUTORS_QUERY: &str = "
-    query ContributorsQuery($limit: Int, $offset: Int, $filter: String) {
-        contributors(limit: $limit, offset: $offset, filter: $filter) {
+    query ContributorsQuery($limit: Int, $offset: Int, $filter: String, $order: ContributorOrderBy) {
+        contributors(limit: $limit, offset: $offset, filter: $filter, order: $order) {
             contributorId
             firstName
             lastName
             fullName
             orcid
             website
+            updatedAt
         }
         contributorCount(filter: $filter)
     }
@@ -34,6 +36,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
+    pub order: Option<ContributorOrderBy>,
     // Unused, but required by pagination_component macro
     pub publishers: Option<Vec<String>>,
 }

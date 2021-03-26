@@ -40,6 +40,7 @@ const CREATE_CONTRIBUTION_MUTATION: &str = "
                 contributorId
                 lastName
                 fullName
+                updatedAt
             }
         }
     }

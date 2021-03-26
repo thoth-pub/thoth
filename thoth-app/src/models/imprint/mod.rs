@@ -1,3 +1,5 @@
+use chrono::DateTime;
+use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use yew::html;
@@ -15,6 +17,7 @@ pub struct Imprint {
     pub imprint_id: String,
     pub imprint_name: String,
     pub imprint_url: Option<String>,
+    pub updated_at: DateTime<Utc>,
     pub publisher: Publisher,
 }
 
@@ -38,6 +41,7 @@ impl Imprint {
                 <td>{&self.imprint_name}</td>
                 <td>{&self.publisher.publisher_name}</td>
                 <td>{imprint_url}</td>
+                <td>{&self.updated_at.format("%F %T")}</td>
             </tr>
         }
     }
@@ -49,6 +53,7 @@ impl Default for Imprint {
             imprint_id: "".to_string(),
             imprint_name: "".to_string(),
             imprint_url: None,
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
             publisher: Default::default(),
         }
     }

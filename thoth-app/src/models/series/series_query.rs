@@ -12,14 +12,17 @@ pub const SERIES_QUERY: &str = "
             issnPrint
             issnDigital
             seriesUrl
+            updatedAt
             imprint {
                 imprintId
                 imprintName
+                updatedAt
                 publisher {
                     publisherId
                     publisherName
                     publisherShortname
                     publisherUrl
+                    updatedAt
                 }
             }
         }

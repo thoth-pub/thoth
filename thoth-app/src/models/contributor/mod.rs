@@ -1,3 +1,5 @@
+use chrono::DateTime;
+use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use yew::html;
@@ -8,7 +10,7 @@ use yew::MouseEvent;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contributor {
     pub contributor_id: String,
@@ -17,6 +19,7 @@ pub struct Contributor {
     pub full_name: String,
     pub orcid: Option<String>,
     pub website: Option<String>,
+    pub updated_at: DateTime<Utc>,
 }
 
 impl Contributor {
@@ -55,7 +58,22 @@ impl Contributor {
                 <td>{&self.contributor_id}</td>
                 <td>{&self.full_name}</td>
                 <td>{orcid}</td>
+                <td>{&self.updated_at.format("%F %T")}</td>
             </tr>
+        }
+    }
+}
+
+impl Default for Contributor {
+    fn default() -> Contributor {
+        Contributor {
+            contributor_id: "".to_string(),
+            first_name: None,
+            last_name: "".to_string(),
+            full_name: "".to_string(),
+            orcid: None,
+            website: None,
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
         }
     }
 }

@@ -1,10 +1,11 @@
-use chrono::naive::NaiveDateTime;
+use chrono::DateTime;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::str::FromStr;
+use strum::Display;
+use strum::EnumString;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
+use crate::graphql::utils::Direction;
 #[cfg(feature = "backend")]
 use crate::schema::publication;
 #[cfg(feature = "backend")]
@@ -12,7 +13,7 @@ use crate::schema::publication_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Publication_type")]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublicationType {
     #[cfg_attr(feature = "backend", db_rename = "Paperback")]
@@ -39,11 +40,20 @@ pub enum PublicationType {
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting publications list")
 )]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublicationField {
+    #[serde(rename = "PUBLICATION_ID")]
+    #[strum(serialize = "ID")]
     PublicationID,
+    #[strum(serialize = "Type")]
     PublicationType,
+    #[serde(rename = "WORK_ID")]
     WorkID,
+    #[serde(rename = "ISBN")]
     ISBN,
+    #[serde(rename = "PUBLICATION_URL")]
+    #[strum(serialize = "URL")]
     PublicationURL,
     CreatedAt,
     UpdatedAt,
@@ -57,8 +67,8 @@ pub struct Publication {
     pub work_id: Uuid,
     pub isbn: Option<String>,
     pub publication_url: Option<String>,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[cfg_attr(
@@ -93,7 +103,7 @@ pub struct PublicationHistory {
     pub publication_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: NaiveDateTime,
+    pub timestamp: DateTime<Utc>,
 }
 
 #[cfg_attr(
@@ -107,40 +117,26 @@ pub struct NewPublicationHistory {
     pub data: serde_json::Value,
 }
 
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Field and order to use when sorting publications list")
+)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PublicationOrderBy {
+    pub field: PublicationField,
+    pub direction: Direction,
+}
+
 impl Default for PublicationType {
     fn default() -> PublicationType {
         PublicationType::Paperback
     }
 }
 
-impl fmt::Display for PublicationType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            PublicationType::Paperback => write!(f, "Paperback"),
-            PublicationType::Hardback => write!(f, "Hardback"),
-            PublicationType::PDF => write!(f, "PDF"),
-            PublicationType::HTML => write!(f, "HTML"),
-            PublicationType::XML => write!(f, "XML"),
-            PublicationType::Epub => write!(f, "Epub"),
-            PublicationType::Mobi => write!(f, "Mobi"),
-        }
-    }
-}
-
-impl FromStr for PublicationType {
-    type Err = ThothError;
-
-    fn from_str(input: &str) -> Result<PublicationType, ThothError> {
-        match input {
-            "Paperback" => Ok(PublicationType::Paperback),
-            "Hardback" => Ok(PublicationType::Hardback),
-            "PDF" => Ok(PublicationType::PDF),
-            "HTML" => Ok(PublicationType::HTML),
-            "XML" => Ok(PublicationType::XML),
-            "Epub" => Ok(PublicationType::Epub),
-            "Mobi" => Ok(PublicationType::Mobi),
-            _ => Err(ThothError::InvalidPublicationType(input.to_string())),
-        }
+impl Default for PublicationField {
+    fn default() -> Self {
+        PublicationField::PublicationType
     }
 }
 
@@ -148,6 +144,12 @@ impl FromStr for PublicationType {
 fn test_publicationtype_default() {
     let pubtype: PublicationType = Default::default();
     assert_eq!(pubtype, PublicationType::Paperback);
+}
+
+#[test]
+fn test_publicationfield_default() {
+    let pubfield: PublicationField = Default::default();
+    assert_eq!(pubfield, PublicationField::PublicationType);
 }
 
 #[test]
@@ -162,7 +164,19 @@ fn test_publicationtype_display() {
 }
 
 #[test]
+fn test_publicationfield_display() {
+    assert_eq!(format!("{}", PublicationField::PublicationID), "ID");
+    assert_eq!(format!("{}", PublicationField::PublicationType), "Type");
+    assert_eq!(format!("{}", PublicationField::WorkID), "WorkID");
+    assert_eq!(format!("{}", PublicationField::ISBN), "ISBN");
+    assert_eq!(format!("{}", PublicationField::PublicationURL), "URL");
+    assert_eq!(format!("{}", PublicationField::CreatedAt), "CreatedAt");
+    assert_eq!(format!("{}", PublicationField::UpdatedAt), "UpdatedAt");
+}
+
+#[test]
 fn test_publicationtype_fromstr() {
+    use std::str::FromStr;
     assert_eq!(
         PublicationType::from_str("Paperback").unwrap(),
         PublicationType::Paperback
@@ -194,4 +208,40 @@ fn test_publicationtype_fromstr() {
 
     assert!(PublicationType::from_str("PNG").is_err());
     assert!(PublicationType::from_str("Latex").is_err());
+}
+
+#[test]
+fn test_publicationfield_fromstr() {
+    use std::str::FromStr;
+    assert_eq!(
+        PublicationField::from_str("ID").unwrap(),
+        PublicationField::PublicationID
+    );
+    assert_eq!(
+        PublicationField::from_str("Type").unwrap(),
+        PublicationField::PublicationType
+    );
+    assert_eq!(
+        PublicationField::from_str("WorkID").unwrap(),
+        PublicationField::WorkID
+    );
+    assert_eq!(
+        PublicationField::from_str("ISBN").unwrap(),
+        PublicationField::ISBN
+    );
+    assert_eq!(
+        PublicationField::from_str("URL").unwrap(),
+        PublicationField::PublicationURL
+    );
+    assert_eq!(
+        PublicationField::from_str("CreatedAt").unwrap(),
+        PublicationField::CreatedAt
+    );
+    assert_eq!(
+        PublicationField::from_str("UpdatedAt").unwrap(),
+        PublicationField::UpdatedAt
+    );
+    assert!(PublicationField::from_str("PublicationID").is_err());
+    assert!(PublicationField::from_str("Work Title").is_err());
+    assert!(PublicationField::from_str("Work DOI").is_err());
 }

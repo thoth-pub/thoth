@@ -12,6 +12,7 @@ pub const CONTRIBUTOR_QUERY: &str = "
             fullName
             orcid
             website
+            updatedAt
         }
     }
 ";

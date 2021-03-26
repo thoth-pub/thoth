@@ -1,15 +1,17 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::publisher::model::PublisherOrderBy;
 
 use super::Publisher;
 
 const PUBLISHERS_QUERY: &str = "
-    query PublishersQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!]) {
-        publishers(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers) {
+    query PublishersQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: PublisherOrderBy) {
+        publishers(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers, order: $order) {
             publisherId
             publisherName
             publisherShortname
             publisherUrl
+            updatedAt
         }
         publisherCount(filter: $filter, publishers: $publishers)
     }
@@ -32,6 +34,7 @@ pub struct Variables {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub filter: Option<String>,
+    pub order: Option<PublisherOrderBy>,
     pub publishers: Option<Vec<String>>,
 }
 

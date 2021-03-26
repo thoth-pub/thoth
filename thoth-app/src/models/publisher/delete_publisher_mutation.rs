@@ -12,6 +12,7 @@ const DELETE_PUBLISHER_MUTATION: &str = "
         ){
             publisherId
             publisherName
+            updatedAt
         }
     }
 ";

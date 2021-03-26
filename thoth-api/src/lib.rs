@@ -19,7 +19,6 @@ pub mod db;
 pub mod errors;
 pub mod funder;
 pub mod funding;
-#[cfg(feature = "backend")]
 pub mod graphql;
 pub mod imprint;
 pub mod issue;
