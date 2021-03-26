@@ -4,7 +4,7 @@ All notable changes to thoth will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [[0.3.3]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.3) - 2020-03-26
+## [[0.3.3]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.3) - 2021-03-26
 ### Added
   - [#120](https://github.com/thoth-pub/thoth/issues/120) - Implement table sorting by columns in APP
   - [#203](https://github.com/thoth-pub/thoth/issues/203) - Cascade filtering options to relation queries in API
@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [#182](https://github.com/thoth-pub/thoth/issues/182) - Ensure issue's series and work have the same imprint
 
 
-## [[0.3.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.2) - 2020-03-09
+## [[0.3.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.2) - 2021-03-09
 ### Added
   - [#202](https://github.com/thoth-pub/thoth/issues/202) - Enum type filtering in GraphQL queries
   - [#202](https://github.com/thoth-pub/thoth/issues/202) - Query works by DOI
@@ -26,11 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [#199](https://github.com/thoth-pub/thoth/issues/199), [#201](https://github.com/thoth-pub/thoth/issues/201) - Error displaying publications if filtering on empty ISBN or URL
   - Trigger a warning when the current user does not have any editting permissions
 
-## [[0.3.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.1) - 2020-03-04
+## [[0.3.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.1) - 2021-03-04
 ### Fixed
   - [#197](https://github.com/thoth-pub/thoth/issues/197) - Error deserialising publications in APP
 
-## [[0.3.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.0) - 2020-03-03
+## [[0.3.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.0) - 2021-03-03
 ### Changed
   - [#162](https://github.com/thoth-pub/thoth/issues/162) - Only records linked to publishers user has access to are listed in APP
   - [#167](https://github.com/thoth-pub/thoth/issues/167) - Make work contribution the canonical source of contributor names in ONIX output
@@ -47,16 +47,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
   - [#181](https://github.com/thoth-pub/thoth/issues/181) - Enforce numeric values for issue ordinal
 
-## [[0.2.13]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.13) - 2020-01-14
+## [[0.2.13]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.13) - 2021-01-14
 ### Changed
   - Update API URL in docker github action
   - Remove staging tag in docker github action
 
-## [[0.2.12]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.12) - 2020-01-12
+## [[0.2.12]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.12) - 2021-01-12
 ### Changed
   - [#153](https://github.com/thoth-pub/thoth/issues/153) - Implement created and updated dates to each structure
 
-## [[0.2.11]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.11) - 2020-01-06
+## [[0.2.11]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.11) - 2021-01-06
 ### Changed
   - [#151](https://github.com/thoth-pub/thoth/issues/151) - Make browser prompt user to save Onix XML to file
   - [#143](https://github.com/thoth-pub/thoth/issues/143) - Start using Github Actions instead of Travis
@@ -64,7 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [#121](https://github.com/thoth-pub/thoth/issues/121) - Add created and updated dates to each table
 
-## [[0.2.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.10) - 2020-01-04
+## [[0.2.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.2.10) - 2021-01-04
 ### Changed
   - [#127](https://github.com/thoth-pub/thoth/issues/127) - Do not exit main entity edit pages upon saving
   - [#147](https://github.com/thoth-pub/thoth/issues/147) - Remove subject code validation for non open subject headings
