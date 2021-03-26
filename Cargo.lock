@@ -3658,7 +3658,7 @@ dependencies = [
 
 [[package]]
 name = "thoth"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "actix-cors",
  "actix-http 1.0.1",
@@ -3687,7 +3687,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "actix-web",
  "argon2rs",
@@ -3716,7 +3716,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3736,7 +3736,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-client"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "chrono",
  "graphql_client",

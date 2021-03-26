@@ -4,6 +4,18 @@ All notable changes to thoth will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [[0.3.3]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.3) - 2020-03-26
+### Added
+  - [#120](https://github.com/thoth-pub/thoth/issues/120) - Implement table sorting by columns in APP
+  - [#203](https://github.com/thoth-pub/thoth/issues/203) - Cascade filtering options to relation queries in API
+
+### Changed
+  - [#210](https://github.com/thoth-pub/thoth/issues/210) - Specify .xml extension when outputting ONIX files
+
+### Fixed
+  - [#182](https://github.com/thoth-pub/thoth/issues/182) - Ensure issue's series and work have the same imprint
+
+
 ## [[0.3.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.3.2) - 2020-03-09
 ### Added
   - [#202](https://github.com/thoth-pub/thoth/issues/202) - Enum type filtering in GraphQL queries
