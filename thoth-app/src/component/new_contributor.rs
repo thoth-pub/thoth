@@ -16,6 +16,11 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
+use crate::models::contributor::contributors_query::ContributorsRequest;
+use crate::models::contributor::contributors_query::ContributorsRequestBody;
+use crate::models::contributor::contributors_query::FetchActionContributors;
+use crate::models::contributor::contributors_query::FetchContributors;
+use crate::models::contributor::contributors_query::Variables as SearchVariables;
 use crate::models::contributor::create_contributor_mutation::CreateContributorRequest;
 use crate::models::contributor::create_contributor_mutation::CreateContributorRequestBody;
 use crate::models::contributor::create_contributor_mutation::PushActionCreateContributor;
@@ -32,17 +37,23 @@ pub struct NewContributorComponent {
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
+    show_duplicate_tooltip: bool,
+    fetch_contributors: FetchContributors,
+    contributors: Vec<Contributor>,
 }
 
 pub enum Msg {
     SetContributorPushState(PushActionCreateContributor),
     CreateContributor,
+    SetContributorsFetchState(FetchActionContributors),
+    GetContributors,
     ChangeFirstName(String),
     ChangeLastName(String),
     ChangeFullName(String),
     ChangeOrcid(String),
     ChangeWebsite(String),
     ChangeRoute(AppRoute),
+    ToggleDuplicateTooltip(bool),
 }
 
 impl Component for NewContributorComponent {
@@ -54,6 +65,9 @@ impl Component for NewContributorComponent {
         let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
+        let show_duplicate_tooltip = false;
+        let fetch_contributors = Default::default();
+        let contributors = Default::default();
 
         NewContributorComponent {
             contributor,
@@ -61,6 +75,9 @@ impl Component for NewContributorComponent {
             link,
             router,
             notification_bus,
+            show_duplicate_tooltip,
+            fetch_contributors,
+            contributors,
         }
     }
 
@@ -118,6 +135,25 @@ impl Component for NewContributorComponent {
                     .send_message(Msg::SetContributorPushState(FetchAction::Fetching));
                 false
             }
+            Msg::SetContributorsFetchState(fetch_state) => {
+                self.fetch_contributors.apply(fetch_state);
+                self.contributors = match self.fetch_contributors.as_ref().state() {
+                    FetchState::NotFetching(_) => vec![],
+                    FetchState::Fetching(_) => vec![],
+                    FetchState::Fetched(body) => body.data.contributors.clone(),
+                    FetchState::Failed(_, _err) => vec![],
+                };
+                true
+            }
+            Msg::GetContributors => {
+                self.link.send_future(
+                    self.fetch_contributors
+                        .fetch(Msg::SetContributorsFetchState),
+                );
+                self.link
+                    .send_message(Msg::SetContributorsFetchState(FetchAction::Fetching));
+                false
+            }
             Msg::ChangeFirstName(value) => {
                 let first_name = match value.trim().is_empty() {
                     true => None,
@@ -129,10 +165,22 @@ impl Component for NewContributorComponent {
                 .contributor
                 .last_name
                 .neq_assign(last_name.trim().to_owned()),
-            Msg::ChangeFullName(full_name) => self
-                .contributor
-                .full_name
-                .neq_assign(full_name.trim().to_owned()),
+            Msg::ChangeFullName(full_name) => {
+                let body = ContributorsRequestBody {
+                    variables: SearchVariables {
+                        filter: Some(full_name.clone()),
+                        limit: Some(9999),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                };
+                let request = ContributorsRequest { body };
+                self.fetch_contributors = Fetch::new(request);
+                self.link.send_message(Msg::GetContributors);
+                self.contributor
+                    .full_name
+                    .neq_assign(full_name.trim().to_owned())
+            }
             Msg::ChangeOrcid(value) => {
                 let orcid = match value.trim().is_empty() {
                     true => None,
@@ -151,6 +199,10 @@ impl Component for NewContributorComponent {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
                 false
+            }
+            Msg::ToggleDuplicateTooltip(value) => {
+                self.show_duplicate_tooltip = value;
+                true
             }
         }
     }
@@ -187,12 +239,10 @@ impl Component for NewContributorComponent {
                         oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
                         required=true
                     />
-                    <FormTextInput
-                        label = "Full Name"
-                        value=&self.contributor.full_name
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
-                        required=true
-                    />
+                    <div class="field">
+                        <label class="label">{ "Full Name" }</label>
+                        { self.full_name_div() }
+                    </div>
                     <FormUrlInput
                         label = "ORCID (Full URL)"
                         value=&self.contributor.orcid
@@ -213,6 +263,51 @@ impl Component for NewContributorComponent {
                     </div>
                 </form>
             </>
+        }
+    }
+}
+
+impl NewContributorComponent {
+    fn full_name_div(&self) -> Html {
+        let mut tooltip = "Existing contributors with similar names:\n\n".to_string();
+        for c in &self.contributors {
+            if let Some(orcid) = &c.orcid {
+                tooltip.push_str(&format!("{} - {}\n", c.full_name, orcid));
+            } else {
+                tooltip.push_str(&format!("{}\n", c.full_name));
+            }
+        }
+        match self.show_duplicate_tooltip && !self.contributors.is_empty() {
+            true => html! {
+                <div
+                    class="control is-expanded has-tooltip-arrow has-tooltip-bottom has-tooltip-active"
+                    data-tooltip={ tooltip }
+                >
+                    { self.full_name_input() }
+                </div>
+            },
+            false => html! {
+                <div
+                    class="control is-expanded"
+                >
+                    { self.full_name_input() }
+                </div>
+            },
+        }
+    }
+
+    fn full_name_input(&self) -> Html {
+        html! {
+            <input
+                class="input"
+                input_type="text"
+                placeholder="Full Name"
+                value=&self.contributor.full_name
+                oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
+                onfocus=self.link.callback(|_| Msg::ToggleDuplicateTooltip(true))
+                onblur=self.link.callback(|_| Msg::ToggleDuplicateTooltip(false))
+                required=true
+            />
         }
     }
 }
