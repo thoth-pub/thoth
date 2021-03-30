@@ -287,30 +287,27 @@ impl Component for NewContributorComponent {
 
 impl NewContributorComponent {
     fn full_name_div(&self) -> Html {
-        let mut tooltip = "Existing contributors with similar names:\n\n".to_string();
-        for c in &self.contributors {
-            if let Some(orcid) = &c.orcid {
-                tooltip.push_str(&format!("{} - {}\n", c.full_name, orcid));
-            } else {
-                tooltip.push_str(&format!("{}\n", c.full_name));
+        if self.show_duplicate_tooltip && !self.contributors.is_empty() {
+            let mut tooltip = "Existing contributors with similar names:\n\n".to_string();
+            for c in &self.contributors {
+                tooltip = format!("{}{}\n", tooltip, c.as_formatted_string());
             }
-        }
-        match self.show_duplicate_tooltip && !self.contributors.is_empty() {
-            true => html! {
+            html! {
                 <div
                     class="control is-expanded has-tooltip-arrow has-tooltip-bottom has-tooltip-active"
                     data-tooltip={ tooltip }
                 >
                     { self.full_name_input() }
                 </div>
-            },
-            false => html! {
+            }
+        } else {
+            html! {
                 <div
                     class="control is-expanded"
                 >
                     { self.full_name_input() }
                 </div>
-            },
+            }
         }
     }
 
