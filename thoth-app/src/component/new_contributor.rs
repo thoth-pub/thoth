@@ -31,6 +31,9 @@ use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+// Account for possibility of e.g. Chinese full names with only 2 characters.
+const MIN_FULLNAME_LEN: usize = 2;
+
 pub struct NewContributorComponent {
     contributor: Contributor,
     push_contributor: PushCreateContributor,
@@ -166,20 +169,35 @@ impl Component for NewContributorComponent {
                 .last_name
                 .neq_assign(last_name.trim().to_owned()),
             Msg::ChangeFullName(full_name) => {
-                let body = ContributorsRequestBody {
-                    variables: SearchVariables {
-                        filter: Some(full_name.clone()),
-                        limit: Some(9999),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                };
-                let request = ContributorsRequest { body };
-                self.fetch_contributors = Fetch::new(request);
-                self.link.send_message(Msg::GetContributors);
-                self.contributor
+                if self
+                    .contributor
                     .full_name
                     .neq_assign(full_name.trim().to_owned())
+                {
+                    if self.contributor.full_name.len() < MIN_FULLNAME_LEN {
+                        // Don't show similar names tooltip - name too short.
+                        self.contributors.clear();
+                        true
+                    } else {
+                        // Search for similar existing names to show in tooltip.
+                        let body = ContributorsRequestBody {
+                            variables: SearchVariables {
+                                filter: Some(self.contributor.full_name.clone()),
+                                limit: Some(30),
+                                ..Default::default()
+                            },
+                            ..Default::default()
+                        };
+                        let request = ContributorsRequest { body };
+                        self.fetch_contributors = Fetch::new(request);
+                        self.link.send_message(Msg::GetContributors);
+                        // Don't need to re-render here, as another re-render will be
+                        // triggered when the message query response is received.
+                        false
+                    }
+                } else {
+                    false
+                }
             }
             Msg::ChangeOrcid(value) => {
                 let orcid = match value.trim().is_empty() {
