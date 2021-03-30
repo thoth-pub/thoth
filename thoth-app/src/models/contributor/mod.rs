@@ -61,7 +61,7 @@ impl Contributor {
         if let Some(orcid) = &self.orcid {
             format!("{} - {}", &self.full_name, orcid)
         } else {
-            format!("{}", &self.full_name)
+            self.full_name.clone()
         }
     }
 }
