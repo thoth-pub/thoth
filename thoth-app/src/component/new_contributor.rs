@@ -15,6 +15,7 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormTextInput;
+use crate::component::utils::FormTextInputTooltip;
 use crate::component::utils::FormUrlInput;
 use crate::models::contributor::contributors_query::ContributorsRequest;
 use crate::models::contributor::contributors_query::ContributorsRequestBody;
@@ -234,6 +235,13 @@ impl Component for NewContributorComponent {
             event.prevent_default();
             Msg::CreateContributor
         });
+        let mut tooltip = String::new();
+        if self.show_duplicate_tooltip && !self.contributors.is_empty() {
+            tooltip = "Existing contributors with similar names:\n\n".to_string();
+            for c in &self.contributors {
+                tooltip = format!("{}{}\n", tooltip, c.as_formatted_string());
+            }
+        }
         html! {
             <>
                 <nav class="level">
@@ -257,10 +265,15 @@ impl Component for NewContributorComponent {
                         oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
                         required=true
                     />
-                    <div class="field">
-                        <label class="label">{ "Full Name" }</label>
-                        { self.full_name_div() }
-                    </div>
+                    <FormTextInputTooltip
+                        label = "Full Name"
+                        value=&self.contributor.full_name
+                        tooltip=tooltip
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
+                        onfocus=self.link.callback(|_| Msg::ToggleDuplicateTooltip(true))
+                        onblur=self.link.callback(|_| Msg::ToggleDuplicateTooltip(false))
+                        required=true
+                    />
                     <FormUrlInput
                         label = "ORCID (Full URL)"
                         value=&self.contributor.orcid
@@ -281,48 +294,6 @@ impl Component for NewContributorComponent {
                     </div>
                 </form>
             </>
-        }
-    }
-}
-
-impl NewContributorComponent {
-    fn full_name_div(&self) -> Html {
-        if self.show_duplicate_tooltip && !self.contributors.is_empty() {
-            let mut tooltip = "Existing contributors with similar names:\n\n".to_string();
-            for c in &self.contributors {
-                tooltip = format!("{}{}\n", tooltip, c.as_formatted_string());
-            }
-            html! {
-                <div
-                    class="control is-expanded has-tooltip-arrow has-tooltip-bottom has-tooltip-active"
-                    data-tooltip={ tooltip }
-                >
-                    { self.full_name_input() }
-                </div>
-            }
-        } else {
-            html! {
-                <div
-                    class="control is-expanded"
-                >
-                    { self.full_name_input() }
-                </div>
-            }
-        }
-    }
-
-    fn full_name_input(&self) -> Html {
-        html! {
-            <input
-                class="input"
-                input_type="text"
-                placeholder="Full Name"
-                value=&self.contributor.full_name
-                oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
-                onfocus=self.link.callback(|_| Msg::ToggleDuplicateTooltip(true))
-                onblur=self.link.callback(|_| Msg::ToggleDuplicateTooltip(false))
-                required=true
-            />
         }
     }
 }
