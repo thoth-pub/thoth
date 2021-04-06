@@ -20,16 +20,14 @@ use crate::schema::publisher_history;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublisherField {
-    #[serde(rename = "PUBLISHER_ID")]
     #[strum(serialize = "ID")]
-    PublisherID,
+    PublisherId,
     #[strum(serialize = "Name")]
     PublisherName,
     #[strum(serialize = "ShortName")]
     PublisherShortname,
-    #[serde(rename = "PUBLISHER_URL")]
     #[strum(serialize = "URL")]
-    PublisherURL,
+    PublisherUrl,
     CreatedAt,
     UpdatedAt,
 }
@@ -120,13 +118,13 @@ fn test_publisherfield_default() {
 
 #[test]
 fn test_publisherfield_display() {
-    assert_eq!(format!("{}", PublisherField::PublisherID), "ID");
+    assert_eq!(format!("{}", PublisherField::PublisherId), "ID");
     assert_eq!(format!("{}", PublisherField::PublisherName), "Name");
     assert_eq!(
         format!("{}", PublisherField::PublisherShortname),
         "ShortName"
     );
-    assert_eq!(format!("{}", PublisherField::PublisherURL), "URL");
+    assert_eq!(format!("{}", PublisherField::PublisherUrl), "URL");
     assert_eq!(format!("{}", PublisherField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", PublisherField::UpdatedAt), "UpdatedAt");
 }
@@ -136,7 +134,7 @@ fn test_publisherfield_fromstr() {
     use std::str::FromStr;
     assert_eq!(
         PublisherField::from_str("ID").unwrap(),
-        PublisherField::PublisherID
+        PublisherField::PublisherId
     );
     assert_eq!(
         PublisherField::from_str("Name").unwrap(),
@@ -148,7 +146,7 @@ fn test_publisherfield_fromstr() {
     );
     assert_eq!(
         PublisherField::from_str("URL").unwrap(),
-        PublisherField::PublisherURL
+        PublisherField::PublisherUrl
     );
     assert_eq!(
         PublisherField::from_str("CreatedAt").unwrap(),

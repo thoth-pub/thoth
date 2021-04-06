@@ -20,10 +20,10 @@ pagination_component! {
     SEARCH_IMPRINTS,
     PAGINATION_COUNT_IMPRINTS,
     vec![
-        ImprintField::ImprintID.to_string(),
+        ImprintField::ImprintId.to_string(),
         ImprintField::ImprintName.to_string(),
         "Publisher".to_string(),
-        ImprintField::ImprintURL.to_string(),
+        ImprintField::ImprintUrl.to_string(),
         ImprintField::UpdatedAt.to_string(),
     ],
     ImprintOrderBy,

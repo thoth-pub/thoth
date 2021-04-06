@@ -36,8 +36,8 @@ pub enum SubjectType {
     graphql(description = "Field to use when sorting subjects list")
 )]
 pub enum SubjectField {
-    SubjectID,
-    WorkID,
+    SubjectId,
+    WorkId,
     SubjectType,
     SubjectCode,
     SubjectOrdinal,

@@ -173,133 +173,133 @@ impl QueryRoot {
             ))
             .into_boxed();
         match order.field {
-            WorkField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(dsl::work_id.asc()),
-                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            WorkField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(dsl::work_id.asc()),
+                Direction::Desc => query = query.order(dsl::work_id.desc()),
             },
             WorkField::WorkType => match order.direction {
-                Direction::ASC => query = query.order(dsl::work_type.asc()),
-                Direction::DESC => query = query.order(dsl::work_type.desc()),
+                Direction::Asc => query = query.order(dsl::work_type.asc()),
+                Direction::Desc => query = query.order(dsl::work_type.desc()),
             },
             WorkField::WorkStatus => match order.direction {
-                Direction::ASC => query = query.order(dsl::work_status.asc()),
-                Direction::DESC => query = query.order(dsl::work_status.desc()),
+                Direction::Asc => query = query.order(dsl::work_status.asc()),
+                Direction::Desc => query = query.order(dsl::work_status.desc()),
             },
             WorkField::FullTitle => match order.direction {
-                Direction::ASC => query = query.order(dsl::full_title.asc()),
-                Direction::DESC => query = query.order(dsl::full_title.desc()),
+                Direction::Asc => query = query.order(dsl::full_title.asc()),
+                Direction::Desc => query = query.order(dsl::full_title.desc()),
             },
             WorkField::Title => match order.direction {
-                Direction::ASC => query = query.order(dsl::title.asc()),
-                Direction::DESC => query = query.order(dsl::title.desc()),
+                Direction::Asc => query = query.order(dsl::title.asc()),
+                Direction::Desc => query = query.order(dsl::title.desc()),
             },
             WorkField::Subtitle => match order.direction {
-                Direction::ASC => query = query.order(dsl::subtitle.asc()),
-                Direction::DESC => query = query.order(dsl::subtitle.desc()),
+                Direction::Asc => query = query.order(dsl::subtitle.asc()),
+                Direction::Desc => query = query.order(dsl::subtitle.desc()),
             },
             WorkField::Reference => match order.direction {
-                Direction::ASC => query = query.order(dsl::reference.asc()),
-                Direction::DESC => query = query.order(dsl::reference.desc()),
+                Direction::Asc => query = query.order(dsl::reference.asc()),
+                Direction::Desc => query = query.order(dsl::reference.desc()),
             },
             WorkField::Edition => match order.direction {
-                Direction::ASC => query = query.order(dsl::edition.asc()),
-                Direction::DESC => query = query.order(dsl::edition.desc()),
+                Direction::Asc => query = query.order(dsl::edition.asc()),
+                Direction::Desc => query = query.order(dsl::edition.desc()),
             },
-            WorkField::DOI => match order.direction {
-                Direction::ASC => query = query.order(dsl::doi.asc()),
-                Direction::DESC => query = query.order(dsl::doi.desc()),
+            WorkField::Doi => match order.direction {
+                Direction::Asc => query = query.order(dsl::doi.asc()),
+                Direction::Desc => query = query.order(dsl::doi.desc()),
             },
             WorkField::PublicationDate => match order.direction {
-                Direction::ASC => query = query.order(dsl::publication_date.asc()),
-                Direction::DESC => query = query.order(dsl::publication_date.desc()),
+                Direction::Asc => query = query.order(dsl::publication_date.asc()),
+                Direction::Desc => query = query.order(dsl::publication_date.desc()),
             },
             WorkField::Place => match order.direction {
-                Direction::ASC => query = query.order(dsl::place.asc()),
-                Direction::DESC => query = query.order(dsl::place.desc()),
+                Direction::Asc => query = query.order(dsl::place.asc()),
+                Direction::Desc => query = query.order(dsl::place.desc()),
             },
             WorkField::Width => match order.direction {
-                Direction::ASC => query = query.order(dsl::width.asc()),
-                Direction::DESC => query = query.order(dsl::width.desc()),
+                Direction::Asc => query = query.order(dsl::width.asc()),
+                Direction::Desc => query = query.order(dsl::width.desc()),
             },
             WorkField::Height => match order.direction {
-                Direction::ASC => query = query.order(dsl::height.asc()),
-                Direction::DESC => query = query.order(dsl::height.desc()),
+                Direction::Asc => query = query.order(dsl::height.asc()),
+                Direction::Desc => query = query.order(dsl::height.desc()),
             },
             WorkField::PageCount => match order.direction {
-                Direction::ASC => query = query.order(dsl::page_count.asc()),
-                Direction::DESC => query = query.order(dsl::page_count.desc()),
+                Direction::Asc => query = query.order(dsl::page_count.asc()),
+                Direction::Desc => query = query.order(dsl::page_count.desc()),
             },
             WorkField::PageBreakdown => match order.direction {
-                Direction::ASC => query = query.order(dsl::page_breakdown.asc()),
-                Direction::DESC => query = query.order(dsl::page_breakdown.desc()),
+                Direction::Asc => query = query.order(dsl::page_breakdown.asc()),
+                Direction::Desc => query = query.order(dsl::page_breakdown.desc()),
             },
             WorkField::ImageCount => match order.direction {
-                Direction::ASC => query = query.order(dsl::image_count.asc()),
-                Direction::DESC => query = query.order(dsl::image_count.desc()),
+                Direction::Asc => query = query.order(dsl::image_count.asc()),
+                Direction::Desc => query = query.order(dsl::image_count.desc()),
             },
             WorkField::TableCount => match order.direction {
-                Direction::ASC => query = query.order(dsl::table_count.asc()),
-                Direction::DESC => query = query.order(dsl::table_count.desc()),
+                Direction::Asc => query = query.order(dsl::table_count.asc()),
+                Direction::Desc => query = query.order(dsl::table_count.desc()),
             },
             WorkField::AudioCount => match order.direction {
-                Direction::ASC => query = query.order(dsl::audio_count.asc()),
-                Direction::DESC => query = query.order(dsl::audio_count.desc()),
+                Direction::Asc => query = query.order(dsl::audio_count.asc()),
+                Direction::Desc => query = query.order(dsl::audio_count.desc()),
             },
             WorkField::VideoCount => match order.direction {
-                Direction::ASC => query = query.order(dsl::video_count.asc()),
-                Direction::DESC => query = query.order(dsl::video_count.desc()),
+                Direction::Asc => query = query.order(dsl::video_count.asc()),
+                Direction::Desc => query = query.order(dsl::video_count.desc()),
             },
             WorkField::License => match order.direction {
-                Direction::ASC => query = query.order(dsl::license.asc()),
-                Direction::DESC => query = query.order(dsl::license.desc()),
+                Direction::Asc => query = query.order(dsl::license.asc()),
+                Direction::Desc => query = query.order(dsl::license.desc()),
             },
             WorkField::CopyrightHolder => match order.direction {
-                Direction::ASC => query = query.order(dsl::copyright_holder.asc()),
-                Direction::DESC => query = query.order(dsl::copyright_holder.desc()),
+                Direction::Asc => query = query.order(dsl::copyright_holder.asc()),
+                Direction::Desc => query = query.order(dsl::copyright_holder.desc()),
             },
             WorkField::LandingPage => match order.direction {
-                Direction::ASC => query = query.order(dsl::landing_page.asc()),
-                Direction::DESC => query = query.order(dsl::landing_page.desc()),
+                Direction::Asc => query = query.order(dsl::landing_page.asc()),
+                Direction::Desc => query = query.order(dsl::landing_page.desc()),
             },
-            WorkField::LCCN => match order.direction {
-                Direction::ASC => query = query.order(dsl::lccn.asc()),
-                Direction::DESC => query = query.order(dsl::lccn.desc()),
+            WorkField::Lccn => match order.direction {
+                Direction::Asc => query = query.order(dsl::lccn.asc()),
+                Direction::Desc => query = query.order(dsl::lccn.desc()),
             },
-            WorkField::OCLC => match order.direction {
-                Direction::ASC => query = query.order(dsl::oclc.asc()),
-                Direction::DESC => query = query.order(dsl::oclc.desc()),
+            WorkField::Oclc => match order.direction {
+                Direction::Asc => query = query.order(dsl::oclc.asc()),
+                Direction::Desc => query = query.order(dsl::oclc.desc()),
             },
             WorkField::ShortAbstract => match order.direction {
-                Direction::ASC => query = query.order(dsl::short_abstract.asc()),
-                Direction::DESC => query = query.order(dsl::short_abstract.desc()),
+                Direction::Asc => query = query.order(dsl::short_abstract.asc()),
+                Direction::Desc => query = query.order(dsl::short_abstract.desc()),
             },
             WorkField::LongAbstract => match order.direction {
-                Direction::ASC => query = query.order(dsl::long_abstract.asc()),
-                Direction::DESC => query = query.order(dsl::long_abstract.desc()),
+                Direction::Asc => query = query.order(dsl::long_abstract.asc()),
+                Direction::Desc => query = query.order(dsl::long_abstract.desc()),
             },
             WorkField::GeneralNote => match order.direction {
-                Direction::ASC => query = query.order(dsl::general_note.asc()),
-                Direction::DESC => query = query.order(dsl::general_note.desc()),
+                Direction::Asc => query = query.order(dsl::general_note.asc()),
+                Direction::Desc => query = query.order(dsl::general_note.desc()),
             },
-            WorkField::TOC => match order.direction {
-                Direction::ASC => query = query.order(dsl::toc.asc()),
-                Direction::DESC => query = query.order(dsl::toc.desc()),
+            WorkField::Toc => match order.direction {
+                Direction::Asc => query = query.order(dsl::toc.asc()),
+                Direction::Desc => query = query.order(dsl::toc.desc()),
             },
-            WorkField::CoverURL => match order.direction {
-                Direction::ASC => query = query.order(dsl::cover_url.asc()),
-                Direction::DESC => query = query.order(dsl::cover_url.desc()),
+            WorkField::CoverUrl => match order.direction {
+                Direction::Asc => query = query.order(dsl::cover_url.asc()),
+                Direction::Desc => query = query.order(dsl::cover_url.desc()),
             },
             WorkField::CoverCaption => match order.direction {
-                Direction::ASC => query = query.order(dsl::cover_caption.asc()),
-                Direction::DESC => query = query.order(dsl::cover_caption.desc()),
+                Direction::Asc => query = query.order(dsl::cover_caption.asc()),
+                Direction::Desc => query = query.order(dsl::cover_caption.desc()),
             },
             WorkField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::created_at.asc()),
-                Direction::DESC => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(dsl::created_at.asc()),
+                Direction::Desc => query = query.order(dsl::created_at.desc()),
             },
             WorkField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::updated_at.asc()),
-                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(dsl::updated_at.asc()),
+                Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
         }
         // Ordering and construction of filters is important here: result needs to be
@@ -498,33 +498,33 @@ impl QueryRoot {
             ))
             .into_boxed();
         match order.field {
-            PublicationField::PublicationID => match order.direction {
-                Direction::ASC => query = query.order(dsl::publication_id.asc()),
-                Direction::DESC => query = query.order(dsl::publication_id.desc()),
+            PublicationField::PublicationId => match order.direction {
+                Direction::Asc => query = query.order(dsl::publication_id.asc()),
+                Direction::Desc => query = query.order(dsl::publication_id.desc()),
             },
             PublicationField::PublicationType => match order.direction {
-                Direction::ASC => query = query.order(dsl::publication_type.asc()),
-                Direction::DESC => query = query.order(dsl::publication_type.desc()),
+                Direction::Asc => query = query.order(dsl::publication_type.asc()),
+                Direction::Desc => query = query.order(dsl::publication_type.desc()),
             },
-            PublicationField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(dsl::work_id.asc()),
-                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            PublicationField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(dsl::work_id.asc()),
+                Direction::Desc => query = query.order(dsl::work_id.desc()),
             },
-            PublicationField::ISBN => match order.direction {
-                Direction::ASC => query = query.order(dsl::isbn.asc()),
-                Direction::DESC => query = query.order(dsl::isbn.desc()),
+            PublicationField::Isbn => match order.direction {
+                Direction::Asc => query = query.order(dsl::isbn.asc()),
+                Direction::Desc => query = query.order(dsl::isbn.desc()),
             },
-            PublicationField::PublicationURL => match order.direction {
-                Direction::ASC => query = query.order(dsl::publication_url.asc()),
-                Direction::DESC => query = query.order(dsl::publication_url.desc()),
+            PublicationField::PublicationUrl => match order.direction {
+                Direction::Asc => query = query.order(dsl::publication_url.asc()),
+                Direction::Desc => query = query.order(dsl::publication_url.desc()),
             },
             PublicationField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::created_at.asc()),
-                Direction::DESC => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(dsl::created_at.asc()),
+                Direction::Desc => query = query.order(dsl::created_at.desc()),
             },
             PublicationField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::updated_at.asc()),
-                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(dsl::updated_at.asc()),
+                Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
         }
         // Ordering and construction of filters is important here: result needs to be
@@ -662,29 +662,29 @@ impl QueryRoot {
         let connection = context.db.get().unwrap();
         let mut query = publisher.into_boxed();
         match order.field {
-            PublisherField::PublisherID => match order.direction {
-                Direction::ASC => query = query.order(publisher_id.asc()),
-                Direction::DESC => query = query.order(publisher_id.desc()),
+            PublisherField::PublisherId => match order.direction {
+                Direction::Asc => query = query.order(publisher_id.asc()),
+                Direction::Desc => query = query.order(publisher_id.desc()),
             },
             PublisherField::PublisherName => match order.direction {
-                Direction::ASC => query = query.order(publisher_name.asc()),
-                Direction::DESC => query = query.order(publisher_name.desc()),
+                Direction::Asc => query = query.order(publisher_name.asc()),
+                Direction::Desc => query = query.order(publisher_name.desc()),
             },
             PublisherField::PublisherShortname => match order.direction {
-                Direction::ASC => query = query.order(publisher_shortname.asc()),
-                Direction::DESC => query = query.order(publisher_shortname.desc()),
+                Direction::Asc => query = query.order(publisher_shortname.asc()),
+                Direction::Desc => query = query.order(publisher_shortname.desc()),
             },
-            PublisherField::PublisherURL => match order.direction {
-                Direction::ASC => query = query.order(publisher_url.asc()),
-                Direction::DESC => query = query.order(publisher_url.desc()),
+            PublisherField::PublisherUrl => match order.direction {
+                Direction::Asc => query = query.order(publisher_url.asc()),
+                Direction::Desc => query = query.order(publisher_url.desc()),
             },
             PublisherField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             PublisherField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
         // Ordering and construction of filters is important here: result needs to be
@@ -786,25 +786,25 @@ impl QueryRoot {
         let connection = context.db.get().unwrap();
         let mut query = imprint.into_boxed();
         match order.field {
-            ImprintField::ImprintID => match order.direction {
-                Direction::ASC => query = query.order(imprint_id.asc()),
-                Direction::DESC => query = query.order(imprint_id.desc()),
+            ImprintField::ImprintId => match order.direction {
+                Direction::Asc => query = query.order(imprint_id.asc()),
+                Direction::Desc => query = query.order(imprint_id.desc()),
             },
             ImprintField::ImprintName => match order.direction {
-                Direction::ASC => query = query.order(imprint_name.asc()),
-                Direction::DESC => query = query.order(imprint_name.desc()),
+                Direction::Asc => query = query.order(imprint_name.asc()),
+                Direction::Desc => query = query.order(imprint_name.desc()),
             },
-            ImprintField::ImprintURL => match order.direction {
-                Direction::ASC => query = query.order(imprint_url.asc()),
-                Direction::DESC => query = query.order(imprint_url.desc()),
+            ImprintField::ImprintUrl => match order.direction {
+                Direction::Asc => query = query.order(imprint_url.asc()),
+                Direction::Desc => query = query.order(imprint_url.desc()),
             },
             ImprintField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             ImprintField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
         // Ordering and construction of filters is important here: result needs to be
@@ -901,37 +901,37 @@ impl QueryRoot {
         let connection = context.db.get().unwrap();
         let mut query = contributor.into_boxed();
         match order.field {
-            ContributorField::ContributorID => match order.direction {
-                Direction::ASC => query = query.order(contributor_id.asc()),
-                Direction::DESC => query = query.order(contributor_id.desc()),
+            ContributorField::ContributorId => match order.direction {
+                Direction::Asc => query = query.order(contributor_id.asc()),
+                Direction::Desc => query = query.order(contributor_id.desc()),
             },
             ContributorField::FirstName => match order.direction {
-                Direction::ASC => query = query.order(first_name.asc()),
-                Direction::DESC => query = query.order(first_name.desc()),
+                Direction::Asc => query = query.order(first_name.asc()),
+                Direction::Desc => query = query.order(first_name.desc()),
             },
             ContributorField::LastName => match order.direction {
-                Direction::ASC => query = query.order(last_name.asc()),
-                Direction::DESC => query = query.order(last_name.desc()),
+                Direction::Asc => query = query.order(last_name.asc()),
+                Direction::Desc => query = query.order(last_name.desc()),
             },
             ContributorField::FullName => match order.direction {
-                Direction::ASC => query = query.order(full_name.asc()),
-                Direction::DESC => query = query.order(full_name.desc()),
+                Direction::Asc => query = query.order(full_name.asc()),
+                Direction::Desc => query = query.order(full_name.desc()),
             },
-            ContributorField::ORCID => match order.direction {
-                Direction::ASC => query = query.order(orcid.asc()),
-                Direction::DESC => query = query.order(orcid.desc()),
+            ContributorField::Orcid => match order.direction {
+                Direction::Asc => query = query.order(orcid.asc()),
+                Direction::Desc => query = query.order(orcid.desc()),
             },
             ContributorField::Website => match order.direction {
-                Direction::ASC => query = query.order(website.asc()),
-                Direction::DESC => query = query.order(website.desc()),
+                Direction::Asc => query = query.order(website.asc()),
+                Direction::Desc => query = query.order(website.desc()),
             },
             ContributorField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             ContributorField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
         query
@@ -988,7 +988,7 @@ impl QueryRoot {
                 default = {
                     ContributionOrderBy {
                         field: ContributionField::ContributionType,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -1027,49 +1027,49 @@ impl QueryRoot {
             ))
             .into_boxed();
         match order.field {
-            ContributionField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(dsl::work_id.asc()),
-                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            ContributionField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(dsl::work_id.asc()),
+                Direction::Desc => query = query.order(dsl::work_id.desc()),
             },
-            ContributionField::ContributorID => match order.direction {
-                Direction::ASC => query = query.order(dsl::contributor_id.asc()),
-                Direction::DESC => query = query.order(dsl::contributor_id.desc()),
+            ContributionField::ContributorId => match order.direction {
+                Direction::Asc => query = query.order(dsl::contributor_id.asc()),
+                Direction::Desc => query = query.order(dsl::contributor_id.desc()),
             },
             ContributionField::ContributionType => match order.direction {
-                Direction::ASC => query = query.order(dsl::contribution_type.asc()),
-                Direction::DESC => query = query.order(dsl::contribution_type.desc()),
+                Direction::Asc => query = query.order(dsl::contribution_type.asc()),
+                Direction::Desc => query = query.order(dsl::contribution_type.desc()),
             },
             ContributionField::MainContribution => match order.direction {
-                Direction::ASC => query = query.order(dsl::main_contribution.asc()),
-                Direction::DESC => query = query.order(dsl::main_contribution.desc()),
+                Direction::Asc => query = query.order(dsl::main_contribution.asc()),
+                Direction::Desc => query = query.order(dsl::main_contribution.desc()),
             },
             ContributionField::Biography => match order.direction {
-                Direction::ASC => query = query.order(dsl::biography.asc()),
-                Direction::DESC => query = query.order(dsl::biography.desc()),
+                Direction::Asc => query = query.order(dsl::biography.asc()),
+                Direction::Desc => query = query.order(dsl::biography.desc()),
             },
             ContributionField::Institution => match order.direction {
-                Direction::ASC => query = query.order(dsl::institution.asc()),
-                Direction::DESC => query = query.order(dsl::institution.desc()),
+                Direction::Asc => query = query.order(dsl::institution.asc()),
+                Direction::Desc => query = query.order(dsl::institution.desc()),
             },
             ContributionField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::created_at.asc()),
-                Direction::DESC => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(dsl::created_at.asc()),
+                Direction::Desc => query = query.order(dsl::created_at.desc()),
             },
             ContributionField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::updated_at.asc()),
-                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(dsl::updated_at.asc()),
+                Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
             ContributionField::FirstName => match order.direction {
-                Direction::ASC => query = query.order(dsl::first_name.asc()),
-                Direction::DESC => query = query.order(dsl::first_name.desc()),
+                Direction::Asc => query = query.order(dsl::first_name.asc()),
+                Direction::Desc => query = query.order(dsl::first_name.desc()),
             },
             ContributionField::LastName => match order.direction {
-                Direction::ASC => query = query.order(dsl::last_name.asc()),
-                Direction::DESC => query = query.order(dsl::last_name.desc()),
+                Direction::Asc => query = query.order(dsl::last_name.asc()),
+                Direction::Desc => query = query.order(dsl::last_name.desc()),
             },
             ContributionField::FullName => match order.direction {
-                Direction::ASC => query = query.order(dsl::full_name.asc()),
-                Direction::DESC => query = query.order(dsl::full_name.desc()),
+                Direction::Asc => query = query.order(dsl::full_name.asc()),
+                Direction::Desc => query = query.order(dsl::full_name.desc()),
             },
         }
         // Ordering and construction of filters is important here: result needs to be
@@ -1171,37 +1171,37 @@ impl QueryRoot {
             ))
             .into_boxed();
         match order.field {
-            SeriesField::SeriesID => match order.direction {
-                Direction::ASC => query = query.order(dsl::series_id.asc()),
-                Direction::DESC => query = query.order(dsl::series_id.desc()),
+            SeriesField::SeriesId => match order.direction {
+                Direction::Asc => query = query.order(dsl::series_id.asc()),
+                Direction::Desc => query = query.order(dsl::series_id.desc()),
             },
             SeriesField::SeriesType => match order.direction {
-                Direction::ASC => query = query.order(dsl::series_type.asc()),
-                Direction::DESC => query = query.order(dsl::series_type.desc()),
+                Direction::Asc => query = query.order(dsl::series_type.asc()),
+                Direction::Desc => query = query.order(dsl::series_type.desc()),
             },
             SeriesField::SeriesName => match order.direction {
-                Direction::ASC => query = query.order(dsl::series_name.asc()),
-                Direction::DESC => query = query.order(dsl::series_name.desc()),
+                Direction::Asc => query = query.order(dsl::series_name.asc()),
+                Direction::Desc => query = query.order(dsl::series_name.desc()),
             },
-            SeriesField::ISSNPrint => match order.direction {
-                Direction::ASC => query = query.order(dsl::issn_print.asc()),
-                Direction::DESC => query = query.order(dsl::issn_print.desc()),
+            SeriesField::IssnPrint => match order.direction {
+                Direction::Asc => query = query.order(dsl::issn_print.asc()),
+                Direction::Desc => query = query.order(dsl::issn_print.desc()),
             },
-            SeriesField::ISSNDigital => match order.direction {
-                Direction::ASC => query = query.order(dsl::issn_digital.asc()),
-                Direction::DESC => query = query.order(dsl::issn_digital.desc()),
+            SeriesField::IssnDigital => match order.direction {
+                Direction::Asc => query = query.order(dsl::issn_digital.asc()),
+                Direction::Desc => query = query.order(dsl::issn_digital.desc()),
             },
-            SeriesField::SeriesURL => match order.direction {
-                Direction::ASC => query = query.order(dsl::series_url.asc()),
-                Direction::DESC => query = query.order(dsl::series_url.desc()),
+            SeriesField::SeriesUrl => match order.direction {
+                Direction::Asc => query = query.order(dsl::series_url.asc()),
+                Direction::Desc => query = query.order(dsl::series_url.desc()),
             },
             SeriesField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::created_at.asc()),
-                Direction::DESC => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(dsl::created_at.asc()),
+                Direction::Desc => query = query.order(dsl::created_at.desc()),
             },
             SeriesField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::updated_at.asc()),
-                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(dsl::updated_at.asc()),
+                Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
         }
         // Ordering and construction of filters is important here: result needs to be
@@ -1310,7 +1310,7 @@ impl QueryRoot {
                 default = {
                     IssueOrderBy {
                         field: IssueField::IssueOrdinal,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -1335,25 +1335,25 @@ impl QueryRoot {
             .select((series_id, work_id, issue_ordinal, created_at, updated_at))
             .into_boxed();
         match order.field {
-            IssueField::SeriesID => match order.direction {
-                Direction::ASC => query = query.order(series_id.asc()),
-                Direction::DESC => query = query.order(series_id.desc()),
+            IssueField::SeriesId => match order.direction {
+                Direction::Asc => query = query.order(series_id.asc()),
+                Direction::Desc => query = query.order(series_id.desc()),
             },
-            IssueField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(work_id.asc()),
-                Direction::DESC => query = query.order(work_id.desc()),
+            IssueField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(work_id.asc()),
+                Direction::Desc => query = query.order(work_id.desc()),
             },
             IssueField::IssueOrdinal => match order.direction {
-                Direction::ASC => query = query.order(issue_ordinal.asc()),
-                Direction::DESC => query = query.order(issue_ordinal.desc()),
+                Direction::Asc => query = query.order(issue_ordinal.asc()),
+                Direction::Desc => query = query.order(issue_ordinal.desc()),
             },
             IssueField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             IssueField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
         for pub_id in publishers {
@@ -1402,7 +1402,7 @@ impl QueryRoot {
                 default = {
                     LanguageOrderBy {
                         field: LanguageField::LanguageCode,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -1439,33 +1439,33 @@ impl QueryRoot {
             ))
             .into_boxed();
         match order.field {
-            LanguageField::LanguageID => match order.direction {
-                Direction::ASC => query = query.order(dsl::language_id.asc()),
-                Direction::DESC => query = query.order(dsl::language_id.desc()),
+            LanguageField::LanguageId => match order.direction {
+                Direction::Asc => query = query.order(dsl::language_id.asc()),
+                Direction::Desc => query = query.order(dsl::language_id.desc()),
             },
-            LanguageField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(dsl::work_id.asc()),
-                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            LanguageField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(dsl::work_id.asc()),
+                Direction::Desc => query = query.order(dsl::work_id.desc()),
             },
             LanguageField::LanguageCode => match order.direction {
-                Direction::ASC => query = query.order(dsl::language_code.asc()),
-                Direction::DESC => query = query.order(dsl::language_code.desc()),
+                Direction::Asc => query = query.order(dsl::language_code.asc()),
+                Direction::Desc => query = query.order(dsl::language_code.desc()),
             },
             LanguageField::LanguageRelation => match order.direction {
-                Direction::ASC => query = query.order(dsl::language_relation.asc()),
-                Direction::DESC => query = query.order(dsl::language_relation.desc()),
+                Direction::Asc => query = query.order(dsl::language_relation.asc()),
+                Direction::Desc => query = query.order(dsl::language_relation.desc()),
             },
             LanguageField::MainLanguage => match order.direction {
-                Direction::ASC => query = query.order(dsl::main_language.asc()),
-                Direction::DESC => query = query.order(dsl::main_language.desc()),
+                Direction::Asc => query = query.order(dsl::main_language.asc()),
+                Direction::Desc => query = query.order(dsl::main_language.desc()),
             },
             LanguageField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::created_at.asc()),
-                Direction::DESC => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(dsl::created_at.asc()),
+                Direction::Desc => query = query.order(dsl::created_at.desc()),
             },
             LanguageField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::updated_at.asc()),
-                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(dsl::updated_at.asc()),
+                Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
         }
         // Ordering and construction of filters is important here: result needs to be
@@ -1533,7 +1533,7 @@ impl QueryRoot {
                 default = {
                     PriceOrderBy {
                         field: PriceField::CurrencyCode,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -1570,29 +1570,29 @@ impl QueryRoot {
                 ))
                 .into_boxed();
         match order.field {
-            PriceField::PriceID => match order.direction {
-                Direction::ASC => query = query.order(dsl::price_id.asc()),
-                Direction::DESC => query = query.order(dsl::price_id.desc()),
+            PriceField::PriceId => match order.direction {
+                Direction::Asc => query = query.order(dsl::price_id.asc()),
+                Direction::Desc => query = query.order(dsl::price_id.desc()),
             },
-            PriceField::PublicationID => match order.direction {
-                Direction::ASC => query = query.order(dsl::publication_id.asc()),
-                Direction::DESC => query = query.order(dsl::publication_id.desc()),
+            PriceField::PublicationId => match order.direction {
+                Direction::Asc => query = query.order(dsl::publication_id.asc()),
+                Direction::Desc => query = query.order(dsl::publication_id.desc()),
             },
             PriceField::CurrencyCode => match order.direction {
-                Direction::ASC => query = query.order(dsl::currency_code.asc()),
-                Direction::DESC => query = query.order(dsl::currency_code.desc()),
+                Direction::Asc => query = query.order(dsl::currency_code.asc()),
+                Direction::Desc => query = query.order(dsl::currency_code.desc()),
             },
             PriceField::UnitPrice => match order.direction {
-                Direction::ASC => query = query.order(dsl::unit_price.asc()),
-                Direction::DESC => query = query.order(dsl::unit_price.desc()),
+                Direction::Asc => query = query.order(dsl::unit_price.asc()),
+                Direction::Desc => query = query.order(dsl::unit_price.desc()),
             },
             PriceField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::created_at.asc()),
-                Direction::DESC => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(dsl::created_at.asc()),
+                Direction::Desc => query = query.order(dsl::created_at.desc()),
             },
             PriceField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::updated_at.asc()),
-                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(dsl::updated_at.asc()),
+                Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
         }
         // Ordering and construction of filters is important here: result needs to be
@@ -1654,7 +1654,7 @@ impl QueryRoot {
                 default = {
                     SubjectOrderBy {
                         field: SubjectField::SubjectType,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -1690,33 +1690,33 @@ impl QueryRoot {
             ))
             .into_boxed();
         match order.field {
-            SubjectField::SubjectID => match order.direction {
-                Direction::ASC => query = query.order(dsl::subject_id.asc()),
-                Direction::DESC => query = query.order(dsl::subject_id.desc()),
+            SubjectField::SubjectId => match order.direction {
+                Direction::Asc => query = query.order(dsl::subject_id.asc()),
+                Direction::Desc => query = query.order(dsl::subject_id.desc()),
             },
-            SubjectField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(dsl::work_id.asc()),
-                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            SubjectField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(dsl::work_id.asc()),
+                Direction::Desc => query = query.order(dsl::work_id.desc()),
             },
             SubjectField::SubjectType => match order.direction {
-                Direction::ASC => query = query.order(dsl::subject_type.asc()),
-                Direction::DESC => query = query.order(dsl::subject_type.desc()),
+                Direction::Asc => query = query.order(dsl::subject_type.asc()),
+                Direction::Desc => query = query.order(dsl::subject_type.desc()),
             },
             SubjectField::SubjectCode => match order.direction {
-                Direction::ASC => query = query.order(dsl::subject_code.asc()),
-                Direction::DESC => query = query.order(dsl::subject_code.desc()),
+                Direction::Asc => query = query.order(dsl::subject_code.asc()),
+                Direction::Desc => query = query.order(dsl::subject_code.desc()),
             },
             SubjectField::SubjectOrdinal => match order.direction {
-                Direction::ASC => query = query.order(dsl::subject_ordinal.asc()),
-                Direction::DESC => query = query.order(dsl::subject_ordinal.desc()),
+                Direction::Asc => query = query.order(dsl::subject_ordinal.asc()),
+                Direction::Desc => query = query.order(dsl::subject_ordinal.desc()),
             },
             SubjectField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::created_at.asc()),
-                Direction::DESC => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(dsl::created_at.asc()),
+                Direction::Desc => query = query.order(dsl::created_at.desc()),
             },
             SubjectField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::updated_at.asc()),
-                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(dsl::updated_at.asc()),
+                Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
         }
         // Ordering and construction of filters is important here: result needs to be
@@ -1793,25 +1793,25 @@ impl QueryRoot {
         let connection = context.db.get().unwrap();
         let mut query = funder.into_boxed();
         match order.field {
-            FunderField::FunderID => match order.direction {
-                Direction::ASC => query = query.order(funder_id.asc()),
-                Direction::DESC => query = query.order(funder_id.desc()),
+            FunderField::FunderId => match order.direction {
+                Direction::Asc => query = query.order(funder_id.asc()),
+                Direction::Desc => query = query.order(funder_id.desc()),
             },
             FunderField::FunderName => match order.direction {
-                Direction::ASC => query = query.order(funder_name.asc()),
-                Direction::DESC => query = query.order(funder_name.desc()),
+                Direction::Asc => query = query.order(funder_name.asc()),
+                Direction::Desc => query = query.order(funder_name.desc()),
             },
-            FunderField::FunderDOI => match order.direction {
-                Direction::ASC => query = query.order(funder_doi.asc()),
-                Direction::DESC => query = query.order(funder_doi.desc()),
+            FunderField::FunderDoi => match order.direction {
+                Direction::Asc => query = query.order(funder_doi.asc()),
+                Direction::Desc => query = query.order(funder_doi.desc()),
             },
             FunderField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             FunderField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
         query
@@ -1868,7 +1868,7 @@ impl QueryRoot {
                 default = {
                     FundingOrderBy {
                         field: FundingField::Program,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -1904,45 +1904,45 @@ impl QueryRoot {
             ))
             .into_boxed();
         match order.field {
-            FundingField::FundingID => match order.direction {
-                Direction::ASC => query = query.order(funding_id.asc()),
-                Direction::DESC => query = query.order(funding_id.desc()),
+            FundingField::FundingId => match order.direction {
+                Direction::Asc => query = query.order(funding_id.asc()),
+                Direction::Desc => query = query.order(funding_id.desc()),
             },
-            FundingField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(work_id.asc()),
-                Direction::DESC => query = query.order(work_id.desc()),
+            FundingField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(work_id.asc()),
+                Direction::Desc => query = query.order(work_id.desc()),
             },
-            FundingField::FunderID => match order.direction {
-                Direction::ASC => query = query.order(funder_id.asc()),
-                Direction::DESC => query = query.order(funder_id.desc()),
+            FundingField::FunderId => match order.direction {
+                Direction::Asc => query = query.order(funder_id.asc()),
+                Direction::Desc => query = query.order(funder_id.desc()),
             },
             FundingField::Program => match order.direction {
-                Direction::ASC => query = query.order(program.asc()),
-                Direction::DESC => query = query.order(program.desc()),
+                Direction::Asc => query = query.order(program.asc()),
+                Direction::Desc => query = query.order(program.desc()),
             },
             FundingField::ProjectName => match order.direction {
-                Direction::ASC => query = query.order(project_name.asc()),
-                Direction::DESC => query = query.order(project_name.desc()),
+                Direction::Asc => query = query.order(project_name.asc()),
+                Direction::Desc => query = query.order(project_name.desc()),
             },
             FundingField::ProjectShortname => match order.direction {
-                Direction::ASC => query = query.order(project_shortname.asc()),
-                Direction::DESC => query = query.order(project_shortname.desc()),
+                Direction::Asc => query = query.order(project_shortname.asc()),
+                Direction::Desc => query = query.order(project_shortname.desc()),
             },
             FundingField::GrantNumber => match order.direction {
-                Direction::ASC => query = query.order(grant_number.asc()),
-                Direction::DESC => query = query.order(grant_number.desc()),
+                Direction::Asc => query = query.order(grant_number.asc()),
+                Direction::Desc => query = query.order(grant_number.desc()),
             },
             FundingField::Jurisdiction => match order.direction {
-                Direction::ASC => query = query.order(jurisdiction.asc()),
-                Direction::DESC => query = query.order(jurisdiction.desc()),
+                Direction::Asc => query = query.order(jurisdiction.asc()),
+                Direction::Desc => query = query.order(jurisdiction.desc()),
             },
             FundingField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             FundingField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
         for pub_id in publishers {
@@ -2862,7 +2862,7 @@ impl Work {
                 default = {
                     ContributionOrderBy {
                         field: ContributionField::ContributionType,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -2880,49 +2880,49 @@ impl Work {
         let connection = context.db.get().unwrap();
         let mut query = dsl::contribution.into_boxed();
         match order.field {
-            ContributionField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(dsl::work_id.asc()),
-                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            ContributionField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(dsl::work_id.asc()),
+                Direction::Desc => query = query.order(dsl::work_id.desc()),
             },
-            ContributionField::ContributorID => match order.direction {
-                Direction::ASC => query = query.order(dsl::contributor_id.asc()),
-                Direction::DESC => query = query.order(dsl::contributor_id.desc()),
+            ContributionField::ContributorId => match order.direction {
+                Direction::Asc => query = query.order(dsl::contributor_id.asc()),
+                Direction::Desc => query = query.order(dsl::contributor_id.desc()),
             },
             ContributionField::ContributionType => match order.direction {
-                Direction::ASC => query = query.order(dsl::contribution_type.asc()),
-                Direction::DESC => query = query.order(dsl::contribution_type.desc()),
+                Direction::Asc => query = query.order(dsl::contribution_type.asc()),
+                Direction::Desc => query = query.order(dsl::contribution_type.desc()),
             },
             ContributionField::MainContribution => match order.direction {
-                Direction::ASC => query = query.order(dsl::main_contribution.asc()),
-                Direction::DESC => query = query.order(dsl::main_contribution.desc()),
+                Direction::Asc => query = query.order(dsl::main_contribution.asc()),
+                Direction::Desc => query = query.order(dsl::main_contribution.desc()),
             },
             ContributionField::Biography => match order.direction {
-                Direction::ASC => query = query.order(dsl::biography.asc()),
-                Direction::DESC => query = query.order(dsl::biography.desc()),
+                Direction::Asc => query = query.order(dsl::biography.asc()),
+                Direction::Desc => query = query.order(dsl::biography.desc()),
             },
             ContributionField::Institution => match order.direction {
-                Direction::ASC => query = query.order(dsl::institution.asc()),
-                Direction::DESC => query = query.order(dsl::institution.desc()),
+                Direction::Asc => query = query.order(dsl::institution.asc()),
+                Direction::Desc => query = query.order(dsl::institution.desc()),
             },
             ContributionField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::created_at.asc()),
-                Direction::DESC => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(dsl::created_at.asc()),
+                Direction::Desc => query = query.order(dsl::created_at.desc()),
             },
             ContributionField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::updated_at.asc()),
-                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(dsl::updated_at.asc()),
+                Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
             ContributionField::FirstName => match order.direction {
-                Direction::ASC => query = query.order(dsl::first_name.asc()),
-                Direction::DESC => query = query.order(dsl::first_name.desc()),
+                Direction::Asc => query = query.order(dsl::first_name.asc()),
+                Direction::Desc => query = query.order(dsl::first_name.desc()),
             },
             ContributionField::LastName => match order.direction {
-                Direction::ASC => query = query.order(dsl::last_name.asc()),
-                Direction::DESC => query = query.order(dsl::last_name.desc()),
+                Direction::Asc => query = query.order(dsl::last_name.asc()),
+                Direction::Desc => query = query.order(dsl::last_name.desc()),
             },
             ContributionField::FullName => match order.direction {
-                Direction::ASC => query = query.order(dsl::full_name.asc()),
-                Direction::DESC => query = query.order(dsl::full_name.desc()),
+                Direction::Asc => query = query.order(dsl::full_name.asc()),
+                Direction::Desc => query = query.order(dsl::full_name.desc()),
             },
         }
         if let Some(cont_type) = contribution_type {
@@ -2941,7 +2941,7 @@ impl Work {
                 default = {
                     LanguageOrderBy {
                         field: LanguageField::LanguageCode,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -2961,33 +2961,33 @@ impl Work {
         let connection = context.db.get().unwrap();
         let mut query = dsl::language.into_boxed();
         match order.field {
-            LanguageField::LanguageID => match order.direction {
-                Direction::ASC => query = query.order(dsl::language_id.asc()),
-                Direction::DESC => query = query.order(dsl::language_id.desc()),
+            LanguageField::LanguageId => match order.direction {
+                Direction::Asc => query = query.order(dsl::language_id.asc()),
+                Direction::Desc => query = query.order(dsl::language_id.desc()),
             },
-            LanguageField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(dsl::work_id.asc()),
-                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            LanguageField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(dsl::work_id.asc()),
+                Direction::Desc => query = query.order(dsl::work_id.desc()),
             },
             LanguageField::LanguageCode => match order.direction {
-                Direction::ASC => query = query.order(dsl::language_code.asc()),
-                Direction::DESC => query = query.order(dsl::language_code.desc()),
+                Direction::Asc => query = query.order(dsl::language_code.asc()),
+                Direction::Desc => query = query.order(dsl::language_code.desc()),
             },
             LanguageField::LanguageRelation => match order.direction {
-                Direction::ASC => query = query.order(dsl::language_relation.asc()),
-                Direction::DESC => query = query.order(dsl::language_relation.desc()),
+                Direction::Asc => query = query.order(dsl::language_relation.asc()),
+                Direction::Desc => query = query.order(dsl::language_relation.desc()),
             },
             LanguageField::MainLanguage => match order.direction {
-                Direction::ASC => query = query.order(dsl::main_language.asc()),
-                Direction::DESC => query = query.order(dsl::main_language.desc()),
+                Direction::Asc => query = query.order(dsl::main_language.asc()),
+                Direction::Desc => query = query.order(dsl::main_language.desc()),
             },
             LanguageField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::created_at.asc()),
-                Direction::DESC => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(dsl::created_at.asc()),
+                Direction::Desc => query = query.order(dsl::created_at.desc()),
             },
             LanguageField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::updated_at.asc()),
-                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(dsl::updated_at.asc()),
+                Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
         }
         if let Some(lang_code) = language_code {
@@ -3015,7 +3015,7 @@ impl Work {
                 default = {
                     PublicationOrderBy {
                         field: PublicationField::PublicationType,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -3036,33 +3036,33 @@ impl Work {
         use crate::schema::publication::dsl;
         let mut query = dsl::publication.into_boxed();
         match order.field {
-            PublicationField::PublicationID => match order.direction {
-                Direction::ASC => query = query.order(dsl::publication_id.asc()),
-                Direction::DESC => query = query.order(dsl::publication_id.desc()),
+            PublicationField::PublicationId => match order.direction {
+                Direction::Asc => query = query.order(dsl::publication_id.asc()),
+                Direction::Desc => query = query.order(dsl::publication_id.desc()),
             },
             PublicationField::PublicationType => match order.direction {
-                Direction::ASC => query = query.order(dsl::publication_type.asc()),
-                Direction::DESC => query = query.order(dsl::publication_type.desc()),
+                Direction::Asc => query = query.order(dsl::publication_type.asc()),
+                Direction::Desc => query = query.order(dsl::publication_type.desc()),
             },
-            PublicationField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(dsl::work_id.asc()),
-                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            PublicationField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(dsl::work_id.asc()),
+                Direction::Desc => query = query.order(dsl::work_id.desc()),
             },
-            PublicationField::ISBN => match order.direction {
-                Direction::ASC => query = query.order(dsl::isbn.asc()),
-                Direction::DESC => query = query.order(dsl::isbn.desc()),
+            PublicationField::Isbn => match order.direction {
+                Direction::Asc => query = query.order(dsl::isbn.asc()),
+                Direction::Desc => query = query.order(dsl::isbn.desc()),
             },
-            PublicationField::PublicationURL => match order.direction {
-                Direction::ASC => query = query.order(dsl::publication_url.asc()),
-                Direction::DESC => query = query.order(dsl::publication_url.desc()),
+            PublicationField::PublicationUrl => match order.direction {
+                Direction::Asc => query = query.order(dsl::publication_url.asc()),
+                Direction::Desc => query = query.order(dsl::publication_url.desc()),
             },
             PublicationField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::created_at.asc()),
-                Direction::DESC => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(dsl::created_at.asc()),
+                Direction::Desc => query = query.order(dsl::created_at.desc()),
             },
             PublicationField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::updated_at.asc()),
-                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(dsl::updated_at.asc()),
+                Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
         }
         if let Some(pub_type) = publication_type {
@@ -3097,7 +3097,7 @@ impl Work {
                 default = {
                     SubjectOrderBy {
                         field: SubjectField::SubjectType,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -3118,33 +3118,33 @@ impl Work {
         let connection = context.db.get().unwrap();
         let mut query = dsl::subject.into_boxed();
         match order.field {
-            SubjectField::SubjectID => match order.direction {
-                Direction::ASC => query = query.order(dsl::subject_id.asc()),
-                Direction::DESC => query = query.order(dsl::subject_id.desc()),
+            SubjectField::SubjectId => match order.direction {
+                Direction::Asc => query = query.order(dsl::subject_id.asc()),
+                Direction::Desc => query = query.order(dsl::subject_id.desc()),
             },
-            SubjectField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(dsl::work_id.asc()),
-                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            SubjectField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(dsl::work_id.asc()),
+                Direction::Desc => query = query.order(dsl::work_id.desc()),
             },
             SubjectField::SubjectType => match order.direction {
-                Direction::ASC => query = query.order(dsl::subject_type.asc()),
-                Direction::DESC => query = query.order(dsl::subject_type.desc()),
+                Direction::Asc => query = query.order(dsl::subject_type.asc()),
+                Direction::Desc => query = query.order(dsl::subject_type.desc()),
             },
             SubjectField::SubjectCode => match order.direction {
-                Direction::ASC => query = query.order(dsl::subject_code.asc()),
-                Direction::DESC => query = query.order(dsl::subject_code.desc()),
+                Direction::Asc => query = query.order(dsl::subject_code.asc()),
+                Direction::Desc => query = query.order(dsl::subject_code.desc()),
             },
             SubjectField::SubjectOrdinal => match order.direction {
-                Direction::ASC => query = query.order(dsl::subject_ordinal.asc()),
-                Direction::DESC => query = query.order(dsl::subject_ordinal.desc()),
+                Direction::Asc => query = query.order(dsl::subject_ordinal.asc()),
+                Direction::Desc => query = query.order(dsl::subject_ordinal.desc()),
             },
             SubjectField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::created_at.asc()),
-                Direction::DESC => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(dsl::created_at.asc()),
+                Direction::Desc => query = query.order(dsl::created_at.desc()),
             },
             SubjectField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::updated_at.asc()),
-                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(dsl::updated_at.asc()),
+                Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
         }
         if let Some(sub_type) = subject_type {
@@ -3167,7 +3167,7 @@ impl Work {
                 default = {
                     FundingOrderBy {
                         field: FundingField::Program,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -3179,45 +3179,45 @@ impl Work {
         let connection = context.db.get().unwrap();
         let mut query = funding.into_boxed();
         match order.field {
-            FundingField::FundingID => match order.direction {
-                Direction::ASC => query = query.order(funding_id.asc()),
-                Direction::DESC => query = query.order(funding_id.desc()),
+            FundingField::FundingId => match order.direction {
+                Direction::Asc => query = query.order(funding_id.asc()),
+                Direction::Desc => query = query.order(funding_id.desc()),
             },
-            FundingField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(work_id.asc()),
-                Direction::DESC => query = query.order(work_id.desc()),
+            FundingField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(work_id.asc()),
+                Direction::Desc => query = query.order(work_id.desc()),
             },
-            FundingField::FunderID => match order.direction {
-                Direction::ASC => query = query.order(funder_id.asc()),
-                Direction::DESC => query = query.order(funder_id.desc()),
+            FundingField::FunderId => match order.direction {
+                Direction::Asc => query = query.order(funder_id.asc()),
+                Direction::Desc => query = query.order(funder_id.desc()),
             },
             FundingField::Program => match order.direction {
-                Direction::ASC => query = query.order(program.asc()),
-                Direction::DESC => query = query.order(program.desc()),
+                Direction::Asc => query = query.order(program.asc()),
+                Direction::Desc => query = query.order(program.desc()),
             },
             FundingField::ProjectName => match order.direction {
-                Direction::ASC => query = query.order(project_name.asc()),
-                Direction::DESC => query = query.order(project_name.desc()),
+                Direction::Asc => query = query.order(project_name.asc()),
+                Direction::Desc => query = query.order(project_name.desc()),
             },
             FundingField::ProjectShortname => match order.direction {
-                Direction::ASC => query = query.order(project_shortname.asc()),
-                Direction::DESC => query = query.order(project_shortname.desc()),
+                Direction::Asc => query = query.order(project_shortname.asc()),
+                Direction::Desc => query = query.order(project_shortname.desc()),
             },
             FundingField::GrantNumber => match order.direction {
-                Direction::ASC => query = query.order(grant_number.asc()),
-                Direction::DESC => query = query.order(grant_number.desc()),
+                Direction::Asc => query = query.order(grant_number.asc()),
+                Direction::Desc => query = query.order(grant_number.desc()),
             },
             FundingField::Jurisdiction => match order.direction {
-                Direction::ASC => query = query.order(jurisdiction.asc()),
-                Direction::DESC => query = query.order(jurisdiction.desc()),
+                Direction::Asc => query = query.order(jurisdiction.asc()),
+                Direction::Desc => query = query.order(jurisdiction.desc()),
             },
             FundingField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             FundingField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
         query
@@ -3233,7 +3233,7 @@ impl Work {
                 default = {
                     IssueOrderBy {
                         field: IssueField::IssueOrdinal,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -3245,25 +3245,25 @@ impl Work {
         let connection = context.db.get().unwrap();
         let mut query = issue.into_boxed();
         match order.field {
-            IssueField::SeriesID => match order.direction {
-                Direction::ASC => query = query.order(series_id.asc()),
-                Direction::DESC => query = query.order(series_id.desc()),
+            IssueField::SeriesId => match order.direction {
+                Direction::Asc => query = query.order(series_id.asc()),
+                Direction::Desc => query = query.order(series_id.desc()),
             },
-            IssueField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(work_id.asc()),
-                Direction::DESC => query = query.order(work_id.desc()),
+            IssueField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(work_id.asc()),
+                Direction::Desc => query = query.order(work_id.desc()),
             },
             IssueField::IssueOrdinal => match order.direction {
-                Direction::ASC => query = query.order(issue_ordinal.asc()),
-                Direction::DESC => query = query.order(issue_ordinal.desc()),
+                Direction::Asc => query = query.order(issue_ordinal.asc()),
+                Direction::Desc => query = query.order(issue_ordinal.desc()),
             },
             IssueField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             IssueField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
         query
@@ -3310,7 +3310,7 @@ impl Publication {
                 default = {
                     PriceOrderBy {
                         field: PriceField::CurrencyCode,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -3328,29 +3328,29 @@ impl Publication {
         let connection = context.db.get().unwrap();
         let mut query = dsl::price.into_boxed();
         match order.field {
-            PriceField::PriceID => match order.direction {
-                Direction::ASC => query = query.order(dsl::price_id.asc()),
-                Direction::DESC => query = query.order(dsl::price_id.desc()),
+            PriceField::PriceId => match order.direction {
+                Direction::Asc => query = query.order(dsl::price_id.asc()),
+                Direction::Desc => query = query.order(dsl::price_id.desc()),
             },
-            PriceField::PublicationID => match order.direction {
-                Direction::ASC => query = query.order(dsl::publication_id.asc()),
-                Direction::DESC => query = query.order(dsl::publication_id.desc()),
+            PriceField::PublicationId => match order.direction {
+                Direction::Asc => query = query.order(dsl::publication_id.asc()),
+                Direction::Desc => query = query.order(dsl::publication_id.desc()),
             },
             PriceField::CurrencyCode => match order.direction {
-                Direction::ASC => query = query.order(dsl::currency_code.asc()),
-                Direction::DESC => query = query.order(dsl::currency_code.desc()),
+                Direction::Asc => query = query.order(dsl::currency_code.asc()),
+                Direction::Desc => query = query.order(dsl::currency_code.desc()),
             },
             PriceField::UnitPrice => match order.direction {
-                Direction::ASC => query = query.order(dsl::unit_price.asc()),
-                Direction::DESC => query = query.order(dsl::unit_price.desc()),
+                Direction::Asc => query = query.order(dsl::unit_price.asc()),
+                Direction::Desc => query = query.order(dsl::unit_price.desc()),
             },
             PriceField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::created_at.asc()),
-                Direction::DESC => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(dsl::created_at.asc()),
+                Direction::Desc => query = query.order(dsl::created_at.desc()),
             },
             PriceField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::updated_at.asc()),
-                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(dsl::updated_at.asc()),
+                Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
         }
         if let Some(curr_code) = currency_code {
@@ -3408,7 +3408,7 @@ impl Publisher {
                 default = {
                     ImprintOrderBy {
                         field: ImprintField::ImprintName,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -3425,25 +3425,25 @@ impl Publisher {
         let connection = context.db.get().unwrap();
         let mut query = imprint.into_boxed();
         match order.field {
-            ImprintField::ImprintID => match order.direction {
-                Direction::ASC => query = query.order(imprint_id.asc()),
-                Direction::DESC => query = query.order(imprint_id.desc()),
+            ImprintField::ImprintId => match order.direction {
+                Direction::Asc => query = query.order(imprint_id.asc()),
+                Direction::Desc => query = query.order(imprint_id.desc()),
             },
             ImprintField::ImprintName => match order.direction {
-                Direction::ASC => query = query.order(imprint_name.asc()),
-                Direction::DESC => query = query.order(imprint_name.desc()),
+                Direction::Asc => query = query.order(imprint_name.asc()),
+                Direction::Desc => query = query.order(imprint_name.desc()),
             },
-            ImprintField::ImprintURL => match order.direction {
-                Direction::ASC => query = query.order(imprint_url.asc()),
-                Direction::DESC => query = query.order(imprint_url.desc()),
+            ImprintField::ImprintUrl => match order.direction {
+                Direction::Asc => query = query.order(imprint_url.asc()),
+                Direction::Desc => query = query.order(imprint_url.desc()),
             },
             ImprintField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             ImprintField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
         query
@@ -3500,7 +3500,7 @@ impl Imprint {
             default = {
                 WorkOrderBy {
                     field: WorkField::FullTitle,
-                    direction: Direction::ASC,
+                    direction: Direction::Asc,
                 }
             },
             description = "The order in which to sort the results",
@@ -3520,133 +3520,133 @@ impl Imprint {
         let connection = context.db.get().unwrap();
         let mut query = dsl::work.into_boxed();
         match order.field {
-            WorkField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(dsl::work_id.asc()),
-                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            WorkField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(dsl::work_id.asc()),
+                Direction::Desc => query = query.order(dsl::work_id.desc()),
             },
             WorkField::WorkType => match order.direction {
-                Direction::ASC => query = query.order(dsl::work_type.asc()),
-                Direction::DESC => query = query.order(dsl::work_type.desc()),
+                Direction::Asc => query = query.order(dsl::work_type.asc()),
+                Direction::Desc => query = query.order(dsl::work_type.desc()),
             },
             WorkField::WorkStatus => match order.direction {
-                Direction::ASC => query = query.order(dsl::work_status.asc()),
-                Direction::DESC => query = query.order(dsl::work_status.desc()),
+                Direction::Asc => query = query.order(dsl::work_status.asc()),
+                Direction::Desc => query = query.order(dsl::work_status.desc()),
             },
             WorkField::FullTitle => match order.direction {
-                Direction::ASC => query = query.order(dsl::full_title.asc()),
-                Direction::DESC => query = query.order(dsl::full_title.desc()),
+                Direction::Asc => query = query.order(dsl::full_title.asc()),
+                Direction::Desc => query = query.order(dsl::full_title.desc()),
             },
             WorkField::Title => match order.direction {
-                Direction::ASC => query = query.order(dsl::title.asc()),
-                Direction::DESC => query = query.order(dsl::title.desc()),
+                Direction::Asc => query = query.order(dsl::title.asc()),
+                Direction::Desc => query = query.order(dsl::title.desc()),
             },
             WorkField::Subtitle => match order.direction {
-                Direction::ASC => query = query.order(dsl::subtitle.asc()),
-                Direction::DESC => query = query.order(dsl::subtitle.desc()),
+                Direction::Asc => query = query.order(dsl::subtitle.asc()),
+                Direction::Desc => query = query.order(dsl::subtitle.desc()),
             },
             WorkField::Reference => match order.direction {
-                Direction::ASC => query = query.order(dsl::reference.asc()),
-                Direction::DESC => query = query.order(dsl::reference.desc()),
+                Direction::Asc => query = query.order(dsl::reference.asc()),
+                Direction::Desc => query = query.order(dsl::reference.desc()),
             },
             WorkField::Edition => match order.direction {
-                Direction::ASC => query = query.order(dsl::edition.asc()),
-                Direction::DESC => query = query.order(dsl::edition.desc()),
+                Direction::Asc => query = query.order(dsl::edition.asc()),
+                Direction::Desc => query = query.order(dsl::edition.desc()),
             },
-            WorkField::DOI => match order.direction {
-                Direction::ASC => query = query.order(dsl::doi.asc()),
-                Direction::DESC => query = query.order(dsl::doi.desc()),
+            WorkField::Doi => match order.direction {
+                Direction::Asc => query = query.order(dsl::doi.asc()),
+                Direction::Desc => query = query.order(dsl::doi.desc()),
             },
             WorkField::PublicationDate => match order.direction {
-                Direction::ASC => query = query.order(dsl::publication_date.asc()),
-                Direction::DESC => query = query.order(dsl::publication_date.desc()),
+                Direction::Asc => query = query.order(dsl::publication_date.asc()),
+                Direction::Desc => query = query.order(dsl::publication_date.desc()),
             },
             WorkField::Place => match order.direction {
-                Direction::ASC => query = query.order(dsl::place.asc()),
-                Direction::DESC => query = query.order(dsl::place.desc()),
+                Direction::Asc => query = query.order(dsl::place.asc()),
+                Direction::Desc => query = query.order(dsl::place.desc()),
             },
             WorkField::Width => match order.direction {
-                Direction::ASC => query = query.order(dsl::width.asc()),
-                Direction::DESC => query = query.order(dsl::width.desc()),
+                Direction::Asc => query = query.order(dsl::width.asc()),
+                Direction::Desc => query = query.order(dsl::width.desc()),
             },
             WorkField::Height => match order.direction {
-                Direction::ASC => query = query.order(dsl::height.asc()),
-                Direction::DESC => query = query.order(dsl::height.desc()),
+                Direction::Asc => query = query.order(dsl::height.asc()),
+                Direction::Desc => query = query.order(dsl::height.desc()),
             },
             WorkField::PageCount => match order.direction {
-                Direction::ASC => query = query.order(dsl::page_count.asc()),
-                Direction::DESC => query = query.order(dsl::page_count.desc()),
+                Direction::Asc => query = query.order(dsl::page_count.asc()),
+                Direction::Desc => query = query.order(dsl::page_count.desc()),
             },
             WorkField::PageBreakdown => match order.direction {
-                Direction::ASC => query = query.order(dsl::page_breakdown.asc()),
-                Direction::DESC => query = query.order(dsl::page_breakdown.desc()),
+                Direction::Asc => query = query.order(dsl::page_breakdown.asc()),
+                Direction::Desc => query = query.order(dsl::page_breakdown.desc()),
             },
             WorkField::ImageCount => match order.direction {
-                Direction::ASC => query = query.order(dsl::image_count.asc()),
-                Direction::DESC => query = query.order(dsl::image_count.desc()),
+                Direction::Asc => query = query.order(dsl::image_count.asc()),
+                Direction::Desc => query = query.order(dsl::image_count.desc()),
             },
             WorkField::TableCount => match order.direction {
-                Direction::ASC => query = query.order(dsl::table_count.asc()),
-                Direction::DESC => query = query.order(dsl::table_count.desc()),
+                Direction::Asc => query = query.order(dsl::table_count.asc()),
+                Direction::Desc => query = query.order(dsl::table_count.desc()),
             },
             WorkField::AudioCount => match order.direction {
-                Direction::ASC => query = query.order(dsl::audio_count.asc()),
-                Direction::DESC => query = query.order(dsl::audio_count.desc()),
+                Direction::Asc => query = query.order(dsl::audio_count.asc()),
+                Direction::Desc => query = query.order(dsl::audio_count.desc()),
             },
             WorkField::VideoCount => match order.direction {
-                Direction::ASC => query = query.order(dsl::video_count.asc()),
-                Direction::DESC => query = query.order(dsl::video_count.desc()),
+                Direction::Asc => query = query.order(dsl::video_count.asc()),
+                Direction::Desc => query = query.order(dsl::video_count.desc()),
             },
             WorkField::License => match order.direction {
-                Direction::ASC => query = query.order(dsl::license.asc()),
-                Direction::DESC => query = query.order(dsl::license.desc()),
+                Direction::Asc => query = query.order(dsl::license.asc()),
+                Direction::Desc => query = query.order(dsl::license.desc()),
             },
             WorkField::CopyrightHolder => match order.direction {
-                Direction::ASC => query = query.order(dsl::copyright_holder.asc()),
-                Direction::DESC => query = query.order(dsl::copyright_holder.desc()),
+                Direction::Asc => query = query.order(dsl::copyright_holder.asc()),
+                Direction::Desc => query = query.order(dsl::copyright_holder.desc()),
             },
             WorkField::LandingPage => match order.direction {
-                Direction::ASC => query = query.order(dsl::landing_page.asc()),
-                Direction::DESC => query = query.order(dsl::landing_page.desc()),
+                Direction::Asc => query = query.order(dsl::landing_page.asc()),
+                Direction::Desc => query = query.order(dsl::landing_page.desc()),
             },
-            WorkField::LCCN => match order.direction {
-                Direction::ASC => query = query.order(dsl::lccn.asc()),
-                Direction::DESC => query = query.order(dsl::lccn.desc()),
+            WorkField::Lccn => match order.direction {
+                Direction::Asc => query = query.order(dsl::lccn.asc()),
+                Direction::Desc => query = query.order(dsl::lccn.desc()),
             },
-            WorkField::OCLC => match order.direction {
-                Direction::ASC => query = query.order(dsl::oclc.asc()),
-                Direction::DESC => query = query.order(dsl::oclc.desc()),
+            WorkField::Oclc => match order.direction {
+                Direction::Asc => query = query.order(dsl::oclc.asc()),
+                Direction::Desc => query = query.order(dsl::oclc.desc()),
             },
             WorkField::ShortAbstract => match order.direction {
-                Direction::ASC => query = query.order(dsl::short_abstract.asc()),
-                Direction::DESC => query = query.order(dsl::short_abstract.desc()),
+                Direction::Asc => query = query.order(dsl::short_abstract.asc()),
+                Direction::Desc => query = query.order(dsl::short_abstract.desc()),
             },
             WorkField::LongAbstract => match order.direction {
-                Direction::ASC => query = query.order(dsl::long_abstract.asc()),
-                Direction::DESC => query = query.order(dsl::long_abstract.desc()),
+                Direction::Asc => query = query.order(dsl::long_abstract.asc()),
+                Direction::Desc => query = query.order(dsl::long_abstract.desc()),
             },
             WorkField::GeneralNote => match order.direction {
-                Direction::ASC => query = query.order(dsl::general_note.asc()),
-                Direction::DESC => query = query.order(dsl::general_note.desc()),
+                Direction::Asc => query = query.order(dsl::general_note.asc()),
+                Direction::Desc => query = query.order(dsl::general_note.desc()),
             },
-            WorkField::TOC => match order.direction {
-                Direction::ASC => query = query.order(dsl::toc.asc()),
-                Direction::DESC => query = query.order(dsl::toc.desc()),
+            WorkField::Toc => match order.direction {
+                Direction::Asc => query = query.order(dsl::toc.asc()),
+                Direction::Desc => query = query.order(dsl::toc.desc()),
             },
-            WorkField::CoverURL => match order.direction {
-                Direction::ASC => query = query.order(dsl::cover_url.asc()),
-                Direction::DESC => query = query.order(dsl::cover_url.desc()),
+            WorkField::CoverUrl => match order.direction {
+                Direction::Asc => query = query.order(dsl::cover_url.asc()),
+                Direction::Desc => query = query.order(dsl::cover_url.desc()),
             },
             WorkField::CoverCaption => match order.direction {
-                Direction::ASC => query = query.order(dsl::cover_caption.asc()),
-                Direction::DESC => query = query.order(dsl::cover_caption.desc()),
+                Direction::Asc => query = query.order(dsl::cover_caption.asc()),
+                Direction::Desc => query = query.order(dsl::cover_caption.desc()),
             },
             WorkField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::created_at.asc()),
-                Direction::DESC => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(dsl::created_at.asc()),
+                Direction::Desc => query = query.order(dsl::created_at.desc()),
             },
             WorkField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::updated_at.asc()),
-                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(dsl::updated_at.asc()),
+                Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
         }
         if let Some(wk_type) = work_type {
@@ -3712,7 +3712,7 @@ impl Contributor {
                 default = {
                     ContributionOrderBy {
                         field: ContributionField::ContributionType,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -3730,49 +3730,49 @@ impl Contributor {
         let connection = context.db.get().unwrap();
         let mut query = dsl::contribution.into_boxed();
         match order.field {
-            ContributionField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(dsl::work_id.asc()),
-                Direction::DESC => query = query.order(dsl::work_id.desc()),
+            ContributionField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(dsl::work_id.asc()),
+                Direction::Desc => query = query.order(dsl::work_id.desc()),
             },
-            ContributionField::ContributorID => match order.direction {
-                Direction::ASC => query = query.order(dsl::contributor_id.asc()),
-                Direction::DESC => query = query.order(dsl::contributor_id.desc()),
+            ContributionField::ContributorId => match order.direction {
+                Direction::Asc => query = query.order(dsl::contributor_id.asc()),
+                Direction::Desc => query = query.order(dsl::contributor_id.desc()),
             },
             ContributionField::ContributionType => match order.direction {
-                Direction::ASC => query = query.order(dsl::contribution_type.asc()),
-                Direction::DESC => query = query.order(dsl::contribution_type.desc()),
+                Direction::Asc => query = query.order(dsl::contribution_type.asc()),
+                Direction::Desc => query = query.order(dsl::contribution_type.desc()),
             },
             ContributionField::MainContribution => match order.direction {
-                Direction::ASC => query = query.order(dsl::main_contribution.asc()),
-                Direction::DESC => query = query.order(dsl::main_contribution.desc()),
+                Direction::Asc => query = query.order(dsl::main_contribution.asc()),
+                Direction::Desc => query = query.order(dsl::main_contribution.desc()),
             },
             ContributionField::Biography => match order.direction {
-                Direction::ASC => query = query.order(dsl::biography.asc()),
-                Direction::DESC => query = query.order(dsl::biography.desc()),
+                Direction::Asc => query = query.order(dsl::biography.asc()),
+                Direction::Desc => query = query.order(dsl::biography.desc()),
             },
             ContributionField::Institution => match order.direction {
-                Direction::ASC => query = query.order(dsl::institution.asc()),
-                Direction::DESC => query = query.order(dsl::institution.desc()),
+                Direction::Asc => query = query.order(dsl::institution.asc()),
+                Direction::Desc => query = query.order(dsl::institution.desc()),
             },
             ContributionField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::created_at.asc()),
-                Direction::DESC => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(dsl::created_at.asc()),
+                Direction::Desc => query = query.order(dsl::created_at.desc()),
             },
             ContributionField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(dsl::updated_at.asc()),
-                Direction::DESC => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(dsl::updated_at.asc()),
+                Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
             ContributionField::FirstName => match order.direction {
-                Direction::ASC => query = query.order(dsl::first_name.asc()),
-                Direction::DESC => query = query.order(dsl::first_name.desc()),
+                Direction::Asc => query = query.order(dsl::first_name.asc()),
+                Direction::Desc => query = query.order(dsl::first_name.desc()),
             },
             ContributionField::LastName => match order.direction {
-                Direction::ASC => query = query.order(dsl::last_name.asc()),
-                Direction::DESC => query = query.order(dsl::last_name.desc()),
+                Direction::Asc => query = query.order(dsl::last_name.asc()),
+                Direction::Desc => query = query.order(dsl::last_name.desc()),
             },
             ContributionField::FullName => match order.direction {
-                Direction::ASC => query = query.order(dsl::full_name.asc()),
-                Direction::DESC => query = query.order(dsl::full_name.desc()),
+                Direction::Asc => query = query.order(dsl::full_name.asc()),
+                Direction::Desc => query = query.order(dsl::full_name.desc()),
             },
         }
         if let Some(cont_type) = contribution_type {
@@ -3899,7 +3899,7 @@ impl Series {
                 default = {
                     IssueOrderBy {
                         field: IssueField::IssueOrdinal,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -3911,25 +3911,25 @@ impl Series {
         let connection = context.db.get().unwrap();
         let mut query = issue.into_boxed();
         match order.field {
-            IssueField::SeriesID => match order.direction {
-                Direction::ASC => query = query.order(series_id.asc()),
-                Direction::DESC => query = query.order(series_id.desc()),
+            IssueField::SeriesId => match order.direction {
+                Direction::Asc => query = query.order(series_id.asc()),
+                Direction::Desc => query = query.order(series_id.desc()),
             },
-            IssueField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(work_id.asc()),
-                Direction::DESC => query = query.order(work_id.desc()),
+            IssueField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(work_id.asc()),
+                Direction::Desc => query = query.order(work_id.desc()),
             },
             IssueField::IssueOrdinal => match order.direction {
-                Direction::ASC => query = query.order(issue_ordinal.asc()),
-                Direction::DESC => query = query.order(issue_ordinal.desc()),
+                Direction::Asc => query = query.order(issue_ordinal.asc()),
+                Direction::Desc => query = query.order(issue_ordinal.desc()),
             },
             IssueField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             IssueField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
         query
@@ -4122,7 +4122,7 @@ impl Funder {
                 default = {
                     FundingOrderBy {
                         field: FundingField::Program,
-                        direction: Direction::ASC,
+                        direction: Direction::Asc,
                     }
                 },
                 description = "The order in which to sort the results",
@@ -4134,45 +4134,45 @@ impl Funder {
         let connection = context.db.get().unwrap();
         let mut query = funding.into_boxed();
         match order.field {
-            FundingField::FundingID => match order.direction {
-                Direction::ASC => query = query.order(funding_id.asc()),
-                Direction::DESC => query = query.order(funding_id.desc()),
+            FundingField::FundingId => match order.direction {
+                Direction::Asc => query = query.order(funding_id.asc()),
+                Direction::Desc => query = query.order(funding_id.desc()),
             },
-            FundingField::WorkID => match order.direction {
-                Direction::ASC => query = query.order(work_id.asc()),
-                Direction::DESC => query = query.order(work_id.desc()),
+            FundingField::WorkId => match order.direction {
+                Direction::Asc => query = query.order(work_id.asc()),
+                Direction::Desc => query = query.order(work_id.desc()),
             },
-            FundingField::FunderID => match order.direction {
-                Direction::ASC => query = query.order(funder_id.asc()),
-                Direction::DESC => query = query.order(funder_id.desc()),
+            FundingField::FunderId => match order.direction {
+                Direction::Asc => query = query.order(funder_id.asc()),
+                Direction::Desc => query = query.order(funder_id.desc()),
             },
             FundingField::Program => match order.direction {
-                Direction::ASC => query = query.order(program.asc()),
-                Direction::DESC => query = query.order(program.desc()),
+                Direction::Asc => query = query.order(program.asc()),
+                Direction::Desc => query = query.order(program.desc()),
             },
             FundingField::ProjectName => match order.direction {
-                Direction::ASC => query = query.order(project_name.asc()),
-                Direction::DESC => query = query.order(project_name.desc()),
+                Direction::Asc => query = query.order(project_name.asc()),
+                Direction::Desc => query = query.order(project_name.desc()),
             },
             FundingField::ProjectShortname => match order.direction {
-                Direction::ASC => query = query.order(project_shortname.asc()),
-                Direction::DESC => query = query.order(project_shortname.desc()),
+                Direction::Asc => query = query.order(project_shortname.asc()),
+                Direction::Desc => query = query.order(project_shortname.desc()),
             },
             FundingField::GrantNumber => match order.direction {
-                Direction::ASC => query = query.order(grant_number.asc()),
-                Direction::DESC => query = query.order(grant_number.desc()),
+                Direction::Asc => query = query.order(grant_number.asc()),
+                Direction::Desc => query = query.order(grant_number.desc()),
             },
             FundingField::Jurisdiction => match order.direction {
-                Direction::ASC => query = query.order(jurisdiction.asc()),
-                Direction::DESC => query = query.order(jurisdiction.desc()),
+                Direction::Asc => query = query.order(jurisdiction.asc()),
+                Direction::Desc => query = query.order(jurisdiction.desc()),
             },
             FundingField::CreatedAt => match order.direction {
-                Direction::ASC => query = query.order(created_at.asc()),
-                Direction::DESC => query = query.order(created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             FundingField::UpdatedAt => match order.direction {
-                Direction::ASC => query = query.order(updated_at.asc()),
-                Direction::DESC => query = query.order(updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
         query
