@@ -42,4 +42,5 @@ strings! {
     SEARCH_PUBLICATIONS => "Search by ISBN or URL",
     STORAGE_ERROR => "local storage is disabled",
     PERMISSIONS_ERROR => "This account is not permitted to access any data",
+    NEW_VERSION_PROMPT => "A new version of Thoth is available. Refresh your browser to update.",
 }

@@ -8,6 +8,10 @@ use yew_router::prelude::*;
 use yew_router::route::Route;
 use yew_router::switch::Permissive;
 
+use crate::agent::notification_bus::NotificationBus;
+use crate::agent::notification_bus::NotificationDispatcher;
+use crate::agent::notification_bus::NotificationStatus;
+use crate::agent::notification_bus::Request;
 use crate::agent::session_timer;
 use crate::agent::session_timer::SessionTimerAgent;
 use crate::agent::session_timer::SessionTimerDispatcher;
@@ -20,6 +24,7 @@ use crate::component::notification::NotificationComponent;
 use crate::route::AppRoute;
 use crate::service::account::AccountError;
 use crate::service::account::AccountService;
+use crate::string::NEW_VERSION_PROMPT;
 
 pub struct RootComponent {
     current_route: Option<AppRoute>,
@@ -29,16 +34,20 @@ pub struct RootComponent {
     current_user_task: Option<FetchTask>,
     renew_token_task: Option<FetchTask>,
     renew_token_response: Callback<Result<AccountDetails, AccountError>>,
+    check_version_task: Option<FetchTask>,
+    check_version_response: Callback<Result<String, AccountError>>,
     _router_agent: Box<dyn Bridge<RouteAgent>>,
     session_timer_agent: SessionTimerDispatcher,
+    notification_bus: NotificationDispatcher,
     link: ComponentLink<Self>,
 }
 
 pub enum Msg {
     FetchCurrentUser,
     CurrentUserResponse(Result<AccountDetails, AccountError>),
-    RenewToken,
+    RenewTokenAndCheckVersion,
     RenewTokenResponse(Result<AccountDetails, AccountError>),
+    CheckVersionResponse(Result<String, AccountError>),
     Route(Route),
     Login(AccountDetails),
     Logout,
@@ -53,6 +62,7 @@ impl Component for RootComponent {
         let _router_agent = RouteAgent::bridge(link.callback(Msg::Route));
         let route_service: RouteService = RouteService::new();
         let route = route_service.get_route();
+        let notification_bus = NotificationBus::dispatcher();
 
         RootComponent {
             current_route: AppRoute::switch(route),
@@ -62,8 +72,11 @@ impl Component for RootComponent {
             current_user_task: Default::default(),
             renew_token_task: Default::default(),
             renew_token_response: link.callback(Msg::RenewTokenResponse),
+            check_version_task: Default::default(),
+            check_version_response: link.callback(Msg::CheckVersionResponse),
             _router_agent,
             session_timer_agent,
+            notification_bus,
             link,
         }
     }
@@ -82,11 +95,15 @@ impl Component for RootComponent {
                     .account_details(self.current_user_response.clone());
                 self.current_user_task = Some(task);
             }
-            Msg::RenewToken => {
+            Msg::RenewTokenAndCheckVersion => {
                 let task = self
                     .account_service
                     .renew_token(self.renew_token_response.clone());
                 self.renew_token_task = Some(task);
+                let task = self
+                    .account_service
+                    .check_version(self.check_version_response.clone());
+                self.check_version_task = Some(task);
             }
             Msg::CurrentUserResponse(Ok(account_details)) => {
                 self.link.send_message(Msg::Login(account_details));
@@ -104,11 +121,25 @@ impl Component for RootComponent {
                 self.link.send_message(Msg::Logout);
                 self.current_user_task = None;
             }
+            Msg::CheckVersionResponse(Ok(server_version)) => {
+                let app_version = env!("CARGO_PKG_VERSION");
+                if server_version != app_version {
+                    self.notification_bus.send(Request::NotificationBusMsg((
+                        NEW_VERSION_PROMPT.into(),
+                        NotificationStatus::Warning,
+                    )));
+                }
+                self.check_version_task = None;
+            }
+            Msg::CheckVersionResponse(Err(error)) => {
+                log::info!("{:?}!", error);
+                self.check_version_task = None;
+            }
             Msg::Route(route) => self.current_route = AppRoute::switch(route),
             Msg::Login(account_details) => {
                 // start session timer
                 self.session_timer_agent.send(session_timer::Request::Start(
-                    self.link.callback(|_| Msg::RenewToken),
+                    self.link.callback(|_| Msg::RenewTokenAndCheckVersion),
                 ));
                 self.current_user = Some(account_details);
             }
