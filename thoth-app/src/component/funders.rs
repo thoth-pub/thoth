@@ -20,9 +20,9 @@ pagination_component! {
     SEARCH_FUNDERS,
     PAGINATION_COUNT_FUNDERS,
     vec![
-        FunderField::FunderID.to_string(),
+        FunderField::FunderId.to_string(),
         FunderField::FunderName.to_string(),
-        FunderField::FunderDOI.to_string(),
+        FunderField::FunderDoi.to_string(),
         FunderField::UpdatedAt.to_string(),
     ],
     FunderOrderBy,

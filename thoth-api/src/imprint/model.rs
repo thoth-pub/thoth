@@ -20,13 +20,12 @@ use crate::schema::imprint_history;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ImprintField {
-    #[serde(rename = "IMPRINT_ID")]
     #[strum(serialize = "ID")]
-    ImprintID,
+    ImprintId,
     #[strum(serialize = "Imprint")]
     ImprintName,
-    #[serde(rename = "IMPRINT_URL")]
-    ImprintURL,
+    #[strum(serialize = "ImprintURL")]
+    ImprintUrl,
     CreatedAt,
     UpdatedAt,
 }
@@ -111,9 +110,9 @@ fn test_imprintfield_default() {
 
 #[test]
 fn test_imprintfield_display() {
-    assert_eq!(format!("{}", ImprintField::ImprintID), "ID");
+    assert_eq!(format!("{}", ImprintField::ImprintId), "ID");
     assert_eq!(format!("{}", ImprintField::ImprintName), "Imprint");
-    assert_eq!(format!("{}", ImprintField::ImprintURL), "ImprintURL");
+    assert_eq!(format!("{}", ImprintField::ImprintUrl), "ImprintURL");
     assert_eq!(format!("{}", ImprintField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", ImprintField::UpdatedAt), "UpdatedAt");
 }
@@ -123,7 +122,7 @@ fn test_imprintfield_fromstr() {
     use std::str::FromStr;
     assert_eq!(
         ImprintField::from_str("ID").unwrap(),
-        ImprintField::ImprintID
+        ImprintField::ImprintId
     );
     assert_eq!(
         ImprintField::from_str("Imprint").unwrap(),
@@ -131,7 +130,7 @@ fn test_imprintfield_fromstr() {
     );
     assert_eq!(
         ImprintField::from_str("ImprintURL").unwrap(),
-        ImprintField::ImprintURL
+        ImprintField::ImprintUrl
     );
     assert_eq!(
         ImprintField::from_str("CreatedAt").unwrap(),

@@ -39,8 +39,8 @@ pub enum ContributionType {
     graphql(description = "Field to use when sorting contributions list")
 )]
 pub enum ContributionField {
-    WorkID,
-    ContributorID,
+    WorkId,
+    ContributorId,
     ContributionType,
     MainContribution,
     Biography,

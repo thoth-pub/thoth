@@ -64,9 +64,8 @@ pub enum WorkStatus {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum WorkField {
-    #[serde(rename = "WORK_ID")]
     #[strum(serialize = "ID")]
-    WorkID,
+    WorkId,
     #[strum(serialize = "Type")]
     WorkType,
     WorkStatus,
@@ -77,8 +76,8 @@ pub enum WorkField {
     Subtitle,
     Reference,
     Edition,
-    #[serde(rename = "DOI")]
-    DOI,
+    #[strum(serialize = "DOI")]
+    Doi,
     PublicationDate,
     Place,
     Width,
@@ -92,17 +91,17 @@ pub enum WorkField {
     License,
     CopyrightHolder,
     LandingPage,
-    #[serde(rename = "LCCN")]
-    LCCN,
-    #[serde(rename = "OCLC")]
-    OCLC,
+    #[strum(serialize = "LCCN")]
+    Lccn,
+    #[strum(serialize = "OCLC")]
+    Oclc,
     ShortAbstract,
     LongAbstract,
     GeneralNote,
-    #[serde(rename = "TOC")]
-    TOC,
-    #[serde(rename = "COVER_URL")]
-    CoverURL,
+    #[strum(serialize = "TOC")]
+    Toc,
+    #[strum(serialize = "CoverURL")]
+    CoverUrl,
     CoverCaption,
     CreatedAt,
     UpdatedAt,
@@ -327,7 +326,7 @@ fn test_workstatus_display() {
 
 #[test]
 fn test_workfield_display() {
-    assert_eq!(format!("{}", WorkField::WorkID), "ID");
+    assert_eq!(format!("{}", WorkField::WorkId), "ID");
     assert_eq!(format!("{}", WorkField::WorkType), "Type");
     assert_eq!(format!("{}", WorkField::WorkStatus), "WorkStatus");
     assert_eq!(format!("{}", WorkField::FullTitle), "Title");
@@ -335,7 +334,7 @@ fn test_workfield_display() {
     assert_eq!(format!("{}", WorkField::Subtitle), "Subtitle");
     assert_eq!(format!("{}", WorkField::Reference), "Reference");
     assert_eq!(format!("{}", WorkField::Edition), "Edition");
-    assert_eq!(format!("{}", WorkField::DOI), "DOI");
+    assert_eq!(format!("{}", WorkField::Doi), "DOI");
     assert_eq!(format!("{}", WorkField::PublicationDate), "PublicationDate");
     assert_eq!(format!("{}", WorkField::Place), "Place");
     assert_eq!(format!("{}", WorkField::Width), "Width");
@@ -349,13 +348,13 @@ fn test_workfield_display() {
     assert_eq!(format!("{}", WorkField::License), "License");
     assert_eq!(format!("{}", WorkField::CopyrightHolder), "CopyrightHolder");
     assert_eq!(format!("{}", WorkField::LandingPage), "LandingPage");
-    assert_eq!(format!("{}", WorkField::LCCN), "LCCN");
-    assert_eq!(format!("{}", WorkField::OCLC), "OCLC");
+    assert_eq!(format!("{}", WorkField::Lccn), "LCCN");
+    assert_eq!(format!("{}", WorkField::Oclc), "OCLC");
     assert_eq!(format!("{}", WorkField::ShortAbstract), "ShortAbstract");
     assert_eq!(format!("{}", WorkField::LongAbstract), "LongAbstract");
     assert_eq!(format!("{}", WorkField::GeneralNote), "GeneralNote");
-    assert_eq!(format!("{}", WorkField::TOC), "TOC");
-    assert_eq!(format!("{}", WorkField::CoverURL), "CoverURL");
+    assert_eq!(format!("{}", WorkField::Toc), "TOC");
+    assert_eq!(format!("{}", WorkField::CoverUrl), "CoverURL");
     assert_eq!(format!("{}", WorkField::CoverCaption), "CoverCaption");
     assert_eq!(format!("{}", WorkField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", WorkField::UpdatedAt), "UpdatedAt");
@@ -447,7 +446,7 @@ fn test_workstatus_fromstr() {
 #[test]
 fn test_workfield_fromstr() {
     use std::str::FromStr;
-    assert_eq!(WorkField::from_str("ID").unwrap(), WorkField::WorkID);
+    assert_eq!(WorkField::from_str("ID").unwrap(), WorkField::WorkId);
     assert_eq!(WorkField::from_str("Type").unwrap(), WorkField::WorkType);
     assert_eq!(
         WorkField::from_str("WorkStatus").unwrap(),
@@ -464,7 +463,7 @@ fn test_workfield_fromstr() {
         WorkField::Reference
     );
     assert_eq!(WorkField::from_str("Edition").unwrap(), WorkField::Edition);
-    assert_eq!(WorkField::from_str("DOI").unwrap(), WorkField::DOI);
+    assert_eq!(WorkField::from_str("DOI").unwrap(), WorkField::Doi);
     assert_eq!(
         WorkField::from_str("PublicationDate").unwrap(),
         WorkField::PublicationDate
@@ -505,8 +504,8 @@ fn test_workfield_fromstr() {
         WorkField::from_str("LandingPage").unwrap(),
         WorkField::LandingPage
     );
-    assert_eq!(WorkField::from_str("LCCN").unwrap(), WorkField::LCCN);
-    assert_eq!(WorkField::from_str("OCLC").unwrap(), WorkField::OCLC);
+    assert_eq!(WorkField::from_str("LCCN").unwrap(), WorkField::Lccn);
+    assert_eq!(WorkField::from_str("OCLC").unwrap(), WorkField::Oclc);
     assert_eq!(
         WorkField::from_str("ShortAbstract").unwrap(),
         WorkField::ShortAbstract
@@ -519,10 +518,10 @@ fn test_workfield_fromstr() {
         WorkField::from_str("GeneralNote").unwrap(),
         WorkField::GeneralNote
     );
-    assert_eq!(WorkField::from_str("TOC").unwrap(), WorkField::TOC);
+    assert_eq!(WorkField::from_str("TOC").unwrap(), WorkField::Toc);
     assert_eq!(
         WorkField::from_str("CoverURL").unwrap(),
-        WorkField::CoverURL
+        WorkField::CoverUrl
     );
     assert_eq!(
         WorkField::from_str("CoverCaption").unwrap(),
