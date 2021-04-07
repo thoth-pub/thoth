@@ -33,13 +33,7 @@ impl Contributor {
         // without disabling onblur so that onclick can take effect
         html! {
             <div onmousedown=callback class="dropdown-item">
-            {
-              if let Some(orcid) = &self.orcid {
-                  format!("{} - {}", &self.full_name, orcid)
-                } else {
-                  format!("{}", &self.full_name )
-                }
-            }
+                { self.as_formatted_string() }
             </div>
         }
     }
@@ -60,6 +54,14 @@ impl Contributor {
                 <td>{orcid}</td>
                 <td>{&self.updated_at.format("%F %T")}</td>
             </tr>
+        }
+    }
+
+    pub fn as_formatted_string(&self) -> String {
+        if let Some(orcid) = &self.orcid {
+            format!("{} - {}", &self.full_name, orcid)
+        } else {
+            self.full_name.clone()
         }
     }
 }
