@@ -228,8 +228,9 @@ impl Component for SubjectsFormComponent {
             Msg::ChangeSubjectType(val) => self.new_subject.subject_type.neq_assign(val),
             Msg::ChangeCode(code) => self.new_subject.subject_code.neq_assign(code),
             Msg::ChangeOrdinal(ordinal) => {
-                let ordinal = ordinal.parse::<i32>().unwrap();
-                self.new_subject.subject_ordinal.neq_assign(ordinal)
+                let ordinal = ordinal.parse::<i32>().unwrap_or(0);
+                self.new_subject.subject_ordinal.neq_assign(ordinal);
+                false // otherwise we re-render the component and reset the value
             }
             Msg::DoNothing => false, // callbacks need to return a message
         }
