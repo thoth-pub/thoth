@@ -20,14 +20,12 @@ use crate::schema::funder_history;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum FunderField {
-    #[serde(rename = "FUNDER_ID")]
     #[strum(serialize = "ID")]
-    FunderID,
+    FunderId,
     #[strum(serialize = "Funder")]
     FunderName,
-    #[serde(rename = "FUNDER_DOI")]
     #[strum(serialize = "DOI")]
-    FunderDOI,
+    FunderDoi,
     CreatedAt,
     UpdatedAt,
 }
@@ -105,9 +103,9 @@ fn test_funderfield_default() {
 
 #[test]
 fn test_funderfield_display() {
-    assert_eq!(format!("{}", FunderField::FunderID), "ID");
+    assert_eq!(format!("{}", FunderField::FunderId), "ID");
     assert_eq!(format!("{}", FunderField::FunderName), "Funder");
-    assert_eq!(format!("{}", FunderField::FunderDOI), "DOI");
+    assert_eq!(format!("{}", FunderField::FunderDoi), "DOI");
     assert_eq!(format!("{}", FunderField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", FunderField::UpdatedAt), "UpdatedAt");
 }
@@ -115,14 +113,14 @@ fn test_funderfield_display() {
 #[test]
 fn test_funderfield_fromstr() {
     use std::str::FromStr;
-    assert_eq!(FunderField::from_str("ID").unwrap(), FunderField::FunderID);
+    assert_eq!(FunderField::from_str("ID").unwrap(), FunderField::FunderId);
     assert_eq!(
         FunderField::from_str("Funder").unwrap(),
         FunderField::FunderName
     );
     assert_eq!(
         FunderField::from_str("DOI").unwrap(),
-        FunderField::FunderDOI
+        FunderField::FunderDoi
     );
     assert_eq!(
         FunderField::from_str("CreatedAt").unwrap(),

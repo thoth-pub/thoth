@@ -21,14 +21,14 @@ pub enum PublicationType {
     #[cfg_attr(feature = "backend", db_rename = "Hardback")]
     Hardback,
     #[cfg_attr(feature = "backend", db_rename = "PDF")]
-    #[serde(rename = "PDF")]
-    PDF,
+    #[strum(serialize = "PDF")]
+    Pdf,
     #[cfg_attr(feature = "backend", db_rename = "HTML")]
-    #[serde(rename = "HTML")]
-    HTML,
+    #[strum(serialize = "HTML")]
+    Html,
     #[cfg_attr(feature = "backend", db_rename = "XML")]
-    #[serde(rename = "XML")]
-    XML,
+    #[strum(serialize = "XML")]
+    Xml,
     #[cfg_attr(feature = "backend", db_rename = "Epub")]
     Epub,
     #[cfg_attr(feature = "backend", db_rename = "Mobi")]
@@ -43,18 +43,16 @@ pub enum PublicationType {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublicationField {
-    #[serde(rename = "PUBLICATION_ID")]
     #[strum(serialize = "ID")]
-    PublicationID,
+    PublicationId,
     #[strum(serialize = "Type")]
     PublicationType,
-    #[serde(rename = "WORK_ID")]
-    WorkID,
-    #[serde(rename = "ISBN")]
-    ISBN,
-    #[serde(rename = "PUBLICATION_URL")]
+    #[strum(serialize = "WorkID")]
+    WorkId,
+    #[strum(serialize = "ISBN")]
+    Isbn,
     #[strum(serialize = "URL")]
-    PublicationURL,
+    PublicationUrl,
     CreatedAt,
     UpdatedAt,
 }
@@ -156,20 +154,20 @@ fn test_publicationfield_default() {
 fn test_publicationtype_display() {
     assert_eq!(format!("{}", PublicationType::Paperback), "Paperback");
     assert_eq!(format!("{}", PublicationType::Hardback), "Hardback");
-    assert_eq!(format!("{}", PublicationType::PDF), "PDF");
-    assert_eq!(format!("{}", PublicationType::HTML), "HTML");
-    assert_eq!(format!("{}", PublicationType::XML), "XML");
+    assert_eq!(format!("{}", PublicationType::Pdf), "PDF");
+    assert_eq!(format!("{}", PublicationType::Html), "HTML");
+    assert_eq!(format!("{}", PublicationType::Xml), "XML");
     assert_eq!(format!("{}", PublicationType::Epub), "Epub");
     assert_eq!(format!("{}", PublicationType::Mobi), "Mobi");
 }
 
 #[test]
 fn test_publicationfield_display() {
-    assert_eq!(format!("{}", PublicationField::PublicationID), "ID");
+    assert_eq!(format!("{}", PublicationField::PublicationId), "ID");
     assert_eq!(format!("{}", PublicationField::PublicationType), "Type");
-    assert_eq!(format!("{}", PublicationField::WorkID), "WorkID");
-    assert_eq!(format!("{}", PublicationField::ISBN), "ISBN");
-    assert_eq!(format!("{}", PublicationField::PublicationURL), "URL");
+    assert_eq!(format!("{}", PublicationField::WorkId), "WorkID");
+    assert_eq!(format!("{}", PublicationField::Isbn), "ISBN");
+    assert_eq!(format!("{}", PublicationField::PublicationUrl), "URL");
     assert_eq!(format!("{}", PublicationField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", PublicationField::UpdatedAt), "UpdatedAt");
 }
@@ -187,15 +185,15 @@ fn test_publicationtype_fromstr() {
     );
     assert_eq!(
         PublicationType::from_str("PDF").unwrap(),
-        PublicationType::PDF
+        PublicationType::Pdf
     );
     assert_eq!(
         PublicationType::from_str("HTML").unwrap(),
-        PublicationType::HTML
+        PublicationType::Html
     );
     assert_eq!(
         PublicationType::from_str("XML").unwrap(),
-        PublicationType::XML
+        PublicationType::Xml
     );
     assert_eq!(
         PublicationType::from_str("Epub").unwrap(),
@@ -215,7 +213,7 @@ fn test_publicationfield_fromstr() {
     use std::str::FromStr;
     assert_eq!(
         PublicationField::from_str("ID").unwrap(),
-        PublicationField::PublicationID
+        PublicationField::PublicationId
     );
     assert_eq!(
         PublicationField::from_str("Type").unwrap(),
@@ -223,15 +221,15 @@ fn test_publicationfield_fromstr() {
     );
     assert_eq!(
         PublicationField::from_str("WorkID").unwrap(),
-        PublicationField::WorkID
+        PublicationField::WorkId
     );
     assert_eq!(
         PublicationField::from_str("ISBN").unwrap(),
-        PublicationField::ISBN
+        PublicationField::Isbn
     );
     assert_eq!(
         PublicationField::from_str("URL").unwrap(),
-        PublicationField::PublicationURL
+        PublicationField::PublicationUrl
     );
     assert_eq!(
         PublicationField::from_str("CreatedAt").unwrap(),

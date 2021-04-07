@@ -241,10 +241,10 @@ macro_rules! pagination_component {
                         // Clicking on a header, if enabled, sorts the table by that column ascending
                         // Clicking on the current sort column header reverses the sort direction
                         self.order.direction = match self.order.field.neq_assign(header) {
-                            true => ASC,
+                            true => Asc,
                             false => match self.order.direction {
-                                ASC => DESC,
-                                DESC => ASC,
+                                Asc => Desc,
+                                Desc => Asc,
                             },
                         };
                         self.offset = 0;
