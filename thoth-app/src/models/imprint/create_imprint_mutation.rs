@@ -23,6 +23,7 @@ const CREATE_IMPRINT_MUTATION: &str = "
                 publisherName
                 publisherShortname
                 publisherUrl
+                updatedAt
             }
         }
     }
