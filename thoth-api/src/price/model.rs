@@ -16,8 +16,8 @@ use crate::schema::price_history;
     graphql(description = "Field to use when sorting prices list")
 )]
 pub enum PriceField {
-    PriceID,
-    PublicationID,
+    PriceId,
+    PublicationId,
     CurrencyCode,
     UnitPrice,
     CreatedAt,

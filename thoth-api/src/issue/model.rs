@@ -14,8 +14,8 @@ use crate::schema::issue_history;
     graphql(description = "Field to use when sorting issues list")
 )]
 pub enum IssueField {
-    SeriesID,
-    WorkID,
+    SeriesId,
+    WorkId,
     IssueOrdinal,
     CreatedAt,
     UpdatedAt,

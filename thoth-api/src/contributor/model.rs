@@ -20,14 +20,14 @@ use crate::schema::contributor_history;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ContributorField {
-    #[serde(rename = "CONTRIBUTOR_ID")]
     #[strum(serialize = "ID")]
-    ContributorID,
+    ContributorId,
     FirstName,
     LastName,
     FullName,
     #[serde(rename = "ORCID")]
-    ORCID,
+    #[strum(serialize = "ORCID")]
+    Orcid,
     Website,
     CreatedAt,
     UpdatedAt,
@@ -119,11 +119,11 @@ fn test_contributorfield_default() {
 
 #[test]
 fn test_contributorfield_display() {
-    assert_eq!(format!("{}", ContributorField::ContributorID), "ID");
+    assert_eq!(format!("{}", ContributorField::ContributorId), "ID");
     assert_eq!(format!("{}", ContributorField::FirstName), "FirstName");
     assert_eq!(format!("{}", ContributorField::LastName), "LastName");
     assert_eq!(format!("{}", ContributorField::FullName), "FullName");
-    assert_eq!(format!("{}", ContributorField::ORCID), "ORCID");
+    assert_eq!(format!("{}", ContributorField::Orcid), "ORCID");
     assert_eq!(format!("{}", ContributorField::Website), "Website");
     assert_eq!(format!("{}", ContributorField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", ContributorField::UpdatedAt), "UpdatedAt");
@@ -134,7 +134,7 @@ fn test_contributorfield_fromstr() {
     use std::str::FromStr;
     assert_eq!(
         ContributorField::from_str("ID").unwrap(),
-        ContributorField::ContributorID
+        ContributorField::ContributorId
     );
     assert_eq!(
         ContributorField::from_str("FirstName").unwrap(),
@@ -150,7 +150,7 @@ fn test_contributorfield_fromstr() {
     );
     assert_eq!(
         ContributorField::from_str("ORCID").unwrap(),
-        ContributorField::ORCID
+        ContributorField::Orcid
     );
     assert_eq!(
         ContributorField::from_str("UpdatedAt").unwrap(),
