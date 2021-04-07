@@ -20,11 +20,11 @@ pagination_component! {
     SEARCH_WORKS,
     PAGINATION_COUNT_WORKS,
     vec![
-        WorkField::WorkID.to_string(),
+        WorkField::WorkId.to_string(),
         WorkField::FullTitle.to_string(),
         WorkField::WorkType.to_string(),
         "Contributors".to_string(),
-        WorkField::DOI.to_string(),
+        WorkField::Doi.to_string(),
         "Publisher".to_string(),
         WorkField::UpdatedAt.to_string(),
     ],
