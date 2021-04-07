@@ -20,10 +20,10 @@ pagination_component! {
     SEARCH_PUBLISHERS,
     PAGINATION_COUNT_PUBLISHERS,
     vec![
-        PublisherField::PublisherID.to_string(),
+        PublisherField::PublisherId.to_string(),
         PublisherField::PublisherName.to_string(),
         PublisherField::PublisherShortname.to_string(),
-        PublisherField::PublisherURL.to_string(),
+        PublisherField::PublisherUrl.to_string(),
         PublisherField::UpdatedAt.to_string(),
     ],
     PublisherOrderBy,

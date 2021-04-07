@@ -14,9 +14,9 @@ use crate::schema::funding_history;
     graphql(description = "Field to use when sorting fundings list")
 )]
 pub enum FundingField {
-    FundingID,
-    WorkID,
-    FunderID,
+    FunderId,
+    WorkId,
+    FundingId,
     Program,
     ProjectName,
     ProjectShortname,

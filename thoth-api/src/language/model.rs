@@ -29,8 +29,8 @@ pub enum LanguageRelation {
     graphql(description = "Field to use when sorting languages list")
 )]
 pub enum LanguageField {
-    LanguageID,
-    WorkID,
+    LanguageId,
+    WorkId,
     LanguageCode,
     LanguageRelation,
     MainLanguage,
