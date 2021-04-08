@@ -1,4 +1,5 @@
 use thoth_api::account::model::AccountDetails;
+use thoth_api::errors::ThothError;
 use yew::html;
 use yew::prelude::*;
 use yew::services::fetch::FetchTask;
@@ -24,6 +25,7 @@ use crate::component::notification::NotificationComponent;
 use crate::route::AppRoute;
 use crate::service::account::AccountError;
 use crate::service::account::AccountService;
+use crate::service::version;
 use crate::string::NEW_VERSION_PROMPT;
 
 pub struct RootComponent {
@@ -35,7 +37,7 @@ pub struct RootComponent {
     renew_token_task: Option<FetchTask>,
     renew_token_response: Callback<Result<AccountDetails, AccountError>>,
     check_version_task: Option<FetchTask>,
-    check_version_response: Callback<Result<String, AccountError>>,
+    check_version_response: Callback<Result<String, ThothError>>,
     _router_agent: Box<dyn Bridge<RouteAgent>>,
     session_timer_agent: SessionTimerDispatcher,
     notification_bus: NotificationDispatcher,
@@ -47,7 +49,7 @@ pub enum Msg {
     CurrentUserResponse(Result<AccountDetails, AccountError>),
     RenewTokenAndCheckVersion,
     RenewTokenResponse(Result<AccountDetails, AccountError>),
-    CheckVersionResponse(Result<String, AccountError>),
+    CheckVersionResponse(Result<String, ThothError>),
     Route(Route),
     Login(AccountDetails),
     Logout,
@@ -100,9 +102,7 @@ impl Component for RootComponent {
                     .account_service
                     .renew_token(self.renew_token_response.clone());
                 self.renew_token_task = Some(task);
-                let task = self
-                    .account_service
-                    .check_version(self.check_version_response.clone());
+                let task = version::check_version(self.check_version_response.clone());
                 self.check_version_task = Some(task);
             }
             Msg::CurrentUserResponse(Ok(account_details)) => {

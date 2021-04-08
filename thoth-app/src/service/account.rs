@@ -91,13 +91,6 @@ impl AccountService {
         self.get_request::<AccountDetails>("/account".to_string(), callback)
     }
 
-    pub fn check_version(
-        &mut self,
-        callback: Callback<Result<String, AccountError>>,
-    ) -> FetchTask {
-        self.bodyless_post_request::<String>("/version".to_string(), callback)
-    }
-
     fn request_builder<B, T>(
         &mut self,
         method: &str,
