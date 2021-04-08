@@ -51,6 +51,7 @@ pub enum Msg {
     RenewTokenResponse(Result<AccountDetails, AccountError>),
     CheckVersionResponse(Result<String, ThothError>),
     Route(Route),
+    UpdateAccount(AccountDetails),
     Login(AccountDetails),
     Logout,
 }
@@ -114,7 +115,7 @@ impl Component for RootComponent {
                 self.current_user_task = None;
             }
             Msg::RenewTokenResponse(Ok(account_details)) => {
-                self.link.send_message(Msg::Login(account_details));
+                self.link.send_message(Msg::UpdateAccount(account_details));
                 self.renew_token_task = None;
             }
             Msg::RenewTokenResponse(Err(_)) => {
@@ -136,12 +137,15 @@ impl Component for RootComponent {
                 self.check_version_task = None;
             }
             Msg::Route(route) => self.current_route = AppRoute::switch(route),
+            Msg::UpdateAccount(account_details) => {
+                self.current_user = Some(account_details);
+            }
             Msg::Login(account_details) => {
                 // start session timer
                 self.session_timer_agent.send(session_timer::Request::Start(
                     self.link.callback(|_| Msg::RenewTokenAndCheckVersion),
                 ));
-                self.current_user = Some(account_details);
+                self.link.send_message(Msg::UpdateAccount(account_details));
             }
             Msg::Logout => {
                 self.account_service.logout();
