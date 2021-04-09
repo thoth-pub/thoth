@@ -13,9 +13,6 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
-use crate::agent::session_timer;
-use crate::agent::session_timer::SessionTimerAgent;
-use crate::agent::session_timer::SessionTimerDispatcher;
 use crate::component::admin::AdminComponent;
 use crate::component::catalogue::CatalogueComponent;
 use crate::component::hero::HeroComponent;
@@ -27,6 +24,11 @@ use crate::service::account::AccountError;
 use crate::service::account::AccountService;
 use crate::service::version;
 use crate::string::NEW_VERSION_PROMPT;
+
+session_timer! {
+    SessionTimerAgent,
+    SessionTimerDispatcher,
+}
 
 pub struct RootComponent {
     current_route: Option<AppRoute>,
@@ -142,14 +144,14 @@ impl Component for RootComponent {
             }
             Msg::Login(account_details) => {
                 // start session timer
-                self.session_timer_agent.send(session_timer::Request::Start(
+                self.session_timer_agent.send(TimerRequest::Start(
                     self.link.callback(|_| Msg::RenewTokenAndCheckVersion),
                 ));
                 self.link.send_message(Msg::UpdateAccount(account_details));
             }
             Msg::Logout => {
                 self.account_service.logout();
-                self.session_timer_agent.send(session_timer::Request::Stop);
+                self.session_timer_agent.send(TimerRequest::Stop);
                 self.current_user = None;
             }
         }
