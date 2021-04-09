@@ -3,24 +3,18 @@ macro_rules! session_timer {
     (
         $agent:ident,
         $agent_dispatcher:ident,
+        $agent_request:ident,
+        $agent_response:ident,
     ) => {
-        use serde::Deserialize;
-        use serde::Serialize;
-        use std::time::Duration;
-        use yew::agent::Dispatcher;
-        use yew::prelude::worker::*;
-        use yew::services::IntervalService;
-        use yew::services::Task;
-
         pub type $agent_dispatcher = Dispatcher<$agent>;
 
-        pub enum TimerRequest {
+        pub enum $agent_request {
             Start(Callback<()>),
             Stop,
         }
 
         #[derive(Deserialize, Serialize)]
-        pub struct TimerResponse;
+        pub struct $agent_response;
 
         pub struct $agent {
             _link: AgentLink<$agent>,
@@ -28,9 +22,9 @@ macro_rules! session_timer {
         }
 
         impl Agent for $agent {
-            type Input = TimerRequest;
+            type Input = $agent_request;
             type Message = ();
-            type Output = TimerResponse;
+            type Output = $agent_response;
             type Reach = Context<Self>;
 
             fn create(_link: AgentLink<Self>) -> Self {
@@ -44,11 +38,11 @@ macro_rules! session_timer {
 
             fn handle_input(&mut self, msg: Self::Input, _: HandlerId) {
                 match msg {
-                    TimerRequest::Start(callback) => {
+                    $agent_request::Start(callback) => {
                         let handle = IntervalService::spawn(Duration::from_secs(60), callback);
                         self.timer_task = Some(Box::new(handle));
                     }
-                    TimerRequest::Stop => {
+                    $agent_request::Stop => {
                         if self.timer_task.take().is_some() {
                             self.timer_task = None;
                         }

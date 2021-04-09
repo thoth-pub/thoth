@@ -1,8 +1,15 @@
+use serde::Deserialize;
+use serde::Serialize;
+use std::time::Duration;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::errors::ThothError;
+use yew::agent::Dispatcher;
 use yew::html;
+use yew::prelude::worker::*;
 use yew::prelude::*;
 use yew::services::fetch::FetchTask;
+use yew::services::IntervalService;
+use yew::services::Task;
 use yew::virtual_dom::VNode;
 use yew::Callback;
 use yew_router::prelude::*;
@@ -28,6 +35,15 @@ use crate::string::NEW_VERSION_PROMPT;
 session_timer! {
     SessionTimerAgent,
     SessionTimerDispatcher,
+    SessionTimerRequest,
+    SessionTimerResponse,
+}
+
+session_timer! {
+    VersionTimerAgent,
+    VersionTimerDispatcher,
+    VersionTimerRequest,
+    VersionTimerResponse,
 }
 
 pub struct RootComponent {
@@ -42,6 +58,7 @@ pub struct RootComponent {
     check_version_response: Callback<Result<String, ThothError>>,
     _router_agent: Box<dyn Bridge<RouteAgent>>,
     session_timer_agent: SessionTimerDispatcher,
+    version_timer_agent: VersionTimerDispatcher,
     notification_bus: NotificationDispatcher,
     link: ComponentLink<Self>,
 }
@@ -49,8 +66,9 @@ pub struct RootComponent {
 pub enum Msg {
     FetchCurrentUser,
     CurrentUserResponse(Result<AccountDetails, AccountError>),
-    RenewTokenAndCheckVersion,
+    RenewToken,
     RenewTokenResponse(Result<AccountDetails, AccountError>),
+    CheckVersion,
     CheckVersionResponse(Result<String, ThothError>),
     Route(Route),
     UpdateAccount(AccountDetails),
@@ -64,6 +82,7 @@ impl Component for RootComponent {
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
         let session_timer_agent = SessionTimerAgent::dispatcher();
+        let version_timer_agent = VersionTimerAgent::dispatcher();
         let _router_agent = RouteAgent::bridge(link.callback(Msg::Route));
         let route_service: RouteService = RouteService::new();
         let route = route_service.get_route();
@@ -81,6 +100,7 @@ impl Component for RootComponent {
             check_version_response: link.callback(Msg::CheckVersionResponse),
             _router_agent,
             session_timer_agent,
+            version_timer_agent,
             notification_bus,
             link,
         }
@@ -89,6 +109,10 @@ impl Component for RootComponent {
     fn rendered(&mut self, first_render: bool) {
         if first_render && self.account_service.is_loggedin() {
             self.link.send_message(Msg::FetchCurrentUser);
+            // Start timer to check for updated app version
+            self.version_timer_agent.send(VersionTimerRequest::Start(
+                self.link.callback(|_| Msg::CheckVersion),
+            ));
         }
     }
 
@@ -100,11 +124,13 @@ impl Component for RootComponent {
                     .account_details(self.current_user_response.clone());
                 self.current_user_task = Some(task);
             }
-            Msg::RenewTokenAndCheckVersion => {
+            Msg::RenewToken => {
                 let task = self
                     .account_service
                     .renew_token(self.renew_token_response.clone());
                 self.renew_token_task = Some(task);
+            }
+            Msg::CheckVersion => {
                 let task = version::check_version(self.check_version_response.clone());
                 self.check_version_task = Some(task);
             }
@@ -131,6 +157,8 @@ impl Component for RootComponent {
                         NEW_VERSION_PROMPT.into(),
                         NotificationStatus::Warning,
                     )));
+                    // Don't send repeated notifications.
+                    self.version_timer_agent.send(VersionTimerRequest::Stop);
                 }
                 self.check_version_task = None;
             }
@@ -144,14 +172,14 @@ impl Component for RootComponent {
             }
             Msg::Login(account_details) => {
                 // start session timer
-                self.session_timer_agent.send(TimerRequest::Start(
-                    self.link.callback(|_| Msg::RenewTokenAndCheckVersion),
+                self.session_timer_agent.send(SessionTimerRequest::Start(
+                    self.link.callback(|_| Msg::RenewToken),
                 ));
                 self.link.send_message(Msg::UpdateAccount(account_details));
             }
             Msg::Logout => {
                 self.account_service.logout();
-                self.session_timer_agent.send(TimerRequest::Stop);
+                self.session_timer_agent.send(SessionTimerRequest::Stop);
                 self.current_user = None;
             }
         }
