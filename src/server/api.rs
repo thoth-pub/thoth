@@ -155,13 +155,6 @@ async fn account_details(
         .map_err(error::ErrorUnauthorized)
 }
 
-#[post("/version")]
-async fn server_version() -> HttpResponse {
-    dotenv().ok();
-    let version_str = env::var("CARGO_PKG_VERSION").expect("No version number found");
-    HttpResponse::Ok().json(version_str)
-}
-
 fn config(cfg: &mut web::ServiceConfig) {
     dotenv().ok();
     let pool = establish_connection();
@@ -175,7 +168,6 @@ fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(login_credentials);
     cfg.service(login_session);
     cfg.service(account_details);
-    cfg.service(server_version);
 }
 
 #[actix_rt::main]
