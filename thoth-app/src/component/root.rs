@@ -1,3 +1,4 @@
+use semver::Version;
 use serde::Deserialize;
 use serde::Serialize;
 use std::time::Duration;
@@ -55,7 +56,7 @@ pub struct RootComponent {
     renew_token_task: Option<FetchTask>,
     renew_token_response: Callback<Result<AccountDetails, AccountError>>,
     check_version_task: Option<FetchTask>,
-    check_version_response: Callback<Result<String, ThothError>>,
+    check_version_response: Callback<Result<Version, ThothError>>,
     _router_agent: Box<dyn Bridge<RouteAgent>>,
     session_timer_agent: SessionTimerDispatcher,
     version_timer_agent: VersionTimerDispatcher,
@@ -69,7 +70,7 @@ pub enum Msg {
     RenewToken,
     RenewTokenResponse(Result<AccountDetails, AccountError>),
     CheckVersion,
-    CheckVersionResponse(Result<String, ThothError>),
+    CheckVersionResponse(Result<Version, ThothError>),
     Route(Route),
     UpdateAccount(AccountDetails),
     Login(AccountDetails),
@@ -107,12 +108,14 @@ impl Component for RootComponent {
     }
 
     fn rendered(&mut self, first_render: bool) {
-        if first_render && self.account_service.is_loggedin() {
-            self.link.send_message(Msg::FetchCurrentUser);
+        if first_render {
             // Start timer to check for updated app version
             self.version_timer_agent.send(VersionTimerRequest::Start(
                 self.link.callback(|_| Msg::CheckVersion),
             ));
+            if self.account_service.is_loggedin() {
+                self.link.send_message(Msg::FetchCurrentUser);
+            }
         }
     }
 
@@ -131,7 +134,7 @@ impl Component for RootComponent {
                 self.renew_token_task = Some(task);
             }
             Msg::CheckVersion => {
-                let task = version::check_version(self.check_version_response.clone());
+                let task = version::get_version(self.check_version_response.clone());
                 self.check_version_task = Some(task);
             }
             Msg::CurrentUserResponse(Ok(account_details)) => {
@@ -151,19 +154,21 @@ impl Component for RootComponent {
                 self.current_user_task = None;
             }
             Msg::CheckVersionResponse(Ok(server_version)) => {
-                let app_version = env!("CARGO_PKG_VERSION");
-                if server_version != app_version {
-                    self.notification_bus.send(Request::NotificationBusMsg((
-                        NEW_VERSION_PROMPT.into(),
-                        NotificationStatus::Warning,
-                    )));
-                    // Don't send repeated notifications.
-                    self.version_timer_agent.send(VersionTimerRequest::Stop);
+                if let Ok(app_version) = Version::parse(env!("CARGO_PKG_VERSION")) {
+                    if server_version > app_version {
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            NEW_VERSION_PROMPT.into(),
+                            NotificationStatus::Success,
+                        )));
+                        // Don't send repeated notifications.
+                        self.version_timer_agent.send(VersionTimerRequest::Stop);
+                    }
                 }
                 self.check_version_task = None;
             }
-            Msg::CheckVersionResponse(Err(error)) => {
-                log::info!("{:?}!", error);
+            Msg::CheckVersionResponse(Err(_)) => {
+                // Unable to determine if a new app version is available.
+                // Ignore and move on - not worth alerting the user.
                 self.check_version_task = None;
             }
             Msg::Route(route) => self.current_route = AppRoute::switch(route),

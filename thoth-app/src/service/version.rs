@@ -1,3 +1,4 @@
+use semver::Version;
 use serde_json::Value;
 use thoth_api::errors::ThothError;
 use yew::callback::Callback;
@@ -8,17 +9,17 @@ use yew::services::fetch::FetchTask;
 use yew::services::fetch::Request;
 use yew::services::fetch::Response;
 
-pub fn check_version(callback: Callback<Result<String, ThothError>>) -> FetchTask {
+pub fn get_version(callback: Callback<Result<Version, ThothError>>) -> FetchTask {
     let handler = move |response: Response<Text>| {
         if let (meta, Ok(body)) = response.into_parts() {
             if meta.status.is_success() {
                 let parsed_body: Result<Value, _> = serde_json::from_str(&body);
                 match parsed_body {
                     Ok(data) => {
-                        match data["version"].as_str() {
-                            Some(version) => callback.emit(Ok(version.to_string())),
-                            None => callback.emit(Err(ThothError::InternalError(
-                                "No version information found".to_string(),
+                        match Version::parse(data["version"].as_str().unwrap_or_default()) {
+                            Ok(version) => callback.emit(Ok(version)),
+                            Err(_) => callback.emit(Err(ThothError::InternalError(
+                                "No valid version information found".to_string(),
                             ))),
                         }
                     }
