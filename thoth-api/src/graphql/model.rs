@@ -3492,6 +3492,14 @@ impl Imprint {
     #[graphql(
     description="Get works linked to this imprint",
     arguments(
+        limit(
+            default = 100,
+            description = "The number of items to return"
+        ),
+        offset(
+            default = 0,
+            description = "The number of items to skip"
+        ),
         filter(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
@@ -3511,6 +3519,8 @@ impl Imprint {
   )]
     pub fn works(
         context: &Context,
+        limit: i32,
+        offset: i32,
         filter: String,
         order: WorkOrderBy,
         work_type: Option<WorkType>,
@@ -3666,6 +3676,8 @@ impl Imprint {
                     .or(dsl::long_abstract.ilike(format!("%{}%", filter)))
                     .or(dsl::landing_page.ilike(format!("%{}%", filter))),
             )
+            .limit(limit.into())
+            .offset(offset.into())
             .load::<Work>(&connection)
             .expect("Error loading works")
     }
