@@ -3,6 +3,7 @@ use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::series::model::SeriesType;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -15,7 +16,7 @@ use crate::route::AppRoute;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Series {
-    pub series_id: String,
+    pub series_id: Uuid,
     pub series_type: SeriesType,
     pub series_name: String,
     pub issn_print: String,
@@ -40,7 +41,7 @@ pub struct SeriesTypeValues {
 impl Default for Series {
     fn default() -> Series {
         Series {
-            series_id: "".to_string(),
+            series_id: Default::default(),
             series_type: Default::default(),
             series_name: "".to_string(),
             issn_print: "".to_string(),
@@ -69,7 +70,7 @@ impl Series {
     }
 
     pub fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Series(self.series_id.clone()))
+        AppRoute::Admin(AdminRoute::Series(self.series_id))
     }
 
     pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {

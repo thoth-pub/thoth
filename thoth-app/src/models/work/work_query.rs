@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use uuid::Uuid;
 
 use super::super::imprint::Imprint;
 use super::Work;
@@ -182,7 +183,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub work_id: Option<String>,
+    pub work_id: Option<Uuid>,
     pub publishers: Option<Vec<String>>,
 }
 

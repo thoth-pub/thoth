@@ -1,13 +1,14 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::subject::model::SubjectType;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Subject {
-    pub subject_id: String,
+    pub subject_id: Uuid,
     pub subject_type: SubjectType,
-    pub work_id: String,
+    pub work_id: Uuid,
     pub subject_code: String,
     pub subject_ordinal: i32,
 }
@@ -27,9 +28,9 @@ pub struct SubjectTypeValues {
 impl Default for Subject {
     fn default() -> Subject {
         Subject {
-            subject_id: "".to_string(),
+            subject_id: Default::default(),
             subject_type: SubjectType::Keyword,
-            work_id: "".to_string(),
+            work_id: Default::default(),
             subject_code: "".to_string(),
             subject_ordinal: 1,
         }

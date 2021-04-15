@@ -99,7 +99,7 @@ impl Component for NewContributorComponent {
                                 NotificationStatus::Success,
                             )));
                             self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Contributor(c.contributor_id.clone()),
+                                AdminRoute::Contributor(c.contributor_id),
                             )));
                             true
                         }

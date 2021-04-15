@@ -6,6 +6,7 @@ use std::str::FromStr;
 use std::string::ParseError;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -25,7 +26,7 @@ use crate::THOTH_API;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Work {
-    pub work_id: String,
+    pub work_id: Uuid,
     pub work_type: WorkType,
     pub work_status: WorkStatus,
     pub full_title: String,
@@ -123,7 +124,7 @@ impl Work {
     }
 
     pub fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Work(self.work_id.clone()))
+        AppRoute::Admin(AdminRoute::Work(self.work_id))
     }
 
     pub fn onix_endpoint(&self) -> String {
@@ -427,7 +428,7 @@ impl FromStr for License {
 impl Default for Work {
     fn default() -> Work {
         Work {
-            work_id: "".to_string(),
+            work_id: Default::default(),
             work_type: WorkType::Monograph,
             work_status: WorkStatus::Inactive,
             full_title: "".to_string(),

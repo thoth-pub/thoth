@@ -1,12 +1,13 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::price::model::CurrencyCode;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Price {
-    pub price_id: String,
-    pub publication_id: String,
+    pub price_id: Uuid,
+    pub publication_id: Uuid,
     pub currency_code: CurrencyCode,
     pub unit_price: f64,
 }
@@ -26,8 +27,8 @@ pub struct CurrencyCodeValues {
 impl Default for Price {
     fn default() -> Price {
         Price {
-            price_id: "".to_string(),
-            publication_id: "".to_string(),
+            price_id: Default::default(),
+            publication_id: Default::default(),
             currency_code: CurrencyCode::Gbp,
             unit_price: 0.00,
         }

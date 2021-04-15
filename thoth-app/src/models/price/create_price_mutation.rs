@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::price::model::CurrencyCode;
+use uuid::Uuid;
 
 use super::Price;
 
@@ -37,7 +38,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub publication_id: String,
+    pub publication_id: Uuid,
     pub currency_code: CurrencyCode,
     pub unit_price: f64,
 }

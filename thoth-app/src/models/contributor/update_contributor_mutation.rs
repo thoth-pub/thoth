@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use uuid::Uuid;
 
 use super::Contributor;
 
@@ -42,7 +43,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub contributor_id: String,
+    pub contributor_id: Uuid,
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,

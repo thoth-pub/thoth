@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use uuid::Uuid;
 
 use super::Issue;
 
@@ -56,8 +57,8 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub work_id: String,
-    pub series_id: String,
+    pub work_id: Uuid,
+    pub series_id: Uuid,
     pub issue_ordinal: i32,
 }
 

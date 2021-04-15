@@ -1,4 +1,5 @@
 use thoth_api::account::model::AccountDetails;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -36,7 +37,7 @@ use crate::string::SAVE_BUTTON;
 
 pub struct NewImprintComponent {
     imprint: Imprint,
-    publisher_id: String,
+    publisher_id: Uuid,
     push_imprint: PushCreateImprint,
     data: ImprintFormData,
     fetch_publishers: FetchPublishers,
@@ -56,7 +57,7 @@ pub enum Msg {
     GetPublishers,
     SetImprintPushState(PushActionCreateImprint),
     CreateImprint,
-    ChangePublisher(String),
+    ChangePublisher(Uuid),
     ChangeImprintName(String),
     ChangeImprintUrl(String),
     ChangeRoute(AppRoute),
@@ -75,7 +76,7 @@ impl Component for NewImprintComponent {
         let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let imprint: Imprint = Default::default();
-        let publisher_id: String = Default::default();
+        let publisher_id: Uuid = Default::default();
         let data: ImprintFormData = Default::default();
         let fetch_publishers: FetchPublishers = Default::default();
 
@@ -135,7 +136,7 @@ impl Component for NewImprintComponent {
                                 NotificationStatus::Success,
                             )));
                             self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Imprint(i.imprint_id.clone()),
+                                AdminRoute::Imprint(i.imprint_id),
                             )));
                             true
                         }
@@ -161,7 +162,7 @@ impl Component for NewImprintComponent {
                     variables: Variables {
                         imprint_name: self.imprint.imprint_name.clone(),
                         imprint_url: self.imprint.imprint_url.clone(),
-                        publisher_id: self.publisher_id.clone(),
+                        publisher_id: self.publisher_id,
                     },
                     ..Default::default()
                 };
@@ -227,7 +228,7 @@ impl Component for NewImprintComponent {
                         onchange=self.link.callback(|event| match event {
                             ChangeData::Select(elem) => {
                                 let value = elem.value();
-                                Msg::ChangePublisher(value.clone())
+                                Msg::ChangePublisher(Uuid::parse_str(&value).unwrap_or_default())
                             }
                             _ => unreachable!(),
                         })

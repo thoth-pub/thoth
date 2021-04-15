@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::publication::model::PublicationType;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -13,9 +14,9 @@ use crate::route::AppRoute;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Publication {
-    pub publication_id: String,
+    pub publication_id: Uuid,
     pub publication_type: PublicationType,
-    pub work_id: String,
+    pub work_id: Uuid,
     pub isbn: Option<String>,
     pub publication_url: Option<String>,
     pub prices: Option<Vec<Price>>,
@@ -37,7 +38,7 @@ pub struct SlimImprint {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SlimPublisher {
-    pub publisher_id: String,
+    pub publisher_id: Uuid,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -58,7 +59,7 @@ impl crate::models::publication::publications_query::DetailedPublication {
     }
 
     pub fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Publication(self.publication_id.clone()))
+        AppRoute::Admin(AdminRoute::Publication(self.publication_id))
     }
 
     pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
@@ -89,9 +90,9 @@ impl crate::models::publication::publications_query::DetailedPublication {
 impl Default for Publication {
     fn default() -> Publication {
         Publication {
-            publication_id: "".to_string(),
+            publication_id: Default::default(),
             publication_type: PublicationType::Paperback,
-            work_id: "".to_string(),
+            work_id: Default::default(),
             isbn: None,
             publication_url: None,
             prices: Default::default(),

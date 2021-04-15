@@ -2,12 +2,13 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::language::model::LanguageCode;
 use thoth_api::language::model::LanguageRelation;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Language {
-    pub language_id: String,
-    pub work_id: String,
+    pub language_id: Uuid,
+    pub work_id: Uuid,
     pub language_code: LanguageCode,
     pub language_relation: LanguageRelation,
     pub main_language: bool,
@@ -40,8 +41,8 @@ pub struct LanguageRelationValues {
 impl Default for Language {
     fn default() -> Language {
         Language {
-            language_id: "".to_string(),
-            work_id: "".to_string(),
+            language_id: Default::default(),
+            work_id: Default::default(),
             language_code: LanguageCode::Eng,
             language_relation: LanguageRelation::Original,
             main_language: true,

@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use uuid::Uuid;
 
 use super::Imprint;
 
@@ -45,7 +46,7 @@ graphql_query_builder! {
 pub struct Variables {
     pub imprint_name: String,
     pub imprint_url: Option<String>,
-    pub publisher_id: String,
+    pub publisher_id: Uuid,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

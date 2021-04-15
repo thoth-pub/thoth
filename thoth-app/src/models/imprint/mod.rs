@@ -2,6 +2,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -14,7 +15,7 @@ use crate::route::AppRoute;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Imprint {
-    pub imprint_id: String,
+    pub imprint_id: Uuid,
     pub imprint_name: String,
     pub imprint_url: Option<String>,
     pub updated_at: DateTime<Utc>,
@@ -27,7 +28,7 @@ impl Imprint {
     }
 
     pub fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Imprint(self.imprint_id.clone()))
+        AppRoute::Admin(AdminRoute::Imprint(self.imprint_id))
     }
 
     pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
@@ -50,7 +51,7 @@ impl Imprint {
 impl Default for Imprint {
     fn default() -> Imprint {
         Imprint {
-            imprint_id: "".to_string(),
+            imprint_id: Default::default(),
             imprint_name: "".to_string(),
             imprint_url: None,
             updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),

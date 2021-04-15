@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::series::model::SeriesType;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -66,7 +67,7 @@ pub enum Msg {
     SetSeriesPushState(PushActionCreateSeries),
     CreateSeries,
     ChangeSeriesType(SeriesType),
-    ChangeImprint(String),
+    ChangeImprint(Uuid),
     ChangeSeriesName(String),
     ChangeIssnPrint(String),
     ChangeIssnDigital(String),
@@ -165,7 +166,7 @@ impl Component for NewSeriesComponent {
                                 NotificationStatus::Success,
                             )));
                             self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Series(s.series_id.clone()),
+                                AdminRoute::Series(s.series_id),
                             )));
                             true
                         }
@@ -194,7 +195,7 @@ impl Component for NewSeriesComponent {
                         issn_print: self.series.issn_print.clone(),
                         issn_digital: self.series.issn_digital.clone(),
                         series_url: self.series.series_url.clone(),
-                        imprint_id: self.series.imprint.imprint_id.clone(),
+                        imprint_id: self.series.imprint.imprint_id,
                     },
                     ..Default::default()
                 };
@@ -282,7 +283,7 @@ impl Component for NewSeriesComponent {
                         onchange=self.link.callback(|event| match event {
                             ChangeData::Select(elem) => {
                                 let value = elem.value();
-                                Msg::ChangeImprint(value.clone())
+                                Msg::ChangeImprint(Uuid::parse_str(&value).unwrap_or_default())
                             }
                             _ => unreachable!(),
                         })

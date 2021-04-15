@@ -2,6 +2,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -13,7 +14,7 @@ use crate::route::AppRoute;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contributor {
-    pub contributor_id: String,
+    pub contributor_id: Uuid,
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
@@ -39,7 +40,7 @@ impl Contributor {
     }
 
     pub fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Contributor(self.contributor_id.clone()))
+        AppRoute::Admin(AdminRoute::Contributor(self.contributor_id))
     }
 
     pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
@@ -69,7 +70,7 @@ impl Contributor {
 impl Default for Contributor {
     fn default() -> Contributor {
         Contributor {
-            contributor_id: "".to_string(),
+            contributor_id: Default::default(),
             first_name: None,
             last_name: "".to_string(),
             full_name: "".to_string(),

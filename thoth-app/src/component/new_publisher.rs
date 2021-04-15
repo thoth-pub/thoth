@@ -76,7 +76,7 @@ impl Component for NewPublisherComponent {
                                 NotificationStatus::Success,
                             )));
                             self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Publisher(p.publisher_id.clone()),
+                                AdminRoute::Publisher(p.publisher_id),
                             )));
                             true
                         }

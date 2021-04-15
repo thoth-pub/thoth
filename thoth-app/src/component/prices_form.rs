@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use thoth_api::price::model::CurrencyCode;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -57,7 +58,7 @@ pub enum Msg {
     SetPricePushState(PushActionCreatePrice),
     CreatePrice,
     SetPriceDeleteState(PushActionDeletePrice),
-    DeletePrice(String),
+    DeletePrice(Uuid),
     ChangeCurrencyCode(CurrencyCode),
     ChangeUnitPrice(String),
     DoNothing,
@@ -66,7 +67,7 @@ pub enum Msg {
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub prices: Option<Vec<Price>>,
-    pub publication_id: String,
+    pub publication_id: Uuid,
     pub update_prices: Callback<Option<Vec<Price>>>,
 }
 
@@ -161,7 +162,7 @@ impl Component for PricesFormComponent {
             Msg::CreatePrice => {
                 let body = CreatePriceRequestBody {
                     variables: Variables {
-                        publication_id: self.props.publication_id.clone(),
+                        publication_id: self.props.publication_id,
                         currency_code: self.new_price.currency_code.clone(),
                         unit_price: self.new_price.unit_price,
                     },
@@ -344,7 +345,7 @@ impl PricesFormComponent {
     }
 
     fn render_price(&self, p: &Price) -> Html {
-        let price_id = p.price_id.clone();
+        let price_id = p.price_id;
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -370,7 +371,7 @@ impl PricesFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeletePrice(price_id.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeletePrice(price_id))
                             >
                                 { REMOVE_BUTTON }
                             </a>

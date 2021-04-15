@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::contribution::model::ContributionType;
+use uuid::Uuid;
 use yew::prelude::html;
 use yew::Html;
 
@@ -9,8 +10,8 @@ use super::contributor::Contributor;
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contribution {
-    pub work_id: String,
-    pub contributor_id: String,
+    pub work_id: Uuid,
+    pub contributor_id: Uuid,
     pub contribution_type: ContributionType,
     pub main_contribution: bool,
     pub biography: Option<String>,

@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use thoth_api::publication::model::PublicationType;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -58,7 +59,7 @@ pub enum Msg {
     SetPublicationPushState(PushActionCreatePublication),
     CreatePublication,
     SetPublicationDeleteState(PushActionDeletePublication),
-    DeletePublication(String),
+    DeletePublication(Uuid),
     ChangePublicationType(PublicationType),
     ChangeIsbn(String),
     ChangeUrl(String),
@@ -68,7 +69,7 @@ pub enum Msg {
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub publications: Option<Vec<Publication>>,
-    pub work_id: String,
+    pub work_id: Uuid,
     pub update_publications: Callback<Option<Vec<Publication>>>,
 }
 
@@ -162,7 +163,7 @@ impl Component for PublicationsFormComponent {
             Msg::CreatePublication => {
                 let body = CreatePublicationRequestBody {
                     variables: Variables {
-                        work_id: self.props.work_id.clone(),
+                        work_id: self.props.work_id,
                         publication_type: self.new_publication.publication_type.clone(),
                         isbn: self.new_publication.isbn.clone(),
                         publication_url: self.new_publication.publication_url.clone(),
@@ -366,7 +367,7 @@ impl PublicationsFormComponent {
         // there's probably a better way to do this. We basically need to copy 3 instances
         // of contributor_id and take ownership of them so they can be passed on to
         // the callback functions
-        let publication_id = p.publication_id.clone();
+        let publication_id = p.publication_id;
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -399,7 +400,7 @@ impl PublicationsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeletePublication(publication_id.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeletePublication(publication_id))
                             >
                                 { REMOVE_BUTTON }
                             </a>

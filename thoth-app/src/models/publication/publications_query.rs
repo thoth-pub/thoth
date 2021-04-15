@@ -4,6 +4,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::publication::model::PublicationOrderBy;
 use thoth_api::publication::model::PublicationType;
+use uuid::Uuid;
 
 use super::super::work::Work;
 
@@ -68,9 +69,9 @@ pub struct Variables {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DetailedPublication {
-    pub publication_id: String,
+    pub publication_id: Uuid,
     pub publication_type: PublicationType,
-    pub work_id: String,
+    pub work_id: Uuid,
     pub isbn: Option<String>,
     pub publication_url: Option<String>,
     pub updated_at: DateTime<Utc>,
@@ -87,9 +88,9 @@ pub struct PublicationsResponseData {
 impl Default for DetailedPublication {
     fn default() -> DetailedPublication {
         DetailedPublication {
-            publication_id: "".to_string(),
+            publication_id: Default::default(),
             publication_type: Default::default(),
-            work_id: "".to_string(),
+            work_id: Default::default(),
             isbn: None,
             publication_url: None,
             updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),

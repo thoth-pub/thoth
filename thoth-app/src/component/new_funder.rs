@@ -75,7 +75,7 @@ impl Component for NewFunderComponent {
                                 NotificationStatus::Success,
                             )));
                             self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Funder(f.funder_id.clone()),
+                                AdminRoute::Funder(f.funder_id),
                             )));
                             true
                         }

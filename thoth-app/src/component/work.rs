@@ -2,6 +2,7 @@ use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -65,7 +66,7 @@ use crate::string::SAVE_BUTTON;
 
 pub struct WorkComponent {
     work: Work,
-    imprint_id: String,
+    imprint_id: Uuid,
     data: WorkFormData,
     fetch_work: FetchWork,
     push_work: PushUpdateWork,
@@ -95,7 +96,7 @@ pub enum Msg {
     ChangeWorkType(WorkType),
     ChangeWorkStatus(WorkStatus),
     ChangeReference(String),
-    ChangeImprint(String),
+    ChangeImprint(Uuid),
     ChangeEdition(String),
     ChangeDoi(String),
     ChangeDate(String),
@@ -130,7 +131,7 @@ pub enum Msg {
 
 #[derive(Clone, Properties)]
 pub struct Props {
-    pub work_id: String,
+    pub work_id: Uuid,
     pub current_user: AccountDetails,
 }
 
@@ -145,7 +146,7 @@ impl Component for WorkComponent {
         let notification_bus = NotificationBus::dispatcher();
         let work: Work = Default::default();
         // Track imprint stored in database, as distinct from imprint selected in dropdown
-        let imprint_id = work.imprint.imprint_id.clone();
+        let imprint_id = work.imprint.imprint_id;
         let data: WorkFormData = Default::default();
         let router = RouteAgentDispatcher::new();
 
@@ -177,7 +178,7 @@ impl Component for WorkComponent {
                             Some(w) => w.to_owned(),
                             None => Default::default(),
                         };
-                        self.imprint_id = self.work.imprint.imprint_id.clone();
+                        self.imprint_id = self.work.imprint.imprint_id;
                         self.data.imprints = body.data.imprints.to_owned();
                         self.data.work_types = body.data.work_types.enum_values.to_owned();
                         self.data.work_statuses = body.data.work_statuses.enum_values.to_owned();
@@ -202,7 +203,7 @@ impl Component for WorkComponent {
             Msg::GetWork => {
                 let body = WorkRequestBody {
                     variables: Variables {
-                        work_id: Some(self.props.work_id.clone()),
+                        work_id: Some(self.props.work_id),
                         publishers: self.props.current_user.resource_access.restricted_to(),
                     },
                     ..Default::default()
@@ -227,7 +228,7 @@ impl Component for WorkComponent {
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
                             )));
-                            self.imprint_id = self.work.imprint.imprint_id.clone();
+                            self.imprint_id = self.work.imprint.imprint_id;
                             true
                         }
                         None => {
@@ -250,7 +251,7 @@ impl Component for WorkComponent {
             Msg::UpdateWork => {
                 let body = UpdateWorkRequestBody {
                     variables: UpdateVariables {
-                        work_id: self.work.work_id.clone(),
+                        work_id: self.work.work_id,
                         work_type: self.work.work_type.clone(),
                         work_status: self.work.work_status.clone(),
                         full_title: self.work.full_title.clone(),
@@ -258,7 +259,7 @@ impl Component for WorkComponent {
                         subtitle: self.work.subtitle.clone(),
                         reference: self.work.reference.clone(),
                         edition: self.work.edition,
-                        imprint_id: self.work.imprint.imprint_id.clone(),
+                        imprint_id: self.work.imprint.imprint_id,
                         doi: self.work.doi.clone(),
                         publication_date: self.work.publication_date.clone(),
                         place: self.work.place.clone(),
@@ -327,7 +328,7 @@ impl Component for WorkComponent {
             Msg::DeleteWork => {
                 let body = DeleteWorkRequestBody {
                     variables: DeleteVariables {
-                        work_id: self.work.work_id.clone(),
+                        work_id: self.work.work_id,
                     },
                     ..Default::default()
                 };
@@ -637,7 +638,7 @@ impl Component for WorkComponent {
                                         onchange=self.link.callback(|event| match event {
                                             ChangeData::Select(elem) => {
                                                 let value = elem.value();
-                                                Msg::ChangeImprint(value.clone())
+                                                Msg::ChangeImprint(Uuid::parse_str(&value).unwrap_or_default())
                                             }
                                             _ => unreachable!(),
                                         })

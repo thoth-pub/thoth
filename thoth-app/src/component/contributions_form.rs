@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use thoth_api::contribution::model::ContributionType;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -73,7 +74,7 @@ pub enum Msg {
     SetContributionPushState(PushActionCreateContribution),
     CreateContribution,
     SetContributionDeleteState(PushActionDeleteContribution),
-    DeleteContribution(String, ContributionType),
+    DeleteContribution(Uuid, ContributionType),
     AddContribution(Contributor),
     ChangeFirstName(String),
     ChangeLastName(String),
@@ -88,7 +89,7 @@ pub enum Msg {
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub contributions: Option<Vec<Contribution>>,
-    pub work_id: String,
+    pub work_id: Uuid,
     pub update_contributions: Callback<Option<Vec<Contribution>>>,
 }
 
@@ -207,8 +208,8 @@ impl Component for ContributionsFormComponent {
             Msg::CreateContribution => {
                 let body = CreateContributionRequestBody {
                     variables: CreateVariables {
-                        work_id: self.props.work_id.clone(),
-                        contributor_id: self.new_contribution.contributor_id.clone(),
+                        work_id: self.props.work_id,
+                        contributor_id: self.new_contribution.contributor_id,
                         contribution_type: self.new_contribution.contribution_type,
                         main_contribution: self.new_contribution.main_contribution,
                         biography: self.new_contribution.biography.clone(),
@@ -268,7 +269,7 @@ impl Component for ContributionsFormComponent {
             Msg::DeleteContribution(contributor_id, contribution_type) => {
                 let body = DeleteContributionRequestBody {
                     variables: DeleteVariables {
-                        work_id: self.props.work_id.clone(),
+                        work_id: self.props.work_id,
                         contributor_id,
                         contribution_type,
                     },
@@ -285,7 +286,7 @@ impl Component for ContributionsFormComponent {
                 false
             }
             Msg::AddContribution(contributor) => {
-                self.new_contribution.contributor_id = contributor.contributor_id.clone();
+                self.new_contribution.contributor_id = contributor.contributor_id;
                 self.new_contribution.first_name = contributor.first_name.clone();
                 self.new_contribution.last_name = contributor.last_name.clone();
                 self.new_contribution.full_name = contributor.full_name.clone();
@@ -520,7 +521,7 @@ impl ContributionsFormComponent {
         // there's probably a better way to do this. We basically need to copy 3 instances
         // of contributor_id and take ownership of them so they can be passed on to
         // the callback functions
-        let contributor_id = c.contributor_id.clone();
+        let contributor_id = c.contributor_id;
         let contribution_type = c.contribution_type;
         html! {
             <div class="panel-block field is-horizontal">
@@ -569,7 +570,7 @@ impl ContributionsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteContribution(contributor_id.clone(), contribution_type.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeleteContribution(contributor_id, contribution_type.clone()))
                             >
                                 { REMOVE_BUTTON }
                             </a>

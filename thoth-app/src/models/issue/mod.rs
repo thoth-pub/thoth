@@ -1,13 +1,14 @@
 use serde::Deserialize;
 use serde::Serialize;
+use uuid::Uuid;
 
 use super::series::Series;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Issue {
-    pub work_id: String,
-    pub series_id: String,
+    pub work_id: Uuid,
+    pub series_id: Uuid,
     pub issue_ordinal: i32,
     pub series: Series,
 }
@@ -15,8 +16,8 @@ pub struct Issue {
 impl Default for Issue {
     fn default() -> Issue {
         Issue {
-            work_id: "".to_string(),
-            series_id: "".to_string(),
+            work_id: Default::default(),
+            series_id: Default::default(),
             issue_ordinal: 1,
             series: Default::default(),
         }

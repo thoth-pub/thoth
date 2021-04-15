@@ -2,6 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::language::model::LanguageCode;
 use thoth_api::language::model::LanguageRelation;
+use uuid::Uuid;
 
 use super::Language;
 
@@ -41,7 +42,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub work_id: String,
+    pub work_id: Uuid,
     pub language_code: LanguageCode,
     pub language_relation: LanguageRelation,
     pub main_language: bool,

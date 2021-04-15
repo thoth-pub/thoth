@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use thoth_api::language::model::LanguageCode;
 use thoth_api::language::model::LanguageRelation;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -68,7 +69,7 @@ pub enum Msg {
     SetLanguagePushState(PushActionCreateLanguage),
     CreateLanguage,
     SetLanguageDeleteState(PushActionDeleteLanguage),
-    DeleteLanguage(String),
+    DeleteLanguage(Uuid),
     ChangeLanguageCode(LanguageCode),
     ChangeLanguageRelation(LanguageRelation),
     ChangeMainLanguage(bool),
@@ -78,7 +79,7 @@ pub enum Msg {
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub languages: Option<Vec<Language>>,
-    pub work_id: String,
+    pub work_id: Uuid,
     pub update_languages: Callback<Option<Vec<Language>>>,
 }
 
@@ -196,7 +197,7 @@ impl Component for LanguagesFormComponent {
             Msg::CreateLanguage => {
                 let body = CreateLanguageRequestBody {
                     variables: Variables {
-                        work_id: self.props.work_id.clone(),
+                        work_id: self.props.work_id,
                         language_relation: self.new_language.language_relation.clone(),
                         language_code: self.new_language.language_code.clone(),
                         main_language: self.new_language.main_language,
@@ -402,7 +403,7 @@ impl LanguagesFormComponent {
         // there's probably a better way to do this. We basically need to copy 3 instances
         // of contributor_id and take ownership of them so they can be passed on to
         // the callback functions
-        let language_id = l.language_id.clone();
+        let language_id = l.language_id;
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -440,7 +441,7 @@ impl LanguagesFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteLanguage(language_id.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeleteLanguage(language_id))
                             >
                                 { REMOVE_BUTTON }
                             </a>

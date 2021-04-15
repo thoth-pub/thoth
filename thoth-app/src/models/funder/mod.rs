@@ -2,6 +2,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -13,7 +14,7 @@ use crate::route::AppRoute;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Funder {
-    pub funder_id: String,
+    pub funder_id: Uuid,
     pub funder_name: String,
     pub funder_doi: Option<String>,
     pub updated_at: DateTime<Utc>,
@@ -42,7 +43,7 @@ impl Funder {
     }
 
     pub fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Funder(self.funder_id.clone()))
+        AppRoute::Admin(AdminRoute::Funder(self.funder_id))
     }
 
     pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
@@ -64,7 +65,7 @@ impl Funder {
 impl Default for Funder {
     fn default() -> Funder {
         Funder {
-            funder_id: "".to_string(),
+            funder_id: Default::default(),
             funder_name: "".to_string(),
             funder_doi: None,
             updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),

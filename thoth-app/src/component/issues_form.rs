@@ -1,4 +1,5 @@
 use thoth_api::account::model::AccountDetails;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -60,7 +61,7 @@ pub enum Msg {
     SetIssuePushState(PushActionCreateIssue),
     CreateIssue,
     SetIssueDeleteState(PushActionDeleteIssue),
-    DeleteIssue(String),
+    DeleteIssue(Uuid),
     AddIssue(Series),
     ToggleSearchResultDisplay(bool),
     SearchSeries(String),
@@ -71,8 +72,8 @@ pub enum Msg {
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub issues: Option<Vec<Issue>>,
-    pub work_id: String,
-    pub imprint_id: String,
+    pub work_id: Uuid,
+    pub imprint_id: Uuid,
     pub current_user: AccountDetails,
     pub update_issues: Callback<Option<Vec<Issue>>>,
 }
@@ -177,8 +178,8 @@ impl Component for IssuesFormComponent {
             Msg::CreateIssue => {
                 let body = CreateIssueRequestBody {
                     variables: CreateVariables {
-                        work_id: self.props.work_id.clone(),
-                        series_id: self.new_issue.series_id.clone(),
+                        work_id: self.props.work_id,
+                        series_id: self.new_issue.series_id,
                         issue_ordinal: self.new_issue.issue_ordinal,
                     },
                     ..Default::default()
@@ -229,7 +230,7 @@ impl Component for IssuesFormComponent {
             Msg::DeleteIssue(series_id) => {
                 let body = DeleteIssueRequestBody {
                     variables: DeleteVariables {
-                        work_id: self.props.work_id.clone(),
+                        work_id: self.props.work_id,
                         series_id,
                     },
                     ..Default::default()
@@ -243,7 +244,7 @@ impl Component for IssuesFormComponent {
                 false
             }
             Msg::AddIssue(series) => {
-                self.new_issue.series_id = series.series_id.clone();
+                self.new_issue.series_id = series.series_id;
                 self.new_issue.series = series;
                 self.link.send_message(Msg::ToggleAddFormDisplay(true));
                 true
@@ -433,7 +434,7 @@ impl IssuesFormComponent {
         // there's probably a better way to do this. We basically need to copy 3 instances
         // of contributor_id and take ownership of them so they can be passed on to
         // the callback functions
-        let series_id = i.series_id.clone();
+        let series_id = i.series_id;
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -480,7 +481,7 @@ impl IssuesFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteIssue(series_id.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeleteIssue(series_id))
                             >
                                 { REMOVE_BUTTON }
                             </a>
