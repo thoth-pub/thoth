@@ -400,9 +400,6 @@ impl LanguagesFormComponent {
     }
 
     fn render_language(&self, l: &Language) -> Html {
-        // there's probably a better way to do this. We basically need to copy 3 instances
-        // of contributor_id and take ownership of them so they can be passed on to
-        // the callback functions
         let language_id = l.language_id;
         html! {
             <div class="panel-block field is-horizontal">

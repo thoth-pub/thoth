@@ -431,9 +431,6 @@ impl IssuesFormComponent {
     }
 
     fn render_issue(&self, i: &Issue) -> Html {
-        // there's probably a better way to do this. We basically need to copy 3 instances
-        // of contributor_id and take ownership of them so they can be passed on to
-        // the callback functions
         let series_id = i.series_id;
         html! {
             <div class="panel-block field is-horizontal">

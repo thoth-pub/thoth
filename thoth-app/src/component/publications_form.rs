@@ -364,9 +364,6 @@ impl PublicationsFormComponent {
     }
 
     fn render_publication(&self, p: &Publication) -> Html {
-        // there's probably a better way to do this. We basically need to copy 3 instances
-        // of contributor_id and take ownership of them so they can be passed on to
-        // the callback functions
         let publication_id = p.publication_id;
         html! {
             <div class="panel-block field is-horizontal">

@@ -518,9 +518,6 @@ impl ContributionsFormComponent {
     }
 
     fn render_contribution(&self, c: &Contribution) -> Html {
-        // there's probably a better way to do this. We basically need to copy 3 instances
-        // of contributor_id and take ownership of them so they can be passed on to
-        // the callback functions
         let contributor_id = c.contributor_id;
         let contribution_type = c.contribution_type;
         html! {
