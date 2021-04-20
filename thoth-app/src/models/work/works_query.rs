@@ -25,6 +25,8 @@ pub const WORKS_QUERY: &str = "
                 contributorId
                 contributionType
                 mainContribution
+                createdAt
+                updatedAt
                 lastName
                 fullName
             }
@@ -37,6 +39,7 @@ pub const WORKS_QUERY: &str = "
                     publisherName
                     publisherShortname
                     publisherUrl
+                    createdAt
                     updatedAt
                 }
             }

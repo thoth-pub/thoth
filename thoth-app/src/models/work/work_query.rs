@@ -47,6 +47,8 @@ pub const WORK_QUERY: &str = "
                 mainContribution
                 biography
                 institution
+                createdAt
+                updatedAt
                 lastName
                 fullName
             }
@@ -61,6 +63,8 @@ pub const WORK_QUERY: &str = "
                     publicationId
                     currencyCode
                     unitPrice
+                    createdAt
+                    updatedAt
                 }
                 work {
                     imprint {
@@ -76,6 +80,8 @@ pub const WORK_QUERY: &str = "
                 languageCode
                 languageRelation
                 mainLanguage
+                createdAt
+                updatedAt
             }
             fundings {
                 fundingId
@@ -89,6 +95,7 @@ pub const WORK_QUERY: &str = "
                 funder {
                     funderId
                     funderName
+                    createdAt
                     updatedAt
                 }
             }
@@ -98,6 +105,8 @@ pub const WORK_QUERY: &str = "
                 subjectType
                 subjectCode
                 subjectOrdinal
+                createdAt
+                updatedAt
             }
             issues {
                 workId
@@ -120,6 +129,7 @@ pub const WORK_QUERY: &str = "
                             publisherName
                             publisherShortname
                             publisherUrl
+                            createdAt
                             updatedAt
                         }
                     }
@@ -134,6 +144,7 @@ pub const WORK_QUERY: &str = "
                     publisherName
                     publisherShortname
                     publisherUrl
+                    createdAt
                     updatedAt
                 }
             }
@@ -147,6 +158,7 @@ pub const WORK_QUERY: &str = "
                 publisherName
                 publisherShortname
                 publisherUrl
+                createdAt
                 updatedAt
             }
         }

@@ -14,6 +14,7 @@ const DELETE_CONTRIBUTOR_MUTATION: &str = "
             contributorId
             lastName
             fullName
+            createdAt
             updatedAt
         }
     }

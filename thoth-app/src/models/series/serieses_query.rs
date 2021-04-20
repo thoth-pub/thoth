@@ -23,6 +23,7 @@ pub const SERIESES_QUERY: &str = "
                     publisherName
                     publisherShortname
                     publisherUrl
+                    createdAt
                     updatedAt
                 }
             }

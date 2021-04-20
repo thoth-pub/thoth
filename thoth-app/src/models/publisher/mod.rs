@@ -18,6 +18,7 @@ pub struct Publisher {
     pub publisher_name: String,
     pub publisher_shortname: Option<String>,
     pub publisher_url: Option<String>,
+    pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -58,6 +59,7 @@ impl Default for Publisher {
             publisher_name: "".to_string(),
             publisher_shortname: None,
             publisher_url: None,
+            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
             updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
         }
     }

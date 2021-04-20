@@ -35,6 +35,7 @@ const CREATE_ISSUE_MUTATION: &str = "
                         publisherName
                         publisherShortname
                         publisherUrl
+                        createdAt
                         updatedAt
                     }
                 }

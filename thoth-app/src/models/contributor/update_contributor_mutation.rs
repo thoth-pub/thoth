@@ -24,6 +24,7 @@ const UPDATE_CONTRIBUTOR_MUTATION: &str = "
             contributorId
             lastName
             fullName
+            createdAt
             updatedAt
         }
     }

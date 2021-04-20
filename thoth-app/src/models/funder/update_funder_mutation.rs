@@ -17,6 +17,7 @@ const UPDATE_FUNDER_MUTATION: &str = "
         }){
             funderId
             funderName
+            createdAt
             updatedAt
         }
     }

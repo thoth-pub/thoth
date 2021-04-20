@@ -17,6 +17,7 @@ pub struct Funder {
     pub funder_id: Uuid,
     pub funder_name: String,
     pub funder_doi: Option<String>,
+    pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -68,6 +69,7 @@ impl Default for Funder {
             funder_id: Default::default(),
             funder_name: "".to_string(),
             funder_doi: None,
+            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
             updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
         }
     }

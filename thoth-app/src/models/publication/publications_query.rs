@@ -36,6 +36,7 @@ pub const PUBLICATIONS_QUERY: &str = "
                         publisherName
                         publisherShortname
                         publisherUrl
+                        createdAt
                         updatedAt
                     }
                 }

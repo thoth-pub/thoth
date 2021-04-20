@@ -17,6 +17,8 @@ pub const PUBLICATION_QUERY: &str = "
                 publicationId
                 currencyCode
                 unitPrice
+                createdAt
+                updatedAt
             }
             work {
                 imprint {

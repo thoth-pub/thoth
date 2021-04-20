@@ -20,6 +20,7 @@ pub struct Contributor {
     pub full_name: String,
     pub orcid: Option<String>,
     pub website: Option<String>,
+    pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -76,6 +77,7 @@ impl Default for Contributor {
             full_name: "".to_string(),
             orcid: None,
             website: None,
+            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
             updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
         }
     }

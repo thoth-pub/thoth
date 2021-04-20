@@ -1,3 +1,5 @@
+use chrono::DateTime;
+use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::price::model::CurrencyCode;
@@ -10,6 +12,8 @@ pub struct Price {
     pub publication_id: Uuid,
     pub currency_code: CurrencyCode,
     pub unit_price: f64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -31,6 +35,8 @@ impl Default for Price {
             publication_id: Default::default(),
             currency_code: CurrencyCode::Gbp,
             unit_price: 0.00,
+            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
         }
     }
 }

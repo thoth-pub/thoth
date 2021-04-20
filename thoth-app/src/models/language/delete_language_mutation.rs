@@ -16,6 +16,8 @@ const DELETE_LANGUAGE_MUTATION: &str = "
             languageCode
             languageRelation
             mainLanguage
+            createdAt
+            updatedAt
         }
     }
 ";

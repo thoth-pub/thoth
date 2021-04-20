@@ -10,6 +10,7 @@ pub const FUNDER_QUERY: &str = "
             funderId
             funderName
             funderDoi
+            createdAt
             updatedAt
         }
     }

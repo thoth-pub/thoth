@@ -1,3 +1,5 @@
+use chrono::DateTime;
+use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::language::model::LanguageCode;
@@ -12,6 +14,8 @@ pub struct Language {
     pub language_code: LanguageCode,
     pub language_relation: LanguageRelation,
     pub main_language: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -46,6 +50,8 @@ impl Default for Language {
             language_code: LanguageCode::Eng,
             language_relation: LanguageRelation::Original,
             main_language: true,
+            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
         }
     }
 }

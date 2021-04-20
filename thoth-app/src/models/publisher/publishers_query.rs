@@ -11,6 +11,7 @@ const PUBLISHERS_QUERY: &str = "
             publisherName
             publisherShortname
             publisherUrl
+            createdAt
             updatedAt
         }
         publisherCount(filter: $filter, publishers: $publishers)

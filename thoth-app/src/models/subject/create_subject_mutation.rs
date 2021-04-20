@@ -23,6 +23,8 @@ const CREATE_SUBJECT_MUTATION: &str = "
             subjectType
             subjectCode
             subjectOrdinal
+            createdAt
+            updatedAt
         }
     }
 ";

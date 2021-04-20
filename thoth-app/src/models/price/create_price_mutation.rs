@@ -20,6 +20,8 @@ const CREATE_PRICE_MUTATION: &str = "
             publicationId
             currencyCode
             unitPrice
+            createdAt
+            updatedAt
         }
     }
 ";
