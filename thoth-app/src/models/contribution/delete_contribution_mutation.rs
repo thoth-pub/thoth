@@ -22,12 +22,6 @@ const DELETE_CONTRIBUTION_MUTATION: &str = "
             mainContribution
             lastName
             fullName
-            contributor {
-                contributorId
-                lastName
-                fullName
-                updatedAt
-            }
         }
     }
 ";

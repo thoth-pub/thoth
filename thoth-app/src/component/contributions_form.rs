@@ -287,10 +287,9 @@ impl Component for ContributionsFormComponent {
             }
             Msg::AddContribution(contributor) => {
                 self.new_contribution.contributor_id = contributor.contributor_id;
-                self.new_contribution.first_name = contributor.first_name.clone();
-                self.new_contribution.last_name = contributor.last_name.clone();
-                self.new_contribution.full_name = contributor.full_name.clone();
-                self.new_contribution.contributor = contributor;
+                self.new_contribution.first_name = contributor.first_name;
+                self.new_contribution.last_name = contributor.last_name;
+                self.new_contribution.full_name = contributor.full_name;
                 self.link.send_message(Msg::ToggleAddFormDisplay(true));
                 true
             }

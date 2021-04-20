@@ -37,12 +37,6 @@ const CREATE_CONTRIBUTION_MUTATION: &str = "
             firstName
             lastName
             fullName
-            contributor {
-                contributorId
-                lastName
-                fullName
-                updatedAt
-            }
         }
     }
 ";

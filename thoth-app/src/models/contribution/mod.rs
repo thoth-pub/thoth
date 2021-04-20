@@ -5,8 +5,6 @@ use uuid::Uuid;
 use yew::prelude::html;
 use yew::Html;
 
-use super::contributor::Contributor;
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contribution {
@@ -19,7 +17,6 @@ pub struct Contribution {
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
-    pub contributor: Contributor,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

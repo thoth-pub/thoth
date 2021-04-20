@@ -27,12 +27,6 @@ pub const WORKS_QUERY: &str = "
                 mainContribution
                 lastName
                 fullName
-                contributor {
-                    contributorId
-                    lastName
-                    fullName
-                    updatedAt
-                }
             }
             imprint {
                 imprintId

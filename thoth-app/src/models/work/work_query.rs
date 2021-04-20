@@ -49,12 +49,6 @@ pub const WORK_QUERY: &str = "
                 institution
                 lastName
                 fullName
-                contributor {
-                    contributorId
-                    lastName
-                    fullName
-                    updatedAt
-                }
             }
             publications {
                 publicationId
