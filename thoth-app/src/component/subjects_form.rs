@@ -135,7 +135,6 @@ impl Component for SubjectsFormComponent {
                             let mut subjects: Vec<Subject> =
                                 self.props.subjects.clone().unwrap_or_default();
                             subjects.push(subject);
-                            self.new_subject = Default::default();
                             self.props.update_subjects.emit(Some(subjects));
                             self.link.send_message(Msg::ToggleAddFormDisplay(false));
                             true
