@@ -1,4 +1,5 @@
 use thoth_api::account::model::AccountDetails;
+use thoth_api::publisher::model::Publisher;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -30,7 +31,6 @@ use crate::models::publisher::publishers_query::FetchPublishers;
 use crate::models::publisher::publishers_query::PublishersRequest;
 use crate::models::publisher::publishers_query::PublishersRequestBody;
 use crate::models::publisher::publishers_query::Variables as PublishersVariables;
-use crate::models::publisher::Publisher;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;

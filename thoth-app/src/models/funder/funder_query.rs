@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::funder::model::Funder;
 use uuid::Uuid;
-
-use super::Funder;
 
 pub const FUNDER_QUERY: &str = "
     query FunderQuery($funderId: Uuid!) {

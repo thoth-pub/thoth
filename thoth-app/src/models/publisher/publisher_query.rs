@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::publisher::model::Publisher;
 use uuid::Uuid;
-
-use super::Publisher;
 
 pub const PUBLISHER_QUERY: &str = "
     query PublisherQuery($publisherId: Uuid!) {

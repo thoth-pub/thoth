@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use thoth_api::price::model::CurrencyCode;
+use thoth_api::price::model::Price;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -29,7 +30,6 @@ use crate::models::price::delete_price_mutation::PushActionDeletePrice;
 use crate::models::price::delete_price_mutation::PushDeletePrice;
 use crate::models::price::delete_price_mutation::Variables as DeleteVariables;
 use crate::models::price::CurrencyCodeValues;
-use crate::models::price::Price;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_PRICES;
 use crate::string::REMOVE_BUTTON;

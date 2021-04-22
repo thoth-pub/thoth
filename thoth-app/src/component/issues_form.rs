@@ -31,6 +31,7 @@ use crate::models::series::serieses_query::SeriesesRequest;
 use crate::models::series::serieses_query::SeriesesRequestBody;
 use crate::models::series::serieses_query::Variables;
 use crate::models::series::Series;
+use crate::models::Dropdown;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_ISSUES;
 use crate::string::REMOVE_BUTTON;

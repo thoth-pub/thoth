@@ -1,9 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::contribution::model::Contribution;
 use thoth_api::contribution::model::ContributionType;
 use uuid::Uuid;
-
-use super::Contribution;
 
 const CREATE_CONTRIBUTION_MUTATION: &str = "
     mutation CreateContribution(

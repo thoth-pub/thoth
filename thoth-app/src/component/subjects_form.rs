@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::subject::model::Subject;
 use thoth_api::subject::model::SubjectType;
 use uuid::Uuid;
 use yew::html;
@@ -29,7 +30,6 @@ use crate::models::subject::delete_subject_mutation::PushDeleteSubject;
 use crate::models::subject::delete_subject_mutation::Variables as DeleteVariables;
 use crate::models::subject::subject_types_query::FetchActionSubjectTypes;
 use crate::models::subject::subject_types_query::FetchSubjectTypes;
-use crate::models::subject::Subject;
 use crate::models::subject::SubjectTypeValues;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_SUBJECTS;

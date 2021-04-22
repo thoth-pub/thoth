@@ -1,10 +1,9 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::language::model::Language;
 use thoth_api::language::model::LanguageCode;
 use thoth_api::language::model::LanguageRelation;
 use uuid::Uuid;
-
-use super::Language;
 
 const CREATE_LANGUAGE_MUTATION: &str = "
     mutation CreateLanguage(

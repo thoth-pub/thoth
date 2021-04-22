@@ -1,4 +1,5 @@
 use thoth_api::account::model::AccountDetails;
+use thoth_api::price::model::Price;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -18,7 +19,6 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::prices_form::PricesFormComponent;
 use crate::component::utils::Loader;
-use crate::models::price::Price;
 use crate::models::publication::delete_publication_mutation::DeletePublicationRequest;
 use crate::models::publication::delete_publication_mutation::DeletePublicationRequestBody;
 use crate::models::publication::delete_publication_mutation::PushActionDeletePublication;

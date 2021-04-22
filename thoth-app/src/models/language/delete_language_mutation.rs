@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::language::model::Language;
 use uuid::Uuid;
-
-use super::Language;
 
 const DELETE_LANGUAGE_MUTATION: &str = "
     mutation DeleteLanguage(

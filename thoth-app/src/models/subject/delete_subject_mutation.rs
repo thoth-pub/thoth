@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::subject::model::Subject;
 use uuid::Uuid;
-
-use super::Subject;
 
 const DELETE_SUBJECT_MUTATION: &str = "
     mutation DeleteSubject(

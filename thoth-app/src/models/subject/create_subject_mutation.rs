@@ -1,9 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::subject::model::Subject;
 use thoth_api::subject::model::SubjectType;
 use uuid::Uuid;
-
-use super::Subject;
 
 const CREATE_SUBJECT_MUTATION: &str = "
     mutation CreateSubject(

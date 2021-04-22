@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::contributor::model::Contributor;
 use uuid::Uuid;
-
-use super::Contributor;
 
 pub const CONTRIBUTOR_QUERY: &str = "
     query ContributorQuery($contributorId: Uuid!) {

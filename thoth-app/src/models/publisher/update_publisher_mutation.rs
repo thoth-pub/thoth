@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::publisher::model::Publisher;
 use uuid::Uuid;
-
-use super::Publisher;
 
 const UPDATE_PUBLISHER_MUTATION: &str = "
     mutation UpdatePublisher(

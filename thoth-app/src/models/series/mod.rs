@@ -2,6 +2,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
+use std::fmt;
 use thoth_api::series::model::SeriesType;
 use uuid::Uuid;
 use yew::html;
@@ -10,6 +11,8 @@ use yew::Callback;
 use yew::MouseEvent;
 
 use super::imprint::Imprint;
+use super::Dropdown;
+use super::MetadataObject;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
@@ -53,27 +56,28 @@ impl Default for Series {
     }
 }
 
-impl Series {
-    pub fn create_route() -> AppRoute {
+impl fmt::Display for Series {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{} ({}, {})",
+            self.series_name, self.issn_print, self.issn_digital
+        )
+    }
+}
+
+impl Dropdown for Series {}
+
+impl MetadataObject for Series {
+    fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewSeries)
     }
 
-    pub fn as_dropdown_item(&self, callback: Callback<MouseEvent>) -> Html {
-        // since serieses dropdown has an onblur event, we need to use onmousedown instead of
-        // onclick. This is not ideal, but it seems to be the only event that'd do the calback
-        // without disabling onblur so that onclick can take effect
-        html! {
-            <div onmousedown=callback class="dropdown-item">
-                { format!("{} ({}, {})", self.series_name, self.issn_print, self.issn_digital) }
-            </div>
-        }
-    }
-
-    pub fn edit_route(&self) -> AppRoute {
+    fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Series(self.series_id))
     }
 
-    pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
+    fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         html! {
             <tr
                 class="row"

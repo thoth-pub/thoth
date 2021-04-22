@@ -4,6 +4,9 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::str::FromStr;
 use std::string::ParseError;
+use thoth_api::contribution::model::Contribution;
+use thoth_api::language::model::Language;
+use thoth_api::subject::model::Subject;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
 use uuid::Uuid;
@@ -12,13 +15,12 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use super::contribution::Contribution;
 use super::funding::Funding;
 use super::imprint::Imprint;
 use super::issue::Issue;
-use super::language::Language;
 use super::publication::Publication;
-use super::subject::Subject;
+use super::ListString;
+use super::MetadataObject;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::THOTH_API;
@@ -102,11 +104,43 @@ pub struct WorkStatusValues {
     pub name: WorkStatus,
 }
 
-impl Work {
-    pub fn create_route() -> AppRoute {
+impl MetadataObject for Work {
+    fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewWork)
     }
 
+    fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Work(self.work_id))
+    }
+
+    fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
+        let doi = self.doi.clone().unwrap_or_else(|| "".to_string());
+        html! {
+            <tr
+                class="row"
+                onclick=callback
+            >
+                <td>{&self.work_id}</td>
+                <td>{&self.title}</td>
+                <td>{&self.work_type}</td>
+                <td>
+                    {
+                        if let Some(contributions) = &self.contributions {
+                            contributions.iter().map(|c| c.separated_list_item_comma()).collect::<Html>()
+                        } else {
+                            html! {}
+                        }
+                    }
+                </td>
+                <td>{doi}</td>
+                <td>{&self.publisher()}</td>
+                <td>{&self.updated_at.format("%F %T")}</td>
+            </tr>
+        }
+    }
+}
+
+impl Work {
     pub fn compile_fulltitle(&self) -> String {
         if let Some(subtitle) = &self.subtitle.clone() {
             format!("{}: {}", self.title, subtitle)
@@ -121,10 +155,6 @@ impl Work {
         } else {
             self.imprint.publisher.publisher_name.to_string()
         }
-    }
-
-    pub fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Work(self.work_id))
     }
 
     pub fn onix_endpoint(&self) -> String {
@@ -218,32 +248,6 @@ impl Work {
         }
     }
 
-    pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
-        let doi = self.doi.clone().unwrap_or_else(|| "".to_string());
-        html! {
-            <tr
-                class="row"
-                onclick=callback
-            >
-                <td>{&self.work_id}</td>
-                <td>{&self.title}</td>
-                <td>{&self.work_type}</td>
-                <td>
-                    {
-                        if let Some(contributions) = &self.contributions {
-                            contributions.iter().map(|c| c.main_contribution_item_comma()).collect::<Html>()
-                        } else {
-                            html! {}
-                        }
-                    }
-                </td>
-                <td>{doi}</td>
-                <td>{&self.publisher()}</td>
-                <td>{&self.updated_at.format("%F %T")}</td>
-            </tr>
-        }
-    }
-
     pub fn as_catalogue_box(&self) -> Html {
         let doi = self.doi.clone().unwrap_or_else(|| "".to_string());
         let cover_url = self
@@ -271,7 +275,7 @@ impl Work {
                                             <div>
                                             {
                                                 if let Some(contributions) = &self.contributions {
-                                                    contributions.iter().map(|c| c.main_contribution_item_bullet_small()).collect::<Html>()
+                                                    contributions.iter().map(|c| c.separated_list_item_bullet_small()).collect::<Html>()
                                                 } else {
                                                     html! {}
                                                 }

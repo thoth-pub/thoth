@@ -1,3 +1,4 @@
+use thoth_api::funder::model::Funder;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -39,7 +40,6 @@ use crate::models::funder::update_funder_mutation::PushUpdateFunder;
 use crate::models::funder::update_funder_mutation::UpdateFunderRequest;
 use crate::models::funder::update_funder_mutation::UpdateFunderRequestBody;
 use crate::models::funder::update_funder_mutation::Variables as UpdateVariables;
-use crate::models::funder::Funder;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;

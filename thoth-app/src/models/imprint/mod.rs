@@ -2,13 +2,14 @@ use chrono::DateTime;
 use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::publisher::model::Publisher;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use super::publisher::Publisher;
+use super::MetadataObject;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
@@ -22,16 +23,16 @@ pub struct Imprint {
     pub publisher: Publisher,
 }
 
-impl Imprint {
-    pub fn create_route() -> AppRoute {
+impl MetadataObject for Imprint {
+    fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewImprint)
     }
 
-    pub fn edit_route(&self) -> AppRoute {
+    fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Imprint(self.imprint_id))
     }
 
-    pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
+    fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let imprint_url = self.imprint_url.clone().unwrap_or_else(|| "".to_string());
         html! {
             <tr

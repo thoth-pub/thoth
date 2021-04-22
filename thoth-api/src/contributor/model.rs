@@ -2,6 +2,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
+use std::fmt;
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
@@ -34,7 +35,8 @@ pub enum ContributorField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Contributor {
     pub contributor_id: Uuid,
     pub first_name: Option<String>,
@@ -108,6 +110,31 @@ pub struct ContributorOrderBy {
 impl Default for ContributorField {
     fn default() -> Self {
         ContributorField::FullName
+    }
+}
+
+impl Default for Contributor {
+    fn default() -> Contributor {
+        Contributor {
+            contributor_id: Default::default(),
+            first_name: None,
+            last_name: "".to_string(),
+            full_name: "".to_string(),
+            orcid: None,
+            website: None,
+            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+        }
+    }
+}
+
+impl fmt::Display for Contributor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(orcid) = &self.orcid {
+            write!(f, "{} - {}", &self.full_name, orcid)
+        } else {
+            write!(f, "{}", self.full_name)
+        }
     }
 }
 

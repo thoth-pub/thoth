@@ -1,7 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-
-use super::Contributor;
+use thoth_api::contributor::model::Contributor;
 
 const CREATE_CONTRIBUTOR_MUTATION: &str = "
     mutation CreateContributor(

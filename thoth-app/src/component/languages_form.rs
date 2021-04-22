@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::language::model::Language;
 use thoth_api::language::model::LanguageCode;
 use thoth_api::language::model::LanguageRelation;
 use uuid::Uuid;
@@ -32,7 +33,6 @@ use crate::models::language::language_codes_query::FetchActionLanguageCodes;
 use crate::models::language::language_codes_query::FetchLanguageCodes;
 use crate::models::language::language_relations_query::FetchActionLanguageRelations;
 use crate::models::language::language_relations_query::FetchLanguageRelations;
-use crate::models::language::Language;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
 use crate::string::CANCEL_BUTTON;

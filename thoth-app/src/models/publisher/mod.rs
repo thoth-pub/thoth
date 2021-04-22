@@ -1,8 +1,4 @@
-use chrono::DateTime;
-use chrono::Utc;
-use serde::Deserialize;
-use serde::Serialize;
-use uuid::Uuid;
+use thoth_api::publisher::model::Publisher;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -11,27 +7,18 @@ use yew::MouseEvent;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Publisher {
-    pub publisher_id: Uuid,
-    pub publisher_name: String,
-    pub publisher_shortname: Option<String>,
-    pub publisher_url: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
+use super::MetadataObject;
 
-impl Publisher {
-    pub fn create_route() -> AppRoute {
+impl MetadataObject for Publisher {
+    fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewPublisher)
     }
 
-    pub fn edit_route(&self) -> AppRoute {
+    fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Publisher(self.publisher_id))
     }
 
-    pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
+    fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let publisher_shortname = self
             .publisher_shortname
             .clone()
@@ -48,19 +35,6 @@ impl Publisher {
                 <td>{publisher_url}</td>
                 <td>{&self.updated_at.format("%F %T")}</td>
             </tr>
-        }
-    }
-}
-
-impl Default for Publisher {
-    fn default() -> Publisher {
-        Publisher {
-            publisher_id: Default::default(),
-            publisher_name: "".to_string(),
-            publisher_shortname: None,
-            publisher_url: None,
-            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
         }
     }
 }

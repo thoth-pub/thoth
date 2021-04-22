@@ -1,5 +1,7 @@
 use std::str::FromStr;
+use thoth_api::contribution::model::Contribution;
 use thoth_api::contribution::model::ContributionType;
+use thoth_api::contributor::model::Contributor;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -29,14 +31,13 @@ use crate::models::contribution::delete_contribution_mutation::DeleteContributio
 use crate::models::contribution::delete_contribution_mutation::PushActionDeleteContribution;
 use crate::models::contribution::delete_contribution_mutation::PushDeleteContribution;
 use crate::models::contribution::delete_contribution_mutation::Variables as DeleteVariables;
-use crate::models::contribution::Contribution;
 use crate::models::contribution::ContributionTypeValues;
 use crate::models::contributor::contributors_query::ContributorsRequest;
 use crate::models::contributor::contributors_query::ContributorsRequestBody;
 use crate::models::contributor::contributors_query::FetchActionContributors;
 use crate::models::contributor::contributors_query::FetchContributors;
 use crate::models::contributor::contributors_query::Variables;
-use crate::models::contributor::Contributor;
+use crate::models::Dropdown;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_CONTRIBUTIONS;
 use crate::string::NO;

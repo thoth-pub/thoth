@@ -1,3 +1,4 @@
+use thoth_api::contributor::model::Contributor;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -39,7 +40,6 @@ use crate::models::contributor::update_contributor_mutation::PushUpdateContribut
 use crate::models::contributor::update_contributor_mutation::UpdateContributorRequest;
 use crate::models::contributor::update_contributor_mutation::UpdateContributorRequestBody;
 use crate::models::contributor::update_contributor_mutation::Variables as UpdateVariables;
-use crate::models::contributor::Contributor;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;

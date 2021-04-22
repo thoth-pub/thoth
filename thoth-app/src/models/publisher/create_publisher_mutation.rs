@@ -1,7 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-
-use super::Publisher;
+use thoth_api::publisher::model::Publisher;
 
 const CREATE_PUBLISHER_MUTATION: &str = "
     mutation CreatePublisher(

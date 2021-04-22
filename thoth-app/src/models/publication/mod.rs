@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::price::model::Price;
 use thoth_api::publication::model::PublicationType;
 use uuid::Uuid;
 use yew::html;
@@ -7,7 +8,7 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use super::price::Price;
+use super::MetadataObject;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
@@ -53,16 +54,16 @@ pub struct PublicationTypeValues {
     pub name: PublicationType,
 }
 
-impl crate::models::publication::publications_query::DetailedPublication {
-    pub fn create_route() -> AppRoute {
+impl MetadataObject for crate::models::publication::publications_query::DetailedPublication {
+    fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewPublication)
     }
 
-    pub fn edit_route(&self) -> AppRoute {
+    fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Publication(self.publication_id))
     }
 
-    pub fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
+    fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let isbn = &self.isbn.clone().unwrap_or_else(|| "".to_string());
         let doi = &self.work.doi.clone().unwrap_or_else(|| "".to_string());
         let publication_url = &self

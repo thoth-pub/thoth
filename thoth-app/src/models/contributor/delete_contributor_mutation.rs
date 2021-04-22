@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::contributor::model::Contributor;
 use uuid::Uuid;
-
-use super::Contributor;
 
 const DELETE_CONTRIBUTOR_MUTATION: &str = "
     mutation DeleteContributor(
