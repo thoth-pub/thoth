@@ -9,9 +9,9 @@ use crate::imprint::model::NewImprintHistory;
 use crate::schema::imprint_history;
 
 impl NewImprintHistory {
-    pub fn new(imprint: Imprint, account_id: Uuid) -> Self {
+    pub fn new(imprint: &Imprint, account_id: Uuid) -> Self {
         Self {
-            imprint_id: imprint.imprint_id,
+            imprint_id: imprint.imprint_id.clone(),
             account_id,
             data: serde_json::Value::String(serde_json::to_string(&imprint).unwrap()),
         }

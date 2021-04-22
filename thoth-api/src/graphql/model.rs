@@ -29,6 +29,7 @@ use crate::subject::model::*;
 use crate::work::model::*;
 
 use super::utils::Direction;
+use crate::imprint::crud::Crud;
 
 impl juniper::Context for Context {}
 
@@ -2021,11 +2022,7 @@ impl MutationRoot {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context.account_access.can_edit(data.publisher_id)?;
 
-        let connection = context.db.get().unwrap();
-        match diesel::insert_into(imprint::table)
-            .values(&data)
-            .get_result(&connection)
-        {
+        match Imprint::create(&context.db, &data) {
             Ok(imprint) => Ok(imprint),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -2226,26 +2223,15 @@ impl MutationRoot {
     fn update_imprint(context: &Context, data: PatchImprint) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context.account_access.can_edit(data.publisher_id)?;
-
-        let connection = context.db.get().unwrap();
-        let target = crate::schema::imprint::dsl::imprint.find(&data.imprint_id);
-        let imprint = target.get_result::<Imprint>(&connection).unwrap();
+        let imprint = Imprint::from_id(&context.db, &data.imprint_id).unwrap();
         if !(data.publisher_id == imprint.publisher_id) {
             context.account_access.can_edit(imprint.publisher_id)?;
         }
-
-        connection.transaction(
-            || match diesel::update(target).set(&data).get_result(&connection) {
-                Ok(c) => {
-                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-                    match NewImprintHistory::new(imprint, account_id).insert(&connection) {
-                        Ok(_) => Ok(c),
-                        Err(e) => Err(FieldError::from(e)),
-                    }
-                }
-                Err(e) => Err(FieldError::from(e)),
-            },
-        )
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        match imprint.update(&context.db, &data, &account_id) {
+            Ok(c) => Ok(c),
+            Err(e) => Err(FieldError::from(e)),
+        }
     }
 
     fn update_contributor(context: &Context, data: PatchContributor) -> FieldResult<Contributor> {
@@ -2535,15 +2521,11 @@ impl MutationRoot {
 
     fn delete_imprint(context: &Context, imprint_id: Uuid) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
-
-        let target = crate::schema::imprint::dsl::imprint.find(imprint_id);
-        let result = target.get_result::<Imprint>(&connection);
-        let imprint = result.unwrap();
+        let imprint = Imprint::from_id(&context.db, &imprint_id).unwrap();
         context.account_access.can_edit(imprint.publisher_id)?;
 
-        match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(imprint),
+        match imprint.delete(&context.db) {
+            Ok(imprint) => Ok(imprint),
             Err(e) => Err(FieldError::from(e)),
         }
     }

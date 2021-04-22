@@ -5,6 +5,7 @@ use diesel::result::Error as DBError;
 use failure::Fail;
 
 pub type Result<T> = std::result::Result<T, failure::Error>;
+pub type ThothResult<T> = std::result::Result<T, ThothError>;
 
 #[derive(Fail, Debug)]
 pub enum ThothError {
@@ -20,6 +21,8 @@ pub enum ThothError {
     InvalidToken,
     #[fail(display = "No cookie found.")]
     CookieError(),
+    #[fail(display = "No record was found for the given ID.")]
+    EntityNotFound,
     #[fail(display = "Issue's Work and Series cannot have different Imprints.")]
     IssueImprintsError,
 }
@@ -70,6 +73,7 @@ impl From<DBError> for ThothError {
                 let message = info.details().unwrap_or_else(|| info.message()).to_string();
                 ThothError::DatabaseError(message)
             }
+            DBError::NotFound => ThothError::EntityNotFound,
             _ => ThothError::InternalError("".into()),
         }
     }
