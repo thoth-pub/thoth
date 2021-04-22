@@ -1,4 +1,5 @@
 use thoth_api::account::model::AccountDetails;
+use thoth_api::imprint::model::ImprintExtended as Imprint;
 use thoth_api::publisher::model::Publisher;
 use uuid::Uuid;
 use yew::html;
@@ -25,7 +26,6 @@ use crate::models::imprint::create_imprint_mutation::CreateImprintRequestBody;
 use crate::models::imprint::create_imprint_mutation::PushActionCreateImprint;
 use crate::models::imprint::create_imprint_mutation::PushCreateImprint;
 use crate::models::imprint::create_imprint_mutation::Variables;
-use crate::models::imprint::Imprint;
 use crate::models::publisher::publishers_query::FetchActionPublishers;
 use crate::models::publisher::publishers_query::FetchPublishers;
 use crate::models::publisher::publishers_query::PublishersRequest;

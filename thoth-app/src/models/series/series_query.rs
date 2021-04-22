@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::series::model::SeriesExtended as Series;
 use uuid::Uuid;
-
-use super::Series;
 
 pub const SERIES_QUERY: &str = "
     query SeriesQuery($seriesId: Uuid!) {

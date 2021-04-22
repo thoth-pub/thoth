@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::publication::model::PublicationExtended as Publication;
 use uuid::Uuid;
-
-use super::Publication;
 
 pub const PUBLICATION_QUERY: &str = "
     query PublicationQuery($publicationId: Uuid!) {

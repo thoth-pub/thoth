@@ -1,5 +1,6 @@
 use thoth_api::account::model::AccountDetails;
 use thoth_api::price::model::Price;
+use thoth_api::publication::model::PublicationExtended as Publication;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -29,7 +30,6 @@ use crate::models::publication::publication_query::FetchPublication;
 use crate::models::publication::publication_query::PublicationRequest;
 use crate::models::publication::publication_query::PublicationRequestBody;
 use crate::models::publication::publication_query::Variables;
-use crate::models::publication::Publication;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::DELETE_BUTTON;

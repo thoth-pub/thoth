@@ -3,7 +3,7 @@ use crate::models::work::works_query::FetchWorks;
 use crate::models::work::works_query::Variables;
 use crate::models::work::works_query::WorksRequest;
 use crate::models::work::works_query::WorksRequestBody;
-use crate::models::work::Work;
+use thoth_api::work::model::WorkExtended as Work;
 use thoth_api::work::model::WorkField;
 use thoth_api::work::model::WorkOrderBy;
 

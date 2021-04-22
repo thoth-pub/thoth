@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::publication::model::PublicationExtended as Publication;
 use thoth_api::publication::model::PublicationType;
 use uuid::Uuid;
 use yew::html;
@@ -29,7 +30,6 @@ use crate::models::publication::delete_publication_mutation::PushDeletePublicati
 use crate::models::publication::delete_publication_mutation::Variables as DeleteVariables;
 use crate::models::publication::publication_types_query::FetchActionPublicationTypes;
 use crate::models::publication::publication_types_query::FetchPublicationTypes;
-use crate::models::publication::Publication;
 use crate::models::publication::PublicationTypeValues;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_PUBLICATIONS;

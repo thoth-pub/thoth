@@ -1,12 +1,7 @@
-use chrono::DateTime;
-use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::publication::model::DetailedPublication as Publication;
 use thoth_api::publication::model::PublicationOrderBy;
-use thoth_api::publication::model::PublicationType;
-use uuid::Uuid;
-
-use super::super::work::Work;
 
 pub const PUBLICATIONS_QUERY: &str = "
     query PublicationsQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: PublicationOrderBy) {
@@ -67,35 +62,9 @@ pub struct Variables {
     pub publishers: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct DetailedPublication {
-    pub publication_id: Uuid,
-    pub publication_type: PublicationType,
-    pub work_id: Uuid,
-    pub isbn: Option<String>,
-    pub publication_url: Option<String>,
-    pub updated_at: DateTime<Utc>,
-    pub work: Work,
-}
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicationsResponseData {
-    pub publications: Vec<DetailedPublication>,
+    pub publications: Vec<Publication>,
     pub publication_count: i32,
-}
-
-impl Default for DetailedPublication {
-    fn default() -> DetailedPublication {
-        DetailedPublication {
-            publication_id: Default::default(),
-            publication_type: Default::default(),
-            work_id: Default::default(),
-            isbn: None,
-            publication_url: None,
-            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-            work: Default::default(),
-        }
-    }
 }

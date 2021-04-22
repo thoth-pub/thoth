@@ -1,72 +1,20 @@
-use chrono::DateTime;
-use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use std::str::FromStr;
 use std::string::ParseError;
-use thoth_api::contribution::model::Contribution;
-use thoth_api::language::model::Language;
-use thoth_api::subject::model::Subject;
+use thoth_api::work::model::WorkExtended as Work;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
-use uuid::Uuid;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use super::funding::Funding;
-use super::imprint::Imprint;
-use super::issue::Issue;
-use super::publication::Publication;
 use super::ListString;
 use super::MetadataObject;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::THOTH_API;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Work {
-    pub work_id: Uuid,
-    pub work_type: WorkType,
-    pub work_status: WorkStatus,
-    pub full_title: String,
-    pub title: String,
-    pub subtitle: Option<String>,
-    pub reference: Option<String>,
-    pub edition: i32,
-    pub doi: Option<String>,
-    pub publication_date: Option<String>,
-    pub place: Option<String>,
-    pub width: Option<i32>,
-    pub height: Option<i32>,
-    pub page_count: Option<i32>,
-    pub page_breakdown: Option<String>,
-    pub image_count: Option<i32>,
-    pub table_count: Option<i32>,
-    pub audio_count: Option<i32>,
-    pub video_count: Option<i32>,
-    pub license: Option<String>,
-    pub copyright_holder: String,
-    pub landing_page: Option<String>,
-    pub lccn: Option<String>,
-    pub oclc: Option<String>,
-    pub short_abstract: Option<String>,
-    pub long_abstract: Option<String>,
-    pub general_note: Option<String>,
-    pub toc: Option<String>,
-    pub cover_url: Option<String>,
-    pub cover_caption: Option<String>,
-    pub updated_at: DateTime<Utc>,
-    pub contributions: Option<Vec<Contribution>>,
-    pub publications: Option<Vec<Publication>>,
-    pub languages: Option<Vec<Language>>,
-    pub fundings: Option<Vec<Funding>>,
-    pub subjects: Option<Vec<Subject>>,
-    pub issues: Option<Vec<Issue>>,
-    pub imprint: Imprint,
-}
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub enum License {
@@ -140,32 +88,24 @@ impl MetadataObject for Work {
     }
 }
 
-impl Work {
-    pub fn compile_fulltitle(&self) -> String {
-        if let Some(subtitle) = &self.subtitle.clone() {
-            format!("{}: {}", self.title, subtitle)
-        } else {
-            self.title.to_string()
-        }
-    }
+pub trait DisplayWork {
+    fn onix_endpoint(&self) -> String;
+    fn cover_alt_text(&self) -> String;
+    fn license_icons(&self) -> Html;
+    fn status_tag(&self) -> Html;
+    fn as_catalogue_box(&self) -> Html;
+}
 
-    pub fn publisher(&self) -> String {
-        if let Some(short_name) = &self.imprint.publisher.publisher_shortname.clone() {
-            short_name.to_string()
-        } else {
-            self.imprint.publisher.publisher_name.to_string()
-        }
-    }
-
-    pub fn onix_endpoint(&self) -> String {
+impl DisplayWork for Work {
+    fn onix_endpoint(&self) -> String {
         format!("{}/onix/{}", THOTH_API, &self.work_id)
     }
 
-    pub fn cover_alt_text(&self) -> String {
+    fn cover_alt_text(&self) -> String {
         format!("{} - Cover Image", &self.title)
     }
 
-    pub fn license_icons(&self) -> Html {
+    fn license_icons(&self) -> Html {
         let license =
             License::from_str(&self.license.clone().unwrap_or_else(|| "".to_string())).unwrap();
         html! {
@@ -224,7 +164,7 @@ impl Work {
         }
     }
 
-    pub fn status_tag(&self) -> Html {
+    fn status_tag(&self) -> Html {
         match self.work_status {
             WorkStatus::Unspecified => html! {},
             WorkStatus::Cancelled => html! {<span class="tag is-danger">{ "Cancelled" }</span>},
@@ -248,7 +188,7 @@ impl Work {
         }
     }
 
-    pub fn as_catalogue_box(&self) -> Html {
+    fn as_catalogue_box(&self) -> Html {
         let doi = self.doi.clone().unwrap_or_else(|| "".to_string());
         let cover_url = self
             .cover_url
@@ -426,51 +366,6 @@ impl FromStr for License {
             _other => License::Undefined,
         };
         Ok(license)
-    }
-}
-
-impl Default for Work {
-    fn default() -> Work {
-        Work {
-            work_id: Default::default(),
-            work_type: WorkType::Monograph,
-            work_status: WorkStatus::Inactive,
-            full_title: "".to_string(),
-            title: "".to_string(),
-            subtitle: None,
-            reference: None,
-            edition: 1,
-            doi: None,
-            publication_date: None,
-            place: None,
-            width: None,
-            height: None,
-            page_count: None,
-            page_breakdown: None,
-            image_count: None,
-            table_count: None,
-            audio_count: None,
-            video_count: None,
-            license: None,
-            copyright_holder: "".to_string(),
-            landing_page: None,
-            lccn: None,
-            oclc: None,
-            short_abstract: None,
-            long_abstract: None,
-            general_note: None,
-            toc: None,
-            cover_url: None,
-            cover_caption: None,
-            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-            contributions: None,
-            publications: None,
-            languages: None,
-            fundings: None,
-            subjects: None,
-            issues: None,
-            imprint: Default::default(),
-        }
     }
 }
 

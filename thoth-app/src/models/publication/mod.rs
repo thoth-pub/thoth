@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::price::model::Price;
+use thoth_api::publication::model::DetailedPublication as Publication;
 use thoth_api::publication::model::PublicationType;
-use uuid::Uuid;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -11,36 +10,6 @@ use yew::MouseEvent;
 use super::MetadataObject;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Publication {
-    pub publication_id: Uuid,
-    pub publication_type: PublicationType,
-    pub work_id: Uuid,
-    pub isbn: Option<String>,
-    pub publication_url: Option<String>,
-    pub prices: Option<Vec<Price>>,
-    pub work: SlimWork,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimWork {
-    pub imprint: SlimImprint,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimImprint {
-    pub publisher: SlimPublisher,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimPublisher {
-    pub publisher_id: Uuid,
-}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -54,7 +23,7 @@ pub struct PublicationTypeValues {
     pub name: PublicationType,
 }
 
-impl MetadataObject for crate::models::publication::publications_query::DetailedPublication {
+impl MetadataObject for Publication {
     fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewPublication)
     }
@@ -84,20 +53,6 @@ impl MetadataObject for crate::models::publication::publications_query::Detailed
                 <td>{publication_url}</td>
                 <td>{&self.updated_at.format("%F %T")}</td>
             </tr>
-        }
-    }
-}
-
-impl Default for Publication {
-    fn default() -> Publication {
-        Publication {
-            publication_id: Default::default(),
-            publication_type: PublicationType::Paperback,
-            work_id: Default::default(),
-            isbn: None,
-            publication_url: None,
-            prices: Default::default(),
-            work: Default::default(),
         }
     }
 }

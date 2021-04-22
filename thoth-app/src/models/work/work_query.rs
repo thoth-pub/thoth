@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::imprint::model::ImprintExtended as Imprint;
 use uuid::Uuid;
 
-use super::super::imprint::Imprint;
 use super::Work;
 use super::WorkStatusDefinition;
 use super::WorkTypeDefinition;

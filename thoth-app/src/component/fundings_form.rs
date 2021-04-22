@@ -1,4 +1,5 @@
 use thoth_api::funder::model::Funder;
+use thoth_api::funding::model::FundingExtended as Funding;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -29,7 +30,6 @@ use crate::models::funding::delete_funding_mutation::DeleteFundingRequestBody;
 use crate::models::funding::delete_funding_mutation::PushActionDeleteFunding;
 use crate::models::funding::delete_funding_mutation::PushDeleteFunding;
 use crate::models::funding::delete_funding_mutation::Variables as DeleteVariables;
-use crate::models::funding::Funding;
 use crate::models::Dropdown;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_FUNDINGS;

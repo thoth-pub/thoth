@@ -1,4 +1,5 @@
 use thoth_api::contribution::model::ContributionType;
+use thoth_api::imprint::model::ImprintExtended as Imprint;
 use thoth_api::language::model::LanguageCode;
 use thoth_api::language::model::LanguageRelation;
 use thoth_api::price::model::CurrencyCode;
@@ -21,7 +22,6 @@ use yewtil::Pure;
 use yewtil::PureComponent;
 
 use crate::models::contribution::ContributionTypeValues;
-use crate::models::imprint::Imprint;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
 use crate::models::price::CurrencyCodeValues;

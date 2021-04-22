@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::issue::model::IssueExtended as Issue;
 use uuid::Uuid;
-
-use super::Issue;
 
 const CREATE_ISSUE_MUTATION: &str = "
     mutation CreateIssue(

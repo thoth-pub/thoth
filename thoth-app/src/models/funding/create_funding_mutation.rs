@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::funding::model::FundingExtended as Funding;
 use uuid::Uuid;
-
-use super::Funding;
 
 const CREATE_FUNDING_MUTATION: &str = "
     mutation CreateFunding(

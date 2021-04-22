@@ -1,9 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::publication::model::PublicationExtended as Publication;
 use thoth_api::publication::model::PublicationType;
 use uuid::Uuid;
-
-use super::Publication;
 
 const CREATE_PUBLICATION_MUTATION: &str = "
     mutation CreatePublication(
