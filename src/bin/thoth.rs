@@ -5,14 +5,9 @@ use dotenv::dotenv;
 
 use thoth::server::api::start_server as api_server;
 use thoth::server::app::start_server as app_server;
-use thoth_api::account::model::AccountData;
-use thoth_api::account::model::LinkedPublisher;
-use thoth_api::account::service::all_emails;
-use thoth_api::account::service::all_publishers;
-use thoth_api::account::service::register;
-use thoth_api::account::service::update_password;
-use thoth_api::db::establish_connection;
-use thoth_api::db::run_migrations;
+use thoth_api::account::model::{AccountData, LinkedPublisher};
+use thoth_api::account::service::{all_emails, all_publishers, register, update_password};
+use thoth_api::db::{establish_connection, run_migrations};
 use thoth_api::errors::ThothResult;
 
 fn main() -> ThothResult<()> {
