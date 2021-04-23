@@ -22,7 +22,7 @@ impl HistoryEntry for ImprintHistory {
     fn new(entity: &Self::MainEntity, account_id: &uuid::Uuid) -> Self::NewEntity {
         Self::NewEntity {
             imprint_id: entity.imprint_id,
-            account_id: account_id.clone(),
+            account_id: *account_id,
             data: serde_json::Value::String(serde_json::to_string(&entity).unwrap()),
         }
     }
