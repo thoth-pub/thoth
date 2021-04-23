@@ -13,7 +13,7 @@ use crate::account::model::DecodedToken;
 use crate::contribution::model::*;
 use crate::contributor::model::*;
 use crate::db::PgPool;
-use crate::errors::Result;
+use crate::errors::ThothResult;
 use crate::errors::ThothError;
 use crate::funder::model::*;
 use crate::funding::model::*;
@@ -4230,7 +4230,7 @@ pub fn create_schema() -> Schema {
     Schema::new(QueryRoot {}, MutationRoot {})
 }
 
-fn user_can_edit_imprint(imprint_id: Uuid, context: &Context) -> Result<()> {
+fn user_can_edit_imprint(imprint_id: Uuid, context: &Context) -> ThothResult<()> {
     use crate::schema::imprint::dsl;
     let pub_id = dsl::imprint
         .select(dsl::publisher_id)
@@ -4240,7 +4240,7 @@ fn user_can_edit_imprint(imprint_id: Uuid, context: &Context) -> Result<()> {
     context.account_access.can_edit(pub_id)
 }
 
-fn user_can_edit_work(work_id: Uuid, context: &Context) -> Result<()> {
+fn user_can_edit_work(work_id: Uuid, context: &Context) -> ThothResult<()> {
     use crate::schema::imprint::dsl::*;
     let pub_id = imprint
         .inner_join(crate::schema::work::table)
@@ -4251,7 +4251,7 @@ fn user_can_edit_work(work_id: Uuid, context: &Context) -> Result<()> {
     context.account_access.can_edit(pub_id)
 }
 
-fn user_can_edit_publication(publication_id: Uuid, context: &Context) -> Result<()> {
+fn user_can_edit_publication(publication_id: Uuid, context: &Context) -> ThothResult<()> {
     use crate::schema::imprint::dsl::*;
     let pub_id = imprint
         .inner_join(crate::schema::work::table.inner_join(crate::schema::publication::table))
@@ -4262,7 +4262,7 @@ fn user_can_edit_publication(publication_id: Uuid, context: &Context) -> Result<
     context.account_access.can_edit(pub_id)
 }
 
-fn issue_imprints_match(work_id: Uuid, series_id: Uuid, context: &Context) -> Result<()> {
+fn issue_imprints_match(work_id: Uuid, series_id: Uuid, context: &Context) -> ThothResult<()> {
     let series_imprint = crate::schema::series::table
         .select(crate::schema::series::imprint_id)
         .filter(crate::schema::series::series_id.eq(series_id))
@@ -4280,7 +4280,7 @@ fn issue_imprints_match(work_id: Uuid, series_id: Uuid, context: &Context) -> Re
     }
 }
 
-fn can_update_work_imprint(work_id: Uuid, context: &Context) -> Result<()> {
+fn can_update_work_imprint(work_id: Uuid, context: &Context) -> ThothResult<()> {
     use crate::schema::issue::dsl;
     // see comment in work_count()
     let issue_count = dsl::issue

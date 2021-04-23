@@ -13,7 +13,7 @@ use thoth_client::work::work_query::WorkStatus;
 use xml::writer::events::StartElementBuilder;
 use xml::writer::{EmitterConfig, EventWriter, Result, XmlEvent};
 
-pub fn generate_onix_3(mut work: WorkQueryWork) -> errors::Result<Vec<u8>> {
+pub fn generate_onix_3(mut work: WorkQueryWork) -> errors::ThothResult<Vec<u8>> {
     let mut buffer = Vec::new();
     let mut writer = EmitterConfig::new()
         .perform_indent(true)

@@ -13,9 +13,9 @@ use thoth_api::account::service::register;
 use thoth_api::account::service::update_password;
 use thoth_api::db::establish_connection;
 use thoth_api::db::run_migrations;
-use thoth_api::errors::Result;
+use thoth_api::errors::ThothResult;
 
-fn main() -> Result<()> {
+fn main() -> ThothResult<()> {
     let matches = App::new(env!("CARGO_PKG_NAME"))
         .version(crate_version!())
         .author(crate_authors!("\n"))

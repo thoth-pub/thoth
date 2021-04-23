@@ -31,7 +31,7 @@ pub fn establish_connection() -> PgPool {
     init_pool(&database_url)
 }
 
-pub fn run_migrations() -> errors::Result<()> {
+pub fn run_migrations() -> errors::ThothResult<()> {
     embed_migrations!("migrations");
     let connection = establish_connection().get().unwrap();
     match embedded_migrations::run_with_output(&connection, &mut io::stdout()) {

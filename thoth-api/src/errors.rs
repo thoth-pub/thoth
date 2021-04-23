@@ -4,7 +4,6 @@ use actix_web::{error::ResponseError, HttpResponse};
 use diesel::result::Error as DBError;
 use failure::Fail;
 
-pub type Result<T> = std::result::Result<T, failure::Error>;
 /// A specialised result type for any returning Thoth data
 pub type ThothResult<T> = std::result::Result<T, ThothError>;
 
