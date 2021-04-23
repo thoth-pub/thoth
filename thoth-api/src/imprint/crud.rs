@@ -1,7 +1,7 @@
-use super::model::{NewImprint, PatchImprint, Imprint, NewImprintHistory};
-use crate::schema::imprint;
+use super::model::{Imprint, NewImprint, NewImprintHistory, PatchImprint};
 use crate::crud_methods;
 pub use crate::model::Crud;
+use crate::schema::imprint;
 
 impl Crud for Imprint {
     type NewEntity = NewImprint;
