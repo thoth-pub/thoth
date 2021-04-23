@@ -2,7 +2,7 @@ use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
+use crate::errors::{ThothError, ThothResult};
 use crate::language::model::Language;
 use crate::language::model::LanguageHistory;
 use crate::language::model::NewLanguageHistory;
@@ -17,7 +17,7 @@ impl NewLanguageHistory {
         }
     }
 
-    pub fn insert(&self, connection: &PgConnection) -> Result<LanguageHistory, ThothError> {
+    pub fn insert(&self, connection: &PgConnection) -> ThothResult<LanguageHistory> {
         match diesel::insert_into(language_history::table)
             .values(self)
             .get_result(connection)

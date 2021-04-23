@@ -2,7 +2,7 @@ use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
+use crate::errors::{ThothError, ThothResult};
 use crate::funder::model::Funder;
 use crate::funder::model::FunderHistory;
 use crate::funder::model::NewFunderHistory;
@@ -17,7 +17,7 @@ impl NewFunderHistory {
         }
     }
 
-    pub fn insert(&self, connection: &PgConnection) -> Result<FunderHistory, ThothError> {
+    pub fn insert(&self, connection: &PgConnection) -> ThothResult<FunderHistory> {
         match diesel::insert_into(funder_history::table)
             .values(self)
             .get_result(connection)

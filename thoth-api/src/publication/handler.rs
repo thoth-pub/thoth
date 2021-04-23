@@ -2,7 +2,7 @@ use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
+use crate::errors::{ThothError, ThothResult};
 use crate::publication::model::NewPublicationHistory;
 use crate::publication::model::Publication;
 use crate::publication::model::PublicationHistory;
@@ -17,7 +17,7 @@ impl NewPublicationHistory {
         }
     }
 
-    pub fn insert(&self, connection: &PgConnection) -> Result<PublicationHistory, ThothError> {
+    pub fn insert(&self, connection: &PgConnection) -> ThothResult<PublicationHistory> {
         match diesel::insert_into(publication_history::table)
             .values(self)
             .get_result(connection)

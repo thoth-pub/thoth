@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::contribution::model::Contribution;
 use crate::contribution::model::ContributionHistory;
 use crate::contribution::model::NewContributionHistory;
-use crate::errors::ThothError;
+use crate::errors::{ThothError, ThothResult};
 use crate::schema::contribution_history;
 
 impl NewContributionHistory {
@@ -19,7 +19,7 @@ impl NewContributionHistory {
         }
     }
 
-    pub fn insert(&self, connection: &PgConnection) -> Result<ContributionHistory, ThothError> {
+    pub fn insert(&self, connection: &PgConnection) -> ThothResult<ContributionHistory> {
         match diesel::insert_into(contribution_history::table)
             .values(self)
             .get_result(connection)

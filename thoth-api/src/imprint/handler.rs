@@ -2,7 +2,7 @@ use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
+use crate::errors::{ThothError, ThothResult};
 use crate::imprint::model::Imprint;
 use crate::imprint::model::ImprintHistory;
 use crate::imprint::model::NewImprintHistory;
@@ -17,7 +17,7 @@ impl NewImprintHistory {
         }
     }
 
-    pub fn insert(&self, connection: &PgConnection) -> Result<ImprintHistory, ThothError> {
+    pub fn insert(&self, connection: &PgConnection) -> ThothResult<ImprintHistory> {
         match diesel::insert_into(imprint_history::table)
             .values(self)
             .get_result(connection)

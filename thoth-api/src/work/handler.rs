@@ -2,7 +2,7 @@ use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
+use crate::errors::{ThothError, ThothResult};
 use crate::schema::work_history;
 use crate::work::model::NewWorkHistory;
 use crate::work::model::Work;
@@ -17,7 +17,7 @@ impl NewWorkHistory {
         }
     }
 
-    pub fn insert(&self, connection: &PgConnection) -> Result<WorkHistory, ThothError> {
+    pub fn insert(&self, connection: &PgConnection) -> ThothResult<WorkHistory> {
         match diesel::insert_into(work_history::table)
             .values(self)
             .get_result(connection)
