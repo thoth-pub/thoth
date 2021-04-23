@@ -30,6 +30,30 @@ where
     fn delete(self, db: &crate::db::PgPool) -> crate::errors::ThothResult<Self>;
 }
 
+#[cfg(feature = "backend")]
+/// Common functionality to store history
+pub trait HistoryEntry
+where
+    Self: Sized,
+{
+    /// The structure for which we are creating a history, e.g. `Imprint`
+    type MainEntity;
+    /// The structured used to create a new history entity, e.g. `NewImprint`
+    type NewEntity;
+
+    fn new(entity: &Self::MainEntity, account_id: &uuid::Uuid) -> Self::NewEntity;
+}
+
+pub trait DbInsert
+where
+    Self: Sized,
+{
+    /// The structure that is returned by the insert statement
+    type MainEntity;
+
+    fn insert(&self, connection: &diesel::PgConnection) -> crate::errors::ThothResult<Self::MainEntity>;
+}
+
 /// Declares function implementations for the `Crud` trait, reducing the boilerplate needed to define
 /// the CRUD functionality for each entity.
 ///
@@ -104,7 +128,7 @@ macro_rules! crud_methods {
                     .get_result(&connection)
                 {
                     Ok(c) => {
-                        match $history_entity::new(self, account_id.clone()).insert(&connection) {
+                        match $history_entity::new(self, &account_id).insert(&connection) {
                             Ok(_) => Ok(c),
                             Err(e) => Err(e),
                         }
@@ -120,6 +144,43 @@ macro_rules! crud_methods {
             let connection = db.get().unwrap();
             match diesel::delete($entity_dsl.find(&self.pk())).execute(&connection) {
                 Ok(_) => Ok(self),
+                Err(e) => Err(crate::errors::ThothError::from(e)),
+            }
+        }
+    };
+}
+
+/// Declares an insert function implementation for any insertable. Useful together with the
+/// `DbInsert` trait.
+///
+/// Example usage
+/// -------------
+///
+/// ```ignore
+/// use crate::imprint::model::{ImprintHistory, NewImprintHistory};
+/// use crate::db_insert;
+/// use crate::model::DbInsert;
+///
+/// impl DbInsert for NewImprintHistory {
+///    type MainEntity = ImprintHistory;
+///
+///    db_insert!(imprint_history::table);
+///}
+/// ```
+///
+///
+#[cfg(feature = "backend")]
+#[macro_export]
+macro_rules! db_insert {
+    ($table_dsl:expr) => {
+        fn insert(&self, connection: &diesel::PgConnection) -> crate::errors::ThothResult<Self::MainEntity> {
+            use diesel::RunQueryDsl;
+
+            match diesel::insert_into($table_dsl)
+                .values(self)
+                .get_result(connection)
+            {
+                Ok(t) => Ok(t),
                 Err(e) => Err(crate::errors::ThothError::from(e)),
             }
         }
