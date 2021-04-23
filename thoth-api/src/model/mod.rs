@@ -51,7 +51,10 @@ where
     /// The structure that is returned by the insert statement
     type MainEntity;
 
-    fn insert(&self, connection: &diesel::PgConnection) -> crate::errors::ThothResult<Self::MainEntity>;
+    fn insert(
+        &self,
+        connection: &diesel::PgConnection,
+    ) -> crate::errors::ThothResult<Self::MainEntity>;
 }
 
 /// Declares function implementations for the `Crud` trait, reducing the boilerplate needed to define
@@ -127,12 +130,10 @@ macro_rules! crud_methods {
                     .set(data)
                     .get_result(&connection)
                 {
-                    Ok(c) => {
-                        match $history_entity::new(self, &account_id).insert(&connection) {
-                            Ok(_) => Ok(c),
-                            Err(e) => Err(e),
-                        }
-                    }
+                    Ok(c) => match $history_entity::new(self, &account_id).insert(&connection) {
+                        Ok(_) => Ok(c),
+                        Err(e) => Err(e),
+                    },
                     Err(e) => Err(crate::errors::ThothError::from(e)),
                 }
             })
@@ -173,7 +174,10 @@ macro_rules! crud_methods {
 #[macro_export]
 macro_rules! db_insert {
     ($table_dsl:expr) => {
-        fn insert(&self, connection: &diesel::PgConnection) -> crate::errors::ThothResult<Self::MainEntity> {
+        fn insert(
+            &self,
+            connection: &diesel::PgConnection,
+        ) -> crate::errors::ThothResult<Self::MainEntity> {
             use diesel::RunQueryDsl;
 
             match diesel::insert_into($table_dsl)

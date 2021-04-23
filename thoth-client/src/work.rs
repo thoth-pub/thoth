@@ -13,10 +13,7 @@ use uuid::Uuid;
 )]
 pub struct WorkQuery;
 
-pub async fn get_work(
-    work_id: Uuid,
-    thoth_url: String,
-) -> ThothResult<work_query::WorkQueryWork> {
+pub async fn get_work(work_id: Uuid, thoth_url: String) -> ThothResult<work_query::WorkQueryWork> {
     let request_body = WorkQuery::build_query(work_query::Variables { work_id });
     let client = reqwest::Client::new();
     let res = client.post(&thoth_url).json(&request_body).send().await?;

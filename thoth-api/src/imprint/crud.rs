@@ -1,8 +1,8 @@
-use crate::{db_insert, crud_methods};
-use crate::model::{HistoryEntry, DbInsert};
-use super::model::{Imprint, NewImprint, NewImprintHistory, ImprintHistory, PatchImprint};
+use super::model::{Imprint, ImprintHistory, NewImprint, NewImprintHistory, PatchImprint};
 pub use crate::model::Crud;
+use crate::model::{DbInsert, HistoryEntry};
 use crate::schema::{imprint, imprint_history};
+use crate::{crud_methods, db_insert};
 
 impl Crud for Imprint {
     type NewEntity = NewImprint;
@@ -14,7 +14,6 @@ impl Crud for Imprint {
 
     crud_methods!(imprint::table, imprint::dsl::imprint, ImprintHistory);
 }
-
 
 impl HistoryEntry for ImprintHistory {
     type MainEntity = Imprint;
