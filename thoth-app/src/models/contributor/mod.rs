@@ -12,11 +12,9 @@ use crate::route::AppRoute;
 impl Dropdown for Contributor {}
 
 impl MetadataObject for Contributor {
-
     fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewContributor)
     }
-
 
     fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Contributor(self.contributor_id))
