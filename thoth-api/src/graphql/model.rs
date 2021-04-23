@@ -4276,7 +4276,7 @@ fn issue_imprints_match(work_id: Uuid, series_id: Uuid, context: &Context) -> Th
     if work_imprint == series_imprint {
         Ok(())
     } else {
-        Err(ThothError::IssueImprintsError.into())
+        Err(ThothError::IssueImprintsError)
     }
 }
 
@@ -4296,6 +4296,6 @@ fn can_update_work_imprint(work_id: Uuid, context: &Context) -> ThothResult<()> 
     if issue_count == 0 {
         Ok(())
     } else {
-        Err(ThothError::IssueImprintsError.into())
+        Err(ThothError::IssueImprintsError)
     }
 }

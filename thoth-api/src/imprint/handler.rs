@@ -11,7 +11,7 @@ use crate::schema::imprint_history;
 impl NewImprintHistory {
     pub fn new(imprint: &Imprint, account_id: Uuid) -> Self {
         Self {
-            imprint_id: imprint.imprint_id.clone(),
+            imprint_id: imprint.imprint_id,
             account_id,
             data: serde_json::Value::String(serde_json::to_string(&imprint).unwrap()),
         }

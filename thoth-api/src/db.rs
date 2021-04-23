@@ -6,7 +6,7 @@ use diesel::r2d2::{ConnectionManager, Pool};
 use diesel_migrations::embed_migrations;
 use dotenv::dotenv;
 
-use crate::errors;
+use crate::errors::{ThothError, ThothResult};
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -31,13 +31,13 @@ pub fn establish_connection() -> PgPool {
     init_pool(&database_url)
 }
 
-pub fn run_migrations() -> errors::ThothResult<()> {
+pub fn run_migrations() -> ThothResult<()> {
     embed_migrations!("migrations");
     let connection = establish_connection().get().unwrap();
     match embedded_migrations::run_with_output(&connection, &mut io::stdout()) {
         Ok(_) => Ok(()),
-        Err(_) => {
-            Err(errors::ThothError::DatabaseError("Could not run migrations".to_string()).into())
-        }
+        Err(_) => Err(ThothError::DatabaseError(
+            "Could not run migrations".to_string(),
+        )),
     }
 }

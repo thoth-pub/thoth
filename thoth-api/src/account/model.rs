@@ -147,7 +147,7 @@ impl AccountAccess {
         {
             Ok(())
         } else {
-            Err(ThothError::Unauthorised.into())
+            Err(ThothError::Unauthorised)
         }
     }
 

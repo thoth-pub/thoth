@@ -1,5 +1,4 @@
 use diesel::prelude::*;
-use std::result::Result;
 
 use crate::account::model::Account;
 use crate::account::model::AccountData;
@@ -11,10 +10,10 @@ use crate::account::model::NewPublisherAccount;
 use crate::account::model::PublisherAccount;
 use crate::account::util::verify;
 use crate::db::PgPool;
-use crate::errors::ThothError;
+use crate::errors::{ThothError, ThothResult};
 use crate::publisher::model::Publisher;
 
-pub fn login(user_email: &str, user_password: &str, pool: &PgPool) -> Result<Account, ThothError> {
+pub fn login(user_email: &str, user_password: &str, pool: &PgPool) -> ThothResult<Account> {
     use crate::schema::account::dsl;
 
     let conn = pool.get().unwrap();
@@ -30,7 +29,7 @@ pub fn login(user_email: &str, user_password: &str, pool: &PgPool) -> Result<Acc
     }
 }
 
-pub fn get_account(email: &str, pool: &PgPool) -> Result<Account, ThothError> {
+pub fn get_account(email: &str, pool: &PgPool) -> ThothResult<Account> {
     use crate::schema::account::dsl;
 
     let conn = pool.get().unwrap();
@@ -41,7 +40,7 @@ pub fn get_account(email: &str, pool: &PgPool) -> Result<Account, ThothError> {
     Ok(account)
 }
 
-pub fn get_account_details(email: &str, pool: &PgPool) -> Result<AccountDetails, ThothError> {
+pub fn get_account_details(email: &str, pool: &PgPool) -> ThothResult<AccountDetails> {
     use crate::schema::account::dsl;
 
     let conn = pool.get().unwrap();
@@ -69,7 +68,7 @@ pub fn register(
     account_data: AccountData,
     linked_publishers: Vec<LinkedPublisher>,
     pool: &PgPool,
-) -> Result<Account, ThothError> {
+) -> ThothResult<Account> {
     use crate::schema;
 
     let connection = pool.get().unwrap();
@@ -90,7 +89,7 @@ pub fn register(
     Ok(created_account)
 }
 
-pub fn all_emails(pool: &PgPool) -> Result<Vec<String>, ThothError> {
+pub fn all_emails(pool: &PgPool) -> ThothResult<Vec<String>> {
     let connection = pool.get().unwrap();
 
     use crate::schema::account::dsl;
@@ -102,7 +101,7 @@ pub fn all_emails(pool: &PgPool) -> Result<Vec<String>, ThothError> {
     Ok(emails)
 }
 
-pub fn all_publishers(pool: &PgPool) -> Result<Vec<Publisher>, ThothError> {
+pub fn all_publishers(pool: &PgPool) -> ThothResult<Vec<Publisher>> {
     let connection = pool.get().unwrap();
 
     use crate::schema::publisher::dsl;
@@ -113,7 +112,7 @@ pub fn all_publishers(pool: &PgPool) -> Result<Vec<Publisher>, ThothError> {
     Ok(publishers)
 }
 
-pub fn update_password(email: &str, password: &str, pool: &PgPool) -> Result<Account, ThothError> {
+pub fn update_password(email: &str, password: &str, pool: &PgPool) -> ThothResult<Account> {
     let connection = pool.get().unwrap();
 
     let new_password = NewPassword::new(email.to_string(), password.to_string());

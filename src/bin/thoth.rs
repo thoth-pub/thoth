@@ -157,7 +157,7 @@ fn main() -> ThothResult<()> {
                 };
                 match register(account_data, linked_publishers, &pool) {
                     Ok(_) => Ok(()),
-                    Err(e) => Err(e.into()),
+                    Err(e) => Err(e),
                 }
             }
             ("password", Some(_)) => {
@@ -180,7 +180,7 @@ fn main() -> ThothResult<()> {
                 let pool = establish_connection();
                 match update_password(&email, &password, &pool) {
                     Ok(_) => Ok(()),
-                    Err(e) => Err(e.into()),
+                    Err(e) => Err(e),
                 }
             }
             _ => unreachable!(),

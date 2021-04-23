@@ -115,7 +115,10 @@ pub fn check_subject(subject_type: &SubjectType, code: &str) -> ThothResult<()> 
     if valid {
         Ok(())
     } else {
-        Err(ThothError::InvalidSubjectCode(code.to_string(), subject_type.to_string()).into())
+        Err(ThothError::InvalidSubjectCode(
+            code.to_string(),
+            subject_type.to_string(),
+        ))
     }
 }
 
