@@ -170,7 +170,6 @@ impl Component for LanguagesFormComponent {
                             let mut languages: Vec<Language> =
                                 self.props.languages.clone().unwrap_or_default();
                             languages.push(language);
-                            self.new_language = Default::default();
                             self.props.update_languages.emit(Some(languages));
                             self.link.send_message(Msg::ToggleAddFormDisplay(false));
                             true

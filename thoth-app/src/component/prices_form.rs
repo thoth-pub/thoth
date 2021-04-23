@@ -135,7 +135,6 @@ impl Component for PricesFormComponent {
                             let mut prices: Vec<Price> =
                                 self.props.prices.clone().unwrap_or_default();
                             prices.push(price);
-                            self.new_price = Default::default();
                             self.props.update_prices.emit(Some(prices));
                             self.link.send_message(Msg::ToggleAddFormDisplay(false));
                             true
