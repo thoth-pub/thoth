@@ -33,3 +33,37 @@ impl DbInsert for NewImprintHistory {
 
     db_insert!(imprint_history::table);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl Default for Imprint {
+        fn default() -> Self {
+            Imprint {
+                imprint_id: Default::default(),
+                publisher_id: Default::default(),
+                imprint_name: Default::default(),
+                imprint_url: Default::default(),
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_imprint_pk() {
+        let imprint: Imprint = Default::default();
+        assert_eq!(imprint.pk(), imprint.imprint_id);
+    }
+
+    #[test]
+    fn test_new_imprint_history_from_imprint() {
+        let imprint: Imprint = Default::default();
+        let account_id: uuid::Uuid = Default::default();
+        let new_imprint_history = ImprintHistory::new(&imprint, &account_id);
+        assert_eq!(new_imprint_history.imprint_id, imprint.imprint_id);
+        assert_eq!(new_imprint_history.account_id, account_id);
+        assert_eq!(new_imprint_history.data, serde_json::Value::String(serde_json::to_string(&imprint).unwrap()));
+    }
+}
