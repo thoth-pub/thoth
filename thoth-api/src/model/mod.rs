@@ -44,6 +44,7 @@ where
     fn new(entity: &Self::MainEntity, account_id: &uuid::Uuid) -> Self::NewEntity;
 }
 
+#[cfg(feature = "backend")]
 pub trait DbInsert
 where
     Self: Sized,
