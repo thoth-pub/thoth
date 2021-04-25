@@ -825,28 +825,7 @@ impl QueryRoot {
         )
     )]
     fn imprint_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> i32 {
-        use crate::schema::imprint::dsl::*;
-        let connection = context.db.get().unwrap();
-        let mut query = imprint.into_boxed();
-        // Ordering and construction of filters is important here: result needs to be
-        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
-        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(publisher_id.eq(pub_id));
-        }
-        // see comment in work_count()
-        query
-            .filter(
-                imprint_name
-                    .ilike(format!("%{}%", filter))
-                    .or(imprint_url.ilike(format!("%{}%", filter))),
-            )
-            .count()
-            .get_result::<i64>(&connection)
-            .expect("Error loading imprint count")
-            .to_string()
-            .parse::<i32>()
-            .unwrap()
+        Imprint::count(&context.db, Some(filter), publishers)
     }
 
     #[graphql(

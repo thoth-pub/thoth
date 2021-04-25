@@ -33,6 +33,8 @@ where
         _filter_param: Option<Self::OptionalParameter>,
     ) -> crate::errors::ThothResult<Vec<Self>>;
 
+    fn count(db: &crate::db::PgPool, filter: Option<String>, publishers: Vec<uuid::Uuid>,) -> i32;
+
     /// Query the database to obtain an instance of the entity given its ID
     fn from_id(db: &crate::db::PgPool, entity_id: &uuid::Uuid) -> crate::errors::ThothResult<Self>;
 

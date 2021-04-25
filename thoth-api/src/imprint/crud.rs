@@ -81,6 +81,37 @@ impl Crud for Imprint {
         }
     }
 
+    fn count(db: &crate::db::PgPool, filter: Option<String>, publishers: Vec<uuid::Uuid>) -> i32 {
+        use crate::schema::imprint::dsl::*;
+        use diesel::{
+            BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl,
+            RunQueryDsl,
+        };
+        let connection = db.get().unwrap();
+
+        let mut query = imprint.into_boxed();
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(publisher_id.eq(pub_id));
+        }
+        if let Some(filter) = filter {
+            query = query.filter(
+                imprint_name
+                    .ilike(format!("%{}%", filter))
+                    .or(imprint_url.ilike(format!("%{}%", filter))),
+            )
+        }
+        query
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading imprint count")
+            .to_string()
+            .parse::<i32>()
+            .unwrap()
+    }
+
     crud_methods!(imprint::table, imprint::dsl::imprint, ImprintHistory);
 }
 
