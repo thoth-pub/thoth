@@ -3,6 +3,71 @@ pub use crate::model::Crud;
 use crate::model::{DbInsert, HistoryEntry};
 use crate::schema::{imprint, imprint_history};
 use crate::{crud_methods, db_insert};
+use crate::work::model::WorkType;
+use crate::imprint::model::{ImprintOrderBy, ImprintField};
+use crate::graphql::utils::Direction;
+use crate::errors::ThothError;
+
+impl Imprint {
+    pub(crate) fn get_all(
+        db: &crate::db::PgPool,
+        limit: i32,
+        offset: i32,
+        filter: String,
+        order: ImprintOrderBy,
+        publishers: Vec<uuid::Uuid>,
+        work_type: Option<WorkType>
+    ) -> crate::errors::ThothResult<Vec<Imprint>> {
+        if work_type.is_some() {
+            unreachable!()
+        }
+        use diesel::{QueryDsl, RunQueryDsl, ExpressionMethods, PgTextExpressionMethods, BoolExpressionMethods};
+        use crate::schema::imprint::dsl::*;
+        let connection = db.get().unwrap();
+
+        let mut query = imprint.into_boxed();
+        match order.field {
+            ImprintField::ImprintId => match order.direction {
+                Direction::Asc => query = query.order(imprint_id.asc()),
+                Direction::Desc => query = query.order(imprint_id.desc()),
+            },
+            ImprintField::ImprintName => match order.direction {
+                Direction::Asc => query = query.order(imprint_name.asc()),
+                Direction::Desc => query = query.order(imprint_name.desc()),
+            },
+            ImprintField::ImprintUrl => match order.direction {
+                Direction::Asc => query = query.order(imprint_url.asc()),
+                Direction::Desc => query = query.order(imprint_url.desc()),
+            },
+            ImprintField::CreatedAt => match order.direction {
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
+            },
+            ImprintField::UpdatedAt => match order.direction {
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
+            },
+        }
+        // Ordering and construction of filters is important here: result needs to be
+        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
+        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
+        for pub_id in publishers {
+            query = query.or_filter(publisher_id.eq(pub_id));
+        }
+        match query
+            .filter(
+                imprint_name
+                    .ilike(format!("%{}%", filter))
+                    .or(imprint_url.ilike(format!("%{}%", filter))),
+            )
+            .limit(limit.into())
+            .offset(offset.into())
+            .load::<Imprint>(&connection) {
+            Ok(t) => Ok(t),
+            Err(e) => Err(crate::errors::ThothError::from(e)),
+        }
+    }
+}
 
 impl Crud for Imprint {
     type NewEntity = NewImprint;

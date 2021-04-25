@@ -782,48 +782,12 @@ impl QueryRoot {
         filter: String,
         order: ImprintOrderBy,
         publishers: Vec<Uuid>,
-    ) -> Vec<Imprint> {
-        use crate::schema::imprint::dsl::*;
+    ) -> FieldResult<Vec<Imprint>> {
         let connection = context.db.get().unwrap();
-        let mut query = imprint.into_boxed();
-        match order.field {
-            ImprintField::ImprintId => match order.direction {
-                Direction::Asc => query = query.order(imprint_id.asc()),
-                Direction::Desc => query = query.order(imprint_id.desc()),
-            },
-            ImprintField::ImprintName => match order.direction {
-                Direction::Asc => query = query.order(imprint_name.asc()),
-                Direction::Desc => query = query.order(imprint_name.desc()),
-            },
-            ImprintField::ImprintUrl => match order.direction {
-                Direction::Asc => query = query.order(imprint_url.asc()),
-                Direction::Desc => query = query.order(imprint_url.desc()),
-            },
-            ImprintField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
-            },
-            ImprintField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
-            },
+        match Imprint::get_all(&context.db, limit, offset, filter, order, publishers, None) {
+            Ok(t) => Ok(t),
+            Err(e) => Err(FieldError::from(e))
         }
-        // Ordering and construction of filters is important here: result needs to be
-        // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
-        // Interchanging .filter, .or, and .or_filter would result in different bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(publisher_id.eq(pub_id));
-        }
-        query
-            .filter(
-                imprint_name
-                    .ilike(format!("%{}%", filter))
-                    .or(imprint_url.ilike(format!("%{}%", filter))),
-            )
-            .limit(limit.into())
-            .offset(offset.into())
-            .load::<Imprint>(&connection)
-            .expect("Error loading imprints")
     }
 
     #[graphql(description = "Query a single imprint using its id")]
