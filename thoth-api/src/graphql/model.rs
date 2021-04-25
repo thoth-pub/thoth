@@ -784,9 +784,18 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
     ) -> FieldResult<Vec<Imprint>> {
         let connection = context.db.get().unwrap();
-        match Imprint::all(&context.db, limit, offset, filter, order, publishers, None,None) {
+        match Imprint::all(
+            &context.db,
+            limit,
+            offset,
+            filter,
+            order,
+            publishers,
+            None,
+            None,
+        ) {
             Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e))
+            Err(e) => Err(FieldError::from(e)),
         }
     }
 
@@ -3371,7 +3380,16 @@ impl Publisher {
         filter: String,
         order: ImprintOrderBy,
     ) -> FieldResult<Vec<Imprint>> {
-        match Imprint::all(&context.db, limit, offset, filter, order, vec![], Some(self.publisher_id), None) {
+        match Imprint::all(
+            &context.db,
+            limit,
+            offset,
+            filter,
+            order,
+            vec![],
+            Some(self.publisher_id),
+            None,
+        ) {
             Ok(t) => Ok(t),
             Err(e) => Err(FieldError::from(e)),
         }

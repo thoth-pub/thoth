@@ -30,7 +30,7 @@ where
         order: Self::OrderByEntity,
         publishers: Vec<uuid::Uuid>,
         _parent_id: Option<uuid::Uuid>,
-        _filter_param: Option<Self::OptionalParameter>
+        _filter_param: Option<Self::OptionalParameter>,
     ) -> crate::errors::ThothResult<Vec<Self>>;
 
     /// Query the database to obtain an instance of the entity given its ID

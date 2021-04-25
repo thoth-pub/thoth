@@ -1,10 +1,10 @@
 use super::model::{Imprint, ImprintHistory, NewImprint, NewImprintHistory, PatchImprint};
+use crate::graphql::utils::Direction;
+use crate::imprint::model::{ImprintField, ImprintOrderBy};
 pub use crate::model::Crud;
 use crate::model::{DbInsert, HistoryEntry};
 use crate::schema::{imprint, imprint_history};
 use crate::{crud_methods, db_insert};
-use crate::imprint::model::{ImprintOrderBy, ImprintField};
-use crate::graphql::utils::Direction;
 
 impl Crud for Imprint {
     type NewEntity = NewImprint;
@@ -24,10 +24,13 @@ impl Crud for Imprint {
         order: Self::OrderByEntity,
         publishers: Vec<uuid::Uuid>,
         parent_id: Option<uuid::Uuid>,
-        _filter_param: Option<Self::OptionalParameter>
+        _filter_param: Option<Self::OptionalParameter>,
     ) -> crate::errors::ThothResult<Vec<Imprint>> {
-        use diesel::{QueryDsl, RunQueryDsl, ExpressionMethods, PgTextExpressionMethods, BoolExpressionMethods};
         use crate::schema::imprint::dsl::*;
+        use diesel::{
+            BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl,
+            RunQueryDsl,
+        };
         let connection = db.get().unwrap();
 
         let mut query = imprint.into_boxed();
@@ -71,7 +74,8 @@ impl Crud for Imprint {
             )
             .limit(limit.into())
             .offset(offset.into())
-            .load::<Imprint>(&connection) {
+            .load::<Imprint>(&connection)
+        {
             Ok(t) => Ok(t),
             Err(e) => Err(crate::errors::ThothError::from(e)),
         }
