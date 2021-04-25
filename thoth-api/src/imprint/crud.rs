@@ -64,6 +64,9 @@ mod tests {
         let new_imprint_history = ImprintHistory::new(&imprint, &account_id);
         assert_eq!(new_imprint_history.imprint_id, imprint.imprint_id);
         assert_eq!(new_imprint_history.account_id, account_id);
-        assert_eq!(new_imprint_history.data, serde_json::Value::String(serde_json::to_string(&imprint).unwrap()));
+        assert_eq!(
+            new_imprint_history.data,
+            serde_json::Value::String(serde_json::to_string(&imprint).unwrap())
+        );
     }
 }
