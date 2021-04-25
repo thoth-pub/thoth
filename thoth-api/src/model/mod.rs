@@ -35,7 +35,11 @@ where
     ) -> crate::errors::ThothResult<Vec<Self>>;
 
     /// Query the database to obtain the total number of entities satisfying the search criteriac
-    fn count(db: &crate::db::PgPool, filter: Option<String>, publishers: Vec<uuid::Uuid>,) -> crate::errors::ThothResult<i32>;
+    fn count(
+        db: &crate::db::PgPool,
+        filter: Option<String>,
+        publishers: Vec<uuid::Uuid>,
+    ) -> crate::errors::ThothResult<i32>;
 
     /// Query the database to obtain an instance of the entity given its ID
     fn from_id(db: &crate::db::PgPool, entity_id: &uuid::Uuid) -> crate::errors::ThothResult<Self>;

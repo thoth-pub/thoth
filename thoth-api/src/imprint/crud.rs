@@ -81,7 +81,11 @@ impl Crud for Imprint {
         }
     }
 
-    fn count(db: &crate::db::PgPool, filter: Option<String>, publishers: Vec<uuid::Uuid>) -> crate::errors::ThothResult<i32> {
+    fn count(
+        db: &crate::db::PgPool,
+        filter: Option<String>,
+        publishers: Vec<uuid::Uuid>,
+    ) -> crate::errors::ThothResult<i32> {
         use crate::schema::imprint::dsl::*;
         use diesel::{
             BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl,
