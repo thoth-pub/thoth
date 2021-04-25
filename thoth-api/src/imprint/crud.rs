@@ -81,7 +81,7 @@ impl Crud for Imprint {
         }
     }
 
-    fn count(db: &crate::db::PgPool, filter: Option<String>, publishers: Vec<uuid::Uuid>) -> i32 {
+    fn count(db: &crate::db::PgPool, filter: Option<String>, publishers: Vec<uuid::Uuid>) -> crate::errors::ThothResult<i32> {
         use crate::schema::imprint::dsl::*;
         use diesel::{
             BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl,
@@ -103,13 +103,11 @@ impl Crud for Imprint {
                     .or(imprint_url.ilike(format!("%{}%", filter))),
             )
         }
-        query
-            .count()
-            .get_result::<i64>(&connection)
-            .expect("Error loading imprint count")
-            .to_string()
-            .parse::<i32>()
-            .unwrap()
+
+        match query.count().get_result::<i64>(&connection) {
+            Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
+            Err(e) => Err(crate::errors::ThothError::from(e)),
+        }
     }
 
     crud_methods!(imprint::table, imprint::dsl::imprint, ImprintHistory);

@@ -824,8 +824,11 @@ impl QueryRoot {
             ),
         )
     )]
-    fn imprint_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> i32 {
-        Imprint::count(&context.db, Some(filter), publishers)
+    fn imprint_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> FieldResult<i32> {
+        match Imprint::count(&context.db, Some(filter), publishers) {
+            Ok(t) => Ok(t),
+            Err(e) => Err(FieldError::from(e)),
+        }
     }
 
     #[graphql(
