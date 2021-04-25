@@ -22,6 +22,7 @@ where
     ///
     /// `filter_param` is included for filtering by a structure specific parameter,
     /// e.g. `WorkType` for `Work`
+    #[allow(clippy::too-many-arguments)]
     fn all(
         db: &crate::db::PgPool,
         limit: i32,
