@@ -3,29 +3,35 @@ pub use crate::model::Crud;
 use crate::model::{DbInsert, HistoryEntry};
 use crate::schema::{imprint, imprint_history};
 use crate::{crud_methods, db_insert};
-use crate::work::model::WorkType;
 use crate::imprint::model::{ImprintOrderBy, ImprintField};
 use crate::graphql::utils::Direction;
-use crate::errors::ThothError;
 
-impl Imprint {
-    pub(crate) fn get_all(
+impl Crud for Imprint {
+    type NewEntity = NewImprint;
+    type PatchEntity = PatchImprint;
+    type OrderByEntity = ImprintOrderBy;
+    type OptionalParameter = NewImprint;
+
+    fn pk(&self) -> uuid::Uuid {
+        self.imprint_id
+    }
+
+    fn all(
         db: &crate::db::PgPool,
         limit: i32,
         offset: i32,
         filter: String,
-        order: ImprintOrderBy,
+        order: Self::OrderByEntity,
         publishers: Vec<uuid::Uuid>,
-        work_type: Option<WorkType>
+        parent_id: Option<uuid::Uuid>,
+        _filter_param: Option<Self::OptionalParameter>
     ) -> crate::errors::ThothResult<Vec<Imprint>> {
-        if work_type.is_some() {
-            unreachable!()
-        }
         use diesel::{QueryDsl, RunQueryDsl, ExpressionMethods, PgTextExpressionMethods, BoolExpressionMethods};
         use crate::schema::imprint::dsl::*;
         let connection = db.get().unwrap();
 
         let mut query = imprint.into_boxed();
+
         match order.field {
             ImprintField::ImprintId => match order.direction {
                 Direction::Asc => query = query.order(imprint_id.asc()),
@@ -48,6 +54,9 @@ impl Imprint {
                 Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
+        if let Some(pid) = parent_id {
+            query = query.filter(publisher_id.eq(pid));
+        }
         // Ordering and construction of filters is important here: result needs to be
         // `WHERE (x = $1 [OR x = $2...]) AND (y ILIKE $3 [OR z ILIKE $3...])`.
         // Interchanging .filter, .or, and .or_filter would result in different bracketing.
@@ -66,15 +75,6 @@ impl Imprint {
             Ok(t) => Ok(t),
             Err(e) => Err(crate::errors::ThothError::from(e)),
         }
-    }
-}
-
-impl Crud for Imprint {
-    type NewEntity = NewImprint;
-    type PatchEntity = PatchImprint;
-
-    fn pk(&self) -> uuid::Uuid {
-        self.imprint_id
     }
 
     crud_methods!(imprint::table, imprint::dsl::imprint, ImprintHistory);

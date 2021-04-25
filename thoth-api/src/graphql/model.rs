@@ -784,7 +784,7 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
     ) -> FieldResult<Vec<Imprint>> {
         let connection = context.db.get().unwrap();
-        match Imprint::get_all(&context.db, limit, offset, filter, order, publishers, None) {
+        match Imprint::all(&context.db, limit, offset, filter, order, publishers, None,None) {
             Ok(t) => Ok(t),
             Err(e) => Err(FieldError::from(e))
         }
@@ -3346,6 +3346,8 @@ impl Publisher {
     #[graphql(
         description = "Get imprints linked to this publisher",
         arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
             filter(
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url"
@@ -3364,43 +3366,15 @@ impl Publisher {
     pub fn imprints(
         &self,
         context: &Context,
+        limit: i32,
+        offset: i32,
         filter: String,
         order: ImprintOrderBy,
-    ) -> Vec<Imprint> {
-        use crate::schema::imprint::dsl::*;
-        let connection = context.db.get().unwrap();
-        let mut query = imprint.into_boxed();
-        match order.field {
-            ImprintField::ImprintId => match order.direction {
-                Direction::Asc => query = query.order(imprint_id.asc()),
-                Direction::Desc => query = query.order(imprint_id.desc()),
-            },
-            ImprintField::ImprintName => match order.direction {
-                Direction::Asc => query = query.order(imprint_name.asc()),
-                Direction::Desc => query = query.order(imprint_name.desc()),
-            },
-            ImprintField::ImprintUrl => match order.direction {
-                Direction::Asc => query = query.order(imprint_url.asc()),
-                Direction::Desc => query = query.order(imprint_url.desc()),
-            },
-            ImprintField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
-            },
-            ImprintField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
-            },
+    ) -> FieldResult<Vec<Imprint>> {
+        match Imprint::all(&context.db, limit, offset, filter, order, vec![], Some(self.publisher_id), None) {
+            Ok(t) => Ok(t),
+            Err(e) => Err(FieldError::from(e)),
         }
-        query
-            .filter(publisher_id.eq(self.publisher_id))
-            .filter(
-                imprint_name
-                    .ilike(format!("%{}%", filter))
-                    .or(imprint_url.ilike(format!("%{}%", filter))),
-            )
-            .load::<Imprint>(&connection)
-            .expect("Error loading imprints")
     }
 }
 

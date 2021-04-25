@@ -8,9 +8,30 @@ where
     type NewEntity;
     /// The structure used to modify an existing entity, e.g. `PatchImprint`
     type PatchEntity;
+    /// The structure used to sort database results, e.g. `ImprintOrderBy`
+    type OrderByEntity;
+    /// A generic structure to constraint search results, e.g. `WorkType`
+    type OptionalParameter;
 
     /// Specify the entity's primary key
     fn pk(&self) -> uuid::Uuid;
+
+    /// Query the database to obtain a list of entities based on some criteria.
+    ///
+    /// `parent_id` is used, when nesting, to constraint results by a particular foreign key.
+    ///
+    /// `filter_param` is included for filtering by a structure specific parameter,
+    /// e.g. `WorkType` for `Work`
+    fn all(
+        db: &crate::db::PgPool,
+        limit: i32,
+        offset: i32,
+        filter: String,
+        order: Self::OrderByEntity,
+        publishers: Vec<uuid::Uuid>,
+        _parent_id: Option<uuid::Uuid>,
+        _filter_param: Option<Self::OptionalParameter>
+    ) -> crate::errors::ThothResult<Vec<Self>>;
 
     /// Query the database to obtain an instance of the entity given its ID
     fn from_id(db: &crate::db::PgPool, entity_id: &uuid::Uuid) -> crate::errors::ThothResult<Self>;
