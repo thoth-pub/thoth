@@ -10,7 +10,7 @@ impl Crud for Imprint {
     type NewEntity = NewImprint;
     type PatchEntity = PatchImprint;
     type OrderByEntity = ImprintOrderBy;
-    type OptionalParameter = NewImprint;
+    type OptionalParameter = ();
 
     fn pk(&self) -> uuid::Uuid {
         self.imprint_id
