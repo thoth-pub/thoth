@@ -1,4 +1,5 @@
 #[cfg(feature = "backend")]
+#[allow(clippy::too_many_arguments)]
 /// Common functionality to perform basic CRUD actions on Thoth entities
 pub trait Crud
 where
@@ -22,7 +23,6 @@ where
     ///
     /// `filter_param` is included for filtering by a structure specific parameter,
     /// e.g. `WorkType` for `Work`
-    #[allow(clippy::too-many-arguments)]
     fn all(
         db: &crate::db::PgPool,
         limit: i32,
