@@ -1,8 +1,10 @@
-use super::model::{Imprint, ImprintHistory, NewImprint, NewImprintHistory, PatchImprint};
+use super::model::{
+    Imprint, ImprintField, ImprintHistory, ImprintOrderBy, NewImprint, NewImprintHistory,
+    PatchImprint,
+};
+use crate::errors::{ThothError, ThothResult};
 use crate::graphql::utils::Direction;
-use crate::imprint::model::{ImprintField, ImprintOrderBy};
-pub use crate::model::Crud;
-use crate::model::{DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{imprint, imprint_history};
 use crate::{crud_methods, db_insert};
 
@@ -10,7 +12,8 @@ impl Crud for Imprint {
     type NewEntity = NewImprint;
     type PatchEntity = PatchImprint;
     type OrderByEntity = ImprintOrderBy;
-    type OptionalParameter = ();
+    type FilterParameter1 = ();
+    type FilterParameter2 = ();
 
     fn pk(&self) -> uuid::Uuid {
         self.imprint_id
@@ -24,8 +27,9 @@ impl Crud for Imprint {
         order: Self::OrderByEntity,
         publishers: Vec<uuid::Uuid>,
         parent_id: Option<uuid::Uuid>,
-        _filter_param: Option<Self::OptionalParameter>,
-    ) -> crate::errors::ThothResult<Vec<Imprint>> {
+        _filter_param_1: Option<Self::FilterParameter1>,
+        _filter_param_2: Option<Self::FilterParameter2>,
+    ) -> ThothResult<Vec<Imprint>> {
         use crate::schema::imprint::dsl::*;
         use diesel::{
             BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl,
@@ -77,7 +81,7 @@ impl Crud for Imprint {
             .load::<Imprint>(&connection)
         {
             Ok(t) => Ok(t),
-            Err(e) => Err(crate::errors::ThothError::from(e)),
+            Err(e) => Err(ThothError::from(e)),
         }
     }
 
@@ -85,7 +89,9 @@ impl Crud for Imprint {
         db: &crate::db::PgPool,
         filter: Option<String>,
         publishers: Vec<uuid::Uuid>,
-    ) -> crate::errors::ThothResult<i32> {
+        _filter_param_1: Option<Self::FilterParameter1>,
+        _filter_param_2: Option<Self::FilterParameter2>,
+    ) -> ThothResult<i32> {
         use crate::schema::imprint::dsl::*;
         use diesel::{
             BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl,
@@ -110,22 +116,21 @@ impl Crud for Imprint {
 
         match query.count().get_result::<i64>(&connection) {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
-            Err(e) => Err(crate::errors::ThothError::from(e)),
+            Err(e) => Err(ThothError::from(e)),
         }
     }
 
-    crud_methods!(imprint::table, imprint::dsl::imprint, ImprintHistory);
+    crud_methods!(imprint::table, imprint::dsl::imprint);
 }
 
-impl HistoryEntry for ImprintHistory {
-    type MainEntity = Imprint;
-    type NewEntity = NewImprintHistory;
+impl HistoryEntry for Imprint {
+    type NewHistoryEntity = NewImprintHistory;
 
-    fn new(entity: &Self::MainEntity, account_id: &uuid::Uuid) -> Self::NewEntity {
-        Self::NewEntity {
-            imprint_id: entity.imprint_id,
+    fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity {
+        Self::NewHistoryEntity {
+            imprint_id: self.imprint_id,
             account_id: *account_id,
-            data: serde_json::Value::String(serde_json::to_string(&entity).unwrap()),
+            data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
 }
@@ -163,7 +168,7 @@ mod tests {
     fn test_new_imprint_history_from_imprint() {
         let imprint: Imprint = Default::default();
         let account_id: uuid::Uuid = Default::default();
-        let new_imprint_history = ImprintHistory::new(&imprint, &account_id);
+        let new_imprint_history = imprint.new_history_entry(&account_id);
         assert_eq!(new_imprint_history.imprint_id, imprint.imprint_id);
         assert_eq!(new_imprint_history.account_id, account_id);
         assert_eq!(

@@ -20,6 +20,7 @@ use crate::funding::model::*;
 use crate::imprint::model::*;
 use crate::issue::model::*;
 use crate::language::model::*;
+use crate::model::Crud;
 use crate::price::model::*;
 use crate::publication::model::*;
 use crate::publisher::model::*;
@@ -29,7 +30,6 @@ use crate::subject::model::*;
 use crate::work::model::*;
 
 use super::utils::Direction;
-use crate::imprint::crud::Crud;
 
 impl juniper::Context for Context {}
 
@@ -706,7 +706,7 @@ impl QueryRoot {
             .expect("Error loading publishers")
     }
 
-    #[graphql(description = "Query a publisher using its id")]
+    #[graphql(description = "Query a single publisher using its id")]
     fn publisher(context: &Context, publisher_id: Uuid) -> FieldResult<Publisher> {
         let connection = context.db.get().unwrap();
         match crate::schema::publisher::dsl::publisher
@@ -793,6 +793,7 @@ impl QueryRoot {
             publishers,
             None,
             None,
+            None,
         ) {
             Ok(t) => Ok(t),
             Err(e) => Err(FieldError::from(e)),
@@ -825,7 +826,7 @@ impl QueryRoot {
         )
     )]
     fn imprint_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> FieldResult<i32> {
-        match Imprint::count(&context.db, Some(filter), publishers) {
+        match Imprint::count(&context.db, Some(filter), publishers, None, None) {
             Ok(t) => Ok(t),
             Err(e) => Err(FieldError::from(e)),
         }
@@ -3370,6 +3371,7 @@ impl Publisher {
             order,
             vec![],
             Some(self.publisher_id),
+            None,
             None,
         ) {
             Ok(t) => Ok(t),
