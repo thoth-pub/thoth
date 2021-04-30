@@ -133,7 +133,7 @@ impl QueryRoot {
         work_type: Option<WorkType>,
         work_status: Option<WorkStatus>,
     ) -> FieldResult<Vec<Work>> {
-        match Work::all(
+        Work::all(
             &context.db,
             limit,
             offset,
@@ -144,18 +144,13 @@ impl QueryRoot {
             None,
             work_type,
             work_status,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a single work using its id")]
     fn work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
-        match Work::from_id(&context.db, &work_id) {
-            Ok(work) => Ok(work),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Work::from_id(&context.db, &work_id).map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a single work using its DOI")]
@@ -165,13 +160,10 @@ impl QueryRoot {
         use diesel::sql_types::Text;
         // Allow case-insensitive searching (DOIs in database may have mixed casing)
         sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
-        match crate::schema::work::dsl::work
+        crate::schema::work::dsl::work
             .filter(lower(crate::schema::work::dsl::doi).eq(doi.to_lowercase()))
             .get_result::<Work>(&connection)
-        {
-            Ok(work) => Ok(work),
-            Err(e) => Err(FieldError::from(e)),
-        }
+            .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -196,16 +188,14 @@ impl QueryRoot {
         work_type: Option<WorkType>,
         work_status: Option<WorkStatus>,
     ) -> FieldResult<i32> {
-        match Work::count(
+        Work::count(
             &context.db,
             Some(filter),
             publishers,
             work_type,
             work_status,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -238,7 +228,7 @@ impl QueryRoot {
         publication_type: Option<PublicationType>,
     ) -> FieldResult<Vec<Publication>> {
         let connection = context.db.get().unwrap();
-        match Publication::all(
+        Publication::all(
             &context.db,
             limit,
             offset,
@@ -249,18 +239,13 @@ impl QueryRoot {
             None,
             publication_type,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a single publication using its id")]
     fn publication(context: &Context, publication_id: Uuid) -> FieldResult<Publication> {
-        match Publication::from_id(&context.db, &publication_id) {
-            Ok(publication) => Ok(publication),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Publication::from_id(&context.db, &publication_id).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -283,16 +268,14 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         publication_type: Option<PublicationType>,
     ) -> FieldResult<i32> {
-        match Publication::count(
+        Publication::count(
             &context.db,
             Some(filter),
             publishers,
             publication_type,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -330,7 +313,7 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
     ) -> FieldResult<Vec<Publisher>> {
         let connection = context.db.get().unwrap();
-        match Publisher::all(
+        Publisher::all(
             &context.db,
             limit,
             offset,
@@ -341,18 +324,13 @@ impl QueryRoot {
             None,
             None,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a single publisher using its id")]
     fn publisher(context: &Context, publisher_id: Uuid) -> FieldResult<Publisher> {
-        match Publisher::from_id(&context.db, &publisher_id) {
-            Ok(publisher) => Ok(publisher),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Publisher::from_id(&context.db, &publisher_id).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -373,10 +351,7 @@ impl QueryRoot {
         filter: String,
         publishers: Vec<Uuid>,
     ) -> FieldResult<i32> {
-        match Publisher::count(&context.db, Some(filter), publishers, None, None) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Publisher::count(&context.db, Some(filter), publishers, None, None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -407,7 +382,7 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
     ) -> FieldResult<Vec<Imprint>> {
         let connection = context.db.get().unwrap();
-        match Imprint::all(
+        Imprint::all(
             &context.db,
             limit,
             offset,
@@ -418,18 +393,13 @@ impl QueryRoot {
             None,
             None,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a single imprint using its id")]
     fn imprint(context: &Context, imprint_id: Uuid) -> FieldResult<Imprint> {
-        match Imprint::from_id(&context.db, &imprint_id) {
-            Ok(imprint) => Ok(imprint),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Imprint::from_id(&context.db, &imprint_id).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -446,10 +416,7 @@ impl QueryRoot {
         )
     )]
     fn imprint_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> FieldResult<i32> {
-        match Imprint::count(&context.db, Some(filter), publishers, None, None) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Imprint::count(&context.db, Some(filter), publishers, None, None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -474,7 +441,7 @@ impl QueryRoot {
         filter: String,
         order: ContributorOrderBy,
     ) -> FieldResult<Vec<Contributor>> {
-        match Contributor::all(
+        Contributor::all(
             &context.db,
             limit,
             offset,
@@ -485,18 +452,13 @@ impl QueryRoot {
             None,
             None,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a single contributor using its id")]
     fn contributor(context: &Context, contributor_id: Uuid) -> FieldResult<Contributor> {
-        match Contributor::from_id(&context.db, &contributor_id) {
-            Ok(contributor) => Ok(contributor),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Contributor::from_id(&context.db, &contributor_id).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -509,10 +471,7 @@ impl QueryRoot {
         )
     )]
     fn contributor_count(context: &Context, filter: String) -> FieldResult<i32> {
-        match Contributor::count(&context.db, Some(filter), vec![], None, None) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Contributor::count(&context.db, Some(filter), vec![], None, None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -632,15 +591,12 @@ impl QueryRoot {
         contribution_type: ContributionType,
     ) -> FieldResult<Contribution> {
         let connection = context.db.get().unwrap();
-        match crate::schema::contribution::dsl::contribution
+        crate::schema::contribution::dsl::contribution
             .filter(crate::schema::contribution::dsl::work_id.eq(work_id))
             .filter(crate::schema::contribution::dsl::contributor_id.eq(contributor_id))
             .filter(crate::schema::contribution::dsl::contribution_type.eq(contribution_type))
             .get_result::<Contribution>(&connection)
-        {
-            Ok(contribution) => Ok(contribution),
-            Err(e) => Err(FieldError::from(e)),
-        }
+            .map_err(|e| e.into())
     }
 
     #[graphql(description = "Get the total number of contributions")]
@@ -691,7 +647,7 @@ impl QueryRoot {
         series_type: Option<SeriesType>,
     ) -> FieldResult<Vec<Series>> {
         let connection = context.db.get().unwrap();
-        match Series::all(
+        Series::all(
             &context.db,
             limit,
             offset,
@@ -702,18 +658,13 @@ impl QueryRoot {
             None,
             series_type,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a single series using its id")]
     fn series(context: &Context, series_id: Uuid) -> FieldResult<Series> {
-        match Series::from_id(&context.db, &series_id) {
-            Ok(series) => Ok(series),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Series::from_id(&context.db, &series_id).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -736,10 +687,8 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         series_type: Option<SeriesType>,
     ) -> FieldResult<i32> {
-        match Series::count(&context.db, Some(filter), publishers, series_type, None) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Series::count(&context.db, Some(filter), publishers, series_type, None)
+            .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -810,14 +759,11 @@ impl QueryRoot {
     #[graphql(description = "Query a single issue using its identifiers")]
     fn issue(context: &Context, series_id: Uuid, work_id: Uuid) -> FieldResult<Issue> {
         let connection = context.db.get().unwrap();
-        match crate::schema::issue::dsl::issue
+        crate::schema::issue::dsl::issue
             .filter(crate::schema::issue::dsl::series_id.eq(series_id))
             .filter(crate::schema::issue::dsl::work_id.eq(work_id))
             .get_result::<Issue>(&connection)
-        {
-            Ok(issue) => Ok(issue),
-            Err(e) => Err(FieldError::from(e)),
-        }
+            .map_err(|e| e.into())
     }
 
     #[graphql(description = "Get the total number of issues")]
@@ -866,7 +812,7 @@ impl QueryRoot {
         language_relation: Option<LanguageRelation>,
     ) -> FieldResult<Vec<Language>> {
         let connection = context.db.get().unwrap();
-        match Language::all(
+        Language::all(
             &context.db,
             limit,
             offset,
@@ -877,18 +823,13 @@ impl QueryRoot {
             None,
             language_code,
             language_relation,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a single language using its id")]
     fn language(context: &Context, language_id: Uuid) -> FieldResult<Language> {
-        match Language::from_id(&context.db, &language_id) {
-            Ok(language) => Ok(language),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Language::from_id(&context.db, &language_id).map_err(|e| e.into())
     }
 
     #[graphql(description = "Get the total number of languages associated to works")]
@@ -897,10 +838,8 @@ impl QueryRoot {
         language_code: Option<LanguageCode>,
         language_relation: Option<LanguageRelation>,
     ) -> FieldResult<i32> {
-        match Language::count(&context.db, None, vec![], language_code, language_relation) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Language::count(&context.db, None, vec![], language_code, language_relation)
+            .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -933,7 +872,7 @@ impl QueryRoot {
         currency_code: Option<CurrencyCode>,
     ) -> FieldResult<Vec<Price>> {
         let connection = context.db.get().unwrap();
-        match Price::all(
+        Price::all(
             &context.db,
             limit,
             offset,
@@ -944,26 +883,18 @@ impl QueryRoot {
             None,
             currency_code,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a single price using its id")]
     fn price(context: &Context, price_id: Uuid) -> FieldResult<Price> {
-        match Price::from_id(&context.db, &price_id) {
-            Ok(price) => Ok(price),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Price::from_id(&context.db, &price_id).map_err(|e| e.into())
     }
 
     #[graphql(description = "Get the total number of prices associated to works")]
     fn price_count(context: &Context, currency_code: Option<CurrencyCode>) -> FieldResult<i32> {
-        match Price::count(&context.db, None, vec![], currency_code, None) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Price::count(&context.db, None, vec![], currency_code, None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1000,7 +931,7 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         subject_type: Option<SubjectType>,
     ) -> FieldResult<Vec<Subject>> {
-        match Subject::all(
+        Subject::all(
             &context.db,
             limit,
             offset,
@@ -1011,18 +942,13 @@ impl QueryRoot {
             None,
             subject_type,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a single subject using its id")]
     fn subject(context: &Context, subject_id: Uuid) -> FieldResult<Subject> {
-        match Subject::from_id(&context.db, &subject_id) {
-            Ok(subject) => Ok(subject),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Subject::from_id(&context.db, &subject_id).map_err(|e| e.into())
     }
 
     #[graphql(description = "Get the total number of subjects associated to works")]
@@ -1031,10 +957,7 @@ impl QueryRoot {
         filter: String,
         subject_type: Option<SubjectType>,
     ) -> FieldResult<i32> {
-        match Subject::count(&context.db, Some(filter), vec![], subject_type, None) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Subject::count(&context.db, Some(filter), vec![], subject_type, None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1059,7 +982,7 @@ impl QueryRoot {
         filter: String,
         order: FunderOrderBy,
     ) -> FieldResult<Vec<Funder>> {
-        match Funder::all(
+        Funder::all(
             &context.db,
             limit,
             offset,
@@ -1070,18 +993,13 @@ impl QueryRoot {
             None,
             None,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a single funder using its id")]
     fn funder(context: &Context, funder_id: Uuid) -> FieldResult<Funder> {
-        match Funder::from_id(&context.db, &funder_id) {
-            Ok(funder) => Ok(funder),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Funder::from_id(&context.db, &funder_id).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1094,10 +1012,7 @@ impl QueryRoot {
         )
     )]
     fn funder_count(context: &Context, filter: String) -> FieldResult<i32> {
-        match Funder::count(&context.db, Some(filter), vec![], None, None) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Funder::count(&context.db, Some(filter), vec![], None, None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1127,7 +1042,7 @@ impl QueryRoot {
         order: FundingOrderBy,
         publishers: Vec<Uuid>,
     ) -> FieldResult<Vec<Funding>> {
-        match Funding::all(
+        Funding::all(
             &context.db,
             limit,
             offset,
@@ -1138,26 +1053,18 @@ impl QueryRoot {
             None,
             None,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a single funding using its id")]
     fn funding(context: &Context, funding_id: Uuid) -> FieldResult<Funding> {
-        match Funding::from_id(&context.db, &funding_id) {
-            Ok(funding) => Ok(funding),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Funding::from_id(&context.db, &funding_id).map_err(|e| e.into())
     }
 
     #[graphql(description = "Get the total number of funding instances associated to works")]
     fn funding_count(context: &Context) -> FieldResult<i32> {
-        match Funding::count(&context.db, None, vec![], None, None) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Funding::count(&context.db, None, vec![], None, None).map_err(|e| e.into())
     }
 }
 
@@ -1169,10 +1076,7 @@ impl MutationRoot {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         user_can_edit_imprint(data.imprint_id, context)?;
 
-        match Work::create(&context.db, &data) {
-            Ok(work) => Ok(work),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Work::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_publisher(context: &Context, data: NewPublisher) -> FieldResult<Publisher> {
@@ -1182,29 +1086,20 @@ impl MutationRoot {
             return Err(ThothError::Unauthorised.into());
         }
 
-        match Publisher::create(&context.db, &data) {
-            Ok(publisher) => Ok(publisher),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Publisher::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_imprint(context: &Context, data: NewImprint) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context.account_access.can_edit(data.publisher_id)?;
 
-        match Imprint::create(&context.db, &data) {
-            Ok(imprint) => Ok(imprint),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Imprint::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_contributor(context: &Context, data: NewContributor) -> FieldResult<Contributor> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
 
-        match Contributor::create(&context.db, &data) {
-            Ok(contributor) => Ok(contributor),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Contributor::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_contribution(context: &Context, data: NewContribution) -> FieldResult<Contribution> {
@@ -1212,33 +1107,24 @@ impl MutationRoot {
         user_can_edit_work(data.work_id, context)?;
 
         let connection = context.db.get().unwrap();
-        match diesel::insert_into(contribution::table)
+        diesel::insert_into(contribution::table)
             .values(&data)
             .get_result(&connection)
-        {
-            Ok(contribution) => Ok(contribution),
-            Err(e) => Err(FieldError::from(e)),
-        }
+            .map_err(|e| e.into())
     }
 
     fn create_publication(context: &Context, data: NewPublication) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         user_can_edit_work(data.work_id, context)?;
 
-        match Publication::create(&context.db, &data) {
-            Ok(publication) => Ok(publication),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Publication::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_series(context: &Context, data: NewSeries) -> FieldResult<Series> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         user_can_edit_imprint(data.imprint_id, context)?;
 
-        match Series::create(&context.db, &data) {
-            Ok(series) => Ok(series),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Series::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_issue(context: &Context, data: NewIssue) -> FieldResult<Issue> {
@@ -1247,51 +1133,36 @@ impl MutationRoot {
         issue_imprints_match(data.work_id, data.series_id, context)?;
 
         let connection = context.db.get().unwrap();
-        match diesel::insert_into(issue::table)
+        diesel::insert_into(issue::table)
             .values(&data)
             .get_result(&connection)
-        {
-            Ok(issue) => Ok(issue),
-            Err(e) => Err(FieldError::from(e)),
-        }
+            .map_err(|e| e.into())
     }
 
     fn create_language(context: &Context, data: NewLanguage) -> FieldResult<Language> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         user_can_edit_work(data.work_id, context)?;
 
-        match Language::create(&context.db, &data) {
-            Ok(language) => Ok(language),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Language::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_funder(context: &Context, data: NewFunder) -> FieldResult<Funder> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        match Funder::create(&context.db, &data) {
-            Ok(funder) => Ok(funder),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Funder::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_funding(context: &Context, data: NewFunding) -> FieldResult<Funding> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         user_can_edit_work(data.work_id, context)?;
 
-        match Funding::create(&context.db, &data) {
-            Ok(funding) => Ok(funding),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Funding::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_price(context: &Context, data: NewPrice) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         user_can_edit_publication(data.publication_id, context)?;
 
-        match Price::create(&context.db, &data) {
-            Ok(price) => Ok(price),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Price::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_subject(context: &Context, data: NewSubject) -> FieldResult<Subject> {
@@ -1300,10 +1171,7 @@ impl MutationRoot {
 
         check_subject(&data.subject_type, &data.subject_code)?;
 
-        match Subject::create(&context.db, &data) {
-            Ok(subject) => Ok(subject),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Subject::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn update_work(context: &Context, data: PatchWork) -> FieldResult<Work> {
@@ -1316,10 +1184,8 @@ impl MutationRoot {
             can_update_work_imprint(work.work_id, context)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        match work.update(&context.db, &data, &account_id) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        work.update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
     }
 
     fn update_publisher(context: &Context, data: PatchPublisher) -> FieldResult<Publisher> {
@@ -1331,10 +1197,9 @@ impl MutationRoot {
             context.account_access.can_edit(publisher.publisher_id)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        match publisher.update(&context.db, &data, &account_id) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        publisher
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
     }
 
     fn update_imprint(context: &Context, data: PatchImprint) -> FieldResult<Imprint> {
@@ -1346,22 +1211,18 @@ impl MutationRoot {
             context.account_access.can_edit(imprint.publisher_id)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        match imprint.update(&context.db, &data, &account_id) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        imprint
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
     }
 
     fn update_contributor(context: &Context, data: PatchContributor) -> FieldResult<Contributor> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        match Contributor::from_id(&context.db, &data.contributor_id)
+        Contributor::from_id(&context.db, &data.contributor_id)
             .unwrap()
             .update(&context.db, &data, &account_id)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+            .map_err(|e| e.into())
     }
 
     fn update_contribution(
@@ -1411,10 +1272,9 @@ impl MutationRoot {
             user_can_edit_work(publication.work_id, context)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        match publication.update(&context.db, &data, &account_id) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        publication
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
     }
 
     fn update_series(context: &Context, data: PatchSeries) -> FieldResult<Series> {
@@ -1426,10 +1286,9 @@ impl MutationRoot {
             user_can_edit_imprint(series.imprint_id, context)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        match series.update(&context.db, &data, &account_id) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        series
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
     }
 
     fn update_issue(context: &Context, data: PatchIssue) -> FieldResult<Issue> {
@@ -1469,22 +1328,18 @@ impl MutationRoot {
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        match language.update(&context.db, &data, &account_id) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        language
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
     }
 
     fn update_funder(context: &Context, data: PatchFunder) -> FieldResult<Funder> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        match Funder::from_id(&context.db, &data.funder_id)
+        Funder::from_id(&context.db, &data.funder_id)
             .unwrap()
             .update(&context.db, &data, &account_id)
-        {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+            .map_err(|e| e.into())
     }
 
     fn update_funding(context: &Context, data: PatchFunding) -> FieldResult<Funding> {
@@ -1497,10 +1352,9 @@ impl MutationRoot {
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        match funding.update(&context.db, &data, &account_id) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        funding
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
     }
 
     fn update_price(context: &Context, data: PatchPrice) -> FieldResult<Price> {
@@ -1513,10 +1367,9 @@ impl MutationRoot {
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        match price.update(&context.db, &data, &account_id) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        price
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
     }
 
     fn update_subject(context: &Context, data: PatchSubject) -> FieldResult<Subject> {
@@ -1531,36 +1384,29 @@ impl MutationRoot {
         check_subject(&data.subject_type, &data.subject_code)?;
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        match subject.update(&context.db, &data, &account_id) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        subject
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
     }
 
     fn delete_work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         user_can_edit_work(work_id, context)?;
 
-        match Work::from_id(&context.db, &work_id)
+        Work::from_id(&context.db, &work_id)
             .unwrap()
             .delete(&context.db)
-        {
-            Ok(work) => Ok(work),
-            Err(e) => Err(FieldError::from(e)),
-        }
+            .map_err(|e| e.into())
     }
 
     fn delete_publisher(context: &Context, publisher_id: Uuid) -> FieldResult<Publisher> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context.account_access.can_edit(publisher_id)?;
 
-        match Publisher::from_id(&context.db, &publisher_id)
+        Publisher::from_id(&context.db, &publisher_id)
             .unwrap()
             .delete(&context.db)
-        {
-            Ok(publisher) => Ok(publisher),
-            Err(e) => Err(FieldError::from(e)),
-        }
+            .map_err(|e| e.into())
     }
 
     fn delete_imprint(context: &Context, imprint_id: Uuid) -> FieldResult<Imprint> {
@@ -1568,21 +1414,15 @@ impl MutationRoot {
         let imprint = Imprint::from_id(&context.db, &imprint_id).unwrap();
         context.account_access.can_edit(imprint.publisher_id)?;
 
-        match imprint.delete(&context.db) {
-            Ok(imprint) => Ok(imprint),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        imprint.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_contributor(context: &Context, contributor_id: Uuid) -> FieldResult<Contributor> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        match Contributor::from_id(&context.db, &contributor_id)
+        Contributor::from_id(&context.db, &contributor_id)
             .unwrap()
             .delete(&context.db)
-        {
-            Ok(contributor) => Ok(contributor),
-            Err(e) => Err(FieldError::from(e)),
-        }
+            .map_err(|e| e.into())
     }
 
     fn delete_contribution(
@@ -1616,13 +1456,10 @@ impl MutationRoot {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         user_can_edit_publication(publication_id, context)?;
 
-        match Publication::from_id(&context.db, &publication_id)
+        Publication::from_id(&context.db, &publication_id)
             .unwrap()
             .delete(&context.db)
-        {
-            Ok(publication) => Ok(publication),
-            Err(e) => Err(FieldError::from(e)),
-        }
+            .map_err(|e| e.into())
     }
 
     fn delete_series(context: &Context, series_id: Uuid) -> FieldResult<Series> {
@@ -1630,10 +1467,7 @@ impl MutationRoot {
         let series = Series::from_id(&context.db, &series_id).unwrap();
         user_can_edit_imprint(series.imprint_id, context)?;
 
-        match series.delete(&context.db) {
-            Ok(series) => Ok(series),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        series.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_issue(context: &Context, series_id: Uuid, work_id: Uuid) -> FieldResult<Issue> {
@@ -1661,21 +1495,15 @@ impl MutationRoot {
         let language = Language::from_id(&context.db, &language_id).unwrap();
         user_can_edit_work(language.work_id, context)?;
 
-        match language.delete(&context.db) {
-            Ok(language) => Ok(language),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        language.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_funder(context: &Context, funder_id: Uuid) -> FieldResult<Funder> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        match Funder::from_id(&context.db, &funder_id)
+        Funder::from_id(&context.db, &funder_id)
             .unwrap()
             .delete(&context.db)
-        {
-            Ok(funder) => Ok(funder),
-            Err(e) => Err(FieldError::from(e)),
-        }
+            .map_err(|e| e.into())
     }
 
     fn delete_funding(context: &Context, funding_id: Uuid) -> FieldResult<Funding> {
@@ -1683,10 +1511,7 @@ impl MutationRoot {
         let funding = Funding::from_id(&context.db, &funding_id).unwrap();
         user_can_edit_work(funding.work_id, context)?;
 
-        match funding.delete(&context.db) {
-            Ok(funding) => Ok(funding),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        funding.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_price(context: &Context, price_id: Uuid) -> FieldResult<Price> {
@@ -1694,10 +1519,7 @@ impl MutationRoot {
         let price = Price::from_id(&context.db, &price_id).unwrap();
         user_can_edit_publication(price.publication_id, context)?;
 
-        match price.delete(&context.db) {
-            Ok(price) => Ok(price),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        price.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_subject(context: &Context, subject_id: Uuid) -> FieldResult<Subject> {
@@ -1705,10 +1527,7 @@ impl MutationRoot {
         let subject = Subject::from_id(&context.db, &subject_id).unwrap();
         user_can_edit_work(subject.work_id, context)?;
 
-        match subject.delete(&context.db) {
-            Ok(subject) => Ok(subject),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        subject.delete(&context.db).map_err(|e| e.into())
     }
 }
 
@@ -1850,10 +1669,7 @@ impl Work {
     }
 
     pub fn imprint(&self, context: &Context) -> FieldResult<Imprint> {
-        match Imprint::from_id(&context.db, &self.imprint_id) {
-            Ok(imprint) => Ok(imprint),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Imprint::from_id(&context.db, &self.imprint_id).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1962,7 +1778,7 @@ impl Work {
         language_code: Option<LanguageCode>,
         language_relation: Option<LanguageRelation>,
     ) -> FieldResult<Vec<Language>> {
-        match Language::all(
+        Language::all(
             &context.db,
             limit,
             offset,
@@ -1973,10 +1789,8 @@ impl Work {
             None,
             language_code,
             language_relation,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -2009,7 +1823,7 @@ impl Work {
         order: PublicationOrderBy,
         publication_type: Option<PublicationType>,
     ) -> FieldResult<Vec<Publication>> {
-        match Publication::all(
+        Publication::all(
             &context.db,
             limit,
             offset,
@@ -2020,10 +1834,8 @@ impl Work {
             None,
             publication_type,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -2056,7 +1868,7 @@ impl Work {
         order: SubjectOrderBy,
         subject_type: Option<SubjectType>,
     ) -> FieldResult<Vec<Subject>> {
-        match Subject::all(
+        Subject::all(
             &context.db,
             limit,
             offset,
@@ -2067,10 +1879,8 @@ impl Work {
             None,
             subject_type,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -2096,7 +1906,7 @@ impl Work {
         offset: i32,
         order: FundingOrderBy,
     ) -> FieldResult<Vec<Funding>> {
-        match Funding::all(
+        Funding::all(
             &context.db,
             limit,
             offset,
@@ -2107,10 +1917,8 @@ impl Work {
             None,
             None,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -2215,7 +2023,7 @@ impl Publication {
         order: PriceOrderBy,
         currency_code: Option<CurrencyCode>,
     ) -> FieldResult<Vec<Price>> {
-        match Price::all(
+        Price::all(
             &context.db,
             limit,
             offset,
@@ -2226,17 +2034,12 @@ impl Publication {
             None,
             currency_code,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        match Work::from_id(&context.db, &self.work_id) {
-            Ok(work) => Ok(work),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
 }
 
@@ -2294,7 +2097,7 @@ impl Publisher {
         filter: String,
         order: ImprintOrderBy,
     ) -> FieldResult<Vec<Imprint>> {
-        match Imprint::all(
+        Imprint::all(
             &context.db,
             limit,
             offset,
@@ -2305,10 +2108,8 @@ impl Publisher {
             None,
             None,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 }
 
@@ -2335,10 +2136,7 @@ impl Imprint {
     }
 
     pub fn publisher(&self, context: &Context) -> FieldResult<Publisher> {
-        match Publisher::from_id(&context.db, &self.publisher_id) {
-            Ok(publisher) => Ok(publisher),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Publisher::from_id(&context.db, &self.publisher_id).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -2372,7 +2170,7 @@ impl Imprint {
         work_type: Option<WorkType>,
         work_status: Option<WorkStatus>,
     ) -> FieldResult<Vec<Work>> {
-        match Work::all(
+        Work::all(
             &context.db,
             limit,
             offset,
@@ -2383,10 +2181,8 @@ impl Imprint {
             None,
             work_type,
             work_status,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 }
 
@@ -2551,17 +2347,11 @@ impl Contribution {
     }
 
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        match Work::from_id(&context.db, &self.work_id) {
-            Ok(work) => Ok(work),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
 
     pub fn contributor(&self, context: &Context) -> FieldResult<Contributor> {
-        match Contributor::from_id(&context.db, &self.contributor_id) {
-            Ok(contributor) => Ok(contributor),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Contributor::from_id(&context.db, &self.contributor_id).map_err(|e| e.into())
     }
 }
 
@@ -2601,10 +2391,7 @@ impl Series {
 
     //see comments on similar fn above
     pub fn imprint(&self, context: &Context) -> FieldResult<Imprint> {
-        match Imprint::from_id(&context.db, &self.imprint_id) {
-            Ok(imprint) => Ok(imprint),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Imprint::from_id(&context.db, &self.imprint_id).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -2677,17 +2464,11 @@ impl Issue {
     }
 
     pub fn series(&self, context: &Context) -> FieldResult<Series> {
-        match Series::from_id(&context.db, &self.series_id) {
-            Ok(series) => Ok(series),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Series::from_id(&context.db, &self.series_id).map_err(|e| e.into())
     }
 
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        match Work::from_id(&context.db, &self.work_id) {
-            Ok(work) => Ok(work),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
 }
 
@@ -2722,10 +2503,7 @@ impl Language {
     }
 
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        match Work::from_id(&context.db, &self.work_id) {
-            Ok(work) => Ok(work),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
 }
 
@@ -2756,10 +2534,7 @@ impl Price {
     }
 
     pub fn publication(&self, context: &Context) -> FieldResult<Publication> {
-        match Publication::from_id(&context.db, &self.publication_id) {
-            Ok(publication) => Ok(publication),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Publication::from_id(&context.db, &self.publication_id).map_err(|e| e.into())
     }
 }
 
@@ -2794,10 +2569,7 @@ impl Subject {
     }
 
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        match Work::from_id(&context.db, &self.work_id) {
-            Ok(work) => Ok(work),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
 }
 
@@ -2846,7 +2618,7 @@ impl Funder {
         offset: i32,
         order: FundingOrderBy,
     ) -> FieldResult<Vec<Funding>> {
-        match Funding::all(
+        Funding::all(
             &context.db,
             limit,
             offset,
@@ -2857,10 +2629,8 @@ impl Funder {
             Some(self.funder_id),
             None,
             None,
-        ) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        )
+        .map_err(|e| e.into())
     }
 }
 
@@ -2907,17 +2677,11 @@ impl Funding {
     }
 
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
-        match Work::from_id(&context.db, &self.work_id) {
-            Ok(work) => Ok(work),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
 
     pub fn funder(&self, context: &Context) -> FieldResult<Funder> {
-        match Funder::from_id(&context.db, &self.funder_id) {
-            Ok(funder) => Ok(funder),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        Funder::from_id(&context.db, &self.funder_id).map_err(|e| e.into())
     }
 }
 
