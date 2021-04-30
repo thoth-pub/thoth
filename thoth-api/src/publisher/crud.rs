@@ -1,25 +1,25 @@
 use super::model::{
-    Imprint, ImprintField, ImprintHistory, ImprintOrderBy, NewImprint, NewImprintHistory,
-    PatchImprint,
+    NewPublisher, NewPublisherHistory, PatchPublisher, Publisher, PublisherField, PublisherHistory,
+    PublisherOrderBy,
 };
 use crate::errors::{ThothError, ThothResult};
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
-use crate::schema::{imprint, imprint_history};
+use crate::schema::{publisher, publisher_history};
 use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
 
-impl Crud for Imprint {
-    type NewEntity = NewImprint;
-    type PatchEntity = PatchImprint;
-    type OrderByEntity = ImprintOrderBy;
+impl Crud for Publisher {
+    type NewEntity = NewPublisher;
+    type PatchEntity = PatchPublisher;
+    type OrderByEntity = PublisherOrderBy;
     type FilterParameter1 = ();
     type FilterParameter2 = ();
 
     fn pk(&self) -> uuid::Uuid {
-        self.imprint_id
+        self.publisher_id
     }
 
     fn all(
@@ -29,33 +29,37 @@ impl Crud for Imprint {
         filter: Option<String>,
         order: Self::OrderByEntity,
         publishers: Vec<uuid::Uuid>,
-        parent_id_1: Option<uuid::Uuid>,
+        _: Option<uuid::Uuid>,
         _: Option<uuid::Uuid>,
         _: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
-    ) -> ThothResult<Vec<Imprint>> {
-        use crate::schema::imprint::dsl::*;
+    ) -> ThothResult<Vec<Publisher>> {
+        use crate::schema::publisher::dsl::*;
         let connection = db.get().unwrap();
-        let mut query = imprint.into_boxed();
+        let mut query = publisher.into_boxed();
 
         match order.field {
-            ImprintField::ImprintId => match order.direction {
-                Direction::Asc => query = query.order(imprint_id.asc()),
-                Direction::Desc => query = query.order(imprint_id.desc()),
+            PublisherField::PublisherId => match order.direction {
+                Direction::Asc => query = query.order(publisher_id.asc()),
+                Direction::Desc => query = query.order(publisher_id.desc()),
             },
-            ImprintField::ImprintName => match order.direction {
-                Direction::Asc => query = query.order(imprint_name.asc()),
-                Direction::Desc => query = query.order(imprint_name.desc()),
+            PublisherField::PublisherName => match order.direction {
+                Direction::Asc => query = query.order(publisher_name.asc()),
+                Direction::Desc => query = query.order(publisher_name.desc()),
             },
-            ImprintField::ImprintUrl => match order.direction {
-                Direction::Asc => query = query.order(imprint_url.asc()),
-                Direction::Desc => query = query.order(imprint_url.desc()),
+            PublisherField::PublisherShortname => match order.direction {
+                Direction::Asc => query = query.order(publisher_shortname.asc()),
+                Direction::Desc => query = query.order(publisher_shortname.desc()),
             },
-            ImprintField::CreatedAt => match order.direction {
+            PublisherField::PublisherUrl => match order.direction {
+                Direction::Asc => query = query.order(publisher_url.asc()),
+                Direction::Desc => query = query.order(publisher_url.desc()),
+            },
+            PublisherField::CreatedAt => match order.direction {
                 Direction::Asc => query = query.order(created_at.asc()),
                 Direction::Desc => query = query.order(created_at.desc()),
             },
-            ImprintField::UpdatedAt => match order.direction {
+            PublisherField::UpdatedAt => match order.direction {
                 Direction::Asc => query = query.order(updated_at.asc()),
                 Direction::Desc => query = query.order(updated_at.desc()),
             },
@@ -66,20 +70,17 @@ impl Crud for Imprint {
         for pub_id in publishers {
             query = query.or_filter(publisher_id.eq(pub_id));
         }
-        if let Some(pid) = parent_id_1 {
-            query = query.filter(publisher_id.eq(pid));
-        }
         if let Some(filter) = filter {
             query = query.filter(
-                imprint_name
+                publisher_name
                     .ilike(format!("%{}%", filter))
-                    .or(imprint_url.ilike(format!("%{}%", filter))),
+                    .or(publisher_shortname.ilike(format!("%{}%", filter))),
             );
         }
         match query
             .limit(limit.into())
             .offset(offset.into())
-            .load::<Imprint>(&connection)
+            .load::<Publisher>(&connection)
         {
             Ok(t) => Ok(t),
             Err(e) => Err(ThothError::from(e)),
@@ -93,9 +94,9 @@ impl Crud for Imprint {
         _: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
-        use crate::schema::imprint::dsl::*;
+        use crate::schema::publisher::dsl::*;
         let connection = db.get().unwrap();
-        let mut query = imprint.into_boxed();
+        let mut query = publisher.into_boxed();
         // This loop must appear before any other filter statements, as it takes advantage of
         // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
         // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
@@ -104,9 +105,9 @@ impl Crud for Imprint {
         }
         if let Some(filter) = filter {
             query = query.filter(
-                imprint_name
+                publisher_name
                     .ilike(format!("%{}%", filter))
-                    .or(imprint_url.ilike(format!("%{}%", filter))),
+                    .or(publisher_shortname.ilike(format!("%{}%", filter))),
             );
         }
 
@@ -120,60 +121,23 @@ impl Crud for Imprint {
         }
     }
 
-    crud_methods!(imprint::table, imprint::dsl::imprint);
+    crud_methods!(publisher::table, publisher::dsl::publisher);
 }
 
-impl HistoryEntry for Imprint {
-    type NewHistoryEntity = NewImprintHistory;
+impl HistoryEntry for Publisher {
+    type NewHistoryEntity = NewPublisherHistory;
 
     fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
-            imprint_id: self.imprint_id,
+            publisher_id: self.publisher_id,
             account_id: *account_id,
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
 }
 
-impl DbInsert for NewImprintHistory {
-    type MainEntity = ImprintHistory;
+impl DbInsert for NewPublisherHistory {
+    type MainEntity = PublisherHistory;
 
-    db_insert!(imprint_history::table);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    impl Default for Imprint {
-        fn default() -> Self {
-            Imprint {
-                imprint_id: Default::default(),
-                publisher_id: Default::default(),
-                imprint_name: Default::default(),
-                imprint_url: Default::default(),
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-            }
-        }
-    }
-
-    #[test]
-    fn test_imprint_pk() {
-        let imprint: Imprint = Default::default();
-        assert_eq!(imprint.pk(), imprint.imprint_id);
-    }
-
-    #[test]
-    fn test_new_imprint_history_from_imprint() {
-        let imprint: Imprint = Default::default();
-        let account_id: uuid::Uuid = Default::default();
-        let new_imprint_history = imprint.new_history_entry(&account_id);
-        assert_eq!(new_imprint_history.imprint_id, imprint.imprint_id);
-        assert_eq!(new_imprint_history.account_id, account_id);
-        assert_eq!(
-            new_imprint_history.data,
-            serde_json::Value::String(serde_json::to_string(&imprint).unwrap())
-        );
-    }
+    db_insert!(publisher_history::table);
 }

@@ -32,12 +32,13 @@ where
         db: &crate::db::PgPool,
         limit: i32,
         offset: i32,
-        filter: String,
+        filter: Option<String>,
         order: Self::OrderByEntity,
-        _publishers: Vec<uuid::Uuid>,
-        _parent_id: Option<uuid::Uuid>,
-        _filter_param_1: Option<Self::FilterParameter1>,
-        _filter_param_2: Option<Self::FilterParameter2>,
+        publishers: Vec<uuid::Uuid>,
+        parent_id_1: Option<uuid::Uuid>,
+        parent_id_2: Option<uuid::Uuid>,
+        filter_param_1: Option<Self::FilterParameter1>,
+        filter_param_2: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Self>>;
 
     /// Query the database to obtain the total number of entities satisfying the search criteriac
@@ -45,8 +46,8 @@ where
         db: &crate::db::PgPool,
         filter: Option<String>,
         publishers: Vec<uuid::Uuid>,
-        _filter_param_1: Option<Self::FilterParameter1>,
-        _filter_param_2: Option<Self::FilterParameter2>,
+        filter_param_1: Option<Self::FilterParameter1>,
+        filter_param_2: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32>;
 
     /// Query the database to obtain an instance of the entity given its ID
