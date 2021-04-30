@@ -135,7 +135,6 @@ impl Component for PublicationsFormComponent {
                             let mut publications: Vec<Publication> =
                                 self.props.publications.clone().unwrap_or_default();
                             publications.push(publication);
-                            self.new_publication = Default::default();
                             self.props.update_publications.emit(Some(publications));
                             self.link.send_message(Msg::ToggleAddFormDisplay(false));
                             true
