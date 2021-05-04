@@ -14,6 +14,7 @@ use crate::schema::issue_history;
     graphql(description = "Field to use when sorting issues list")
 )]
 pub enum IssueField {
+    IssueId,
     SeriesId,
     WorkId,
     IssueOrdinal,
@@ -24,6 +25,7 @@ pub enum IssueField {
 #[cfg_attr(feature = "backend", derive(Queryable))]
 #[derive(Serialize, Deserialize)]
 pub struct Issue {
+    pub issue_id: Uuid,
     pub series_id: Uuid,
     pub work_id: Uuid,
     pub issue_ordinal: i32,
@@ -49,6 +51,7 @@ pub struct NewIssue {
     table_name = "issue"
 )]
 pub struct PatchIssue {
+    pub issue_id: Uuid,
     pub series_id: Uuid,
     pub work_id: Uuid,
     pub issue_ordinal: i32,
@@ -57,8 +60,7 @@ pub struct PatchIssue {
 #[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct IssueHistory {
     pub issue_history_id: Uuid,
-    pub series_id: Uuid,
-    pub work_id: Uuid,
+    pub issue_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
     pub timestamp: DateTime<Utc>,
@@ -66,8 +68,7 @@ pub struct IssueHistory {
 
 #[cfg_attr(feature = "backend", derive(Insertable), table_name = "issue_history")]
 pub struct NewIssueHistory {
-    pub series_id: Uuid,
-    pub work_id: Uuid,
+    pub issue_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
 }

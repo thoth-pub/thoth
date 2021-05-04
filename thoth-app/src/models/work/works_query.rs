@@ -21,6 +21,7 @@ pub const WORKS_QUERY: &str = "
             publicationDate
             updatedAt
             contributions {
+                contributionId
                 workId
                 contributorId
                 contributionType

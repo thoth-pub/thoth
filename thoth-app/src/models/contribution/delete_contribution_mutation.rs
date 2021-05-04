@@ -1,20 +1,16 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::contribution::model::ContributionType;
 
 use super::Contribution;
 
 const DELETE_CONTRIBUTION_MUTATION: &str = "
     mutation DeleteContribution(
-        $workId: Uuid!,
-        $contributorId: Uuid!,
-        $contributionType: ContributionType!
+        $contributionId: Uuid!,
     ) {
         deleteContribution(
-            workId: $workId
-            contributorId: $contributorId
-            contributionType: $contributionType
+            contributionId: $contributionId
         ){
+            contributionId
             workId
             contributorId
             contributionType
@@ -45,9 +41,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub work_id: String,
-    pub contributor_id: String,
-    pub contribution_type: ContributionType,
+    pub contribution_id: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

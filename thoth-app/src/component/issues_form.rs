@@ -226,12 +226,9 @@ impl Component for IssuesFormComponent {
                     }
                 }
             }
-            Msg::DeleteIssue(series_id) => {
+            Msg::DeleteIssue(issue_id) => {
                 let body = DeleteIssueRequestBody {
-                    variables: DeleteVariables {
-                        work_id: self.props.work_id.clone(),
-                        series_id,
-                    },
+                    variables: DeleteVariables { issue_id },
                     ..Default::default()
                 };
                 let request = DeleteIssueRequest { body };
@@ -433,7 +430,7 @@ impl IssuesFormComponent {
         // there's probably a better way to do this. We basically need to copy 3 instances
         // of contributor_id and take ownership of them so they can be passed on to
         // the callback functions
-        let series_id = i.series_id.clone();
+        let issue_id = i.issue_id.clone();
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -480,7 +477,7 @@ impl IssuesFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteIssue(series_id.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeleteIssue(issue_id.clone()))
                             >
                                 { REMOVE_BUTTON }
                             </a>

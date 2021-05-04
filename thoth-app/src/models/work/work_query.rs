@@ -40,6 +40,7 @@ pub const WORK_QUERY: &str = "
             coverCaption
             updatedAt
             contributions {
+                contributionId
                 workId
                 contributorId
                 contributionType
@@ -105,6 +106,7 @@ pub const WORK_QUERY: &str = "
                 subjectOrdinal
             }
             issues {
+                issueId
                 workId
                 seriesId
                 issueOrdinal

@@ -73,7 +73,7 @@ pub enum Msg {
     SetContributionPushState(PushActionCreateContribution),
     CreateContribution,
     SetContributionDeleteState(PushActionDeleteContribution),
-    DeleteContribution(String, ContributionType),
+    DeleteContribution(String),
     AddContribution(Contributor),
     ChangeFirstName(String),
     ChangeLastName(String),
@@ -265,13 +265,9 @@ impl Component for ContributionsFormComponent {
                     }
                 }
             }
-            Msg::DeleteContribution(contributor_id, contribution_type) => {
+            Msg::DeleteContribution(contribution_id) => {
                 let body = DeleteContributionRequestBody {
-                    variables: DeleteVariables {
-                        work_id: self.props.work_id.clone(),
-                        contributor_id,
-                        contribution_type,
-                    },
+                    variables: DeleteVariables { contribution_id },
                     ..Default::default()
                 };
                 let request = DeleteContributionRequest { body };
@@ -520,8 +516,7 @@ impl ContributionsFormComponent {
         // there's probably a better way to do this. We basically need to copy 3 instances
         // of contributor_id and take ownership of them so they can be passed on to
         // the callback functions
-        let contributor_id = c.contributor_id.clone();
-        let contribution_type = c.contribution_type;
+        let contribution_id = c.contribution_id.clone();
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -569,7 +564,7 @@ impl ContributionsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteContribution(contributor_id.clone(), contribution_type.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeleteContribution(contribution_id.clone()))
                             >
                                 { REMOVE_BUTTON }
                             </a>

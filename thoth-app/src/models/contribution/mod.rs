@@ -9,6 +9,7 @@ use super::contributor::Contributor;
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contribution {
+    pub contribution_id: String,
     pub work_id: String,
     pub contributor_id: String,
     pub contribution_type: ContributionType,
