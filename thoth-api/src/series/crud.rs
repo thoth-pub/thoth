@@ -185,3 +185,43 @@ impl DbInsert for NewSeriesHistory {
 
     db_insert!(series_history::table);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl Default for Series {
+        fn default() -> Self {
+            Series {
+                series_id: Default::default(),
+                series_type: Default::default(),
+                series_name: Default::default(),
+                issn_print: Default::default(),
+                issn_digital: Default::default(),
+                series_url: Default::default(),
+                imprint_id: Default::default(),
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_series_pk() {
+        let series: Series = Default::default();
+        assert_eq!(series.pk(), series.series_id);
+    }
+
+    #[test]
+    fn test_new_series_history_from_series() {
+        let series: Series = Default::default();
+        let account_id: uuid::Uuid = Default::default();
+        let new_series_history = series.new_history_entry(&account_id);
+        assert_eq!(new_series_history.series_id, series.series_id);
+        assert_eq!(new_series_history.account_id, account_id);
+        assert_eq!(
+            new_series_history.data,
+            serde_json::Value::String(serde_json::to_string(&series).unwrap())
+        );
+    }
+}

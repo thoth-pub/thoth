@@ -149,3 +149,27 @@ impl DbInsert for NewLanguageHistory {
 
     db_insert!(language_history::table);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_language_pk() {
+        let language: Language = Default::default();
+        assert_eq!(language.pk(), language.language_id);
+    }
+
+    #[test]
+    fn test_new_language_history_from_language() {
+        let language: Language = Default::default();
+        let account_id: uuid::Uuid = Default::default();
+        let new_language_history = language.new_history_entry(&account_id);
+        assert_eq!(new_language_history.language_id, language.language_id);
+        assert_eq!(new_language_history.account_id, account_id);
+        assert_eq!(
+            new_language_history.data,
+            serde_json::Value::String(serde_json::to_string(&language).unwrap())
+        );
+    }
+}

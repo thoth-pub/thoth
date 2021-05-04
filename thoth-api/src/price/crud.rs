@@ -140,3 +140,27 @@ impl DbInsert for NewPriceHistory {
 
     db_insert!(price_history::table);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_price_pk() {
+        let price: Price = Default::default();
+        assert_eq!(price.pk(), price.price_id);
+    }
+
+    #[test]
+    fn test_new_price_history_from_price() {
+        let price: Price = Default::default();
+        let account_id: uuid::Uuid = Default::default();
+        let new_price_history = price.new_history_entry(&account_id);
+        assert_eq!(new_price_history.price_id, price.price_id);
+        assert_eq!(new_price_history.account_id, account_id);
+        assert_eq!(
+            new_price_history.data,
+            serde_json::Value::String(serde_json::to_string(&price).unwrap())
+        );
+    }
+}

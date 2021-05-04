@@ -137,3 +137,27 @@ impl DbInsert for NewContributorHistory {
 
     db_insert!(contributor_history::table);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_contributor_pk() {
+        let contributor: Contributor = Default::default();
+        assert_eq!(contributor.pk(), contributor.contributor_id);
+    }
+
+    #[test]
+    fn test_new_contributor_history_from_contributor() {
+        let contributor: Contributor = Default::default();
+        let account_id: uuid::Uuid = Default::default();
+        let new_contributor_history = contributor.new_history_entry(&account_id);
+        assert_eq!(new_contributor_history.contributor_id, contributor.contributor_id);
+        assert_eq!(new_contributor_history.account_id, account_id);
+        assert_eq!(
+            new_contributor_history.data,
+            serde_json::Value::String(serde_json::to_string(&contributor).unwrap())
+        );
+    }
+}

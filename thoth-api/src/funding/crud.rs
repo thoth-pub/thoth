@@ -149,3 +149,44 @@ impl DbInsert for NewFundingHistory {
 
     db_insert!(funding_history::table);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl Default for Funding {
+        fn default() -> Self {
+            Funding {
+                funding_id: Default::default(),
+                work_id: Default::default(),
+                funder_id: Default::default(),
+                program: Default::default(),
+                project_name: Default::default(),
+                project_shortname: Default::default(),
+                grant_number: Default::default(),
+                jurisdiction: Default::default(),
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_funding_pk() {
+        let funding: Funding = Default::default();
+        assert_eq!(funding.pk(), funding.funding_id);
+    }
+
+    #[test]
+    fn test_new_funding_history_from_funding() {
+        let funding: Funding = Default::default();
+        let account_id: uuid::Uuid = Default::default();
+        let new_funding_history = funding.new_history_entry(&account_id);
+        assert_eq!(new_funding_history.funding_id, funding.funding_id);
+        assert_eq!(new_funding_history.account_id, account_id);
+        assert_eq!(
+            new_funding_history.data,
+            serde_json::Value::String(serde_json::to_string(&funding).unwrap())
+        );
+    }
+}

@@ -124,3 +124,27 @@ impl DbInsert for NewFunderHistory {
 
     db_insert!(funder_history::table);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_funder_pk() {
+        let funder: Funder = Default::default();
+        assert_eq!(funder.pk(), funder.funder_id);
+    }
+
+    #[test]
+    fn test_new_funder_history_from_funder() {
+        let funder: Funder = Default::default();
+        let account_id: uuid::Uuid = Default::default();
+        let new_funder_history = funder.new_history_entry(&account_id);
+        assert_eq!(new_funder_history.funder_id, funder.funder_id);
+        assert_eq!(new_funder_history.account_id, account_id);
+        assert_eq!(
+            new_funder_history.data,
+            serde_json::Value::String(serde_json::to_string(&funder).unwrap())
+        );
+    }
+}

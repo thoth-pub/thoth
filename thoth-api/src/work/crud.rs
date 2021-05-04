@@ -342,3 +342,67 @@ impl DbInsert for NewWorkHistory {
 
     db_insert!(work_history::table);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl Default for Work {
+        fn default() -> Self {
+            Work {
+                work_id: Default::default(),
+                work_type: Default::default(),
+                work_status: Default::default(),
+                full_title: Default::default(),
+                title: Default::default(),
+                subtitle: Default::default(),
+                reference: Default::default(),
+                edition: Default::default(),
+                imprint_id: Default::default(),
+                doi: Default::default(),
+                publication_date: Default::default(),
+                place: Default::default(),
+                width: Default::default(),
+                height: Default::default(),
+                page_count: Default::default(),
+                page_breakdown: Default::default(),
+                image_count: Default::default(),
+                table_count: Default::default(),
+                audio_count: Default::default(),
+                video_count: Default::default(),
+                license: Default::default(),
+                copyright_holder: Default::default(),
+                landing_page: Default::default(),
+                lccn: Default::default(),
+                oclc: Default::default(),
+                short_abstract: Default::default(),
+                long_abstract: Default::default(),
+                general_note: Default::default(),
+                toc: Default::default(),
+                cover_url: Default::default(),
+                cover_caption: Default::default(),
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_work_pk() {
+        let work: Work = Default::default();
+        assert_eq!(work.pk(), work.work_id);
+    }
+
+    #[test]
+    fn test_new_work_history_from_work() {
+        let work: Work = Default::default();
+        let account_id: uuid::Uuid = Default::default();
+        let new_work_history = work.new_history_entry(&account_id);
+        assert_eq!(new_work_history.work_id, work.work_id);
+        assert_eq!(new_work_history.account_id, account_id);
+        assert_eq!(
+            new_work_history.data,
+            serde_json::Value::String(serde_json::to_string(&work).unwrap())
+        );
+    }
+}

@@ -182,3 +182,41 @@ impl DbInsert for NewPublicationHistory {
 
     db_insert!(publication_history::table);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl Default for Publication {
+        fn default() -> Self {
+            Publication {
+                publication_id: Default::default(),
+                publication_type: Default::default(),
+                work_id: Default::default(),
+                isbn: Default::default(),
+                publication_url: Default::default(),
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_publication_pk() {
+        let publication: Publication = Default::default();
+        assert_eq!(publication.pk(), publication.publication_id);
+    }
+
+    #[test]
+    fn test_new_publication_history_from_publication() {
+        let publication: Publication = Default::default();
+        let account_id: uuid::Uuid = Default::default();
+        let new_publication_history = publication.new_history_entry(&account_id);
+        assert_eq!(new_publication_history.publication_id, publication.publication_id);
+        assert_eq!(new_publication_history.account_id, account_id);
+        assert_eq!(
+            new_publication_history.data,
+            serde_json::Value::String(serde_json::to_string(&publication).unwrap())
+        );
+    }
+}
