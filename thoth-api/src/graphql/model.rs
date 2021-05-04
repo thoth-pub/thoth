@@ -2395,7 +2395,6 @@ impl Series {
         self.updated_at
     }
 
-    //see comments on similar fn above
     pub fn imprint(&self, context: &Context) -> FieldResult<Imprint> {
         Imprint::from_id(&context.db, &self.imprint_id).map_err(|e| e.into())
     }
