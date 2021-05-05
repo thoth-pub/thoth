@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use uuid::Uuid;
 
 use crate::graphql_query_builder;
 
@@ -35,7 +36,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub contributor_id: Option<String>,
+    pub contributor_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -58,7 +59,7 @@ pub struct SlimContribution {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SlimWork {
-    pub work_id: String,
+    pub work_id: Uuid,
     pub title: String,
     pub imprint: SlimImprint,
 }

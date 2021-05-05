@@ -1,3 +1,4 @@
+use thoth_api::funder::model::Funder;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -21,7 +22,6 @@ use crate::models::funder::create_funder_mutation::CreateFunderRequestBody;
 use crate::models::funder::create_funder_mutation::PushActionCreateFunder;
 use crate::models::funder::create_funder_mutation::PushCreateFunder;
 use crate::models::funder::create_funder_mutation::Variables;
-use crate::models::funder::Funder;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
@@ -75,7 +75,7 @@ impl Component for NewFunderComponent {
                                 NotificationStatus::Success,
                             )));
                             self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Funder(f.funder_id.clone()),
+                                AdminRoute::Funder(f.funder_id),
                             )));
                             true
                         }

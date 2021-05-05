@@ -1,3 +1,5 @@
+use thoth_api::funder::model::Funder;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -38,7 +40,6 @@ use crate::models::funder::update_funder_mutation::PushUpdateFunder;
 use crate::models::funder::update_funder_mutation::UpdateFunderRequest;
 use crate::models::funder::update_funder_mutation::UpdateFunderRequestBody;
 use crate::models::funder::update_funder_mutation::Variables as UpdateVariables;
-use crate::models::funder::Funder;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
@@ -70,7 +71,7 @@ pub enum Msg {
 
 #[derive(Clone, Properties)]
 pub struct Props {
-    pub funder_id: String,
+    pub funder_id: Uuid,
 }
 
 impl Component for FunderComponent {
@@ -80,7 +81,7 @@ impl Component for FunderComponent {
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let body = FunderRequestBody {
             variables: Variables {
-                funder_id: Some(props.funder_id.clone()),
+                funder_id: Some(props.funder_id),
             },
             ..Default::default()
         };
@@ -182,7 +183,7 @@ impl Component for FunderComponent {
             Msg::UpdateFunder => {
                 let body = UpdateFunderRequestBody {
                     variables: UpdateVariables {
-                        funder_id: self.funder.funder_id.clone(),
+                        funder_id: self.funder.funder_id,
                         funder_name: self.funder.funder_name.clone(),
                         funder_doi: self.funder.funder_doi.clone(),
                     },
@@ -232,7 +233,7 @@ impl Component for FunderComponent {
             Msg::DeleteFunder => {
                 let body = DeleteFunderRequestBody {
                     variables: DeleteVariables {
-                        funder_id: self.funder.funder_id.clone(),
+                        funder_id: self.funder.funder_id,
                     },
                     ..Default::default()
                 };
@@ -303,7 +304,7 @@ impl Component for FunderComponent {
                                                 <p>
                                                     { "Funded: " }
                                                     <RouterAnchor<AppRoute>
-                                                        route=AppRoute::Admin(AdminRoute::Work(funding.work.work_id.clone()))
+                                                        route=AppRoute::Admin(AdminRoute::Work(funding.work.work_id))
                                                     >
                                                         { &funding.work.title }
                                                     </  RouterAnchor<AppRoute>>

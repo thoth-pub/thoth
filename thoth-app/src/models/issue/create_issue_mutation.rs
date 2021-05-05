@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-
-use super::Issue;
+use thoth_api::issue::model::IssueExtended as Issue;
+use uuid::Uuid;
 
 const CREATE_ISSUE_MUTATION: &str = "
     mutation CreateIssue(
@@ -35,6 +35,7 @@ const CREATE_ISSUE_MUTATION: &str = "
                         publisherName
                         publisherShortname
                         publisherUrl
+                        createdAt
                         updatedAt
                     }
                 }
@@ -57,8 +58,8 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub work_id: String,
-    pub series_id: String,
+    pub work_id: Uuid,
+    pub series_id: Uuid,
     pub issue_ordinal: i32,
 }
 

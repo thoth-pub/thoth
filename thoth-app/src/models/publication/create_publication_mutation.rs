@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::publication::model::PublicationExtended as Publication;
 use thoth_api::publication::model::PublicationType;
-
-use super::Publication;
+use uuid::Uuid;
 
 const CREATE_PUBLICATION_MUTATION: &str = "
     mutation CreatePublication(
@@ -48,7 +48,7 @@ graphql_query_builder! {
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub publication_type: PublicationType,
-    pub work_id: String,
+    pub work_id: Uuid,
     pub isbn: Option<String>,
     pub publication_url: Option<String>,
 }

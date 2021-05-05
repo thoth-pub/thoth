@@ -33,7 +33,8 @@ pub enum PublisherField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Publisher {
     pub publisher_id: Uuid,
     pub publisher_name: String,
@@ -101,6 +102,19 @@ pub struct PublisherOrderBy {
 impl Default for PublisherField {
     fn default() -> Self {
         PublisherField::PublisherName
+    }
+}
+
+impl Default for Publisher {
+    fn default() -> Publisher {
+        Publisher {
+            publisher_id: Default::default(),
+            publisher_name: "".to_string(),
+            publisher_shortname: None,
+            publisher_url: None,
+            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+        }
     }
 }
 

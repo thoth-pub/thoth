@@ -1,3 +1,6 @@
+use thoth_api::funder::model::Funder;
+use thoth_api::funding::model::FundingExtended as Funding;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -17,7 +20,6 @@ use crate::models::funder::funders_query::FetchFunders;
 use crate::models::funder::funders_query::FundersRequest;
 use crate::models::funder::funders_query::FundersRequestBody;
 use crate::models::funder::funders_query::Variables;
-use crate::models::funder::Funder;
 use crate::models::funding::create_funding_mutation::CreateFundingRequest;
 use crate::models::funding::create_funding_mutation::CreateFundingRequestBody;
 use crate::models::funding::create_funding_mutation::PushActionCreateFunding;
@@ -28,7 +30,7 @@ use crate::models::funding::delete_funding_mutation::DeleteFundingRequestBody;
 use crate::models::funding::delete_funding_mutation::PushActionDeleteFunding;
 use crate::models::funding::delete_funding_mutation::PushDeleteFunding;
 use crate::models::funding::delete_funding_mutation::Variables as DeleteVariables;
-use crate::models::funding::Funding;
+use crate::models::Dropdown;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_FUNDINGS;
 use crate::string::REMOVE_BUTTON;
@@ -61,7 +63,7 @@ pub enum Msg {
     SetFundingPushState(PushActionCreateFunding),
     CreateFunding,
     SetFundingDeleteState(PushActionDeleteFunding),
-    DeleteFunding(String),
+    DeleteFunding(Uuid),
     AddFunding(Funder),
     ChangeProgram(String),
     ChangeProjectName(String),
@@ -74,7 +76,7 @@ pub enum Msg {
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub fundings: Option<Vec<Funding>>,
-    pub work_id: String,
+    pub work_id: Uuid,
     pub update_fundings: Callback<Option<Vec<Funding>>>,
 }
 
@@ -168,8 +170,8 @@ impl Component for FundingsFormComponent {
             Msg::CreateFunding => {
                 let body = CreateFundingRequestBody {
                     variables: CreateVariables {
-                        work_id: self.props.work_id.clone(),
-                        funder_id: self.new_funding.funder_id.clone(),
+                        work_id: self.props.work_id,
+                        funder_id: self.new_funding.funder_id,
                         program: self.new_funding.program.clone(),
                         project_name: self.new_funding.project_name.clone(),
                         project_shortname: self.new_funding.project_shortname.clone(),
@@ -235,7 +237,7 @@ impl Component for FundingsFormComponent {
                 false
             }
             Msg::AddFunding(funder) => {
-                self.new_funding.funder_id = funder.funder_id.clone();
+                self.new_funding.funder_id = funder.funder_id;
                 self.new_funding.funder = funder;
                 self.link.send_message(Msg::ToggleAddFormDisplay(true));
                 true
@@ -451,7 +453,7 @@ impl FundingsFormComponent {
     }
 
     fn render_funding(&self, f: &Funding) -> Html {
-        let funding_id = f.funding_id.clone();
+        let funding_id = f.funding_id;
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -499,7 +501,7 @@ impl FundingsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteFunding(funding_id.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeleteFunding(funding_id))
                             >
                                 { REMOVE_BUTTON }
                             </a>

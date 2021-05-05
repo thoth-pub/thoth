@@ -1,3 +1,4 @@
+use uuid::Uuid;
 use yew_router::prelude::*;
 use yew_router::switch::Permissive;
 
@@ -20,43 +21,43 @@ pub enum AdminRoute {
     #[to = "/works"]
     Works,
     #[to = "/work/{id}"]
-    Work(String),
+    Work(Uuid),
     #[to = "/work"]
     NewWork,
     #[to = "/publishers"]
     Publishers,
     #[to = "/publisher/{id}"]
-    Publisher(String),
+    Publisher(Uuid),
     #[to = "/publisher"]
     NewPublisher,
     #[to = "/funders"]
     Funders,
     #[to = "/funder/{id}"]
-    Funder(String),
+    Funder(Uuid),
     #[to = "/funder"]
     NewFunder,
     #[to = "/imprints"]
     Imprints,
     #[to = "/imprint/{id}"]
-    Imprint(String),
+    Imprint(Uuid),
     #[to = "/imprint"]
     NewImprint,
     #[to = "/contributors"]
     Contributors,
     #[to = "/contributor/{id}"]
-    Contributor(String),
+    Contributor(Uuid),
     #[to = "/contributor"]
     NewContributor,
     #[to = "/serieses"]
     Serieses,
     #[to = "/series/{id}"]
-    Series(String),
+    Series(Uuid),
     #[to = "/series"]
     NewSeries,
     #[to = "/publications"]
     Publications,
     #[to = "/publication/{id}"]
-    Publication(String),
+    Publication(Uuid),
     #[to = "/publication"]
     NewPublication,
     #[to = ""]

@@ -1,3 +1,4 @@
+use thoth_api::publisher::model::Publisher;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -21,7 +22,6 @@ use crate::models::publisher::create_publisher_mutation::CreatePublisherRequestB
 use crate::models::publisher::create_publisher_mutation::PushActionCreatePublisher;
 use crate::models::publisher::create_publisher_mutation::PushCreatePublisher;
 use crate::models::publisher::create_publisher_mutation::Variables;
-use crate::models::publisher::Publisher;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
@@ -76,7 +76,7 @@ impl Component for NewPublisherComponent {
                                 NotificationStatus::Success,
                             )));
                             self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Publisher(p.publisher_id.clone()),
+                                AdminRoute::Publisher(p.publisher_id),
                             )));
                             true
                         }

@@ -1,15 +1,15 @@
-use crate::models::publication::publications_query::DetailedPublication;
 use crate::models::publication::publications_query::FetchActionPublications;
 use crate::models::publication::publications_query::FetchPublications;
 use crate::models::publication::publications_query::PublicationsRequest;
 use crate::models::publication::publications_query::PublicationsRequestBody;
 use crate::models::publication::publications_query::Variables;
+use thoth_api::publication::model::DetailedPublication as Publication;
 use thoth_api::publication::model::PublicationField;
 use thoth_api::publication::model::PublicationOrderBy;
 
 pagination_component! {
     PublicationsComponent,
-    DetailedPublication,
+    Publication,
     publications,
     publication_count,
     PublicationsRequest,
