@@ -1,3 +1,5 @@
+-- Convert Issue table to use single primary key instead of composite key
+
 ALTER TABLE issue
     ADD COLUMN issue_id UUID NOT NULL DEFAULT uuid_generate_v4();
 
@@ -17,13 +19,17 @@ ALTER TABLE issue_history
 
 ALTER TABLE issue
     DROP CONSTRAINT issue_pkey,
-    ADD PRIMARY KEY (issue_id);
+    ADD PRIMARY KEY (issue_id),
+    -- Retain the data constraint originally enforced by the composite key
+    ADD CONSTRAINT issue_series_id_work_id_uniq UNIQUE (series_id, work_id);
 
 ALTER TABLE issue_history
     ADD CONSTRAINT issue_history_issue_id_fkey
     FOREIGN KEY (issue_id)
     REFERENCES issue(issue_id)
     ON DELETE CASCADE;
+
+-- Convert Contribution table to use single primary key instead of composite key
 
 ALTER TABLE contribution
     ADD COLUMN contribution_id UUID NOT NULL DEFAULT uuid_generate_v4();
@@ -46,7 +52,9 @@ ALTER TABLE contribution_history
 
 ALTER TABLE contribution
     DROP CONSTRAINT contribution_pkey,
-    ADD PRIMARY KEY (contribution_id);
+    ADD PRIMARY KEY (contribution_id),
+    -- Retain the data constraint originally enforced by the composite key
+    ADD CONSTRAINT contribution_work_id_contributor_id_contribution_type_uniq UNIQUE (work_id, contributor_id, contribution_type);
 
 ALTER TABLE contribution_history
     ADD CONSTRAINT contribution_history_contribution_id_fkey
