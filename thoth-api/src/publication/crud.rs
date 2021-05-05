@@ -212,7 +212,10 @@ mod tests {
         let publication: Publication = Default::default();
         let account_id: uuid::Uuid = Default::default();
         let new_publication_history = publication.new_history_entry(&account_id);
-        assert_eq!(new_publication_history.publication_id, publication.publication_id);
+        assert_eq!(
+            new_publication_history.publication_id,
+            publication.publication_id
+        );
         assert_eq!(new_publication_history.account_id, account_id);
         assert_eq!(
             new_publication_history.data,

@@ -153,7 +153,10 @@ mod tests {
         let contributor: Contributor = Default::default();
         let account_id: uuid::Uuid = Default::default();
         let new_contributor_history = contributor.new_history_entry(&account_id);
-        assert_eq!(new_contributor_history.contributor_id, contributor.contributor_id);
+        assert_eq!(
+            new_contributor_history.contributor_id,
+            contributor.contributor_id
+        );
         assert_eq!(new_contributor_history.account_id, account_id);
         assert_eq!(
             new_contributor_history.data,
