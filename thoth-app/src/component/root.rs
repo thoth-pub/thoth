@@ -1,16 +1,10 @@
 use semver::Version;
-use serde::Deserialize;
-use serde::Serialize;
-use std::time::Duration;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::errors::ThothError;
-use yew::agent::Dispatcher;
 use yew::html;
 use yew::prelude::worker::*;
 use yew::prelude::*;
 use yew::services::fetch::FetchTask;
-use yew::services::IntervalService;
-use yew::services::Task;
 use yew::virtual_dom::VNode;
 use yew::Callback;
 use yew_router::prelude::*;
@@ -21,6 +15,12 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::agent::session_timer::SessionTimerAgent;
+use crate::agent::session_timer::SessionTimerDispatcher;
+use crate::agent::session_timer::SessionTimerRequest;
+use crate::agent::version_timer::VersionTimerAgent;
+use crate::agent::version_timer::VersionTimerDispatcher;
+use crate::agent::version_timer::VersionTimerRequest;
 use crate::component::admin::AdminComponent;
 use crate::component::catalogue::CatalogueComponent;
 use crate::component::hero::HeroComponent;
@@ -32,20 +32,6 @@ use crate::service::account::AccountError;
 use crate::service::account::AccountService;
 use crate::service::version;
 use crate::string::NEW_VERSION_PROMPT;
-
-session_timer! {
-    SessionTimerAgent,
-    SessionTimerDispatcher,
-    SessionTimerRequest,
-    SessionTimerResponse,
-}
-
-session_timer! {
-    VersionTimerAgent,
-    VersionTimerDispatcher,
-    VersionTimerRequest,
-    VersionTimerResponse,
-}
 
 pub struct RootComponent {
     current_route: Option<AppRoute>,
