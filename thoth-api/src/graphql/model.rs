@@ -1056,7 +1056,7 @@ impl QueryRoot {
             offset,
             None,
             order,
-            vec![],
+            publishers,
             None,
             None,
             None,
