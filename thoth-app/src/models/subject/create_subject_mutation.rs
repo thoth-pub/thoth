@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::subject::model::Subject;
 use thoth_api::subject::model::SubjectType;
-
-use super::Subject;
+use uuid::Uuid;
 
 const CREATE_SUBJECT_MUTATION: &str = "
     mutation CreateSubject(
@@ -22,6 +22,8 @@ const CREATE_SUBJECT_MUTATION: &str = "
             subjectType
             subjectCode
             subjectOrdinal
+            createdAt
+            updatedAt
         }
     }
 ";
@@ -40,7 +42,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub work_id: String,
+    pub work_id: Uuid,
     pub subject_type: SubjectType,
     pub subject_code: String,
     pub subject_ordinal: i32,

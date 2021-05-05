@@ -6,11 +6,18 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
+use crate::contribution::model::Contribution;
+use crate::funding::model::FundingExtended as Funding;
 use crate::graphql::utils::Direction;
+use crate::imprint::model::ImprintExtended as Imprint;
+use crate::issue::model::IssueExtended as Issue;
+use crate::language::model::Language;
+use crate::publication::model::PublicationExtended as Publication;
 #[cfg(feature = "backend")]
 use crate::schema::work;
 #[cfg(feature = "backend")]
 use crate::schema::work_history;
+use crate::subject::model::Subject;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Work_type")]
@@ -145,6 +152,49 @@ pub struct Work {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkExtended {
+    pub work_id: Uuid,
+    pub work_type: WorkType,
+    pub work_status: WorkStatus,
+    pub full_title: String,
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub reference: Option<String>,
+    pub edition: i32,
+    pub doi: Option<String>,
+    pub publication_date: Option<String>,
+    pub place: Option<String>,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub page_count: Option<i32>,
+    pub page_breakdown: Option<String>,
+    pub image_count: Option<i32>,
+    pub table_count: Option<i32>,
+    pub audio_count: Option<i32>,
+    pub video_count: Option<i32>,
+    pub license: Option<String>,
+    pub copyright_holder: String,
+    pub landing_page: Option<String>,
+    pub lccn: Option<String>,
+    pub oclc: Option<String>,
+    pub short_abstract: Option<String>,
+    pub long_abstract: Option<String>,
+    pub general_note: Option<String>,
+    pub toc: Option<String>,
+    pub cover_url: Option<String>,
+    pub cover_caption: Option<String>,
+    pub updated_at: DateTime<Utc>,
+    pub contributions: Option<Vec<Contribution>>,
+    pub publications: Option<Vec<Publication>>,
+    pub languages: Option<Vec<Language>>,
+    pub fundings: Option<Vec<Funding>>,
+    pub subjects: Option<Vec<Subject>>,
+    pub issues: Option<Vec<Issue>>,
+    pub imprint: Imprint,
+}
+
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
@@ -250,6 +300,24 @@ pub struct WorkOrderBy {
     pub direction: Direction,
 }
 
+impl WorkExtended {
+    pub fn compile_fulltitle(&self) -> String {
+        if let Some(subtitle) = &self.subtitle.clone() {
+            format!("{}: {}", self.title, subtitle)
+        } else {
+            self.title.to_string()
+        }
+    }
+
+    pub fn publisher(&self) -> String {
+        if let Some(short_name) = &self.imprint.publisher.publisher_shortname.clone() {
+            short_name.to_string()
+        } else {
+            self.imprint.publisher.publisher_name.to_string()
+        }
+    }
+}
+
 impl Default for WorkType {
     fn default() -> WorkType {
         WorkType::Monograph
@@ -265,6 +333,51 @@ impl Default for WorkStatus {
 impl Default for WorkField {
     fn default() -> Self {
         WorkField::FullTitle
+    }
+}
+
+impl Default for WorkExtended {
+    fn default() -> WorkExtended {
+        WorkExtended {
+            work_id: Default::default(),
+            work_type: WorkType::Monograph,
+            work_status: WorkStatus::Inactive,
+            full_title: "".to_string(),
+            title: "".to_string(),
+            subtitle: None,
+            reference: None,
+            edition: 1,
+            doi: None,
+            publication_date: None,
+            place: None,
+            width: None,
+            height: None,
+            page_count: None,
+            page_breakdown: None,
+            image_count: None,
+            table_count: None,
+            audio_count: None,
+            video_count: None,
+            license: None,
+            copyright_holder: "".to_string(),
+            landing_page: None,
+            lccn: None,
+            oclc: None,
+            short_abstract: None,
+            long_abstract: None,
+            general_note: None,
+            toc: None,
+            cover_url: None,
+            cover_caption: None,
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            contributions: None,
+            publications: None,
+            languages: None,
+            fundings: None,
+            subjects: None,
+            issues: None,
+            imprint: Default::default(),
+        }
     }
 }
 

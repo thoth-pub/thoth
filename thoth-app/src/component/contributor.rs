@@ -1,3 +1,5 @@
+use thoth_api::contributor::model::Contributor;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -38,7 +40,6 @@ use crate::models::contributor::update_contributor_mutation::PushUpdateContribut
 use crate::models::contributor::update_contributor_mutation::UpdateContributorRequest;
 use crate::models::contributor::update_contributor_mutation::UpdateContributorRequestBody;
 use crate::models::contributor::update_contributor_mutation::Variables as UpdateVariables;
-use crate::models::contributor::Contributor;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
@@ -73,7 +74,7 @@ pub enum Msg {
 
 #[derive(Clone, Properties)]
 pub struct Props {
-    pub contributor_id: String,
+    pub contributor_id: Uuid,
 }
 
 impl Component for ContributorComponent {
@@ -83,7 +84,7 @@ impl Component for ContributorComponent {
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let body = ContributorRequestBody {
             variables: Variables {
-                contributor_id: Some(props.contributor_id.clone()),
+                contributor_id: Some(props.contributor_id),
             },
             ..Default::default()
         };
@@ -185,7 +186,7 @@ impl Component for ContributorComponent {
             Msg::UpdateContributor => {
                 let body = UpdateContributorRequestBody {
                     variables: UpdateVariables {
-                        contributor_id: self.contributor.contributor_id.clone(),
+                        contributor_id: self.contributor.contributor_id,
                         first_name: self.contributor.first_name.clone(),
                         last_name: self.contributor.last_name.clone(),
                         full_name: self.contributor.full_name.clone(),
@@ -238,7 +239,7 @@ impl Component for ContributorComponent {
             Msg::DeleteContributor => {
                 let body = DeleteContributorRequestBody {
                     variables: DeleteVariables {
-                        contributor_id: self.contributor.contributor_id.clone(),
+                        contributor_id: self.contributor.contributor_id,
                     },
                     ..Default::default()
                 };
@@ -329,7 +330,7 @@ impl Component for ContributorComponent {
                                                 <p>
                                                     { "Contributed to: " }
                                                     <RouterAnchor<AppRoute>
-                                                        route=AppRoute::Admin(AdminRoute::Work(contribution.work.work_id.clone()))
+                                                        route=AppRoute::Admin(AdminRoute::Work(contribution.work.work_id))
                                                     >
                                                         { &contribution.work.title }
                                                     </  RouterAnchor<AppRoute>>

@@ -3,7 +3,7 @@ use crate::models::imprint::imprints_query::FetchImprints;
 use crate::models::imprint::imprints_query::ImprintsRequest;
 use crate::models::imprint::imprints_query::ImprintsRequestBody;
 use crate::models::imprint::imprints_query::Variables;
-use crate::models::imprint::Imprint;
+use thoth_api::imprint::model::ImprintExtended as Imprint;
 use thoth_api::imprint::model::ImprintField;
 use thoth_api::imprint::model::ImprintOrderBy;
 

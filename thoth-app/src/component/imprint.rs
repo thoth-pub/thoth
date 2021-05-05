@@ -1,4 +1,7 @@
 use thoth_api::account::model::AccountDetails;
+use thoth_api::imprint::model::ImprintExtended as Imprint;
+use thoth_api::publisher::model::Publisher;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -35,13 +38,11 @@ use crate::models::imprint::update_imprint_mutation::PushUpdateImprint;
 use crate::models::imprint::update_imprint_mutation::UpdateImprintRequest;
 use crate::models::imprint::update_imprint_mutation::UpdateImprintRequestBody;
 use crate::models::imprint::update_imprint_mutation::Variables as UpdateVariables;
-use crate::models::imprint::Imprint;
 use crate::models::publisher::publishers_query::FetchActionPublishers;
 use crate::models::publisher::publishers_query::FetchPublishers;
 use crate::models::publisher::publishers_query::PublishersRequest;
 use crate::models::publisher::publishers_query::PublishersRequestBody;
 use crate::models::publisher::publishers_query::Variables as PublishersVariables;
-use crate::models::publisher::Publisher;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
@@ -73,7 +74,7 @@ pub enum Msg {
     UpdateImprint,
     SetImprintDeleteState(PushActionDeleteImprint),
     DeleteImprint,
-    ChangePublisher(String),
+    ChangePublisher(Uuid),
     ChangeImprintName(String),
     ChangeImprintUrl(String),
     ChangeRoute(AppRoute),
@@ -81,7 +82,7 @@ pub enum Msg {
 
 #[derive(Clone, Properties)]
 pub struct Props {
-    pub imprint_id: String,
+    pub imprint_id: Uuid,
     pub current_user: AccountDetails,
 }
 
@@ -175,7 +176,7 @@ impl Component for ImprintComponent {
             Msg::GetImprint => {
                 let body = ImprintRequestBody {
                     variables: Variables {
-                        imprint_id: Some(self.props.imprint_id.clone()),
+                        imprint_id: Some(self.props.imprint_id),
                     },
                     ..Default::default()
                 };
@@ -221,10 +222,10 @@ impl Component for ImprintComponent {
             Msg::UpdateImprint => {
                 let body = UpdateImprintRequestBody {
                     variables: UpdateVariables {
-                        imprint_id: self.imprint.imprint_id.clone(),
+                        imprint_id: self.imprint.imprint_id,
                         imprint_name: self.imprint.imprint_name.clone(),
                         imprint_url: self.imprint.imprint_url.clone(),
-                        publisher_id: self.imprint.publisher.publisher_id.clone(),
+                        publisher_id: self.imprint.publisher.publisher_id,
                     },
                     ..Default::default()
                 };
@@ -272,7 +273,7 @@ impl Component for ImprintComponent {
             Msg::DeleteImprint => {
                 let body = DeleteImprintRequestBody {
                     variables: DeleteVariables {
-                        imprint_id: self.imprint.imprint_id.clone(),
+                        imprint_id: self.imprint.imprint_id,
                     },
                     ..Default::default()
                 };
@@ -362,7 +363,7 @@ impl Component for ImprintComponent {
                                 onchange=self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {
                                         let value = elem.value();
-                                        Msg::ChangePublisher(value.clone())
+                                        Msg::ChangePublisher(Uuid::parse_str(&value).unwrap_or_default())
                                     }
                                     _ => unreachable!(),
                                 })

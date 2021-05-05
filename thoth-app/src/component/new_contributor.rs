@@ -1,3 +1,4 @@
+use thoth_api::contributor::model::Contributor;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -27,7 +28,6 @@ use crate::models::contributor::create_contributor_mutation::CreateContributorRe
 use crate::models::contributor::create_contributor_mutation::PushActionCreateContributor;
 use crate::models::contributor::create_contributor_mutation::PushCreateContributor;
 use crate::models::contributor::create_contributor_mutation::Variables;
-use crate::models::contributor::Contributor;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
@@ -99,7 +99,7 @@ impl Component for NewContributorComponent {
                                 NotificationStatus::Success,
                             )));
                             self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Contributor(c.contributor_id.clone()),
+                                AdminRoute::Contributor(c.contributor_id),
                             )));
                             true
                         }
@@ -239,7 +239,7 @@ impl Component for NewContributorComponent {
         if self.show_duplicate_tooltip && !self.contributors.is_empty() {
             tooltip = "Existing contributors with similar names:\n\n".to_string();
             for c in &self.contributors {
-                tooltip = format!("{}{}\n", tooltip, c.as_formatted_string());
+                tooltip = format!("{}{}\n", tooltip, c);
             }
         }
         html! {

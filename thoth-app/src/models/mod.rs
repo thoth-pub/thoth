@@ -87,6 +87,50 @@ macro_rules! graphql_query_builder {
     };
 }
 
+use yew::html;
+use yew::prelude::Html;
+use yew::Callback;
+use yew::MouseEvent;
+
+use crate::route::AppRoute;
+
+pub trait Dropdown {
+    fn as_dropdown_item(&self, callback: Callback<MouseEvent>) -> Html
+    where
+        Self: std::fmt::Display,
+    {
+        // since dropdowns may have an onblur event, we need to use onmousedown instead of
+        // onclick. This is not ideal, but it seems to be the only event that'd do the callback
+        // without disabling onblur so that onclick can take effect
+        html! {
+            <div onmousedown=callback class="dropdown-item">
+                { self }
+            </div>
+        }
+    }
+}
+
+pub trait ListString {
+    const BULLET_SEPARATOR: &'static str = " • ";
+    const COMMA_SEPARATOR: &'static str = ", ";
+
+    fn separated_list_item_bullet_small(&self) -> Html {
+        self.separated_list_item(true, Self::BULLET_SEPARATOR)
+    }
+
+    fn separated_list_item_comma(&self) -> Html {
+        self.separated_list_item(false, Self::COMMA_SEPARATOR)
+    }
+
+    fn separated_list_item(&self, is_small: bool, separator: &str) -> Html;
+}
+
+pub trait MetadataObject {
+    fn create_route() -> AppRoute;
+    fn edit_route(&self) -> AppRoute;
+    fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html;
+}
+
 pub mod contribution;
 pub mod contributor;
 pub mod funder;

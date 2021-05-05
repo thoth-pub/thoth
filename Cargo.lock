@@ -3726,6 +3726,7 @@ dependencies = [
  "thiserror",
  "thoth-api",
  "url 2.1.1",
+ "uuid 0.7.4",
  "wasm-bindgen",
  "wasm-logger",
  "wasm-pack",
