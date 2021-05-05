@@ -228,12 +228,9 @@ impl Component for IssuesFormComponent {
                     }
                 }
             }
-            Msg::DeleteIssue(series_id) => {
+            Msg::DeleteIssue(issue_id) => {
                 let body = DeleteIssueRequestBody {
-                    variables: DeleteVariables {
-                        work_id: self.props.work_id,
-                        series_id,
-                    },
+                    variables: DeleteVariables { issue_id },
                     ..Default::default()
                 };
                 let request = DeleteIssueRequest { body };
@@ -432,7 +429,7 @@ impl IssuesFormComponent {
     }
 
     fn render_issue(&self, i: &Issue) -> Html {
-        let series_id = i.series_id;
+        let issue_id = i.issue_id;
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -479,7 +476,7 @@ impl IssuesFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteIssue(series_id))
+                                onclick=self.link.callback(move |_| Msg::DeleteIssue(issue_id))
                             >
                                 { REMOVE_BUTTON }
                             </a>

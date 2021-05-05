@@ -21,7 +21,8 @@ table! {
     use diesel::sql_types::*;
     use crate::contribution::model::Contribution_type;
 
-    contribution (work_id, contributor_id, contribution_type) {
+    contribution (contribution_id) {
+        contribution_id -> Uuid,
         work_id -> Uuid,
         contributor_id -> Uuid,
         contribution_type -> Contribution_type,
@@ -38,13 +39,10 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::contribution::model::Contribution_type;
 
     contribution_history (contribution_history_id) {
         contribution_history_id -> Uuid,
-        work_id -> Uuid,
-        contributor_id -> Uuid,
-        contribution_type -> Contribution_type,
+        contribution_id -> Uuid,
         account_id -> Uuid,
         data -> Jsonb,
         timestamp -> Timestamptz,
@@ -159,7 +157,8 @@ table! {
 table! {
     use diesel::sql_types::*;
 
-    issue (series_id, work_id) {
+    issue (issue_id) {
+        issue_id -> Uuid,
         series_id -> Uuid,
         work_id -> Uuid,
         issue_ordinal -> Int4,
@@ -173,8 +172,7 @@ table! {
 
     issue_history (issue_history_id) {
         issue_history_id -> Uuid,
-        series_id -> Uuid,
-        work_id -> Uuid,
+        issue_id -> Uuid,
         account_id -> Uuid,
         data -> Jsonb,
         timestamp -> Timestamptz,
@@ -412,6 +410,7 @@ table! {
 joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
 joinable!(contribution_history -> account (account_id));
+joinable!(contribution_history -> contribution (contribution_id));
 joinable!(contributor_history -> account (account_id));
 joinable!(contributor_history -> contributor (contributor_id));
 joinable!(funder_history -> account (account_id));
@@ -426,6 +425,7 @@ joinable!(imprint_history -> imprint (imprint_id));
 joinable!(issue -> series (series_id));
 joinable!(issue -> work (work_id));
 joinable!(issue_history -> account (account_id));
+joinable!(issue_history -> issue (issue_id));
 joinable!(language -> work (work_id));
 joinable!(language_history -> account (account_id));
 joinable!(language_history -> language (language_id));

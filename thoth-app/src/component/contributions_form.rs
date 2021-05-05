@@ -75,7 +75,7 @@ pub enum Msg {
     SetContributionPushState(PushActionCreateContribution),
     CreateContribution,
     SetContributionDeleteState(PushActionDeleteContribution),
-    DeleteContribution(Uuid, ContributionType),
+    DeleteContribution(Uuid),
     AddContribution(Contributor),
     ChangeFirstName(String),
     ChangeLastName(String),
@@ -267,13 +267,9 @@ impl Component for ContributionsFormComponent {
                     }
                 }
             }
-            Msg::DeleteContribution(contributor_id, contribution_type) => {
+            Msg::DeleteContribution(contribution_id) => {
                 let body = DeleteContributionRequestBody {
-                    variables: DeleteVariables {
-                        work_id: self.props.work_id,
-                        contributor_id,
-                        contribution_type,
-                    },
+                    variables: DeleteVariables { contribution_id },
                     ..Default::default()
                 };
                 let request = DeleteContributionRequest { body };
@@ -518,8 +514,7 @@ impl ContributionsFormComponent {
     }
 
     fn render_contribution(&self, c: &Contribution) -> Html {
-        let contributor_id = c.contributor_id;
-        let contribution_type = c.contribution_type;
+        let contribution_id = c.contribution_id;
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -567,7 +562,7 @@ impl ContributionsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteContribution(contributor_id, contribution_type.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeleteContribution(contribution_id))
                             >
                                 { REMOVE_BUTTON }
                             </a>

@@ -27,6 +27,7 @@ const CREATE_CONTRIBUTION_MUTATION: &str = "
             lastName: $lastName
             fullName: $fullName
         }){
+            contributionId
             workId
             contributorId
             contributionType

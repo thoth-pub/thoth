@@ -11,8 +11,7 @@ use crate::schema::issue_history;
 impl NewIssueHistory {
     pub fn new(issue: Issue, account_id: Uuid) -> Self {
         Self {
-            series_id: issue.series_id,
-            work_id: issue.work_id,
+            issue_id: issue.issue_id,
             account_id,
             data: serde_json::Value::String(serde_json::to_string(&issue).unwrap()),
         }

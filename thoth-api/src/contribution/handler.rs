@@ -11,9 +11,7 @@ use crate::schema::contribution_history;
 impl NewContributionHistory {
     pub fn new(contribution: Contribution, account_id: Uuid) -> Self {
         Self {
-            work_id: contribution.work_id,
-            contributor_id: contribution.contributor_id,
-            contribution_type: contribution.contribution_type,
+            contribution_id: contribution.contribution_id,
             account_id,
             data: serde_json::Value::String(serde_json::to_string(&contribution).unwrap()),
         }
