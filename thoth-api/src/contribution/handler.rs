@@ -5,21 +5,19 @@ use uuid::Uuid;
 use crate::contribution::model::Contribution;
 use crate::contribution::model::ContributionHistory;
 use crate::contribution::model::NewContributionHistory;
-use crate::errors::ThothError;
+use crate::errors::{ThothError, ThothResult};
 use crate::schema::contribution_history;
 
 impl NewContributionHistory {
     pub fn new(contribution: Contribution, account_id: Uuid) -> Self {
         Self {
-            work_id: contribution.work_id,
-            contributor_id: contribution.contributor_id,
-            contribution_type: contribution.contribution_type,
+            contribution_id: contribution.contribution_id,
             account_id,
             data: serde_json::Value::String(serde_json::to_string(&contribution).unwrap()),
         }
     }
 
-    pub fn insert(&self, connection: &PgConnection) -> Result<ContributionHistory, ThothError> {
+    pub fn insert(&self, connection: &PgConnection) -> ThothResult<ContributionHistory> {
         match diesel::insert_into(contribution_history::table)
             .values(self)
             .get_result(connection)

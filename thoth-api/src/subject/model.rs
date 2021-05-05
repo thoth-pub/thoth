@@ -7,8 +7,8 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::errors::Result;
 use crate::errors::ThothError;
+use crate::errors::ThothResult;
 #[cfg(feature = "backend")]
 use crate::schema::subject;
 #[cfg(feature = "backend")]
@@ -104,7 +104,7 @@ pub struct NewSubjectHistory {
     pub data: serde_json::Value,
 }
 
-pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<()> {
+pub fn check_subject(subject_type: &SubjectType, code: &str) -> ThothResult<()> {
     let valid = match &subject_type {
         SubjectType::Bic => true,
         SubjectType::Bisac => true,
@@ -116,7 +116,10 @@ pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<()> {
     if valid {
         Ok(())
     } else {
-        Err(ThothError::InvalidSubjectCode(code.to_string(), subject_type.to_string()).into())
+        Err(ThothError::InvalidSubjectCode(
+            code.to_string(),
+            subject_type.to_string(),
+        ))
     }
 }
 

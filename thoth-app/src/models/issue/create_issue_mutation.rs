@@ -14,6 +14,7 @@ const CREATE_ISSUE_MUTATION: &str = "
             seriesId: $seriesId
             issueOrdinal: $issueOrdinal
         }){
+            issueId
             workId
             seriesId
             issueOrdinal

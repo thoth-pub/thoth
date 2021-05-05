@@ -3,8 +3,8 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::errors::Result;
 use crate::errors::ThothError;
+use crate::errors::ThothResult;
 #[cfg(feature = "backend")]
 use crate::schema::account;
 #[cfg(feature = "backend")]
@@ -137,7 +137,7 @@ impl DecodedToken {
 }
 
 impl AccountAccess {
-    pub fn can_edit(&self, publisher_id: Uuid) -> Result<()> {
+    pub fn can_edit(&self, publisher_id: Uuid) -> ThothResult<()> {
         if self.is_superuser {
             Ok(())
         } else if let Some(_found) = &self
@@ -147,7 +147,7 @@ impl AccountAccess {
         {
             Ok(())
         } else {
-            Err(ThothError::Unauthorised.into())
+            Err(ThothError::Unauthorised)
         }
     }
 
