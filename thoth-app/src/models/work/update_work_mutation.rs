@@ -2,6 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
+use uuid::Uuid;
 
 const UPDATE_WORK_MUTATION: &str = "
     mutation UpdateWork(
@@ -90,7 +91,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub work_id: String,
+    pub work_id: Uuid,
     pub work_type: WorkType,
     pub work_status: WorkStatus,
     pub full_title: String,
@@ -120,13 +121,13 @@ pub struct Variables {
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
-    pub imprint_id: String,
+    pub imprint_id: Uuid,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SlimWork {
-    pub work_id: String,
+    pub work_id: Uuid,
     pub title: String,
 }
 

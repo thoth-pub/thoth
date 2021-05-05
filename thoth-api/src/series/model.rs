@@ -1,11 +1,13 @@
 use chrono::DateTime;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
+use crate::imprint::model::ImprintExtended as Imprint;
 #[cfg(feature = "backend")]
 use crate::schema::series;
 #[cfg(feature = "backend")]
@@ -57,6 +59,19 @@ pub struct Series {
     pub imprint_id: Uuid,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SeriesExtended {
+    pub series_id: Uuid,
+    pub series_type: SeriesType,
+    pub series_name: String,
+    pub issn_print: String,
+    pub issn_digital: String,
+    pub series_url: Option<String>,
+    pub updated_at: DateTime<Utc>,
+    pub imprint: Imprint,
 }
 
 #[cfg_attr(
@@ -125,6 +140,31 @@ impl Default for SeriesType {
 impl Default for SeriesField {
     fn default() -> Self {
         SeriesField::SeriesName
+    }
+}
+
+impl Default for SeriesExtended {
+    fn default() -> SeriesExtended {
+        SeriesExtended {
+            series_id: Default::default(),
+            series_type: Default::default(),
+            series_name: "".to_string(),
+            issn_print: "".to_string(),
+            issn_digital: "".to_string(),
+            series_url: None,
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            imprint: Default::default(),
+        }
+    }
+}
+
+impl fmt::Display for SeriesExtended {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{} ({}, {})",
+            self.series_name, self.issn_print, self.issn_digital
+        )
     }
 }
 

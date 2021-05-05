@@ -3,7 +3,7 @@ use crate::models::series::serieses_query::FetchSerieses;
 use crate::models::series::serieses_query::SeriesesRequest;
 use crate::models::series::serieses_query::SeriesesRequestBody;
 use crate::models::series::serieses_query::Variables;
-use crate::models::series::Series;
+use thoth_api::series::model::SeriesExtended as Series;
 use thoth_api::series::model::SeriesField;
 use thoth_api::series::model::SeriesOrderBy;
 

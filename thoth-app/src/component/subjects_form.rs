@@ -1,5 +1,7 @@
 use std::str::FromStr;
+use thoth_api::subject::model::Subject;
 use thoth_api::subject::model::SubjectType;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -28,7 +30,6 @@ use crate::models::subject::delete_subject_mutation::PushDeleteSubject;
 use crate::models::subject::delete_subject_mutation::Variables as DeleteVariables;
 use crate::models::subject::subject_types_query::FetchActionSubjectTypes;
 use crate::models::subject::subject_types_query::FetchSubjectTypes;
-use crate::models::subject::Subject;
 use crate::models::subject::SubjectTypeValues;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_SUBJECTS;
@@ -58,7 +59,7 @@ pub enum Msg {
     SetSubjectPushState(PushActionCreateSubject),
     CreateSubject,
     SetSubjectDeleteState(PushActionDeleteSubject),
-    DeleteSubject(String),
+    DeleteSubject(Uuid),
     ChangeSubjectType(SubjectType),
     ChangeCode(String),
     ChangeOrdinal(String),
@@ -68,7 +69,7 @@ pub enum Msg {
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub subjects: Option<Vec<Subject>>,
-    pub work_id: String,
+    pub work_id: Uuid,
     pub update_subjects: Callback<Option<Vec<Subject>>>,
 }
 
@@ -135,7 +136,6 @@ impl Component for SubjectsFormComponent {
                             let mut subjects: Vec<Subject> =
                                 self.props.subjects.clone().unwrap_or_default();
                             subjects.push(subject);
-                            self.new_subject = Default::default();
                             self.props.update_subjects.emit(Some(subjects));
                             self.link.send_message(Msg::ToggleAddFormDisplay(false));
                             true
@@ -162,7 +162,7 @@ impl Component for SubjectsFormComponent {
             Msg::CreateSubject => {
                 let body = CreateSubjectRequestBody {
                     variables: Variables {
-                        work_id: self.props.work_id.clone(),
+                        work_id: self.props.work_id,
                         subject_type: self.new_subject.subject_type.clone(),
                         subject_code: self.new_subject.subject_code.clone(),
                         subject_ordinal: self.new_subject.subject_ordinal,
@@ -351,10 +351,7 @@ impl SubjectsFormComponent {
     }
 
     fn render_subject(&self, s: &Subject) -> Html {
-        // there's probably a better way to do this. We basically need to copy 3 instances
-        // of contributor_id and take ownership of them so they can be passed on to
-        // the callback functions
-        let subject_id = s.subject_id.clone();
+        let subject_id = s.subject_id;
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -387,7 +384,7 @@ impl SubjectsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteSubject(subject_id.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeleteSubject(subject_id))
                             >
                                 { REMOVE_BUTTON }
                             </a>

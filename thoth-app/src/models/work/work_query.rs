@@ -1,7 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::imprint::model::ImprintExtended as Imprint;
+use uuid::Uuid;
 
-use super::super::imprint::Imprint;
 use super::Work;
 use super::WorkStatusDefinition;
 use super::WorkTypeDefinition;
@@ -46,14 +47,10 @@ pub const WORK_QUERY: &str = "
                 mainContribution
                 biography
                 institution
+                createdAt
+                updatedAt
                 lastName
                 fullName
-                contributor {
-                    contributorId
-                    lastName
-                    fullName
-                    updatedAt
-                }
             }
             publications {
                 publicationId
@@ -66,6 +63,8 @@ pub const WORK_QUERY: &str = "
                     publicationId
                     currencyCode
                     unitPrice
+                    createdAt
+                    updatedAt
                 }
                 work {
                     imprint {
@@ -81,6 +80,8 @@ pub const WORK_QUERY: &str = "
                 languageCode
                 languageRelation
                 mainLanguage
+                createdAt
+                updatedAt
             }
             fundings {
                 fundingId
@@ -94,6 +95,7 @@ pub const WORK_QUERY: &str = "
                 funder {
                     funderId
                     funderName
+                    createdAt
                     updatedAt
                 }
             }
@@ -103,6 +105,8 @@ pub const WORK_QUERY: &str = "
                 subjectType
                 subjectCode
                 subjectOrdinal
+                createdAt
+                updatedAt
             }
             issues {
                 workId
@@ -125,6 +129,7 @@ pub const WORK_QUERY: &str = "
                             publisherName
                             publisherShortname
                             publisherUrl
+                            createdAt
                             updatedAt
                         }
                     }
@@ -139,6 +144,7 @@ pub const WORK_QUERY: &str = "
                     publisherName
                     publisherShortname
                     publisherUrl
+                    createdAt
                     updatedAt
                 }
             }
@@ -152,6 +158,7 @@ pub const WORK_QUERY: &str = "
                 publisherName
                 publisherShortname
                 publisherUrl
+                createdAt
                 updatedAt
             }
         }
@@ -182,7 +189,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub work_id: Option<String>,
+    pub work_id: Option<Uuid>,
     pub publishers: Option<Vec<String>>,
 }
 

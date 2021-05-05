@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use uuid::Uuid;
 
 const DELETE_WORK_MUTATION: &str = "
     mutation DeleteWork(
@@ -28,13 +29,13 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub work_id: String,
+    pub work_id: Uuid,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SlimWork {
-    pub work_id: String,
+    pub work_id: Uuid,
     pub title: String,
 }
 

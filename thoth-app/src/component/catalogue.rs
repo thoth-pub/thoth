@@ -1,3 +1,4 @@
+use thoth_api::work::model::WorkExtended as Work;
 use yew::html;
 use yew::prelude::Component;
 use yew::prelude::FocusEvent;
@@ -17,7 +18,7 @@ use crate::models::work::works_query::FetchWorks;
 use crate::models::work::works_query::Variables;
 use crate::models::work::works_query::WorksRequest;
 use crate::models::work::works_query::WorksRequestBody;
-use crate::models::work::Work;
+use crate::models::work::DisplayWork;
 
 pub struct CatalogueComponent {
     limit: i32,

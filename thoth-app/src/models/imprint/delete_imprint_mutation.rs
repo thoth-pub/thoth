@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use uuid::Uuid;
 
 use super::Imprint;
 
@@ -19,6 +20,7 @@ const DELETE_IMPRINT_MUTATION: &str = "
                 publisherName
                 publisherShortname
                 publisherUrl
+                createdAt
                 updatedAt
             }
         }
@@ -39,7 +41,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub imprint_id: String,
+    pub imprint_id: Uuid,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

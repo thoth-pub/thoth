@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use uuid::Uuid;
 
 const DELETE_SERIES_MUTATION: &str = "
     mutation DeleteSeries(
@@ -28,13 +29,13 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub series_id: String,
+    pub series_id: Uuid,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SlimSeries {
-    pub series_id: String,
+    pub series_id: Uuid,
     pub series_name: String,
 }
 

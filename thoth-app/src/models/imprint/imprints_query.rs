@@ -16,6 +16,7 @@ const IMPRINTS_QUERY: &str = "
                 publisherName
                 publisherShortname
                 publisherUrl
+                createdAt
                 updatedAt
             }
         }

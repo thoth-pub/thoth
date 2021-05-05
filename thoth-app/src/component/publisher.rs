@@ -1,4 +1,6 @@
 use thoth_api::account::model::AccountDetails;
+use thoth_api::publisher::model::Publisher;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -34,7 +36,6 @@ use crate::models::publisher::update_publisher_mutation::PushUpdatePublisher;
 use crate::models::publisher::update_publisher_mutation::UpdatePublisherRequest;
 use crate::models::publisher::update_publisher_mutation::UpdatePublisherRequestBody;
 use crate::models::publisher::update_publisher_mutation::Variables as UpdateVariables;
-use crate::models::publisher::Publisher;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
@@ -65,7 +66,7 @@ pub enum Msg {
 
 #[derive(Clone, Properties)]
 pub struct Props {
-    pub publisher_id: String,
+    pub publisher_id: Uuid,
     pub current_user: AccountDetails,
 }
 
@@ -125,7 +126,7 @@ impl Component for PublisherComponent {
             Msg::GetPublisher => {
                 let body = PublisherRequestBody {
                     variables: Variables {
-                        publisher_id: Some(self.props.publisher_id.clone()),
+                        publisher_id: Some(self.props.publisher_id),
                     },
                     ..Default::default()
                 };
@@ -171,7 +172,7 @@ impl Component for PublisherComponent {
             Msg::UpdatePublisher => {
                 let body = UpdatePublisherRequestBody {
                     variables: UpdateVariables {
-                        publisher_id: self.publisher.publisher_id.clone(),
+                        publisher_id: self.publisher.publisher_id,
                         publisher_name: self.publisher.publisher_name.clone(),
                         publisher_shortname: self.publisher.publisher_shortname.clone(),
                         publisher_url: self.publisher.publisher_url.clone(),
@@ -222,7 +223,7 @@ impl Component for PublisherComponent {
             Msg::DeletePublisher => {
                 let body = DeletePublisherRequestBody {
                     variables: DeleteVariables {
-                        publisher_id: self.publisher.publisher_id.clone(),
+                        publisher_id: self.publisher.publisher_id,
                     },
                     ..Default::default()
                 };

@@ -53,7 +53,8 @@ pub enum ContributionField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Contribution {
     pub work_id: Uuid,
     pub contributor_id: Uuid,
@@ -130,6 +131,24 @@ pub struct NewContributionHistory {
 impl Default for ContributionType {
     fn default() -> ContributionType {
         ContributionType::Author
+    }
+}
+
+impl Default for Contribution {
+    fn default() -> Contribution {
+        Contribution {
+            work_id: Default::default(),
+            contributor_id: Default::default(),
+            contribution_type: Default::default(),
+            main_contribution: Default::default(),
+            biography: None,
+            institution: None,
+            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            first_name: None,
+            last_name: Default::default(),
+            full_name: Default::default(),
+        }
     }
 }
 

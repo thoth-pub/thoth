@@ -1,4 +1,7 @@
 use thoth_api::account::model::AccountDetails;
+use thoth_api::price::model::Price;
+use thoth_api::publication::model::PublicationExtended as Publication;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -17,7 +20,6 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::prices_form::PricesFormComponent;
 use crate::component::utils::Loader;
-use crate::models::price::Price;
 use crate::models::publication::delete_publication_mutation::DeletePublicationRequest;
 use crate::models::publication::delete_publication_mutation::DeletePublicationRequestBody;
 use crate::models::publication::delete_publication_mutation::PushActionDeletePublication;
@@ -28,7 +30,6 @@ use crate::models::publication::publication_query::FetchPublication;
 use crate::models::publication::publication_query::PublicationRequest;
 use crate::models::publication::publication_query::PublicationRequestBody;
 use crate::models::publication::publication_query::Variables;
-use crate::models::publication::Publication;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::DELETE_BUTTON;
@@ -54,7 +55,7 @@ pub enum Msg {
 
 #[derive(Clone, Properties)]
 pub struct Props {
-    pub publication_id: String,
+    pub publication_id: Uuid,
     pub current_user: AccountDetails,
 }
 
@@ -120,7 +121,7 @@ impl Component for PublicationComponent {
             Msg::GetPublication => {
                 let body = PublicationRequestBody {
                     variables: Variables {
-                        publication_id: Some(self.props.publication_id.clone()),
+                        publication_id: Some(self.props.publication_id),
                     },
                     ..Default::default()
                 };
@@ -143,7 +144,9 @@ impl Component for PublicationComponent {
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!(
                                     "Deleted {}",
-                                    &p.isbn.clone().unwrap_or_else(|| p.publication_id.clone())
+                                    &p.isbn
+                                        .clone()
+                                        .unwrap_or_else(|| p.publication_id.to_string())
                                 ),
                                 NotificationStatus::Success,
                             )));
@@ -172,7 +175,7 @@ impl Component for PublicationComponent {
             Msg::DeletePublication => {
                 let body = DeletePublicationRequestBody {
                     variables: DeleteVariables {
-                        publication_id: self.publication.publication_id.clone(),
+                        publication_id: self.publication.publication_id,
                     },
                     ..Default::default()
                 };
