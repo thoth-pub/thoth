@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-
-use super::Subject;
+use thoth_api::subject::model::Subject;
+use uuid::Uuid;
 
 const DELETE_SUBJECT_MUTATION: &str = "
     mutation DeleteSubject(
@@ -15,6 +15,8 @@ const DELETE_SUBJECT_MUTATION: &str = "
             subjectType
             subjectCode
             subjectOrdinal
+            createdAt
+            updatedAt
         }
     }
 ";
@@ -33,7 +35,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub subject_id: String,
+    pub subject_id: Uuid,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

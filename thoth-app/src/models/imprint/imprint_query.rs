@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use uuid::Uuid;
 
 use super::Imprint;
 
@@ -15,6 +16,7 @@ pub const IMPRINT_QUERY: &str = "
                 publisherName
                 publisherShortname
                 publisherUrl
+                createdAt
                 updatedAt
             }
         }
@@ -35,7 +37,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub imprint_id: Option<String>,
+    pub imprint_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-
-use super::Contributor;
+use thoth_api::contributor::model::Contributor;
+use uuid::Uuid;
 
 const DELETE_CONTRIBUTOR_MUTATION: &str = "
     mutation DeleteContributor(
@@ -13,6 +13,7 @@ const DELETE_CONTRIBUTOR_MUTATION: &str = "
             contributorId
             lastName
             fullName
+            createdAt
             updatedAt
         }
     }
@@ -32,7 +33,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub contributor_id: String,
+    pub contributor_id: Uuid,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

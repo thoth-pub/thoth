@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::series::model::SeriesType;
+use uuid::Uuid;
 
 const UPDATE_SERIES_MUTATION: &str = "
     mutation UpdateSeries(
@@ -41,19 +42,19 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub series_id: String,
+    pub series_id: Uuid,
     pub series_type: SeriesType,
     pub series_name: String,
     pub issn_print: String,
     pub issn_digital: String,
     pub series_url: Option<String>,
-    pub imprint_id: String,
+    pub imprint_id: Uuid,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SlimSeries {
-    pub series_id: String,
+    pub series_id: Uuid,
     pub series_name: String,
 }
 

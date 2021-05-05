@@ -46,7 +46,8 @@ pub enum SubjectField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Subject {
     pub subject_id: Uuid,
     pub work_id: Uuid,
@@ -125,6 +126,20 @@ pub fn check_subject(subject_type: &SubjectType, code: &str) -> ThothResult<()> 
 impl Default for SubjectType {
     fn default() -> SubjectType {
         SubjectType::Keyword
+    }
+}
+
+impl Default for Subject {
+    fn default() -> Subject {
+        Subject {
+            subject_id: Default::default(),
+            work_id: Default::default(),
+            subject_type: Default::default(),
+            subject_code: "".to_string(),
+            subject_ordinal: 1,
+            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+        }
     }
 }
 

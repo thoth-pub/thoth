@@ -3,7 +3,7 @@ use crate::models::publisher::publishers_query::FetchPublishers;
 use crate::models::publisher::publishers_query::PublishersRequest;
 use crate::models::publisher::publishers_query::PublishersRequestBody;
 use crate::models::publisher::publishers_query::Variables;
-use crate::models::publisher::Publisher;
+use thoth_api::publisher::model::Publisher;
 use thoth_api::publisher::model::PublisherField;
 use thoth_api::publisher::model::PublisherOrderBy;
 

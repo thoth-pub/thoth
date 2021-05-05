@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::contributor::model::Contributor;
 use thoth_api::contributor::model::ContributorOrderBy;
-
-use super::Contributor;
 
 pub const CONTRIBUTORS_QUERY: &str = "
     query ContributorsQuery($limit: Int, $offset: Int, $filter: String, $order: ContributorOrderBy) {
@@ -13,6 +12,7 @@ pub const CONTRIBUTORS_QUERY: &str = "
             fullName
             orcid
             website
+            createdAt
             updatedAt
         }
         contributorCount(filter: $filter)

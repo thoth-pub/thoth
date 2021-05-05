@@ -1,12 +1,15 @@
 use thoth_api::contribution::model::ContributionType;
+use thoth_api::imprint::model::ImprintExtended as Imprint;
 use thoth_api::language::model::LanguageCode;
 use thoth_api::language::model::LanguageRelation;
 use thoth_api::price::model::CurrencyCode;
 use thoth_api::publication::model::PublicationType;
+use thoth_api::publisher::model::Publisher;
 use thoth_api::series::model::SeriesType;
 use thoth_api::subject::model::SubjectType;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
+use uuid::Uuid;
 use yew::html;
 use yew::virtual_dom::VNode;
 use yew::Callback;
@@ -19,12 +22,10 @@ use yewtil::Pure;
 use yewtil::PureComponent;
 
 use crate::models::contribution::ContributionTypeValues;
-use crate::models::imprint::Imprint;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
 use crate::models::price::CurrencyCodeValues;
 use crate::models::publication::PublicationTypeValues;
-use crate::models::publisher::Publisher;
 use crate::models::series::SeriesTypeValues;
 use crate::models::subject::SubjectTypeValues;
 use crate::models::work::WorkStatusValues;
@@ -261,7 +262,7 @@ pub struct PureBooleanSelect {
 pub struct PureImprintSelect {
     pub label: String,
     pub data: Vec<Imprint>,
-    pub value: Option<String>,
+    pub value: Option<Uuid>,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -271,7 +272,7 @@ pub struct PureImprintSelect {
 pub struct PurePublisherSelect {
     pub label: String,
     pub data: Vec<Publisher>,
-    pub value: Option<String>,
+    pub value: Option<Uuid>,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -840,7 +841,7 @@ impl PureCurrencyCodeSelect {
 
 impl PureImprintSelect {
     fn render_imprint(&self, i: &Imprint) -> VNode {
-        let value = &self.value.clone().unwrap_or_else(|| "".to_string());
+        let value = &self.value.clone().unwrap_or_default();
         if &i.imprint_id == value {
             html! {
                 <option value={&i.imprint_id} selected=true>
@@ -857,7 +858,7 @@ impl PureImprintSelect {
 
 impl PurePublisherSelect {
     fn render_publisher(&self, p: &Publisher) -> VNode {
-        let value = &self.value.clone().unwrap_or_else(|| "".to_string());
+        let value = &self.value.clone().unwrap_or_default();
         if &p.publisher_id == value {
             html! {
                 <option value={&p.publisher_id} selected=true>

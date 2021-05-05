@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-
-use super::Funder;
+use thoth_api::funder::model::Funder;
+use uuid::Uuid;
 
 const DELETE_FUNDER_MUTATION: &str = "
     mutation DeleteFunder(
@@ -12,6 +12,7 @@ const DELETE_FUNDER_MUTATION: &str = "
         ){
             funderId
             funderName
+            createdAt
             updatedAt
         }
     }
@@ -31,7 +32,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub funder_id: String,
+    pub funder_id: Uuid,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

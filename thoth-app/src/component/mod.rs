@@ -104,6 +104,7 @@ macro_rules! pagination_component {
 
         use crate::component::utils::Loader;
         use crate::component::utils::Reloader;
+        use crate::models::MetadataObject;
         use crate::route::AppRoute;
 
         pub struct $component {

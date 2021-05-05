@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::contribution::model::Contribution;
 use thoth_api::contribution::model::ContributionType;
-
-use super::Contribution;
+use uuid::Uuid;
 
 const CREATE_CONTRIBUTION_MUTATION: &str = "
     mutation CreateContribution(
@@ -31,17 +31,13 @@ const CREATE_CONTRIBUTION_MUTATION: &str = "
             contributorId
             contributionType
             mainContribution
-            institution
             biography
+            institution
+            createdAt
+            updatedAt
             firstName
             lastName
             fullName
-            contributor {
-                contributorId
-                lastName
-                fullName
-                updatedAt
-            }
         }
     }
 ";
@@ -60,8 +56,8 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub work_id: String,
-    pub contributor_id: String,
+    pub work_id: Uuid,
+    pub contributor_id: Uuid,
     pub contribution_type: ContributionType,
     pub main_contribution: bool,
     pub biography: Option<String>,

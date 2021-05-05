@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::schema::issue;
 #[cfg(feature = "backend")]
 use crate::schema::issue_history;
+use crate::series::model::SeriesExtended as Series;
 
 #[cfg_attr(
     feature = "backend",
@@ -29,6 +30,15 @@ pub struct Issue {
     pub issue_ordinal: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueExtended {
+    pub work_id: Uuid,
+    pub series_id: Uuid,
+    pub issue_ordinal: i32,
+    pub series: Series,
 }
 
 #[cfg_attr(
@@ -70,4 +80,15 @@ pub struct NewIssueHistory {
     pub work_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
+}
+
+impl Default for IssueExtended {
+    fn default() -> IssueExtended {
+        IssueExtended {
+            work_id: Default::default(),
+            series_id: Default::default(),
+            issue_ordinal: 1,
+            series: Default::default(),
+        }
+    }
 }
