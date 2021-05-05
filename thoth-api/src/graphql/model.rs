@@ -508,6 +508,7 @@ impl QueryRoot {
         let mut query = dsl::contribution
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select((
+                dsl::contribution_id,
                 dsl::work_id,
                 dsl::contributor_id,
                 dsl::contribution_type,
@@ -522,6 +523,10 @@ impl QueryRoot {
             ))
             .into_boxed();
         match order.field {
+            ContributionField::ContributionId => match order.direction {
+                Direction::Asc => query = query.order(dsl::contribution_id.asc()),
+                Direction::Desc => query = query.order(dsl::contribution_id.desc()),
+            },
             ContributionField::WorkId => match order.direction {
                 Direction::Asc => query = query.order(dsl::work_id.asc()),
                 Direction::Desc => query = query.order(dsl::work_id.desc()),
@@ -583,18 +588,11 @@ impl QueryRoot {
             .expect("Error loading contributions")
     }
 
-    #[graphql(description = "Query a single contribution using its identifiers")]
-    fn contribution(
-        context: &Context,
-        work_id: Uuid,
-        contributor_id: Uuid,
-        contribution_type: ContributionType,
-    ) -> FieldResult<Contribution> {
+    #[graphql(description = "Query a single contribution using its id")]
+    fn contribution(context: &Context, contribution_id: Uuid) -> FieldResult<Contribution> {
         let connection = context.db.get().unwrap();
         crate::schema::contribution::dsl::contribution
-            .filter(crate::schema::contribution::dsl::work_id.eq(work_id))
-            .filter(crate::schema::contribution::dsl::contributor_id.eq(contributor_id))
-            .filter(crate::schema::contribution::dsl::contribution_type.eq(contribution_type))
+            .find(contribution_id)
             .get_result::<Contribution>(&connection)
             .map_err(|e| e.into())
     }
@@ -722,9 +720,20 @@ impl QueryRoot {
         let connection = context.db.get().unwrap();
         let mut query = issue
             .inner_join(crate::schema::series::table.inner_join(crate::schema::imprint::table))
-            .select((series_id, work_id, issue_ordinal, created_at, updated_at))
+            .select((
+                issue_id,
+                series_id,
+                work_id,
+                issue_ordinal,
+                created_at,
+                updated_at,
+            ))
             .into_boxed();
         match order.field {
+            IssueField::IssueId => match order.direction {
+                Direction::Asc => query = query.order(issue_id.asc()),
+                Direction::Desc => query = query.order(issue_id.desc()),
+            },
             IssueField::SeriesId => match order.direction {
                 Direction::Asc => query = query.order(series_id.asc()),
                 Direction::Desc => query = query.order(series_id.desc()),
@@ -756,12 +765,11 @@ impl QueryRoot {
             .expect("Error loading issues")
     }
 
-    #[graphql(description = "Query a single issue using its identifiers")]
-    fn issue(context: &Context, series_id: Uuid, work_id: Uuid) -> FieldResult<Issue> {
+    #[graphql(description = "Query a single issue using its id")]
+    fn issue(context: &Context, issue_id: Uuid) -> FieldResult<Issue> {
         let connection = context.db.get().unwrap();
         crate::schema::issue::dsl::issue
-            .filter(crate::schema::issue::dsl::series_id.eq(series_id))
-            .filter(crate::schema::issue::dsl::work_id.eq(work_id))
+            .find(issue_id)
             .get_result::<Issue>(&connection)
             .map_err(|e| e.into())
     }
@@ -1233,26 +1241,14 @@ impl MutationRoot {
         user_can_edit_work(data.work_id, context)?;
 
         let connection = context.db.get().unwrap();
-
-        use crate::schema::contribution::dsl::*;
-        // need to duplicate these otherwise the query gets moved
-        let target_contribution = contribution
-            .filter(work_id.eq(&data.work_id))
-            .filter(contributor_id.eq(&data.contributor_id))
-            .filter(contribution_type.eq(&data.contribution_type))
-            .get_result::<Contribution>(&connection)
-            .unwrap();
-        let target = contribution
-            .filter(work_id.eq(&data.work_id))
-            .filter(contributor_id.eq(&data.contributor_id))
-            .filter(contribution_type.eq(&data.contribution_type));
+        let target = crate::schema::contribution::dsl::contribution.find(&data.contribution_id);
+        let contribution = target.get_result::<Contribution>(&connection).unwrap();
 
         connection.transaction(
             || match diesel::update(target).set(&data).get_result(&connection) {
                 Ok(c) => {
                     let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-                    match NewContributionHistory::new(target_contribution, account_id)
-                        .insert(&connection)
+                    match NewContributionHistory::new(contribution, account_id).insert(&connection)
                     {
                         Ok(_) => Ok(c),
                         Err(e) => Err(FieldError::from(e)),
@@ -1297,18 +1293,14 @@ impl MutationRoot {
         issue_imprints_match(data.work_id, data.series_id, context)?;
 
         let connection = context.db.get().unwrap();
-
-        use crate::schema::issue::dsl::*;
-        let target = issue
-            .filter(series_id.eq(&data.series_id))
-            .filter(work_id.eq(&data.work_id));
-        let target_issue = target.get_result::<Issue>(&connection).unwrap();
+        let target = crate::schema::issue::dsl::issue.find(&data.issue_id);
+        let issue = target.get_result::<Issue>(&connection).unwrap();
 
         connection.transaction(
             || match diesel::update(target).set(&data).get_result(&connection) {
                 Ok(c) => {
                     let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-                    match NewIssueHistory::new(target_issue, account_id).insert(&connection) {
+                    match NewIssueHistory::new(issue, account_id).insert(&connection) {
                         Ok(_) => Ok(c),
                         Err(e) => Err(FieldError::from(e)),
                     }
@@ -1425,29 +1417,17 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn delete_contribution(
-        context: &Context,
-        work_id: Uuid,
-        contributor_id: Uuid,
-        contribution_type: ContributionType,
-    ) -> FieldResult<Contribution> {
+    fn delete_contribution(context: &Context, contribution_id: Uuid) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(work_id, context)?;
-
         let connection = context.db.get().unwrap();
 
-        use crate::schema::contribution::dsl;
-        let target = dsl::contribution
-            .filter(dsl::work_id.eq(&work_id))
-            .filter(dsl::contributor_id.eq(&contributor_id))
-            .filter(dsl::contribution_type.eq(&contribution_type));
-        let result = dsl::contribution
-            .filter(dsl::work_id.eq(&work_id))
-            .filter(dsl::contributor_id.eq(&contributor_id))
-            .filter(dsl::contribution_type.eq(&contribution_type))
-            .get_result::<Contribution>(&connection);
+        let target = crate::schema::contribution::dsl::contribution.find(contribution_id);
+        let result = target.get_result::<Contribution>(&connection);
+        let contribution = result.unwrap();
+        user_can_edit_work(contribution.work_id, context)?;
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(contribution),
             Err(e) => Err(FieldError::from(e)),
         }
     }
@@ -1470,22 +1450,17 @@ impl MutationRoot {
         series.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_issue(context: &Context, series_id: Uuid, work_id: Uuid) -> FieldResult<Issue> {
+    fn delete_issue(context: &Context, issue_id: Uuid) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(work_id, context)?;
-
         let connection = context.db.get().unwrap();
 
-        use crate::schema::issue::dsl;
-        let target = dsl::issue
-            .filter(dsl::series_id.eq(&series_id))
-            .filter(dsl::work_id.eq(&work_id));
-        let result = dsl::issue
-            .filter(dsl::series_id.eq(&series_id))
-            .filter(dsl::work_id.eq(&work_id))
-            .get_result::<Issue>(&connection);
+        let target = crate::schema::issue::dsl::issue.find(issue_id);
+        let result = target.get_result::<Issue>(&connection);
+        let issue = result.unwrap();
+        user_can_edit_work(issue.work_id, context)?;
+
         match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(result.unwrap()),
+            Ok(c) => Ok(issue),
             Err(e) => Err(FieldError::from(e)),
         }
     }
@@ -1697,6 +1672,10 @@ impl Work {
         let connection = context.db.get().unwrap();
         let mut query = dsl::contribution.into_boxed();
         match order.field {
+            ContributionField::ContributionId => match order.direction {
+                Direction::Asc => query = query.order(dsl::contribution_id.asc()),
+                Direction::Desc => query = query.order(dsl::contribution_id.desc()),
+            },
             ContributionField::WorkId => match order.direction {
                 Direction::Asc => query = query.order(dsl::work_id.asc()),
                 Direction::Desc => query = query.order(dsl::work_id.desc()),
@@ -1940,6 +1919,10 @@ impl Work {
         let connection = context.db.get().unwrap();
         let mut query = issue.into_boxed();
         match order.field {
+            IssueField::IssueId => match order.direction {
+                Direction::Asc => query = query.order(issue_id.asc()),
+                Direction::Desc => query = query.order(issue_id.desc()),
+            },
             IssueField::SeriesId => match order.direction {
                 Direction::Asc => query = query.order(series_id.asc()),
                 Direction::Desc => query = query.order(series_id.desc()),
@@ -2251,6 +2234,10 @@ impl Contributor {
         let connection = context.db.get().unwrap();
         let mut query = dsl::contribution.into_boxed();
         match order.field {
+            ContributionField::ContributionId => match order.direction {
+                Direction::Asc => query = query.order(dsl::contribution_id.asc()),
+                Direction::Desc => query = query.order(dsl::contribution_id.desc()),
+            },
             ContributionField::WorkId => match order.direction {
                 Direction::Asc => query = query.order(dsl::work_id.asc()),
                 Direction::Desc => query = query.order(dsl::work_id.desc()),
@@ -2308,6 +2295,10 @@ impl Contributor {
 
 #[juniper::object(Context = Context, description = "A person's involvement in the production of a written text.")]
 impl Contribution {
+    pub fn contribution_id(&self) -> Uuid {
+        self.contribution_id
+    }
+
     pub fn contributor_id(&self) -> Uuid {
         self.contributor_id
     }
@@ -2418,6 +2409,10 @@ impl Series {
         let connection = context.db.get().unwrap();
         let mut query = issue.into_boxed();
         match order.field {
+            IssueField::IssueId => match order.direction {
+                Direction::Asc => query = query.order(issue_id.asc()),
+                Direction::Desc => query = query.order(issue_id.desc()),
+            },
             IssueField::SeriesId => match order.direction {
                 Direction::Asc => query = query.order(series_id.asc()),
                 Direction::Desc => query = query.order(series_id.desc()),
@@ -2448,6 +2443,10 @@ impl Series {
 
 #[juniper::object(Context = Context, description = "A work published as a number in a periodical.")]
 impl Issue {
+    pub fn issue_id(&self) -> Uuid {
+        self.issue_id
+    }
+
     pub fn work_id(&self) -> Uuid {
         self.work_id
     }

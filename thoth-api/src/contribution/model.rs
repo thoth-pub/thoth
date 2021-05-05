@@ -39,6 +39,7 @@ pub enum ContributionType {
     graphql(description = "Field to use when sorting contributions list")
 )]
 pub enum ContributionField {
+    ContributionId,
     WorkId,
     ContributorId,
     ContributionType,
@@ -56,6 +57,7 @@ pub enum ContributionField {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contribution {
+    pub contribution_id: Uuid,
     pub work_id: Uuid,
     pub contributor_id: Uuid,
     pub contribution_type: ContributionType,
@@ -93,6 +95,7 @@ pub struct NewContribution {
     table_name = "contribution"
 )]
 pub struct PatchContribution {
+    pub contribution_id: Uuid,
     pub work_id: Uuid,
     pub contributor_id: Uuid,
     pub contribution_type: ContributionType,
@@ -107,9 +110,7 @@ pub struct PatchContribution {
 #[cfg_attr(feature = "backend", derive(Queryable))]
 pub struct ContributionHistory {
     pub contribution_history_id: Uuid,
-    pub work_id: Uuid,
-    pub contributor_id: Uuid,
-    pub contribution_type: ContributionType,
+    pub contribution_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
     pub timestamp: DateTime<Utc>,
@@ -121,9 +122,7 @@ pub struct ContributionHistory {
     table_name = "contribution_history"
 )]
 pub struct NewContributionHistory {
-    pub work_id: Uuid,
-    pub contributor_id: Uuid,
-    pub contribution_type: ContributionType,
+    pub contribution_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
 }
@@ -137,6 +136,7 @@ impl Default for ContributionType {
 impl Default for Contribution {
     fn default() -> Contribution {
         Contribution {
+            contribution_id: Default::default(),
             work_id: Default::default(),
             contributor_id: Default::default(),
             contribution_type: Default::default(),
