@@ -1,14 +1,12 @@
-extern crate clap;
 use clap::{crate_authors, crate_version, App, AppSettings, Arg};
 use dialoguer::{console::Term, theme::ColorfulTheme, Input, MultiSelect, Password, Select};
 use dotenv::dotenv;
-
-use thoth::server::api::start_server as api_server;
-use thoth::server::app::start_server as app_server;
-use thoth_api::account::model::{AccountData, LinkedPublisher};
-use thoth_api::account::service::{all_emails, all_publishers, register, update_password};
-use thoth_api::db::{establish_connection, run_migrations};
-use thoth_api::errors::ThothResult;
+use thoth::api_server;
+use thoth::app_server;
+use thoth::api::account::model::{AccountData, LinkedPublisher};
+use thoth::api::account::service::{all_emails, all_publishers, register, update_password};
+use thoth::api::db::{establish_connection, run_migrations};
+use thoth::api::errors::ThothResult;
 
 fn main() -> ThothResult<()> {
     let matches = App::new(env!("CARGO_PKG_NAME"))

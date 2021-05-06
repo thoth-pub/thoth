@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate actix_web;
+
 use std::io;
 
 use actix_cors::Cors;

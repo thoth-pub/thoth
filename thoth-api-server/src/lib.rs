@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate actix_web;
+
 use std::env;
 use std::io;
 use std::sync::Arc;
@@ -6,11 +9,13 @@ use actix_cors::Cors;
 use actix_identity::CookieIdentityPolicy;
 use actix_identity::Identity;
 use actix_identity::IdentityService;
+use actix_web::{App, error, Error, HttpRequest, HttpResponse, HttpServer, Result, web};
 use actix_web::middleware::Logger;
-use actix_web::{error, web, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
 use dotenv::dotenv;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
+use uuid::Uuid;
+
 use thoth_api::account::model::AccountDetails;
 use thoth_api::account::model::DecodedToken;
 use thoth_api::account::model::LoginCredentials;
@@ -20,10 +25,11 @@ use thoth_api::account::service::login;
 use thoth_api::db::establish_connection;
 use thoth_api::db::PgPool;
 use thoth_api::errors::ThothError;
-use thoth_api::graphql::model::Context;
 use thoth_api::graphql::model::{create_schema, Schema};
+use thoth_api::graphql::model::Context;
 use thoth_client::work::get_work;
-use uuid::Uuid;
+
+mod onix;
 
 use crate::onix::generate_onix_3;
 
@@ -47,14 +53,14 @@ async fn graphql(
         let res = data.execute(&st, &ctx);
         serde_json::to_string(&res)
     })
-    .await?;
+        .await?;
     Ok(HttpResponse::Ok()
         .content_type("application/json")
         .body(result))
 }
 
 #[get("/onix/{uuid}")]
-async fn onix(req: HttpRequest, path: web::Path<(Uuid,)>) -> HttpResponse {
+async fn onix_endpoint(req: HttpRequest, path: web::Path<(Uuid,)>) -> HttpResponse {
     let work_id = (path.0).0;
     let scheme = if req.app_config().secure() {
         "https".to_string()
@@ -164,7 +170,7 @@ fn config(cfg: &mut web::ServiceConfig) {
     cfg.data(pool);
     cfg.service(graphql);
     cfg.service(graphiql);
-    cfg.service(onix);
+    cfg.service(onix_endpoint);
     cfg.service(login_credentials);
     cfg.service(login_session);
     cfg.service(account_details);
@@ -196,7 +202,7 @@ pub async fn start_server(port: String) -> io::Result<()> {
             )
             .configure(config)
     })
-    .bind(format!("0.0.0.0:{}", port))?
-    .run()
-    .await
+        .bind(format!("0.0.0.0:{}", port))?
+        .run()
+        .await
 }
