@@ -3,6 +3,7 @@
 use std::env;
 use wasm_bindgen::prelude::*;
 
+#[macro_use]
 mod agent;
 #[macro_use]
 mod component;
