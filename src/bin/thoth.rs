@@ -1,12 +1,12 @@
 use clap::{crate_authors, crate_version, App, AppSettings, Arg};
 use dialoguer::{console::Term, theme::ColorfulTheme, Input, MultiSelect, Password, Select};
 use dotenv::dotenv;
-use thoth::api_server;
-use thoth::app_server;
 use thoth::api::account::model::{AccountData, LinkedPublisher};
 use thoth::api::account::service::{all_emails, all_publishers, register, update_password};
 use thoth::api::db::{establish_connection, run_migrations};
 use thoth::api::errors::ThothResult;
+use thoth::api_server;
+use thoth::app_server;
 
 fn main() -> ThothResult<()> {
     let matches = App::new(env!("CARGO_PKG_NAME"))
@@ -68,17 +68,11 @@ fn main() -> ThothResult<()> {
         ("start", Some(start_matches)) => match start_matches.subcommand() {
             ("api", Some(api_matches)) => {
                 let port = api_matches.value_of("port").unwrap();
-                match api_server(port.to_owned()) {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err(e.into()),
-                }
+                api_server(port.to_owned()).map_err(|e| e.into())
             }
             ("app", Some(client_matches)) => {
                 let port = client_matches.value_of("port").unwrap();
-                match app_server(port.to_owned()) {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err(e.into()),
-                }
+                app_server(port.to_owned()).map_err(|e| e.into())
             }
             _ => unreachable!(),
         },
@@ -86,10 +80,7 @@ fn main() -> ThothResult<()> {
         ("init", Some(init_matches)) => {
             let port = init_matches.value_of("port").unwrap();
             run_migrations()?;
-            match api_server(port.to_owned()) {
-                Ok(_) => Ok(()),
-                Err(e) => Err(e.into()),
-            }
+            api_server(port.to_owned()).map_err(|e| e.into())
         }
         ("account", Some(account_matches)) => match account_matches.subcommand() {
             ("register", Some(_)) => {
@@ -148,10 +139,7 @@ fn main() -> ThothResult<()> {
                     is_superuser,
                     is_bot,
                 };
-                match register(account_data, linked_publishers, &pool) {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err(e),
-                }
+                register(account_data, linked_publishers, &pool).map(|_| ())
             }
             ("password", Some(_)) => {
                 dotenv().ok();
@@ -171,10 +159,7 @@ fn main() -> ThothResult<()> {
 
                 dotenv().ok();
                 let pool = establish_connection();
-                match update_password(&email, &password, &pool) {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err(e),
-                }
+                update_password(&email, &password, &pool).map(|_| ())
             }
             _ => unreachable!(),
         },

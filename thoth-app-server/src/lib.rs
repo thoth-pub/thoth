@@ -1,14 +1,7 @@
-#[macro_use]
-extern crate actix_web;
-
 use std::io;
 
 use actix_cors::Cors;
-use actix_web::middleware::Logger;
-use actix_web::web;
-use actix_web::App;
-use actix_web::HttpResponse;
-use actix_web::HttpServer;
+use actix_web::{get, middleware::Logger, web, App, HttpResponse, HttpServer};
 use dotenv::dotenv;
 
 const NO_CACHE: &str = "no-cache";
