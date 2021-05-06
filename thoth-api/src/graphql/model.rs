@@ -225,7 +225,6 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         publication_type: Option<PublicationType>,
     ) -> FieldResult<Vec<Publication>> {
-        let connection = context.db.get().unwrap();
         Publication::all(
             &context.db,
             limit,
@@ -310,7 +309,6 @@ impl QueryRoot {
         order: PublisherOrderBy,
         publishers: Vec<Uuid>,
     ) -> FieldResult<Vec<Publisher>> {
-        let connection = context.db.get().unwrap();
         Publisher::all(
             &context.db,
             limit,
@@ -379,7 +377,6 @@ impl QueryRoot {
         order: ImprintOrderBy,
         publishers: Vec<Uuid>,
     ) -> FieldResult<Vec<Imprint>> {
-        let connection = context.db.get().unwrap();
         Imprint::all(
             &context.db,
             limit,
@@ -559,7 +556,6 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         series_type: Option<SeriesType>,
     ) -> FieldResult<Vec<Series>> {
-        let connection = context.db.get().unwrap();
         Series::all(
             &context.db,
             limit,
@@ -687,7 +683,6 @@ impl QueryRoot {
         language_code: Option<LanguageCode>,
         language_relation: Option<LanguageRelation>,
     ) -> FieldResult<Vec<Language>> {
-        let connection = context.db.get().unwrap();
         Language::all(
             &context.db,
             limit,
@@ -747,7 +742,6 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         currency_code: Option<CurrencyCode>,
     ) -> FieldResult<Vec<Price>> {
-        let connection = context.db.get().unwrap();
         Price::all(
             &context.db,
             limit,
