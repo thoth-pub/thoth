@@ -2,7 +2,6 @@ use std::io;
 
 use actix_cors::Cors;
 use actix_web::{get, middleware::Logger, web, App, HttpResponse, HttpServer};
-use dotenv::dotenv;
 
 const NO_CACHE: &str = "no-cache";
 
@@ -18,7 +17,6 @@ macro_rules! static_files {
         )*
 
         fn config(cfg: &mut web::ServiceConfig) {
-            dotenv().ok();
             $(cfg.service($fname);)*
         }
 
@@ -75,8 +73,8 @@ async fn index() -> HttpResponse {
 }
 
 #[actix_rt::main]
-pub async fn start_server(port: String) -> io::Result<()> {
-    env_logger::init();
+pub async fn start_server(host: String, port: String) -> io::Result<()> {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     HttpServer::new(move || {
         App::new()
@@ -89,7 +87,7 @@ pub async fn start_server(port: String) -> io::Result<()> {
             .configure(config)
             .default_service(web::route().to(index))
     })
-    .bind(format!("0.0.0.0:{}", port))?
+    .bind(format!("{}:{}", host, port))?
     .run()
     .await
 }

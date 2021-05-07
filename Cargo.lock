@@ -3649,7 +3649,6 @@ dependencies = [
  "actix-rt",
  "actix-web",
  "chrono",
- "dotenv",
  "env_logger 0.7.1",
  "juniper",
  "serde_json",
@@ -3688,7 +3687,6 @@ dependencies = [
  "actix-cors",
  "actix-rt",
  "actix-web",
- "dotenv",
  "env_logger 0.7.1",
 ]
 

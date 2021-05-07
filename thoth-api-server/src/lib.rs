@@ -1,4 +1,4 @@
-use std::{env, io, sync::Arc};
+use std::{io, sync::Arc};
 
 use actix_cors::Cors;
 use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
@@ -6,7 +6,6 @@ use actix_web::{
     error, get, middleware::Logger, post, web, App, Error, HttpRequest, HttpResponse, HttpServer,
     Result,
 };
-use dotenv::dotenv;
 use juniper::{http::graphiql::graphiql_source, http::GraphQLRequest};
 use thoth_api::{
     account::model::AccountDetails,
@@ -157,7 +156,6 @@ async fn account_details(
 }
 
 fn config(cfg: &mut web::ServiceConfig) {
-    dotenv().ok();
     let pool = establish_connection();
     let schema = std::sync::Arc::new(create_schema());
 
@@ -172,13 +170,14 @@ fn config(cfg: &mut web::ServiceConfig) {
 }
 
 #[actix_rt::main]
-pub async fn start_server(port: String) -> io::Result<()> {
-    dotenv().ok();
-    env_logger::init();
-    let secret_str = env::var("SECRET_KEY").expect("SECRET_KEY must be set");
-    let domain = env::var("THOTH_DOMAIN").expect("THOTH_DOMAIN must be set");
-    let session_duration =
-        env::var("SESSION_DURATION_SECONDS").expect("SESSION_DURATION_SECONDS must be set");
+pub async fn start_server(
+    host: String,
+    port: String,
+    domain: String,
+    secret_str: String,
+    session_duration: i64,
+) -> io::Result<()> {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     HttpServer::new(move || {
         App::new()
@@ -188,7 +187,7 @@ pub async fn start_server(port: String) -> io::Result<()> {
                     .name("auth")
                     .path("/")
                     .domain(&domain)
-                    .max_age(session_duration.parse::<i64>().unwrap()),
+                    .max_age(session_duration),
             ))
             .wrap(
                 Cors::new()
@@ -197,7 +196,7 @@ pub async fn start_server(port: String) -> io::Result<()> {
             )
             .configure(config)
     })
-    .bind(format!("0.0.0.0:{}", port))?
+    .bind(format!("{}:{}", host, port))?
     .run()
     .await
 }
