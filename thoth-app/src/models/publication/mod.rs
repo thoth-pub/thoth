@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::publication::model::DetailedPublication as Publication;
+use thoth_api::publication::model::PublicationExtended;
 use thoth_api::publication::model::PublicationType;
 use yew::html;
 use yew::prelude::Html;
@@ -54,6 +55,20 @@ impl MetadataObject for Publication {
                 <td>{&self.updated_at.format("%F %T")}</td>
             </tr>
         }
+    }
+}
+
+impl MetadataObject for PublicationExtended {
+    fn create_route() -> AppRoute {
+        unimplemented!()
+    }
+
+    fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Publication(self.publication_id))
+    }
+
+    fn as_table_row(&self, _: Callback<MouseEvent>) -> Html {
+        unimplemented!()
     }
 }
 
