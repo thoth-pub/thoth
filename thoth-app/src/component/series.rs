@@ -130,7 +130,7 @@ impl Component for SeriesComponent {
             link,
             router,
             notification_bus,
-            props
+            props,
         }
     }
 
