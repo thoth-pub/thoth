@@ -8,7 +8,7 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use super::MetadataObject;
+use super::{CreateRoute, EditRoute, MetadataTable};
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
@@ -24,15 +24,7 @@ pub struct PublicationTypeValues {
     pub name: PublicationType,
 }
 
-impl MetadataObject for Publication {
-    fn create_route() -> AppRoute {
-        AppRoute::Admin(AdminRoute::NewPublication)
-    }
-
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Publication(self.publication_id))
-    }
-
+impl MetadataTable for Publication {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let isbn = &self.isbn.clone().unwrap_or_else(|| "".to_string());
         let doi = &self.work.doi.clone().unwrap_or_else(|| "".to_string());
@@ -58,17 +50,21 @@ impl MetadataObject for Publication {
     }
 }
 
-impl MetadataObject for PublicationExtended {
+impl CreateRoute for Publication {
     fn create_route() -> AppRoute {
-        unimplemented!()
+        AppRoute::Admin(AdminRoute::NewPublication)
     }
+}
 
+impl EditRoute for Publication {
     fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Publication(self.publication_id))
     }
+}
 
-    fn as_table_row(&self, _: Callback<MouseEvent>) -> Html {
-        unimplemented!()
+impl EditRoute for PublicationExtended {
+    fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Publication(self.publication_id))
     }
 }
 

@@ -7,8 +7,7 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use super::Dropdown;
-use super::MetadataObject;
+use super::{CreateRoute, Dropdown, EditRoute, MetadataTable};
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
@@ -26,15 +25,19 @@ pub struct SeriesTypeValues {
 
 impl Dropdown for Series {}
 
-impl MetadataObject for Series {
+impl CreateRoute for Series {
     fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewSeries)
     }
+}
 
+impl EditRoute for Series {
     fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Series(self.series_id))
     }
+}
 
+impl MetadataTable for Series {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         html! {
             <tr

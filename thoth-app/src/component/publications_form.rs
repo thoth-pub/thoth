@@ -21,7 +21,6 @@ use crate::agent::notification_bus::Request;
 use crate::component::utils::FormPublicationTypeSelect;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
-use crate::models::MetadataObject;
 use crate::models::publication::create_publication_mutation::CreatePublicationRequest;
 use crate::models::publication::create_publication_mutation::CreatePublicationRequestBody;
 use crate::models::publication::create_publication_mutation::PushActionCreatePublication;
@@ -35,6 +34,7 @@ use crate::models::publication::delete_publication_mutation::Variables as Delete
 use crate::models::publication::publication_types_query::FetchActionPublicationTypes;
 use crate::models::publication::publication_types_query::FetchPublicationTypes;
 use crate::models::publication::PublicationTypeValues;
+use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_PUBLICATIONS;
@@ -379,7 +379,7 @@ impl PublicationsFormComponent {
 
     fn render_publication(&self, p: &Publication) -> Html {
         let publication_id = p.publication_id;
-        let route = p.edit_route().clone();
+        let route = p.edit_route();
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
