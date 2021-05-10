@@ -123,6 +123,11 @@ impl Crud for Funding {
     ) -> ThothResult<i32> {
         use crate::schema::funding::dsl::*;
         let connection = db.get().unwrap();
+
+        // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
+        // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
+        // is converting i64 to string and then parsing it as i32. This should work until we reach
+        // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
         match funding.count().get_result::<i64>(&connection) {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
             Err(e) => Err(ThothError::from(e)),
