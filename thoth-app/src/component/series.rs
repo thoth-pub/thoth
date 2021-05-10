@@ -123,14 +123,14 @@ impl Component for SeriesComponent {
             series,
             fetch_series,
             push_series,
-            delete_series,
             data,
             fetch_imprints,
             fetch_series_types,
+            delete_series,
             link,
             router,
             notification_bus,
-            props,
+            props
         }
     }
 
