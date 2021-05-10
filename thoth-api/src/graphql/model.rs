@@ -2,7 +2,6 @@ use chrono::naive::NaiveDate;
 use chrono::DateTime;
 use chrono::Utc;
 use diesel::prelude::*;
-use juniper::FieldError;
 use juniper::FieldResult;
 use juniper::RootNode;
 use std::sync::Arc;
@@ -24,7 +23,6 @@ use crate::model::Crud;
 use crate::price::model::*;
 use crate::publication::model::*;
 use crate::publisher::model::*;
-use crate::schema::*;
 use crate::series::model::*;
 use crate::subject::model::*;
 use crate::work::model::*;
@@ -227,7 +225,6 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         publication_type: Option<PublicationType>,
     ) -> FieldResult<Vec<Publication>> {
-        let connection = context.db.get().unwrap();
         Publication::all(
             &context.db,
             limit,
@@ -312,7 +309,6 @@ impl QueryRoot {
         order: PublisherOrderBy,
         publishers: Vec<Uuid>,
     ) -> FieldResult<Vec<Publisher>> {
-        let connection = context.db.get().unwrap();
         Publisher::all(
             &context.db,
             limit,
@@ -381,7 +377,6 @@ impl QueryRoot {
         order: ImprintOrderBy,
         publishers: Vec<Uuid>,
     ) -> FieldResult<Vec<Imprint>> {
-        let connection = context.db.get().unwrap();
         Imprint::all(
             &context.db,
             limit,
@@ -502,117 +497,34 @@ impl QueryRoot {
         order: ContributionOrderBy,
         publishers: Vec<Uuid>,
         contribution_type: Option<ContributionType>,
-    ) -> Vec<Contribution> {
-        use crate::schema::contribution::dsl;
-        let connection = context.db.get().unwrap();
-        let mut query = dsl::contribution
-            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
-            .select((
-                dsl::contribution_id,
-                dsl::work_id,
-                dsl::contributor_id,
-                dsl::contribution_type,
-                dsl::main_contribution,
-                dsl::biography,
-                dsl::institution,
-                dsl::created_at,
-                dsl::updated_at,
-                dsl::first_name,
-                dsl::last_name,
-                dsl::full_name,
-            ))
-            .into_boxed();
-        match order.field {
-            ContributionField::ContributionId => match order.direction {
-                Direction::Asc => query = query.order(dsl::contribution_id.asc()),
-                Direction::Desc => query = query.order(dsl::contribution_id.desc()),
-            },
-            ContributionField::WorkId => match order.direction {
-                Direction::Asc => query = query.order(dsl::work_id.asc()),
-                Direction::Desc => query = query.order(dsl::work_id.desc()),
-            },
-            ContributionField::ContributorId => match order.direction {
-                Direction::Asc => query = query.order(dsl::contributor_id.asc()),
-                Direction::Desc => query = query.order(dsl::contributor_id.desc()),
-            },
-            ContributionField::ContributionType => match order.direction {
-                Direction::Asc => query = query.order(dsl::contribution_type.asc()),
-                Direction::Desc => query = query.order(dsl::contribution_type.desc()),
-            },
-            ContributionField::MainContribution => match order.direction {
-                Direction::Asc => query = query.order(dsl::main_contribution.asc()),
-                Direction::Desc => query = query.order(dsl::main_contribution.desc()),
-            },
-            ContributionField::Biography => match order.direction {
-                Direction::Asc => query = query.order(dsl::biography.asc()),
-                Direction::Desc => query = query.order(dsl::biography.desc()),
-            },
-            ContributionField::Institution => match order.direction {
-                Direction::Asc => query = query.order(dsl::institution.asc()),
-                Direction::Desc => query = query.order(dsl::institution.desc()),
-            },
-            ContributionField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::created_at.asc()),
-                Direction::Desc => query = query.order(dsl::created_at.desc()),
-            },
-            ContributionField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::updated_at.asc()),
-                Direction::Desc => query = query.order(dsl::updated_at.desc()),
-            },
-            ContributionField::FirstName => match order.direction {
-                Direction::Asc => query = query.order(dsl::first_name.asc()),
-                Direction::Desc => query = query.order(dsl::first_name.desc()),
-            },
-            ContributionField::LastName => match order.direction {
-                Direction::Asc => query = query.order(dsl::last_name.asc()),
-                Direction::Desc => query = query.order(dsl::last_name.desc()),
-            },
-            ContributionField::FullName => match order.direction {
-                Direction::Asc => query = query.order(dsl::full_name.asc()),
-                Direction::Desc => query = query.order(dsl::full_name.desc()),
-            },
-        }
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
-        }
-        if let Some(cont_type) = contribution_type {
-            query = query.filter(dsl::contribution_type.eq(cont_type))
-        }
-        query
-            .limit(limit.into())
-            .offset(offset.into())
-            .load::<Contribution>(&connection)
-            .expect("Error loading contributions")
+    ) -> FieldResult<Vec<Contribution>> {
+        Contribution::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            publishers,
+            None,
+            None,
+            contribution_type,
+            None,
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a single contribution using its id")]
     fn contribution(context: &Context, contribution_id: Uuid) -> FieldResult<Contribution> {
-        let connection = context.db.get().unwrap();
-        crate::schema::contribution::dsl::contribution
-            .find(contribution_id)
-            .get_result::<Contribution>(&connection)
-            .map_err(|e| e.into())
+        Contribution::from_id(&context.db, &contribution_id).map_err(|e| e.into())
     }
 
     #[graphql(description = "Get the total number of contributions")]
-    fn contribution_count(context: &Context, contribution_type: Option<ContributionType>) -> i32 {
-        use crate::schema::contribution::dsl;
-        let connection = context.db.get().unwrap();
-        let mut query = dsl::contribution.into_boxed();
-        if let Some(cont_type) = contribution_type {
-            query = query.filter(dsl::contribution_type.eq(cont_type))
-        }
-        // see comment in work_count()
-        query
-            .count()
-            .get_result::<i64>(&connection)
-            .expect("Error loading contribution count")
-            .to_string()
-            .parse::<i32>()
-            .unwrap()
+    fn contribution_count(
+        context: &Context,
+        contribution_type: Option<ContributionType>,
+    ) -> FieldResult<i32> {
+        Contribution::count(&context.db, None, vec![], contribution_type, None)
+            .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -644,7 +556,6 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         series_type: Option<SeriesType>,
     ) -> FieldResult<Vec<Series>> {
-        let connection = context.db.get().unwrap();
         Series::all(
             &context.db,
             limit,
@@ -715,77 +626,30 @@ impl QueryRoot {
         offset: i32,
         order: IssueOrderBy,
         publishers: Vec<Uuid>,
-    ) -> Vec<Issue> {
-        use crate::schema::issue::dsl::*;
-        let connection = context.db.get().unwrap();
-        let mut query = issue
-            .inner_join(crate::schema::series::table.inner_join(crate::schema::imprint::table))
-            .select((
-                issue_id,
-                series_id,
-                work_id,
-                issue_ordinal,
-                created_at,
-                updated_at,
-            ))
-            .into_boxed();
-        match order.field {
-            IssueField::IssueId => match order.direction {
-                Direction::Asc => query = query.order(issue_id.asc()),
-                Direction::Desc => query = query.order(issue_id.desc()),
-            },
-            IssueField::SeriesId => match order.direction {
-                Direction::Asc => query = query.order(series_id.asc()),
-                Direction::Desc => query = query.order(series_id.desc()),
-            },
-            IssueField::WorkId => match order.direction {
-                Direction::Asc => query = query.order(work_id.asc()),
-                Direction::Desc => query = query.order(work_id.desc()),
-            },
-            IssueField::IssueOrdinal => match order.direction {
-                Direction::Asc => query = query.order(issue_ordinal.asc()),
-                Direction::Desc => query = query.order(issue_ordinal.desc()),
-            },
-            IssueField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
-            },
-            IssueField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
-            },
-        }
-        for pub_id in publishers {
-            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
-        }
-        query
-            .limit(limit.into())
-            .offset(offset.into())
-            .load::<Issue>(&connection)
-            .expect("Error loading issues")
+    ) -> FieldResult<Vec<Issue>> {
+        Issue::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            publishers,
+            None,
+            None,
+            None,
+            None,
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(description = "Query a single issue using its id")]
     fn issue(context: &Context, issue_id: Uuid) -> FieldResult<Issue> {
-        let connection = context.db.get().unwrap();
-        crate::schema::issue::dsl::issue
-            .find(issue_id)
-            .get_result::<Issue>(&connection)
-            .map_err(|e| e.into())
+        Issue::from_id(&context.db, &issue_id).map_err(|e| e.into())
     }
 
     #[graphql(description = "Get the total number of issues")]
-    fn issue_count(context: &Context) -> i32 {
-        use crate::schema::issue::dsl::*;
-        let connection = context.db.get().unwrap();
-        // see comment in work_count()
-        issue
-            .count()
-            .get_result::<i64>(&connection)
-            .expect("Error loading issue count")
-            .to_string()
-            .parse::<i32>()
-            .unwrap()
+    fn issue_count(context: &Context) -> FieldResult<i32> {
+        Issue::count(&context.db, None, vec![], None, None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -819,7 +683,6 @@ impl QueryRoot {
         language_code: Option<LanguageCode>,
         language_relation: Option<LanguageRelation>,
     ) -> FieldResult<Vec<Language>> {
-        let connection = context.db.get().unwrap();
         Language::all(
             &context.db,
             limit,
@@ -879,7 +742,6 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         currency_code: Option<CurrencyCode>,
     ) -> FieldResult<Vec<Price>> {
-        let connection = context.db.get().unwrap();
         Price::all(
             &context.db,
             limit,
@@ -1106,7 +968,6 @@ impl MutationRoot {
 
     fn create_contributor(context: &Context, data: NewContributor) -> FieldResult<Contributor> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-
         Contributor::create(&context.db, &data).map_err(|e| e.into())
     }
 
@@ -1114,11 +975,7 @@ impl MutationRoot {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         user_can_edit_work(data.work_id, context)?;
 
-        let connection = context.db.get().unwrap();
-        diesel::insert_into(contribution::table)
-            .values(&data)
-            .get_result(&connection)
-            .map_err(|e| e.into())
+        Contribution::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_publication(context: &Context, data: NewPublication) -> FieldResult<Publication> {
@@ -1140,11 +997,7 @@ impl MutationRoot {
         user_can_edit_work(data.work_id, context)?;
         issue_imprints_match(data.work_id, data.series_id, context)?;
 
-        let connection = context.db.get().unwrap();
-        diesel::insert_into(issue::table)
-            .values(&data)
-            .get_result(&connection)
-            .map_err(|e| e.into())
+        Issue::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_language(context: &Context, data: NewLanguage) -> FieldResult<Language> {
@@ -1240,23 +1093,14 @@ impl MutationRoot {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         user_can_edit_work(data.work_id, context)?;
 
-        let connection = context.db.get().unwrap();
-        let target = crate::schema::contribution::dsl::contribution.find(&data.contribution_id);
-        let contribution = target.get_result::<Contribution>(&connection).unwrap();
-
-        connection.transaction(
-            || match diesel::update(target).set(&data).get_result(&connection) {
-                Ok(c) => {
-                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-                    match NewContributionHistory::new(contribution, account_id).insert(&connection)
-                    {
-                        Ok(_) => Ok(c),
-                        Err(e) => Err(FieldError::from(e)),
-                    }
-                }
-                Err(e) => Err(FieldError::from(e)),
-            },
-        )
+        let contribution = Contribution::from_id(&context.db, &data.contribution_id).unwrap();
+        if !(data.work_id == contribution.work_id) {
+            user_can_edit_work(contribution.work_id, context)?;
+        }
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        contribution
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
     }
 
     fn update_publication(context: &Context, data: PatchPublication) -> FieldResult<Publication> {
@@ -1292,22 +1136,14 @@ impl MutationRoot {
         user_can_edit_work(data.work_id, context)?;
         issue_imprints_match(data.work_id, data.series_id, context)?;
 
-        let connection = context.db.get().unwrap();
-        let target = crate::schema::issue::dsl::issue.find(&data.issue_id);
-        let issue = target.get_result::<Issue>(&connection).unwrap();
-
-        connection.transaction(
-            || match diesel::update(target).set(&data).get_result(&connection) {
-                Ok(c) => {
-                    let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-                    match NewIssueHistory::new(issue, account_id).insert(&connection) {
-                        Ok(_) => Ok(c),
-                        Err(e) => Err(FieldError::from(e)),
-                    }
-                }
-                Err(e) => Err(FieldError::from(e)),
-            },
-        )
+        let issue = Issue::from_id(&context.db, &data.issue_id).unwrap();
+        if !(data.work_id == issue.work_id) {
+            user_can_edit_work(issue.work_id, context)?;
+        }
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        issue
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
     }
 
     fn update_language(context: &Context, data: PatchLanguage) -> FieldResult<Language> {
@@ -1419,17 +1255,10 @@ impl MutationRoot {
 
     fn delete_contribution(context: &Context, contribution_id: Uuid) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
-
-        let target = crate::schema::contribution::dsl::contribution.find(contribution_id);
-        let result = target.get_result::<Contribution>(&connection);
-        let contribution = result.unwrap();
+        let contribution = Contribution::from_id(&context.db, &contribution_id).unwrap();
         user_can_edit_work(contribution.work_id, context)?;
 
-        match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(contribution),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        contribution.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_publication(context: &Context, publication_id: Uuid) -> FieldResult<Publication> {
@@ -1452,17 +1281,10 @@ impl MutationRoot {
 
     fn delete_issue(context: &Context, issue_id: Uuid) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        let connection = context.db.get().unwrap();
-
-        let target = crate::schema::issue::dsl::issue.find(issue_id);
-        let result = target.get_result::<Issue>(&connection);
-        let issue = result.unwrap();
+        let issue = Issue::from_id(&context.db, &issue_id).unwrap();
         user_can_edit_work(issue.work_id, context)?;
 
-        match diesel::delete(target).execute(&connection) {
-            Ok(c) => Ok(issue),
-            Err(e) => Err(FieldError::from(e)),
-        }
+        issue.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_language(context: &Context, language_id: Uuid) -> FieldResult<Language> {
@@ -1650,6 +1472,8 @@ impl Work {
     #[graphql(
         description = "Get contributions linked to this work",
         arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
             order(
                 default = {
                     ContributionOrderBy {
@@ -1665,69 +1489,24 @@ impl Work {
     pub fn contributions(
         &self,
         context: &Context,
+        limit: i32,
+        offset: i32,
         order: ContributionOrderBy,
         contribution_type: Option<ContributionType>,
-    ) -> Vec<Contribution> {
-        use crate::schema::contribution::dsl;
-        let connection = context.db.get().unwrap();
-        let mut query = dsl::contribution.into_boxed();
-        match order.field {
-            ContributionField::ContributionId => match order.direction {
-                Direction::Asc => query = query.order(dsl::contribution_id.asc()),
-                Direction::Desc => query = query.order(dsl::contribution_id.desc()),
-            },
-            ContributionField::WorkId => match order.direction {
-                Direction::Asc => query = query.order(dsl::work_id.asc()),
-                Direction::Desc => query = query.order(dsl::work_id.desc()),
-            },
-            ContributionField::ContributorId => match order.direction {
-                Direction::Asc => query = query.order(dsl::contributor_id.asc()),
-                Direction::Desc => query = query.order(dsl::contributor_id.desc()),
-            },
-            ContributionField::ContributionType => match order.direction {
-                Direction::Asc => query = query.order(dsl::contribution_type.asc()),
-                Direction::Desc => query = query.order(dsl::contribution_type.desc()),
-            },
-            ContributionField::MainContribution => match order.direction {
-                Direction::Asc => query = query.order(dsl::main_contribution.asc()),
-                Direction::Desc => query = query.order(dsl::main_contribution.desc()),
-            },
-            ContributionField::Biography => match order.direction {
-                Direction::Asc => query = query.order(dsl::biography.asc()),
-                Direction::Desc => query = query.order(dsl::biography.desc()),
-            },
-            ContributionField::Institution => match order.direction {
-                Direction::Asc => query = query.order(dsl::institution.asc()),
-                Direction::Desc => query = query.order(dsl::institution.desc()),
-            },
-            ContributionField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::created_at.asc()),
-                Direction::Desc => query = query.order(dsl::created_at.desc()),
-            },
-            ContributionField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::updated_at.asc()),
-                Direction::Desc => query = query.order(dsl::updated_at.desc()),
-            },
-            ContributionField::FirstName => match order.direction {
-                Direction::Asc => query = query.order(dsl::first_name.asc()),
-                Direction::Desc => query = query.order(dsl::first_name.desc()),
-            },
-            ContributionField::LastName => match order.direction {
-                Direction::Asc => query = query.order(dsl::last_name.asc()),
-                Direction::Desc => query = query.order(dsl::last_name.desc()),
-            },
-            ContributionField::FullName => match order.direction {
-                Direction::Asc => query = query.order(dsl::full_name.asc()),
-                Direction::Desc => query = query.order(dsl::full_name.desc()),
-            },
-        }
-        if let Some(cont_type) = contribution_type {
-            query = query.filter(dsl::contribution_type.eq(cont_type))
-        }
-        query
-            .filter(dsl::work_id.eq(self.work_id))
-            .load::<Contribution>(&connection)
-            .expect("Error loading contributions")
+    ) -> FieldResult<Vec<Contribution>> {
+        Contribution::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            vec![],
+            Some(self.work_id),
+            None,
+            contribution_type,
+            None,
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1903,6 +1682,8 @@ impl Work {
     #[graphql(
         description = "Get issues linked to this work",
         arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
             order(
                 default = {
                     IssueOrderBy {
@@ -1914,40 +1695,26 @@ impl Work {
             ),
         )
     )]
-    pub fn issues(&self, context: &Context, order: IssueOrderBy) -> Vec<Issue> {
-        use crate::schema::issue::dsl::*;
-        let connection = context.db.get().unwrap();
-        let mut query = issue.into_boxed();
-        match order.field {
-            IssueField::IssueId => match order.direction {
-                Direction::Asc => query = query.order(issue_id.asc()),
-                Direction::Desc => query = query.order(issue_id.desc()),
-            },
-            IssueField::SeriesId => match order.direction {
-                Direction::Asc => query = query.order(series_id.asc()),
-                Direction::Desc => query = query.order(series_id.desc()),
-            },
-            IssueField::WorkId => match order.direction {
-                Direction::Asc => query = query.order(work_id.asc()),
-                Direction::Desc => query = query.order(work_id.desc()),
-            },
-            IssueField::IssueOrdinal => match order.direction {
-                Direction::Asc => query = query.order(issue_ordinal.asc()),
-                Direction::Desc => query = query.order(issue_ordinal.desc()),
-            },
-            IssueField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
-            },
-            IssueField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
-            },
-        }
-        query
-            .filter(work_id.eq(self.work_id))
-            .load::<Issue>(&connection)
-            .expect("Error loading issues")
+    pub fn issues(
+        &self,
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: IssueOrderBy,
+    ) -> FieldResult<Vec<Issue>> {
+        Issue::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            vec![],
+            Some(self.work_id),
+            None,
+            None,
+            None,
+        )
+        .map_err(|e| e.into())
     }
 }
 
@@ -2212,6 +1979,8 @@ impl Contributor {
     #[graphql(
         description = "Get contributions linked to this contributor",
         arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
             order(
                 default = {
                     ContributionOrderBy {
@@ -2227,69 +1996,24 @@ impl Contributor {
     pub fn contributions(
         &self,
         context: &Context,
+        limit: i32,
+        offset: i32,
         order: ContributionOrderBy,
         contribution_type: Option<ContributionType>,
-    ) -> Vec<Contribution> {
-        use crate::schema::contribution::dsl;
-        let connection = context.db.get().unwrap();
-        let mut query = dsl::contribution.into_boxed();
-        match order.field {
-            ContributionField::ContributionId => match order.direction {
-                Direction::Asc => query = query.order(dsl::contribution_id.asc()),
-                Direction::Desc => query = query.order(dsl::contribution_id.desc()),
-            },
-            ContributionField::WorkId => match order.direction {
-                Direction::Asc => query = query.order(dsl::work_id.asc()),
-                Direction::Desc => query = query.order(dsl::work_id.desc()),
-            },
-            ContributionField::ContributorId => match order.direction {
-                Direction::Asc => query = query.order(dsl::contributor_id.asc()),
-                Direction::Desc => query = query.order(dsl::contributor_id.desc()),
-            },
-            ContributionField::ContributionType => match order.direction {
-                Direction::Asc => query = query.order(dsl::contribution_type.asc()),
-                Direction::Desc => query = query.order(dsl::contribution_type.desc()),
-            },
-            ContributionField::MainContribution => match order.direction {
-                Direction::Asc => query = query.order(dsl::main_contribution.asc()),
-                Direction::Desc => query = query.order(dsl::main_contribution.desc()),
-            },
-            ContributionField::Biography => match order.direction {
-                Direction::Asc => query = query.order(dsl::biography.asc()),
-                Direction::Desc => query = query.order(dsl::biography.desc()),
-            },
-            ContributionField::Institution => match order.direction {
-                Direction::Asc => query = query.order(dsl::institution.asc()),
-                Direction::Desc => query = query.order(dsl::institution.desc()),
-            },
-            ContributionField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::created_at.asc()),
-                Direction::Desc => query = query.order(dsl::created_at.desc()),
-            },
-            ContributionField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::updated_at.asc()),
-                Direction::Desc => query = query.order(dsl::updated_at.desc()),
-            },
-            ContributionField::FirstName => match order.direction {
-                Direction::Asc => query = query.order(dsl::first_name.asc()),
-                Direction::Desc => query = query.order(dsl::first_name.desc()),
-            },
-            ContributionField::LastName => match order.direction {
-                Direction::Asc => query = query.order(dsl::last_name.asc()),
-                Direction::Desc => query = query.order(dsl::last_name.desc()),
-            },
-            ContributionField::FullName => match order.direction {
-                Direction::Asc => query = query.order(dsl::full_name.asc()),
-                Direction::Desc => query = query.order(dsl::full_name.desc()),
-            },
-        }
-        if let Some(cont_type) = contribution_type {
-            query = query.filter(dsl::contribution_type.eq(cont_type))
-        }
-        query
-            .filter(dsl::contributor_id.eq(self.contributor_id))
-            .load::<Contribution>(&connection)
-            .expect("Error loading contributions")
+    ) -> FieldResult<Vec<Contribution>> {
+        Contribution::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            vec![],
+            None,
+            Some(self.contributor_id),
+            contribution_type,
+            None,
+        )
+        .map_err(|e| e.into())
     }
 }
 
@@ -2393,6 +2117,8 @@ impl Series {
     #[graphql(
         description = "Get issues linked to this series",
         arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
             order(
                 default = {
                     IssueOrderBy {
@@ -2404,40 +2130,26 @@ impl Series {
             ),
         )
     )]
-    pub fn issues(&self, context: &Context, order: IssueOrderBy) -> Vec<Issue> {
-        use crate::schema::issue::dsl::*;
-        let connection = context.db.get().unwrap();
-        let mut query = issue.into_boxed();
-        match order.field {
-            IssueField::IssueId => match order.direction {
-                Direction::Asc => query = query.order(issue_id.asc()),
-                Direction::Desc => query = query.order(issue_id.desc()),
-            },
-            IssueField::SeriesId => match order.direction {
-                Direction::Asc => query = query.order(series_id.asc()),
-                Direction::Desc => query = query.order(series_id.desc()),
-            },
-            IssueField::WorkId => match order.direction {
-                Direction::Asc => query = query.order(work_id.asc()),
-                Direction::Desc => query = query.order(work_id.desc()),
-            },
-            IssueField::IssueOrdinal => match order.direction {
-                Direction::Asc => query = query.order(issue_ordinal.asc()),
-                Direction::Desc => query = query.order(issue_ordinal.desc()),
-            },
-            IssueField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
-            },
-            IssueField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
-            },
-        }
-        query
-            .filter(series_id.eq(self.series_id))
-            .load::<Issue>(&connection)
-            .expect("Error loading issues")
+    pub fn issues(
+        &self,
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: IssueOrderBy,
+    ) -> FieldResult<Vec<Issue>> {
+        Issue::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            vec![],
+            None,
+            Some(self.series_id),
+            None,
+            None,
+        )
+        .map_err(|e| e.into())
     }
 }
 
