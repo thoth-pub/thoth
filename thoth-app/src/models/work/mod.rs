@@ -10,8 +10,7 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use super::ListString;
-use super::MetadataObject;
+use super::{CreateRoute, EditRoute, ListString, MetadataTable};
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::THOTH_API;
@@ -52,15 +51,19 @@ pub struct WorkStatusValues {
     pub name: WorkStatus,
 }
 
-impl MetadataObject for Work {
+impl CreateRoute for Work {
     fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewWork)
     }
+}
 
+impl EditRoute for Work {
     fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Work(self.work_id))
     }
+}
 
+impl MetadataTable for Work {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let doi = self.doi.clone().unwrap_or_else(|| "".to_string());
         html! {

@@ -125,9 +125,15 @@ pub trait ListString {
     fn separated_list_item(&self, is_small: bool, separator: &str) -> Html;
 }
 
-pub trait MetadataObject {
+pub trait CreateRoute {
     fn create_route() -> AppRoute;
+}
+
+pub trait EditRoute {
     fn edit_route(&self) -> AppRoute;
+}
+
+pub trait MetadataTable {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html;
 }
 

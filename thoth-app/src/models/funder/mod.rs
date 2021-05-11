@@ -4,22 +4,25 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use super::Dropdown;
-use super::MetadataObject;
+use super::{CreateRoute, Dropdown, EditRoute, MetadataTable};
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
 impl Dropdown for Funder {}
 
-impl MetadataObject for Funder {
+impl CreateRoute for Funder {
     fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewFunder)
     }
+}
 
+impl EditRoute for Funder {
     fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Funder(self.funder_id))
     }
+}
 
+impl MetadataTable for Funder {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let funder_doi = self.funder_doi.clone().unwrap_or_else(|| "".to_string());
         html! {

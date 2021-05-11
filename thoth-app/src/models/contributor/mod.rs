@@ -4,22 +4,25 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use super::Dropdown;
-use super::MetadataObject;
+use super::{CreateRoute, Dropdown, EditRoute, MetadataTable};
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
 impl Dropdown for Contributor {}
 
-impl MetadataObject for Contributor {
+impl CreateRoute for Contributor {
     fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewContributor)
     }
+}
 
+impl EditRoute for Contributor {
     fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Contributor(self.contributor_id))
     }
+}
 
+impl MetadataTable for Contributor {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let orcid = self.orcid.clone().unwrap_or_else(|| "".to_string());
         html! {

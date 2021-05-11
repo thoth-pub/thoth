@@ -7,17 +7,21 @@ use yew::MouseEvent;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
-use super::MetadataObject;
+use super::{CreateRoute, EditRoute, MetadataTable};
 
-impl MetadataObject for Publisher {
+impl CreateRoute for Publisher {
     fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewPublisher)
     }
+}
 
+impl EditRoute for Publisher {
     fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Publisher(self.publisher_id))
     }
+}
 
+impl MetadataTable for Publisher {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let publisher_shortname = self
             .publisher_shortname

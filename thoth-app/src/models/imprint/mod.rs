@@ -4,19 +4,23 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use super::MetadataObject;
+use super::{CreateRoute, EditRoute, MetadataTable};
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
-impl MetadataObject for Imprint {
+impl CreateRoute for Imprint {
     fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewImprint)
     }
+}
 
+impl EditRoute for Imprint {
     fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Imprint(self.imprint_id))
     }
+}
 
+impl MetadataTable for Imprint {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let imprint_url = self.imprint_url.clone().unwrap_or_else(|| "".to_string());
         html! {
