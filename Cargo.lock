@@ -3600,7 +3600,7 @@ dependencies = [
 
 [[package]]
 name = "thoth"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "cargo-husky",
  "clap",
@@ -3613,7 +3613,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "actix-web",
  "argon2rs",
@@ -3642,7 +3642,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api-server"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "actix-cors",
  "actix-identity",
@@ -3660,7 +3660,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3682,7 +3682,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app-server"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "actix-cors",
  "actix-rt",
@@ -3692,7 +3692,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-client"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "chrono",
  "graphql_client",

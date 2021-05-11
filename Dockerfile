@@ -21,8 +21,10 @@ RUN cargo install wasm-pack
 COPY Cargo.toml Cargo.lock ./
 COPY ./src ./src
 COPY ./thoth-api ./thoth-api
+COPY ./thoth-api-server ./thoth-api-server
 COPY ./thoth-client ./thoth-client
 COPY ./thoth-app ./thoth-app
+COPY ./thoth-app-server ./thoth-app-server
 
 # Compile WASM for release
 RUN wasm-pack build thoth-app/ \
