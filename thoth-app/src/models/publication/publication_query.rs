@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-
-use super::Publication;
+use thoth_api::publication::model::PublicationExtended as Publication;
+use uuid::Uuid;
 
 pub const PUBLICATION_QUERY: &str = "
     query PublicationQuery($publicationId: Uuid!) {
@@ -16,6 +16,8 @@ pub const PUBLICATION_QUERY: &str = "
                 publicationId
                 currencyCode
                 unitPrice
+                createdAt
+                updatedAt
             }
             work {
                 imprint {
@@ -42,7 +44,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub publication_id: Option<String>,
+    pub publication_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

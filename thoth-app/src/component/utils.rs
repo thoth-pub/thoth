@@ -1,12 +1,15 @@
 use thoth_api::contribution::model::ContributionType;
+use thoth_api::imprint::model::ImprintExtended as Imprint;
 use thoth_api::language::model::LanguageCode;
 use thoth_api::language::model::LanguageRelation;
 use thoth_api::price::model::CurrencyCode;
 use thoth_api::publication::model::PublicationType;
+use thoth_api::publisher::model::Publisher;
 use thoth_api::series::model::SeriesType;
 use thoth_api::subject::model::SubjectType;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
+use uuid::Uuid;
 use yew::html;
 use yew::virtual_dom::VNode;
 use yew::Callback;
@@ -19,12 +22,10 @@ use yewtil::Pure;
 use yewtil::PureComponent;
 
 use crate::models::contribution::ContributionTypeValues;
-use crate::models::imprint::Imprint;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
 use crate::models::price::CurrencyCodeValues;
 use crate::models::publication::PublicationTypeValues;
-use crate::models::publisher::Publisher;
 use crate::models::series::SeriesTypeValues;
 use crate::models::subject::SubjectTypeValues;
 use crate::models::work::WorkStatusValues;
@@ -35,6 +36,7 @@ use crate::string::YES;
 
 pub type FormInput = Pure<PureInput>;
 pub type FormTextarea = Pure<PureTextarea>;
+pub type FormTextInputTooltip = Pure<PureTextInputTooltip>;
 pub type FormTextInput = Pure<PureTextInput>;
 pub type FormUrlInput = Pure<PureUrlInput>;
 pub type FormDateInput = Pure<PureDateInput>;
@@ -74,6 +76,21 @@ pub struct PureTextarea {
     pub value: Option<String>,
     #[prop_or_default]
     pub oninput: Callback<InputData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureTextInputTooltip {
+    pub label: String,
+    pub value: String,
+    pub tooltip: String,
+    #[prop_or_default]
+    pub oninput: Callback<InputData>,
+    #[prop_or_default]
+    pub onfocus: Callback<FocusEvent>,
+    #[prop_or_default]
+    pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -245,7 +262,7 @@ pub struct PureBooleanSelect {
 pub struct PureImprintSelect {
     pub label: String,
     pub data: Vec<Imprint>,
-    pub value: Option<String>,
+    pub value: Option<Uuid>,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -255,7 +272,7 @@ pub struct PureImprintSelect {
 pub struct PurePublisherSelect {
     pub label: String,
     pub data: Vec<Publisher>,
-    pub value: Option<String>,
+    pub value: Option<Uuid>,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -306,6 +323,55 @@ impl PureComponent for PureTextarea {
                     </textarea>
                 </div>
             </div>
+        }
+    }
+}
+
+impl PureComponent for PureTextInputTooltip {
+    fn render(&self) -> VNode {
+        // Only display tooltip if its value is set.
+        // Yew release 0.18.0 will introduce optional attributes -
+        // at this point we can make `data-tooltip` optional
+        // and collapse down the duplicated `html!` declaration.
+        if self.tooltip.is_empty() {
+            html! {
+                <div class="field">
+                    <label class="label">{ &self.label }</label>
+                    <div class="control is-expanded">
+                        <input
+                            class="input"
+                            type="text"
+                            placeholder={ &self.label }
+                            value={ &self.value }
+                            oninput=&self.oninput
+                            onfocus=&self.onfocus
+                            onblur=&self.onblur
+                            required={ self.required }
+                        />
+                    </div>
+                </div>
+            }
+        } else {
+            html! {
+                <div class="field">
+                    <label class="label">{ &self.label }</label>
+                    <div
+                        class="control is-expanded has-tooltip-arrow has-tooltip-bottom has-tooltip-active"
+                        data-tooltip={ &self.tooltip }
+                    >
+                        <input
+                            class="input"
+                            type="text"
+                            placeholder={ &self.label }
+                            value={ &self.value }
+                            oninput=&self.oninput
+                            onfocus=&self.onfocus
+                            onblur=&self.onblur
+                            required={ self.required }
+                        />
+                    </div>
+                </div>
+            }
         }
     }
 }
@@ -775,7 +841,7 @@ impl PureCurrencyCodeSelect {
 
 impl PureImprintSelect {
     fn render_imprint(&self, i: &Imprint) -> VNode {
-        let value = &self.value.clone().unwrap_or_else(|| "".to_string());
+        let value = &self.value.clone().unwrap_or_default();
         if &i.imprint_id == value {
             html! {
                 <option value={&i.imprint_id} selected=true>
@@ -792,7 +858,7 @@ impl PureImprintSelect {
 
 impl PurePublisherSelect {
     fn render_publisher(&self, p: &Publisher) -> VNode {
-        let value = &self.value.clone().unwrap_or_else(|| "".to_string());
+        let value = &self.value.clone().unwrap_or_default();
         if &p.publisher_id == value {
             html! {
                 <option value={&p.publisher_id} selected=true>

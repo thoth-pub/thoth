@@ -21,18 +21,15 @@ pub const WORKS_QUERY: &str = "
             publicationDate
             updatedAt
             contributions {
+                contributionId
                 workId
                 contributorId
                 contributionType
                 mainContribution
+                createdAt
+                updatedAt
                 lastName
                 fullName
-                contributor {
-                    contributorId
-                    lastName
-                    fullName
-                    updatedAt
-                }
             }
             imprint {
                 imprintId
@@ -43,6 +40,7 @@ pub const WORKS_QUERY: &str = "
                     publisherName
                     publisherShortname
                     publisherUrl
+                    createdAt
                     updatedAt
                 }
             }

@@ -3,7 +3,7 @@ use crate::models::imprint::imprints_query::FetchImprints;
 use crate::models::imprint::imprints_query::ImprintsRequest;
 use crate::models::imprint::imprints_query::ImprintsRequestBody;
 use crate::models::imprint::imprints_query::Variables;
-use crate::models::imprint::Imprint;
+use thoth_api::imprint::model::ImprintExtended as Imprint;
 use thoth_api::imprint::model::ImprintField;
 use thoth_api::imprint::model::ImprintOrderBy;
 
@@ -20,10 +20,10 @@ pagination_component! {
     SEARCH_IMPRINTS,
     PAGINATION_COUNT_IMPRINTS,
     vec![
-        ImprintField::ImprintID.to_string(),
+        ImprintField::ImprintId.to_string(),
         ImprintField::ImprintName.to_string(),
         "Publisher".to_string(),
-        ImprintField::ImprintURL.to_string(),
+        ImprintField::ImprintUrl.to_string(),
         ImprintField::UpdatedAt.to_string(),
     ],
     ImprintOrderBy,

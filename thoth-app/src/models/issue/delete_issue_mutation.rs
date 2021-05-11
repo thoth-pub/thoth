@@ -1,15 +1,15 @@
 use serde::Deserialize;
 use serde::Serialize;
+use uuid::Uuid;
 
 const DELETE_ISSUE_MUTATION: &str = "
     mutation DeleteIssue(
-        $workId: Uuid!,
-        $seriesId: Uuid!
+        $issueId: Uuid!,
     ) {
         deleteIssue(
-            workId: $workId
-            seriesId: $seriesId
+            issueId: $issueId
         ){
+            issueId
             workId
             seriesId
             issueOrdinal
@@ -31,15 +31,15 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub work_id: String,
-    pub series_id: String,
+    pub issue_id: Uuid,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SlimIssue {
-    pub work_id: String,
-    pub series_id: String,
+    pub issue_id: Uuid,
+    pub work_id: Uuid,
+    pub series_id: Uuid,
     pub issue_ordinal: i32,
 }
 

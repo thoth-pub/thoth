@@ -29,8 +29,8 @@ pub enum LanguageRelation {
     graphql(description = "Field to use when sorting languages list")
 )]
 pub enum LanguageField {
-    LanguageID,
-    WorkID,
+    LanguageId,
+    WorkId,
     LanguageCode,
     LanguageRelation,
     MainLanguage,
@@ -39,7 +39,8 @@ pub enum LanguageField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Language {
     pub language_id: Uuid,
     pub work_id: Uuid,
@@ -600,6 +601,20 @@ impl Default for LanguageCode {
 impl Default for LanguageRelation {
     fn default() -> LanguageRelation {
         LanguageRelation::Original
+    }
+}
+
+impl Default for Language {
+    fn default() -> Language {
+        Language {
+            language_id: Default::default(),
+            work_id: Default::default(),
+            language_code: Default::default(),
+            language_relation: Default::default(),
+            main_language: true,
+            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+        }
     }
 }
 

@@ -2,6 +2,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
+use std::fmt;
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
@@ -20,20 +21,19 @@ use crate::schema::funder_history;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum FunderField {
-    #[serde(rename = "FUNDER_ID")]
     #[strum(serialize = "ID")]
-    FunderID,
+    FunderId,
     #[strum(serialize = "Funder")]
     FunderName,
-    #[serde(rename = "FUNDER_DOI")]
     #[strum(serialize = "DOI")]
-    FunderDOI,
+    FunderDoi,
     CreatedAt,
     UpdatedAt,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Funder {
     pub funder_id: Uuid,
     pub funder_name: String,
@@ -97,6 +97,28 @@ impl Default for FunderField {
     }
 }
 
+impl Default for Funder {
+    fn default() -> Funder {
+        Funder {
+            funder_id: Default::default(),
+            funder_name: "".to_string(),
+            funder_doi: None,
+            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+        }
+    }
+}
+
+impl fmt::Display for Funder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(doi) = &self.funder_doi {
+            write!(f, "{} - {}", &self.funder_name, doi)
+        } else {
+            write!(f, "{}", &self.funder_name)
+        }
+    }
+}
+
 #[test]
 fn test_funderfield_default() {
     let fundfield: FunderField = Default::default();
@@ -105,9 +127,9 @@ fn test_funderfield_default() {
 
 #[test]
 fn test_funderfield_display() {
-    assert_eq!(format!("{}", FunderField::FunderID), "ID");
+    assert_eq!(format!("{}", FunderField::FunderId), "ID");
     assert_eq!(format!("{}", FunderField::FunderName), "Funder");
-    assert_eq!(format!("{}", FunderField::FunderDOI), "DOI");
+    assert_eq!(format!("{}", FunderField::FunderDoi), "DOI");
     assert_eq!(format!("{}", FunderField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", FunderField::UpdatedAt), "UpdatedAt");
 }
@@ -115,14 +137,14 @@ fn test_funderfield_display() {
 #[test]
 fn test_funderfield_fromstr() {
     use std::str::FromStr;
-    assert_eq!(FunderField::from_str("ID").unwrap(), FunderField::FunderID);
+    assert_eq!(FunderField::from_str("ID").unwrap(), FunderField::FunderId);
     assert_eq!(
         FunderField::from_str("Funder").unwrap(),
         FunderField::FunderName
     );
     assert_eq!(
         FunderField::from_str("DOI").unwrap(),
-        FunderField::FunderDOI
+        FunderField::FunderDoi
     );
     assert_eq!(
         FunderField::from_str("CreatedAt").unwrap(),

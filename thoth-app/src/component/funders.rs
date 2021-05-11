@@ -3,7 +3,7 @@ use crate::models::funder::funders_query::FetchFunders;
 use crate::models::funder::funders_query::FundersRequest;
 use crate::models::funder::funders_query::FundersRequestBody;
 use crate::models::funder::funders_query::Variables;
-use crate::models::funder::Funder;
+use thoth_api::funder::model::Funder;
 use thoth_api::funder::model::FunderField;
 use thoth_api::funder::model::FunderOrderBy;
 
@@ -20,9 +20,9 @@ pagination_component! {
     SEARCH_FUNDERS,
     PAGINATION_COUNT_FUNDERS,
     vec![
-        FunderField::FunderID.to_string(),
+        FunderField::FunderId.to_string(),
         FunderField::FunderName.to_string(),
-        FunderField::FunderDOI.to_string(),
+        FunderField::FunderDoi.to_string(),
         FunderField::UpdatedAt.to_string(),
     ],
     FunderOrderBy,

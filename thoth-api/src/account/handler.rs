@@ -20,10 +20,10 @@ use crate::account::service::get_account;
 use crate::account::util::make_hash;
 use crate::account::util::make_salt;
 use crate::db::PgPool;
-use crate::errors::ThothError;
+use crate::errors::{ThothError, ThothResult};
 
 impl Account {
-    pub fn get_permissions(&self, pool: &PgPool) -> Result<Vec<LinkedPublisher>, ThothError> {
+    pub fn get_permissions(&self, pool: &PgPool) -> ThothResult<Vec<LinkedPublisher>> {
         use crate::schema::publisher_account::dsl::*;
         let conn = pool.get().unwrap();
 
@@ -44,7 +44,7 @@ impl Account {
         }
     }
 
-    pub fn issue_token(&self, pool: &PgPool) -> Result<String, ThothError> {
+    pub fn issue_token(&self, pool: &PgPool) -> ThothResult<String> {
         const DEFAULT_TOKEN_VALIDITY: i64 = 24 * 60 * 60;
         let connection = pool.get().unwrap();
         dotenv().ok();
@@ -120,7 +120,7 @@ impl From<PublisherAccount> for LinkedPublisher {
 }
 
 impl Token {
-    pub fn verify(token: &str) -> Result<Token, ThothError> {
+    pub fn verify(token: &str) -> ThothResult<Token> {
         dotenv().ok();
         let secret_str = env::var("SECRET_KEY").expect("SECRET_KEY must be set");
         let secret: &[u8] = secret_str.as_bytes();

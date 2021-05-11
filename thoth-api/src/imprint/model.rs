@@ -7,6 +7,7 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
+use crate::publisher::model::Publisher;
 #[cfg(feature = "backend")]
 use crate::schema::imprint;
 #[cfg(feature = "backend")]
@@ -20,13 +21,12 @@ use crate::schema::imprint_history;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ImprintField {
-    #[serde(rename = "IMPRINT_ID")]
     #[strum(serialize = "ID")]
-    ImprintID,
+    ImprintId,
     #[strum(serialize = "Imprint")]
     ImprintName,
-    #[serde(rename = "IMPRINT_URL")]
-    ImprintURL,
+    #[strum(serialize = "ImprintURL")]
+    ImprintUrl,
     CreatedAt,
     UpdatedAt,
 }
@@ -40,6 +40,16 @@ pub struct Imprint {
     pub imprint_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ImprintExtended {
+    pub imprint_id: Uuid,
+    pub imprint_name: String,
+    pub imprint_url: Option<String>,
+    pub updated_at: DateTime<Utc>,
+    pub publisher: Publisher,
 }
 
 #[cfg_attr(
@@ -103,6 +113,18 @@ impl Default for ImprintField {
     }
 }
 
+impl Default for ImprintExtended {
+    fn default() -> ImprintExtended {
+        ImprintExtended {
+            imprint_id: Default::default(),
+            imprint_name: "".to_string(),
+            imprint_url: None,
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            publisher: Default::default(),
+        }
+    }
+}
+
 #[test]
 fn test_imprintfield_default() {
     let impfield: ImprintField = Default::default();
@@ -111,9 +133,9 @@ fn test_imprintfield_default() {
 
 #[test]
 fn test_imprintfield_display() {
-    assert_eq!(format!("{}", ImprintField::ImprintID), "ID");
+    assert_eq!(format!("{}", ImprintField::ImprintId), "ID");
     assert_eq!(format!("{}", ImprintField::ImprintName), "Imprint");
-    assert_eq!(format!("{}", ImprintField::ImprintURL), "ImprintURL");
+    assert_eq!(format!("{}", ImprintField::ImprintUrl), "ImprintURL");
     assert_eq!(format!("{}", ImprintField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", ImprintField::UpdatedAt), "UpdatedAt");
 }
@@ -123,7 +145,7 @@ fn test_imprintfield_fromstr() {
     use std::str::FromStr;
     assert_eq!(
         ImprintField::from_str("ID").unwrap(),
-        ImprintField::ImprintID
+        ImprintField::ImprintId
     );
     assert_eq!(
         ImprintField::from_str("Imprint").unwrap(),
@@ -131,7 +153,7 @@ fn test_imprintfield_fromstr() {
     );
     assert_eq!(
         ImprintField::from_str("ImprintURL").unwrap(),
-        ImprintField::ImprintURL
+        ImprintField::ImprintUrl
     );
     assert_eq!(
         ImprintField::from_str("CreatedAt").unwrap(),

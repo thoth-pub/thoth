@@ -1,11 +1,13 @@
 use chrono::DateTime;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
+use crate::imprint::model::ImprintExtended as Imprint;
 #[cfg(feature = "backend")]
 use crate::schema::series;
 #[cfg(feature = "backend")]
@@ -30,20 +32,17 @@ pub enum SeriesType {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SeriesField {
-    #[serde(rename = "SERIES_ID")]
     #[strum(serialize = "ID")]
-    SeriesID,
+    SeriesId,
     SeriesType,
     #[strum(serialize = "Series")]
     SeriesName,
-    #[cfg_attr(feature = "backend", graphql(name = "ISSN_PRINT"))]
-    #[serde(rename = "ISSN_PRINT")]
-    ISSNPrint,
-    #[cfg_attr(feature = "backend", graphql(name = "ISSN_DIGITAL"))]
-    #[serde(rename = "ISSN_DIGITAL")]
-    ISSNDigital,
-    #[serde(rename = "SERIES_URL")]
-    SeriesURL,
+    #[strum(serialize = "ISSNPrint")]
+    IssnPrint,
+    #[strum(serialize = "ISSNDigital")]
+    IssnDigital,
+    #[strum(serialize = "SeriesURL")]
+    SeriesUrl,
     CreatedAt,
     UpdatedAt,
 }
@@ -60,6 +59,19 @@ pub struct Series {
     pub imprint_id: Uuid,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SeriesExtended {
+    pub series_id: Uuid,
+    pub series_type: SeriesType,
+    pub series_name: String,
+    pub issn_print: String,
+    pub issn_digital: String,
+    pub series_url: Option<String>,
+    pub updated_at: DateTime<Utc>,
+    pub imprint: Imprint,
 }
 
 #[cfg_attr(
@@ -131,6 +143,31 @@ impl Default for SeriesField {
     }
 }
 
+impl Default for SeriesExtended {
+    fn default() -> SeriesExtended {
+        SeriesExtended {
+            series_id: Default::default(),
+            series_type: Default::default(),
+            series_name: "".to_string(),
+            issn_print: "".to_string(),
+            issn_digital: "".to_string(),
+            series_url: None,
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            imprint: Default::default(),
+        }
+    }
+}
+
+impl fmt::Display for SeriesExtended {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{} ({}, {})",
+            self.series_name, self.issn_print, self.issn_digital
+        )
+    }
+}
+
 #[test]
 fn test_seriestype_default() {
     let seriestype: SeriesType = Default::default();
@@ -151,12 +188,12 @@ fn test_seriestype_display() {
 
 #[test]
 fn test_seriesfield_display() {
-    assert_eq!(format!("{}", SeriesField::SeriesID), "ID");
+    assert_eq!(format!("{}", SeriesField::SeriesId), "ID");
     assert_eq!(format!("{}", SeriesField::SeriesType), "SeriesType");
     assert_eq!(format!("{}", SeriesField::SeriesName), "Series");
-    assert_eq!(format!("{}", SeriesField::ISSNPrint), "ISSNPrint");
-    assert_eq!(format!("{}", SeriesField::ISSNDigital), "ISSNDigital");
-    assert_eq!(format!("{}", SeriesField::SeriesURL), "SeriesURL");
+    assert_eq!(format!("{}", SeriesField::IssnPrint), "ISSNPrint");
+    assert_eq!(format!("{}", SeriesField::IssnDigital), "ISSNDigital");
+    assert_eq!(format!("{}", SeriesField::SeriesUrl), "SeriesURL");
     assert_eq!(format!("{}", SeriesField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", SeriesField::UpdatedAt), "UpdatedAt");
 }
@@ -180,7 +217,7 @@ fn test_seriestype_fromstr() {
 #[test]
 fn test_seriesfield_fromstr() {
     use std::str::FromStr;
-    assert_eq!(SeriesField::from_str("ID").unwrap(), SeriesField::SeriesID);
+    assert_eq!(SeriesField::from_str("ID").unwrap(), SeriesField::SeriesId);
     assert_eq!(
         SeriesField::from_str("SeriesType").unwrap(),
         SeriesField::SeriesType
@@ -191,15 +228,15 @@ fn test_seriesfield_fromstr() {
     );
     assert_eq!(
         SeriesField::from_str("ISSNPrint").unwrap(),
-        SeriesField::ISSNPrint
+        SeriesField::IssnPrint
     );
     assert_eq!(
         SeriesField::from_str("ISSNDigital").unwrap(),
-        SeriesField::ISSNDigital
+        SeriesField::IssnDigital
     );
     assert_eq!(
         SeriesField::from_str("SeriesURL").unwrap(),
-        SeriesField::SeriesURL
+        SeriesField::SeriesUrl
     );
     assert_eq!(
         SeriesField::from_str("CreatedAt").unwrap(),

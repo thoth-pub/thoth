@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-
-use super::Funder;
+use thoth_api::funder::model::Funder;
+use uuid::Uuid;
 
 const UPDATE_FUNDER_MUTATION: &str = "
     mutation UpdateFunder(
@@ -16,6 +16,7 @@ const UPDATE_FUNDER_MUTATION: &str = "
         }){
             funderId
             funderName
+            createdAt
             updatedAt
         }
     }
@@ -35,7 +36,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub funder_id: String,
+    pub funder_id: Uuid,
     pub funder_name: String,
     pub funder_doi: Option<String>,
 }

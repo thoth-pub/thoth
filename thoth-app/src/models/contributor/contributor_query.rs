@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-
-use super::Contributor;
+use thoth_api::contributor::model::Contributor;
+use uuid::Uuid;
 
 pub const CONTRIBUTOR_QUERY: &str = "
     query ContributorQuery($contributorId: Uuid!) {
@@ -12,6 +12,7 @@ pub const CONTRIBUTOR_QUERY: &str = "
             fullName
             orcid
             website
+            createdAt
             updatedAt
         }
     }
@@ -31,7 +32,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub contributor_id: Option<String>,
+    pub contributor_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

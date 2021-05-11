@@ -1,29 +1,29 @@
-use std::env;
-use std::io;
-use std::sync::Arc;
+use std::{io, sync::Arc};
 
 use actix_cors::Cors;
-use actix_identity::CookieIdentityPolicy;
-use actix_identity::Identity;
-use actix_identity::IdentityService;
-use actix_web::middleware::Logger;
-use actix_web::{error, web, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
-use dotenv::dotenv;
-use juniper::http::graphiql::graphiql_source;
-use juniper::http::GraphQLRequest;
-use thoth_api::account::model::AccountDetails;
-use thoth_api::account::model::DecodedToken;
-use thoth_api::account::model::LoginCredentials;
-use thoth_api::account::service::get_account;
-use thoth_api::account::service::get_account_details;
-use thoth_api::account::service::login;
-use thoth_api::db::establish_connection;
-use thoth_api::db::PgPool;
-use thoth_api::errors::ThothError;
-use thoth_api::graphql::model::Context;
-use thoth_api::graphql::model::{create_schema, Schema};
+use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
+use actix_web::{
+    error, get, middleware::Logger, post, web, App, Error, HttpRequest, HttpResponse, HttpServer,
+    Result,
+};
+use juniper::{http::graphiql::graphiql_source, http::GraphQLRequest};
+use thoth_api::{
+    account::model::AccountDetails,
+    account::model::DecodedToken,
+    account::model::LoginCredentials,
+    account::service::get_account,
+    account::service::get_account_details,
+    account::service::login,
+    db::establish_connection,
+    db::PgPool,
+    errors::ThothError,
+    graphql::model::Context,
+    graphql::model::{create_schema, Schema},
+};
 use thoth_client::work::get_work;
 use uuid::Uuid;
+
+mod onix;
 
 use crate::onix::generate_onix_3;
 
@@ -45,7 +45,7 @@ async fn graphql(
     let ctx = Context::new(pool.into_inner(), token);
     let result = web::block(move || {
         let res = data.execute(&st, &ctx);
-        Ok::<_, serde_json::error::Error>(serde_json::to_string(&res)?)
+        serde_json::to_string(&res)
     })
     .await?;
     Ok(HttpResponse::Ok()
@@ -54,7 +54,7 @@ async fn graphql(
 }
 
 #[get("/onix/{uuid}")]
-async fn onix(req: HttpRequest, path: web::Path<(Uuid,)>) -> HttpResponse {
+async fn onix_endpoint(req: HttpRequest, path: web::Path<(Uuid,)>) -> HttpResponse {
     let work_id = (path.0).0;
     let scheme = if req.app_config().secure() {
         "https".to_string()
@@ -156,7 +156,6 @@ async fn account_details(
 }
 
 fn config(cfg: &mut web::ServiceConfig) {
-    dotenv().ok();
     let pool = establish_connection();
     let schema = std::sync::Arc::new(create_schema());
 
@@ -164,20 +163,21 @@ fn config(cfg: &mut web::ServiceConfig) {
     cfg.data(pool);
     cfg.service(graphql);
     cfg.service(graphiql);
-    cfg.service(onix);
+    cfg.service(onix_endpoint);
     cfg.service(login_credentials);
     cfg.service(login_session);
     cfg.service(account_details);
 }
 
 #[actix_rt::main]
-pub async fn start_server(port: String) -> io::Result<()> {
-    dotenv().ok();
-    env_logger::init();
-    let secret_str = env::var("SECRET_KEY").expect("SECRET_KEY must be set");
-    let domain = env::var("THOTH_DOMAIN").expect("THOTH_DOMAIN must be set");
-    let session_duration =
-        env::var("SESSION_DURATION_SECONDS").expect("SESSION_DURATION_SECONDS must be set");
+pub async fn start_server(
+    host: String,
+    port: String,
+    domain: String,
+    secret_str: String,
+    session_duration: i64,
+) -> io::Result<()> {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     HttpServer::new(move || {
         App::new()
@@ -187,7 +187,7 @@ pub async fn start_server(port: String) -> io::Result<()> {
                     .name("auth")
                     .path("/")
                     .domain(&domain)
-                    .max_age(session_duration.parse::<i64>().unwrap()),
+                    .max_age(session_duration),
             ))
             .wrap(
                 Cors::new()
@@ -196,7 +196,7 @@ pub async fn start_server(port: String) -> io::Result<()> {
             )
             .configure(config)
     })
-    .bind(format!("0.0.0.0:{}", port))?
+    .bind(format!("{}:{}", host, port))?
     .run()
     .await
 }

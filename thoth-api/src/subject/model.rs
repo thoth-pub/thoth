@@ -7,8 +7,8 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::errors::Result;
 use crate::errors::ThothError;
+use crate::errors::ThothResult;
 #[cfg(feature = "backend")]
 use crate::schema::subject;
 #[cfg(feature = "backend")]
@@ -36,8 +36,8 @@ pub enum SubjectType {
     graphql(description = "Field to use when sorting subjects list")
 )]
 pub enum SubjectField {
-    SubjectID,
-    WorkID,
+    SubjectId,
+    WorkId,
     SubjectType,
     SubjectCode,
     SubjectOrdinal,
@@ -46,7 +46,8 @@ pub enum SubjectField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Subject {
     pub subject_id: Uuid,
     pub work_id: Uuid,
@@ -103,7 +104,7 @@ pub struct NewSubjectHistory {
     pub data: serde_json::Value,
 }
 
-pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<()> {
+pub fn check_subject(subject_type: &SubjectType, code: &str) -> ThothResult<()> {
     let valid = match &subject_type {
         SubjectType::Bic => true,
         SubjectType::Bisac => true,
@@ -115,13 +116,30 @@ pub fn check_subject(subject_type: &SubjectType, code: &str) -> Result<()> {
     if valid {
         Ok(())
     } else {
-        Err(ThothError::InvalidSubjectCode(code.to_string(), subject_type.to_string()).into())
+        Err(ThothError::InvalidSubjectCode(
+            code.to_string(),
+            subject_type.to_string(),
+        ))
     }
 }
 
 impl Default for SubjectType {
     fn default() -> SubjectType {
         SubjectType::Keyword
+    }
+}
+
+impl Default for Subject {
+    fn default() -> Subject {
+        Subject {
+            subject_id: Default::default(),
+            work_id: Default::default(),
+            subject_type: Default::default(),
+            subject_code: "".to_string(),
+            subject_ordinal: 1,
+            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+        }
     }
 }
 

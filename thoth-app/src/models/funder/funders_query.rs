@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::funder::model::Funder;
 use thoth_api::funder::model::FunderOrderBy;
-
-use super::Funder;
 
 pub const FUNDERS_QUERY: &str = "
     query FundersQuery($limit: Int, $offset: Int, $filter: String, $order: FunderOrderBy) {
@@ -10,6 +9,7 @@ pub const FUNDERS_QUERY: &str = "
             funderId
             funderName
             funderDoi
+            createdAt
             updatedAt
         }
         funderCount(filter: $filter)

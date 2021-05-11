@@ -4,9 +4,14 @@ use actix_web::{error::ResponseError, HttpResponse};
 use diesel::result::Error as DBError;
 use failure::Fail;
 
-pub type Result<T> = std::result::Result<T, failure::Error>;
+/// A specialised result type for returning Thoth data
+pub type ThothResult<T> = std::result::Result<T, ThothError>;
 
 #[derive(Fail, Debug)]
+/// Represents anything that can go wrong in Thoth
+///
+/// This type is not intended to be exhaustively matched, and new variants may
+/// be added in the future without a major version bump.
 pub enum ThothError {
     #[fail(display = "{} is not a valid {} code", _0, _1)]
     InvalidSubjectCode(String, String),
@@ -20,6 +25,8 @@ pub enum ThothError {
     InvalidToken,
     #[fail(display = "No cookie found.")]
     CookieError(),
+    #[fail(display = "No record was found for the given ID.")]
+    EntityNotFound,
     #[fail(display = "Issue's Work and Series cannot have different Imprints.")]
     IssueImprintsError,
 }
@@ -70,6 +77,7 @@ impl From<DBError> for ThothError {
                 let message = info.details().unwrap_or_else(|| info.message()).to_string();
                 ThothError::DatabaseError(message)
             }
+            DBError::NotFound => ThothError::EntityNotFound,
             _ => ThothError::InternalError("".into()),
         }
     }

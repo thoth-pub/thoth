@@ -2,6 +2,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
+use std::fmt;
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
@@ -20,21 +21,22 @@ use crate::schema::contributor_history;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ContributorField {
-    #[serde(rename = "CONTRIBUTOR_ID")]
     #[strum(serialize = "ID")]
-    ContributorID,
+    ContributorId,
     FirstName,
     LastName,
     FullName,
     #[serde(rename = "ORCID")]
-    ORCID,
+    #[strum(serialize = "ORCID")]
+    Orcid,
     Website,
     CreatedAt,
     UpdatedAt,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Contributor {
     pub contributor_id: Uuid,
     pub first_name: Option<String>,
@@ -111,6 +113,31 @@ impl Default for ContributorField {
     }
 }
 
+impl Default for Contributor {
+    fn default() -> Contributor {
+        Contributor {
+            contributor_id: Default::default(),
+            first_name: None,
+            last_name: "".to_string(),
+            full_name: "".to_string(),
+            orcid: None,
+            website: None,
+            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+        }
+    }
+}
+
+impl fmt::Display for Contributor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(orcid) = &self.orcid {
+            write!(f, "{} - {}", &self.full_name, orcid)
+        } else {
+            write!(f, "{}", self.full_name)
+        }
+    }
+}
+
 #[test]
 fn test_contributorfield_default() {
     let contfield: ContributorField = Default::default();
@@ -119,11 +146,11 @@ fn test_contributorfield_default() {
 
 #[test]
 fn test_contributorfield_display() {
-    assert_eq!(format!("{}", ContributorField::ContributorID), "ID");
+    assert_eq!(format!("{}", ContributorField::ContributorId), "ID");
     assert_eq!(format!("{}", ContributorField::FirstName), "FirstName");
     assert_eq!(format!("{}", ContributorField::LastName), "LastName");
     assert_eq!(format!("{}", ContributorField::FullName), "FullName");
-    assert_eq!(format!("{}", ContributorField::ORCID), "ORCID");
+    assert_eq!(format!("{}", ContributorField::Orcid), "ORCID");
     assert_eq!(format!("{}", ContributorField::Website), "Website");
     assert_eq!(format!("{}", ContributorField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", ContributorField::UpdatedAt), "UpdatedAt");
@@ -134,7 +161,7 @@ fn test_contributorfield_fromstr() {
     use std::str::FromStr;
     assert_eq!(
         ContributorField::from_str("ID").unwrap(),
-        ContributorField::ContributorID
+        ContributorField::ContributorId
     );
     assert_eq!(
         ContributorField::from_str("FirstName").unwrap(),
@@ -150,7 +177,7 @@ fn test_contributorfield_fromstr() {
     );
     assert_eq!(
         ContributorField::from_str("ORCID").unwrap(),
-        ContributorField::ORCID
+        ContributorField::Orcid
     );
     assert_eq!(
         ContributorField::from_str("UpdatedAt").unwrap(),

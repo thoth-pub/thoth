@@ -1,5 +1,7 @@
 use std::str::FromStr;
 use thoth_api::price::model::CurrencyCode;
+use thoth_api::price::model::Price;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -28,7 +30,6 @@ use crate::models::price::delete_price_mutation::PushActionDeletePrice;
 use crate::models::price::delete_price_mutation::PushDeletePrice;
 use crate::models::price::delete_price_mutation::Variables as DeleteVariables;
 use crate::models::price::CurrencyCodeValues;
-use crate::models::price::Price;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_PRICES;
 use crate::string::REMOVE_BUTTON;
@@ -57,7 +58,7 @@ pub enum Msg {
     SetPricePushState(PushActionCreatePrice),
     CreatePrice,
     SetPriceDeleteState(PushActionDeletePrice),
-    DeletePrice(String),
+    DeletePrice(Uuid),
     ChangeCurrencyCode(CurrencyCode),
     ChangeUnitPrice(String),
     DoNothing,
@@ -66,7 +67,7 @@ pub enum Msg {
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub prices: Option<Vec<Price>>,
-    pub publication_id: String,
+    pub publication_id: Uuid,
     pub update_prices: Callback<Option<Vec<Price>>>,
 }
 
@@ -134,7 +135,6 @@ impl Component for PricesFormComponent {
                             let mut prices: Vec<Price> =
                                 self.props.prices.clone().unwrap_or_default();
                             prices.push(price);
-                            self.new_price = Default::default();
                             self.props.update_prices.emit(Some(prices));
                             self.link.send_message(Msg::ToggleAddFormDisplay(false));
                             true
@@ -161,7 +161,7 @@ impl Component for PricesFormComponent {
             Msg::CreatePrice => {
                 let body = CreatePriceRequestBody {
                     variables: Variables {
-                        publication_id: self.props.publication_id.clone(),
+                        publication_id: self.props.publication_id,
                         currency_code: self.new_price.currency_code.clone(),
                         unit_price: self.new_price.unit_price,
                     },
@@ -344,7 +344,7 @@ impl PricesFormComponent {
     }
 
     fn render_price(&self, p: &Price) -> Html {
-        let price_id = p.price_id.clone();
+        let price_id = p.price_id;
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -370,7 +370,7 @@ impl PricesFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeletePrice(price_id.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeletePrice(price_id))
                             >
                                 { REMOVE_BUTTON }
                             </a>

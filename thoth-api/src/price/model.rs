@@ -16,8 +16,8 @@ use crate::schema::price_history;
     graphql(description = "Field to use when sorting prices list")
 )]
 pub enum PriceField {
-    PriceID,
-    PublicationID,
+    PriceId,
+    PublicationId,
     CurrencyCode,
     UnitPrice,
     CreatedAt,
@@ -25,7 +25,8 @@ pub enum PriceField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Price {
     pub price_id: Uuid,
     pub publication_id: Uuid,
@@ -383,6 +384,19 @@ pub struct NewPriceHistory {
     pub price_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
+}
+
+impl Default for Price {
+    fn default() -> Price {
+        Price {
+            price_id: Default::default(),
+            publication_id: Default::default(),
+            currency_code: Default::default(),
+            unit_price: 0.00,
+            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+        }
+    }
 }
 
 impl Default for CurrencyCode {

@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-
-use super::Publisher;
+use thoth_api::publisher::model::Publisher;
+use uuid::Uuid;
 
 pub const PUBLISHER_QUERY: &str = "
     query PublisherQuery($publisherId: Uuid!) {
@@ -10,6 +10,7 @@ pub const PUBLISHER_QUERY: &str = "
             publisherName
             publisherShortname
             publisherUrl
+            createdAt
             updatedAt
         }
     }
@@ -29,7 +30,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub publisher_id: Option<String>,
+    pub publisher_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

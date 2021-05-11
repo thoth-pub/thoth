@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-
-use super::Price;
+use thoth_api::price::model::Price;
+use uuid::Uuid;
 
 const DELETE_PRICE_MUTATION: &str = "
     mutation DeletePrice(
@@ -14,6 +14,8 @@ const DELETE_PRICE_MUTATION: &str = "
             publicationId
             currencyCode
             unitPrice
+            createdAt
+            updatedAt
         }
     }
 ";
@@ -32,7 +34,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub price_id: String,
+    pub price_id: Uuid,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

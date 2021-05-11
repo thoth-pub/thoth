@@ -1,6 +1,9 @@
 use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
+use thoth_api::imprint::model::ImprintExtended as Imprint;
+use thoth_api::series::model::SeriesExtended as Series;
 use thoth_api::series::model::SeriesType;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -28,7 +31,6 @@ use crate::models::imprint::imprints_query::FetchImprints;
 use crate::models::imprint::imprints_query::ImprintsRequest;
 use crate::models::imprint::imprints_query::ImprintsRequestBody;
 use crate::models::imprint::imprints_query::Variables as ImprintsVariables;
-use crate::models::imprint::Imprint;
 use crate::models::series::delete_series_mutation::DeleteSeriesRequest;
 use crate::models::series::delete_series_mutation::DeleteSeriesRequestBody;
 use crate::models::series::delete_series_mutation::PushActionDeleteSeries;
@@ -46,7 +48,6 @@ use crate::models::series::update_series_mutation::PushUpdateSeries;
 use crate::models::series::update_series_mutation::UpdateSeriesRequest;
 use crate::models::series::update_series_mutation::UpdateSeriesRequestBody;
 use crate::models::series::update_series_mutation::Variables as UpdateVariables;
-use crate::models::series::Series;
 use crate::models::series::SeriesTypeValues;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
@@ -85,7 +86,7 @@ pub enum Msg {
     SetSeriesDeleteState(PushActionDeleteSeries),
     DeleteSeries,
     ChangeSeriesType(SeriesType),
-    ChangeImprint(String),
+    ChangeImprint(Uuid),
     ChangeSeriesName(String),
     ChangeIssnPrint(String),
     ChangeIssnDigital(String),
@@ -95,7 +96,7 @@ pub enum Msg {
 
 #[derive(Clone, Properties)]
 pub struct Props {
-    pub series_id: String,
+    pub series_id: Uuid,
     pub current_user: AccountDetails,
 }
 
@@ -122,10 +123,10 @@ impl Component for SeriesComponent {
             series,
             fetch_series,
             push_series,
-            delete_series,
             data,
             fetch_imprints,
             fetch_series_types,
+            delete_series,
             link,
             router,
             notification_bus,
@@ -209,7 +210,7 @@ impl Component for SeriesComponent {
             Msg::GetSeries => {
                 let body = SeriesRequestBody {
                     variables: Variables {
-                        series_id: Some(self.props.series_id.clone()),
+                        series_id: Some(self.props.series_id),
                     },
                     ..Default::default()
                 };
@@ -255,13 +256,13 @@ impl Component for SeriesComponent {
             Msg::UpdateSeries => {
                 let body = UpdateSeriesRequestBody {
                     variables: UpdateVariables {
-                        series_id: self.series.series_id.clone(),
+                        series_id: self.series.series_id,
                         series_type: self.series.series_type.clone(),
                         series_name: self.series.series_name.clone(),
                         issn_print: self.series.issn_print.clone(),
                         issn_digital: self.series.issn_digital.clone(),
                         series_url: self.series.series_url.clone(),
-                        imprint_id: self.series.imprint.imprint_id.clone(),
+                        imprint_id: self.series.imprint.imprint_id,
                     },
                     ..Default::default()
                 };
@@ -309,7 +310,7 @@ impl Component for SeriesComponent {
             Msg::DeleteSeries => {
                 let body = DeleteSeriesRequestBody {
                     variables: DeleteVariables {
-                        series_id: self.series.series_id.clone(),
+                        series_id: self.series.series_id,
                     },
                     ..Default::default()
                 };
@@ -407,7 +408,7 @@ impl Component for SeriesComponent {
                                 onchange=self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {
                                         let value = elem.value();
-                                        Msg::ChangeImprint(value.clone())
+                                        Msg::ChangeImprint(Uuid::parse_str(&value).unwrap_or_default())
                                     }
                                     _ => unreachable!(),
                                 })

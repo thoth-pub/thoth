@@ -23,6 +23,7 @@
 * An actions API to export metadata in formats like ONIX, MARC, etc.
 * A WebAssembly GUI to manage metadata records.
 
+For more information about Thoth, its data and metadata formats, and more, see the repo's [wiki](https://github.com/thoth-pub/thoth/wiki). You can also use GraphiQL to [explore the GraphQL API](https://api.thoth.pub/graphiql) (click on "Docs" at the top right).
 
 ## Getting Started
 

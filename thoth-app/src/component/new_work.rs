@@ -1,7 +1,10 @@
 use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
+use thoth_api::imprint::model::ImprintExtended as Imprint;
+use thoth_api::work::model::WorkExtended as Work;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -31,7 +34,6 @@ use crate::models::imprint::imprints_query::FetchImprints;
 use crate::models::imprint::imprints_query::ImprintsRequest;
 use crate::models::imprint::imprints_query::ImprintsRequestBody;
 use crate::models::imprint::imprints_query::Variables as ImprintsVariables;
-use crate::models::imprint::Imprint;
 use crate::models::work::create_work_mutation::CreateWorkRequest;
 use crate::models::work::create_work_mutation::CreateWorkRequestBody;
 use crate::models::work::create_work_mutation::PushActionCreateWork;
@@ -41,7 +43,6 @@ use crate::models::work::work_statuses_query::FetchActionWorkStatuses;
 use crate::models::work::work_statuses_query::FetchWorkStatuses;
 use crate::models::work::work_types_query::FetchActionWorkTypes;
 use crate::models::work::work_types_query::FetchWorkTypes;
-use crate::models::work::Work;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
 use crate::route::AdminRoute;
@@ -50,7 +51,7 @@ use crate::string::SAVE_BUTTON;
 
 pub struct NewWorkComponent {
     work: Work,
-    imprint_id: String,
+    imprint_id: Uuid,
     push_work: PushCreateWork,
     data: WorkFormData,
     fetch_imprints: FetchImprints,
@@ -83,7 +84,7 @@ pub enum Msg {
     ChangeWorkType(WorkType),
     ChangeWorkStatus(WorkStatus),
     ChangeReference(String),
-    ChangeImprint(String),
+    ChangeImprint(Uuid),
     ChangeEdition(String),
     ChangeDoi(String),
     ChangeDate(String),
@@ -123,7 +124,7 @@ impl Component for NewWorkComponent {
         let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let work: Work = Default::default();
-        let imprint_id: String = Default::default();
+        let imprint_id: Uuid = Default::default();
         let data: WorkFormData = Default::default();
         let fetch_imprints: FetchImprints = Default::default();
         let fetch_work_types: FetchWorkTypes = Default::default();
@@ -225,7 +226,7 @@ impl Component for NewWorkComponent {
                                 NotificationStatus::Success,
                             )));
                             self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Work(w.work_id.clone()),
+                                AdminRoute::Work(w.work_id),
                             )));
                             true
                         }
@@ -278,7 +279,7 @@ impl Component for NewWorkComponent {
                         toc: self.work.toc.clone(),
                         cover_url: self.work.cover_url.clone(),
                         cover_caption: self.work.cover_caption.clone(),
-                        imprint_id: self.imprint_id.clone(),
+                        imprint_id: self.imprint_id,
                     },
                     ..Default::default()
                 };
@@ -546,7 +547,7 @@ impl Component for NewWorkComponent {
                                 onchange=self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {
                                         let value = elem.value();
-                                        Msg::ChangeImprint(value.clone())
+                                        Msg::ChangeImprint(Uuid::parse_str(&value).unwrap_or_default())
                                     }
                                     _ => unreachable!(),
                                 })

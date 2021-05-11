@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use uuid::Uuid;
 use yew::prelude::worker::*;
 use yew::Dispatched;
 use yewtil::fetch::Fetch;
@@ -22,7 +23,7 @@ pub enum Msg {
 }
 
 pub enum Request {
-    RetrieveContributorActivity(String),
+    RetrieveContributorActivity(Uuid),
 }
 
 pub struct ContributorActivityChecker {

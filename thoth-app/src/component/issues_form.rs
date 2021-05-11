@@ -1,4 +1,7 @@
 use thoth_api::account::model::AccountDetails;
+use thoth_api::issue::model::IssueExtended as Issue;
+use thoth_api::series::model::SeriesExtended as Series;
+use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -23,13 +26,12 @@ use crate::models::issue::delete_issue_mutation::DeleteIssueRequestBody;
 use crate::models::issue::delete_issue_mutation::PushActionDeleteIssue;
 use crate::models::issue::delete_issue_mutation::PushDeleteIssue;
 use crate::models::issue::delete_issue_mutation::Variables as DeleteVariables;
-use crate::models::issue::Issue;
 use crate::models::series::serieses_query::FetchActionSerieses;
 use crate::models::series::serieses_query::FetchSerieses;
 use crate::models::series::serieses_query::SeriesesRequest;
 use crate::models::series::serieses_query::SeriesesRequestBody;
 use crate::models::series::serieses_query::Variables;
-use crate::models::series::Series;
+use crate::models::Dropdown;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_ISSUES;
 use crate::string::REMOVE_BUTTON;
@@ -60,7 +62,7 @@ pub enum Msg {
     SetIssuePushState(PushActionCreateIssue),
     CreateIssue,
     SetIssueDeleteState(PushActionDeleteIssue),
-    DeleteIssue(String),
+    DeleteIssue(Uuid),
     AddIssue(Series),
     ToggleSearchResultDisplay(bool),
     SearchSeries(String),
@@ -71,8 +73,8 @@ pub enum Msg {
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub issues: Option<Vec<Issue>>,
-    pub work_id: String,
-    pub imprint_id: String,
+    pub work_id: Uuid,
+    pub imprint_id: Uuid,
     pub current_user: AccountDetails,
     pub update_issues: Callback<Option<Vec<Issue>>>,
 }
@@ -177,8 +179,8 @@ impl Component for IssuesFormComponent {
             Msg::CreateIssue => {
                 let body = CreateIssueRequestBody {
                     variables: CreateVariables {
-                        work_id: self.props.work_id.clone(),
-                        series_id: self.new_issue.series_id.clone(),
+                        work_id: self.props.work_id,
+                        series_id: self.new_issue.series_id,
                         issue_ordinal: self.new_issue.issue_ordinal,
                     },
                     ..Default::default()
@@ -226,12 +228,9 @@ impl Component for IssuesFormComponent {
                     }
                 }
             }
-            Msg::DeleteIssue(series_id) => {
+            Msg::DeleteIssue(issue_id) => {
                 let body = DeleteIssueRequestBody {
-                    variables: DeleteVariables {
-                        work_id: self.props.work_id.clone(),
-                        series_id,
-                    },
+                    variables: DeleteVariables { issue_id },
                     ..Default::default()
                 };
                 let request = DeleteIssueRequest { body };
@@ -243,7 +242,7 @@ impl Component for IssuesFormComponent {
                 false
             }
             Msg::AddIssue(series) => {
-                self.new_issue.series_id = series.series_id.clone();
+                self.new_issue.series_id = series.series_id;
                 self.new_issue.series = series;
                 self.link.send_message(Msg::ToggleAddFormDisplay(true));
                 true
@@ -430,10 +429,7 @@ impl IssuesFormComponent {
     }
 
     fn render_issue(&self, i: &Issue) -> Html {
-        // there's probably a better way to do this. We basically need to copy 3 instances
-        // of contributor_id and take ownership of them so they can be passed on to
-        // the callback functions
-        let series_id = i.series_id.clone();
+        let issue_id = i.issue_id;
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -480,7 +476,7 @@ impl IssuesFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteIssue(series_id.clone()))
+                                onclick=self.link.callback(move |_| Msg::DeleteIssue(issue_id))
                             >
                                 { REMOVE_BUTTON }
                             </a>

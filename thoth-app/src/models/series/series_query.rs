@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-
-use super::Series;
+use thoth_api::series::model::SeriesExtended as Series;
+use uuid::Uuid;
 
 pub const SERIES_QUERY: &str = "
     query SeriesQuery($seriesId: Uuid!) {
@@ -22,6 +22,7 @@ pub const SERIES_QUERY: &str = "
                     publisherName
                     publisherShortname
                     publisherUrl
+                    createdAt
                     updatedAt
                 }
             }
@@ -43,7 +44,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub series_id: Option<String>,
+    pub series_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

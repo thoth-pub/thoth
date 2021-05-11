@@ -3,6 +3,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::funder::model::Funder;
 #[cfg(feature = "backend")]
 use crate::schema::funding;
 #[cfg(feature = "backend")]
@@ -14,9 +15,9 @@ use crate::schema::funding_history;
     graphql(description = "Field to use when sorting fundings list")
 )]
 pub enum FundingField {
-    FundingID,
-    WorkID,
-    FunderID,
+    FunderId,
+    WorkId,
+    FundingId,
     Program,
     ProjectName,
     ProjectShortname,
@@ -39,6 +40,20 @@ pub struct Funding {
     pub jurisdiction: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FundingExtended {
+    pub funding_id: Uuid,
+    pub work_id: Uuid,
+    pub funder_id: Uuid,
+    pub program: Option<String>,
+    pub project_name: Option<String>,
+    pub project_shortname: Option<String>,
+    pub grant_number: Option<String>,
+    pub jurisdiction: Option<String>,
+    pub funder: Funder,
 }
 
 #[cfg_attr(

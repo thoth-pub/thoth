@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-
-use super::Publication;
+use thoth_api::publication::model::PublicationExtended as Publication;
+use uuid::Uuid;
 
 const DELETE_PUBLICATION_MUTATION: &str = "
     mutation DeletePublication(
@@ -38,7 +38,7 @@ graphql_query_builder! {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub publication_id: String,
+    pub publication_id: Uuid,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
