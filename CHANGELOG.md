@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [#236](https://github.com/thoth-pub/thoth/issues/236) - Split server logic into individual crates
   - Update rustc to 1.51.0 in docker image
   - Replace composite keys in `contribution` and `issue` with standard UUIDs
+  - Server configuration parsed from binary
 
 ### Fixed
   - [#216](https://github.com/thoth-pub/thoth/issues/216), [#228](https://github.com/thoth-pub/thoth/issues/228) - Error adding multiple subjects
