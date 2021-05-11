@@ -6,7 +6,7 @@ on:
       - 'release/**'
 
 jobs:
-  main:
+  build_docker_image:
     runs-on: ubuntu-latest
     steps:
       - name: Set up QEMU
