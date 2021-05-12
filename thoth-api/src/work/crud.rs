@@ -10,6 +10,7 @@ use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
+use uuid::Uuid;
 
 impl Work {
     pub fn from_doi(db: &crate::db::PgPool, doi: String) -> ThothResult<Self> {
@@ -56,7 +57,7 @@ impl Crud for Work {
     type FilterParameter1 = WorkType;
     type FilterParameter2 = WorkStatus;
 
-    fn pk(&self) -> uuid::Uuid {
+    fn pk(&self) -> Uuid {
         self.work_id
     }
 
@@ -66,9 +67,9 @@ impl Crud for Work {
         offset: i32,
         filter: Option<String>,
         order: Self::OrderByEntity,
-        publishers: Vec<uuid::Uuid>,
-        parent_id_1: Option<uuid::Uuid>,
-        _: Option<uuid::Uuid>,
+        publishers: Vec<Uuid>,
+        parent_id_1: Option<Uuid>,
+        _: Option<Uuid>,
         work_type: Option<Self::FilterParameter1>,
         work_status: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Work>> {
@@ -282,7 +283,7 @@ impl Crud for Work {
     fn count(
         db: &crate::db::PgPool,
         filter: Option<String>,
-        publishers: Vec<uuid::Uuid>,
+        publishers: Vec<Uuid>,
         work_type: Option<Self::FilterParameter1>,
         work_status: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
@@ -360,7 +361,7 @@ impl Crud for Work {
         }
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> uuid::Uuid {
+    fn publisher_id(&self, db: &crate::db::PgPool) -> Uuid {
         crate::imprint::model::Imprint::from_id(db, &self.imprint_id)
             .unwrap()
             .publisher_id(db)
@@ -372,7 +373,7 @@ impl Crud for Work {
 impl HistoryEntry for Work {
     type NewHistoryEntity = NewWorkHistory;
 
-    fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             work_id: self.work_id,
             account_id: *account_id,
@@ -440,7 +441,7 @@ mod tests {
     #[test]
     fn test_new_work_history_from_work() {
         let work: Work = Default::default();
-        let account_id: uuid::Uuid = Default::default();
+        let account_id: Uuid = Default::default();
         let new_work_history = work.new_history_entry(&account_id);
         assert_eq!(new_work_history.work_id, work.work_id);
         assert_eq!(new_work_history.account_id, account_id);

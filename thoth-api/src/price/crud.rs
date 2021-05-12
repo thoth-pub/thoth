@@ -8,6 +8,7 @@ use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{price, price_history};
 use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use uuid::Uuid;
 
 impl Crud for Price {
     type NewEntity = NewPrice;
@@ -16,7 +17,7 @@ impl Crud for Price {
     type FilterParameter1 = CurrencyCode;
     type FilterParameter2 = ();
 
-    fn pk(&self) -> uuid::Uuid {
+    fn pk(&self) -> Uuid {
         self.price_id
     }
 
@@ -26,9 +27,9 @@ impl Crud for Price {
         offset: i32,
         _: Option<String>,
         order: Self::OrderByEntity,
-        publishers: Vec<uuid::Uuid>,
-        parent_id_1: Option<uuid::Uuid>,
-        _: Option<uuid::Uuid>,
+        publishers: Vec<Uuid>,
+        parent_id_1: Option<Uuid>,
+        _: Option<Uuid>,
         currency_code: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Price>> {
@@ -100,7 +101,7 @@ impl Crud for Price {
     fn count(
         db: &crate::db::PgPool,
         _: Option<String>,
-        _: Vec<uuid::Uuid>,
+        _: Vec<Uuid>,
         currency_code: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
@@ -120,7 +121,7 @@ impl Crud for Price {
         }
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> uuid::Uuid {
+    fn publisher_id(&self, db: &crate::db::PgPool) -> Uuid {
         crate::publication::model::Publication::from_id(db, &self.publication_id)
             .unwrap()
             .publisher_id(db)
@@ -132,7 +133,7 @@ impl Crud for Price {
 impl HistoryEntry for Price {
     type NewHistoryEntity = NewPriceHistory;
 
-    fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             price_id: self.price_id,
             account_id: *account_id,
@@ -160,7 +161,7 @@ mod tests {
     #[test]
     fn test_new_price_history_from_price() {
         let price: Price = Default::default();
-        let account_id: uuid::Uuid = Default::default();
+        let account_id: Uuid = Default::default();
         let new_price_history = price.new_history_entry(&account_id);
         assert_eq!(new_price_history.price_id, price.price_id);
         assert_eq!(new_price_history.account_id, account_id);

@@ -8,6 +8,7 @@ use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{subject, subject_history};
 use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
+use uuid::Uuid;
 
 impl Crud for Subject {
     type NewEntity = NewSubject;
@@ -16,7 +17,7 @@ impl Crud for Subject {
     type FilterParameter1 = SubjectType;
     type FilterParameter2 = ();
 
-    fn pk(&self) -> uuid::Uuid {
+    fn pk(&self) -> Uuid {
         self.subject_id
     }
 
@@ -26,9 +27,9 @@ impl Crud for Subject {
         offset: i32,
         filter: Option<String>,
         order: Self::OrderByEntity,
-        publishers: Vec<uuid::Uuid>,
-        parent_id_1: Option<uuid::Uuid>,
-        _: Option<uuid::Uuid>,
+        publishers: Vec<Uuid>,
+        parent_id_1: Option<Uuid>,
+        _: Option<Uuid>,
         subject_type: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Subject>> {
@@ -106,7 +107,7 @@ impl Crud for Subject {
     fn count(
         db: &crate::db::PgPool,
         filter: Option<String>,
-        _: Vec<uuid::Uuid>,
+        _: Vec<Uuid>,
         subject_type: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
@@ -129,7 +130,7 @@ impl Crud for Subject {
         }
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> uuid::Uuid {
+    fn publisher_id(&self, db: &crate::db::PgPool) -> Uuid {
         crate::work::model::Work::from_id(db, &self.work_id)
             .unwrap()
             .publisher_id(db)
@@ -141,7 +142,7 @@ impl Crud for Subject {
 impl HistoryEntry for Subject {
     type NewHistoryEntity = NewSubjectHistory;
 
-    fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             subject_id: self.subject_id,
             account_id: *account_id,
@@ -169,7 +170,7 @@ mod tests {
     #[test]
     fn test_new_subject_history_from_subject() {
         let subject: Subject = Default::default();
-        let account_id: uuid::Uuid = Default::default();
+        let account_id: Uuid = Default::default();
         let new_subject_history = subject.new_history_entry(&account_id);
         assert_eq!(new_subject_history.subject_id, subject.subject_id);
         assert_eq!(new_subject_history.account_id, account_id);
