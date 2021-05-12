@@ -3,10 +3,8 @@ ARG MUSL_IMAGE=ekidd/rust-musl-builder:1.51.0
 
 FROM ${RUST_IMAGE} as wasm
 
-#ARG THOTH_GRAPHQL_API=https://api.thoth.pub/data
-#ARG THOTH_EXPORT_API=https://api.thoth.pub/export
-ARG THOTH_GRAPHQL_API=http://test.api/data
-ARG THOTH_EXPORT_API=http://test.api/export
+ARG THOTH_GRAPHQL_API=https://api.thoth.pub/data
+ARG THOTH_EXPORT_API=https://api.thoth.pub/export
 ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
 ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
 
