@@ -6,7 +6,7 @@ use yew_router::prelude::*;
 
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::THOTH_API;
+use crate::THOTH_GRAPHQL_API;
 
 pub struct NavbarComponent {
     props: Props,
@@ -50,6 +50,7 @@ impl Component for NavbarComponent {
             e.prevent_default();
             Msg::Logout
         });
+        let graphiql = format!("{}/graphiql", THOTH_GRAPHQL_API);
         html! {
             <nav class="navbar is-warning" role="navigation" aria-label="main navigation">
                 <div class="navbar-brand">
@@ -86,7 +87,7 @@ impl Component for NavbarComponent {
                                     { "Timeline" }
                                 </a>
                                 <hr class="navbar-divider" />
-                                <a class="navbar-item" href={format!("{}/graphiql", THOTH_API)} title="GraphiQL">
+                                <a class="navbar-item" href={graphiql} title="GraphiQL">
                                     { "GraphiQL" }
                                 </a>
                             </div>

@@ -8,6 +8,7 @@ use thoth::api::db::{establish_connection, run_migrations};
 use thoth::api::errors::ThothResult;
 use thoth::api_server;
 use thoth::app_server;
+use thoth::export_server;
 
 fn host_argument(env_value: &'static str) -> Arg<'static, 'static> {
     Arg::with_name("host")
@@ -63,6 +64,17 @@ fn session_argument() -> Arg<'static, 'static> {
         .takes_value(true)
 }
 
+fn gql_endpoint_argument() -> Arg<'static, 'static> {
+    Arg::with_name("gql-endpoint")
+        .short("g")
+        .long("gql-endpoint")
+        .value_name("THOTH_GRAPHQL_ENDPOINT")
+        .env("THOTH_GRAPHQL_ENDPOINT")
+        .default_value("http://localhost:8000/graphql")
+        .help("Thoth GraphQL's endpoint")
+        .takes_value(true)
+}
+
 fn thoth_commands() -> App<'static, 'static> {
     App::new(env!("CARGO_PKG_NAME"))
         .version(crate_version!())
@@ -75,10 +87,10 @@ fn thoth_commands() -> App<'static, 'static> {
                 .about("Start an instance of Thoth API or GUI")
                 .setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommand(
-                    App::new("api")
-                        .about("Start the thoth API server")
-                        .arg(host_argument("API_HOST"))
-                        .arg(port_argument("8000", "API_PORT"))
+                    App::new("graphql-api")
+                        .about("Start the thoth GraphQL API server")
+                        .arg(host_argument("GRAPHQL_API_HOST"))
+                        .arg(port_argument("8000", "GRAPHQL_API_PORT"))
                         .arg(domain_argument())
                         .arg(key_argument())
                         .arg(session_argument()),
@@ -88,13 +100,20 @@ fn thoth_commands() -> App<'static, 'static> {
                         .about("Start the thoth client GUI")
                         .arg(host_argument("APP_HOST"))
                         .arg(port_argument("8080", "APP_PORT")),
+                )
+                .subcommand(
+                    App::new("export-api")
+                        .about("Start the thoth metadata export API")
+                        .arg(host_argument("EXPORT_API_HOST"))
+                        .arg(port_argument("8181", "EXPORT_API_PORT"))
+                        .arg(gql_endpoint_argument()),
                 ),
         )
         .subcommand(
             App::new("init")
                 .about("Run the database migrations and start the thoth API server")
-                .arg(host_argument("API_HOST"))
-                .arg(port_argument("8000", "API_PORT"))
+                .arg(host_argument("GRAPHQL_API_HOST"))
+                .arg(port_argument("8000", "GRAPHQL_API_PORT"))
                 .arg(domain_argument())
                 .arg(key_argument())
                 .arg(session_argument()),
@@ -114,7 +133,7 @@ fn main() -> ThothResult<()> {
 
     match thoth_commands().get_matches().subcommand() {
         ("start", Some(start_matches)) => match start_matches.subcommand() {
-            ("api", Some(api_matches)) => {
+            ("graphql-api", Some(api_matches)) => {
                 let host = api_matches.value_of("host").unwrap().to_owned();
                 let port = api_matches.value_of("port").unwrap().to_owned();
                 let domain = api_matches.value_of("domain").unwrap().to_owned();
@@ -126,6 +145,12 @@ fn main() -> ThothResult<()> {
                 let host = client_matches.value_of("host").unwrap().to_owned();
                 let port = client_matches.value_of("port").unwrap().to_owned();
                 app_server(host, port).map_err(|e| e.into())
+            }
+            ("export-api", Some(client_matches)) => {
+                let host = client_matches.value_of("host").unwrap().to_owned();
+                let port = client_matches.value_of("port").unwrap().to_owned();
+                let gql_endpoint = client_matches.value_of("gql-endpoint").unwrap().to_owned();
+                export_server(host, port, gql_endpoint).map_err(|e| e.into())
             }
             _ => unreachable!(),
         },

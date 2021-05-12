@@ -13,10 +13,10 @@ use uuid::Uuid;
 )]
 pub struct WorkQuery;
 
-pub async fn get_work(work_id: Uuid, thoth_url: String) -> ThothResult<work_query::WorkQueryWork> {
+pub async fn get_work(work_id: Uuid, gql_endpoint: &str) -> ThothResult<work_query::WorkQueryWork> {
     let request_body = WorkQuery::build_query(work_query::Variables { work_id });
     let client = reqwest::Client::new();
-    let res = client.post(&thoth_url).json(&request_body).send().await?;
+    let res = client.post(gql_endpoint).json(&request_body).send().await?;
     let response_body: Response<work_query::ResponseData> = res.json().await?;
     match response_body.data {
         Some(data) => {
@@ -46,10 +46,10 @@ impl fmt::Display for work_query::LanguageCode {
 )]
 pub struct WorksQuery;
 
-pub async fn get_works(thoth_url: String) -> ThothResult<Vec<works_query::WorksQueryWorks>> {
+pub async fn get_works(gql_endpoint: &str) -> ThothResult<Vec<works_query::WorksQueryWorks>> {
     let request_body = WorksQuery::build_query(works_query::Variables);
     let client = reqwest::Client::new();
-    let res = client.post(&thoth_url).json(&request_body).send().await?;
+    let res = client.post(gql_endpoint).json(&request_body).send().await?;
     let response_body: Response<works_query::ResponseData> = res.json().await?;
     match response_body.data {
         Some(data) => {

@@ -3,7 +3,7 @@ use std::{io, sync::Arc};
 use actix_cors::Cors;
 use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
 use actix_web::{
-    error, get, middleware::Logger, post, web, App, Error, HttpRequest, HttpResponse, HttpServer,
+    error, get, middleware::Logger, post, web, App, Error, HttpResponse, HttpServer,
     Result,
 };
 use juniper::{http::graphiql::graphiql_source, http::GraphQLRequest};
@@ -20,12 +20,6 @@ use thoth_api::{
     graphql::model::Context,
     graphql::model::{create_schema, Schema},
 };
-use thoth_client::work::get_work;
-use uuid::Uuid;
-
-mod onix;
-
-use crate::onix::generate_onix_3;
 
 #[get("/graphiql")]
 async fn graphiql() -> HttpResponse {
@@ -51,33 +45,6 @@ async fn graphql(
     Ok(HttpResponse::Ok()
         .content_type("application/json")
         .body(result))
-}
-
-#[get("/onix/{uuid}")]
-async fn onix_endpoint(req: HttpRequest, path: web::Path<(Uuid,)>) -> HttpResponse {
-    let work_id = (path.0).0;
-    let scheme = if req.app_config().secure() {
-        "https".to_string()
-    } else {
-        "http".to_string()
-    };
-    let thoth_url = format!("{}://{}/graphql", scheme, req.app_config().local_addr());
-    if let Ok(work) = get_work(work_id, thoth_url).await {
-        if let Ok(body) = generate_onix_3(work) {
-            HttpResponse::Ok()
-                .header(
-                    "Content-Disposition",
-                    format!("attachment; filename=\"{}.xml\"", work_id),
-                )
-                .content_type("text/xml; charset=utf-8")
-                .body(String::from_utf8(body).unwrap())
-        } else {
-            HttpResponse::InternalServerError()
-                .body(format!("Could not generate ONIX for: {}", work_id))
-        }
-    } else {
-        HttpResponse::NotFound().body(format!("Not found: {}", work_id))
-    }
 }
 
 #[post("/account/login")]
@@ -163,7 +130,6 @@ fn config(cfg: &mut web::ServiceConfig) {
     cfg.data(pool);
     cfg.service(graphql);
     cfg.service(graphiql);
-    cfg.service(onix_endpoint);
     cfg.service(login_credentials);
     cfg.service(login_session);
     cfg.service(account_details);

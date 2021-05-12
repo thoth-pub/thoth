@@ -4,7 +4,7 @@
   <h1>Thoth Client</h1>
 
   <p>
-    <strong>Web server for <a href="https://github.com/thoth-pub/thoth/">Thoth</a>'s, metadata management and dissemination system, GraphQL API</strong>
+    <strong>Web server for <a href="https://github.com/thoth-pub/thoth/">Thoth</a>'s, metadata management and dissemination system, metadata exports API</strong>
   </p>
 
   <p>

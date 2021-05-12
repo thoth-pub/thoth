@@ -13,7 +13,7 @@ use yew::MouseEvent;
 use super::{CreateRoute, EditRoute, ListString, MetadataTable};
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::THOTH_API;
+use crate::THOTH_EXPORT_API;
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub enum License {
@@ -101,7 +101,7 @@ pub trait DisplayWork {
 
 impl DisplayWork for Work {
     fn onix_endpoint(&self) -> String {
-        format!("{}/onix/{}", THOTH_API, &self.work_id)
+        format!("{}/onix/{}", THOTH_EXPORT_API, &self.work_id)
     }
 
     fn cover_alt_text(&self) -> String {

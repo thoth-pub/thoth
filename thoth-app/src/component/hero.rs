@@ -4,7 +4,7 @@ use yew::Properties;
 use yewtil::Pure;
 use yewtil::PureComponent;
 
-use crate::THOTH_API;
+use crate::THOTH_GRAPHQL_API;
 
 pub type HeroComponent = Pure<PureHero>;
 
@@ -13,6 +13,7 @@ pub struct PureHero {}
 
 impl PureComponent for PureHero {
     fn render(&self) -> VNode {
+        let graphiql = format!("{}/graphiql", THOTH_GRAPHQL_API);
         html! {
             <section class="hero is-warning">
                 <div class="hero-body">
@@ -21,7 +22,7 @@ impl PureComponent for PureHero {
                     </div>
 
                     <nav class="columns home-icons">
-                        <a class="home-icons-item column has-text-centered" href={format!("{}/graphiql", THOTH_API)}>
+                        <a class="home-icons-item column has-text-centered" href={graphiql}>
                             <p class="title is-4">
                                 <strong>{ "Open API" }</strong>
                             </p>
