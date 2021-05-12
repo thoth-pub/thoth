@@ -41,7 +41,7 @@ where
         filter_param_2: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Self>>;
 
-    /// Query the database to obtain the total number of entities satisfying the search criteriac
+    /// Query the database to obtain the total number of entities satisfying the search criteria
     fn count(
         db: &crate::db::PgPool,
         filter: Option<String>,
@@ -66,6 +66,9 @@ where
 
     /// Delete the record from the database and obtain the deleted instance
     fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self>;
+
+    /// Retrieve the ID of the publisher linked to this entity (if applicable)
+    fn publisher_id(&self, db: &crate::db::PgPool) -> uuid::Uuid;
 }
 
 #[cfg(feature = "backend")]

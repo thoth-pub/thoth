@@ -11,6 +11,44 @@ use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
 
+impl Work {
+    pub fn from_doi(db: &crate::db::PgPool, doi: String) -> ThothResult<Self> {
+        use diesel::sql_types::Nullable;
+        use diesel::sql_types::Text;
+        let connection = db.get().unwrap();
+        // Allow case-insensitive searching (DOIs in database may have mixed casing)
+        sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
+        crate::schema::work::dsl::work
+            .filter(lower(crate::schema::work::dsl::doi).eq(doi.to_lowercase()))
+            .get_result::<Work>(&connection)
+            .map_err(|e| e.into())
+    }
+
+    pub fn can_update_imprint(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        use crate::schema::issue::dsl;
+        let connection = db.get().unwrap();
+        // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
+        // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
+        // is converting i64 to string and then parsing it as i32. This should work until we reach
+        // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
+        let issue_count = dsl::issue
+            .filter(dsl::work_id.eq(self.work_id))
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading issue count for work")
+            .to_string()
+            .parse::<i32>()
+            .unwrap();
+        // If a work has any related issues, its imprint cannot be changed,
+        // because an issue's series and work must both have the same imprint.
+        if issue_count == 0 {
+            Ok(())
+        } else {
+            Err(ThothError::IssueImprintsError)
+        }
+    }
+}
+
 impl Crud for Work {
     type NewEntity = NewWork;
     type PatchEntity = PatchWork;
@@ -320,6 +358,12 @@ impl Crud for Work {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
             Err(e) => Err(ThothError::from(e)),
         }
+    }
+
+    fn publisher_id(&self, db: &crate::db::PgPool) -> uuid::Uuid {
+        crate::imprint::model::Imprint::from_id(db, &self.imprint_id)
+            .unwrap()
+            .publisher_id(db)
     }
 
     crud_methods!(work::table, work::dsl::work);

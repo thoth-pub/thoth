@@ -120,6 +120,10 @@ impl Crud for Imprint {
         }
     }
 
+    fn publisher_id(&self, _db: &crate::db::PgPool) -> uuid::Uuid {
+        self.publisher_id
+    }
+
     crud_methods!(imprint::table, imprint::dsl::imprint);
 }
 

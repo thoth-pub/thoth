@@ -117,6 +117,10 @@ impl Crud for Contributor {
         }
     }
 
+    fn publisher_id(&self, _db: &crate::db::PgPool) -> uuid::Uuid {
+        unimplemented!()
+    }
+
     crud_methods!(contributor::table, contributor::dsl::contributor);
 }
 

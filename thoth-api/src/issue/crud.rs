@@ -112,6 +112,12 @@ impl Crud for Issue {
         }
     }
 
+    fn publisher_id(&self, db: &crate::db::PgPool) -> uuid::Uuid {
+        crate::work::model::Work::from_id(db, &self.work_id)
+            .unwrap()
+            .publisher_id(db)
+    }
+
     crud_methods!(issue::table, issue::dsl::issue);
 }
 
@@ -131,6 +137,43 @@ impl DbInsert for NewIssueHistory {
     type MainEntity = IssueHistory;
 
     db_insert!(issue_history::table);
+}
+
+impl NewIssue {
+    pub fn imprints_match(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        issue_imprints_match(self.work_id, self.series_id, db)
+    }
+}
+
+impl PatchIssue {
+    pub fn imprints_match(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        issue_imprints_match(self.work_id, self.series_id, db)
+    }
+}
+
+fn issue_imprints_match(
+    work_id: uuid::Uuid,
+    series_id: uuid::Uuid,
+    db: &crate::db::PgPool,
+) -> ThothResult<()> {
+    use diesel::prelude::*;
+
+    let connection = db.get().unwrap();
+    let series_imprint = crate::schema::series::table
+        .select(crate::schema::series::imprint_id)
+        .filter(crate::schema::series::series_id.eq(series_id))
+        .first::<uuid::Uuid>(&connection)
+        .expect("Error loading series for issue");
+    let work_imprint = crate::schema::work::table
+        .select(crate::schema::work::imprint_id)
+        .filter(crate::schema::work::work_id.eq(work_id))
+        .first::<uuid::Uuid>(&connection)
+        .expect("Error loading work for issue");
+    if work_imprint == series_imprint {
+        Ok(())
+    } else {
+        Err(ThothError::IssueImprintsError)
+    }
 }
 
 #[cfg(test)]

@@ -120,6 +120,12 @@ impl Crud for Price {
         }
     }
 
+    fn publisher_id(&self, db: &crate::db::PgPool) -> uuid::Uuid {
+        crate::publication::model::Publication::from_id(db, &self.publication_id)
+            .unwrap()
+            .publisher_id(db)
+    }
+
     crud_methods!(price::table, price::dsl::price);
 }
 

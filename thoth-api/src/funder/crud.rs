@@ -104,6 +104,10 @@ impl Crud for Funder {
         }
     }
 
+    fn publisher_id(&self, _db: &crate::db::PgPool) -> uuid::Uuid {
+        unimplemented!()
+    }
+
     crud_methods!(funder::table, funder::dsl::funder);
 }
 

@@ -129,6 +129,12 @@ impl Crud for Subject {
         }
     }
 
+    fn publisher_id(&self, db: &crate::db::PgPool) -> uuid::Uuid {
+        crate::work::model::Work::from_id(db, &self.work_id)
+            .unwrap()
+            .publisher_id(db)
+    }
+
     crud_methods!(subject::table, subject::dsl::subject);
 }
 

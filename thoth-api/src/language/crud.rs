@@ -129,6 +129,12 @@ impl Crud for Language {
         }
     }
 
+    fn publisher_id(&self, db: &crate::db::PgPool) -> uuid::Uuid {
+        crate::work::model::Work::from_id(db, &self.work_id)
+            .unwrap()
+            .publisher_id(db)
+    }
+
     crud_methods!(language::table, language::dsl::language);
 }
 

@@ -121,6 +121,10 @@ impl Crud for Publisher {
         }
     }
 
+    fn publisher_id(&self, _db: &crate::db::PgPool) -> uuid::Uuid {
+        self.pk()
+    }
+
     crud_methods!(publisher::table, publisher::dsl::publisher);
 }
 
