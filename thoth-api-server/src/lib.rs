@@ -21,9 +21,13 @@ use thoth_api::{
     graphql::model::{create_schema, Schema},
 };
 
+struct ApiConfig {
+    graphql_public_url: String,
+}
+
 #[get("/graphiql")]
-async fn graphiql() -> HttpResponse {
-    let html = graphiql_source("/graphql");
+async fn graphiql(config: web::Data<ApiConfig>) -> HttpResponse {
+    let html = graphiql_source(&config.graphql_public_url);
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(html)
@@ -139,6 +143,7 @@ fn config(cfg: &mut web::ServiceConfig) {
 pub async fn start_server(
     host: String,
     port: String,
+    public_url: String,
     domain: String,
     secret_str: String,
     session_duration: i64,
@@ -160,6 +165,9 @@ pub async fn start_server(
                     .allowed_methods(vec!["GET", "POST", "OPTIONS"])
                     .finish(),
             )
+            .data(ApiConfig {
+                graphql_public_url: public_url.clone(),
+            })
             .configure(config)
     })
     .bind(format!("{}:{}", host, port))?

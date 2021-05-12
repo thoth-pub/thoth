@@ -3,9 +3,12 @@ ARG MUSL_IMAGE=ekidd/rust-musl-builder:1.51.0
 
 FROM ${RUST_IMAGE} as wasm
 
-ARG THOTH_API=https://api.thoth.pub
-ENV THOTH_API=${THOTH_API}
-RUN env
+#ARG THOTH_GRAPHQL_API=https://api.thoth.pub/data
+#ARG THOTH_EXPORT_API=https://api.thoth.pub/export
+ARG THOTH_GRAPHQL_API=http://test.api/data
+ARG THOTH_EXPORT_API=http://test.api/export
+ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
+ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
 
 WORKDIR /wasm
 
@@ -18,13 +21,7 @@ RUN npm install -g rollup@2.28.2
 RUN cargo install wasm-pack
 
 # Get source
-COPY Cargo.toml Cargo.lock ./
-COPY ./src ./src
-COPY ./thoth-api ./thoth-api
-COPY ./thoth-api-server ./thoth-api-server
-COPY ./thoth-client ./thoth-client
-COPY ./thoth-app ./thoth-app
-COPY ./thoth-app-server ./thoth-app-server
+COPY . .
 
 # Compile WASM for release
 RUN wasm-pack build thoth-app/ \
@@ -36,12 +33,6 @@ RUN rollup thoth-app/main.js \
 
 # Switch to musl for static compiling
 FROM ${MUSL_IMAGE} as build
-
-# "An ARG instruction goes out of scope at the end of the build stage where it was defined. To use an arg in multiple stages, each stage must include the ARG instruction."
-# https://docs.docker.com/engine/reference/builder/#scope
-ARG THOTH_API=https://api.thoth.pub
-ENV THOTH_API=${THOTH_API}
-RUN env
 
 COPY --from=wasm --chown=rust:rust /wasm/ /home/rust/src/
 # Build Thoth for release
@@ -57,6 +48,7 @@ COPY --from=build \
 # Expose thoth's default ports
 EXPOSE 8080
 EXPOSE 8000
+EXPOSE 8181
 
 # Make thoth our default binary
 ENTRYPOINT ["/thoth"]

@@ -64,6 +64,17 @@ fn session_argument() -> Arg<'static, 'static> {
         .takes_value(true)
 }
 
+fn gql_url_argument() -> Arg<'static, 'static> {
+    Arg::with_name("gql-url")
+        .short("u")
+        .long("gql-url")
+        .value_name("THOTH_GRAPHQL_API")
+        .env("THOTH_GRAPHQL_API")
+        .default_value("http://localhost:8000")
+        .help("Thoth GraphQL's, public facing, root URL.")
+        .takes_value(true)
+}
+
 fn gql_endpoint_argument() -> Arg<'static, 'static> {
     Arg::with_name("gql-endpoint")
         .short("g")
@@ -91,6 +102,7 @@ fn thoth_commands() -> App<'static, 'static> {
                         .about("Start the thoth GraphQL API server")
                         .arg(host_argument("GRAPHQL_API_HOST"))
                         .arg(port_argument("8000", "GRAPHQL_API_PORT"))
+                        .arg(gql_url_argument())
                         .arg(domain_argument())
                         .arg(key_argument())
                         .arg(session_argument()),
@@ -114,6 +126,7 @@ fn thoth_commands() -> App<'static, 'static> {
                 .about("Run the database migrations and start the thoth API server")
                 .arg(host_argument("GRAPHQL_API_HOST"))
                 .arg(port_argument("8000", "GRAPHQL_API_PORT"))
+                .arg(gql_url_argument())
                 .arg(domain_argument())
                 .arg(key_argument())
                 .arg(session_argument()),
@@ -136,10 +149,11 @@ fn main() -> ThothResult<()> {
             ("graphql-api", Some(api_matches)) => {
                 let host = api_matches.value_of("host").unwrap().to_owned();
                 let port = api_matches.value_of("port").unwrap().to_owned();
+                let url = api_matches.value_of("gql-url").unwrap().to_owned();
                 let domain = api_matches.value_of("domain").unwrap().to_owned();
                 let secret_str = api_matches.value_of("key").unwrap().to_owned();
                 let session_duration = value_t!(api_matches.value_of("duration"), i64).unwrap();
-                api_server(host, port, domain, secret_str, session_duration).map_err(|e| e.into())
+                api_server(host, port, url, domain, secret_str, session_duration).map_err(|e| e.into())
             }
             ("app", Some(client_matches)) => {
                 let host = client_matches.value_of("host").unwrap().to_owned();
@@ -158,11 +172,12 @@ fn main() -> ThothResult<()> {
         ("init", Some(init_matches)) => {
             let host = init_matches.value_of("host").unwrap().to_owned();
             let port = init_matches.value_of("port").unwrap().to_owned();
+            let url = init_matches.value_of("gql-url").unwrap().to_owned();
             let domain = init_matches.value_of("domain").unwrap().to_owned();
             let secret_str = init_matches.value_of("key").unwrap().to_owned();
             let session_duration = value_t!(init_matches.value_of("duration"), i64).unwrap();
             run_migrations()?;
-            api_server(host, port, domain, secret_str, session_duration).map_err(|e| e.into())
+            api_server(host, port, url, domain, secret_str, session_duration).map_err(|e| e.into())
         }
         ("account", Some(account_matches)) => match account_matches.subcommand() {
             ("register", Some(_)) => {
