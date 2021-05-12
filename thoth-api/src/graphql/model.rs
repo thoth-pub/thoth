@@ -12,7 +12,6 @@ use crate::contribution::model::*;
 use crate::contributor::model::*;
 use crate::db::PgPool;
 use crate::errors::ThothError;
-use crate::errors::ThothResult;
 use crate::funder::model::*;
 use crate::funding::model::*;
 use crate::imprint::model::*;
@@ -935,7 +934,9 @@ pub struct MutationRoot;
 impl MutationRoot {
     fn create_work(context: &Context, data: NewWork) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_imprint(data.imprint_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id))?;
 
         Work::create(&context.db, &data).map_err(|e| e.into())
     }
@@ -964,28 +965,36 @@ impl MutationRoot {
 
     fn create_contribution(context: &Context, data: NewContribution) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id))?;
 
         Contribution::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_publication(context: &Context, data: NewPublication) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id))?;
 
         Publication::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_series(context: &Context, data: NewSeries) -> FieldResult<Series> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_imprint(data.imprint_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id))?;
 
         Series::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_issue(context: &Context, data: NewIssue) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id))?;
 
         data.imprints_match(&context.db)?;
 
@@ -994,7 +1003,9 @@ impl MutationRoot {
 
     fn create_language(context: &Context, data: NewLanguage) -> FieldResult<Language> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id))?;
 
         Language::create(&context.db, &data).map_err(|e| e.into())
     }
@@ -1006,21 +1017,30 @@ impl MutationRoot {
 
     fn create_funding(context: &Context, data: NewFunding) -> FieldResult<Funding> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id))?;
 
         Funding::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_price(context: &Context, data: NewPrice) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_publication(data.publication_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_publication_id(
+                &context.db,
+                data.publication_id,
+            ))?;
 
         Price::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_subject(context: &Context, data: NewSubject) -> FieldResult<Subject> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id))?;
 
         check_subject(&data.subject_type, &data.subject_code)?;
 
@@ -1035,7 +1055,9 @@ impl MutationRoot {
             .can_edit(work.publisher_id(&context.db))?;
 
         if !(data.imprint_id == work.imprint_id) {
-            user_can_edit_imprint(data.imprint_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id))?;
             work.can_update_imprint(&context.db)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
@@ -1093,7 +1115,9 @@ impl MutationRoot {
             .can_edit(contribution.publisher_id(&context.db))?;
 
         if !(data.work_id == contribution.work_id) {
-            user_can_edit_work(data.work_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id))?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         contribution
@@ -1109,7 +1133,9 @@ impl MutationRoot {
             .can_edit(publication.publisher_id(&context.db))?;
 
         if !(data.work_id == publication.work_id) {
-            user_can_edit_work(data.work_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id))?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         publication
@@ -1125,7 +1151,9 @@ impl MutationRoot {
             .can_edit(series.publisher_id(&context.db))?;
 
         if !(data.imprint_id == series.imprint_id) {
-            user_can_edit_imprint(data.imprint_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id))?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         series
@@ -1143,7 +1171,9 @@ impl MutationRoot {
         data.imprints_match(&context.db)?;
 
         if !(data.work_id == issue.work_id) {
-            user_can_edit_work(data.work_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id))?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         issue
@@ -1159,7 +1189,9 @@ impl MutationRoot {
             .can_edit(language.publisher_id(&context.db))?;
 
         if !(data.work_id == language.work_id) {
-            user_can_edit_work(data.work_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id))?;
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
@@ -1185,7 +1217,9 @@ impl MutationRoot {
             .can_edit(funding.publisher_id(&context.db))?;
 
         if !(data.work_id == funding.work_id) {
-            user_can_edit_work(data.work_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id))?;
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
@@ -1202,7 +1236,12 @@ impl MutationRoot {
             .can_edit(price.publisher_id(&context.db))?;
 
         if !(data.publication_id == price.publication_id) {
-            user_can_edit_publication(data.publication_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_publication_id(
+                    &context.db,
+                    data.publication_id,
+                ))?;
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
@@ -1219,7 +1258,9 @@ impl MutationRoot {
             .can_edit(subject.publisher_id(&context.db))?;
 
         if !(data.work_id == subject.work_id) {
-            user_can_edit_work(data.work_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id))?;
         }
 
         check_subject(&data.subject_type, &data.subject_code)?;
@@ -2434,26 +2475,16 @@ pub fn create_schema() -> Schema {
     Schema::new(QueryRoot {}, MutationRoot {})
 }
 
-fn user_can_edit_imprint(imprint_id: Uuid, context: &Context) -> ThothResult<()> {
-    context.account_access.can_edit(
-        Imprint::from_id(&context.db, &imprint_id)
-            .unwrap()
-            .publisher_id(&context.db),
-    )
+fn publisher_id_from_imprint_id(db: &crate::db::PgPool, imprint_id: Uuid) -> Uuid {
+    Imprint::from_id(db, &imprint_id).unwrap().publisher_id(db)
 }
 
-fn user_can_edit_work(work_id: Uuid, context: &Context) -> ThothResult<()> {
-    context.account_access.can_edit(
-        Work::from_id(&context.db, &work_id)
-            .unwrap()
-            .publisher_id(&context.db),
-    )
+fn publisher_id_from_work_id(db: &crate::db::PgPool, work_id: Uuid) -> Uuid {
+    Work::from_id(db, &work_id).unwrap().publisher_id(db)
 }
 
-fn user_can_edit_publication(publication_id: Uuid, context: &Context) -> ThothResult<()> {
-    context.account_access.can_edit(
-        Publication::from_id(&context.db, &publication_id)
-            .unwrap()
-            .publisher_id(&context.db),
-    )
+fn publisher_id_from_publication_id(db: &crate::db::PgPool, publication_id: Uuid) -> Uuid {
+    Publication::from_id(db, &publication_id)
+        .unwrap()
+        .publisher_id(db)
 }
