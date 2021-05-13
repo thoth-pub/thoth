@@ -7,6 +7,7 @@ use actix_web::{
     Result,
 };
 use juniper::{http::graphiql::graphiql_source, http::GraphQLRequest};
+use serde::Serialize;
 use thoth_api::{
     account::model::AccountDetails,
     account::model::DecodedToken,
@@ -21,16 +22,47 @@ use thoth_api::{
     graphql::model::{create_schema, Schema},
 };
 
+#[derive(Serialize)]
 struct ApiConfig {
-    graphql_public_url: String,
+    api_name: String,
+    api_version: String,
+    api_schema: String,
+    public_url: String,
+    schema_explorer_url: String,
+}
+
+impl ApiConfig {
+    pub fn new(public_url: String) -> Self {
+        Self {
+            public_url: format!("{}/graphql", public_url),
+            schema_explorer_url: format!("{}/graphiql", public_url),
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for ApiConfig {
+    fn default() -> Self {
+        Self {
+            api_name: "Thoth Metadata GraphQL API".to_string(),
+            api_version: env!("CARGO_PKG_VERSION").parse().unwrap(),
+            api_schema: "".to_string(),
+            public_url: "".to_string(),
+            schema_explorer_url: "".to_string(),
+        }
+    }
 }
 
 #[get("/graphiql")]
 async fn graphiql(config: web::Data<ApiConfig>) -> HttpResponse {
-    let html = graphiql_source(&config.graphql_public_url);
+    let html = graphiql_source(&config.public_url);
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(html)
+}
+#[get("/graphql")]
+async fn graphql_index(config: web::Data<ApiConfig>) -> HttpResponse {
+    HttpResponse::Ok().json(ApiConfig::new(config.public_url.to_string()))
 }
 
 #[post("/graphql")]
@@ -132,6 +164,7 @@ fn config(cfg: &mut web::ServiceConfig) {
 
     cfg.data(schema.clone());
     cfg.data(pool);
+    cfg.service(graphql_index);
     cfg.service(graphql);
     cfg.service(graphiql);
     cfg.service(login_credentials);
@@ -166,7 +199,8 @@ pub async fn start_server(
                     .finish(),
             )
             .data(ApiConfig {
-                graphql_public_url: public_url.clone(),
+                public_url: public_url.clone(),
+                ..Default::default()
             })
             .configure(config)
     })

@@ -3,7 +3,7 @@ ARG MUSL_IMAGE=ekidd/rust-musl-builder:1.51.0
 
 FROM ${RUST_IMAGE} as wasm
 
-ARG THOTH_GRAPHQL_API=https://api.thoth.pub/data
+ARG THOTH_GRAPHQL_API=https://api.thoth.pub
 ARG THOTH_EXPORT_API=https://api.thoth.pub/export
 ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
 ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
@@ -24,7 +24,7 @@ COPY . .
 # Compile WASM for release
 RUN wasm-pack build thoth-app/ \
   --target web \
-  --release
+  --debug
 RUN rollup thoth-app/main.js \
   --format iife \
   --file thoth-app/pkg/thoth_app.js
@@ -34,7 +34,7 @@ FROM ${MUSL_IMAGE} as build
 
 COPY --from=wasm --chown=rust:rust /wasm/ /home/rust/src/
 # Build Thoth for release
-RUN cargo build --release
+RUN cargo build
 
 # Switch to minimal image for run time
 FROM scratch

@@ -3657,6 +3657,7 @@ dependencies = [
  "actix-web",
  "env_logger 0.7.1",
  "juniper",
+ "serde",
  "serde_json",
  "thoth-api",
 ]
