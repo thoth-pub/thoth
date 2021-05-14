@@ -60,11 +60,12 @@ impl juniper::IntoFieldError for ThothError {
 impl ResponseError for ThothError {
     fn error_response(&self) -> HttpResponse {
         match self {
-            ThothError::Unauthorised => HttpResponse::Unauthorized().json("Unauthorized"),
+            ThothError::Unauthorised => HttpResponse::Unauthorized().json(self.to_string()),
+            ThothError::EntityNotFound => HttpResponse::NotFound().json(self.to_string()),
             ThothError::DatabaseError { .. } => {
                 HttpResponse::InternalServerError().json("DB error")
             }
-            _ => HttpResponse::InternalServerError().json("Internal error"),
+            _ => HttpResponse::InternalServerError().json(self.to_string()),
         }
     }
 }
