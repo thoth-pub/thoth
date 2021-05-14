@@ -28,7 +28,7 @@ pub async fn get_work(work_id: Uuid, gql_endpoint: &str) -> ThothResult<work_que
             }
             Ok(data.work)
         }
-        _ => Err(ThothError::InternalError("Query failed".to_string())),
+        None => Err(ThothError::EntityNotFound),
     }
 }
 
