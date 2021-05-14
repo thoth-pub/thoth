@@ -283,6 +283,7 @@ impl DisplayWork for Work {
                                         <div class="dropdown-content">
                                             <a
                                                 href={self.onix_endpoint()}
+                                                download={format!("{}.xml", &self.work_id)}
                                                 class="dropdown-item"
                                             >
                                             {"ONIX"}
