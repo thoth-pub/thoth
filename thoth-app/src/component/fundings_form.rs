@@ -376,27 +376,27 @@ impl Component for FundingsFormComponent {
                                 </div>
                                 <FormTextInput
                                     label="Program"
-                                    value=&self.new_funding.program.clone().unwrap_or_else(|| "".to_string())
+                                    value=self.new_funding.program.clone().unwrap_or_else(|| "".to_string())
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeProgram(e.value))
                                 />
                                 <FormTextInput
                                     label="Project Name"
-                                    value=&self.new_funding.project_name.clone().unwrap_or_else(|| "".to_string())
+                                    value=self.new_funding.project_name.clone().unwrap_or_else(|| "".to_string())
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeProjectName(e.value))
                                 />
                                 <FormTextInput
                                     label="Project Short Name"
-                                    value=&self.new_funding.project_shortname.clone().unwrap_or_else(|| "".to_string())
+                                    value=self.new_funding.project_shortname.clone().unwrap_or_else(|| "".to_string())
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeProjectShortname(e.value))
                                 />
                                 <FormTextInput
                                     label="Grant Number"
-                                    value=&self.new_funding.grant_number.clone().unwrap_or_else(|| "".to_string())
+                                    value=self.new_funding.grant_number.clone().unwrap_or_else(|| "".to_string())
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeGrant(e.value))
                                 />
                                 <FormTextInput
                                     label="Jurisdiction"
-                                    value=&self.new_funding.jurisdiction.clone().unwrap_or_else(|| "".to_string())
+                                    value=self.new_funding.jurisdiction.clone().unwrap_or_else(|| "".to_string())
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeJurisdiction(e.value))
                                 />
 

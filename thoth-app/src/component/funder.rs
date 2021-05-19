@@ -289,7 +289,7 @@ impl Component for FunderComponent {
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
                                         onclick=self.link.callback(|_| Msg::DeleteFunder)
-                                        object_name=&self.funder.funder_name
+                                        object_name=self.funder.funder_name.clone()
                                     />
                                 </p>
                             </div>
@@ -323,13 +323,13 @@ impl Component for FunderComponent {
                         <form onsubmit=callback>
                             <FormTextInput
                                 label = "Funder Name"
-                                value=&self.funder.funder_name
+                                value=self.funder.funder_name.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeFunderName(e.value))
                                 required=true
                             />
                             <FormUrlInput
                                 label = "Funder DOI"
-                                value=&self.funder.funder_doi
+                                value=self.funder.funder_doi.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeFunderDoi(e.value))
                             />
 

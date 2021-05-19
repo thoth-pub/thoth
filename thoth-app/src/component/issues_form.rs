@@ -373,7 +373,7 @@ impl Component for IssuesFormComponent {
                                 </div>
                                 <FormNumberInput
                                     label="Issue Ordinal"
-                                    value=&self.new_issue.issue_ordinal
+                                    value=self.new_issue.issue_ordinal
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
                                 />
                             </form>

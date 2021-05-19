@@ -294,11 +294,11 @@ impl PureComponent for PureInput {
                 <div class="control is-expanded">
                     <input
                         class="input"
-                        type={ &self.input_type }
-                        placeholder={ &self.label }
-                        value={ &self.value }
-                        oninput=&self.oninput
-                        onblur=&self.onblur
+                        type={ self.input_type.clone() }
+                        placeholder={ self.label.clone() }
+                        value={ self.value.clone() }
+                        oninput=self.oninput.clone()
+                        onblur=self.onblur.clone()
                         required={ self.required }
                     />
                 </div>
@@ -315,8 +315,8 @@ impl PureComponent for PureTextarea {
                 <div class="control is-expanded">
                     <textarea
                         class="textarea"
-                        placeholder=&self.label
-                        oninput=&self.oninput
+                        placeholder=self.label.clone()
+                        oninput=self.oninput.clone()
                         required={ self.required }
                     >
                         {&self.value.clone().unwrap_or_else(|| "".to_string())}
@@ -341,11 +341,11 @@ impl PureComponent for PureTextInputTooltip {
                         <input
                             class="input"
                             type="text"
-                            placeholder={ &self.label }
-                            value={ &self.value }
-                            oninput=&self.oninput
-                            onfocus=&self.onfocus
-                            onblur=&self.onblur
+                            placeholder={ self.label.clone() }
+                            value={ self.value.clone() }
+                            oninput=self.oninput.clone()
+                            onfocus=self.onfocus.clone()
+                            onblur=self.onblur.clone()
                             required={ self.required }
                         />
                     </div>
@@ -357,16 +357,16 @@ impl PureComponent for PureTextInputTooltip {
                     <label class="label">{ &self.label }</label>
                     <div
                         class="control is-expanded has-tooltip-arrow has-tooltip-bottom has-tooltip-active"
-                        data-tooltip={ &self.tooltip }
+                        data-tooltip={ self.tooltip.clone() }
                     >
                         <input
                             class="input"
                             type="text"
-                            placeholder={ &self.label }
-                            value={ &self.value }
-                            oninput=&self.oninput
-                            onfocus=&self.onfocus
-                            onblur=&self.onblur
+                            placeholder={ self.label.clone() }
+                            value={ self.value.clone() }
+                            oninput=self.oninput.clone()
+                            onfocus=self.onfocus.clone()
+                            onblur=self.onblur.clone()
                             required={ self.required }
                         />
                     </div>
@@ -380,11 +380,11 @@ impl PureComponent for PureTextInput {
     fn render(&self) -> VNode {
         html! {
             <FormInput
-                label=&self.label
-                value=&self.value.clone().unwrap_or_else(|| "".to_string())
+                label=self.label.clone()
+                value=self.value.clone().unwrap_or_else(|| "".to_string()).clone()
                 input_type="text"
-                oninput=&self.oninput
-                onblur=&self.onblur
+                oninput=self.oninput.clone()
+                onblur=self.onblur.clone()
                 required=self.required
             />
         }
@@ -395,11 +395,11 @@ impl PureComponent for PureUrlInput {
     fn render(&self) -> VNode {
         html! {
             <FormInput
-                label=&self.label
-                value=&self.value.clone().unwrap_or_else(|| "".to_string())
+                label=self.label.clone()
+                value=self.value.clone().unwrap_or_else(|| "".to_string()).clone()
                 input_type="url"
-                oninput=&self.oninput
-                onblur=&self.onblur
+                oninput=self.oninput.clone()
+                onblur=self.onblur.clone()
                 required=self.required
             />
         }
@@ -410,11 +410,11 @@ impl PureComponent for PureDateInput {
     fn render(&self) -> VNode {
         html! {
             <FormInput
-                label=&self.label
-                value=&self.value.clone().unwrap_or_else(|| "".to_string())
+                label=self.label.clone()
+                value=self.value.clone().unwrap_or_else(|| "".to_string()).clone()
                 input_type="date"
-                oninput=&self.oninput
-                onblur=&self.onblur
+                oninput=self.oninput.clone()
+                onblur=self.onblur.clone()
                 required=self.required
             />
         }
@@ -425,11 +425,11 @@ impl PureComponent for PureNumberInput {
     fn render(&self) -> VNode {
         html! {
             <FormInput
-                label=&self.label
-                value=&self.value.unwrap_or(0).to_string()
+                label=self.label.clone()
+                value=self.value.unwrap_or(0).to_string().clone()
                 input_type="number"
-                oninput=&self.oninput
-                onblur=&self.onblur
+                oninput=self.oninput.clone()
+                onblur=self.onblur.clone()
                 required=self.required
             />
         }
@@ -445,12 +445,12 @@ impl PureComponent for PureFloatInput {
                     <input
                         class="input"
                         type="number"
-                        placeholder=&self.label
-                        value=&self.value.unwrap_or(0.00).to_string()
-                        oninput=&self.oninput
-                        onblur=&self.onblur
+                        placeholder=self.label.clone()
+                        value=self.value.unwrap_or(0.00).to_string().clone()
+                        oninput=self.oninput.clone()
+                        onblur=self.onblur.clone()
                         required=self.required
-                        step=self.step
+                        step=self.step.clone()
                         min="0"
                     />
                 </div>
@@ -643,12 +643,12 @@ impl PureComponent for PureBooleanSelect {
                     <select
                         required=self.required
                         onchange=&self.onchange
-                        onblur=&self.onblur
+                        onblur=self.onblur.clone()
                     >
-                        <option value=true selected=self.value>
+                        <option value=true.to_string() selected=self.value>
                             { YES }
                         </option>
-                        <option value=false selected=!self.value>
+                        <option value=false.to_string() selected=!self.value>
                             { NO }
                         </option>
                     </select>
@@ -699,13 +699,13 @@ impl PureWorkTypeSelect {
     fn render_worktype(&self, w: &WorkTypeValues) -> VNode {
         if w.name == self.value {
             html! {
-                <option value={&w.name} selected=true>
+                <option value={w.name.to_string()} selected=true>
                     {&w.name}
                 </option>
             }
         } else {
             html! {
-                <option value={&w.name}>{&w.name}</option>
+                <option value={w.name.to_string()}>{&w.name}</option>
             }
         }
     }
@@ -715,13 +715,13 @@ impl PureWorkStatusSelect {
     fn render_workstatus(&self, w: &WorkStatusValues) -> VNode {
         if w.name == self.value {
             html! {
-                <option value={&w.name} selected=true>
+                <option value={w.name.to_string()} selected=true>
                     {&w.name}
                 </option>
             }
         } else {
             html! {
-                <option value={&w.name}>{&w.name}</option>
+                <option value={w.name.to_string()}>{&w.name}</option>
             }
         }
     }
@@ -731,13 +731,13 @@ impl PureContributionTypeSelect {
     fn render_contributiontype(&self, c: &ContributionTypeValues) -> VNode {
         if c.name == self.value {
             html! {
-                <option value={&c.name} selected=true>
+                <option value={c.name.to_string()} selected=true>
                     {&c.name}
                 </option>
             }
         } else {
             html! {
-                <option value={&c.name}>{&c.name}</option>
+                <option value={c.name.to_string()}>{&c.name}</option>
             }
         }
     }
@@ -747,13 +747,13 @@ impl PurePublicationTypeSelect {
     fn render_publicationtype(&self, p: &PublicationTypeValues) -> VNode {
         if p.name == self.value {
             html! {
-                <option value={&p.name} selected=true>
+                <option value={p.name.to_string()} selected=true>
                     {&p.name}
                 </option>
             }
         } else {
             html! {
-                <option value={&p.name}>{&p.name}</option>
+                <option value={p.name.to_string()}>{&p.name}</option>
             }
         }
     }
@@ -763,13 +763,13 @@ impl PureSubjectTypeSelect {
     fn render_subjecttype(&self, s: &SubjectTypeValues) -> VNode {
         if s.name == self.value {
             html! {
-                <option value={&s.name} selected=true>
+                <option value={s.name.to_string()} selected=true>
                     {&s.name}
                 </option>
             }
         } else {
             html! {
-                <option value={&s.name}>{&s.name}</option>
+                <option value={s.name.to_string()}>{&s.name}</option>
             }
         }
     }
@@ -779,13 +779,13 @@ impl PureSeriesTypeSelect {
     fn render_seriestype(&self, s: &SeriesTypeValues) -> VNode {
         if s.name == self.value {
             html! {
-                <option value={&s.name} selected=true>
+                <option value={s.name.to_string()} selected=true>
                     {&s.name}
                 </option>
             }
         } else {
             html! {
-                <option value={&s.name}>{&s.name}</option>
+                <option value={s.name.to_string()}>{&s.name}</option>
             }
         }
     }
@@ -795,13 +795,13 @@ impl PureLanguageCodeSelect {
     fn render_languagecode(&self, l: &LanguageCodeValues) -> VNode {
         if l.name == self.value {
             html! {
-                <option value={&l.name} selected=true>
+                <option value={l.name.to_string()} selected=true>
                     {&l.name}
                 </option>
             }
         } else {
             html! {
-                <option value={&l.name}>{&l.name}</option>
+                <option value={l.name.to_string()}>{&l.name}</option>
             }
         }
     }
@@ -811,13 +811,13 @@ impl PureLanguageRelationSelect {
     fn render_languagerelation(&self, l: &LanguageRelationValues) -> VNode {
         if l.name == self.value {
             html! {
-                <option value={&l.name} selected=true>
+                <option value={l.name.to_string()} selected=true>
                     {&l.name}
                 </option>
             }
         } else {
             html! {
-                <option value={&l.name}>{&l.name}</option>
+                <option value={l.name.to_string()}>{&l.name}</option>
             }
         }
     }
@@ -827,13 +827,13 @@ impl PureCurrencyCodeSelect {
     fn render_currencycode(&self, c: &CurrencyCodeValues) -> VNode {
         if c.name == self.value {
             html! {
-                <option value={&c.name} selected=true>
+                <option value={c.name.to_string()} selected=true>
                     {&c.name}
                 </option>
             }
         } else {
             html! {
-                <option value={&c.name}>{&c.name}</option>
+                <option value={c.name.to_string()}>{&c.name}</option>
             }
         }
     }
@@ -844,13 +844,13 @@ impl PureImprintSelect {
         let value = &self.value.clone().unwrap_or_default();
         if &i.imprint_id == value {
             html! {
-                <option value={&i.imprint_id} selected=true>
+                <option value={i.imprint_id.to_string()} selected=true>
                     {&i.imprint_name}
                 </option>
             }
         } else {
             html! {
-                <option value={&i.imprint_id}>{&i.imprint_name}</option>
+                <option value={i.imprint_id.to_string()}>{&i.imprint_name}</option>
             }
         }
     }
@@ -861,13 +861,13 @@ impl PurePublisherSelect {
         let value = &self.value.clone().unwrap_or_default();
         if &p.publisher_id == value {
             html! {
-                <option value={&p.publisher_id} selected=true>
+                <option value={p.publisher_id.to_string()} selected=true>
                     {&p.publisher_name}
                 </option>
             }
         } else {
             html! {
-                <option value={&p.publisher_id}>{&p.publisher_name}</option>
+                <option value={p.publisher_id.to_string()}>{&p.publisher_name}</option>
             }
         }
     }

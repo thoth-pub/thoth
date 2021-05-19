@@ -47,7 +47,7 @@ macro_rules! pagination_helpers {
                                     <input
                                         class="input"
                                         type="search"
-                                        value=self.search_term
+                                        value=self.search_term.clone()
                                         placeholder=self.search_text()
                                         oninput=self.link.callback(|e: InputData| Msg::Search(e.value))
                                     />

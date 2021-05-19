@@ -188,7 +188,7 @@ impl Component for RootComponent {
         html! {
             <>
                 <header>
-                    <NavbarComponent current_user=&self.current_user callback=callback_logout/>
+                    <NavbarComponent current_user=self.current_user.clone() callback=callback_logout/>
                 </header>
                 <NotificationComponent />
                 <div class="main">
@@ -205,12 +205,12 @@ impl Component for RootComponent {
                             },
                             AppRoute::Login => html! {
                                 <div class="section">
-                                    <LoginComponent current_user=&self.current_user callback=callback_login/>
+                                    <LoginComponent current_user=self.current_user.clone() callback=callback_login/>
                                 </div>
                             },
                             AppRoute::Admin(admin_route) => html! {
                                 <div class="section">
-                                    <AdminComponent route={admin_route} current_user=&self.current_user/>
+                                    <AdminComponent route={admin_route.clone()} current_user=self.current_user.clone()/>
                                 </div>
                             },
                             AppRoute::Error(Permissive(None)) => html! {

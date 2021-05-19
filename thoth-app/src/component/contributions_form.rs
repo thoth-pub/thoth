@@ -412,22 +412,22 @@ impl Component for ContributionsFormComponent {
                             >
                                 <FormTextInput
                                     label="Contributor's Given Name"
-                                    value=&self.new_contribution.first_name
+                                    value=self.new_contribution.first_name.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
                                 />
                                 <FormTextInput
                                     label="Contributor's Family Name"
-                                    value=&self.new_contribution.last_name
+                                    value=self.new_contribution.last_name.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
                                 />
                                 <FormTextInput
                                     label="Contributor's Full Name"
-                                    value=&self.new_contribution.full_name
+                                    value=self.new_contribution.full_name.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
                                 />
                                 <FormContributionTypeSelect
                                     label = "Contribution Type"
-                                    value=&self.new_contribution.contribution_type
+                                    value=self.new_contribution.contribution_type.clone()
                                     onchange=self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
@@ -435,22 +435,22 @@ impl Component for ContributionsFormComponent {
                                         }
                                         _ => unreachable!(),
                                     })
-                                    data=&self.data.contribution_types
+                                    data=self.data.contribution_types.clone()
                                     required = true
                                 />
                                 <FormTextInput
                                     label="Institution"
-                                    value=&self.new_contribution.institution.clone().unwrap_or_else(|| "".to_string())
+                                    value=self.new_contribution.institution.clone().unwrap_or_else(|| "".to_string())
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeInstitution(e.value))
                                 />
                                 <FormTextInput
                                     label="Biography"
-                                    value=&self.new_contribution.biography.clone().unwrap_or_else(|| "".to_string())
+                                    value=self.new_contribution.biography.clone().unwrap_or_else(|| "".to_string())
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeBiography(e.value))
                                 />
                                 <FormBooleanSelect
                                     label = "Main"
-                                    value=&self.new_contribution.main_contribution
+                                    value=self.new_contribution.main_contribution.clone()
                                     onchange=self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();

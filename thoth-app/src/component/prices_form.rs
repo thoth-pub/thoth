@@ -278,8 +278,8 @@ impl Component for PricesFormComponent {
                             >
                                 <FormCurrencyCodeSelect
                                     label = "Price Code"
-                                    value=&self.new_price.currency_code
-                                    data=&self.data.currency_codes
+                                    value=self.new_price.currency_code.clone()
+                                    data=self.data.currency_codes.clone()
                                     onchange=self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
@@ -293,7 +293,7 @@ impl Component for PricesFormComponent {
                                 />
                                 <FormFloatInput
                                     label = "Unit Price"
-                                    value=&self.new_price.unit_price
+                                    value=self.new_price.unit_price.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeUnitPrice(e.value))
                                     required = true
                                     step="0.01"
