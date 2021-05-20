@@ -427,7 +427,7 @@ impl Component for ContributionsFormComponent {
                                 />
                                 <FormContributionTypeSelect
                                     label = "Contribution Type"
-                                    value=self.new_contribution.contribution_type.clone()
+                                    value=self.new_contribution.contribution_type
                                     onchange=self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
@@ -450,7 +450,7 @@ impl Component for ContributionsFormComponent {
                                 />
                                 <FormBooleanSelect
                                     label = "Main"
-                                    value=self.new_contribution.main_contribution.clone()
+                                    value=self.new_contribution.main_contribution
                                     onchange=self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
@@ -483,7 +483,7 @@ impl Component for ContributionsFormComponent {
                     </div>
                 </div>
                 {
-                    if contributions.len() > 0 {
+                    if !contributions.is_empty() {
                         html!{{for contributions.iter().map(|c| self.render_contribution(c))}}
                     } else {
                         html! {

@@ -302,7 +302,7 @@ impl Component for SubjectsFormComponent {
                                 />
                                 <FormNumberInput
                                     label = "Subject Ordinal"
-                                    value=self.new_subject.subject_ordinal.clone()
+                                    value=self.new_subject.subject_ordinal
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
                                 />
                             </form>
@@ -327,7 +327,7 @@ impl Component for SubjectsFormComponent {
                     </div>
                 </div>
                 {
-                    if subjects.len() > 0 {
+                    if !subjects.is_empty() {
                         html!{{for subjects.iter().map(|p| self.render_subject(p))}}
                     } else {
                         html! {

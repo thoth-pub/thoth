@@ -542,7 +542,7 @@ impl Component for NewWorkComponent {
                             />
                             <FormImprintSelect
                                 label = "Imprint"
-                                value=self.imprint_id.clone()
+                                value=self.imprint_id
                                 data=self.data.imprints.clone()
                                 onchange=self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {
@@ -568,7 +568,7 @@ impl Component for NewWorkComponent {
                     />
                     <FormNumberInput
                         label = "Edition"
-                        value=self.work.edition.clone()
+                        value=self.work.edition
                         oninput=self.link.callback(|e: InputData| Msg::ChangeEdition(e.value))
                         required = true
                     />
@@ -588,7 +588,7 @@ impl Component for NewWorkComponent {
                                 <div class="tile is-child">
                                     <figure class="image is-fullwidth">
                                         <img
-                                            src={self.work.cover_url.clone().unwrap_or("".to_string()).clone()}
+                                            src={self.work.cover_url.clone().unwrap_or_else(|| "".to_string()).clone()}
                                             loading="lazy"
                                         />
                                     </figure>
@@ -638,17 +638,17 @@ impl Component for NewWorkComponent {
                         <div class="field-body">
                             <FormNumberInput
                                 label = "Width"
-                                value=self.work.width.clone()
+                                value=self.work.width
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
                             />
                             <FormNumberInput
                                 label = "Height"
-                                value=self.work.height.clone()
+                                value=self.work.height
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
                             />
                             <FormNumberInput
                                 label = "Page Count"
-                                value=self.work.page_count.clone()
+                                value=self.work.page_count
                                 oninput=self.link.callback(|e: InputData| Msg::ChangePageCount(e.value))
                             />
                             <FormTextInput
@@ -662,22 +662,22 @@ impl Component for NewWorkComponent {
                         <div class="field-body">
                             <FormNumberInput
                                 label = "Image Count"
-                                value=self.work.image_count.clone()
+                                value=self.work.image_count
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeImageCount(e.value))
                             />
                             <FormNumberInput
                                 label = "Table Count"
-                                value=self.work.table_count.clone()
+                                value=self.work.table_count
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeTableCount(e.value))
                             />
                             <FormNumberInput
                                 label = "Audio Count"
-                                value=self.work.audio_count.clone()
+                                value=self.work.audio_count
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeAudioCount(e.value))
                             />
                             <FormNumberInput
                                 label = "Video Count"
-                                value=self.work.video_count.clone()
+                                value=self.work.video_count
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeVideoCount(e.value))
                             />
                         </div>

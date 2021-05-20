@@ -223,7 +223,7 @@ impl Component for NewImprintComponent {
                 <form onsubmit=callback>
                     <FormPublisherSelect
                         label = "Publisher"
-                        value=self.publisher_id.clone()
+                        value=self.publisher_id
                         data=self.data.publishers.clone()
                         onchange=self.link.callback(|event| match event {
                             ChangeData::Select(elem) => {

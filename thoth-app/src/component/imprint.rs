@@ -358,7 +358,7 @@ impl Component for ImprintComponent {
                         <form onsubmit=callback>
                             <FormPublisherSelect
                                 label = "Publisher"
-                                value=self.imprint.publisher.publisher_id.clone()
+                                value=self.imprint.publisher.publisher_id
                                 data=self.data.publishers.clone()
                                 onchange=self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {

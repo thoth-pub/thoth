@@ -398,7 +398,7 @@ impl Component for IssuesFormComponent {
                     </div>
                 </div>
                 {
-                    if issues.len() > 0 {
+                    if !issues.is_empty() {
                         html!{{for issues.iter().map(|i| self.render_issue(i))}}
                     } else {
                         html! {

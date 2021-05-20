@@ -633,7 +633,7 @@ impl Component for WorkComponent {
                                     />
                                     <FormImprintSelect
                                         label = "Imprint"
-                                        value=self.work.imprint.imprint_id.clone()
+                                        value=self.work.imprint.imprint_id
                                         data=imprints.clone()
                                         onchange=self.link.callback(|event| match event {
                                             ChangeData::Select(elem) => {
@@ -659,7 +659,7 @@ impl Component for WorkComponent {
                             />
                             <FormNumberInput
                                 label = "Edition"
-                                value=self.work.edition.clone()
+                                value=self.work.edition
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeEdition(e.value))
                                 required = true
                             />
@@ -679,7 +679,7 @@ impl Component for WorkComponent {
                                         <div class="tile is-child">
                                             <figure class="image is-fullwidth">
                                                 <img
-                                                    src={self.work.cover_url.clone().unwrap_or("".to_string()).clone()}
+                                                    src={self.work.cover_url.clone().unwrap_or_else(|| "".to_string()).clone()}
                                                     loading="lazy"
                                                 />
                                             </figure>
@@ -729,17 +729,17 @@ impl Component for WorkComponent {
                                 <div class="field-body">
                                     <FormNumberInput
                                         label = "Width"
-                                        value=self.work.width.clone()
+                                        value=self.work.width
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
                                     />
                                     <FormNumberInput
                                         label = "Height"
-                                        value=self.work.height.clone()
+                                        value=self.work.height
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
                                     />
                                     <FormNumberInput
                                         label = "Page Count"
-                                        value=self.work.page_count.clone()
+                                        value=self.work.page_count
                                         oninput=self.link.callback(|e: InputData| Msg::ChangePageCount(e.value))
                                     />
                                     <FormTextInput
@@ -753,22 +753,22 @@ impl Component for WorkComponent {
                                 <div class="field-body">
                                     <FormNumberInput
                                         label = "Image Count"
-                                        value=self.work.image_count.clone()
+                                        value=self.work.image_count
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeImageCount(e.value))
                                     />
                                     <FormNumberInput
                                         label = "Table Count"
-                                        value=self.work.table_count.clone()
+                                        value=self.work.table_count
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeTableCount(e.value))
                                     />
                                     <FormNumberInput
                                         label = "Audio Count"
-                                        value=self.work.audio_count.clone()
+                                        value=self.work.audio_count
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeAudioCount(e.value))
                                     />
                                     <FormNumberInput
                                         label = "Video Count"
-                                        value=self.work.video_count.clone()
+                                        value=self.work.video_count
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeVideoCount(e.value))
                                     />
                                 </div>
@@ -829,35 +829,35 @@ impl Component for WorkComponent {
 
                         <ContributionsFormComponent
                             contributions=self.work.contributions.clone()
-                            work_id=self.work.work_id.clone()
-                            update_contributions=self.link.callback(|c: Option<Vec<Contribution>>| Msg::UpdateContributions(c))
+                            work_id=self.work.work_id
+                            update_contributions=self.link.callback(Msg::UpdateContributions)
                         />
                         <PublicationsFormComponent
                             publications=self.work.publications.clone()
-                            work_id=self.work.work_id.clone()
-                            update_publications=self.link.callback(|p: Option<Vec<Publication>>| Msg::UpdatePublications(p))
+                            work_id=self.work.work_id
+                            update_publications=self.link.callback(Msg::UpdatePublications)
                         />
                         <LanguagesFormComponent
                             languages=self.work.languages.clone()
-                            work_id=self.work.work_id.clone()
-                            update_languages=self.link.callback(|l: Option<Vec<Language>>| Msg::UpdateLanguages(l))
+                            work_id=self.work.work_id
+                            update_languages=self.link.callback(Msg::UpdateLanguages)
                         />
                         <SubjectsFormComponent
                             subjects=self.work.subjects.clone()
-                            work_id=self.work.work_id.clone()
-                            update_subjects=self.link.callback(|s: Option<Vec<Subject>>| Msg::UpdateSubjects(s))
+                            work_id=self.work.work_id
+                            update_subjects=self.link.callback(Msg::UpdateSubjects)
                         />
                         <IssuesFormComponent
                             issues=self.work.issues.clone()
-                            work_id=self.work.work_id.clone()
-                            imprint_id=self.imprint_id.clone()
+                            work_id=self.work.work_id
+                            imprint_id=self.imprint_id
                             current_user=self.props.current_user.clone()
-                            update_issues=self.link.callback(|i: Option<Vec<Issue>>| Msg::UpdateIssues(i))
+                            update_issues=self.link.callback(Msg::UpdateIssues)
                         />
                         <FundingsFormComponent
                             fundings=self.work.fundings.clone()
-                            work_id=self.work.work_id.clone()
-                            update_fundings=self.link.callback(|f: Option<Vec<Funding>>| Msg::UpdateFundings(f))
+                            work_id=self.work.work_id
+                            update_fundings=self.link.callback(Msg::UpdateFundings)
                         />
                     </>
                 }

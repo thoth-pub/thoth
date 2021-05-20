@@ -255,7 +255,7 @@ impl DisplayWork for Work {
                                 <a
                                     class="level-item button is-small"
                                     aria-label="read"
-                                    href={format!("{}", doi)}
+                                    href={doi.to_string()}
                                 >
                                     <span class="icon is-small">
                                     <i class="fas fa-book" aria-hidden="true"></i>

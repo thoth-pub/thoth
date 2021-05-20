@@ -258,8 +258,8 @@ impl Component for PublicationComponent {
 
                         <PricesFormComponent
                             prices=self.publication.prices.clone()
-                            publication_id=self.publication.publication_id.clone()
-                            update_prices=self.link.callback(|p: Option<Vec<Price>>| Msg::UpdatePrices(p))
+                            publication_id=self.publication.publication_id
+                            update_prices=self.link.callback(Msg::UpdatePrices)
                         />
                     </>
                 }

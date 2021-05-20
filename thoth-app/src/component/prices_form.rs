@@ -293,7 +293,7 @@ impl Component for PricesFormComponent {
                                 />
                                 <FormFloatInput
                                     label = "Unit Price"
-                                    value=self.new_price.unit_price.clone()
+                                    value=self.new_price.unit_price
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeUnitPrice(e.value))
                                     required = true
                                     step="0.01"
@@ -320,7 +320,7 @@ impl Component for PricesFormComponent {
                     </div>
                 </div>
                 {
-                    if prices.len() > 0 {
+                    if !prices.is_empty() {
                         html!{{for prices.iter().map(|p| self.render_price(p))}}
                     } else {
                         html! {

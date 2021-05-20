@@ -403,7 +403,7 @@ impl Component for SeriesComponent {
                             />
                             <FormImprintSelect
                                 label = "Imprint"
-                                value=self.series.imprint.imprint_id.clone()
+                                value=self.series.imprint.imprint_id
                                 data=self.data.imprints.clone()
                                 onchange=self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {

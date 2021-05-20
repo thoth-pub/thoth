@@ -381,7 +381,7 @@ impl PureComponent for PureTextInput {
         html! {
             <FormInput
                 label=self.label.clone()
-                value=self.value.clone().unwrap_or_else(|| "".to_string()).clone()
+                value=self.value.clone().unwrap_or_else(|| "".to_string())
                 input_type="text"
                 oninput=self.oninput.clone()
                 onblur=self.onblur.clone()
@@ -396,7 +396,7 @@ impl PureComponent for PureUrlInput {
         html! {
             <FormInput
                 label=self.label.clone()
-                value=self.value.clone().unwrap_or_else(|| "".to_string()).clone()
+                value=self.value.clone().unwrap_or_else(|| "".to_string())
                 input_type="url"
                 oninput=self.oninput.clone()
                 onblur=self.onblur.clone()
@@ -411,7 +411,7 @@ impl PureComponent for PureDateInput {
         html! {
             <FormInput
                 label=self.label.clone()
-                value=self.value.clone().unwrap_or_else(|| "".to_string()).clone()
+                value=self.value.clone().unwrap_or_else(|| "".to_string())
                 input_type="date"
                 oninput=self.oninput.clone()
                 onblur=self.onblur.clone()
@@ -426,7 +426,7 @@ impl PureComponent for PureNumberInput {
         html! {
             <FormInput
                 label=self.label.clone()
-                value=self.value.unwrap_or(0).to_string().clone()
+                value=self.value.unwrap_or(0).to_string()
                 input_type="number"
                 oninput=self.oninput.clone()
                 onblur=self.onblur.clone()

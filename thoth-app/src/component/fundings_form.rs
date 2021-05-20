@@ -422,7 +422,7 @@ impl Component for FundingsFormComponent {
                     </div>
                 </div>
                 {
-                    if fundings.len() > 0 {
+                    if !fundings.is_empty() {
                         html!{{for fundings.iter().map(|c| self.render_funding(c))}}
                     } else {
                         html! {
