@@ -32,6 +32,7 @@ where
     fn respond_to(self, _: &HttpRequest) -> Self::Future {
         ready(Ok(HttpResponse::build(StatusCode::OK)
             .content_type("text/xml; charset=utf-8")
+            .header("Content-Disposition", "attachment")
             .body(self.0)))
     }
 }
