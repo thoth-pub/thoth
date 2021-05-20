@@ -137,9 +137,8 @@ pub async fn start_server(host: String, port: String, gql_endpoint: String) -> i
         App::new()
             .wrap(Logger::default())
             .wrap(
-                Cors::new()
-                    .allowed_methods(vec!["GET", "OPTIONS"])
-                    .finish(),
+                Cors::default()
+                    .allowed_methods(vec!["GET", "OPTIONS"]),
             )
             .data(ApiConfig {
                 graphql_endpoint: gql_endpoint.clone(),
