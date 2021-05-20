@@ -94,15 +94,14 @@ async fn onix_endpoint(
     work_id: web::Path<Uuid>,
     config: web::Data<ApiConfig>,
 ) -> Result<Xml<String>, Error> {
-    let wid = work_id.into_inner();
-    get_work(wid.clone(), &config.graphql_endpoint)
+    get_work(work_id.into_inner(), &config.graphql_endpoint)
         .await
-        .and_then(|work| generate_onix_3(work))
+        .and_then(generate_onix_3)
         .and_then(|onix| {
             String::from_utf8(onix)
                 .map_err(|_| ThothError::InternalError("Could not generate ONIX".to_string()))
         })
-        .and_then(|body| Ok(Xml(body)))
+        .map(Xml)
         .map_err(|e| e.into())
 }
 
@@ -112,36 +111,39 @@ pub async fn start_server(host: String, port: String, gql_endpoint: String) -> i
     log::info!("Setting Thoth GraphQL endpoint to {}", gql_endpoint);
 
     HttpServer::new(move || {
-        let mut spec = DefaultApiRaw::default();
-        spec.tags = vec![
-            Tag {
-                name: "Formats".to_string(),
-                description: None,
-                external_docs: None,
+        let spec = DefaultApiRaw {
+            // TODO get host and path from input
+            host: Some("api.thoth.pub".to_string()),
+            base_path: Some("/export".to_string()),
+            tags: vec![
+                Tag {
+                    name: "Formats".to_string(),
+                    description: None,
+                    external_docs: None,
+                },
+                Tag {
+                    name: "Outputs".to_string(),
+                    description: None,
+                    external_docs: None,
+                },
+                Tag {
+                    name: "Platforms".to_string(),
+                    description: None,
+                    external_docs: None,
+                },
+            ],
+            info: Info {
+                version: env!("CARGO_PKG_VERSION").parse().unwrap(),
+                title: "Thoth Metadata Export API".to_string(),
+                description: Some(
+                    "Obtain Thoth metadata records in various formats and platform specifications"
+                        .to_string(),
+                ),
+                ..Default::default()
             },
-            Tag {
-                name: "Outputs".to_string(),
-                description: None,
-                external_docs: None,
-            },
-            Tag {
-                name: "Platforms".to_string(),
-                description: None,
-                external_docs: None,
-            },
-        ];
-        spec.info = Info {
-            version: env!("CARGO_PKG_VERSION").parse().unwrap(),
-            title: "Thoth Metadata Export API".to_string(),
-            description: Some(
-                "Obtain Thoth metadata records in various formats and platform specifications"
-                    .to_string(),
-            ),
             ..Default::default()
         };
-        // TODO get host and path from input
-        spec.host = Some("api.thoth.pub".to_string());
-        spec.base_path = Some("/export".to_string());
+
         App::new()
             .wrap(Logger::default())
             .wrap(Cors::default().allowed_methods(vec!["GET", "OPTIONS"]))
