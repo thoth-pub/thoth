@@ -194,9 +194,8 @@ pub async fn start_server(
                     .max_age(session_duration),
             ))
             .wrap(
-                Cors::new()
-                    .allowed_methods(vec!["GET", "POST", "OPTIONS"])
-                    .finish(),
+                Cors::default()
+                    .allowed_methods(vec!["GET", "POST", "OPTIONS"]),
             )
             .data(ApiConfig {
                 public_url: public_url.clone(),
