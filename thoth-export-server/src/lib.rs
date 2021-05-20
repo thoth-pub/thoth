@@ -105,7 +105,7 @@ async fn onix_endpoint(
         .map_err(|e| e.into())
 }
 
-#[actix_rt::main]
+#[actix_web::main]
 pub async fn start_server(host: String, port: String, gql_endpoint: String) -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     log::info!("Setting Thoth GraphQL endpoint to {}", gql_endpoint);

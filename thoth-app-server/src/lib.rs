@@ -72,7 +72,7 @@ async fn index() -> HttpResponse {
         .body(INDEX_FILE)
 }
 
-#[actix_rt::main]
+#[actix_web::main]
 pub async fn start_server(host: String, port: String) -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 

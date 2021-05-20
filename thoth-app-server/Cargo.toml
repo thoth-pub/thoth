@@ -9,7 +9,6 @@ repository = "https://github.com/thoth-pub/thoth"
 readme = "README.md"
 
 [dependencies]
-actix-rt = "1.0.0"
 actix-web = "3.3.2"
 actix-cors = "0.5.4"
 env_logger ="0.7.1"

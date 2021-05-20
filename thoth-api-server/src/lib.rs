@@ -171,7 +171,7 @@ fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(account_details);
 }
 
-#[actix_rt::main]
+#[actix_web::main]
 pub async fn start_server(
     host: String,
     port: String,

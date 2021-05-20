@@ -3886,7 +3886,6 @@ version = "0.3.6"
 dependencies = [
  "actix-cors",
  "actix-identity",
- "actix-rt",
  "actix-web",
  "env_logger 0.7.1",
  "juniper",
@@ -3922,7 +3921,6 @@ name = "thoth-app-server"
 version = "0.3.6"
 dependencies = [
  "actix-cors",
- "actix-rt",
  "actix-web",
  "env_logger 0.7.1",
 ]
@@ -3944,7 +3942,6 @@ name = "thoth-export-server"
 version = "0.3.6"
 dependencies = [
  "actix-cors",
- "actix-rt",
  "actix-web",
  "chrono",
  "env_logger 0.7.1",
