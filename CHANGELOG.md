@@ -6,9 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased - 2021-xx-xx
 ### Changed
-  - Updated yew to latest version
-  - Updated actix to latest version
-  - Removed actix\_rt
+  - Updated `yew` to [`v0.18.0`](https://github.com/yewstack/yew/releases/tag/0.18.0)
+  - Updated `actix-web` to [`3.3.2`](https://github.com/actix/actix-web/releases/tag/web-v3.3.2)
+  - Removed `actix_rt`
+  - Catch client errors with `ThothError::EntityNotFound`
 
 ### Added
   - Export API with openapi schema
