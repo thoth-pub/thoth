@@ -3,7 +3,8 @@ use std::{io, sync::Arc};
 use actix_cors::Cors;
 use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
 use actix_web::{
-    error, get, middleware::Logger, post, web, App, Error, HttpResponse, HttpServer, Result, http::header
+    error, get, http::header, middleware::Logger, post, web, App, Error, HttpResponse, HttpServer,
+    Result,
 };
 use juniper::{http::graphiql::graphiql_source, http::GraphQLRequest};
 use serde::Serialize;
@@ -198,7 +199,7 @@ pub async fn start_server(
                     .allow_any_origin()
                     .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
                     .allowed_header(header::CONTENT_TYPE)
-                    .supports_credentials()
+                    .supports_credentials(),
             )
             .data(ApiConfig {
                 public_url: public_url.clone(),
