@@ -3,10 +3,12 @@ use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use std::fmt;
+use std::str::FromStr;
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
+use crate::errors::{ThothError, ThothResult};
 use crate::graphql::utils::Direction;
 #[cfg(feature = "backend")]
 use crate::schema::contributor;
@@ -33,6 +35,15 @@ pub enum ContributorField {
     CreatedAt,
     UpdatedAt,
 }
+
+#[cfg_attr(
+    feature = "backend",
+    derive(DieselNewType, juniper::GraphQLScalarValue)
+)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Orcid(String);
+
+const ORCID_DOMAIN: &str = "https://orcid.org/";
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -138,6 +149,50 @@ impl fmt::Display for Contributor {
     }
 }
 
+impl fmt::Display for Orcid {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", &self.0.replace(ORCID_DOMAIN, ""))
+    }
+}
+
+impl FromStr for Orcid {
+    type Err = ThothError;
+
+    fn from_str(input: &str) -> ThothResult<Orcid> {
+        use lazy_static::lazy_static;
+        use regex::Regex;
+        lazy_static! {
+            static ref RE: Regex = Regex::new(
+            // ^    = beginning of string
+            // (?:) = non-capturing group
+            // i    = case-insensitive flag
+            // $    = end of string
+            // Matches strings of format "[[http[s]://]orcid.org/]0000-000X-XXXX-XXXX"
+            // and captures the 16-digit identifier segment
+            // Corresponds to database constraints although regex syntax differs slightly
+            r#"^(?i:(?:https?://)?orcid\.org/)?(0000-000(?:1-[5-9]|2-[0-9]|3-[0-4])\d{3}-\d{3}[\dX]$)"#).unwrap();
+        }
+        if let Some(matches) = RE.captures(input) {
+            // The 0th capture always corresponds to the entire match
+            if let Some(identifier) = matches.get(1) {
+                let standardised = format!("{}{}", ORCID_DOMAIN, identifier.as_str());
+                let orcid: Orcid = Orcid { 0: standardised };
+                Ok(orcid)
+            } else {
+                Err(ThothError::IdentifierParseError(
+                    input.to_string(),
+                    "ORCID".to_string(),
+                ))
+            }
+        } else {
+            Err(ThothError::IdentifierParseError(
+                input.to_string(),
+                "ORCID".to_string(),
+            ))
+        }
+    }
+}
+
 #[test]
 fn test_contributorfield_default() {
     let contfield: ContributorField = Default::default();
@@ -186,4 +241,51 @@ fn test_contributorfield_fromstr() {
     assert!(ContributorField::from_str("ContributorID").is_err());
     assert!(ContributorField::from_str("Biography").is_err());
     assert!(ContributorField::from_str("Institution").is_err());
+}
+
+#[test]
+fn test_orcid_display() {
+    let orcid = Orcid {
+        0: "https://orcid.org/0000-0002-1234-5678".to_string(),
+    };
+    assert_eq!(format!("{}", orcid), "0000-0002-1234-5678");
+}
+
+#[test]
+fn test_orcid_fromstr() {
+    let standardised = Orcid {
+        0: "https://orcid.org/0000-0002-1234-5678".to_string(),
+    };
+    assert_eq!(
+        Orcid::from_str("https://orcid.org/0000-0002-1234-5678").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Orcid::from_str("http://orcid.org/0000-0002-1234-5678").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Orcid::from_str("orcid.org/0000-0002-1234-5678").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Orcid::from_str("0000-0002-1234-5678").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Orcid::from_str("HTTPS://ORCID.ORG/0000-0002-1234-5678").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Orcid::from_str("Https://ORCiD.org/0000-0002-1234-5678").unwrap(),
+        standardised
+    );
+    assert!(Orcid::from_str("htts://orcid.org/0000-0002-1234-5678").is_err());
+    assert!(Orcid::from_str("https://0000-0002-1234-5678").is_err());
+    assert!(Orcid::from_str("https://test.org/0000-0002-1234-5678").is_err());
+    assert!(Orcid::from_str("http://test.org/0000-0002-1234-5678").is_err());
+    assert!(Orcid::from_str("test.org/0000-0002-1234-5678").is_err());
+    assert!(Orcid::from_str("//orcid.org/0000-0002-1234-5678").is_err());
+    assert!(Orcid::from_str("https://orcid-org/0000-0002-1234-5678").is_err());
+    assert!(Orcid::from_str("0000-0002-1234-5678https://orcid.org/").is_err());
 }
