@@ -7,7 +7,7 @@ use paperclip::actix::{
     web::{self, HttpResponse, Json},
     Apiv2Schema, OpenApiExt,
 };
-use paperclip::v2::models::{DefaultApiRaw, Info, Tag};
+use paperclip::v2::models::{DefaultApiRaw, Info, Tag, Contact};
 use serde::{Deserialize, Serialize};
 use thoth_api::errors::ThothError;
 use thoth_client::work::get_work;
@@ -139,6 +139,11 @@ pub async fn start_server(host: String, port: String, gql_endpoint: String) -> i
                     "Obtain Thoth metadata records in various formats and platform specifications"
                         .to_string(),
                 ),
+                contact: Some(Contact {
+                    name: Some("Thoth Team".to_string()),
+                    url: Some("https://thoth.pub".to_string()),
+                    email: Some("info@thoth.pub".to_string()),
+                }),
                 ..Default::default()
             },
             ..Default::default()
