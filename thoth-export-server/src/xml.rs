@@ -11,7 +11,7 @@ pub struct Xml<String>(pub String);
 impl<String> fmt::Debug for Xml<String> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let status: StatusCode = StatusCode::OK;
-        let status_str = status.canonical_reason().unwrap_or(status.as_str());
+        let status_str = status.canonical_reason().unwrap_or_else(|| status.as_str());
         write!(f, "{} Xml: {:?}", status_str, self)
     }
 }
