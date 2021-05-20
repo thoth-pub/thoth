@@ -79,10 +79,7 @@ pub async fn start_server(host: String, port: String) -> io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
-            .wrap(
-                Cors::default()
-                    .allowed_methods(vec!["GET", "POST", "OPTIONS"]),
-            )
+            .wrap(Cors::default().allowed_methods(vec!["GET", "POST", "OPTIONS"]))
             .configure(config)
             .default_service(web::route().to(index))
     })

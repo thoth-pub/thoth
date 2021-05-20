@@ -153,7 +153,8 @@ fn main() -> ThothResult<()> {
                 let domain = api_matches.value_of("domain").unwrap().to_owned();
                 let secret_str = api_matches.value_of("key").unwrap().to_owned();
                 let session_duration = value_t!(api_matches.value_of("duration"), i64).unwrap();
-                api_server(host, port, url, domain, secret_str, session_duration).map_err(|e| e.into())
+                api_server(host, port, url, domain, secret_str, session_duration)
+                    .map_err(|e| e.into())
             }
             ("app", Some(client_matches)) => {
                 let host = client_matches.value_of("host").unwrap().to_owned();

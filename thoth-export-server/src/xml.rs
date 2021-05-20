@@ -1,13 +1,10 @@
-use paperclip::v2::schema::Apiv2Schema;
-use paperclip::actix::OperationModifier;
-use std::fmt;
-use actix_web::{
-    http::StatusCode,
-    Error, HttpRequest, Responder,
-};
-use paperclip::util::{ready, Ready};
+use actix_web::{http::StatusCode, Error, HttpRequest, Responder};
 use paperclip::actix::web::HttpResponse;
-use paperclip::v2::models::{DefaultOperationRaw, Response, Either};
+use paperclip::actix::OperationModifier;
+use paperclip::util::{ready, Ready};
+use paperclip::v2::models::{DefaultOperationRaw, Either, Response};
+use paperclip::v2::schema::Apiv2Schema;
+use std::fmt;
 
 pub struct Xml<String>(pub String);
 
@@ -26,7 +23,8 @@ impl<String> fmt::Display for Xml<String> {
 }
 
 impl<String> Responder for Xml<String>
-    where actix_web::dev::Body: From<String>
+where
+    actix_web::dev::Body: From<String>,
 {
     type Error = Error;
     type Future = Ready<Result<HttpResponse, Error>>;

@@ -2,7 +2,8 @@
 
 /// Generate the HTML source to show a RapiDoc interface
 pub fn rapidoc_source(openapi_spec: &str) -> String {
-    format!(r#"
+    format!(
+        r#"
 <!DOCTYPE html>
 <html>
     <head>
@@ -27,5 +28,7 @@ pub fn rapidoc_source(openapi_spec: &str) -> String {
       </rapi-doc>
     </body>
 </html>
-"#,     openapi_spec = openapi_spec)
+"#,
+        openapi_spec = openapi_spec
+    )
 }

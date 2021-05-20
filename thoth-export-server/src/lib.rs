@@ -2,9 +2,13 @@ use std::io;
 
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, App, Error, HttpServer};
-use paperclip::actix::{api_v2_operation, Apiv2Schema, web::{self, Json, HttpResponse}, OpenApiExt};
+use paperclip::actix::{
+    api_v2_operation,
+    web::{self, HttpResponse, Json},
+    Apiv2Schema, OpenApiExt,
+};
 use paperclip::v2::models::{DefaultApiRaw, Info, Tag};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use thoth_api::errors::ThothError;
 use thoth_client::work::get_work;
 use uuid::Uuid;
@@ -41,19 +45,17 @@ struct Output {
 }
 
 fn all_formats() -> Vec<Format> {
-    vec![
-        Format {
-            id: "onix_3.0".to_string(),
-            name: "ONIX".to_string(),
-            version: "3.0".to_string(),
+    vec![Format {
+        id: "onix_3.0".to_string(),
+        name: "ONIX".to_string(),
+        version: "3.0".to_string(),
     }]
 }
 
 fn all_platforms() -> Vec<Platform> {
-    vec![
-        Platform {
-            id: "project_muse".to_string(),
-            name: "Project MUSE".to_string(),
+    vec![Platform {
+        id: "project_muse".to_string(),
+        name: "Project MUSE".to_string(),
     }]
 }
 
@@ -67,15 +69,16 @@ async fn index() -> HttpResponse {
 #[api_v2_operation(
     summary = "List supported formats",
     description = "Full list of metadata formats that can be output by Thoth",
-    tags(Formats),
-)]async fn formats() -> Result<Json<Vec<Format>>, ()> {
+    tags(Formats)
+)]
+async fn formats() -> Result<Json<Vec<Format>>, ()> {
     Ok(Json(all_formats()))
 }
 
 #[api_v2_operation(
     summary = "List supported platforms",
     description = "Full list of platforms supported by Thoth's outputs",
-    tags(Platforms),
+    tags(Platforms)
 )]
 async fn platforms() -> Result<Json<Vec<Platform>>, ()> {
     Ok(Json(all_platforms()))
@@ -85,19 +88,21 @@ async fn platforms() -> Result<Json<Vec<Platform>>, ()> {
     summary = "Get ONIX file",
     description = "Obtain an ONIX 3.0 file for a given work_id",
     produces = "text/xml",
-    tags(Outputs),
+    tags(Outputs)
 )]
-async fn onix_endpoint(work_id: web::Path<Uuid>, config: web::Data<ApiConfig>) -> Result<Xml<String>, Error> {
+async fn onix_endpoint(
+    work_id: web::Path<Uuid>,
+    config: web::Data<ApiConfig>,
+) -> Result<Xml<String>, Error> {
     let wid = work_id.into_inner();
-    get_work(wid.clone(), &config.graphql_endpoint).await
+    get_work(wid.clone(), &config.graphql_endpoint)
+        .await
         .and_then(|work| generate_onix_3(work))
         .and_then(|onix| {
             String::from_utf8(onix)
                 .map_err(|_| ThothError::InternalError("Could not generate ONIX".to_string()))
         })
-        .and_then(|body| {
-            Ok(Xml(body))
-        })
+        .and_then(|body| Ok(Xml(body)))
         .map_err(|e| e.into())
 }
 
@@ -128,7 +133,10 @@ pub async fn start_server(host: String, port: String, gql_endpoint: String) -> i
         spec.info = Info {
             version: env!("CARGO_PKG_VERSION").parse().unwrap(),
             title: "Thoth Metadata Export API".to_string(),
-            description: Some("Obtain Thoth metadata records in various formats and platform specifications".to_string()),
+            description: Some(
+                "Obtain Thoth metadata records in various formats and platform specifications"
+                    .to_string(),
+            ),
             ..Default::default()
         };
         // TODO get host and path from input
@@ -136,10 +144,7 @@ pub async fn start_server(host: String, port: String, gql_endpoint: String) -> i
         spec.base_path = Some("/export".to_string());
         App::new()
             .wrap(Logger::default())
-            .wrap(
-                Cors::default()
-                    .allowed_methods(vec!["GET", "OPTIONS"]),
-            )
+            .wrap(Cors::default().allowed_methods(vec!["GET", "OPTIONS"]))
             .data(ApiConfig {
                 graphql_endpoint: gql_endpoint.clone(),
             })

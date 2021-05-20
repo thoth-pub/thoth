@@ -3,8 +3,7 @@ use std::{io, sync::Arc};
 use actix_cors::Cors;
 use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
 use actix_web::{
-    error, get, middleware::Logger, post, web, App, Error, HttpResponse, HttpServer,
-    Result,
+    error, get, middleware::Logger, post, web, App, Error, HttpResponse, HttpServer, Result,
 };
 use juniper::{http::graphiql::graphiql_source, http::GraphQLRequest};
 use serde::Serialize;
@@ -193,10 +192,7 @@ pub async fn start_server(
                     .domain(&domain)
                     .max_age(session_duration),
             ))
-            .wrap(
-                Cors::default()
-                    .allowed_methods(vec!["GET", "POST", "OPTIONS"]),
-            )
+            .wrap(Cors::default().allowed_methods(vec!["GET", "POST", "OPTIONS"]))
             .data(ApiConfig {
                 public_url: public_url.clone(),
                 ..Default::default()
