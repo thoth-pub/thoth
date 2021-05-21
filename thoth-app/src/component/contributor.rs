@@ -1,4 +1,4 @@
-use thoth_api::contributor::model::{Contributor, Orcid};
+use thoth_api::contributor::model::Contributor;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -184,41 +184,23 @@ impl Component for ContributorComponent {
                 }
             }
             Msg::UpdateContributor => {
-                // Check ORCID is correctly formatted before proceeding with save.
-                // If no ORCID was provided, no check is required.
-                let mut parsed_orcid = None;
-                let mut ok_to_save = true;
-                if self.contributor.orcid.is_some() {
-                    match self.contributor.orcid.as_ref().unwrap().parse::<Orcid>() {
-                        Ok(result) => parsed_orcid = Some(result),
-                        Err(err) => {
-                            ok_to_save = false;
-                            self.notification_bus.send(Request::NotificationBusMsg((
-                                err.to_string(),
-                                NotificationStatus::Danger,
-                            )))
-                        }
-                    }
-                }
-                if ok_to_save {
-                    let body = UpdateContributorRequestBody {
-                        variables: UpdateVariables {
-                            contributor_id: self.contributor.contributor_id,
-                            first_name: self.contributor.first_name.clone(),
-                            last_name: self.contributor.last_name.clone(),
-                            full_name: self.contributor.full_name.clone(),
-                            orcid: parsed_orcid,
-                            website: self.contributor.website.clone(),
-                        },
-                        ..Default::default()
-                    };
-                    let request = UpdateContributorRequest { body };
-                    self.push_contributor = Fetch::new(request);
-                    self.link
-                        .send_future(self.push_contributor.fetch(Msg::SetContributorPushState));
-                    self.link
-                        .send_message(Msg::SetContributorPushState(FetchAction::Fetching));
-                }
+                let body = UpdateContributorRequestBody {
+                    variables: UpdateVariables {
+                        contributor_id: self.contributor.contributor_id,
+                        first_name: self.contributor.first_name.clone(),
+                        last_name: self.contributor.last_name.clone(),
+                        full_name: self.contributor.full_name.clone(),
+                        orcid: self.contributor.orcid.clone(),
+                        website: self.contributor.website.clone(),
+                    },
+                    ..Default::default()
+                };
+                let request = UpdateContributorRequest { body };
+                self.push_contributor = Fetch::new(request);
+                self.link
+                    .send_future(self.push_contributor.fetch(Msg::SetContributorPushState));
+                self.link
+                    .send_message(Msg::SetContributorPushState(FetchAction::Fetching));
                 false
             }
             Msg::SetContributorDeleteState(fetch_state) => {
@@ -381,7 +363,7 @@ impl Component for ContributorComponent {
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
                                 required = true
                             />
-                            <FormTextInput
+                            <FormUrlInput
                                 label = "ORCID (Full URL)"
                                 value=&self.contributor.orcid
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
