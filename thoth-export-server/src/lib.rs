@@ -7,7 +7,7 @@ use paperclip::actix::{
     web::{self, HttpResponse, Json},
     Apiv2Schema, OpenApiExt,
 };
-use paperclip::v2::models::{DefaultApiRaw, Info, Tag, Contact};
+use paperclip::v2::models::{DefaultApiRaw, Info, Tag, Contact, License};
 use serde::{Deserialize, Serialize};
 use thoth_api::errors::ThothError;
 use thoth_client::work::get_work;
@@ -140,9 +140,13 @@ pub async fn start_server(host: String, port: String, gql_endpoint: String) -> i
                         .to_string(),
                 ),
                 contact: Some(Contact {
-                    name: Some("Thoth Team".to_string()),
+                    name: Some("Thoth Support".to_string()),
                     url: Some("https://thoth.pub".to_string()),
-                    email: Some("info@thoth.pub".to_string()),
+                    email: Some("support@thoth.pub".to_string()),
+                }),
+                license: Some(License {
+                    name: Some(env!("CARGO_PKG_LICENSE").parse().unwrap()),
+                    url: None
                 }),
                 ..Default::default()
             },
