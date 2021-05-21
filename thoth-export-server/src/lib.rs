@@ -42,6 +42,8 @@ struct Platform {
 struct Output {
     id: String,
     name: String,
+    format_url: String,
+    platform_url: String,
 }
 
 fn all_formats() -> Vec<Format> {
@@ -56,6 +58,15 @@ fn all_platforms() -> Vec<Platform> {
     vec![Platform {
         id: "project_muse".to_string(),
         name: "Project MUSE".to_string(),
+    }]
+}
+
+fn all_outputs() -> Vec<Output> {
+    vec![Output {
+        id: "onix_3.0::project_muse".to_string(),
+        name: "Project MUSE ONIX 3.0".to_string(),
+        format_url: "https://localhost:8181/formats/onix_3.0".to_string(),
+        platform_url: "https://localhost:8181/platforms/project_muse".to_string(),
     }]
 }
 
@@ -76,12 +87,79 @@ async fn formats() -> Result<Json<Vec<Format>>, ()> {
 }
 
 #[api_v2_operation(
+summary = "Get a single format",
+description = "Find the details of a format that can be output by Thoth",
+tags(Formats)
+)]
+async fn format(format_id: web::Path<String>) -> Result<Json<Format>, ()> {
+    // TODO: NotFound error
+    let all_formats = all_formats();
+    let id = format_id.into_inner();
+    all_formats.into_iter().find(|f| f.id == id).map(|f| Json(f)).ok_or(())
+}
+
+#[api_v2_operation(
     summary = "List supported platforms",
     description = "Full list of platforms supported by Thoth's outputs",
     tags(Platforms)
 )]
 async fn platforms() -> Result<Json<Vec<Platform>>, ()> {
     Ok(Json(all_platforms()))
+}
+
+#[api_v2_operation(
+summary = "Get a single platform",
+description = "Find the details of a platform supported by Thoth's outpus",
+tags(Platforms)
+)]
+async fn platform(platform_id: web::Path<String>) -> Result<Json<Platform>, ()> {
+    // TODO: NotFound error
+    let all_platforms = all_platforms();
+    let id = platform_id.into_inner();
+    all_platforms.into_iter().find(|p| p.id == id).map(|p| Json(p)).ok_or(())
+}
+
+#[api_v2_operation(
+    summary = "List supported outputs",
+    description = "Full list of metadata standards that can be output by Thoth",
+    tags(Outputs)
+)]
+async fn outputs() -> Result<Json<Vec<Output>>, ()> {
+    Ok(Json(all_outputs()))
+}
+
+#[api_v2_operation(
+    summary = "Get a single output format",
+    description = "Find the details of a metadata output given its ID",
+    tags(Outputs)
+)]
+async fn output(output_id: web::Path<String>) -> Result<Json<Output>, ()> {
+    // TODO: NotFound error
+    let all_outputs = all_outputs();
+    let id = output_id.into_inner();
+    all_outputs.into_iter().find(|o| o.id == id).map(|o| Json(o)).ok_or(())
+}
+
+#[api_v2_operation(
+    summary = "Get a metadata output record",
+    description = "Obtain a metadata output record, given its ID, for a given work",
+    produces = "text/xml",
+    tags(Outputs)
+)]
+async fn output_by_work(
+    _output_id: web::Path<String>,
+    work_id: web::Path<Uuid>,
+    config: web::Data<ApiConfig>,
+) -> Result<Xml<String>, Error> {
+    get_work(work_id.into_inner(), &config.graphql_endpoint)
+        .await
+        .and_then(generate_onix_3)
+        .and_then(|onix| {
+            String::from_utf8(onix)
+                .map_err(|_| ThothError::InternalError("Could not generate ONIX".to_string()))
+        })
+        .map(Xml)
+        .map_err(|e| e.into())
 }
 
 #[api_v2_operation(
@@ -162,7 +240,12 @@ pub async fn start_server(host: String, port: String, gql_endpoint: String) -> i
             .service(actix_web::web::resource("/").route(actix_web::web::get().to(index)))
             .wrap_api_with_spec(spec)
             .service(web::resource("/formats").route(web::get().to(formats)))
+            .service(web::resource("/formats/{format_id}").route(web::get().to(format)))
             .service(web::resource("/platforms").route(web::get().to(platforms)))
+            .service(web::resource("/platforms/{platform_id}").route(web::get().to(platform)))
+            .service(web::resource("/outputs").route(web::get().to(outputs)))
+            .service(web::resource("/outputs/{output_id}").route(web::get().to(output)))
+            .service(web::resource("/outputs/{output_id}/work/{work_id}").route(web::get().to(output_by_work)))
             .service(web::resource("/onix/{work_id}").route(web::get().to(onix_endpoint)))
             .with_json_spec_at("/swagger.json")
             .build()
