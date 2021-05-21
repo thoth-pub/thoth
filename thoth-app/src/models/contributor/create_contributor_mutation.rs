@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::contributor::model::Contributor;
+use thoth_api::contributor::model::{Contributor, Orcid};
 
 const CREATE_CONTRIBUTOR_MUTATION: &str = "
     mutation CreateContributor(
@@ -43,7 +43,7 @@ pub struct Variables {
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
-    pub orcid: Option<String>,
+    pub orcid: Option<Orcid>,
     pub website: Option<String>,
 }
 

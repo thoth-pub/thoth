@@ -53,7 +53,7 @@ pub struct Contributor {
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
-    pub orcid: Option<String>,
+    pub orcid: Option<Orcid>,
     pub website: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

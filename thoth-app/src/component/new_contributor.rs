@@ -1,4 +1,4 @@
-use thoth_api::contributor::model::Contributor;
+use thoth_api::contributor::model::{Contributor, Orcid};
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -201,11 +201,27 @@ impl Component for NewContributorComponent {
                 }
             }
             Msg::ChangeOrcid(value) => {
-                let orcid = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
+                // Check ORCID is correctly formatted before proceeding with save.
+                // If no ORCID was provided, no check is required.
+                let mut parsed_orcid = None;
+                let mut ok_to_save = true;
+                if !value.trim().is_empty() {
+                    match value.parse::<Orcid>() {
+                        Ok(result) => parsed_orcid = Some(result),
+                        Err(err) => {
+                            ok_to_save = false;
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                err.to_string(),
+                                NotificationStatus::Danger,
+                            )))
+                        }
+                    }
                 };
-                self.contributor.orcid.neq_assign(orcid)
+                if ok_to_save {
+                    self.contributor.orcid.neq_assign(parsed_orcid)
+                } else {
+                    false
+                }
             }
             Msg::ChangeWebsite(value) => {
                 let website = match value.trim().is_empty() {
@@ -274,9 +290,9 @@ impl Component for NewContributorComponent {
                         onblur=self.link.callback(|_| Msg::ToggleDuplicateTooltip(false))
                         required=true
                     />
-                    <FormUrlInput
-                        label = "ORCID (Full URL)"
-                        value=&self.contributor.orcid
+                    <FormTextInput
+                        label = "ORCID"
+                        value=self.contributor.orcid.as_ref().map(|s| s.to_string())
                         oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
                     />
                     <FormUrlInput

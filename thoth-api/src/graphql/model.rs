@@ -1960,7 +1960,7 @@ impl Contributor {
         &self.full_name
     }
 
-    pub fn orcid(&self) -> Option<&String> {
+    pub fn orcid(&self) -> Option<&Orcid> {
         self.orcid.as_ref()
     }
 

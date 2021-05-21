@@ -24,7 +24,11 @@ impl EditRoute for Contributor {
 
 impl MetadataTable for Contributor {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
-        let orcid = self.orcid.clone().unwrap_or_else(|| "".to_string());
+        let orcid = self
+            .orcid
+            .as_ref()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "".to_string());
         html! {
             <tr
                 class="row"
