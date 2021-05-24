@@ -14,15 +14,14 @@ use thoth_client::work::work_query::{
 };
 use xml::writer::{events::StartElementBuilder, EmitterConfig, EventWriter, Result, XmlEvent};
 
-pub fn generate_onix_3(mut work: WorkQueryWork) -> ThothResult<Vec<u8>> {
+pub fn generate_onix_3(work: WorkQueryWork) -> ThothResult<Vec<u8>> {
     let mut buffer = Vec::new();
     let mut writer = EmitterConfig::new()
         .perform_indent(true)
         .create_writer(&mut buffer);
-    match handle_event(&mut writer, &mut work) {
-        Ok(_) => Ok(buffer),
-        Err(e) => Err(ThothError::from(e)),
-    }
+    handle_event(&mut writer, &work)
+        .map(|_| buffer)
+        .map_err(|e| ThothError::from(e))
 }
 
 fn string_to_static_str(s: String) -> &'static str {
@@ -148,7 +147,7 @@ fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
     w.write(event)
 }
 
-fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> Result<()> {
+fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &WorkQueryWork) -> Result<()> {
     let ns_map: HashMap<String, String> = HashMap::new();
     let mut attr_map: HashMap<String, String> = HashMap::new();
 
