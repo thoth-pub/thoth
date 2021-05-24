@@ -44,18 +44,18 @@ struct Specification<'a> {
     name: &'a str,
 }
 
-const FORMATS: [Format<'static>; 1] = [Format {
+const ALL_FORMATS: [Format<'static>; 1] = [Format {
     id: "onix_3.0",
     name: "ONIX",
     version: "3.0",
 }];
 
-const PLATFORMS: [Platform<'static>; 1] = [Platform {
+const ALL_PLATFORMS: [Platform<'static>; 1] = [Platform {
     id: "project_muse",
     name: "Project MUSE",
 }];
 
-const SPECIFICATIONS: [Specification<'static>; 1] = [Specification {
+const ALL_SPECIFICATIONS: [Specification<'static>; 1] = [Specification {
     id: "onix_3.0::project_muse",
     name: "Project MUSE ONIX 3.0",
 }];
@@ -73,7 +73,7 @@ async fn index() -> HttpResponse {
     tags(Formats)
 )]
 async fn formats() -> Json<[Format<'static>; 1]> {
-    Json(FORMATS)
+    Json(ALL_FORMATS)
 }
 
 #[api_v2_operation(
@@ -82,7 +82,7 @@ async fn formats() -> Json<[Format<'static>; 1]> {
     tags(Formats)
 )]
 async fn format(web::Path(format_id): web::Path<String>) -> Result<Json<Format<'static>>, Error> {
-    FORMATS
+    ALL_FORMATS
         .iter()
         .find(|f| f.id == format_id)
         .map(|f| Json(f.clone()))
@@ -96,7 +96,7 @@ async fn format(web::Path(format_id): web::Path<String>) -> Result<Json<Format<'
     tags(Platforms)
 )]
 async fn platforms() -> Json<[Platform<'static>; 1]> {
-    Json(PLATFORMS)
+    Json(ALL_PLATFORMS)
 }
 
 #[api_v2_operation(
@@ -107,7 +107,7 @@ async fn platforms() -> Json<[Platform<'static>; 1]> {
 async fn platform(
     web::Path(platform_id): web::Path<String>,
 ) -> Result<Json<Platform<'static>>, Error> {
-    PLATFORMS
+    ALL_PLATFORMS
         .iter()
         .find(|p| p.id == platform_id)
         .map(|p| Json(p.clone()))
@@ -121,7 +121,7 @@ async fn platform(
     tags(Specifications)
 )]
 async fn specifications() -> Json<[Specification<'static>; 1]> {
-    Json(SPECIFICATIONS)
+    Json(ALL_SPECIFICATIONS)
 }
 
 #[api_v2_operation(
@@ -132,7 +132,7 @@ async fn specifications() -> Json<[Specification<'static>; 1]> {
 async fn specification(
     web::Path(specification_id): web::Path<String>,
 ) -> Result<Json<Specification<'static>>, Error> {
-    SPECIFICATIONS
+    ALL_SPECIFICATIONS
         .iter()
         .find(|s| s.id == specification_id)
         .map(|s| Json(s.clone()))
