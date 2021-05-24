@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use chrono::prelude::Utc;
-use thoth_api::errors::{ThothError, ThothResult};
+use thoth_api::errors::ThothResult;
 use thoth_client::work::work_query::{
     ContributionType,
     LanguageRelation,
@@ -21,7 +21,7 @@ pub fn generate_onix_3(work: WorkQueryWork) -> ThothResult<Vec<u8>> {
         .create_writer(&mut buffer);
     handle_event(&mut writer, &work)
         .map(|_| buffer)
-        .map_err(|e| ThothError::from(e))
+        .map_err(|e| e.into())
 }
 
 fn string_to_static_str(s: String) -> &'static str {
