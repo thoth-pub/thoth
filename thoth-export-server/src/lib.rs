@@ -20,7 +20,6 @@ mod xml;
 use crate::onix::generate_onix_3;
 use crate::rapidoc::rapidoc_source;
 use crate::xml::Xml;
-use actix_web::error::ErrorNotFound;
 
 struct ApiConfig {
     graphql_endpoint: String,
@@ -87,7 +86,8 @@ async fn format(web::Path(format_id): web::Path<String>) -> Result<Json<Format<'
         .iter()
         .find(|f| f.id == format_id)
         .map(|f| Json(f.clone()))
-        .ok_or_else(|| ErrorNotFound("Format not found"))
+        .ok_or(ThothError::EntityNotFound)
+        .map_err(|e| e.into())
 }
 
 #[api_v2_operation(
@@ -111,7 +111,8 @@ async fn platform(
         .iter()
         .find(|p| p.id == platform_id)
         .map(|p| Json(p.clone()))
-        .ok_or_else(|| ErrorNotFound("Platform not found"))
+        .ok_or(ThothError::EntityNotFound)
+        .map_err(|e| e.into())
 }
 
 #[api_v2_operation(
@@ -135,7 +136,8 @@ async fn specification(
         .iter()
         .find(|s| s.id == specification_id)
         .map(|s| Json(s.clone()))
-        .ok_or_else(|| ErrorNotFound("Specification not found"))
+        .ok_or(ThothError::EntityNotFound)
+        .map_err(|e| e.into())
 }
 
 #[api_v2_operation(
