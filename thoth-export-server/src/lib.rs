@@ -73,8 +73,8 @@ async fn index() -> HttpResponse {
     description = "Full list of metadata formats that can be output by Thoth",
     tags(Formats)
 )]
-async fn formats() -> Result<Json<[Format<'static>; 1]>, ()> {
-    Ok(Json(FORMATS))
+async fn formats() -> Json<[Format<'static>; 1]> {
+    Json(FORMATS)
 }
 
 #[api_v2_operation(
@@ -95,8 +95,8 @@ async fn format(web::Path(format_id): web::Path<String>) -> Result<Json<Format<'
     description = "Full list of platforms supported by Thoth's outputs",
     tags(Platforms)
 )]
-async fn platforms() -> Result<Json<[Platform<'static>; 1]>, ()> {
-    Ok(Json(PLATFORMS))
+async fn platforms() -> Json<[Platform<'static>; 1]> {
+    Json(PLATFORMS)
 }
 
 #[api_v2_operation(
@@ -119,8 +119,8 @@ async fn platform(
     description = "Full list of metadata specifications that can be output by Thoth",
     tags(Specifications)
 )]
-async fn specifications() -> Result<Json<[Specification<'static>; 1]>, ()> {
-    Ok(Json(SPECIFICATIONS))
+async fn specifications() -> Json<[Specification<'static>; 1]> {
+    Json(SPECIFICATIONS)
 }
 
 #[api_v2_operation(
