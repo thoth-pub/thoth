@@ -1,17 +1,18 @@
 use std::collections::HashMap;
 use std::io::Write;
 
-use chrono::prelude::*;
+use chrono::prelude::Utc;
 use thoth_api::errors::{ThothError, ThothResult};
-use thoth_client::work::work_query::ContributionType;
-use thoth_client::work::work_query::LanguageRelation;
-use thoth_client::work::work_query::PublicationType;
-use thoth_client::work::work_query::SubjectType;
-use thoth_client::work::work_query::WorkQueryWork;
-use thoth_client::work::work_query::WorkQueryWorkPublications;
-use thoth_client::work::work_query::WorkStatus;
-use xml::writer::events::StartElementBuilder;
-use xml::writer::{EmitterConfig, EventWriter, Result, XmlEvent};
+use thoth_client::work::work_query::{
+    ContributionType,
+    LanguageRelation,
+    PublicationType,
+    SubjectType,
+    WorkQueryWork,
+    WorkQueryWorkPublications,
+    WorkStatus,
+};
+use xml::writer::{events::StartElementBuilder, EmitterConfig, EventWriter, Result, XmlEvent};
 
 pub fn generate_onix_3(mut work: WorkQueryWork) -> ThothResult<Vec<u8>> {
     let mut buffer = Vec::new();
