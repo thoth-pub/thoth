@@ -7,7 +7,7 @@ use paperclip::actix::{
     web::{self, HttpResponse, Json},
     Apiv2Schema, OpenApiExt,
 };
-use paperclip::v2::models::{DefaultApiRaw, Info, Tag, Contact, License};
+use paperclip::v2::models::{Contact, DefaultApiRaw, Info, License, Tag};
 use serde::{Deserialize, Serialize};
 use thoth_api::errors::ThothError;
 use thoth_client::work::get_work;
@@ -20,55 +20,46 @@ mod xml;
 use crate::onix::generate_onix_3;
 use crate::rapidoc::rapidoc_source;
 use crate::xml::Xml;
+use actix_web::error::ErrorNotFound;
 
 struct ApiConfig {
     graphql_endpoint: String,
 }
 
-#[derive(Serialize, Deserialize, Apiv2Schema)]
-struct Format {
-    id: String,
-    name: String,
-    version: String,
+#[derive(Clone, Serialize, Deserialize, Apiv2Schema)]
+struct Format<'a> {
+    id: &'a str,
+    name: &'a str,
+    version: &'a str,
 }
 
-#[derive(Serialize, Deserialize, Apiv2Schema)]
-struct Platform {
-    id: String,
-    name: String,
+#[derive(Clone, Serialize, Deserialize, Apiv2Schema)]
+struct Platform<'a> {
+    id: &'a str,
+    name: &'a str,
 }
 
-#[derive(Serialize, Deserialize, Apiv2Schema)]
-struct Output {
-    id: String,
-    name: String,
-    format_url: String,
-    platform_url: String,
+#[derive(Clone, Serialize, Deserialize, Apiv2Schema)]
+struct Specification<'a> {
+    id: &'a str,
+    name: &'a str,
 }
 
-fn all_formats() -> Vec<Format> {
-    vec![Format {
-        id: "onix_3.0".to_string(),
-        name: "ONIX".to_string(),
-        version: "3.0".to_string(),
-    }]
-}
+const FORMATS: [Format<'static>; 1] = [Format {
+    id: "onix_3.0",
+    name: "ONIX",
+    version: "3.0",
+}];
 
-fn all_platforms() -> Vec<Platform> {
-    vec![Platform {
-        id: "project_muse".to_string(),
-        name: "Project MUSE".to_string(),
-    }]
-}
+const PLATFORMS: [Platform<'static>; 1] = [Platform {
+    id: "project_muse",
+    name: "Project MUSE",
+}];
 
-fn all_outputs() -> Vec<Output> {
-    vec![Output {
-        id: "onix_3.0::project_muse".to_string(),
-        name: "Project MUSE ONIX 3.0".to_string(),
-        format_url: "https://localhost:8181/formats/onix_3.0".to_string(),
-        platform_url: "https://localhost:8181/platforms/project_muse".to_string(),
-    }]
-}
+const SPECIFICATIONS: [Specification<'static>; 1] = [Specification {
+    id: "onix_3.0::project_muse",
+    name: "Project MUSE ONIX 3.0",
+}];
 
 async fn index() -> HttpResponse {
     let html = rapidoc_source("/swagger.json");
@@ -82,20 +73,21 @@ async fn index() -> HttpResponse {
     description = "Full list of metadata formats that can be output by Thoth",
     tags(Formats)
 )]
-async fn formats() -> Result<Json<Vec<Format>>, ()> {
-    Ok(Json(all_formats()))
+async fn formats() -> Result<Json<[Format<'static>; 1]>, ()> {
+    Ok(Json(FORMATS))
 }
 
 #[api_v2_operation(
-summary = "Get a single format",
-description = "Find the details of a format that can be output by Thoth",
-tags(Formats)
+    summary = "Describe a metadata format",
+    description = "Find the details of a format that can be output by Thoth",
+    tags(Formats)
 )]
-async fn format(format_id: web::Path<String>) -> Result<Json<Format>, ()> {
-    // TODO: NotFound error
-    let all_formats = all_formats();
-    let id = format_id.into_inner();
-    all_formats.into_iter().find(|f| f.id == id).map(|f| Json(f)).ok_or(())
+async fn format(web::Path(format_id): web::Path<String>) -> Result<Json<Format<'static>>, Error> {
+    FORMATS
+        .iter()
+        .find(|f| f.id == format_id)
+        .map(|f| Json(f.clone()))
+        .ok_or_else(|| ErrorNotFound("Format not found"))
 }
 
 #[api_v2_operation(
@@ -103,76 +95,60 @@ async fn format(format_id: web::Path<String>) -> Result<Json<Format>, ()> {
     description = "Full list of platforms supported by Thoth's outputs",
     tags(Platforms)
 )]
-async fn platforms() -> Result<Json<Vec<Platform>>, ()> {
-    Ok(Json(all_platforms()))
+async fn platforms() -> Result<Json<[Platform<'static>; 1]>, ()> {
+    Ok(Json(PLATFORMS))
 }
 
 #[api_v2_operation(
-summary = "Get a single platform",
-description = "Find the details of a platform supported by Thoth's outpus",
-tags(Platforms)
+    summary = "Describe a platform",
+    description = "Find the details of a platform supported by Thoth's outputs",
+    tags(Platforms)
 )]
-async fn platform(platform_id: web::Path<String>) -> Result<Json<Platform>, ()> {
-    // TODO: NotFound error
-    let all_platforms = all_platforms();
-    let id = platform_id.into_inner();
-    all_platforms.into_iter().find(|p| p.id == id).map(|p| Json(p)).ok_or(())
+async fn platform(
+    web::Path(platform_id): web::Path<String>,
+) -> Result<Json<Platform<'static>>, Error> {
+    PLATFORMS
+        .iter()
+        .find(|p| p.id == platform_id)
+        .map(|p| Json(p.clone()))
+        .ok_or_else(|| ErrorNotFound("Platform not found"))
 }
 
 #[api_v2_operation(
-    summary = "List supported outputs",
-    description = "Full list of metadata standards that can be output by Thoth",
-    tags(Outputs)
+    summary = "List supported specifications",
+    description = "Full list of metadata specifications that can be output by Thoth",
+    tags(Specifications)
 )]
-async fn outputs() -> Result<Json<Vec<Output>>, ()> {
-    Ok(Json(all_outputs()))
+async fn specifications() -> Result<Json<[Specification<'static>; 1]>, ()> {
+    Ok(Json(SPECIFICATIONS))
 }
 
 #[api_v2_operation(
-    summary = "Get a single output format",
-    description = "Find the details of a metadata output given its ID",
-    tags(Outputs)
+    summary = "Describe a metadata specification",
+    description = "Find the details of a metadata specification that can be output by Thoth",
+    tags(Specifications)
 )]
-async fn output(output_id: web::Path<String>) -> Result<Json<Output>, ()> {
-    // TODO: NotFound error
-    let all_outputs = all_outputs();
-    let id = output_id.into_inner();
-    all_outputs.into_iter().find(|o| o.id == id).map(|o| Json(o)).ok_or(())
+async fn specification(
+    web::Path(specification_id): web::Path<String>,
+) -> Result<Json<Specification<'static>>, Error> {
+    SPECIFICATIONS
+        .iter()
+        .find(|s| s.id == specification_id)
+        .map(|s| Json(s.clone()))
+        .ok_or_else(|| ErrorNotFound("Specification not found"))
 }
 
 #[api_v2_operation(
-    summary = "Get a metadata output record",
-    description = "Obtain a metadata output record, given its ID, for a given work",
+    summary = "Get a work's metadata record",
+    description = "Obtain a metadata record that adheres to a particular specification for a given work",
     produces = "text/xml",
-    tags(Outputs)
+    tags(Specifications)
 )]
-async fn output_by_work(
-    _output_id: web::Path<String>,
-    work_id: web::Path<Uuid>,
+async fn specification_by_work(
+    web::Path((_specification_id, work_id)): web::Path<(String, Uuid)>,
     config: web::Data<ApiConfig>,
 ) -> Result<Xml<String>, Error> {
-    get_work(work_id.into_inner(), &config.graphql_endpoint)
-        .await
-        .and_then(generate_onix_3)
-        .and_then(|onix| {
-            String::from_utf8(onix)
-                .map_err(|_| ThothError::InternalError("Could not generate ONIX".to_string()))
-        })
-        .map(Xml)
-        .map_err(|e| e.into())
-}
-
-#[api_v2_operation(
-    summary = "Get ONIX file",
-    description = "Obtain an ONIX 3.0 file for a given work_id",
-    produces = "text/xml",
-    tags(Outputs)
-)]
-async fn onix_endpoint(
-    work_id: web::Path<Uuid>,
-    config: web::Data<ApiConfig>,
-) -> Result<Xml<String>, Error> {
-    get_work(work_id.into_inner(), &config.graphql_endpoint)
+    get_work(work_id, &config.graphql_endpoint)
         .await
         .and_then(generate_onix_3)
         .and_then(|onix| {
@@ -200,7 +176,7 @@ pub async fn start_server(host: String, port: String, gql_endpoint: String) -> i
                     external_docs: None,
                 },
                 Tag {
-                    name: "Outputs".to_string(),
+                    name: "Specifications".to_string(),
                     description: None,
                     external_docs: None,
                 },
@@ -224,9 +200,8 @@ pub async fn start_server(host: String, port: String, gql_endpoint: String) -> i
                 }),
                 license: Some(License {
                     name: Some(env!("CARGO_PKG_LICENSE").parse().unwrap()),
-                    url: None
+                    url: None,
                 }),
-                ..Default::default()
             },
             ..Default::default()
         };
@@ -243,10 +218,15 @@ pub async fn start_server(host: String, port: String, gql_endpoint: String) -> i
             .service(web::resource("/formats/{format_id}").route(web::get().to(format)))
             .service(web::resource("/platforms").route(web::get().to(platforms)))
             .service(web::resource("/platforms/{platform_id}").route(web::get().to(platform)))
-            .service(web::resource("/outputs").route(web::get().to(outputs)))
-            .service(web::resource("/outputs/{output_id}").route(web::get().to(output)))
-            .service(web::resource("/outputs/{output_id}/work/{work_id}").route(web::get().to(output_by_work)))
-            .service(web::resource("/onix/{work_id}").route(web::get().to(onix_endpoint)))
+            .service(web::resource("/specifications").route(web::get().to(specifications)))
+            .service(
+                web::resource("/specifications/{specification_id}")
+                    .route(web::get().to(specification)),
+            )
+            .service(
+                web::resource("/specifications/{specification_id}/work/{work_id}")
+                    .route(web::get().to(specification_by_work)),
+            )
             .with_json_spec_at("/swagger.json")
             .build()
     })
