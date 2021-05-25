@@ -178,18 +178,9 @@ async fn specification_by_work(
     web::Path((specification_id, work_id)): web::Path<(SpecificationId, Uuid)>,
     config: web::Data<ApiConfig>,
 ) -> Result<Xml<String>, Error> {
-    let specification = ALL_SPECIFICATIONS
-        .iter()
-        .find(|s| s.id == specification_id)
-        .ok_or(ThothError::EntityNotFound)
-        .unwrap();
-    let data = get_work(work_id, &config.graphql_endpoint).await?;
-    MetadataRecord::new(specification, data)
-        .generate()
-        .and_then(|onix| {
-            String::from_utf8(onix)
-                .map_err(|_| ThothError::InternalError("Could not generate ONIX".to_string()))
-        })
+    get_work(work_id, &config.graphql_endpoint)
+        .await
+        .and_then(|data| MetadataRecord::new(specification_id, data).generate())
         .map(Xml)
         .map_err(|e| e.into())
 }

@@ -1,5 +1,5 @@
 use crate::onix::generate_onix_3;
-use crate::{Specification, SpecificationId};
+use crate::SpecificationId;
 use thoth_api::errors::ThothResult;
 use thoth_client::work::work_query::WorkQueryWork;
 use thoth_client::work::works_query::WorksQueryWorks;
@@ -8,16 +8,16 @@ pub trait AsRecord {}
 impl AsRecord for WorkQueryWork {}
 impl AsRecord for WorksQueryWorks {}
 
-pub(crate) struct MetadataRecord<'a, T: AsRecord> {
+pub(crate) struct MetadataRecord<T: AsRecord> {
     data: T,
-    specification: &'a Specification<'a>,
+    specification: SpecificationId,
 }
 
-impl<T> MetadataRecord<'_, T>
+impl<T> MetadataRecord<T>
 where
     T: AsRecord,
 {
-    pub(crate) fn new(specification: &'static Specification, data: T) -> Self {
+    pub(crate) fn new(specification: SpecificationId, data: T) -> Self {
         MetadataRecord {
             data,
             specification,
@@ -25,13 +25,13 @@ where
     }
 }
 
-impl MetadataRecord<'_, WorkQueryWork> {
-    pub fn generate(self) -> ThothResult<Vec<u8>> {
-        match self.specification.id {
+impl MetadataRecord<WorkQueryWork> {
+    pub fn generate(self) -> ThothResult<String> {
+        match self.specification {
             SpecificationId::Onix3ProjectMuse => generate_onix_3(self.data),
             SpecificationId::CsvThoth => unimplemented!(),
         }
     }
 }
 
-impl MetadataRecord<'_, WorksQueryWorks> {}
+impl MetadataRecord<WorksQueryWorks> {}

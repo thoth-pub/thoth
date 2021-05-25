@@ -2,14 +2,14 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use chrono::prelude::Utc;
-use thoth_api::errors::ThothResult;
+use thoth_api::errors::{ThothError, ThothResult};
 use thoth_client::work::work_query::{
     ContributionType, LanguageRelation, PublicationType, SubjectType, WorkQueryWork,
     WorkQueryWorkPublications, WorkStatus,
 };
 use xml::writer::{events::StartElementBuilder, EmitterConfig, EventWriter, Result, XmlEvent};
 
-pub fn generate_onix_3(work: WorkQueryWork) -> ThothResult<Vec<u8>> {
+pub fn generate_onix_3(work: WorkQueryWork) -> ThothResult<String> {
     let mut buffer = Vec::new();
     let mut writer = EmitterConfig::new()
         .perform_indent(true)
@@ -17,6 +17,10 @@ pub fn generate_onix_3(work: WorkQueryWork) -> ThothResult<Vec<u8>> {
     handle_event(&mut writer, &work)
         .map(|_| buffer)
         .map_err(|e| e.into())
+        .and_then(|onix| {
+            String::from_utf8(onix)
+                .map_err(|_| ThothError::InternalError("Could not generate ONIX".to_string()))
+        })
 }
 
 fn string_to_static_str(s: String) -> &'static str {
