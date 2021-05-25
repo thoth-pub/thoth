@@ -15,11 +15,12 @@ use uuid::Uuid;
 
 mod onix;
 mod rapidoc;
+mod record;
 mod xml;
 
-use crate::onix::generate_onix_3;
 use crate::rapidoc::rapidoc_source;
 use crate::xml::Xml;
+use crate::record::MetadataRecord;
 
 struct ApiConfig {
     graphql_endpoint: String,
@@ -29,7 +30,7 @@ struct ApiConfig {
 struct Format<'a> {
     id: &'a str,
     name: &'a str,
-    version: &'a str,
+    version: Option<&'a str>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Apiv2Schema)]
@@ -39,26 +40,53 @@ struct Platform<'a> {
 }
 
 #[derive(Clone, Serialize, Deserialize, Apiv2Schema)]
-struct Specification<'a> {
-    id: &'a str,
+pub(crate) struct Specification<'a> {
+    id: SpecificationId,
     name: &'a str,
 }
 
-const ALL_FORMATS: [Format<'static>; 1] = [Format {
-    id: "onix_3.0",
-    name: "ONIX",
-    version: "3.0",
-}];
+#[derive(Clone, Serialize, Deserialize, PartialEq, Apiv2Schema)]
+pub enum SpecificationId {
+    #[serde(rename = "onix_3.0::project_muse")]
+    Onix3ProjectMuse,
+    #[serde(rename = "csv::thoth")]
+    CsvThoth,
+}
 
-const ALL_PLATFORMS: [Platform<'static>; 1] = [Platform {
-    id: "project_muse",
-    name: "Project MUSE",
-}];
+const ALL_FORMATS: [Format<'static>; 2] = [
+    Format {
+        id: "onix_3.0",
+        name: "ONIX",
+        version: Some("3.0"),
+    },
+    Format {
+        id: "csv",
+        name: "CSV",
+        version: None,
+    }
+];
 
-const ALL_SPECIFICATIONS: [Specification<'static>; 1] = [Specification {
-    id: "onix_3.0::project_muse",
-    name: "Project MUSE ONIX 3.0",
-}];
+const ALL_PLATFORMS: [Platform<'static>; 2] = [
+    Platform {
+        id: "thoth",
+        name: "Thoth",
+    },
+    Platform {
+        id: "project_muse",
+        name: "Project MUSE",
+    },
+];
+
+const ALL_SPECIFICATIONS: [Specification<'static>; 2] = [
+    Specification {
+        id: SpecificationId::Onix3ProjectMuse,
+        name: "Project MUSE ONIX 3.0",
+    },
+    Specification {
+        id: SpecificationId::CsvThoth,
+        name: "Thoth CSV",
+    },
+];
 
 async fn index() -> HttpResponse {
     let html = rapidoc_source("/swagger.json");
@@ -72,7 +100,7 @@ async fn index() -> HttpResponse {
     description = "Full list of metadata formats that can be output by Thoth",
     tags(Formats)
 )]
-async fn formats() -> Json<[Format<'static>; 1]> {
+async fn formats() -> Json<[Format<'static>; 2]> {
     Json(ALL_FORMATS)
 }
 
@@ -95,7 +123,7 @@ async fn format(web::Path(format_id): web::Path<String>) -> Result<Json<Format<'
     description = "Full list of platforms supported by Thoth's outputs",
     tags(Platforms)
 )]
-async fn platforms() -> Json<[Platform<'static>; 1]> {
+async fn platforms() -> Json<[Platform<'static>; 2]> {
     Json(ALL_PLATFORMS)
 }
 
@@ -120,7 +148,7 @@ async fn platform(
     description = "Full list of metadata specifications that can be output by Thoth",
     tags(Specifications)
 )]
-async fn specifications() -> Json<[Specification<'static>; 1]> {
+async fn specifications() -> Json<[Specification<'static>; 2]> {
     Json(ALL_SPECIFICATIONS)
 }
 
@@ -130,7 +158,7 @@ async fn specifications() -> Json<[Specification<'static>; 1]> {
     tags(Specifications)
 )]
 async fn specification(
-    web::Path(specification_id): web::Path<String>,
+    web::Path(specification_id): web::Path<SpecificationId>,
 ) -> Result<Json<Specification<'static>>, Error> {
     ALL_SPECIFICATIONS
         .iter()
@@ -147,12 +175,17 @@ async fn specification(
     tags(Specifications)
 )]
 async fn specification_by_work(
-    web::Path((_specification_id, work_id)): web::Path<(String, Uuid)>,
+    web::Path((specification_id, work_id)): web::Path<(SpecificationId, Uuid)>,
     config: web::Data<ApiConfig>,
 ) -> Result<Xml<String>, Error> {
-    get_work(work_id, &config.graphql_endpoint)
-        .await
-        .and_then(generate_onix_3)
+    let specification = ALL_SPECIFICATIONS
+        .iter()
+        .find(|s| s.id == specification_id)
+        .ok_or(ThothError::EntityNotFound)
+        .unwrap();
+    let data = get_work(work_id, &config.graphql_endpoint).await?;
+    MetadataRecord::new(specification, data)
+        .generate()
         .and_then(|onix| {
             String::from_utf8(onix)
                 .map_err(|_| ThothError::InternalError("Could not generate ONIX".to_string()))
