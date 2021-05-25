@@ -53,35 +53,28 @@ impl MetadataRecord<WorksQueryWorks> {
     }
 }
 
-impl Responder for MetadataRecord<WorkQueryWork>
-    where
-        actix_web::dev::Body: From<String>,
-{
-    type Error = Error; // TODO investigate replacing with ThothError
-    type Future = Ready<Result<HttpResponse, Error>>;
+macro_rules! paperclip_responder {
+    ($record_type:ident) => {
+        impl Responder for MetadataRecord<$record_type>
+        where
+                actix_web::dev::Body: From<String>,
+        {
+            type Error = Error; // TODO investigate replacing with ThothError
+            type Future = Ready<Result<HttpResponse, Error>>;
 
-    fn respond_to(self, _: &HttpRequest) -> Self::Future {
-        ready(Ok(HttpResponse::build(StatusCode::OK)
-            .content_type(self.content_type())
-            .header("Content-Disposition", "attachment")
-            .body(self.generate().unwrap())))
+            fn respond_to(self, _: &HttpRequest) -> Self::Future {
+                ready(Ok(HttpResponse::build(StatusCode::OK)
+                    .content_type(self.content_type())
+                    .header("Content-Disposition", "attachment")
+                    .body(self.generate().unwrap())))
+            }
+        }
     }
 }
 
-impl Responder for MetadataRecord<WorksQueryWorks>
-    where
-        actix_web::dev::Body: From<String>,
-{
-    type Error = Error; // TODO investigate replacing with ThothError
-    type Future = Ready<Result<HttpResponse, Error>>;
+paperclip_responder!(WorkQueryWork);
+paperclip_responder!(WorksQueryWorks);
 
-    fn respond_to(self, _: &HttpRequest) -> Self::Future {
-        ready(Ok(HttpResponse::build(StatusCode::OK)
-            .content_type(self.content_type())
-            .header("Content-Disposition", "attachment")
-            .body(self.generate().unwrap())))
-    }
-}
 
 impl<T: AsRecord> Apiv2Schema for MetadataRecord<T> {}
 
