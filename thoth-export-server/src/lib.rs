@@ -11,16 +11,15 @@ use paperclip::v2::models::{Contact, DefaultApiRaw, Info, License, Tag};
 use serde::{Deserialize, Serialize};
 use thoth_api::errors::ThothError;
 use thoth_client::work::get_work;
+use thoth_client::work::work_query::WorkQueryWork;
 use uuid::Uuid;
 
 mod onix;
 mod rapidoc;
 mod record;
-mod xml;
 
 use crate::rapidoc::rapidoc_source;
 use crate::record::MetadataRecord;
-use crate::xml::Xml;
 
 struct ApiConfig {
     graphql_endpoint: String,
@@ -177,11 +176,10 @@ async fn specification(
 async fn specification_by_work(
     web::Path((specification_id, work_id)): web::Path<(SpecificationId, Uuid)>,
     config: web::Data<ApiConfig>,
-) -> Result<Xml<String>, Error> {
+) -> Result<MetadataRecord<WorkQueryWork>, Error> {
     get_work(work_id, &config.graphql_endpoint)
         .await
-        .and_then(|data| MetadataRecord::new(specification_id, data).generate())
-        .map(Xml)
+        .map(|data| MetadataRecord::new(specification_id, data))
         .map_err(|e| e.into())
 }
 
