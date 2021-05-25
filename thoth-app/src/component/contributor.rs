@@ -46,6 +46,8 @@ use crate::string::SAVE_BUTTON;
 
 pub struct ContributorComponent {
     contributor: Contributor,
+    // Track the user-entered ORCID string, which may not be validly formatted
+    orcid: String,
     fetch_contributor: FetchContributor,
     push_contributor: PushUpdateContributor,
     delete_contributor: PushDeleteContributor,
@@ -94,6 +96,7 @@ impl Component for ContributorComponent {
         let delete_contributor = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
+        let orcid = Default::default();
         let router = RouteAgentDispatcher::new();
         let mut _contributor_activity_checker =
             ContributorActivityChecker::bridge(link.callback(Msg::GetContributorActivity));
@@ -106,6 +109,7 @@ impl Component for ContributorComponent {
 
         ContributorComponent {
             contributor,
+            orcid,
             fetch_contributor,
             push_contributor,
             delete_contributor,
@@ -141,6 +145,13 @@ impl Component for ContributorComponent {
                             Some(c) => c.to_owned(),
                             None => Default::default(),
                         };
+                        // Initialise user-entered ORCID variable to match ORCID in database
+                        self.orcid = self
+                            .contributor
+                            .orcid
+                            .clone()
+                            .unwrap_or_default()
+                            .to_string();
                         true
                     }
                     FetchState::Failed(_, _err) => false,
@@ -160,6 +171,13 @@ impl Component for ContributorComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.update_contributor {
                         Some(c) => {
+                            // Save was successful: update user-entered ORCID variable to match ORCID in database
+                            self.orcid = self
+                                .contributor
+                                .orcid
+                                .clone()
+                                .unwrap_or_default()
+                                .to_string();
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!("Saved {}", c.full_name),
                                 NotificationStatus::Success,
@@ -269,24 +287,23 @@ impl Component for ContributorComponent {
                 .full_name
                 .neq_assign(full_name.trim().to_owned()),
             Msg::ChangeOrcid(value) => {
-                // Check ORCID is correctly formatted before proceeding with save.
-                // If no ORCID was provided, no check is required.
-                let mut parsed_orcid = None;
-                let mut ok_to_save = true;
-                if !value.trim().is_empty() {
-                    match value.parse::<Orcid>() {
-                        Ok(result) => parsed_orcid = Some(result),
-                        Err(err) => {
-                            ok_to_save = false;
-                            self.notification_bus.send(Request::NotificationBusMsg((
+                if self.orcid.neq_assign(value.trim().to_owned()) {
+                    // Check ORCID is correctly formatted before updating structure.
+                    // If no ORCID was provided, no check is required.
+                    if self.orcid.trim().is_empty() {
+                        self.contributor.orcid.neq_assign(None);
+                    } else {
+                        match self.orcid.parse::<Orcid>() {
+                            Ok(result) => {
+                                let _ = self.contributor.orcid.neq_assign(Some(result));
+                            }
+                            Err(err) => self.notification_bus.send(Request::NotificationBusMsg((
                                 err.to_string(),
                                 NotificationStatus::Danger,
-                            )))
-                        }
+                            ))),
+                        };
                     }
-                };
-                if ok_to_save {
-                    self.contributor.orcid.neq_assign(parsed_orcid)
+                    true
                 } else {
                     false
                 }
@@ -381,7 +398,7 @@ impl Component for ContributorComponent {
                             />
                             <FormTextInput
                                 label = "ORCID"
-                                value=self.contributor.orcid.as_ref().map(|s| s.to_string())
+                                value=&self.orcid
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
                             />
                             <FormUrlInput

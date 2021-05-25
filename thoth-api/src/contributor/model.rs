@@ -149,6 +149,14 @@ impl fmt::Display for Contributor {
     }
 }
 
+impl Default for Orcid {
+    fn default() -> Orcid {
+        Orcid {
+            0: Default::default(),
+        }
+    }
+}
+
 impl fmt::Display for Orcid {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", &self.0.replace(ORCID_DOMAIN, ""))
@@ -241,6 +249,12 @@ fn test_contributorfield_fromstr() {
     assert!(ContributorField::from_str("ContributorID").is_err());
     assert!(ContributorField::from_str("Biography").is_err());
     assert!(ContributorField::from_str("Institution").is_err());
+}
+
+#[test]
+fn test_orcid_default() {
+    let orcid: Orcid = Default::default();
+    assert_eq!(orcid, Orcid { 0: "".to_string() });
 }
 
 #[test]
