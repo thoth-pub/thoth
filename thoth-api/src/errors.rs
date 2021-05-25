@@ -29,7 +29,10 @@ pub enum ThothError {
     EntityNotFound,
     #[fail(display = "Issue's Work and Series cannot have different Imprints.")]
     IssueImprintsError,
-    #[fail(display = "{} is not a validly formatted {}", _0, _1)]
+    #[fail(
+        display = "{} is not a validly formatted {} and will not be saved",
+        _0, _1
+    )]
     IdentifierParseError(String, String),
 }
 

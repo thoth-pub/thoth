@@ -21,6 +21,7 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::delete_dialogue::ConfirmDeleteComponent;
 use crate::component::utils::FormTextInput;
+use crate::component::utils::FormTextInputTooltip;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
 use crate::models::contributor::contributor_activity_query::ContributorActivityResponseData;
@@ -48,6 +49,7 @@ pub struct ContributorComponent {
     contributor: Contributor,
     // Track the user-entered ORCID string, which may not be validly formatted
     orcid: String,
+    orcid_warning: String,
     fetch_contributor: FetchContributor,
     push_contributor: PushUpdateContributor,
     delete_contributor: PushDeleteContributor,
@@ -97,6 +99,7 @@ impl Component for ContributorComponent {
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
         let orcid = Default::default();
+        let orcid_warning = Default::default();
         let router = RouteAgentDispatcher::new();
         let mut _contributor_activity_checker =
             ContributorActivityChecker::bridge(link.callback(Msg::GetContributorActivity));
@@ -110,6 +113,7 @@ impl Component for ContributorComponent {
         ContributorComponent {
             contributor,
             orcid,
+            orcid_warning,
             fetch_contributor,
             push_contributor,
             delete_contributor,
@@ -178,6 +182,7 @@ impl Component for ContributorComponent {
                                 .clone()
                                 .unwrap_or_default()
                                 .to_string();
+                            self.orcid_warning.clear();
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!("Saved {}", c.full_name),
                                 NotificationStatus::Success,
@@ -292,15 +297,16 @@ impl Component for ContributorComponent {
                     // If no ORCID was provided, no check is required.
                     if self.orcid.trim().is_empty() {
                         self.contributor.orcid.neq_assign(None);
+                        self.orcid_warning.clear();
                     } else {
                         match self.orcid.parse::<Orcid>() {
                             Ok(result) => {
-                                let _ = self.contributor.orcid.neq_assign(Some(result));
+                                self.contributor.orcid.neq_assign(Some(result));
+                                self.orcid_warning.clear();
                             }
-                            Err(err) => self.notification_bus.send(Request::NotificationBusMsg((
-                                err.to_string(),
-                                NotificationStatus::Danger,
-                            ))),
+                            Err(err) => {
+                                self.orcid_warning = err.to_string();
+                            }
                         };
                     }
                     true
@@ -396,9 +402,10 @@ impl Component for ContributorComponent {
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
                                 required = true
                             />
-                            <FormTextInput
+                            <FormTextInputTooltip
                                 label = "ORCID"
                                 value=&self.orcid
+                                tooltip=&self.orcid_warning
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
                             />
                             <FormUrlInput
