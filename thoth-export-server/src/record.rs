@@ -1,14 +1,14 @@
 use crate::onix::generate_onix_3;
 use crate::SpecificationId;
-use thoth_api::errors::ThothResult;
-use thoth_client::work::work_query::WorkQueryWork;
-use thoth_client::work::works_query::WorksQueryWorks;
+use actix_web::{http::StatusCode, HttpRequest, Responder};
 use paperclip::actix::web::HttpResponse;
 use paperclip::actix::OperationModifier;
 use paperclip::util::{ready, Ready};
 use paperclip::v2::models::{DefaultOperationRaw, Either, Response};
 use paperclip::v2::schema::Apiv2Schema;
-use actix_web::{http::StatusCode, Error, HttpRequest, Responder};
+use thoth_api::errors::{ThothError, ThothResult};
+use thoth_client::work::work_query::WorkQueryWork;
+use thoth_client::work::works_query::WorksQueryWorks;
 
 pub trait AsRecord {}
 impl AsRecord for WorkQueryWork {}
@@ -57,10 +57,10 @@ macro_rules! paperclip_responder {
     ($record_type:ident) => {
         impl Responder for MetadataRecord<$record_type>
         where
-                actix_web::dev::Body: From<String>,
+            actix_web::dev::Body: From<String>,
         {
-            type Error = Error; // TODO investigate replacing with ThothError
-            type Future = Ready<Result<HttpResponse, Error>>;
+            type Error = ThothError;
+            type Future = Ready<ThothResult<HttpResponse>>;
 
             fn respond_to(self, _: &HttpRequest) -> Self::Future {
                 ready(Ok(HttpResponse::build(StatusCode::OK)
@@ -69,12 +69,11 @@ macro_rules! paperclip_responder {
                     .body(self.generate().unwrap())))
             }
         }
-    }
+    };
 }
 
 paperclip_responder!(WorkQueryWork);
 paperclip_responder!(WorksQueryWorks);
-
 
 impl<T: AsRecord> Apiv2Schema for MetadataRecord<T> {}
 
