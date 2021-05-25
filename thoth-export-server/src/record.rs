@@ -1,8 +1,8 @@
+use crate::onix::generate_onix_3;
 use crate::{Specification, SpecificationId};
+use thoth_api::errors::ThothResult;
 use thoth_client::work::work_query::WorkQueryWork;
 use thoth_client::work::works_query::WorksQueryWorks;
-use thoth_api::errors::ThothResult;
-use crate::onix::generate_onix_3;
 
 pub trait AsRecord {}
 impl AsRecord for WorkQueryWork {}
@@ -24,7 +24,6 @@ where
         }
     }
 }
-
 
 impl MetadataRecord<'_, WorkQueryWork> {
     pub fn generate(self) -> ThothResult<Vec<u8>> {

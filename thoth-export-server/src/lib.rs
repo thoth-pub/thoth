@@ -19,8 +19,8 @@ mod record;
 mod xml;
 
 use crate::rapidoc::rapidoc_source;
-use crate::xml::Xml;
 use crate::record::MetadataRecord;
+use crate::xml::Xml;
 
 struct ApiConfig {
     graphql_endpoint: String,
@@ -63,7 +63,7 @@ const ALL_FORMATS: [Format<'static>; 2] = [
         id: "csv",
         name: "CSV",
         version: None,
-    }
+    },
 ];
 
 const ALL_PLATFORMS: [Platform<'static>; 2] = [

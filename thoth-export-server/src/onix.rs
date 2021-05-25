@@ -4,13 +4,8 @@ use std::io::Write;
 use chrono::prelude::Utc;
 use thoth_api::errors::ThothResult;
 use thoth_client::work::work_query::{
-    ContributionType,
-    LanguageRelation,
-    PublicationType,
-    SubjectType,
-    WorkQueryWork,
-    WorkQueryWorkPublications,
-    WorkStatus,
+    ContributionType, LanguageRelation, PublicationType, SubjectType, WorkQueryWork,
+    WorkQueryWorkPublications, WorkStatus,
 };
 use xml::writer::{events::StartElementBuilder, EmitterConfig, EventWriter, Result, XmlEvent};
 
