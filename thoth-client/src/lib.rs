@@ -41,15 +41,7 @@ impl ThothClient {
         let res = self.post_request(&request_body).await.await?;
         let response_body: Response<work_query::ResponseData> = res.json().await?;
         match response_body.data {
-            Some(data) => {
-                if let Some(errors) = response_body.errors {
-                    println!("there are errors:");
-                    for error in &errors {
-                        println!("{:?}", error);
-                    }
-                }
-                Ok(data.work.work)
-            }
+            Some(data) => Ok(data.work.work),
             None => Err(ThothError::EntityNotFound),
         }
     }
@@ -59,16 +51,8 @@ impl ThothClient {
         let res = self.post_request(&request_body).await.await?;
         let response_body: Response<works_query::ResponseData> = res.json().await?;
         match response_body.data {
-            Some(data) => {
-                if let Some(errors) = response_body.errors {
-                    println!("there are errors:");
-                    for error in &errors {
-                        println!("{:?}", error);
-                    }
-                }
-                Ok(data.works.iter().map(|w| w.work.clone().into()).collect())
-            }
-            _ => Err(ThothError::InternalError("Query failed".to_string())),
+            Some(data) => Ok(data.works.iter().map(|w| w.work.clone().into()).collect()), // convert works_query::Work into work_query::Work
+            None => Err(ThothError::EntityNotFound),
         }
     }
 }
