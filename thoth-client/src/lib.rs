@@ -1,15 +1,15 @@
 #[allow(clippy::upper_case_acronyms)]
 mod queries;
 
-use uuid::Uuid;
-use thoth_api::errors::{ThothResult, ThothError};
+use graphql_client::GraphQLQuery;
 use graphql_client::Response;
 use serde::Serialize;
 use std::future::Future;
-use graphql_client::GraphQLQuery;
+use thoth_api::errors::{ThothError, ThothResult};
+use uuid::Uuid;
 
-pub use crate::queries::work_query::{Work, ContributionType, LanguageRelation, PublicationType, SubjectType, WorkPublications, WorkStatus};
-use crate::queries::{WorkQuery, work_query, WorksQuery, works_query};
+pub use crate::queries::work_query::*;
+use crate::queries::{work_query, works_query, WorkQuery, WorksQuery};
 
 type HttpFuture = Result<reqwest::Response, reqwest::Error>;
 
@@ -26,8 +26,14 @@ impl ThothClient {
         }
     }
 
-    async fn post_request<T: Serialize + ?Sized>(self, request_body: &T) -> impl Future<Output = HttpFuture> {
-        self.http_client.post(&self.graphql_endpoint).json(&request_body).send()
+    async fn post_request<T: Serialize + ?Sized>(
+        self,
+        request_body: &T,
+    ) -> impl Future<Output = HttpFuture> {
+        self.http_client
+            .post(&self.graphql_endpoint)
+            .json(&request_body)
+            .send()
     }
 
     pub async fn get_work(self, work_id: Uuid) -> ThothResult<Work> {
@@ -48,10 +54,7 @@ impl ThothClient {
         }
     }
 
-    pub async fn get_works(
-        self,
-        publishers: Option<Vec<Uuid>>,
-    ) -> ThothResult<Vec<Work>> {
+    pub async fn get_works(self, publishers: Option<Vec<Uuid>>) -> ThothResult<Vec<Work>> {
         let request_body = WorksQuery::build_query(works_query::Variables { publishers });
         let res = self.post_request(&request_body).await.await?;
         let response_body: Response<works_query::ResponseData> = res.json().await?;
