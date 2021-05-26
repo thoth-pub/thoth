@@ -1,5 +1,5 @@
 use crate::onix::generate_onix_3;
-use crate::SpecificationId;
+use crate::specification::model::SpecificationId;
 use actix_web::{http::StatusCode, HttpRequest, Responder};
 use paperclip::actix::web::HttpResponse;
 use paperclip::actix::OperationModifier;
