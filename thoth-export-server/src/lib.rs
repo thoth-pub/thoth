@@ -18,19 +18,13 @@ mod onix;
 mod rapidoc;
 mod record;
 mod platform;
+mod format;
 
 use crate::rapidoc::rapidoc_source;
 use crate::record::MetadataRecord;
 
 struct ApiConfig {
     graphql_endpoint: String,
-}
-
-#[derive(Clone, Serialize, Deserialize, Apiv2Schema)]
-struct Format<'a> {
-    id: &'a str,
-    name: &'a str,
-    version: Option<&'a str>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Apiv2Schema)]
@@ -46,19 +40,6 @@ pub enum SpecificationId {
     #[serde(rename = "csv::thoth")]
     CsvThoth,
 }
-
-const ALL_FORMATS: [Format<'static>; 2] = [
-    Format {
-        id: "onix_3.0",
-        name: "ONIX",
-        version: Some("3.0"),
-    },
-    Format {
-        id: "csv",
-        name: "CSV",
-        version: None,
-    },
-];
 
 const ALL_SPECIFICATIONS: [Specification<'static>; 2] = [
     Specification {
@@ -76,29 +57,6 @@ async fn index() -> HttpResponse {
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(html)
-}
-
-#[api_v2_operation(
-    summary = "List supported formats",
-    description = "Full list of metadata formats that can be output by Thoth",
-    tags(Formats)
-)]
-async fn formats() -> Json<[Format<'static>; 2]> {
-    Json(ALL_FORMATS)
-}
-
-#[api_v2_operation(
-    summary = "Describe a metadata format",
-    description = "Find the details of a format that can be output by Thoth",
-    tags(Formats)
-)]
-async fn format(web::Path(format_id): web::Path<String>) -> Result<Json<Format<'static>>, Error> {
-    ALL_FORMATS
-        .iter()
-        .find(|f| f.id == format_id)
-        .map(|f| Json(f.clone()))
-        .ok_or(ThothError::EntityNotFound)
-        .map_err(|e| e.into())
 }
 
 #[api_v2_operation(
@@ -197,9 +155,8 @@ pub async fn start_server(host: String, port: String, gql_endpoint: String) -> i
             })
             .service(actix_web::web::resource("/").route(actix_web::web::get().to(index)))
             .wrap_api_with_spec(spec)
+            .configure(format::route)
             .configure(platform::route)
-            .service(web::resource("/formats").route(web::get().to(formats)))
-            .service(web::resource("/formats/{format_id}").route(web::get().to(format)))
             .service(web::resource("/specifications").route(web::get().to(specifications)))
             .service(
                 web::resource("/specifications/{specification_id}")
