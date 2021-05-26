@@ -17,6 +17,7 @@ use uuid::Uuid;
 mod onix;
 mod rapidoc;
 mod record;
+mod platform;
 
 use crate::rapidoc::rapidoc_source;
 use crate::record::MetadataRecord;
@@ -30,12 +31,6 @@ struct Format<'a> {
     id: &'a str,
     name: &'a str,
     version: Option<&'a str>,
-}
-
-#[derive(Clone, Serialize, Deserialize, Apiv2Schema)]
-struct Platform<'a> {
-    id: &'a str,
-    name: &'a str,
 }
 
 #[derive(Clone, Serialize, Deserialize, Apiv2Schema)]
@@ -62,17 +57,6 @@ const ALL_FORMATS: [Format<'static>; 2] = [
         id: "csv",
         name: "CSV",
         version: None,
-    },
-];
-
-const ALL_PLATFORMS: [Platform<'static>; 2] = [
-    Platform {
-        id: "thoth",
-        name: "Thoth",
-    },
-    Platform {
-        id: "project_muse",
-        name: "Project MUSE",
     },
 ];
 
@@ -113,31 +97,6 @@ async fn format(web::Path(format_id): web::Path<String>) -> Result<Json<Format<'
         .iter()
         .find(|f| f.id == format_id)
         .map(|f| Json(f.clone()))
-        .ok_or(ThothError::EntityNotFound)
-        .map_err(|e| e.into())
-}
-
-#[api_v2_operation(
-    summary = "List supported platforms",
-    description = "Full list of platforms supported by Thoth's outputs",
-    tags(Platforms)
-)]
-async fn platforms() -> Json<[Platform<'static>; 2]> {
-    Json(ALL_PLATFORMS)
-}
-
-#[api_v2_operation(
-    summary = "Describe a platform",
-    description = "Find the details of a platform supported by Thoth's outputs",
-    tags(Platforms)
-)]
-async fn platform(
-    web::Path(platform_id): web::Path<String>,
-) -> Result<Json<Platform<'static>>, Error> {
-    ALL_PLATFORMS
-        .iter()
-        .find(|p| p.id == platform_id)
-        .map(|p| Json(p.clone()))
         .ok_or(ThothError::EntityNotFound)
         .map_err(|e| e.into())
 }
@@ -238,10 +197,9 @@ pub async fn start_server(host: String, port: String, gql_endpoint: String) -> i
             })
             .service(actix_web::web::resource("/").route(actix_web::web::get().to(index)))
             .wrap_api_with_spec(spec)
+            .configure(platform::route)
             .service(web::resource("/formats").route(web::get().to(formats)))
             .service(web::resource("/formats/{format_id}").route(web::get().to(format)))
-            .service(web::resource("/platforms").route(web::get().to(platforms)))
-            .service(web::resource("/platforms/{platform_id}").route(web::get().to(platform)))
             .service(web::resource("/specifications").route(web::get().to(specifications)))
             .service(
                 web::resource("/specifications/{specification_id}")
