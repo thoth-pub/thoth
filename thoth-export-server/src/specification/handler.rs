@@ -8,7 +8,7 @@ use thoth_api::errors::ThothError;
 use super::model::Specification;
 use crate::record::MetadataRecord;
 use crate::ApiConfig;
-use thoth_client::work::{get_work, work_query::WorkQueryWork};
+use thoth_client::work::{get_work, work_query::Work};
 use uuid::Uuid;
 
 const ALL_SPECIFICATIONS: [Specification<'static>; 2] = [
@@ -56,7 +56,7 @@ pub(crate) async fn get_one(
 pub(crate) async fn by_work(
     web::Path((specification_id, work_id)): web::Path<(String, Uuid)>,
     config: web::Data<ApiConfig>,
-) -> Result<MetadataRecord<WorkQueryWork>, Error> {
+) -> Result<MetadataRecord<Work>, Error> {
     get_work(work_id, &config.graphql_endpoint)
         .await
         .and_then(|data| {

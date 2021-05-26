@@ -1,0 +1,56 @@
+fragment Work on Work {
+    workId
+    workStatus
+    fullTitle
+    title
+    subtitle
+    workType
+    doi
+    license
+    longAbstract
+    place
+    pageCount
+    publicationDate
+    landingPage
+    toc
+    imprint {
+        imprintName
+        publisher {
+            publisherName
+        }
+    }
+    contributions {
+        contributionType
+        firstName
+        lastName
+        fullName
+        contributor {
+            orcid
+        }
+    }
+    languages {
+        languageCode
+        languageRelation
+    }
+    publications {
+        publicationId
+        publicationType
+        publicationUrl
+        isbn
+    }
+    subjects {
+        subjectCode
+        subjectType
+    }
+}
+
+query WorkQuery($workId: Uuid!) {
+    work(workId: $workId) {
+        ...Work
+    }
+}
+query WorksQuery($publishers: [Uuid!]) {
+    works(limit: 99999, publishers: $publishers) {
+        ...Work
+    }
+}

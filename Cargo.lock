@@ -3933,6 +3933,7 @@ dependencies = [
  "graphql_client",
  "reqwest 0.10.3",
  "serde",
+ "serde_json",
  "thoth-api",
  "uuid 0.7.4",
 ]

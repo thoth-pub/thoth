@@ -4,12 +4,12 @@ use std::io::Write;
 use chrono::prelude::Utc;
 use thoth_api::errors::{ThothError, ThothResult};
 use thoth_client::work::work_query::{
-    ContributionType, LanguageRelation, PublicationType, SubjectType, WorkQueryWork,
-    WorkQueryWorkPublications, WorkStatus,
+    ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkPublications,
+    WorkStatus,
 };
 use xml::writer::{events::StartElementBuilder, EmitterConfig, EventWriter, Result, XmlEvent};
 
-pub fn generate_onix_3(work: WorkQueryWork) -> ThothResult<String> {
+pub fn generate_onix_3(work: Work) -> ThothResult<String> {
     let mut buffer = Vec::new();
     let mut writer = EmitterConfig::new()
         .perform_indent(true)
@@ -83,9 +83,7 @@ fn wstatus_to_status(work_status: &WorkStatus) -> &str {
     }
 }
 
-fn get_publications_data(
-    publications: &[WorkQueryWorkPublications],
-) -> (String, String, Vec<String>) {
+fn get_publications_data(publications: &[WorkPublications]) -> (String, String, Vec<String>) {
     let mut main_isbn = "".to_string();
     let mut pdf_url = "".to_string();
     let mut isbns: Vec<String> = Vec::new();
@@ -146,7 +144,7 @@ fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
     w.write(event)
 }
 
-fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &WorkQueryWork) -> Result<()> {
+fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &Work) -> Result<()> {
     let ns_map: HashMap<String, String> = HashMap::new();
     let mut attr_map: HashMap<String, String> = HashMap::new();
 

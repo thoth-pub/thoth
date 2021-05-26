@@ -7,14 +7,13 @@ use paperclip::v2::models::{DefaultOperationRaw, Either, Response};
 use paperclip::v2::schema::Apiv2Schema;
 use std::str::FromStr;
 use thoth_api::errors::{ThothError, ThothResult};
-use thoth_client::work::work_query::WorkQueryWork;
-use thoth_client::work::works_query::WorksQueryWorks;
+use thoth_client::work::work_query::Work;
 
-pub trait AsRecord {}
-impl AsRecord for WorkQueryWork {}
-impl AsRecord for WorksQueryWorks {}
+pub(crate) trait AsRecord {}
+impl AsRecord for Work {}
+impl AsRecord for Vec<Work> {}
 
-pub enum MetadataSpecification {
+pub(crate) enum MetadataSpecification {
     Onix3ProjectMuse,
     CsvThoth,
 }
@@ -43,7 +42,7 @@ where
     }
 }
 
-impl MetadataRecord<WorkQueryWork> {
+impl MetadataRecord<Work> {
     fn generate(self) -> ThothResult<String> {
         match self.specification {
             MetadataSpecification::Onix3ProjectMuse => generate_onix_3(self.data),
@@ -52,14 +51,14 @@ impl MetadataRecord<WorkQueryWork> {
     }
 }
 
-impl MetadataRecord<WorksQueryWorks> {
+impl MetadataRecord<Vec<Work>> {
     fn generate(self) -> ThothResult<String> {
         unimplemented!()
     }
 }
 
 macro_rules! paperclip_responder {
-    ($record_type:ident) => {
+    ($record_type:ty) => {
         impl Responder for MetadataRecord<$record_type>
         where
             actix_web::dev::Body: From<String>,
@@ -77,8 +76,8 @@ macro_rules! paperclip_responder {
     };
 }
 
-paperclip_responder!(WorkQueryWork);
-paperclip_responder!(WorksQueryWorks);
+paperclip_responder!(Work);
+paperclip_responder!(Vec<Work>);
 
 impl<T: AsRecord> Apiv2Schema for MetadataRecord<T> {}
 
