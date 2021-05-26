@@ -29,6 +29,8 @@ pub enum ThothError {
     EntityNotFound,
     #[fail(display = "Issue's Work and Series cannot have different Imprints.")]
     IssueImprintsError,
+    #[fail(display = "{} is not a valid metadata specification", _0)]
+    InvalidMetadataSpecification(String),
 }
 
 impl juniper::IntoFieldError for ThothError {

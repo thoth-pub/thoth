@@ -1,11 +1,11 @@
 use crate::onix::generate_onix_3;
-use crate::specification::model::SpecificationId;
 use actix_web::{http::StatusCode, HttpRequest, Responder};
 use paperclip::actix::web::HttpResponse;
 use paperclip::actix::OperationModifier;
 use paperclip::util::{ready, Ready};
 use paperclip::v2::models::{DefaultOperationRaw, Either, Response};
 use paperclip::v2::schema::Apiv2Schema;
+use std::str::FromStr;
 use thoth_api::errors::{ThothError, ThothResult};
 use thoth_client::work::work_query::WorkQueryWork;
 use thoth_client::work::works_query::WorksQueryWorks;
@@ -14,16 +14,21 @@ pub trait AsRecord {}
 impl AsRecord for WorkQueryWork {}
 impl AsRecord for WorksQueryWorks {}
 
+pub enum MetadataSpecification {
+    Onix3ProjectMuse,
+    CsvThoth,
+}
+
 pub(crate) struct MetadataRecord<T: AsRecord> {
     data: T,
-    specification: SpecificationId,
+    specification: MetadataSpecification,
 }
 
 impl<T> MetadataRecord<T>
 where
     T: AsRecord,
 {
-    pub(crate) fn new(specification: SpecificationId, data: T) -> Self {
+    pub(crate) fn new(specification: MetadataSpecification, data: T) -> Self {
         MetadataRecord {
             data,
             specification,
@@ -32,8 +37,8 @@ where
 
     fn content_type(&self) -> &'static str {
         match self.specification {
-            SpecificationId::Onix3ProjectMuse => "text/xml; charset=utf-8",
-            SpecificationId::CsvThoth => "text/csv; charset=utf-8",
+            MetadataSpecification::Onix3ProjectMuse => "text/xml; charset=utf-8",
+            MetadataSpecification::CsvThoth => "text/csv; charset=utf-8",
         }
     }
 }
@@ -41,8 +46,8 @@ where
 impl MetadataRecord<WorkQueryWork> {
     fn generate(self) -> ThothResult<String> {
         match self.specification {
-            SpecificationId::Onix3ProjectMuse => generate_onix_3(self.data),
-            SpecificationId::CsvThoth => unimplemented!(),
+            MetadataSpecification::Onix3ProjectMuse => generate_onix_3(self.data),
+            MetadataSpecification::CsvThoth => unimplemented!(),
         }
     }
 }
@@ -91,5 +96,17 @@ where
                 ..Default::default()
             }),
         );
+    }
+}
+
+impl FromStr for MetadataSpecification {
+    type Err = ThothError;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        match input {
+            "onix_3.0::project_muse" => Ok(MetadataSpecification::Onix3ProjectMuse),
+            "csv::thoth" => Ok(MetadataSpecification::CsvThoth),
+            _ => Err(ThothError::InvalidMetadataSpecification(input.to_string())),
+        }
     }
 }

@@ -8,6 +8,6 @@ pub(crate) fn route(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/platforms")
             .service(web::resource("/").route(web::get().to(get_all)))
-            .service(web::resource("/{platform_id}").route(web::get().to(get_one)))
+            .service(web::resource("/{platform_id}").route(web::get().to(get_one))),
     );
 }

@@ -1,6 +1,9 @@
-use paperclip::actix::{web::{self, Json}, api_v2_operation};
-use thoth_api::errors::ThothError;
 use actix_web::Error;
+use paperclip::actix::{
+    api_v2_operation,
+    web::{self, Json},
+};
+use thoth_api::errors::ThothError;
 
 use super::model::Format;
 
@@ -18,20 +21,22 @@ const ALL_FORMATS: [Format<'static>; 2] = [
 ];
 
 #[api_v2_operation(
-summary = "List supported formats",
-description = "Full list of metadata formats that can be output by Thoth",
-tags(Formats)
+    summary = "List supported formats",
+    description = "Full list of metadata formats that can be output by Thoth",
+    tags(Formats)
 )]
 pub(crate) async fn get_all() -> Json<[Format<'static>; 2]> {
     Json(ALL_FORMATS)
 }
 
 #[api_v2_operation(
-summary = "Describe a metadata format",
-description = "Find the details of a format that can be output by Thoth",
-tags(Formats)
+    summary = "Describe a metadata format",
+    description = "Find the details of a format that can be output by Thoth",
+    tags(Formats)
 )]
-pub(crate) async fn get_one(web::Path(format_id): web::Path<String>) -> Result<Json<Format<'static>>, Error> {
+pub(crate) async fn get_one(
+    web::Path(format_id): web::Path<String>,
+) -> Result<Json<Format<'static>>, Error> {
     ALL_FORMATS
         .iter()
         .find(|f| f.id == format_id)
