@@ -57,11 +57,9 @@ pub(crate) async fn by_work(
     web::Path((specification_id, work_id)): web::Path<(String, Uuid)>,
     config: web::Data<ApiConfig>,
 ) -> Result<MetadataRecord<WorkQueryWork>, Error> {
-    match specification_id.parse() {
-        Ok(specification) => get_work(work_id, &config.graphql_endpoint)
-            .await
-            .map(|data| MetadataRecord::new(specification, data))
-            .map_err(|e| e.into()),
-        Err(e) => Err(e.into()),
-    }
+    let specification = specification_id.parse()?;
+    get_work(work_id, &config.graphql_endpoint)
+        .await
+        .map(|data| MetadataRecord::new(specification, data))
+        .map_err(|e| e.into())
 }
