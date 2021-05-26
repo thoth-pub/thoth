@@ -6,8 +6,8 @@ use paperclip::actix::web;
 
 pub(crate) fn route(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/platforms")
+        web::scope("/formats")
             .service(web::resource("/").route(web::get().to(get_all)))
-            .service(web::resource("/{platform_id}").route(web::get().to(get_one)))
+            .service(web::resource("/{format_id}").route(web::get().to(get_one)))
     );
 }
