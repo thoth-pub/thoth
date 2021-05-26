@@ -3,7 +3,7 @@ use std::io::Write;
 
 use chrono::prelude::Utc;
 use thoth_api::errors::{ThothError, ThothResult};
-use thoth_client::work::work_query::{
+use thoth_client::{
     ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkPublications,
     WorkStatus,
 };

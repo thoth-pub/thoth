@@ -7,7 +7,7 @@ use paperclip::v2::models::{DefaultOperationRaw, Either, Response};
 use paperclip::v2::schema::Apiv2Schema;
 use std::str::FromStr;
 use thoth_api::errors::{ThothError, ThothResult};
-use thoth_client::work::work_query::Work;
+use thoth_client::Work;
 
 pub(crate) trait AsRecord {}
 impl AsRecord for Work {}
