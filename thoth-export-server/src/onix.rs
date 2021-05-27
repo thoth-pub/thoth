@@ -23,9 +23,6 @@ pub fn generate_onix_3(work: Work) -> ThothResult<String> {
         })
 }
 
-fn string_to_static_str(s: String) -> &'static str {
-    Box::leak(s.into_boxed_str())
-}
 
 fn stype_to_scheme(subject_type: &SubjectType) -> &str {
     match subject_type {
@@ -112,8 +109,8 @@ fn get_publications_data(publications: &[WorkPublications]) -> (String, String, 
 
 fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
     element: &str,
-    ns: Option<HashMap<String, String>>,
-    attr: Option<HashMap<String, String>>,
+    ns: Option<HashMap<&str, &str>>,
+    attr: Option<HashMap<&str, &str>>,
     w: &mut EventWriter<W>,
     f: F,
 ) -> Result<()> {
@@ -121,19 +118,13 @@ fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
 
     if let Some(ns) = ns {
         for (k, v) in ns.iter() {
-            event_builder = event_builder.ns(
-                string_to_static_str(k.clone()),
-                string_to_static_str(v.clone()),
-            );
+            event_builder = event_builder.ns(k.clone(), v.clone());
         }
     }
 
     if let Some(attr) = attr {
         for (k, v) in attr.iter() {
-            event_builder = event_builder.attr(
-                string_to_static_str(k.clone()),
-                string_to_static_str(v.clone()),
-            );
+            event_builder = event_builder.attr(k.clone(), v.clone());
         }
     }
 
@@ -145,14 +136,14 @@ fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
 }
 
 fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &Work) -> Result<()> {
-    let ns_map: HashMap<String, String> = HashMap::new();
-    let mut attr_map: HashMap<String, String> = HashMap::new();
+    let ns_map: HashMap<&str, &str> = HashMap::new();
+    let mut attr_map: HashMap<&str, &str> = HashMap::new();
 
     attr_map.insert(
-        "xmlns".to_string(),
-        "http://ns.editeur.org/onix/3.0/reference".to_string(),
+        "xmlns",
+        "http://ns.editeur.org/onix/3.0/reference",
     );
-    attr_map.insert("release".to_string(), "3.0".to_string());
+    attr_map.insert("release", "3.0");
 
     let work_id = format!("urn:uuid:{}", &work.work_id.to_string());
     let (main_isbn, pdf_url, isbns) = get_publications_data(&work.publications);
@@ -441,9 +432,9 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &Work) -> Result<()> {
             if work.long_abstract.is_some() || work.toc.is_some() {
                 write_element_block("CollateralDetail", None, None, w, |w| {
                     if let Some(labstract) = &work.long_abstract {
-                        let mut lang_fmt: HashMap<String, String> = HashMap::new();
-                        lang_fmt.insert("language".to_string(), "eng".to_string());
                         write_element_block("TextContent", None, None, w, |w| {
+                            let mut lang_fmt: HashMap<&str, &str> = HashMap::new();
+                            lang_fmt.insert("language", "eng");
                             // 03 Description ("30 Abstract" not implemented in OAPEN)
                             write_element_block("TextType", None, None, w, |w| {
                                 let event: XmlEvent = XmlEvent::Characters("03");
@@ -456,7 +447,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &Work) -> Result<()> {
                                 w.write(event).ok();
                             })
                             .ok();
-                            write_element_block("Text", None, Some(lang_fmt.to_owned()), w, |w| {
+                            write_element_block("Text", None, Some(lang_fmt), w, |w| {
                                 let event: XmlEvent = XmlEvent::Characters(&labstract);
                                 w.write(event).ok();
                             })
@@ -527,12 +518,12 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &Work) -> Result<()> {
                 })
                 .ok();
                 if let Some(date) = &work.publication_date {
-                    let mut date_fmt: HashMap<String, String> = HashMap::new();
-                    date_fmt.insert(
-                        "dateformat".to_string(),
-                        "01".to_string(), // 01 YYYYMM
-                    );
                     write_element_block("PublishingDate", None, None, w, |w| {
+                        let mut date_fmt: HashMap<&str, &str> = HashMap::new();
+                        date_fmt.insert(
+                            "dateformat",
+                            "01", // 01 YYYYMM
+                        );
                         // 19 Publication date of print counterpart
                         write_element_block("PublishingDateRole", None, None, w, |w| {
                             let event: XmlEvent = XmlEvent::Characters("19");
@@ -540,7 +531,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &Work) -> Result<()> {
                         })
                         .ok();
                         // dateformat="01" YYYYMM
-                        write_element_block("Date", None, Some(date_fmt.to_owned()), w, |w| {
+                        write_element_block("Date", None, Some(date_fmt), w, |w| {
                             let pub_date = date.format("%Y%m").to_string();
                             let event: XmlEvent = XmlEvent::Characters(&pub_date);
                             w.write(event).ok();
