@@ -57,7 +57,7 @@ pub(crate) async fn by_work(
     web::Path((specification_id, work_id)): web::Path<(String, Uuid)>,
     config: web::Data<ApiConfig>,
 ) -> Result<MetadataRecord<Work>, Error> {
-    ThothClient::new(config.graphql_endpoint.clone())
+    ThothClient::new(&config.graphql_endpoint)
         .get_work(work_id)
         .await
         .and_then(|data| {
