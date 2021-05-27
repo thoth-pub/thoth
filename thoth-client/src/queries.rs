@@ -8,7 +8,7 @@ use uuid::Uuid;
 #[graphql(
     schema_path = "assets/schema.json",
     query_path = "assets/queries.graphql",
-    response_derives = "Debug,Deserialize,Serialize"
+    response_derives = "Debug,Clone,Deserialize,Serialize"
 )]
 pub struct WorkQuery;
 

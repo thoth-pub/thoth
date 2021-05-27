@@ -7,6 +7,7 @@ use paperclip::v2::models::{Contact, DefaultApiRaw, Info, License, Tag};
 
 mod format;
 mod onix;
+mod onix_types;
 mod platform;
 mod rapidoc;
 mod record;

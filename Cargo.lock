@@ -3950,6 +3950,7 @@ dependencies = [
  "paperclip",
  "serde",
  "serde_json",
+ "strum 0.20.0",
  "thoth-api",
  "thoth-client",
  "uuid 0.7.4",

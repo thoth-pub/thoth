@@ -3,11 +3,10 @@ use std::io::Write;
 
 use chrono::prelude::Utc;
 use thoth_api::errors::{ThothError, ThothResult};
-use thoth_client::{
-    ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkPublications,
-    WorkStatus,
-};
+use thoth_client::{PublicationType, Work, WorkPublications};
 use xml::writer::{events::StartElementBuilder, EmitterConfig, EventWriter, Result, XmlEvent};
+
+use crate::onix_types::{XmlElement, OnixSubjectScheme, OnixLanguageRole, OnixContributorRole};
 
 pub fn generate_onix_3(work: Work) -> ThothResult<String> {
     let mut buffer = Vec::new();
@@ -21,63 +20,6 @@ pub fn generate_onix_3(work: Work) -> ThothResult<String> {
             String::from_utf8(onix)
                 .map_err(|_| ThothError::InternalError("Could not generate ONIX".to_string()))
         })
-}
-
-
-fn stype_to_scheme(subject_type: &SubjectType) -> &str {
-    match subject_type {
-        SubjectType::BIC => "12",
-        SubjectType::BISAC => "10",
-        SubjectType::KEYWORD => "20",
-        SubjectType::LCC => "04",
-        SubjectType::THEMA => "93",
-        SubjectType::CUSTOM => "B2", // B2 Keywords (not for display)
-        _ => unreachable!(),
-    }
-}
-
-fn langrel_to_role(language_relation: &LanguageRelation) -> &str {
-    match language_relation {
-        LanguageRelation::ORIGINAL => "01",        // Language of text
-        LanguageRelation::TRANSLATED_FROM => "02", // Original language of a translated text
-        LanguageRelation::TRANSLATED_INTO => "01",
-        _ => unreachable!(),
-    }
-}
-
-fn contribution_type_to_role(contribution_type: &ContributionType) -> &str {
-    match contribution_type {
-        ContributionType::AUTHOR => "A01",          // By (author)
-        ContributionType::EDITOR => "B01",          // Edited by
-        ContributionType::TRANSLATOR => "B06",      // Translated by
-        ContributionType::PHOTOGRAPHER => "A13",    // Photographs by
-        ContributionType::ILUSTRATOR => "A12",      // Illustrated by
-        ContributionType::MUSIC_EDITOR => "B25",    // Arranged by (music)
-        ContributionType::FOREWORD_BY => "A23",     // Foreword by
-        ContributionType::INTRODUCTION_BY => "A24", // Introduction by
-        ContributionType::AFTERWORD_BY => "A19",    // Afterword by
-        ContributionType::PREFACE_BY => "A15",      // Preface by
-        _ => unreachable!(),
-    }
-}
-
-fn wstatus_to_status(work_status: &WorkStatus) -> &str {
-    match work_status {
-        WorkStatus::UNSPECIFIED => "00",
-        WorkStatus::CANCELLED => "01",
-        WorkStatus::FORTHCOMING => "02",
-        WorkStatus::POSTPONED_INDEFINITELY => "03",
-        WorkStatus::ACTIVE => "04",
-        WorkStatus::NO_LONGER_OUR_PRODUCT => "05",
-        WorkStatus::OUT_OF_STOCK_INDEFINITELY => "06",
-        WorkStatus::OUT_OF_PRINT => "07",
-        WorkStatus::INACTIVE => "08",
-        WorkStatus::UNKNOWN => "09",
-        WorkStatus::REMAINDERED => "10",
-        WorkStatus::WITHDRAWN_FROM_SALE => "11",
-        WorkStatus::RECALLED => "15",
-        _ => unreachable!(),
-    }
 }
 
 fn get_publications_data(publications: &[WorkPublications]) -> (String, String, Vec<String>) {
@@ -107,7 +49,7 @@ fn get_publications_data(publications: &[WorkPublications]) -> (String, String, 
     (main_isbn, pdf_url, isbns)
 }
 
-fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
+pub(crate) fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
     element: &str,
     ns: Option<HashMap<&str, &str>>,
     attr: Option<HashMap<&str, &str>>,
@@ -139,10 +81,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &Work) -> Result<()> {
     let ns_map: HashMap<&str, &str> = HashMap::new();
     let mut attr_map: HashMap<&str, &str> = HashMap::new();
 
-    attr_map.insert(
-        "xmlns",
-        "http://ns.editeur.org/onix/3.0/reference",
-    );
+    attr_map.insert("xmlns", "http://ns.editeur.org/onix/3.0/reference");
     attr_map.insert("release", "3.0");
 
     let work_id = format!("urn:uuid:{}", &work.work_id.to_string());
@@ -158,7 +97,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &Work) -> Result<()> {
                 })
                 .ok();
                 write_element_block("EmailAddress", None, None, w, |w| {
-                    let event: XmlEvent = XmlEvent::Characters("javi@openbookpublishers.com");
+                    let event: XmlEvent = XmlEvent::Characters("info@thoth.pub");
                     w.write(event).ok();
                 })
                 .ok();
@@ -330,9 +269,12 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &Work) -> Result<()> {
                         })
                         .ok();
                         write_element_block("ContributorRole", None, None, w, |w| {
-                            let role = contribution_type_to_role(&contribution.contribution_type);
-                            let event: XmlEvent = XmlEvent::Characters(role);
-                            w.write(event).ok();
+                            w.write(XmlEvent::Characters(
+                                OnixContributorRole::from(contribution.contribution_type.clone())
+                                    .to_string()
+                                    .as_str(),
+                            ))
+                            .ok();
                         })
                         .ok();
                         if let Some(orcid) = &contribution.contributor.orcid {
@@ -374,9 +316,12 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &Work) -> Result<()> {
                 for language in &work.languages {
                     write_element_block("Language", None, None, w, |w| {
                         write_element_block("LanguageRole", None, None, w, |w| {
-                            let role = langrel_to_role(&language.language_relation);
-                            let event: XmlEvent = XmlEvent::Characters(role);
-                            w.write(event).ok();
+                            w.write(XmlEvent::Characters(
+                                OnixLanguageRole::from(language.language_relation.clone())
+                                    .to_string()
+                                    .as_str(),
+                            ))
+                            .ok();
                         })
                         .ok();
                         write_element_block("LanguageCode", None, None, w, |w| {
@@ -414,9 +359,12 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &Work) -> Result<()> {
                 for subject in &work.subjects {
                     write_element_block("Subject", None, None, w, |w| {
                         write_element_block("SubjectSchemeIdentifier", None, None, w, |w| {
-                            let scheme = stype_to_scheme(&subject.subject_type);
-                            let event: XmlEvent = XmlEvent::Characters(scheme);
-                            w.write(event).ok();
+                            w.write(XmlEvent::Characters(
+                                OnixSubjectScheme::from(subject.subject_type.clone())
+                                    .to_string()
+                                    .as_str(),
+                            ))
+                            .ok();
                         })
                         .ok();
                         write_element_block("SubjectCode", None, None, w, |w| {
@@ -511,12 +459,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &Work) -> Result<()> {
                     })
                     .ok();
                 }
-                write_element_block("PublishingStatus", None, None, w, |w| {
-                    let status = wstatus_to_status(&work.work_status);
-                    let event: XmlEvent = XmlEvent::Characters(status);
-                    w.write(event).ok();
-                })
-                .ok();
+                work.work_status.xml_element(w).ok();
                 if let Some(date) = &work.publication_date {
                     write_element_block("PublishingDate", None, None, w, |w| {
                         let mut date_fmt: HashMap<&str, &str> = HashMap::new();

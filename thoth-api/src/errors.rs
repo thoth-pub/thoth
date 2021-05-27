@@ -32,7 +32,7 @@ pub enum ThothError {
     #[fail(display = "{} is not a valid metadata specification", _0)]
     InvalidMetadataSpecification(String),
     #[fail(display = "Invalid UUID supplied.")]
-    InvalidUuid
+    InvalidUuid,
 }
 
 impl juniper::IntoFieldError for ThothError {
