@@ -7,7 +7,7 @@ use failure::Fail;
 /// A specialised result type for returning Thoth data
 pub type ThothResult<T> = std::result::Result<T, ThothError>;
 
-#[derive(Fail, Debug)]
+#[derive(Fail, Debug, PartialEq)]
 /// Represents anything that can go wrong in Thoth
 ///
 /// This type is not intended to be exhaustively matched, and new variants may
@@ -31,6 +31,8 @@ pub enum ThothError {
     IssueImprintsError,
     #[fail(display = "{} is not a valid metadata specification", _0)]
     InvalidMetadataSpecification(String),
+    #[fail(display = "Invalid UUID supplied.")]
+    InvalidUuid
 }
 
 impl juniper::IntoFieldError for ThothError {
@@ -110,5 +112,24 @@ impl From<failure::Error> for ThothError {
             return error.downcast::<ThothError>().unwrap();
         }
         ThothError::InternalError(error.to_string())
+    }
+}
+
+impl From<uuid::parser::ParseError> for ThothError {
+    fn from(_: uuid::parser::ParseError) -> ThothError {
+        ThothError::InvalidUuid
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_uuid_error() {
+        assert_eq!(
+            ThothError::from(uuid::Uuid::parse_str("not-a-uuid").unwrap_err()),
+            ThothError::InvalidUuid
+        );
     }
 }
