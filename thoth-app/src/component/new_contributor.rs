@@ -1,4 +1,4 @@
-use thoth_api::contributor::model::{Contributor, Orcid};
+use thoth_api::contributor::model::{Contributor, Orcid, ORCID_DOMAIN};
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -17,6 +17,7 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormTextInputTooltip;
+use crate::component::utils::FormTextInputTooltipStatic;
 use crate::component::utils::FormUrlInput;
 use crate::models::contributor::contributors_query::ContributorsRequest;
 use crate::models::contributor::contributors_query::ContributorsRequestBody;
@@ -37,6 +38,9 @@ const MIN_FULLNAME_LEN: usize = 2;
 
 pub struct NewContributorComponent {
     contributor: Contributor,
+    // Track the user-entered ORCID string, which may not be validly formatted
+    orcid: String,
+    orcid_warning: String,
     push_contributor: PushCreateContributor,
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
@@ -69,12 +73,16 @@ impl Component for NewContributorComponent {
         let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
+        let orcid = Default::default();
+        let orcid_warning = Default::default();
         let show_duplicate_tooltip = false;
         let fetch_contributors = Default::default();
         let contributors = Default::default();
 
         NewContributorComponent {
             contributor,
+            orcid,
+            orcid_warning,
             push_contributor,
             link,
             router,
@@ -201,24 +209,24 @@ impl Component for NewContributorComponent {
                 }
             }
             Msg::ChangeOrcid(value) => {
-                // Check ORCID is correctly formatted before proceeding with save.
-                // If no ORCID was provided, no check is required.
-                let mut parsed_orcid = None;
-                let mut ok_to_save = true;
-                if !value.trim().is_empty() {
-                    match value.parse::<Orcid>() {
-                        Ok(result) => parsed_orcid = Some(result),
-                        Err(err) => {
-                            ok_to_save = false;
-                            self.notification_bus.send(Request::NotificationBusMsg((
-                                err.to_string(),
-                                NotificationStatus::Danger,
-                            )))
-                        }
+                if self.orcid.neq_assign(value.trim().to_owned()) {
+                    // Check ORCID is correctly formatted before updating structure.
+                    // If no ORCID was provided, no check is required.
+                    if self.orcid.trim().is_empty() {
+                        self.contributor.orcid.neq_assign(None);
+                        self.orcid_warning.clear();
+                    } else {
+                        match self.orcid.parse::<Orcid>() {
+                            Ok(result) => {
+                                self.contributor.orcid.neq_assign(Some(result));
+                                self.orcid_warning.clear();
+                            }
+                            Err(err) => {
+                                self.orcid_warning = err.to_string();
+                            }
+                        };
                     }
-                };
-                if ok_to_save {
-                    self.contributor.orcid.neq_assign(parsed_orcid)
+                    true
                 } else {
                     false
                 }
@@ -290,9 +298,11 @@ impl Component for NewContributorComponent {
                         onblur=self.link.callback(|_| Msg::ToggleDuplicateTooltip(false))
                         required=true
                     />
-                    <FormTextInput
+                    <FormTextInputTooltipStatic
                         label = "ORCID"
-                        value=self.contributor.orcid.as_ref().map(|s| s.to_string())
+                        statictext = ORCID_DOMAIN
+                        value=&self.orcid
+                        tooltip=&self.orcid_warning
                         oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
                     />
                     <FormUrlInput

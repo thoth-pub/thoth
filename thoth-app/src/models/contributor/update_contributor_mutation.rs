@@ -9,7 +9,7 @@ const UPDATE_CONTRIBUTOR_MUTATION: &str = "
         $firstName: String,
         $lastName: String!,
         $fullName: String!,
-        $orcid: String,
+        $orcid: Orcid,
         $website: String
     ) {
         updateContributor(data: {

@@ -1,4 +1,5 @@
 use thoth_api::funder::model::Funder;
+use thoth_api::work::model::{Doi, DOI_DOMAIN};
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -16,7 +17,7 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormTextInput;
-use crate::component::utils::FormUrlInput;
+use crate::component::utils::FormTextInputTooltipStatic;
 use crate::models::funder::create_funder_mutation::CreateFunderRequest;
 use crate::models::funder::create_funder_mutation::CreateFunderRequestBody;
 use crate::models::funder::create_funder_mutation::PushActionCreateFunder;
@@ -28,6 +29,9 @@ use crate::string::SAVE_BUTTON;
 
 pub struct NewFunderComponent {
     funder: Funder,
+    // Track the user-entered DOI string, which may not be validly formatted
+    funder_doi: String,
+    funder_doi_warning: String,
     push_funder: PushCreateFunder,
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
@@ -50,10 +54,14 @@ impl Component for NewFunderComponent {
         let push_funder = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let funder: Funder = Default::default();
+        let funder_doi = Default::default();
+        let funder_doi_warning = Default::default();
         let router = RouteAgentDispatcher::new();
 
         NewFunderComponent {
             funder,
+            funder_doi,
+            funder_doi_warning,
             push_funder,
             link,
             router,
@@ -117,11 +125,27 @@ impl Component for NewFunderComponent {
                 .funder_name
                 .neq_assign(funder_name.trim().to_owned()),
             Msg::ChangeFunderDoi(value) => {
-                let funder_doi = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.funder.funder_doi.neq_assign(funder_doi)
+                if self.funder_doi.neq_assign(value.trim().to_owned()) {
+                    // Check DOI is correctly formatted before updating structure.
+                    // If no DOI was provided, no check is required.
+                    if self.funder_doi.trim().is_empty() {
+                        self.funder.funder_doi.neq_assign(None);
+                        self.funder_doi_warning.clear();
+                    } else {
+                        match self.funder_doi.parse::<Doi>() {
+                            Ok(result) => {
+                                self.funder.funder_doi.neq_assign(Some(result));
+                                self.funder_doi_warning.clear();
+                            }
+                            Err(err) => {
+                                self.funder_doi_warning = err.to_string();
+                            }
+                        };
+                    }
+                    true
+                } else {
+                    false
+                }
             }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
@@ -158,9 +182,11 @@ impl Component for NewFunderComponent {
                         oninput=self.link.callback(|e: InputData| Msg::ChangeFunderName(e.value))
                         required=true
                     />
-                    <FormUrlInput
-                        label = "Funder DOI"
-                        value=&self.funder.funder_doi
+                    <FormTextInputTooltipStatic
+                        label = "DOI"
+                        statictext = DOI_DOMAIN
+                        value=&self.funder_doi
+                        tooltip=&self.funder_doi_warning
                         oninput=self.link.callback(|e: InputData| Msg::ChangeFunderDoi(e.value))
                     />
 

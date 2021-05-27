@@ -65,7 +65,11 @@ impl EditRoute for Work {
 
 impl MetadataTable for Work {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
-        let doi = self.doi.clone().unwrap_or_else(|| "".to_string());
+        let doi = self
+            .doi
+            .as_ref()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "".to_string());
         html! {
             <tr
                 class="row"
@@ -192,7 +196,11 @@ impl DisplayWork for Work {
     }
 
     fn as_catalogue_box(&self) -> Html {
-        let doi = self.doi.clone().unwrap_or_else(|| "".to_string());
+        let doi = self
+            .doi
+            .as_ref()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "".to_string());
         let cover_url = self
             .cover_url
             .clone()

@@ -1,4 +1,4 @@
-use thoth_api::contributor::model::{Contributor, Orcid};
+use thoth_api::contributor::model::{Contributor, Orcid, ORCID_DOMAIN};
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -404,7 +404,7 @@ impl Component for ContributorComponent {
                             />
                             <FormTextInputTooltipStatic
                                 label = "ORCID"
-                                statictext = "https://orcid.org/"
+                                statictext = ORCID_DOMAIN
                                 value=&self.orcid
                                 tooltip=&self.orcid_warning
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))

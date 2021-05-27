@@ -124,7 +124,7 @@ pub enum WorkField {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Doi(String);
 
-const DOI_DOMAIN: &str = "https://doi.org/";
+pub const DOI_DOMAIN: &str = "https://doi.org/";
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
 #[derive(Serialize, Deserialize)]
@@ -138,7 +138,7 @@ pub struct Work {
     pub reference: Option<String>,
     pub edition: i32,
     pub imprint_id: Uuid,
-    pub doi: Option<String>,
+    pub doi: Option<Doi>,
     pub publication_date: Option<NaiveDate>,
     pub place: Option<String>,
     pub width: Option<i32>,
@@ -175,7 +175,7 @@ pub struct WorkExtended {
     pub subtitle: Option<String>,
     pub reference: Option<String>,
     pub edition: i32,
-    pub doi: Option<String>,
+    pub doi: Option<Doi>,
     pub publication_date: Option<String>,
     pub place: Option<String>,
     pub width: Option<i32>,
@@ -221,7 +221,7 @@ pub struct NewWork {
     pub reference: Option<String>,
     pub edition: i32,
     pub imprint_id: Uuid,
-    pub doi: Option<String>,
+    pub doi: Option<Doi>,
     pub publication_date: Option<NaiveDate>,
     pub place: Option<String>,
     pub width: Option<i32>,
@@ -261,7 +261,7 @@ pub struct PatchWork {
     pub reference: Option<String>,
     pub edition: i32,
     pub imprint_id: Uuid,
-    pub doi: Option<String>,
+    pub doi: Option<Doi>,
     pub publication_date: Option<NaiveDate>,
     pub place: Option<String>,
     pub width: Option<i32>,
@@ -389,6 +389,14 @@ impl Default for WorkExtended {
             subjects: None,
             issues: None,
             imprint: Default::default(),
+        }
+    }
+}
+
+impl Default for Doi {
+    fn default() -> Doi {
+        Doi {
+            0: Default::default(),
         }
     }
 }
@@ -708,6 +716,12 @@ fn test_workfield_fromstr() {
     assert!(WorkField::from_str("WorkID").is_err());
     assert!(WorkField::from_str("Contributors").is_err());
     assert!(WorkField::from_str("Publisher").is_err());
+}
+
+#[test]
+fn test_doi_default() {
+    let doi: Doi = Default::default();
+    assert_eq!(doi, Doi { 0: "".to_string() });
 }
 
 #[test]

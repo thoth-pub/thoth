@@ -43,7 +43,7 @@ pub enum ContributorField {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Orcid(String);
 
-const ORCID_DOMAIN: &str = "https://orcid.org/";
+pub const ORCID_DOMAIN: &str = "https://orcid.org/";
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -68,7 +68,7 @@ pub struct NewContributor {
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
-    pub orcid: Option<String>,
+    pub orcid: Option<Orcid>,
     pub website: Option<String>,
 }
 
@@ -83,7 +83,7 @@ pub struct PatchContributor {
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
-    pub orcid: Option<String>,
+    pub orcid: Option<Orcid>,
     pub website: Option<String>,
 }
 

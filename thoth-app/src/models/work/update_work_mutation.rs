@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::work::model::Doi;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
 use uuid::Uuid;
@@ -15,7 +16,7 @@ const UPDATE_WORK_MUTATION: &str = "
         $reference: String,
         $edition: Int!,
         $imprintId: Uuid!,
-        $doi: String,
+        $doi: Doi,
         $publicationDate: NaiveDate,
         $place: String,
         $width: Int,
@@ -99,7 +100,7 @@ pub struct Variables {
     pub subtitle: Option<String>,
     pub reference: Option<String>,
     pub edition: i32,
-    pub doi: Option<String>,
+    pub doi: Option<Doi>,
     pub publication_date: Option<String>,
     pub place: Option<String>,
     pub width: Option<i32>,

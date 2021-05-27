@@ -4,6 +4,7 @@ use thoth_api::imprint::model::ImprintExtended as Imprint;
 use thoth_api::work::model::WorkExtended as Work;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
+use thoth_api::work::model::{Doi, DOI_DOMAIN};
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -25,6 +26,7 @@ use crate::component::utils::FormDateInput;
 use crate::component::utils::FormImprintSelect;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormTextInput;
+use crate::component::utils::FormTextInputTooltipStatic;
 use crate::component::utils::FormTextarea;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::FormWorkStatusSelect;
@@ -51,6 +53,10 @@ use crate::string::SAVE_BUTTON;
 
 pub struct NewWorkComponent {
     work: Work,
+    // Track the user-entered DOI string, which may not be validly formatted
+    doi: String,
+    doi_warning: String,
+    // Track imprint stored in database, as distinct from imprint selected in dropdown
     imprint_id: Uuid,
     push_work: PushCreateWork,
     data: WorkFormData,
@@ -124,6 +130,8 @@ impl Component for NewWorkComponent {
         let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let work: Work = Default::default();
+        let doi = Default::default();
+        let doi_warning = Default::default();
         let imprint_id: Uuid = Default::default();
         let data: WorkFormData = Default::default();
         let fetch_imprints: FetchImprints = Default::default();
@@ -136,6 +144,8 @@ impl Component for NewWorkComponent {
 
         NewWorkComponent {
             work,
+            doi,
+            doi_warning,
             imprint_id,
             push_work,
             data,
@@ -326,11 +336,27 @@ impl Component for NewWorkComponent {
                 self.work.edition.neq_assign(edition)
             }
             Msg::ChangeDoi(value) => {
-                let doi = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.doi.neq_assign(doi)
+                if self.doi.neq_assign(value.trim().to_owned()) {
+                    // Check DOI is correctly formatted before updating structure.
+                    // If no DOI was provided, no check is required.
+                    if self.doi.trim().is_empty() {
+                        self.work.doi.neq_assign(None);
+                        self.doi_warning.clear();
+                    } else {
+                        match self.doi.parse::<Doi>() {
+                            Ok(result) => {
+                                self.work.doi.neq_assign(Some(result));
+                                self.doi_warning.clear();
+                            }
+                            Err(err) => {
+                                self.doi_warning = err.to_string();
+                            }
+                        };
+                    }
+                    true
+                } else {
+                    false
+                }
             }
             Msg::ChangeDate(date) => self.work.publication_date.neq_assign(Some(date)),
             Msg::ChangePlace(value) => {
@@ -612,9 +638,11 @@ impl Component for NewWorkComponent {
                     </div>
                     <div class="field is-horizontal">
                         <div class="field-body">
-                            <FormUrlInput
+                            <FormTextInputTooltipStatic
                                 label = "DOI"
-                                value=&self.work.doi
+                                statictext = DOI_DOMAIN
+                                value=&self.doi
+                                tooltip=&self.doi_warning
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeDoi(e.value))
                             />
                             <FormTextInput

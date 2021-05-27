@@ -12,6 +12,7 @@ use crate::graphql::utils::Direction;
 use crate::schema::funder;
 #[cfg(feature = "backend")]
 use crate::schema::funder_history;
+use crate::work::model::Doi;
 
 #[cfg_attr(
     feature = "backend",
@@ -37,7 +38,7 @@ pub enum FunderField {
 pub struct Funder {
     pub funder_id: Uuid,
     pub funder_name: String,
-    pub funder_doi: Option<String>,
+    pub funder_doi: Option<Doi>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -49,7 +50,7 @@ pub struct Funder {
 )]
 pub struct NewFunder {
     pub funder_name: String,
-    pub funder_doi: Option<String>,
+    pub funder_doi: Option<Doi>,
 }
 
 #[cfg_attr(
@@ -61,7 +62,7 @@ pub struct NewFunder {
 pub struct PatchFunder {
     pub funder_id: Uuid,
     pub funder_name: String,
-    pub funder_doi: Option<String>,
+    pub funder_doi: Option<Doi>,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]

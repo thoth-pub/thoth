@@ -1369,7 +1369,7 @@ impl Work {
     #[graphql(
         description = "Digital Object Identifier of the work as full URL. It must use the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.11647/obp.0001)"
     )]
-    pub fn doi(&self) -> Option<&String> {
+    pub fn doi(&self) -> Option<&Doi> {
         self.doi.as_ref()
     }
 
@@ -2299,7 +2299,7 @@ impl Funder {
         &self.funder_name
     }
 
-    pub fn funder_doi(&self) -> Option<&String> {
+    pub fn funder_doi(&self) -> Option<&Doi> {
         self.funder_doi.as_ref()
     }
 
