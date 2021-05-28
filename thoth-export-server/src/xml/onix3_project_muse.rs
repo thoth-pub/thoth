@@ -41,22 +41,21 @@ impl XmlSpecification for Onix3ProjectMuse {
             write_element_block("Header", w, |w| {
                 write_element_block("Sender", w, |w| {
                     write_element_block("SenderName", w, |w| {
-                        let event: XmlEvent =
-                            XmlEvent::Characters(&work.imprint.publisher.publisher_name);
-                        w.write(event).ok();
+                        w.write(XmlEvent::Characters(&work.imprint.publisher.publisher_name))
+                            .ok();
                     })
                     .ok();
                     write_element_block("EmailAddress", w, |w| {
-                        let event: XmlEvent = XmlEvent::Characters("info@thoth.pub");
-                        w.write(event).ok();
+                        w.write(XmlEvent::Characters("info@thoth.pub")).ok();
                     })
                     .ok();
                 })
                 .ok();
                 write_element_block("SentDateTime", w, |w| {
-                    let utc = Utc::now().format("%Y%m%dT%H%M%S").to_string();
-                    let event: XmlEvent = XmlEvent::Characters(&utc);
-                    w.write(event).ok();
+                    w.write(XmlEvent::Characters(
+                        &Utc::now().format("%Y%m%dT%H%M%S").to_string(),
+                    ))
+                    .ok();
                 })
                 .ok();
             })
@@ -64,32 +63,27 @@ impl XmlSpecification for Onix3ProjectMuse {
 
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
-                    let event: XmlEvent = XmlEvent::Characters(&work_id);
-                    w.write(event).ok();
+                    w.write(XmlEvent::Characters(&work_id)).ok();
                 })
                 .ok();
                 // 03 Notification confirmed on publication
                 write_element_block("NotificationType", w, |w| {
-                    let event: XmlEvent = XmlEvent::Characters("03");
-                    w.write(event).ok();
+                    w.write(XmlEvent::Characters("03")).ok();
                 })
                 .ok();
                 // 01 Publisher
                 write_element_block("RecordSourceType", w, |w| {
-                    let event: XmlEvent = XmlEvent::Characters("01");
-                    w.write(event).ok();
+                    w.write(XmlEvent::Characters("01")).ok();
                 })
                 .ok();
                 write_element_block("ProductIdentifier", w, |w| {
                     // 01 Proprietary
                     write_element_block("ProductIDType", w, |w| {
-                        let event: XmlEvent = XmlEvent::Characters("01");
-                        w.write(event).ok();
+                        w.write(XmlEvent::Characters("01")).ok();
                     })
                     .ok();
                     write_element_block("IDValue", w, |w| {
-                        let event: XmlEvent = XmlEvent::Characters(&work_id);
-                        w.write(event).ok();
+                        w.write(XmlEvent::Characters(&work_id)).ok();
                     })
                     .ok();
                 })
@@ -97,13 +91,11 @@ impl XmlSpecification for Onix3ProjectMuse {
                 write_element_block("ProductIdentifier", w, |w| {
                     // 15 ISBN-13
                     write_element_block("ProductIDType", w, |w| {
-                        let event: XmlEvent = XmlEvent::Characters("15");
-                        w.write(event).ok();
+                        w.write(XmlEvent::Characters("15")).ok();
                     })
                     .ok();
                     write_element_block("IDValue", w, |w| {
-                        let event: XmlEvent = XmlEvent::Characters(&main_isbn);
-                        w.write(event).ok();
+                        w.write(XmlEvent::Characters(&main_isbn)).ok();
                     })
                     .ok();
                 })
@@ -111,14 +103,12 @@ impl XmlSpecification for Onix3ProjectMuse {
                 if let Some(doi) = &work.doi {
                     write_element_block("ProductIdentifier", w, |w| {
                         write_element_block("ProductIDType", w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters("06");
-                            w.write(event).ok();
+                            w.write(XmlEvent::Characters("06")).ok();
                         })
                         .ok();
                         write_element_block("IDValue", w, |w| {
-                            let sanitised_doi = doi.replace("https://doi.org/", "");
-                            let event: XmlEvent = XmlEvent::Characters(&sanitised_doi);
-                            w.write(event).ok();
+                            w.write(XmlEvent::Characters(&doi.replace("https://doi.org/", "")))
+                                .ok();
                         })
                         .ok();
                     })
@@ -127,46 +117,38 @@ impl XmlSpecification for Onix3ProjectMuse {
                 write_element_block("DescriptiveDetail", w, |w| {
                     // 00 Single-component retail product
                     write_element_block("ProductComposition", w, |w| {
-                        let event: XmlEvent = XmlEvent::Characters("00");
-                        w.write(event).ok();
+                        w.write(XmlEvent::Characters("00")).ok();
                     })
                     .ok();
                     // EB Digital download and online
                     write_element_block("ProductForm", w, |w| {
-                        let event: XmlEvent = XmlEvent::Characters("EB");
-                        w.write(event).ok();
+                        w.write(XmlEvent::Characters("EB")).ok();
                     })
                     .ok();
                     // E107 PDF
                     write_element_block("ProductFormDetail", w, |w| {
-                        let event: XmlEvent = XmlEvent::Characters("E107");
-                        w.write(event).ok();
+                        w.write(XmlEvent::Characters("E107")).ok();
                     })
                     .ok();
                     // 10 Text (eye-readable)
                     write_element_block("PrimaryContentType", w, |w| {
-                        let event: XmlEvent = XmlEvent::Characters("10");
-                        w.write(event).ok();
+                        w.write(XmlEvent::Characters("10")).ok();
                     })
                     .ok();
                     if let Some(license) = &work.license {
                         write_element_block("EpubLicense", w, |w| {
                             write_element_block("EpubLicenseName", w, |w| {
-                                let event: XmlEvent =
-                                    XmlEvent::Characters("Creative Commons License");
-                                w.write(event).ok();
+                                w.write(XmlEvent::Characters("Creative Commons License"))
+                                    .ok();
                             })
                             .ok();
                             write_element_block("EpubLicenseExpression", w, |w| {
                                 write_element_block("EpubLicenseExpressionType", w, |w| {
-                                    let event: XmlEvent = XmlEvent::Characters("02");
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters("02")).ok();
                                 })
                                 .ok();
                                 write_element_block("EpubLicenseExpressionLink", w, |w| {
-                                    let license_url = license.to_string();
-                                    let event: XmlEvent = XmlEvent::Characters(&license_url);
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters(&license)).ok();
                                 })
                                 .ok();
                             })
@@ -177,32 +159,27 @@ impl XmlSpecification for Onix3ProjectMuse {
                     write_element_block("TitleDetail", w, |w| {
                         // 01 Distinctive title (book)
                         write_element_block("TitleType", w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters("01");
-                            w.write(event).ok();
+                            w.write(XmlEvent::Characters("01")).ok();
                         })
                         .ok();
                         write_element_block("TitleElement", w, |w| {
                             // 01 Product
                             write_element_block("TitleElementLevel", w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters("01");
-                                w.write(event).ok();
+                                w.write(XmlEvent::Characters("01")).ok();
                             })
                             .ok();
                             if let Some(subtitle) = &work.subtitle {
                                 write_element_block("TitleText", w, |w| {
-                                    let event: XmlEvent = XmlEvent::Characters(&work.title);
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters(&work.title)).ok();
                                 })
                                 .ok();
                                 write_element_block("Subtitle", w, |w| {
-                                    let event: XmlEvent = XmlEvent::Characters(&subtitle);
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters(&subtitle)).ok();
                                 })
                                 .ok();
                             } else {
                                 write_element_block("TitleText", w, |w| {
-                                    let event: XmlEvent = XmlEvent::Characters(&work.full_title);
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters(&work.full_title)).ok();
                                 })
                                 .ok();
                             }
@@ -215,9 +192,8 @@ impl XmlSpecification for Onix3ProjectMuse {
                         sequence_number += 1;
                         write_element_block("Contributor", w, |w| {
                             write_element_block("SequenceNumber", w, |w| {
-                                let seq = &sequence_number.to_string();
-                                let event: XmlEvent = XmlEvent::Characters(seq);
-                                w.write(event).ok();
+                                w.write(XmlEvent::Characters(&sequence_number.to_string()))
+                                    .ok();
                             })
                             .ok();
                             XmlElement::<Self>::xml_element(&contribution.contribution_type, w)
@@ -226,13 +202,11 @@ impl XmlSpecification for Onix3ProjectMuse {
                             if let Some(orcid) = &contribution.contributor.orcid {
                                 write_element_block("NameIdentifier", w, |w| {
                                     write_element_block("NameIDType", w, |w| {
-                                        let event: XmlEvent = XmlEvent::Characters("21");
-                                        w.write(event).ok();
+                                        w.write(XmlEvent::Characters("21")).ok();
                                     })
                                     .ok();
                                     write_element_block("IDValue", w, |w| {
-                                        let event: XmlEvent = XmlEvent::Characters(&orcid);
-                                        w.write(event).ok();
+                                        w.write(XmlEvent::Characters(&orcid)).ok();
                                     })
                                     .ok();
                                 })
@@ -240,21 +214,16 @@ impl XmlSpecification for Onix3ProjectMuse {
                             }
                             if let Some(first_name) = &contribution.first_name {
                                 write_element_block("NamesBeforeKey", w, |w| {
-                                    let event: XmlEvent = XmlEvent::Characters(&first_name);
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters(&first_name)).ok();
                                 })
                                 .ok();
                                 write_element_block("KeyNames", w, |w| {
-                                    let event: XmlEvent =
-                                        XmlEvent::Characters(&contribution.last_name);
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters(&contribution.last_name)).ok();
                                 })
                                 .ok();
                             } else {
                                 write_element_block("PersonName", w, |w| {
-                                    let event: XmlEvent =
-                                        XmlEvent::Characters(&contribution.full_name);
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters(&contribution.full_name)).ok();
                                 })
                                 .ok();
                             }
@@ -265,9 +234,10 @@ impl XmlSpecification for Onix3ProjectMuse {
                         write_element_block("Language", w, |w| {
                             XmlElement::<Self>::xml_element(&language.language_relation, w).ok();
                             write_element_block("LanguageCode", w, |w| {
-                                let code = &language.language_code.to_string().to_lowercase();
-                                let event: XmlEvent = XmlEvent::Characters(&code);
-                                w.write(event).ok();
+                                w.write(XmlEvent::Characters(
+                                    &language.language_code.to_string().to_lowercase(),
+                                ))
+                                .ok();
                             })
                             .ok();
                         })
@@ -277,20 +247,16 @@ impl XmlSpecification for Onix3ProjectMuse {
                         write_element_block("Extent", w, |w| {
                             // 00 Main content
                             write_element_block("ExtentType", w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters("00");
-                                w.write(event).ok();
+                                w.write(XmlEvent::Characters("00")).ok();
                             })
                             .ok();
                             write_element_block("ExtentValue", w, |w| {
-                                let pcount = page_count.to_string();
-                                let event: XmlEvent = XmlEvent::Characters(&pcount);
-                                w.write(event).ok();
+                                w.write(XmlEvent::Characters(&page_count.to_string())).ok();
                             })
                             .ok();
                             // 03 Pages
                             write_element_block("ExtentUnit", w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters("03");
-                                w.write(event).ok();
+                                w.write(XmlEvent::Characters("03")).ok();
                             })
                             .ok();
                         })
@@ -300,8 +266,7 @@ impl XmlSpecification for Onix3ProjectMuse {
                         write_element_block("Subject", w, |w| {
                             XmlElement::<Self>::xml_element(&subject.subject_type, w).ok();
                             write_element_block("SubjectCode", w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters(&subject.subject_code);
-                                w.write(event).ok();
+                                w.write(XmlEvent::Characters(&subject.subject_code)).ok();
                             })
                             .ok();
                         })
@@ -317,19 +282,16 @@ impl XmlSpecification for Onix3ProjectMuse {
                                 lang_fmt.insert("language", "eng");
                                 // 03 Description ("30 Abstract" not implemented in OAPEN)
                                 write_element_block("TextType", w, |w| {
-                                    let event: XmlEvent = XmlEvent::Characters("03");
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters("03")).ok();
                                 })
                                 .ok();
                                 // 00 Unrestricted
                                 write_element_block("ContentAudience", w, |w| {
-                                    let event: XmlEvent = XmlEvent::Characters("00");
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters("00")).ok();
                                 })
                                 .ok();
                                 write_full_element_block("Text", None, Some(lang_fmt), w, |w| {
-                                    let event: XmlEvent = XmlEvent::Characters(&labstract);
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters(&labstract)).ok();
                                 })
                                 .ok();
                             })
@@ -339,19 +301,16 @@ impl XmlSpecification for Onix3ProjectMuse {
                             write_element_block("TextContent", w, |w| {
                                 // 04 Table of contents
                                 write_element_block("TextType", w, |w| {
-                                    let event: XmlEvent = XmlEvent::Characters("04");
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters("04")).ok();
                                 })
                                 .ok();
                                 // 00 Unrestricted
                                 write_element_block("ContentAudience", w, |w| {
-                                    let event: XmlEvent = XmlEvent::Characters("00");
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters("00")).ok();
                                 })
                                 .ok();
                                 write_element_block("Text", w, |w| {
-                                    let event: XmlEvent = XmlEvent::Characters(&toc);
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters(&toc)).ok();
                                 })
                                 .ok();
                             })
@@ -363,8 +322,8 @@ impl XmlSpecification for Onix3ProjectMuse {
                 write_element_block("PublishingDetail", w, |w| {
                     write_element_block("Imprint", w, |w| {
                         write_element_block("ImprintName", w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters(&work.imprint.imprint_name);
-                            w.write(event).ok();
+                            w.write(XmlEvent::Characters(&work.imprint.imprint_name))
+                                .ok();
                         })
                         .ok();
                     })
@@ -372,22 +331,19 @@ impl XmlSpecification for Onix3ProjectMuse {
                     write_element_block("Publisher", w, |w| {
                         // 01 Publisher
                         write_element_block("PublishingRole", w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters("01");
-                            w.write(event).ok();
+                            w.write(XmlEvent::Characters("01")).ok();
                         })
                         .ok();
                         write_element_block("PublisherName", w, |w| {
-                            let event: XmlEvent =
-                                XmlEvent::Characters(&work.imprint.publisher.publisher_name);
-                            w.write(event).ok();
+                            w.write(XmlEvent::Characters(&work.imprint.publisher.publisher_name))
+                                .ok();
                         })
                         .ok();
                     })
                     .ok();
                     if let Some(place) = &work.place {
                         write_element_block("CityOfPublication", w, |w| {
-                            let event: XmlEvent = XmlEvent::Characters(&place);
-                            w.write(event).ok();
+                            w.write(XmlEvent::Characters(&place)).ok();
                         })
                         .ok();
                     }
@@ -395,21 +351,16 @@ impl XmlSpecification for Onix3ProjectMuse {
                     if let Some(date) = &work.publication_date {
                         write_element_block("PublishingDate", w, |w| {
                             let mut date_fmt: HashMap<&str, &str> = HashMap::new();
-                            date_fmt.insert(
-                                "dateformat",
-                                "01", // 01 YYYYMM
-                            );
-                            // 19 Publication date of print counterpart
+                            date_fmt.insert("dateformat", "01"); // 01 YYYYMM
+                                                                 // 19 Publication date of print counterpart
                             write_element_block("PublishingDateRole", w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters("19");
-                                w.write(event).ok();
+                                w.write(XmlEvent::Characters("19")).ok();
                             })
                             .ok();
                             // dateformat="01" YYYYMM
                             write_full_element_block("Date", None, Some(date_fmt), w, |w| {
-                                let pub_date = date.format("%Y%m").to_string();
-                                let event: XmlEvent = XmlEvent::Characters(&pub_date);
-                                w.write(event).ok();
+                                w.write(XmlEvent::Characters(&date.format("%Y%m").to_string()))
+                                    .ok();
                             })
                             .ok();
                         })
@@ -423,20 +374,17 @@ impl XmlSpecification for Onix3ProjectMuse {
                             write_element_block("RelatedProduct", w, |w| {
                                 // 06 Alternative format
                                 write_element_block("ProductRelationCode", w, |w| {
-                                    let event: XmlEvent = XmlEvent::Characters("06");
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters("06")).ok();
                                 })
                                 .ok();
                                 write_element_block("ProductIdentifier", w, |w| {
                                     // 06 ISBN
                                     write_element_block("ProductIDType", w, |w| {
-                                        let event: XmlEvent = XmlEvent::Characters("06");
-                                        w.write(event).ok();
+                                        w.write(XmlEvent::Characters("06")).ok();
                                     })
                                     .ok();
                                     write_element_block("IDValue", w, |w| {
-                                        let event: XmlEvent = XmlEvent::Characters(&isbn);
-                                        w.write(event).ok();
+                                        w.write(XmlEvent::Characters(&isbn)).ok();
                                     })
                                     .ok();
                                 })
@@ -464,32 +412,28 @@ impl XmlSpecification for Onix3ProjectMuse {
                             write_element_block("Supplier", w, |w| {
                                 // 09 Publisher to end-customers
                                 write_element_block("SupplierRole", w, |w| {
-                                    let event: XmlEvent = XmlEvent::Characters("11");
-                                    w.write(event).ok();
+                                    w.write(XmlEvent::Characters("11")).ok();
                                 })
                                 .ok();
                                 write_element_block("SupplierName", w, |w| {
-                                    let event: XmlEvent = XmlEvent::Characters(
+                                    w.write(XmlEvent::Characters(
                                         &work.imprint.publisher.publisher_name,
-                                    );
-                                    w.write(event).ok();
+                                    ))
+                                    .ok();
                                 })
                                 .ok();
                                 write_element_block("Website", w, |w| {
                                     // 01 Publisher’s corporate website
                                     write_element_block("WebsiteRole", w, |w| {
-                                        let event: XmlEvent = XmlEvent::Characters("01");
-                                        w.write(event).ok();
+                                        w.write(XmlEvent::Characters("01")).ok();
                                     })
                                     .ok();
                                     write_element_block("WebsiteDescription", w, |w| {
-                                        let event: XmlEvent = XmlEvent::Characters(&description);
-                                        w.write(event).ok();
+                                        w.write(XmlEvent::Characters(&description)).ok();
                                     })
                                     .ok();
                                     write_element_block("WebsiteLink", w, |w| {
-                                        let event: XmlEvent = XmlEvent::Characters(&url);
-                                        w.write(event).ok();
+                                        w.write(XmlEvent::Characters(&url)).ok();
                                     })
                                     .ok();
                                 })
@@ -498,14 +442,12 @@ impl XmlSpecification for Onix3ProjectMuse {
                             .ok();
                             // 99 Contact supplier
                             write_element_block("ProductAvailability", w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters("99");
-                                w.write(event).ok();
+                                w.write(XmlEvent::Characters("99")).ok();
                             })
                             .ok();
                             // 04 Contact supplier
                             write_element_block("UnpricedItemType", w, |w| {
-                                let event: XmlEvent = XmlEvent::Characters("04");
-                                w.write(event).ok();
+                                w.write(XmlEvent::Characters("04")).ok();
                             })
                             .ok();
                         })
