@@ -6,12 +6,11 @@ use paperclip::actix::{web::HttpResponse, OpenApiExt};
 use paperclip::v2::models::{Contact, DefaultApiRaw, Info, License, Tag};
 
 mod format;
-mod onix;
-mod onix_types;
 mod platform;
 mod rapidoc;
 mod record;
 mod specification;
+mod xml;
 
 use crate::rapidoc::rapidoc_source;
 
