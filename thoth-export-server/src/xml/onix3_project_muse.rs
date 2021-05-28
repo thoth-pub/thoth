@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use std::io::Write;
 use thoth_api::errors::{ThothError, ThothResult};
 use thoth_client::{
-    ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkPublications,
-    WorkStatus,
+    ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
+    WorkPublications, WorkStatus,
 };
 use xml::writer::{EmitterConfig, EventWriter, Result, XmlEvent};
 
 use super::{write_element_block, XmlElement, XmlSpecification};
-use crate::xml::write_full_element_block;
+use crate::xml::{write_full_element_block, XmlElementBlock};
 
 pub struct Onix3ProjectMuse {}
 
@@ -187,49 +187,7 @@ impl XmlSpecification for Onix3ProjectMuse {
                         .ok();
                     })
                     .ok();
-                    for (mut sequence_number, contribution) in work.contributions.iter().enumerate()
-                    {
-                        sequence_number += 1;
-                        write_element_block("Contributor", w, |w| {
-                            write_element_block("SequenceNumber", w, |w| {
-                                w.write(XmlEvent::Characters(&sequence_number.to_string()))
-                                    .ok();
-                            })
-                            .ok();
-                            XmlElement::<Self>::xml_element(&contribution.contribution_type, w)
-                                .ok();
-
-                            if let Some(orcid) = &contribution.contributor.orcid {
-                                write_element_block("NameIdentifier", w, |w| {
-                                    write_element_block("NameIDType", w, |w| {
-                                        w.write(XmlEvent::Characters("21")).ok();
-                                    })
-                                    .ok();
-                                    write_element_block("IDValue", w, |w| {
-                                        w.write(XmlEvent::Characters(&orcid)).ok();
-                                    })
-                                    .ok();
-                                })
-                                .ok();
-                            }
-                            if let Some(first_name) = &contribution.first_name {
-                                write_element_block("NamesBeforeKey", w, |w| {
-                                    w.write(XmlEvent::Characters(&first_name)).ok();
-                                })
-                                .ok();
-                                write_element_block("KeyNames", w, |w| {
-                                    w.write(XmlEvent::Characters(&contribution.last_name)).ok();
-                                })
-                                .ok();
-                            } else {
-                                write_element_block("PersonName", w, |w| {
-                                    w.write(XmlEvent::Characters(&contribution.full_name)).ok();
-                                })
-                                .ok();
-                            }
-                        })
-                        .ok();
-                    }
+                    XmlElementBlock::<Self>::xml_element(&work.contributions, w).ok();
                     for language in &work.languages {
                         write_element_block("Language", w, |w| {
                             XmlElement::<Self>::xml_element(&language.language_relation, w).ok();
@@ -557,5 +515,55 @@ impl XmlElement<Onix3ProjectMuse> for ContributionType {
             ContributionType::PREFACE_BY => "A15",
             ContributionType::Other(_) => unreachable!(),
         }
+    }
+}
+
+// Replace with implementation for WorkContributions (without the vector)
+// when we implement contribution ordering
+impl XmlElementBlock<Onix3ProjectMuse> for Vec<WorkContributions> {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> Result<()> {
+        for (mut sequence_number, contribution) in self.iter().enumerate() {
+            sequence_number += 1;
+            write_element_block("Contributor", w, |w| {
+                write_element_block("SequenceNumber", w, |w| {
+                    w.write(XmlEvent::Characters(&sequence_number.to_string()))
+                        .ok();
+                })
+                .ok();
+                XmlElement::<Onix3ProjectMuse>::xml_element(&contribution.contribution_type, w)
+                    .ok();
+
+                if let Some(orcid) = &contribution.contributor.orcid {
+                    write_element_block("NameIdentifier", w, |w| {
+                        write_element_block("NameIDType", w, |w| {
+                            w.write(XmlEvent::Characters("21")).ok();
+                        })
+                        .ok();
+                        write_element_block("IDValue", w, |w| {
+                            w.write(XmlEvent::Characters(&orcid)).ok();
+                        })
+                        .ok();
+                    })
+                    .ok();
+                }
+                if let Some(first_name) = &contribution.first_name {
+                    write_element_block("NamesBeforeKey", w, |w| {
+                        w.write(XmlEvent::Characters(&first_name)).ok();
+                    })
+                    .ok();
+                    write_element_block("KeyNames", w, |w| {
+                        w.write(XmlEvent::Characters(&contribution.last_name)).ok();
+                    })
+                    .ok();
+                } else {
+                    write_element_block("PersonName", w, |w| {
+                        w.write(XmlEvent::Characters(&contribution.full_name)).ok();
+                    })
+                    .ok();
+                }
+            })
+            .ok();
+        }
+        Ok(())
     }
 }

@@ -59,6 +59,10 @@ pub(crate) trait XmlElement<T: XmlSpecification> {
     }
 }
 
+pub(crate) trait XmlElementBlock<T: XmlSpecification> {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> XmlResult<()>;
+}
+
 mod onix3_oapen;
 mod onix3_project_muse;
 pub(crate) use onix3_oapen::Onix3Oapen;
