@@ -8,7 +8,7 @@ use std::str::FromStr;
 use thoth_api::errors::{ThothError, ThothResult};
 use thoth_client::Work;
 
-use crate::xml::{Onix3ProjectMuse, Onix3Oapen, XmlSpecification};
+use crate::xml::{Onix3Oapen, Onix3ProjectMuse, XmlSpecification};
 
 pub(crate) trait AsRecord {}
 impl AsRecord for Work {}
@@ -50,7 +50,9 @@ where
 impl MetadataRecord<Work> {
     fn generate(self) -> ThothResult<String> {
         match self.specification {
-            MetadataSpecification::Onix3ProjectMuse(onix3_project_muse) => onix3_project_muse.generate(self.data),
+            MetadataSpecification::Onix3ProjectMuse(onix3_project_muse) => {
+                onix3_project_muse.generate(self.data)
+            }
             MetadataSpecification::Onix3Oapen(_) => unimplemented!(),
             MetadataSpecification::CsvThoth(_) => unimplemented!(),
         }
@@ -109,7 +111,9 @@ impl FromStr for MetadataSpecification {
 
     fn from_str(input: &str) -> ThothResult<Self> {
         match input {
-            "onix_3.0::project_muse" => Ok(MetadataSpecification::Onix3ProjectMuse(Onix3ProjectMuse {})),
+            "onix_3.0::project_muse" => {
+                Ok(MetadataSpecification::Onix3ProjectMuse(Onix3ProjectMuse {}))
+            }
             "onix_3.0::oapen" => Ok(MetadataSpecification::Onix3Oapen(Onix3Oapen {})),
             "csv::thoth" => Ok(MetadataSpecification::CsvThoth(CsvThoth {})),
             _ => Err(ThothError::InvalidMetadataSpecification(input.to_string())),

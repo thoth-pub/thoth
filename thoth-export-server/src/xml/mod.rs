@@ -1,11 +1,19 @@
+use std::collections::HashMap;
+use std::io::Write;
 use thoth_api::errors::ThothResult;
 use thoth_client::Work;
-use std::io::Write;
-use xml::writer::{EventWriter, Result as XmlResult, XmlEvent};
 use xml::writer::events::StartElementBuilder;
-use std::collections::HashMap;
+use xml::writer::{EventWriter, Result as XmlResult, XmlEvent};
 
 pub(crate) fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
+    element: &str,
+    w: &mut EventWriter<W>,
+    f: F,
+) -> XmlResult<()> {
+    write_full_element_block(element, None, None, w, f)
+}
+
+pub(crate) fn write_full_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
     element: &str,
     ns: Option<HashMap<String, String>>,
     attr: Option<HashMap<&str, &str>>,
@@ -45,13 +53,13 @@ pub(crate) trait XmlElement<T: XmlSpecification> {
     fn value(&self) -> &'static str;
 
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> XmlResult<()> {
-        write_element_block(Self::ELEMENT, None, None, w, |w| {
+        write_element_block(Self::ELEMENT, w, |w| {
             w.write(XmlEvent::Characters(self.value())).ok();
         })
     }
 }
 
-mod onix3_project_muse;
 mod onix3_oapen;
-pub(crate) use onix3_project_muse::Onix3ProjectMuse;
+mod onix3_project_muse;
 pub(crate) use onix3_oapen::Onix3Oapen;
+pub(crate) use onix3_project_muse::Onix3ProjectMuse;
