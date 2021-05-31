@@ -71,3 +71,24 @@ pub(crate) async fn by_work(
         })
         .map_err(|e| e.into())
 }
+
+#[api_v2_operation(
+    summary = "Get a work's metadata record",
+    description = "Obtain a metadata record that adheres to a particular specification for a given work",
+    produces = "text/xml",
+    tags(Specifications)
+)]
+pub(crate) async fn by_publisher(
+    web::Path((specification_id, publisher_id)): web::Path<(String, Uuid)>,
+    config: web::Data<ApiConfig>,
+) -> Result<MetadataRecord<Vec<Work>>, Error> {
+    ThothClient::new(&config.graphql_endpoint)
+        .get_works(Some(vec![publisher_id]))
+        .await
+        .and_then(|data| {
+            specification_id
+                .parse()
+                .map(|specification| MetadataRecord::new(specification, data))
+        })
+        .map_err(|e| e.into())
+}

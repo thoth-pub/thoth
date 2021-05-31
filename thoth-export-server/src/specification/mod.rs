@@ -1,7 +1,7 @@
 mod handler;
 pub(crate) mod model;
 
-use self::handler::{by_work, get_all, get_one};
+use self::handler::{by_publisher, by_work, get_all, get_one};
 use paperclip::actix::web;
 
 pub(crate) fn route(cfg: &mut web::ServiceConfig) {
@@ -11,6 +11,10 @@ pub(crate) fn route(cfg: &mut web::ServiceConfig) {
             .service(web::resource("/{specification_id}").route(web::get().to(get_one)))
             .service(
                 web::resource("/{specification_id}/work/{work_id}").route(web::get().to(by_work)),
+            )
+            .service(
+                web::resource("/{specification_id}/publisher/{work_id}")
+                    .route(web::get().to(by_publisher)),
             ),
     );
 }
