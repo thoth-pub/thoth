@@ -4,7 +4,7 @@ use std::io::Write;
 use thoth_api::errors::{ThothError, ThothResult};
 use thoth_client::{
     ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
-    WorkPublications, WorkStatus,
+    WorkPublications, WorkStatus, WorkLanguages,
 };
 use xml::writer::{EmitterConfig, EventWriter, Result, XmlEvent};
 
@@ -61,360 +61,355 @@ impl XmlSpecification for Onix3ProjectMuse {
             })
             .ok();
 
-            write_element_block("Product", w, |w| {
-                write_element_block("RecordReference", w, |w| {
-                    w.write(XmlEvent::Characters(&work_id)).ok();
-                })
+            XmlElementBlock::<Onix3ProjectMuse>::xml_element(work, w).ok();
+        })
+    }
+}
+
+impl XmlElementBlock<Onix3ProjectMuse> for Work {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> Result<()> {
+        write_element_block("Product", w, |w| {
+            write_element_block("RecordReference", w, |w| {
+                w.write(XmlEvent::Characters(&work_id)).ok();
+            })
                 .ok();
-                // 03 Notification confirmed on publication
-                write_element_block("NotificationType", w, |w| {
-                    w.write(XmlEvent::Characters("03")).ok();
-                })
+            // 03 Notification confirmed on publication
+            write_element_block("NotificationType", w, |w| {
+                w.write(XmlEvent::Characters("03")).ok();
+            })
                 .ok();
-                // 01 Publisher
-                write_element_block("RecordSourceType", w, |w| {
+            // 01 Publisher
+            write_element_block("RecordSourceType", w, |w| {
+                w.write(XmlEvent::Characters("01")).ok();
+            })
+                .ok();
+            write_element_block("ProductIdentifier", w, |w| {
+                // 01 Proprietary
+                write_element_block("ProductIDType", w, |w| {
                     w.write(XmlEvent::Characters("01")).ok();
                 })
+                    .ok();
+                write_element_block("IDValue", w, |w| {
+                    w.write(XmlEvent::Characters(&work_id)).ok();
+                })
+                    .ok();
+            })
                 .ok();
+            write_element_block("ProductIdentifier", w, |w| {
+                // 15 ISBN-13
+                write_element_block("ProductIDType", w, |w| {
+                    w.write(XmlEvent::Characters("15")).ok();
+                })
+                    .ok();
+                write_element_block("IDValue", w, |w| {
+                    w.write(XmlEvent::Characters(&main_isbn)).ok();
+                })
+                    .ok();
+            })
+                .ok();
+            if let Some(doi) = &work.doi {
                 write_element_block("ProductIdentifier", w, |w| {
-                    // 01 Proprietary
                     write_element_block("ProductIDType", w, |w| {
+                        w.write(XmlEvent::Characters("06")).ok();
+                    })
+                        .ok();
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(&doi.replace("https://doi.org/", "")))
+                            .ok();
+                    })
+                        .ok();
+                })
+                    .ok();
+            }
+            write_element_block("DescriptiveDetail", w, |w| {
+                // 00 Single-component retail product
+                write_element_block("ProductComposition", w, |w| {
+                    w.write(XmlEvent::Characters("00")).ok();
+                })
+                    .ok();
+                // EB Digital download and online
+                write_element_block("ProductForm", w, |w| {
+                    w.write(XmlEvent::Characters("EB")).ok();
+                })
+                    .ok();
+                // E107 PDF
+                write_element_block("ProductFormDetail", w, |w| {
+                    w.write(XmlEvent::Characters("E107")).ok();
+                })
+                    .ok();
+                // 10 Text (eye-readable)
+                write_element_block("PrimaryContentType", w, |w| {
+                    w.write(XmlEvent::Characters("10")).ok();
+                })
+                    .ok();
+                if let Some(license) = &work.license {
+                    write_element_block("EpubLicense", w, |w| {
+                        write_element_block("EpubLicenseName", w, |w| {
+                            w.write(XmlEvent::Characters("Creative Commons License"))
+                                .ok();
+                        })
+                            .ok();
+                        write_element_block("EpubLicenseExpression", w, |w| {
+                            write_element_block("EpubLicenseExpressionType", w, |w| {
+                                w.write(XmlEvent::Characters("02")).ok();
+                            })
+                                .ok();
+                            write_element_block("EpubLicenseExpressionLink", w, |w| {
+                                w.write(XmlEvent::Characters(&license)).ok();
+                            })
+                                .ok();
+                        })
+                            .ok();
+                    })
+                        .ok();
+                }
+                write_element_block("TitleDetail", w, |w| {
+                    // 01 Distinctive title (book)
+                    write_element_block("TitleType", w, |w| {
                         w.write(XmlEvent::Characters("01")).ok();
                     })
-                    .ok();
-                    write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(&work_id)).ok();
-                    })
-                    .ok();
-                })
-                .ok();
-                write_element_block("ProductIdentifier", w, |w| {
-                    // 15 ISBN-13
-                    write_element_block("ProductIDType", w, |w| {
-                        w.write(XmlEvent::Characters("15")).ok();
-                    })
-                    .ok();
-                    write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(&main_isbn)).ok();
-                    })
-                    .ok();
-                })
-                .ok();
-                if let Some(doi) = &work.doi {
-                    write_element_block("ProductIdentifier", w, |w| {
-                        write_element_block("ProductIDType", w, |w| {
-                            w.write(XmlEvent::Characters("06")).ok();
-                        })
                         .ok();
-                        write_element_block("IDValue", w, |w| {
-                            w.write(XmlEvent::Characters(&doi.replace("https://doi.org/", "")))
-                                .ok();
-                        })
-                        .ok();
-                    })
-                    .ok();
-                }
-                write_element_block("DescriptiveDetail", w, |w| {
-                    // 00 Single-component retail product
-                    write_element_block("ProductComposition", w, |w| {
-                        w.write(XmlEvent::Characters("00")).ok();
-                    })
-                    .ok();
-                    // EB Digital download and online
-                    write_element_block("ProductForm", w, |w| {
-                        w.write(XmlEvent::Characters("EB")).ok();
-                    })
-                    .ok();
-                    // E107 PDF
-                    write_element_block("ProductFormDetail", w, |w| {
-                        w.write(XmlEvent::Characters("E107")).ok();
-                    })
-                    .ok();
-                    // 10 Text (eye-readable)
-                    write_element_block("PrimaryContentType", w, |w| {
-                        w.write(XmlEvent::Characters("10")).ok();
-                    })
-                    .ok();
-                    if let Some(license) = &work.license {
-                        write_element_block("EpubLicense", w, |w| {
-                            write_element_block("EpubLicenseName", w, |w| {
-                                w.write(XmlEvent::Characters("Creative Commons License"))
-                                    .ok();
-                            })
-                            .ok();
-                            write_element_block("EpubLicenseExpression", w, |w| {
-                                write_element_block("EpubLicenseExpressionType", w, |w| {
-                                    w.write(XmlEvent::Characters("02")).ok();
-                                })
-                                .ok();
-                                write_element_block("EpubLicenseExpressionLink", w, |w| {
-                                    w.write(XmlEvent::Characters(&license)).ok();
-                                })
-                                .ok();
-                            })
-                            .ok();
-                        })
-                        .ok();
-                    }
-                    write_element_block("TitleDetail", w, |w| {
-                        // 01 Distinctive title (book)
-                        write_element_block("TitleType", w, |w| {
+                    write_element_block("TitleElement", w, |w| {
+                        // 01 Product
+                        write_element_block("TitleElementLevel", w, |w| {
                             w.write(XmlEvent::Characters("01")).ok();
                         })
-                        .ok();
-                        write_element_block("TitleElement", w, |w| {
-                            // 01 Product
-                            write_element_block("TitleElementLevel", w, |w| {
-                                w.write(XmlEvent::Characters("01")).ok();
-                            })
                             .ok();
-                            if let Some(subtitle) = &work.subtitle {
-                                write_element_block("TitleText", w, |w| {
-                                    w.write(XmlEvent::Characters(&work.title)).ok();
-                                })
+                        if let Some(subtitle) = &work.subtitle {
+                            write_element_block("TitleText", w, |w| {
+                                w.write(XmlEvent::Characters(&work.title)).ok();
+                            })
                                 .ok();
-                                write_element_block("Subtitle", w, |w| {
-                                    w.write(XmlEvent::Characters(&subtitle)).ok();
-                                })
+                            write_element_block("Subtitle", w, |w| {
+                                w.write(XmlEvent::Characters(&subtitle)).ok();
+                            })
                                 .ok();
-                            } else {
-                                write_element_block("TitleText", w, |w| {
-                                    w.write(XmlEvent::Characters(&work.full_title)).ok();
-                                })
+                        } else {
+                            write_element_block("TitleText", w, |w| {
+                                w.write(XmlEvent::Characters(&work.full_title)).ok();
+                            })
                                 .ok();
-                            }
-                        })
-                        .ok();
+                        }
                     })
-                    .ok();
-                    XmlElementBlock::<Self>::xml_element(&work.contributions, w).ok();
-                    for language in &work.languages {
-                        write_element_block("Language", w, |w| {
-                            XmlElement::<Self>::xml_element(&language.language_relation, w).ok();
-                            write_element_block("LanguageCode", w, |w| {
-                                w.write(XmlEvent::Characters(
-                                    &language.language_code.to_string().to_lowercase(),
-                                ))
-                                .ok();
-                            })
-                            .ok();
-                        })
                         .ok();
-                    }
-                    if let Some(page_count) = &work.page_count {
-                        write_element_block("Extent", w, |w| {
-                            // 00 Main content
-                            write_element_block("ExtentType", w, |w| {
-                                w.write(XmlEvent::Characters("00")).ok();
-                            })
+                })
+                    .ok();
+                XmlElementBlock::<Self>::xml_element(&work.contributions, w).ok();
+                for language in &work.languages {
+                    XmlElementBlock::<Self>::xml_element(language, w).ok();
+                }
+                if let Some(page_count) = &work.page_count {
+                    write_element_block("Extent", w, |w| {
+                        // 00 Main content
+                        write_element_block("ExtentType", w, |w| {
+                            w.write(XmlEvent::Characters("00")).ok();
+                        })
                             .ok();
-                            write_element_block("ExtentValue", w, |w| {
-                                w.write(XmlEvent::Characters(&page_count.to_string())).ok();
-                            })
+                        write_element_block("ExtentValue", w, |w| {
+                            w.write(XmlEvent::Characters(&page_count.to_string())).ok();
+                        })
                             .ok();
-                            // 03 Pages
-                            write_element_block("ExtentUnit", w, |w| {
+                        // 03 Pages
+                        write_element_block("ExtentUnit", w, |w| {
+                            w.write(XmlEvent::Characters("03")).ok();
+                        })
+                            .ok();
+                    })
+                        .ok();
+                }
+                for subject in &work.subjects {
+                    write_element_block("Subject", w, |w| {
+                        XmlElement::<Self>::xml_element(&subject.subject_type, w).ok();
+                        write_element_block("SubjectCode", w, |w| {
+                            w.write(XmlEvent::Characters(&subject.subject_code)).ok();
+                        })
+                            .ok();
+                    })
+                        .ok();
+                }
+            })
+                .ok();
+            if work.long_abstract.is_some() || work.toc.is_some() {
+                write_element_block("CollateralDetail", w, |w| {
+                    if let Some(labstract) = &work.long_abstract {
+                        write_element_block("TextContent", w, |w| {
+                            let mut lang_fmt: HashMap<&str, &str> = HashMap::new();
+                            lang_fmt.insert("language", "eng");
+                            // 03 Description ("30 Abstract" not implemented in OAPEN)
+                            write_element_block("TextType", w, |w| {
                                 w.write(XmlEvent::Characters("03")).ok();
                             })
-                            .ok();
+                                .ok();
+                            // 00 Unrestricted
+                            write_element_block("ContentAudience", w, |w| {
+                                w.write(XmlEvent::Characters("00")).ok();
+                            })
+                                .ok();
+                            write_full_element_block("Text", None, Some(lang_fmt), w, |w| {
+                                w.write(XmlEvent::Characters(&labstract)).ok();
+                            })
+                                .ok();
                         })
-                        .ok();
+                            .ok();
                     }
-                    for subject in &work.subjects {
-                        write_element_block("Subject", w, |w| {
-                            XmlElement::<Self>::xml_element(&subject.subject_type, w).ok();
-                            write_element_block("SubjectCode", w, |w| {
-                                w.write(XmlEvent::Characters(&subject.subject_code)).ok();
-                            })
-                            .ok();
-                        })
-                        .ok();
-                    }
-                })
-                .ok();
-                if work.long_abstract.is_some() || work.toc.is_some() {
-                    write_element_block("CollateralDetail", w, |w| {
-                        if let Some(labstract) = &work.long_abstract {
-                            write_element_block("TextContent", w, |w| {
-                                let mut lang_fmt: HashMap<&str, &str> = HashMap::new();
-                                lang_fmt.insert("language", "eng");
-                                // 03 Description ("30 Abstract" not implemented in OAPEN)
-                                write_element_block("TextType", w, |w| {
-                                    w.write(XmlEvent::Characters("03")).ok();
-                                })
-                                .ok();
-                                // 00 Unrestricted
-                                write_element_block("ContentAudience", w, |w| {
-                                    w.write(XmlEvent::Characters("00")).ok();
-                                })
-                                .ok();
-                                write_full_element_block("Text", None, Some(lang_fmt), w, |w| {
-                                    w.write(XmlEvent::Characters(&labstract)).ok();
-                                })
-                                .ok();
-                            })
-                            .ok();
-                        }
-                        if let Some(toc) = &work.toc {
-                            write_element_block("TextContent", w, |w| {
-                                // 04 Table of contents
-                                write_element_block("TextType", w, |w| {
-                                    w.write(XmlEvent::Characters("04")).ok();
-                                })
-                                .ok();
-                                // 00 Unrestricted
-                                write_element_block("ContentAudience", w, |w| {
-                                    w.write(XmlEvent::Characters("00")).ok();
-                                })
-                                .ok();
-                                write_element_block("Text", w, |w| {
-                                    w.write(XmlEvent::Characters(&toc)).ok();
-                                })
-                                .ok();
-                            })
-                            .ok();
-                        }
-                    })
-                    .ok();
-                }
-                write_element_block("PublishingDetail", w, |w| {
-                    write_element_block("Imprint", w, |w| {
-                        write_element_block("ImprintName", w, |w| {
-                            w.write(XmlEvent::Characters(&work.imprint.imprint_name))
-                                .ok();
-                        })
-                        .ok();
-                    })
-                    .ok();
-                    write_element_block("Publisher", w, |w| {
-                        // 01 Publisher
-                        write_element_block("PublishingRole", w, |w| {
-                            w.write(XmlEvent::Characters("01")).ok();
-                        })
-                        .ok();
-                        write_element_block("PublisherName", w, |w| {
-                            w.write(XmlEvent::Characters(&work.imprint.publisher.publisher_name))
-                                .ok();
-                        })
-                        .ok();
-                    })
-                    .ok();
-                    if let Some(place) = &work.place {
-                        write_element_block("CityOfPublication", w, |w| {
-                            w.write(XmlEvent::Characters(&place)).ok();
-                        })
-                        .ok();
-                    }
-                    XmlElement::<Self>::xml_element(&work.work_status, w).ok();
-                    if let Some(date) = &work.publication_date {
-                        write_element_block("PublishingDate", w, |w| {
-                            let mut date_fmt: HashMap<&str, &str> = HashMap::new();
-                            date_fmt.insert("dateformat", "01"); // 01 YYYYMM
-                                                                 // 19 Publication date of print counterpart
-                            write_element_block("PublishingDateRole", w, |w| {
-                                w.write(XmlEvent::Characters("19")).ok();
-                            })
-                            .ok();
-                            // dateformat="01" YYYYMM
-                            write_full_element_block("Date", None, Some(date_fmt), w, |w| {
-                                w.write(XmlEvent::Characters(&date.format("%Y%m").to_string()))
-                                    .ok();
-                            })
-                            .ok();
-                        })
-                        .ok();
-                    }
-                })
-                .ok();
-                if !isbns.is_empty() {
-                    write_element_block("RelatedMaterial", w, |w| {
-                        for isbn in &isbns {
-                            write_element_block("RelatedProduct", w, |w| {
-                                // 06 Alternative format
-                                write_element_block("ProductRelationCode", w, |w| {
-                                    w.write(XmlEvent::Characters("06")).ok();
-                                })
-                                .ok();
-                                write_element_block("ProductIdentifier", w, |w| {
-                                    // 06 ISBN
-                                    write_element_block("ProductIDType", w, |w| {
-                                        w.write(XmlEvent::Characters("06")).ok();
-                                    })
-                                    .ok();
-                                    write_element_block("IDValue", w, |w| {
-                                        w.write(XmlEvent::Characters(&isbn)).ok();
-                                    })
-                                    .ok();
-                                })
-                                .ok();
-                            })
-                            .ok();
-                        }
-                    })
-                    .ok();
-                }
-                write_element_block("ProductSupply", w, |w| {
-                    let mut supplies: HashMap<String, String> = HashMap::new();
-                    supplies.insert(
-                        pdf_url.to_string(),
-                        "Publisher's website: download the title".to_string(),
-                    );
-                    if let Some(landing_page) = &work.landing_page {
-                        supplies.insert(
-                            landing_page.to_string(),
-                            "Publisher's website: web shop".to_string(),
-                        );
-                    }
-                    for (url, description) in supplies.iter() {
-                        write_element_block("SupplyDetail", w, |w| {
-                            write_element_block("Supplier", w, |w| {
-                                // 09 Publisher to end-customers
-                                write_element_block("SupplierRole", w, |w| {
-                                    w.write(XmlEvent::Characters("11")).ok();
-                                })
-                                .ok();
-                                write_element_block("SupplierName", w, |w| {
-                                    w.write(XmlEvent::Characters(
-                                        &work.imprint.publisher.publisher_name,
-                                    ))
-                                    .ok();
-                                })
-                                .ok();
-                                write_element_block("Website", w, |w| {
-                                    // 01 Publisher’s corporate website
-                                    write_element_block("WebsiteRole", w, |w| {
-                                        w.write(XmlEvent::Characters("01")).ok();
-                                    })
-                                    .ok();
-                                    write_element_block("WebsiteDescription", w, |w| {
-                                        w.write(XmlEvent::Characters(&description)).ok();
-                                    })
-                                    .ok();
-                                    write_element_block("WebsiteLink", w, |w| {
-                                        w.write(XmlEvent::Characters(&url)).ok();
-                                    })
-                                    .ok();
-                                })
-                                .ok();
-                            })
-                            .ok();
-                            // 99 Contact supplier
-                            write_element_block("ProductAvailability", w, |w| {
-                                w.write(XmlEvent::Characters("99")).ok();
-                            })
-                            .ok();
-                            // 04 Contact supplier
-                            write_element_block("UnpricedItemType", w, |w| {
+                    if let Some(toc) = &work.toc {
+                        write_element_block("TextContent", w, |w| {
+                            // 04 Table of contents
+                            write_element_block("TextType", w, |w| {
                                 w.write(XmlEvent::Characters("04")).ok();
                             })
-                            .ok();
+                                .ok();
+                            // 00 Unrestricted
+                            write_element_block("ContentAudience", w, |w| {
+                                w.write(XmlEvent::Characters("00")).ok();
+                            })
+                                .ok();
+                            write_element_block("Text", w, |w| {
+                                w.write(XmlEvent::Characters(&toc)).ok();
+                            })
+                                .ok();
                         })
-                        .ok();
+                            .ok();
                     }
                 })
-                .ok();
+                    .ok();
+            }
+            write_element_block("PublishingDetail", w, |w| {
+                write_element_block("Imprint", w, |w| {
+                    write_element_block("ImprintName", w, |w| {
+                        w.write(XmlEvent::Characters(&work.imprint.imprint_name))
+                            .ok();
+                    })
+                        .ok();
+                })
+                    .ok();
+                write_element_block("Publisher", w, |w| {
+                    // 01 Publisher
+                    write_element_block("PublishingRole", w, |w| {
+                        w.write(XmlEvent::Characters("01")).ok();
+                    })
+                        .ok();
+                    write_element_block("PublisherName", w, |w| {
+                        w.write(XmlEvent::Characters(&work.imprint.publisher.publisher_name))
+                            .ok();
+                    })
+                        .ok();
+                })
+                    .ok();
+                if let Some(place) = &work.place {
+                    write_element_block("CityOfPublication", w, |w| {
+                        w.write(XmlEvent::Characters(&place)).ok();
+                    })
+                        .ok();
+                }
+                XmlElement::<Self>::xml_element(&work.work_status, w).ok();
+                if let Some(date) = &work.publication_date {
+                    write_element_block("PublishingDate", w, |w| {
+                        let mut date_fmt: HashMap<&str, &str> = HashMap::new();
+                        date_fmt.insert("dateformat", "01"); // 01 YYYYMM
+                        // 19 Publication date of print counterpart
+                        write_element_block("PublishingDateRole", w, |w| {
+                            w.write(XmlEvent::Characters("19")).ok();
+                        })
+                            .ok();
+                        // dateformat="01" YYYYMM
+                        write_full_element_block("Date", None, Some(date_fmt), w, |w| {
+                            w.write(XmlEvent::Characters(&date.format("%Y%m").to_string()))
+                                .ok();
+                        })
+                            .ok();
+                    })
+                        .ok();
+                }
             })
-            .ok();
+                .ok();
+            if !isbns.is_empty() {
+                write_element_block("RelatedMaterial", w, |w| {
+                    for isbn in &isbns {
+                        write_element_block("RelatedProduct", w, |w| {
+                            // 06 Alternative format
+                            write_element_block("ProductRelationCode", w, |w| {
+                                w.write(XmlEvent::Characters("06")).ok();
+                            })
+                                .ok();
+                            write_element_block("ProductIdentifier", w, |w| {
+                                // 06 ISBN
+                                write_element_block("ProductIDType", w, |w| {
+                                    w.write(XmlEvent::Characters("06")).ok();
+                                })
+                                    .ok();
+                                write_element_block("IDValue", w, |w| {
+                                    w.write(XmlEvent::Characters(&isbn)).ok();
+                                })
+                                    .ok();
+                            })
+                                .ok();
+                        })
+                            .ok();
+                    }
+                })
+                    .ok();
+            }
+            write_element_block("ProductSupply", w, |w| {
+                let mut supplies: HashMap<String, String> = HashMap::new();
+                supplies.insert(
+                    pdf_url.to_string(),
+                    "Publisher's website: download the title".to_string(),
+                );
+                if let Some(landing_page) = &work.landing_page {
+                    supplies.insert(
+                        landing_page.to_string(),
+                        "Publisher's website: web shop".to_string(),
+                    );
+                }
+                for (url, description) in supplies.iter() {
+                    write_element_block("SupplyDetail", w, |w| {
+                        write_element_block("Supplier", w, |w| {
+                            // 09 Publisher to end-customers
+                            write_element_block("SupplierRole", w, |w| {
+                                w.write(XmlEvent::Characters("11")).ok();
+                            })
+                                .ok();
+                            write_element_block("SupplierName", w, |w| {
+                                w.write(XmlEvent::Characters(
+                                    &work.imprint.publisher.publisher_name,
+                                ))
+                                    .ok();
+                            })
+                                .ok();
+                            write_element_block("Website", w, |w| {
+                                // 01 Publisher’s corporate website
+                                write_element_block("WebsiteRole", w, |w| {
+                                    w.write(XmlEvent::Characters("01")).ok();
+                                })
+                                    .ok();
+                                write_element_block("WebsiteDescription", w, |w| {
+                                    w.write(XmlEvent::Characters(&description)).ok();
+                                })
+                                    .ok();
+                                write_element_block("WebsiteLink", w, |w| {
+                                    w.write(XmlEvent::Characters(&url)).ok();
+                                })
+                                    .ok();
+                            })
+                                .ok();
+                        })
+                            .ok();
+                        // 99 Contact supplier
+                        write_element_block("ProductAvailability", w, |w| {
+                            w.write(XmlEvent::Characters("99")).ok();
+                        })
+                            .ok();
+                        // 04 Contact supplier
+                        write_element_block("UnpricedItemType", w, |w| {
+                            w.write(XmlEvent::Characters("04")).ok();
+                        })
+                            .ok();
+                    })
+                        .ok();
+                }
+            })
+                .ok();
         })
     }
 }
@@ -565,5 +560,18 @@ impl XmlElementBlock<Onix3ProjectMuse> for Vec<WorkContributions> {
             .ok();
         }
         Ok(())
+    }
+}
+
+impl XmlElementBlock<Onix3ProjectMuse> for WorkLanguages {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> Result<()> {
+        write_element_block("Contributor", w, |w| {
+            XmlElement::<Onix3ProjectMuse>::xml_element(&self.language_relation, w).ok();
+            // not worth implementing XmlElement for LanguageCode as all cases would
+            // need to be exhaustively matched and the codes are equivalent anyway
+            write_element_block("LanguageCode", w, |w| {
+                w.write(XmlEvent::Characters(&self.language_code.to_string().to_lowercase())).ok();
+            }).ok();
+        })
     }
 }
