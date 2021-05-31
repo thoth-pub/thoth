@@ -11,7 +11,6 @@ use thoth_client::Work;
 use crate::xml::{Onix3Oapen, Onix3ProjectMuse, XmlSpecification};
 
 pub(crate) trait AsRecord {}
-impl AsRecord for Work {}
 impl AsRecord for Vec<Work> {}
 
 pub struct CsvThoth {}
@@ -29,7 +28,7 @@ pub(crate) struct MetadataRecord<T: AsRecord> {
 
 impl<T> MetadataRecord<T>
 where
-    T: AsRecord,
+    T: AsRecord + IntoIterator,
 {
     pub(crate) fn new(specification: MetadataSpecification, data: T) -> Self {
         MetadataRecord {
@@ -47,7 +46,7 @@ where
     }
 }
 
-impl MetadataRecord<Work> {
+impl MetadataRecord<Vec<Work>> {
     fn generate(self) -> ThothResult<String> {
         match self.specification {
             MetadataSpecification::Onix3ProjectMuse(onix3_project_muse) => {
@@ -59,33 +58,20 @@ impl MetadataRecord<Work> {
     }
 }
 
-impl MetadataRecord<Vec<Work>> {
-    fn generate(self) -> ThothResult<String> {
-        unimplemented!()
+impl Responder for MetadataRecord<Vec<Work>>
+where
+    actix_web::dev::Body: From<String>,
+{
+    type Error = ThothError;
+    type Future = Ready<ThothResult<HttpResponse>>;
+
+    fn respond_to(self, _: &HttpRequest) -> Self::Future {
+        ready(Ok(HttpResponse::build(StatusCode::OK)
+            .content_type(self.content_type())
+            .header("Content-Disposition", "attachment")
+            .body(self.generate().unwrap())))
     }
 }
-
-macro_rules! paperclip_responder {
-    ($record_type:ty) => {
-        impl Responder for MetadataRecord<$record_type>
-        where
-            actix_web::dev::Body: From<String>,
-        {
-            type Error = ThothError;
-            type Future = Ready<ThothResult<HttpResponse>>;
-
-            fn respond_to(self, _: &HttpRequest) -> Self::Future {
-                ready(Ok(HttpResponse::build(StatusCode::OK)
-                    .content_type(self.content_type())
-                    .header("Content-Disposition", "attachment")
-                    .body(self.generate().unwrap())))
-            }
-        }
-    };
-}
-
-paperclip_responder!(Work);
-paperclip_responder!(Vec<Work>);
 
 impl<T: AsRecord> Apiv2Schema for MetadataRecord<T> {}
 

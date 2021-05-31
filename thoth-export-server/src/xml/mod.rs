@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::io::Write;
-use thoth_api::errors::ThothResult;
+use thoth_api::errors::{ThothError, ThothResult};
 use thoth_client::Work;
 use xml::writer::events::StartElementBuilder;
-use xml::writer::{EventWriter, Result as XmlResult, XmlEvent};
+use xml::writer::{EmitterConfig, EventWriter, Result as XmlResult, XmlEvent};
 
 pub(crate) fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
     element: &str,
@@ -42,9 +42,21 @@ pub(crate) fn write_full_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
 }
 
 pub(crate) trait XmlSpecification {
-    fn generate(self, work: Work) -> ThothResult<String>;
+    fn generate(&self, works: Vec<Work>) -> ThothResult<String> {
+        let mut buffer = Vec::new();
+        let mut writer = EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+        Self::handle_event(&mut writer, works)
+            .map(|_| buffer)
+            .map_err(|e| e.into())
+            .and_then(|onix| {
+                String::from_utf8(onix)
+                    .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
+            })
+    }
 
-    fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &Work) -> XmlResult<()>;
+    fn handle_event<W: Write>(w: &mut EventWriter<W>, works: Vec<Work>) -> XmlResult<()>;
 }
 
 pub(crate) trait XmlElement<T: XmlSpecification> {

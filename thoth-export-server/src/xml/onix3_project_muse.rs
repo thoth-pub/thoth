@@ -1,12 +1,11 @@
 use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
-use thoth_api::errors::{ThothError, ThothResult};
 use thoth_client::{
     ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
     WorkLanguages, WorkPublications, WorkStatus,
 };
-use xml::writer::{EmitterConfig, EventWriter, Result, XmlEvent};
+use xml::writer::{EventWriter, Result, XmlEvent};
 
 use super::{write_element_block, XmlElement, XmlSpecification};
 use crate::xml::{write_full_element_block, XmlElementBlock};
@@ -14,21 +13,7 @@ use crate::xml::{write_full_element_block, XmlElementBlock};
 pub struct Onix3ProjectMuse {}
 
 impl XmlSpecification for Onix3ProjectMuse {
-    fn generate(self, work: Work) -> ThothResult<String> {
-        let mut buffer = Vec::new();
-        let mut writer = EmitterConfig::new()
-            .perform_indent(true)
-            .create_writer(&mut buffer);
-        Self::handle_event(&mut writer, &work)
-            .map(|_| buffer)
-            .map_err(|e| e.into())
-            .and_then(|onix| {
-                String::from_utf8(onix)
-                    .map_err(|_| ThothError::InternalError("Could not generate ONIX".to_string()))
-            })
-    }
-
-    fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &Work) -> Result<()> {
+    fn handle_event<W: Write>(w: &mut EventWriter<W>, works: Vec<Work>) -> Result<()> {
         let mut attr_map: HashMap<&str, &str> = HashMap::new();
 
         attr_map.insert("release", "3.0");
@@ -38,8 +23,7 @@ impl XmlSpecification for Onix3ProjectMuse {
             write_element_block("Header", w, |w| {
                 write_element_block("Sender", w, |w| {
                     write_element_block("SenderName", w, |w| {
-                        w.write(XmlEvent::Characters(&work.imprint.publisher.publisher_name))
-                            .ok();
+                        w.write(XmlEvent::Characters("Thoth")).ok();
                     })
                     .ok();
                     write_element_block("EmailAddress", w, |w| {
@@ -58,7 +42,9 @@ impl XmlSpecification for Onix3ProjectMuse {
             })
             .ok();
 
-            XmlElementBlock::<Onix3ProjectMuse>::xml_element(work, w).ok();
+            for work in works.iter() {
+                XmlElementBlock::<Onix3ProjectMuse>::xml_element(work, w).ok();
+            }
         })
     }
 }
@@ -565,7 +551,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Vec<WorkContributions> {
 
 impl XmlElementBlock<Onix3ProjectMuse> for WorkLanguages {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> Result<()> {
-        write_element_block("Contributor", w, |w| {
+        write_element_block("Language", w, |w| {
             XmlElement::<Onix3ProjectMuse>::xml_element(&self.language_relation, w).ok();
             // not worth implementing XmlElement for LanguageCode as all cases would
             // need to be exhaustively matched and the codes are equivalent anyway
