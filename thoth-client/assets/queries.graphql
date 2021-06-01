@@ -5,18 +5,42 @@ fragment Work on Work {
     title
     subtitle
     workType
+    edition
     doi
-    license
-    longAbstract
-    place
-    pageCount
     publicationDate
+    license
+    copyrightHolder
+    shortAbstract
+    longAbstract
+    generalNote
+    place
+    width
+    height
+    pageCount
+    pageBreakdown
+    imageCount
+    tableCount
+    audioCount
+    videoCount
     landingPage
     toc
+    lccn
+    oclc
+    coverUrl
+    coverCaption
     imprint {
         imprintName
         publisher {
             publisherName
+        }
+    }
+    issues {
+        issueOrdinal
+        series {
+            seriesType
+            seriesName
+            issnPrint
+            issnDigital
         }
     }
     contributions {
@@ -24,6 +48,9 @@ fragment Work on Work {
         firstName
         lastName
         fullName
+        mainContribution
+        biography
+        institution
         contributor {
             orcid
         }
@@ -31,16 +58,33 @@ fragment Work on Work {
     languages {
         languageCode
         languageRelation
+        mainLanguage
     }
     publications {
         publicationId
         publicationType
         publicationUrl
         isbn
+        prices {
+            currencyCode
+            unitPrice
+        }
     }
     subjects {
         subjectCode
         subjectType
+        subjectOrdinal
+    }
+    fundings {
+        program
+        projectName
+        projectShortname
+        grantNumber
+        jurisdiction
+        funder {
+            funderName
+            funderDoi
+        }
     }
 }
 
