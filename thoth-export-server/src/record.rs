@@ -11,6 +11,11 @@ use thoth_client::Work;
 use crate::csv::{CsvSpecification, CsvThoth};
 use crate::xml::{Onix3Oapen, Onix3ProjectMuse, XmlSpecification};
 
+const XML_MIME_TYPE: &'static str = "text/xml; charset=utf-8";
+const XML_EXTENSION: &'static str = ".xml";
+const CSV_MIME_TYPE: &'static str = "text/csv; charset=utf-8";
+const CSV_EXTENSION: &'static str = ".csv";
+
 pub(crate) trait AsRecord {}
 impl AsRecord for Vec<Work> {}
 
@@ -40,18 +45,22 @@ where
 
     fn content_type(&self) -> &'static str {
         match &self.specification {
-            MetadataSpecification::Onix3ProjectMuse(_) => "text/xml; charset=utf-8",
-            MetadataSpecification::Onix3Oapen(_) => "text/xml; charset=utf-8",
-            MetadataSpecification::CsvThoth(_) => "text/csv; charset=utf-8",
+            MetadataSpecification::Onix3ProjectMuse(_) => XML_MIME_TYPE,
+            MetadataSpecification::Onix3Oapen(_) => XML_MIME_TYPE,
+            MetadataSpecification::CsvThoth(_) => CSV_MIME_TYPE,
         }
     }
 
     fn file_name(&self) -> String {
         match &self.specification {
-            MetadataSpecification::Onix3ProjectMuse(_) => format!("{}.xml", self.id),
-            MetadataSpecification::Onix3Oapen(_) => format!("{}.xml", self.id),
-            MetadataSpecification::CsvThoth(_) => format!("{}.csv", self.id),
+            MetadataSpecification::Onix3ProjectMuse(_) => format!("{}{}", self.id, XML_EXTENSION),
+            MetadataSpecification::Onix3Oapen(_) => format!("{}{}", self.id, XML_EXTENSION),
+            MetadataSpecification::CsvThoth(_) => format!("{}{}", self.id, CSV_EXTENSION),
         }
+    }
+
+    fn content_disposition(&self) -> String {
+        format!("attachment; filename=\"{}\"", self.file_name())
     }
 }
 
@@ -78,7 +87,7 @@ where
         // todo: handle error (provide error response - do not unwrap)
         ready(Ok(HttpResponse::build(StatusCode::OK)
             .content_type(self.content_type())
-            .header("Content-Disposition", format!("attachment; filename=\"{}\"", self.file_name()))
+            .header("Content-Disposition", self.content_disposition())
             .body(self.generate().unwrap())))
     }
 }
