@@ -21,6 +21,7 @@ pub(crate) enum MetadataSpecification {
 }
 
 pub(crate) struct MetadataRecord<T: AsRecord> {
+    id: String,
     data: T,
     specification: MetadataSpecification,
 }
@@ -29,8 +30,9 @@ impl<T> MetadataRecord<T>
 where
     T: AsRecord + IntoIterator,
 {
-    pub(crate) fn new(specification: MetadataSpecification, data: T) -> Self {
+    pub(crate) fn new(id: String, specification: MetadataSpecification, data: T) -> Self {
         MetadataRecord {
+            id,
             data,
             specification,
         }
@@ -41,6 +43,14 @@ where
             MetadataSpecification::Onix3ProjectMuse(_) => "text/xml; charset=utf-8",
             MetadataSpecification::Onix3Oapen(_) => "text/xml; charset=utf-8",
             MetadataSpecification::CsvThoth(_) => "text/csv; charset=utf-8",
+        }
+    }
+
+    fn file_name(&self) -> String {
+        match &self.specification {
+            MetadataSpecification::Onix3ProjectMuse(_) => format!("{}.xml", self.id),
+            MetadataSpecification::Onix3Oapen(_) => format!("{}.xml", self.id),
+            MetadataSpecification::CsvThoth(_) => format!("{}.csv", self.id),
         }
     }
 }
@@ -68,7 +78,7 @@ where
         // todo: handle error (provide error response - do not unwrap)
         ready(Ok(HttpResponse::build(StatusCode::OK)
             .content_type(self.content_type())
-            .header("Content-Disposition", "attachment")
+            .header("Content-Disposition", format!("attachment; filename=\"{}\"", self.file_name()))
             .body(self.generate().unwrap())))
     }
 }

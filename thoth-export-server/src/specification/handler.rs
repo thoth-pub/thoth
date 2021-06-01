@@ -67,7 +67,7 @@ pub(crate) async fn by_work(
         .and_then(|data| {
             specification_id
                 .parse()
-                .map(|specification| MetadataRecord::new(specification, vec![data]))
+                .map(|specification| MetadataRecord::new(work_id.to_string(), specification, vec![data]))
         })
         .map_err(|e| e.into())
 }
@@ -88,7 +88,7 @@ pub(crate) async fn by_publisher(
         .and_then(|data| {
             specification_id
                 .parse()
-                .map(|specification| MetadataRecord::new(specification, data))
+                .map(|specification| MetadataRecord::new(publisher_id.to_string(), specification, data))
         })
         .map_err(|e| e.into())
 }
