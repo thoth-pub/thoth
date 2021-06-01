@@ -14,6 +14,7 @@ thoth-client = { version = "0.3.6", path = "../thoth-client" }
 actix-web = "3.3.2"
 actix-cors = "0.5.4"
 chrono = { version = "0.4", features = ["serde"] }
+csv = "1.1.6"
 env_logger = "0.7.1"
 log = "0.4.14"
 paperclip = { version = "0.5.0", features = ["actix", "uuid"] }

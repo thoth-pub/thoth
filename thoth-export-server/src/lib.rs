@@ -11,6 +11,7 @@ mod rapidoc;
 mod record;
 mod specification;
 mod xml;
+mod csv;
 
 use crate::rapidoc::rapidoc_source;
 

@@ -8,12 +8,11 @@ use std::str::FromStr;
 use thoth_api::errors::{ThothError, ThothResult};
 use thoth_client::Work;
 
+use crate::csv::{CsvSpecification, CsvThoth};
 use crate::xml::{Onix3Oapen, Onix3ProjectMuse, XmlSpecification};
 
 pub(crate) trait AsRecord {}
 impl AsRecord for Vec<Work> {}
-
-pub struct CsvThoth {}
 
 pub(crate) enum MetadataSpecification {
     Onix3ProjectMuse(Onix3ProjectMuse),
@@ -53,7 +52,7 @@ impl MetadataRecord<Vec<Work>> {
                 onix3_project_muse.generate(self.data)
             }
             MetadataSpecification::Onix3Oapen(_) => unimplemented!(),
-            MetadataSpecification::CsvThoth(_) => unimplemented!(),
+            MetadataSpecification::CsvThoth(csv_thoth) => csv_thoth.generate(self.data),
         }
     }
 }
@@ -66,6 +65,7 @@ where
     type Future = Ready<ThothResult<HttpResponse>>;
 
     fn respond_to(self, _: &HttpRequest) -> Self::Future {
+        // todo: handle error (provide error response - do not unwrap)
         ready(Ok(HttpResponse::build(StatusCode::OK)
             .content_type(self.content_type())
             .header("Content-Disposition", "attachment")
