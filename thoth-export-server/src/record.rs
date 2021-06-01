@@ -53,10 +53,22 @@ where
 
     fn file_name(&self) -> String {
         match &self.specification {
-            MetadataSpecification::Onix3ProjectMuse(_) => format!("{}{}", self.id, XML_EXTENSION),
-            MetadataSpecification::Onix3Oapen(_) => format!("{}{}", self.id, XML_EXTENSION),
-            MetadataSpecification::CsvThoth(_) => format!("{}{}", self.id, CSV_EXTENSION),
+            MetadataSpecification::Onix3ProjectMuse(_) => self.xml_file_name(),
+            MetadataSpecification::Onix3Oapen(_) => self.xml_file_name(),
+            MetadataSpecification::CsvThoth(_) => self.csv_file_name(),
         }
+    }
+
+    fn xml_file_name(&self) -> String {
+        self.format_file_name(XML_EXTENSION)
+    }
+
+    fn csv_file_name(&self) -> String {
+        self.format_file_name(CSV_EXTENSION)
+    }
+
+    fn format_file_name(&self, extension: &'static str) -> String {
+        format!("{}__{}{}", self.specification.to_string().replace("::", "__"), self.id, extension)
     }
 
     fn content_disposition(&self) -> String {
@@ -122,6 +134,16 @@ impl FromStr for MetadataSpecification {
             "onix_3.0::oapen" => Ok(MetadataSpecification::Onix3Oapen(Onix3Oapen {})),
             "csv::thoth" => Ok(MetadataSpecification::CsvThoth(CsvThoth {})),
             _ => Err(ThothError::InvalidMetadataSpecification(input.to_string())),
+        }
+    }
+}
+
+impl ToString for MetadataSpecification {
+    fn to_string(&self) -> String {
+        match self {
+            MetadataSpecification::Onix3ProjectMuse(_) => "onix_3.0::project_muse".to_string(),
+            MetadataSpecification::Onix3Oapen(_) => "onix_3.0::oapen".to_string(),
+            MetadataSpecification::CsvThoth(_) => "csv::thoth".to_string(),
         }
     }
 }
