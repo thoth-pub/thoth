@@ -65,9 +65,9 @@ pub(crate) async fn by_work(
         .get_work(work_id)
         .await
         .and_then(|data| {
-            specification_id
-                .parse()
-                .map(|specification| MetadataRecord::new(work_id.to_string(), specification, vec![data]))
+            specification_id.parse().map(|specification| {
+                MetadataRecord::new(work_id.to_string(), specification, vec![data])
+            })
         })
         .map_err(|e| e.into())
 }
@@ -86,9 +86,9 @@ pub(crate) async fn by_publisher(
         .get_works(Some(vec![publisher_id]))
         .await
         .and_then(|data| {
-            specification_id
-                .parse()
-                .map(|specification| MetadataRecord::new(publisher_id.to_string(), specification, data))
+            specification_id.parse().map(|specification| {
+                MetadataRecord::new(publisher_id.to_string(), specification, data)
+            })
         })
         .map_err(|e| e.into())
 }

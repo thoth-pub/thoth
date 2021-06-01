@@ -5,13 +5,13 @@ use actix_web::{middleware::Logger, App, HttpServer};
 use paperclip::actix::{web::HttpResponse, OpenApiExt};
 use paperclip::v2::models::{Contact, DefaultApiRaw, Info, License, Tag};
 
+mod csv;
 mod format;
 mod platform;
 mod rapidoc;
 mod record;
 mod specification;
 mod xml;
-mod csv;
 
 use crate::rapidoc::rapidoc_source;
 

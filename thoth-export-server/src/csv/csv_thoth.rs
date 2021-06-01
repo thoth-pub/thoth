@@ -1,9 +1,9 @@
-use std::io::Write;
-use csv::{Writer, Result as CsvResult};
-use thoth_client::Work;
+use csv::{Result as CsvResult, Writer};
 use serde::Serialize;
+use std::io::Write;
+use thoth_client::Work;
 
-use super::{CsvSpecification, CsvRow};
+use super::{CsvRow, CsvSpecification};
 
 pub(crate) struct CsvThoth;
 

@@ -1,4 +1,4 @@
-use csv::{Writer, Result as CsvResult};
+use csv::{Result as CsvResult, Writer};
 use std::io::Write;
 use thoth_api::errors::{ThothError, ThothResult};
 use thoth_client::Work;
@@ -7,7 +7,11 @@ pub(crate) trait CsvSpecification {
     fn generate(&self, works: Vec<Work>) -> ThothResult<String> {
         let mut writer = Writer::from_writer(Vec::new());
         Self::handle_event(&mut writer, works)
-            .map(|_| writer.into_inner().map_err(|e| ThothError::InternalError(e.to_string())))
+            .map(|_| {
+                writer
+                    .into_inner()
+                    .map_err(|e| ThothError::InternalError(e.to_string()))
+            })
             .map_err(|e| ThothError::InternalError(e.to_string())) // todo: impl From<csv::Error> for ThothError
             .and_then(|val| val)
             .and_then(|csv| {

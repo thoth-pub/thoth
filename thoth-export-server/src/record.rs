@@ -11,10 +11,10 @@ use thoth_client::Work;
 use crate::csv::{CsvSpecification, CsvThoth};
 use crate::xml::{Onix3Oapen, Onix3ProjectMuse, XmlSpecification};
 
-const XML_MIME_TYPE: &'static str = "text/xml; charset=utf-8";
-const XML_EXTENSION: &'static str = ".xml";
-const CSV_MIME_TYPE: &'static str = "text/csv; charset=utf-8";
-const CSV_EXTENSION: &'static str = ".csv";
+const XML_MIME_TYPE: &str = "text/xml; charset=utf-8";
+const XML_EXTENSION: &str = ".xml";
+const CSV_MIME_TYPE: &str = "text/csv; charset=utf-8";
+const CSV_EXTENSION: &str = ".csv";
 
 pub(crate) trait AsRecord {}
 impl AsRecord for Vec<Work> {}
@@ -68,7 +68,12 @@ where
     }
 
     fn format_file_name(&self, extension: &'static str) -> String {
-        format!("{}__{}{}", self.specification.to_string().replace("::", "__"), self.id, extension)
+        format!(
+            "{}__{}{}",
+            self.specification.to_string().replace("::", "__"),
+            self.id,
+            extension
+        )
     }
 
     fn content_disposition(&self) -> String {
