@@ -31,8 +31,8 @@ where
     T: AsRecord + IntoIterator,
 {
     const XML_MIME_TYPE: &'static str = "text/xml; charset=utf-8";
-    const XML_EXTENSION: &'static str = ".xml";
     const CSV_MIME_TYPE: &'static str = "text/csv; charset=utf-8";
+    const XML_EXTENSION: &'static str = ".xml";
     const CSV_EXTENSION: &'static str = ".csv";
 
     pub(crate) fn new(id: String, specification: MetadataSpecification, data: T) -> Self {
@@ -82,13 +82,13 @@ where
 }
 
 impl MetadataRecord<Vec<Work>> {
-    fn generate(self) -> ThothResult<String> {
-        match self.specification {
+    fn generate(&self) -> ThothResult<String> {
+        match &self.specification {
             MetadataSpecification::Onix3ProjectMuse(onix3_project_muse) => {
-                onix3_project_muse.generate(self.data)
+                onix3_project_muse.generate(&self.data)
             }
             MetadataSpecification::Onix3Oapen(_) => unimplemented!(),
-            MetadataSpecification::CsvThoth(csv_thoth) => csv_thoth.generate(self.data),
+            MetadataSpecification::CsvThoth(csv_thoth) => csv_thoth.generate(&self.data),
         }
     }
 }
@@ -101,11 +101,13 @@ where
     type Future = Ready<ThothResult<HttpResponse>>;
 
     fn respond_to(self, _: &HttpRequest) -> Self::Future {
-        // todo: handle error (provide error response - do not unwrap)
-        ready(Ok(HttpResponse::build(StatusCode::OK)
-            .content_type(self.content_type())
-            .header("Content-Disposition", self.content_disposition())
-            .body(self.generate().unwrap())))
+        match self.generate() {
+            Ok(record) => ready(Ok(HttpResponse::build(StatusCode::OK)
+                .content_type(self.content_type())
+                .header("Content-Disposition", self.content_disposition())
+                .body(record))),
+            Err(e) => ready(Err(e)),
+        }
     }
 }
 

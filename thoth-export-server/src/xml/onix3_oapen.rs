@@ -7,7 +7,7 @@ use super::XmlSpecification;
 pub struct Onix3Oapen {}
 
 impl XmlSpecification for Onix3Oapen {
-    fn handle_event<W: Write>(_w: &mut EventWriter<W>, _work: Vec<Work>) -> Result<()> {
+    fn handle_event<W: Write>(_w: &mut EventWriter<W>, _work: &[Work]) -> Result<()> {
         todo!()
     }
 }

@@ -13,7 +13,7 @@ use crate::xml::{write_full_element_block, XmlElementBlock};
 pub struct Onix3ProjectMuse {}
 
 impl XmlSpecification for Onix3ProjectMuse {
-    fn handle_event<W: Write>(w: &mut EventWriter<W>, works: Vec<Work>) -> Result<()> {
+    fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> Result<()> {
         let mut attr_map: HashMap<&str, &str> = HashMap::new();
 
         attr_map.insert("release", "3.0");

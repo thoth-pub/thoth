@@ -19,7 +19,7 @@ struct CsvThothRow {
 }
 
 impl CsvSpecification for CsvThoth {
-    fn handle_event<W: Write>(w: &mut Writer<W>, works: Vec<Work>) -> CsvResult<()> {
+    fn handle_event<W: Write>(w: &mut Writer<W>, works: &[Work]) -> CsvResult<()> {
         for work in works.iter() {
             CsvRow::<CsvThoth>::csv_row(work, w)?;
         }

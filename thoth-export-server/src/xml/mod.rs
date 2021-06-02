@@ -42,7 +42,7 @@ pub(crate) fn write_full_element_block<W: Write, F: Fn(&mut EventWriter<W>)>(
 }
 
 pub(crate) trait XmlSpecification {
-    fn generate(&self, works: Vec<Work>) -> ThothResult<String> {
+    fn generate(&self, works: &[Work]) -> ThothResult<String> {
         let mut buffer = Vec::new();
         let mut writer = EmitterConfig::new()
             .perform_indent(true)
@@ -56,7 +56,7 @@ pub(crate) trait XmlSpecification {
             })
     }
 
-    fn handle_event<W: Write>(w: &mut EventWriter<W>, works: Vec<Work>) -> XmlResult<()>;
+    fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> XmlResult<()>;
 }
 
 pub(crate) trait XmlElement<T: XmlSpecification> {

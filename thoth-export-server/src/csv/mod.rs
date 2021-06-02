@@ -4,7 +4,7 @@ use thoth_api::errors::{ThothError, ThothResult};
 use thoth_client::Work;
 
 pub(crate) trait CsvSpecification {
-    fn generate(&self, works: Vec<Work>) -> ThothResult<String> {
+    fn generate(&self, works: &[Work]) -> ThothResult<String> {
         let mut writer = Writer::from_writer(Vec::new());
         Self::handle_event(&mut writer, works)
             .map(|_| {
@@ -20,7 +20,7 @@ pub(crate) trait CsvSpecification {
             })
     }
 
-    fn handle_event<W: Write>(w: &mut Writer<W>, works: Vec<Work>) -> CsvResult<()>;
+    fn handle_event<W: Write>(w: &mut Writer<W>, works: &[Work]) -> CsvResult<()>;
 }
 
 pub(crate) trait CsvRow<T: CsvSpecification> {
