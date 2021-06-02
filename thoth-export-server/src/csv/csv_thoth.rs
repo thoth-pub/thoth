@@ -2,7 +2,7 @@ use csv::Writer;
 use serde::Serialize;
 use std::io::Write;
 use thoth_api::errors::ThothResult;
-use thoth_client::{Work, WorkContributions};
+use thoth_client::{Work, WorkContributions, WorkPublications};
 
 use super::{CsvCell, CsvRow, CsvSpecification};
 
@@ -22,6 +22,9 @@ struct CsvThothRow {
         rename = "contributions [(type, first_name, last_name, full_name, institution, orcid)]"
     )]
     contributions: String,
+    #[serde(rename = "publications [(type, isbn, url)]")]
+    publications: String,
+    landing_page: Option<String>,
 }
 
 impl CsvSpecification for CsvThoth {
@@ -37,33 +40,6 @@ impl CsvRow<CsvThoth> for Work {
     fn csv_row<W: Write>(&self, w: &mut Writer<W>) -> ThothResult<()> {
         w.serialize(CsvThothRow::from(self.clone()))
             .map_err(|e| e.into())
-    }
-}
-
-impl CsvCell<CsvThoth> for Vec<String> {
-    fn csv_cell(&self) -> String {
-        if self.is_empty() {
-            "".to_string()
-        } else {
-            format!("[{}]", self.join(","))
-        }
-    }
-}
-
-impl CsvCell<CsvThoth> for WorkContributions {
-    fn csv_cell(&self) -> String {
-        format!(
-            "(\"{:?}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\")",
-            self.contribution_type,
-            self.first_name.clone().unwrap_or_else(|| "".to_string()),
-            self.last_name,
-            self.full_name,
-            self.institution.clone().unwrap_or_else(|| "".to_string()),
-            self.contributor
-                .orcid
-                .clone()
-                .unwrap_or_else(|| "".to_string())
-        )
     }
 }
 
@@ -85,6 +61,54 @@ impl From<Work> for CsvThothRow {
                     .map(|c| CsvCell::<CsvThoth>::csv_cell(c))
                     .collect::<Vec<String>>(),
             ),
+            publications: CsvCell::<CsvThoth>::csv_cell(
+                &work
+                    .publications
+                    .iter()
+                    .map(|p| CsvCell::<CsvThoth>::csv_cell(p))
+                    .collect::<Vec<String>>(),
+            ),
+            landing_page: work.landing_page,
         }
+    }
+}
+
+impl CsvCell<CsvThoth> for Vec<String> {
+    fn csv_cell(&self) -> String {
+        if self.is_empty() {
+            "".to_string()
+        } else {
+            format!("[{}]", self.join(","))
+        }
+    }
+}
+
+impl CsvCell<CsvThoth> for WorkPublications {
+    fn csv_cell(&self) -> String {
+        format!(
+            "(\"{:?}\", \"{}\", \"{}\")",
+            self.publication_type,
+            self.isbn.clone().unwrap_or_else(|| "".to_string()),
+            self.publication_url
+                .clone()
+                .unwrap_or_else(|| "".to_string()),
+        )
+    }
+}
+
+impl CsvCell<CsvThoth> for WorkContributions {
+    fn csv_cell(&self) -> String {
+        format!(
+            "(\"{:?}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\")",
+            self.contribution_type,
+            self.first_name.clone().unwrap_or_else(|| "".to_string()),
+            self.last_name,
+            self.full_name,
+            self.institution.clone().unwrap_or_else(|| "".to_string()),
+            self.contributor
+                .orcid
+                .clone()
+                .unwrap_or_else(|| "".to_string())
+        )
     }
 }
