@@ -2,7 +2,7 @@ use csv::Writer;
 use serde::Serialize;
 use std::io::Write;
 use thoth_api::errors::ThothResult;
-use thoth_client::{ContributionType, Work, WorkContributions};
+use thoth_client::{Work, WorkContributions};
 
 use super::{CsvCell, CsvRow, CsvSpecification};
 
@@ -18,26 +18,10 @@ struct CsvThothRow {
     subtitle: Option<String>,
     doi: Option<String>,
     publication_date: Option<String>,
-    #[serde(rename = "authors [(first, last, full, institution, orcid)]")]
-    authors: String,
-    #[serde(rename = "editors [(first, last, full, institution, orcid)]")]
-    editors: String,
-    #[serde(rename = "translators [(first, last, full, institution, orcid)]")]
-    translators: String,
-    #[serde(rename = "photographers [(first, last, full, institution, orcid)]")]
-    photographers: String,
-    #[serde(rename = "illustrators [(first, last, full, institution, orcid)]")]
-    illustrators: String,
-    #[serde(rename = "music_editors [(first, last, full, institution, orcid)]")]
-    music_editors: String,
-    #[serde(rename = "foreword_by [(first, last, full, institution, orcid)]")]
-    foreword_by: String,
-    #[serde(rename = "introduction_by [(first, last, full, institution, orcid)]")]
-    introduction_by: String,
-    #[serde(rename = "afterword_by [(first, last, full, institution, orcid)]")]
-    afterword_by: String,
-    #[serde(rename = "preface_by [(first, last, full, institution, orcid)]")]
-    preface_by: String,
+    #[serde(
+        rename = "contributions [(type, first_name, last_name, full_name, institution, orcid)]"
+    )]
+    contributions: String,
 }
 
 impl CsvSpecification for CsvThoth {
@@ -69,7 +53,8 @@ impl CsvCell<CsvThoth> for Vec<String> {
 impl CsvCell<CsvThoth> for WorkContributions {
     fn csv_cell(&self) -> String {
         format!(
-            "(\"{}\", \"{}\", \"{}\", \"{}\", \"{}\")",
+            "(\"{:?}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\")",
+            self.contribution_type,
             self.first_name.clone().unwrap_or_else(|| "".to_string()),
             self.last_name,
             self.full_name,
@@ -93,41 +78,13 @@ impl From<Work> for CsvThothRow {
             subtitle: work.subtitle,
             doi: work.doi,
             publication_date: work.publication_date.map(|d| d.to_string()),
-            authors: flatten_contributions(&work.contributions, ContributionType::AUTHOR),
-            editors: flatten_contributions(&work.contributions, ContributionType::EDITOR),
-            translators: flatten_contributions(&work.contributions, ContributionType::TRANSLATOR),
-            photographers: flatten_contributions(
-                &work.contributions,
-                ContributionType::PHOTOGRAPHER,
+            contributions: CsvCell::<CsvThoth>::csv_cell(
+                &work
+                    .contributions
+                    .iter()
+                    .map(|c| CsvCell::<CsvThoth>::csv_cell(c))
+                    .collect::<Vec<String>>(),
             ),
-            illustrators: flatten_contributions(&work.contributions, ContributionType::ILUSTRATOR),
-            music_editors: flatten_contributions(
-                &work.contributions,
-                ContributionType::MUSIC_EDITOR,
-            ),
-            foreword_by: flatten_contributions(&work.contributions, ContributionType::FOREWORD_BY),
-            introduction_by: flatten_contributions(
-                &work.contributions,
-                ContributionType::INTRODUCTION_BY,
-            ),
-            afterword_by: flatten_contributions(
-                &work.contributions,
-                ContributionType::AFTERWORD_BY,
-            ),
-            preface_by: flatten_contributions(&work.contributions, ContributionType::PREFACE_BY),
         }
     }
-}
-
-fn flatten_contributions(
-    contributions: &[WorkContributions],
-    contribution_type: ContributionType,
-) -> String {
-    CsvCell::<CsvThoth>::csv_cell(
-        &contributions
-            .iter()
-            .filter(|c| c.contribution_type.eq(&contribution_type))
-            .map(|c| CsvCell::<CsvThoth>::csv_cell(c))
-            .collect::<Vec<String>>(),
-    )
 }
