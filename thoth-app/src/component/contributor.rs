@@ -208,6 +208,14 @@ impl Component for ContributorComponent {
                 }
             }
             Msg::UpdateContributor => {
+                // Only update the ORCID value with the current user-entered string
+                // if it is validly formatted - otherwise keep the database version.
+                // If no ORCID was provided, no format check is required.
+                if self.orcid.is_empty() {
+                    self.contributor.orcid.neq_assign(None);
+                } else if let Ok(result) = self.orcid.parse::<Orcid>() {
+                    self.contributor.orcid.neq_assign(Some(result));
+                }
                 let body = UpdateContributorRequestBody {
                     variables: UpdateVariables {
                         contributor_id: self.contributor.contributor_id,
@@ -294,21 +302,14 @@ impl Component for ContributorComponent {
                 .neq_assign(full_name.trim().to_owned()),
             Msg::ChangeOrcid(value) => {
                 if self.orcid.neq_assign(value.trim().to_owned()) {
-                    // Check ORCID is correctly formatted before updating structure.
-                    // If no ORCID was provided, no check is required.
-                    if self.orcid.trim().is_empty() {
-                        self.contributor.orcid.neq_assign(None);
-                        self.orcid_warning.clear();
+                    // If ORCID is not correctly formatted, display a warning.
+                    // If no ORCID was provided, no format check is required.
+                    // Don't update self.contributor.orcid yet, as user may later
+                    // overwrite a new valid value with an invalid one.
+                    if !self.orcid.is_empty() && self.orcid.parse::<Orcid>().is_err() {
+                        self.orcid_warning = self.orcid.parse::<Orcid>().unwrap_err().to_string();
                     } else {
-                        match self.orcid.parse::<Orcid>() {
-                            Ok(result) => {
-                                self.contributor.orcid.neq_assign(Some(result));
-                                self.orcid_warning.clear();
-                            }
-                            Err(err) => {
-                                self.orcid_warning = err.to_string();
-                            }
-                        };
+                        self.orcid_warning.clear();
                     }
                     true
                 } else {

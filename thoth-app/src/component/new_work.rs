@@ -258,6 +258,14 @@ impl Component for NewWorkComponent {
                 }
             }
             Msg::CreateWork => {
+                // Only update the DOI value with the current user-entered string
+                // if it is validly formatted - otherwise keep the default.
+                // If no DOI was provided, no format check is required.
+                if self.doi.is_empty() {
+                    self.work.doi.neq_assign(None);
+                } else if let Ok(result) = self.doi.parse::<Doi>() {
+                    self.work.doi.neq_assign(Some(result));
+                }
                 let body = CreateWorkRequestBody {
                     variables: Variables {
                         work_type: self.work.work_type.clone(),
@@ -337,21 +345,14 @@ impl Component for NewWorkComponent {
             }
             Msg::ChangeDoi(value) => {
                 if self.doi.neq_assign(value.trim().to_owned()) {
-                    // Check DOI is correctly formatted before updating structure.
-                    // If no DOI was provided, no check is required.
-                    if self.doi.trim().is_empty() {
-                        self.work.doi.neq_assign(None);
-                        self.doi_warning.clear();
+                    // If DOI is not correctly formatted, display a warning.
+                    // If no DOI was provided, no format check is required.
+                    // Don't update self.work.doi yet, as user may later
+                    // overwrite a new valid value with an invalid one.
+                    if !self.doi.is_empty() && self.doi.parse::<Doi>().is_err() {
+                        self.doi_warning = self.doi.parse::<Doi>().unwrap_err().to_string();
                     } else {
-                        match self.doi.parse::<Doi>() {
-                            Ok(result) => {
-                                self.work.doi.neq_assign(Some(result));
-                                self.doi_warning.clear();
-                            }
-                            Err(err) => {
-                                self.doi_warning = err.to_string();
-                            }
-                        };
+                        self.doi_warning.clear();
                     }
                     true
                 } else {

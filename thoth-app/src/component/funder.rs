@@ -204,6 +204,14 @@ impl Component for FunderComponent {
                 }
             }
             Msg::UpdateFunder => {
+                // Only update the DOI value with the current user-entered string
+                // if it is validly formatted - otherwise keep the database version.
+                // If no DOI was provided, no format check is required.
+                if self.funder_doi.is_empty() {
+                    self.funder.funder_doi.neq_assign(None);
+                } else if let Ok(result) = self.funder_doi.parse::<Doi>() {
+                    self.funder.funder_doi.neq_assign(Some(result));
+                }
                 let body = UpdateFunderRequestBody {
                     variables: UpdateVariables {
                         funder_id: self.funder.funder_id,
@@ -274,21 +282,15 @@ impl Component for FunderComponent {
                 .neq_assign(funder_name.trim().to_owned()),
             Msg::ChangeFunderDoi(value) => {
                 if self.funder_doi.neq_assign(value.trim().to_owned()) {
-                    // Check DOI is correctly formatted before updating structure.
-                    // If no DOI was provided, no check is required.
-                    if self.funder_doi.trim().is_empty() {
-                        self.funder.funder_doi.neq_assign(None);
-                        self.funder_doi_warning.clear();
+                    // If DOI is not correctly formatted, display a warning.
+                    // If no DOI was provided, no format check is required.
+                    // Don't update self.funder.funder_doi yet, as user may later
+                    // overwrite a new valid value with an invalid one.
+                    if !self.funder_doi.is_empty() && self.funder_doi.parse::<Doi>().is_err() {
+                        self.funder_doi_warning =
+                            self.funder_doi.parse::<Doi>().unwrap_err().to_string();
                     } else {
-                        match self.funder_doi.parse::<Doi>() {
-                            Ok(result) => {
-                                self.funder.funder_doi.neq_assign(Some(result));
-                                self.funder_doi_warning.clear();
-                            }
-                            Err(err) => {
-                                self.funder_doi_warning = err.to_string();
-                            }
-                        };
+                        self.funder_doi_warning.clear();
                     }
                     true
                 } else {
