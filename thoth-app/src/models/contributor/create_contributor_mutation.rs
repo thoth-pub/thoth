@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::contributor::model::{Contributor, Orcid};
+use thoth_api::contributor::model::Contributor;
+use thoth_api::model::Orcid;
 
 const CREATE_CONTRIBUTOR_MUTATION: &str = "
     mutation CreateContributor(

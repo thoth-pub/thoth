@@ -1,4 +1,5 @@
-use thoth_api::contributor::model::{Contributor, Orcid, ORCID_DOMAIN};
+use thoth_api::contributor::model::Contributor;
+use thoth_api::model::{Orcid, ORCID_DOMAIN};
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;

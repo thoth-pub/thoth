@@ -1,5 +1,5 @@
 use thoth_api::funder::model::Funder;
-use thoth_api::work::model::{Doi, DOI_DOMAIN};
+use thoth_api::model::{Doi, DOI_DOMAIN};
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;

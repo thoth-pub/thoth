@@ -1,18 +1,16 @@
 use chrono::naive::NaiveDate;
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::str::FromStr;
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
 use crate::contribution::model::Contribution;
-use crate::errors::{ThothError, ThothResult};
 use crate::funding::model::FundingExtended as Funding;
 use crate::graphql::utils::Direction;
 use crate::imprint::model::ImprintExtended as Imprint;
 use crate::issue::model::IssueExtended as Issue;
 use crate::language::model::Language;
+use crate::model::Doi;
 use crate::model::Timestamp;
 use crate::publication::model::PublicationExtended as Publication;
 #[cfg(feature = "backend")]
@@ -115,15 +113,6 @@ pub enum WorkField {
     CreatedAt,
     UpdatedAt,
 }
-
-#[cfg_attr(
-    feature = "backend",
-    derive(DieselNewType, juniper::GraphQLScalarValue)
-)]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Doi(String);
-
-pub const DOI_DOMAIN: &str = "https://doi.org/";
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
 #[derive(Default, Serialize, Deserialize)]
@@ -388,59 +377,6 @@ impl Default for WorkExtended {
             subjects: Default::default(),
             issues: Default::default(),
             imprint: Default::default(),
-        }
-    }
-}
-
-impl Default for Doi {
-    fn default() -> Doi {
-        Doi {
-            0: Default::default(),
-        }
-    }
-}
-
-impl fmt::Display for Doi {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", &self.0.replace(DOI_DOMAIN, ""))
-    }
-}
-
-impl FromStr for Doi {
-    type Err = ThothError;
-
-    fn from_str(input: &str) -> ThothResult<Doi> {
-        use lazy_static::lazy_static;
-        use regex::Regex;
-        lazy_static! {
-        static ref RE: Regex = Regex::new(
-            // ^    = beginning of string
-            // (?:) = non-capturing group
-            // i    = case-insensitive flag
-            // $    = end of string
-            // Matches strings of format "[[http[s]://]doi.org/]10.XXX/XXX"
-            // and captures the identifier segment starting with the "10." directory indicator
-            // Corresponds to database constraints although regex syntax differs slightly
-            // (e.g. `;()/` do not need to be escaped here)
-            r#"^(?i:(?:https?://)?doi\.org/)?(10\.\d{4,9}/[-._;()/:a-zA-Z0-9]+$)"#).unwrap();
-        }
-        if let Some(matches) = RE.captures(input) {
-            // The 0th capture always corresponds to the entire match
-            if let Some(identifier) = matches.get(1) {
-                let standardised = format!("{}{}", DOI_DOMAIN, identifier.as_str());
-                let doi: Doi = Doi { 0: standardised };
-                Ok(doi)
-            } else {
-                Err(ThothError::IdentifierParseError(
-                    input.to_string(),
-                    "DOI".to_string(),
-                ))
-            }
-        } else {
-            Err(ThothError::IdentifierParseError(
-                input.to_string(),
-                "DOI".to_string(),
-            ))
         }
     }
 }
@@ -715,57 +651,4 @@ fn test_workfield_fromstr() {
     assert!(WorkField::from_str("WorkID").is_err());
     assert!(WorkField::from_str("Contributors").is_err());
     assert!(WorkField::from_str("Publisher").is_err());
-}
-
-#[test]
-fn test_doi_default() {
-    let doi: Doi = Default::default();
-    assert_eq!(doi, Doi { 0: "".to_string() });
-}
-
-#[test]
-fn test_doi_display() {
-    let doi = Doi {
-        0: "https://doi.org/10.12345/Test-Suffix.01".to_string(),
-    };
-    assert_eq!(format!("{}", doi), "10.12345/Test-Suffix.01");
-}
-
-#[test]
-fn test_doi_fromstr() {
-    let standardised = Doi {
-        0: "https://doi.org/10.12345/Test-Suffix.01".to_string(),
-    };
-    assert_eq!(
-        Doi::from_str("https://doi.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("http://doi.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("doi.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("HTTPS://DOI.ORG/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert_eq!(
-        Doi::from_str("Https://DOI.org/10.12345/Test-Suffix.01").unwrap(),
-        standardised
-    );
-    assert!(Doi::from_str("htts://doi.org/10.12345/Test-Suffix.01").is_err());
-    assert!(Doi::from_str("https://10.12345/Test-Suffix.01").is_err());
-    assert!(Doi::from_str("https://test.org/10.12345/Test-Suffix.01").is_err());
-    assert!(Doi::from_str("http://test.org/10.12345/Test-Suffix.01").is_err());
-    assert!(Doi::from_str("test.org/10.12345/Test-Suffix.01").is_err());
-    assert!(Doi::from_str("//doi.org/10.12345/Test-Suffix.01").is_err());
-    assert!(Doi::from_str("https://doi-org/10.12345/Test-Suffix.01").is_err());
-    assert!(Doi::from_str("10.https://doi.org/12345/Test-Suffix.01").is_err());
 }

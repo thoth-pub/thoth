@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::funder::model::Funder;
-use thoth_api::work::model::Doi;
+use thoth_api::model::Doi;
 
 const CREATE_FUNDER_MUTATION: &str = "
     mutation CreateFunder(

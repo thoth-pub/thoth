@@ -18,6 +18,8 @@ use crate::imprint::model::*;
 use crate::issue::model::*;
 use crate::language::model::*;
 use crate::model::Crud;
+use crate::model::Doi;
+use crate::model::Orcid;
 use crate::model::Timestamp;
 use crate::price::model::*;
 use crate::publication::model::*;

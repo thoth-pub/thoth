@@ -6,12 +6,12 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
+use crate::model::Doi;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::funder;
 #[cfg(feature = "backend")]
 use crate::schema::funder_history;
-use crate::work::model::Doi;
 
 #[cfg_attr(
     feature = "backend",
