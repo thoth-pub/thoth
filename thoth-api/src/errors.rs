@@ -23,8 +23,6 @@ pub enum ThothError {
     Unauthorised,
     #[fail(display = "Failed to validate token.")]
     InvalidToken,
-    #[fail(display = "No cookie found.")]
-    CookieError(),
     #[fail(display = "No record was found for the given ID.")]
     EntityNotFound,
     #[fail(display = "Issue's Work and Series cannot have different Imprints.")]
