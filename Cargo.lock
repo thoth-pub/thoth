@@ -3902,6 +3902,7 @@ dependencies = [
  "argon2rs",
  "cargo-husky",
  "chrono",
+ "csv",
  "diesel",
  "diesel-derive-enum",
  "diesel_migrations",

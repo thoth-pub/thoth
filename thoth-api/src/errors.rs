@@ -1,6 +1,8 @@
 #[cfg(feature = "backend")]
 use actix_web::{error::ResponseError, HttpResponse};
 #[cfg(feature = "backend")]
+use csv::Error;
+#[cfg(feature = "backend")]
 use diesel::result::Error as DBError;
 use failure::Fail;
 
@@ -31,6 +33,8 @@ pub enum ThothError {
     InvalidMetadataSpecification(String),
     #[fail(display = "Invalid UUID supplied.")]
     InvalidUuid,
+    #[fail(display = "CSV Error: {}", _0)]
+    CsvError(String),
 }
 
 impl juniper::IntoFieldError for ThothError {
@@ -88,6 +92,13 @@ impl From<DBError> for ThothError {
             DBError::NotFound => ThothError::EntityNotFound,
             _ => ThothError::InternalError("".into()),
         }
+    }
+}
+
+#[cfg(feature = "backend")]
+impl From<csv::Error> for ThothError {
+    fn from(e: Error) -> Self {
+        ThothError::CsvError(e.to_string())
     }
 }
 
