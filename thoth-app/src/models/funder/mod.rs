@@ -37,7 +37,7 @@ impl MetadataTable for Funder {
                 <td>{&self.funder_id}</td>
                 <td>{&self.funder_name}</td>
                 <td>{funder_doi}</td>
-                <td>{&self.updated_at.format("%F %T")}</td>
+                <td>{&self.updated_at}</td>
             </tr>
         }
     }

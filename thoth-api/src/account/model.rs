@@ -1,10 +1,9 @@
-use chrono::DateTime;
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::errors::ThothError;
 use crate::errors::ThothResult;
+use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::account;
 #[cfg(feature = "backend")]
@@ -22,8 +21,8 @@ pub struct Account {
     pub is_superuser: bool,
     pub is_bot: bool,
     pub is_active: bool,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
     pub token: Option<String>,
 }
 
@@ -54,8 +53,8 @@ pub struct PublisherAccount {
     pub account_id: Uuid,
     pub publisher_id: Uuid,
     pub is_admin: bool,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 #[cfg_attr(feature = "backend", derive(Insertable))]
@@ -99,8 +98,8 @@ pub struct AccountDetails {
     pub surname: String,
     pub email: String,
     pub token: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
     pub resource_access: AccountAccess,
 }
 

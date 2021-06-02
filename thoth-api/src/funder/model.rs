@@ -1,5 +1,3 @@
-use chrono::DateTime;
-use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use std::fmt;
@@ -8,6 +6,7 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
+use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::funder;
 #[cfg(feature = "backend")]
@@ -33,14 +32,14 @@ pub enum FunderField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Funder {
     pub funder_id: Uuid,
     pub funder_name: String,
     pub funder_doi: Option<Doi>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 #[cfg_attr(
@@ -71,7 +70,7 @@ pub struct FunderHistory {
     pub funder_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Timestamp,
 }
 
 #[cfg_attr(feature = "backend", derive(Insertable), table_name = "funder_history")]
@@ -86,7 +85,7 @@ pub struct NewFunderHistory {
     derive(juniper::GraphQLInputObject),
     graphql(description = "Field and order to use when sorting funders list")
 )]
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct FunderOrderBy {
     pub field: FunderField,
     pub direction: Direction,
@@ -95,18 +94,6 @@ pub struct FunderOrderBy {
 impl Default for FunderField {
     fn default() -> Self {
         FunderField::FunderName
-    }
-}
-
-impl Default for Funder {
-    fn default() -> Funder {
-        Funder {
-            funder_id: Default::default(),
-            funder_name: "".to_string(),
-            funder_doi: None,
-            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-        }
     }
 }
 

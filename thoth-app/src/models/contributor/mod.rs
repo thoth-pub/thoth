@@ -37,7 +37,7 @@ impl MetadataTable for Contributor {
                 <td>{&self.contributor_id}</td>
                 <td>{&self.full_name}</td>
                 <td>{orcid}</td>
-                <td>{&self.updated_at.format("%F %T")}</td>
+                <td>{&self.updated_at}</td>
             </tr>
         }
     }

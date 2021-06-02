@@ -37,7 +37,7 @@ impl MetadataTable for Publisher {
                 <td>{&self.publisher_name}</td>
                 <td>{publisher_shortname}</td>
                 <td>{publisher_url}</td>
-                <td>{&self.updated_at.format("%F %T")}</td>
+                <td>{&self.updated_at}</td>
             </tr>
         }
     }

@@ -89,7 +89,7 @@ impl MetadataTable for Work {
                 </td>
                 <td>{doi}</td>
                 <td>{&self.publisher()}</td>
-                <td>{&self.updated_at.format("%F %T")}</td>
+                <td>{&self.updated_at}</td>
             </tr>
         }
     }

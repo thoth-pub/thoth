@@ -1,10 +1,9 @@
-use chrono::DateTime;
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
+use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::language;
 #[cfg(feature = "backend")]
@@ -47,8 +46,8 @@ pub struct Language {
     pub language_code: LanguageCode,
     pub language_relation: LanguageRelation,
     pub main_language: bool,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 #[cfg_attr(
@@ -578,7 +577,7 @@ pub struct LanguageHistory {
     pub language_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Timestamp,
 }
 
 #[cfg_attr(
@@ -612,8 +611,8 @@ impl Default for Language {
             language_code: Default::default(),
             language_relation: Default::default(),
             main_language: true,
-            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            created_at: Default::default(),
+            updated_at: Default::default(),
         }
     }
 }

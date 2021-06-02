@@ -137,19 +137,6 @@ impl DbInsert for NewIssueHistory {
 mod tests {
     use super::*;
 
-    impl Default for Issue {
-        fn default() -> Self {
-            Issue {
-                issue_id: Default::default(),
-                series_id: Default::default(),
-                work_id: Default::default(),
-                issue_ordinal: Default::default(),
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-            }
-        }
-    }
-
     #[test]
     fn test_issue_pk() {
         let issue: Issue = Default::default();

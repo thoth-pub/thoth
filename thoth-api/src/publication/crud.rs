@@ -187,20 +187,6 @@ impl DbInsert for NewPublicationHistory {
 mod tests {
     use super::*;
 
-    impl Default for Publication {
-        fn default() -> Self {
-            Publication {
-                publication_id: Default::default(),
-                publication_type: Default::default(),
-                work_id: Default::default(),
-                isbn: Default::default(),
-                publication_url: Default::default(),
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-            }
-        }
-    }
-
     #[test]
     fn test_publication_pk() {
         let publication: Publication = Default::default();

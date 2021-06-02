@@ -49,7 +49,7 @@ impl MetadataTable for Publication {
                 <td>{&self.publication_type}</td>
                 <td>{isbn}</td>
                 <td>{publication_url}</td>
-                <td>{&self.updated_at.format("%F %T")}</td>
+                <td>{&self.updated_at}</td>
             </tr>
         }
     }

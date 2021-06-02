@@ -1,9 +1,8 @@
-use chrono::DateTime;
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::funder::model::Funder;
+use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::funding;
 #[cfg(feature = "backend")]
@@ -28,7 +27,7 @@ pub enum FundingField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Funding {
     pub funding_id: Uuid,
     pub work_id: Uuid,
@@ -38,8 +37,8 @@ pub struct Funding {
     pub project_shortname: Option<String>,
     pub grant_number: Option<String>,
     pub jurisdiction: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -94,7 +93,7 @@ pub struct FundingHistory {
     pub funding_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Timestamp,
 }
 
 #[cfg_attr(

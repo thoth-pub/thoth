@@ -1,11 +1,10 @@
-use chrono::DateTime;
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
+use crate::model::Timestamp;
 use crate::price::model::Price;
 #[cfg(feature = "backend")]
 use crate::schema::publication;
@@ -60,18 +59,18 @@ pub enum PublicationField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Publication {
     pub publication_id: Uuid,
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<String>,
     pub publication_url: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DetailedPublication {
     pub publication_id: Uuid,
@@ -79,11 +78,11 @@ pub struct DetailedPublication {
     pub work_id: Uuid,
     pub isbn: Option<String>,
     pub publication_url: Option<String>,
-    pub updated_at: DateTime<Utc>,
+    pub updated_at: Timestamp,
     pub work: Work,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicationExtended {
     pub publication_id: Uuid,
@@ -145,7 +144,7 @@ pub struct PublicationHistory {
     pub publication_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Timestamp,
 }
 
 #[cfg_attr(
@@ -164,7 +163,7 @@ pub struct NewPublicationHistory {
     derive(juniper::GraphQLInputObject),
     graphql(description = "Field and order to use when sorting publications list")
 )]
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct PublicationOrderBy {
     pub field: PublicationField,
     pub direction: Direction,
@@ -179,34 +178,6 @@ impl Default for PublicationType {
 impl Default for PublicationField {
     fn default() -> Self {
         PublicationField::PublicationType
-    }
-}
-
-impl Default for DetailedPublication {
-    fn default() -> DetailedPublication {
-        DetailedPublication {
-            publication_id: Default::default(),
-            publication_type: Default::default(),
-            work_id: Default::default(),
-            isbn: None,
-            publication_url: None,
-            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-            work: Default::default(),
-        }
-    }
-}
-
-impl Default for PublicationExtended {
-    fn default() -> PublicationExtended {
-        PublicationExtended {
-            publication_id: Default::default(),
-            publication_type: PublicationType::Paperback,
-            work_id: Default::default(),
-            isbn: None,
-            publication_url: None,
-            prices: Default::default(),
-            work: Default::default(),
-        }
     }
 }
 

@@ -1,5 +1,47 @@
+use chrono::{DateTime, TimeZone, Utc};
+use serde::{Deserialize, Serialize};
+use std::fmt;
+
 #[cfg(feature = "backend")]
 use crate::errors::ThothResult;
+
+#[cfg_attr(
+    feature = "backend",
+    derive(DieselNewType, juniper::GraphQLScalarValue)
+)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Timestamp(DateTime<Utc>);
+
+impl Default for Timestamp {
+    fn default() -> Timestamp {
+        Timestamp {
+            0: TimeZone::timestamp(&Utc, 0, 0),
+        }
+    }
+}
+
+impl fmt::Display for Timestamp {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", &self.0.format("%F %T"))
+    }
+}
+
+#[test]
+fn test_timestamp_default() {
+    let stamp: Timestamp = Default::default();
+    assert_eq!(
+        stamp,
+        Timestamp {
+            0: TimeZone::timestamp(&Utc, 0, 0)
+        }
+    );
+}
+
+#[test]
+fn test_timestamp_display() {
+    let stamp: Timestamp = Default::default();
+    assert_eq!(format!("{}", stamp), "1970-01-01 00:00:00");
+}
 
 #[cfg(feature = "backend")]
 #[allow(clippy::too_many_arguments)]

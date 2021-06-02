@@ -190,22 +190,6 @@ impl DbInsert for NewSeriesHistory {
 mod tests {
     use super::*;
 
-    impl Default for Series {
-        fn default() -> Self {
-            Series {
-                series_id: Default::default(),
-                series_type: Default::default(),
-                series_name: Default::default(),
-                issn_print: Default::default(),
-                issn_digital: Default::default(),
-                series_url: Default::default(),
-                imprint_id: Default::default(),
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-            }
-        }
-    }
-
     #[test]
     fn test_series_pk() {
         let series: Series = Default::default();

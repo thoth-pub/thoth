@@ -21,7 +21,7 @@ macro_rules! graphql_query_builder {
         pub type $fetch = Fetch<$request, $response_body>;
         pub type $fetch_action = FetchAction<$response_body>;
 
-        #[derive(Default, Debug, Clone)]
+        #[derive(Debug, Clone, Default)]
         pub struct $request {
             pub body: $request_body,
         }
