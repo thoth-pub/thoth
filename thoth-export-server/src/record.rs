@@ -11,11 +11,6 @@ use thoth_client::Work;
 use crate::csv::{CsvSpecification, CsvThoth};
 use crate::xml::{Onix3Oapen, Onix3ProjectMuse, XmlSpecification};
 
-const XML_MIME_TYPE: &str = "text/xml; charset=utf-8";
-const XML_EXTENSION: &str = ".xml";
-const CSV_MIME_TYPE: &str = "text/csv; charset=utf-8";
-const CSV_EXTENSION: &str = ".csv";
-
 pub(crate) trait AsRecord {}
 impl AsRecord for Vec<Work> {}
 
@@ -35,6 +30,11 @@ impl<T> MetadataRecord<T>
 where
     T: AsRecord + IntoIterator,
 {
+    const XML_MIME_TYPE: &'static str = "text/xml; charset=utf-8";
+    const XML_EXTENSION: &'static str = ".xml";
+    const CSV_MIME_TYPE: &'static str = "text/csv; charset=utf-8";
+    const CSV_EXTENSION: &'static str = ".csv";
+
     pub(crate) fn new(id: String, specification: MetadataSpecification, data: T) -> Self {
         MetadataRecord {
             id,
@@ -45,9 +45,9 @@ where
 
     fn content_type(&self) -> &'static str {
         match &self.specification {
-            MetadataSpecification::Onix3ProjectMuse(_) => XML_MIME_TYPE,
-            MetadataSpecification::Onix3Oapen(_) => XML_MIME_TYPE,
-            MetadataSpecification::CsvThoth(_) => CSV_MIME_TYPE,
+            MetadataSpecification::Onix3ProjectMuse(_) => Self::XML_MIME_TYPE,
+            MetadataSpecification::Onix3Oapen(_) => Self::XML_MIME_TYPE,
+            MetadataSpecification::CsvThoth(_) => Self::CSV_MIME_TYPE,
         }
     }
 
@@ -60,11 +60,11 @@ where
     }
 
     fn xml_file_name(&self) -> String {
-        self.format_file_name(XML_EXTENSION)
+        self.format_file_name(Self::XML_EXTENSION)
     }
 
     fn csv_file_name(&self) -> String {
-        self.format_file_name(CSV_EXTENSION)
+        self.format_file_name(Self::CSV_EXTENSION)
     }
 
     fn format_file_name(&self, extension: &'static str) -> String {
