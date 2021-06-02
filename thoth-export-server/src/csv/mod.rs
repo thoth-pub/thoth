@@ -7,11 +7,7 @@ pub(crate) trait CsvSpecification {
     fn generate(&self, works: &[Work]) -> ThothResult<String> {
         let mut writer = Writer::from_writer(Vec::new());
         Self::handle_event(&mut writer, works)
-            .map(|_| {
-                writer
-                    .into_inner()
-                    .map_err(|e| e.error().into())
-            })
+            .map(|_| writer.into_inner().map_err(|e| e.error().into()))
             .and_then(|val| val)
             .and_then(|csv| {
                 String::from_utf8(csv)

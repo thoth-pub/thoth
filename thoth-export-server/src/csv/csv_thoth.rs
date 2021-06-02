@@ -30,7 +30,8 @@ impl CsvSpecification for CsvThoth {
 
 impl CsvRow<CsvThoth> for Work {
     fn csv_row<W: Write>(&self, w: &mut Writer<W>) -> ThothResult<()> {
-        w.serialize(CsvThothRow::from(self.clone())).map_err(|e| e.into())
+        w.serialize(CsvThothRow::from(self.clone()))
+            .map_err(|e| e.into())
     }
 }
 
