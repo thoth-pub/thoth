@@ -11,14 +11,10 @@ use crate::ApiConfig;
 use thoth_client::{ThothClient, Work};
 use uuid::Uuid;
 
-const ALL_SPECIFICATIONS: [Specification<'static>; 3] = [
+const ALL_SPECIFICATIONS: [Specification<'static>; 2] = [
     Specification {
         id: "onix_3.0::project_muse",
         name: "Project MUSE ONIX 3.0",
-    },
-    Specification {
-        id: "onix_3.0::oapen",
-        name: "OAPEN ONIX 3.0",
     },
     Specification {
         id: "csv::thoth",
@@ -31,7 +27,7 @@ const ALL_SPECIFICATIONS: [Specification<'static>; 3] = [
     description = "Full list of metadata specifications that can be output by Thoth",
     tags(Specifications)
 )]
-pub(crate) async fn get_all() -> Json<[Specification<'static>; 3]> {
+pub(crate) async fn get_all() -> Json<[Specification<'static>; 2]> {
     Json(ALL_SPECIFICATIONS)
 }
 

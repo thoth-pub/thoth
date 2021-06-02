@@ -9,14 +9,13 @@ use thoth_api::errors::{ThothError, ThothResult};
 use thoth_client::Work;
 
 use crate::csv::{CsvSpecification, CsvThoth};
-use crate::xml::{Onix3Oapen, Onix3ProjectMuse, XmlSpecification};
+use crate::xml::{Onix3ProjectMuse, XmlSpecification};
 
 pub(crate) trait AsRecord {}
 impl AsRecord for Vec<Work> {}
 
 pub(crate) enum MetadataSpecification {
     Onix3ProjectMuse(Onix3ProjectMuse),
-    Onix3Oapen(Onix3Oapen),
     CsvThoth(CsvThoth),
 }
 
@@ -46,7 +45,6 @@ where
     fn content_type(&self) -> &'static str {
         match &self.specification {
             MetadataSpecification::Onix3ProjectMuse(_) => Self::XML_MIME_TYPE,
-            MetadataSpecification::Onix3Oapen(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::CsvThoth(_) => Self::CSV_MIME_TYPE,
         }
     }
@@ -54,7 +52,6 @@ where
     fn file_name(&self) -> String {
         match &self.specification {
             MetadataSpecification::Onix3ProjectMuse(_) => self.xml_file_name(),
-            MetadataSpecification::Onix3Oapen(_) => self.xml_file_name(),
             MetadataSpecification::CsvThoth(_) => self.csv_file_name(),
         }
     }
@@ -87,7 +84,6 @@ impl MetadataRecord<Vec<Work>> {
             MetadataSpecification::Onix3ProjectMuse(onix3_project_muse) => {
                 onix3_project_muse.generate(&self.data)
             }
-            MetadataSpecification::Onix3Oapen(_) => unimplemented!(),
             MetadataSpecification::CsvThoth(csv_thoth) => csv_thoth.generate(&self.data),
         }
     }
@@ -138,7 +134,6 @@ impl FromStr for MetadataSpecification {
             "onix_3.0::project_muse" => {
                 Ok(MetadataSpecification::Onix3ProjectMuse(Onix3ProjectMuse {}))
             }
-            "onix_3.0::oapen" => Ok(MetadataSpecification::Onix3Oapen(Onix3Oapen {})),
             "csv::thoth" => Ok(MetadataSpecification::CsvThoth(CsvThoth {})),
             _ => Err(ThothError::InvalidMetadataSpecification(input.to_string())),
         }
@@ -149,7 +144,6 @@ impl ToString for MetadataSpecification {
     fn to_string(&self) -> String {
         match self {
             MetadataSpecification::Onix3ProjectMuse(_) => "onix_3.0::project_muse".to_string(),
-            MetadataSpecification::Onix3Oapen(_) => "onix_3.0::oapen".to_string(),
             MetadataSpecification::CsvThoth(_) => "csv::thoth".to_string(),
         }
     }
