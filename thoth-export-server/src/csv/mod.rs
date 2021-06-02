@@ -1,4 +1,4 @@
-use csv::{Result as CsvResult, Writer};
+use csv::Writer;
 use std::io::Write;
 use thoth_api::errors::{ThothError, ThothResult};
 use thoth_client::Work;
@@ -10,9 +10,8 @@ pub(crate) trait CsvSpecification {
             .map(|_| {
                 writer
                     .into_inner()
-                    .map_err(|e| ThothError::InternalError(e.to_string()))
+                    .map_err(|e| e.error().into())
             })
-            .map_err(|e| ThothError::InternalError(e.to_string())) // todo: impl From<csv::Error> for ThothError
             .and_then(|val| val)
             .and_then(|csv| {
                 String::from_utf8(csv)
@@ -20,11 +19,11 @@ pub(crate) trait CsvSpecification {
             })
     }
 
-    fn handle_event<W: Write>(w: &mut Writer<W>, works: &[Work]) -> CsvResult<()>;
+    fn handle_event<W: Write>(w: &mut Writer<W>, works: &[Work]) -> ThothResult<()>;
 }
 
 pub(crate) trait CsvRow<T: CsvSpecification> {
-    fn csv_row<W: Write>(&self, w: &mut Writer<W>) -> CsvResult<()>;
+    fn csv_row<W: Write>(&self, w: &mut Writer<W>) -> ThothResult<()>;
 }
 
 mod csv_thoth;

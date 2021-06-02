@@ -108,6 +108,12 @@ impl From<std::io::Error> for ThothError {
     }
 }
 
+impl From<&std::io::Error> for ThothError {
+    fn from(error: &std::io::Error) -> ThothError {
+        ThothError::InternalError(error.to_string())
+    }
+}
+
 impl From<reqwest::Error> for ThothError {
     fn from(error: reqwest::Error) -> ThothError {
         ThothError::InternalError(error.to_string())

@@ -1,6 +1,7 @@
-use csv::{Result as CsvResult, Writer};
+use csv::Writer;
 use serde::Serialize;
 use std::io::Write;
+use thoth_api::errors::ThothResult;
 use thoth_client::Work;
 
 use super::{CsvRow, CsvSpecification};
@@ -19,7 +20,7 @@ struct CsvThothRow {
 }
 
 impl CsvSpecification for CsvThoth {
-    fn handle_event<W: Write>(w: &mut Writer<W>, works: &[Work]) -> CsvResult<()> {
+    fn handle_event<W: Write>(w: &mut Writer<W>, works: &[Work]) -> ThothResult<()> {
         for work in works.iter() {
             CsvRow::<CsvThoth>::csv_row(work, w)?;
         }
@@ -28,8 +29,8 @@ impl CsvSpecification for CsvThoth {
 }
 
 impl CsvRow<CsvThoth> for Work {
-    fn csv_row<W: Write>(&self, w: &mut Writer<W>) -> CsvResult<()> {
-        w.serialize(CsvThothRow::from(self.clone()))
+    fn csv_row<W: Write>(&self, w: &mut Writer<W>) -> ThothResult<()> {
+        w.serialize(CsvThothRow::from(self.clone())).map_err(|e| e.into())
     }
 }
 
