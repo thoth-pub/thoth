@@ -64,8 +64,13 @@ impl juniper::IntoFieldError for ThothError {
 impl ResponseError for ThothError {
     fn error_response(&self) -> HttpResponse {
         match self {
-            ThothError::Unauthorised => HttpResponse::Unauthorized().json(self.to_string()),
+            ThothError::Unauthorised | ThothError::InvalidToken => {
+                HttpResponse::Unauthorized().json(self.to_string())
+            }
             ThothError::EntityNotFound => HttpResponse::NotFound().json(self.to_string()),
+            ThothError::InvalidMetadataSpecification(_) | ThothError::InvalidUuid => {
+                HttpResponse::BadRequest().json(self.to_string())
+            }
             ThothError::DatabaseError { .. } => {
                 HttpResponse::InternalServerError().json("DB error")
             }
