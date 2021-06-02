@@ -1,9 +1,3 @@
-#[cfg(feature = "backend")]
-use actix_web::{error::ResponseError, HttpResponse};
-#[cfg(feature = "backend")]
-use csv::Error;
-#[cfg(feature = "backend")]
-use diesel::result::Error as DBError;
 use failure::Fail;
 
 /// A specialised result type for returning Thoth data
@@ -63,8 +57,9 @@ impl juniper::IntoFieldError for ThothError {
 }
 
 #[cfg(feature = "backend")]
-impl ResponseError for ThothError {
-    fn error_response(&self) -> HttpResponse {
+impl actix_web::error::ResponseError for ThothError {
+    fn error_response(&self) -> actix_web::HttpResponse {
+        use actix_web::HttpResponse;
         match self {
             ThothError::Unauthorised | ThothError::InvalidToken => {
                 HttpResponse::Unauthorized().json(self.to_string())
@@ -82,14 +77,15 @@ impl ResponseError for ThothError {
 }
 
 #[cfg(feature = "backend")]
-impl From<DBError> for ThothError {
-    fn from(error: DBError) -> ThothError {
+impl From<diesel::result::Error> for ThothError {
+    fn from(error: diesel::result::Error) -> ThothError {
+        use diesel::result::Error;
         match error {
-            DBError::DatabaseError(_kind, info) => {
+            Error::DatabaseError(_kind, info) => {
                 let message = info.details().unwrap_or_else(|| info.message()).to_string();
                 ThothError::DatabaseError(message)
             }
-            DBError::NotFound => ThothError::EntityNotFound,
+            Error::NotFound => ThothError::EntityNotFound,
             _ => ThothError::InternalError("".into()),
         }
     }
@@ -97,7 +93,7 @@ impl From<DBError> for ThothError {
 
 #[cfg(feature = "backend")]
 impl From<csv::Error> for ThothError {
-    fn from(e: Error) -> Self {
+    fn from(e: csv::Error) -> Self {
         ThothError::CsvError(e.to_string())
     }
 }
