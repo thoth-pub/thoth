@@ -17,8 +17,8 @@ use crate::ApiConfig;
     description = "Full list of metadata specifications that can be output by Thoth",
     tags(Specifications)
 )]
-pub(crate) async fn get_all() -> Json<[Specification<'static>; 2]> {
-    Json(ALL_SPECIFICATIONS)
+pub(crate) async fn get_all() -> Json<Vec<Specification<'static>>> {
+    Json(ALL_SPECIFICATIONS.clone())
 }
 
 #[api_v2_operation(

@@ -6,4 +6,5 @@ pub(crate) struct Format<'a> {
     pub(crate) id: &'a str,
     pub(crate) name: &'a str,
     pub(crate) version: Option<&'a str>,
+    pub(crate) specifications: Vec<&'a str>,
 }

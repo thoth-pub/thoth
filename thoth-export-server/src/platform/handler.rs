@@ -13,8 +13,8 @@ use crate::data::ALL_PLATFORMS;
     description = "Full list of platforms supported by Thoth's outputs",
     tags(Platforms)
 )]
-pub(crate) async fn get_all() -> Json<[Platform<'static>; 2]> {
-    Json(ALL_PLATFORMS)
+pub(crate) async fn get_all() -> Json<Vec<Platform<'static>>> {
+    Json(ALL_PLATFORMS.clone())
 }
 
 #[api_v2_operation(

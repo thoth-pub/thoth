@@ -13,8 +13,8 @@ use crate::data::ALL_FORMATS;
     description = "Full list of metadata formats that can be output by Thoth",
     tags(Formats)
 )]
-pub(crate) async fn get_all() -> Json<[Format<'static>; 2]> {
-    Json(ALL_FORMATS)
+pub(crate) async fn get_all() -> Json<Vec<Format<'static>>> {
+    Json(ALL_FORMATS.clone())
 }
 
 #[api_v2_operation(

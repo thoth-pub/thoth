@@ -3991,6 +3991,7 @@ dependencies = [
  "chrono",
  "csv",
  "env_logger 0.7.1",
+ "lazy_static 1.4.0",
  "log",
  "paperclip",
  "serde",
