@@ -2,7 +2,7 @@ use csv::Writer;
 use serde::Serialize;
 use std::io::Write;
 use thoth_api::errors::ThothResult;
-use thoth_client::{Work, WorkContributions, WorkPublications};
+use thoth_client::{Work, WorkContributions, WorkPublications, WorkPublicationsPrices};
 
 use super::{CsvCell, CsvRow, CsvSpecification};
 
@@ -22,7 +22,7 @@ struct CsvThothRow {
         rename = "contributions [(type, first_name, last_name, full_name, institution, orcid)]"
     )]
     contributions: String,
-    #[serde(rename = "publications [(type, isbn, url)]")]
+    #[serde(rename = "publications [(type, isbn, url, [(currency, price)])]")]
     publications: String,
     landing_page: Option<String>,
 }
@@ -86,12 +86,19 @@ impl CsvCell<CsvThoth> for Vec<String> {
 impl CsvCell<CsvThoth> for WorkPublications {
     fn csv_cell(&self) -> String {
         format!(
-            "(\"{:?}\", \"{}\", \"{}\")",
+            "(\"{:?}\", \"{}\", \"{}\", {}c)",
             self.publication_type,
             self.isbn.clone().unwrap_or_else(|| "".to_string()),
             self.publication_url
                 .clone()
                 .unwrap_or_else(|| "".to_string()),
+            CsvCell::<CsvThoth>::csv_cell(
+                &self
+                    .prices
+                    .iter()
+                    .map(|p| CsvCell::<CsvThoth>::csv_cell(p))
+                    .collect::<Vec<String>>(),
+            )
         )
     }
 }
@@ -110,5 +117,11 @@ impl CsvCell<CsvThoth> for WorkContributions {
                 .clone()
                 .unwrap_or_else(|| "".to_string())
         )
+    }
+}
+
+impl CsvCell<CsvThoth> for WorkPublicationsPrices {
+    fn csv_cell(&self) -> String {
+        format!("(\"{:?}\", \"{}\")", self.currency_code, self.unit_price,)
     }
 }
