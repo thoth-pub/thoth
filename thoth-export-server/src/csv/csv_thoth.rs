@@ -2,7 +2,9 @@ use csv::Writer;
 use serde::Serialize;
 use std::io::Write;
 use thoth_api::errors::ThothResult;
-use thoth_client::{Work, WorkContributions, WorkIssues, WorkPublications, WorkPublicationsPrices};
+use thoth_client::{
+    Work, WorkContributions, WorkIssues, WorkLanguages, WorkPublications, WorkPublicationsPrices,
+};
 
 use super::{CsvCell, CsvRow, CsvSpecification};
 
@@ -22,10 +24,12 @@ struct CsvThothRow {
         rename = "contributions [(type, first_name, last_name, full_name, institution, orcid)]"
     )]
     contributions: String,
-    #[serde(rename = "publications [(type, isbn, url, [(currency, price)])]")]
+    #[serde(rename = "publications [(type, isbn, url, [(ISO_4217_currency, price)])]")]
     publications: String,
     #[serde(rename = "series [(type, name, issn_print, issn_digital, url, issue)]")]
     series: String,
+    #[serde(rename = "languages [(relation, ISO_639-3/B_language, is_main)]")]
+    languages: String,
     landing_page: Option<String>,
 }
 
@@ -75,6 +79,13 @@ impl From<Work> for CsvThothRow {
                     .issues
                     .iter()
                     .map(|i| CsvCell::<CsvThoth>::csv_cell(i))
+                    .collect::<Vec<String>>(),
+            ),
+            languages: CsvCell::<CsvThoth>::csv_cell(
+                &work
+                    .languages
+                    .iter()
+                    .map(|l| CsvCell::<CsvThoth>::csv_cell(l))
                     .collect::<Vec<String>>(),
             ),
             landing_page: work.landing_page,
@@ -148,6 +159,15 @@ impl CsvCell<CsvThoth> for WorkIssues {
                 .clone()
                 .unwrap_or_else(|| "".to_string()),
             self.issue_ordinal,
+        )
+    }
+}
+
+impl CsvCell<CsvThoth> for WorkLanguages {
+    fn csv_cell(&self) -> String {
+        format!(
+            "(\"{:?}\", \"{:?}\", \"{}\")",
+            self.language_relation, self.language_code, self.main_language,
         )
     }
 }
