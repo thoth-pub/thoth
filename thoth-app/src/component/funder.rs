@@ -22,7 +22,7 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::delete_dialogue::ConfirmDeleteComponent;
 use crate::component::utils::FormTextInput;
-use crate::component::utils::FormTextInputTooltipStatic;
+use crate::component::utils::FormTextInputExtended;
 use crate::component::utils::Loader;
 use crate::models::funder::delete_funder_mutation::DeleteFunderRequest;
 use crate::models::funder::delete_funder_mutation::DeleteFunderRequestBody;
@@ -368,7 +368,7 @@ impl Component for FunderComponent {
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeFunderName(e.value))
                                 required=true
                             />
-                            <FormTextInputTooltipStatic
+                            <FormTextInputExtended
                                 label = "DOI"
                                 statictext = DOI_DOMAIN
                                 value=&self.funder_doi

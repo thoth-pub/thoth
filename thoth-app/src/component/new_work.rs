@@ -26,7 +26,7 @@ use crate::component::utils::FormDateInput;
 use crate::component::utils::FormImprintSelect;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormTextInput;
-use crate::component::utils::FormTextInputTooltipStatic;
+use crate::component::utils::FormTextInputExtended;
 use crate::component::utils::FormTextarea;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::FormWorkStatusSelect;
@@ -639,7 +639,7 @@ impl Component for NewWorkComponent {
                     </div>
                     <div class="field is-horizontal">
                         <div class="field-body">
-                            <FormTextInputTooltipStatic
+                            <FormTextInputExtended
                                 label = "DOI"
                                 statictext = DOI_DOMAIN
                                 value=&self.doi

@@ -17,8 +17,7 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormTextInput;
-use crate::component::utils::FormTextInputTooltip;
-use crate::component::utils::FormTextInputTooltipStatic;
+use crate::component::utils::FormTextInputExtended;
 use crate::component::utils::FormUrlInput;
 use crate::models::contributor::contributors_query::ContributorsRequest;
 use crate::models::contributor::contributors_query::ContributorsRequestBody;
@@ -291,7 +290,7 @@ impl Component for NewContributorComponent {
                         oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
                         required=true
                     />
-                    <FormTextInputTooltip
+                    <FormTextInputExtended
                         label = "Full Name"
                         value=&self.contributor.full_name
                         tooltip=tooltip
@@ -300,7 +299,7 @@ impl Component for NewContributorComponent {
                         onblur=self.link.callback(|_| Msg::ToggleDuplicateTooltip(false))
                         required=true
                     />
-                    <FormTextInputTooltipStatic
+                    <FormTextInputExtended
                         label = "ORCID"
                         statictext = ORCID_DOMAIN
                         value=&self.orcid

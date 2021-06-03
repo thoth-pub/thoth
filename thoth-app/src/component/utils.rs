@@ -36,8 +36,7 @@ use crate::string::YES;
 
 pub type FormInput = Pure<PureInput>;
 pub type FormTextarea = Pure<PureTextarea>;
-pub type FormTextInputTooltip = Pure<PureTextInputTooltip>;
-pub type FormTextInputTooltipStatic = Pure<PureTextInputTooltipStatic>;
+pub type FormTextInputExtended = Pure<PureTextInputExtended>;
 pub type FormTextInput = Pure<PureTextInput>;
 pub type FormUrlInput = Pure<PureUrlInput>;
 pub type FormDateInput = Pure<PureDateInput>;
@@ -81,26 +80,15 @@ pub struct PureTextarea {
     pub required: bool,
 }
 
+// Variant of PureTextInput which supports tooltips,
+// prepended static buttons, or both together.
 #[derive(Clone, PartialEq, Properties)]
-pub struct PureTextInputTooltip {
+pub struct PureTextInputExtended {
     pub label: String,
     pub value: String,
+    #[prop_or_default]
     pub tooltip: String,
     #[prop_or_default]
-    pub oninput: Callback<InputData>,
-    #[prop_or_default]
-    pub onfocus: Callback<FocusEvent>,
-    #[prop_or_default]
-    pub onblur: Callback<FocusEvent>,
-    #[prop_or(false)]
-    pub required: bool,
-}
-
-#[derive(Clone, PartialEq, Properties)]
-pub struct PureTextInputTooltipStatic {
-    pub label: String,
-    pub value: String,
-    pub tooltip: String,
     pub statictext: String,
     #[prop_or_default]
     pub oninput: Callback<InputData>,
@@ -344,56 +332,7 @@ impl PureComponent for PureTextarea {
     }
 }
 
-impl PureComponent for PureTextInputTooltip {
-    fn render(&self) -> VNode {
-        // Only display tooltip if its value is set.
-        // Yew release 0.18.0 will introduce optional attributes -
-        // at this point we can make `data-tooltip` optional
-        // and collapse down the duplicated `html!` declaration.
-        if self.tooltip.is_empty() {
-            html! {
-                <div class="field">
-                    <label class="label">{ &self.label }</label>
-                    <div class="control is-expanded">
-                        <input
-                            class="input"
-                            type="text"
-                            placeholder={ &self.label }
-                            value={ &self.value }
-                            oninput=&self.oninput
-                            onfocus=&self.onfocus
-                            onblur=&self.onblur
-                            required={ self.required }
-                        />
-                    </div>
-                </div>
-            }
-        } else {
-            html! {
-                <div class="field">
-                    <label class="label">{ &self.label }</label>
-                    <div
-                        class="control is-expanded has-tooltip-arrow has-tooltip-bottom has-tooltip-active"
-                        data-tooltip={ &self.tooltip }
-                    >
-                        <input
-                            class="input"
-                            type="text"
-                            placeholder={ &self.label }
-                            value={ &self.value }
-                            oninput=&self.oninput
-                            onfocus=&self.onfocus
-                            onblur=&self.onblur
-                            required={ self.required }
-                        />
-                    </div>
-                </div>
-            }
-        }
-    }
-}
-
-impl PureComponent for PureTextInputTooltipStatic {
+impl PureComponent for PureTextInputExtended {
     fn render(&self) -> VNode {
         // Only display tooltip if its value is set.
         // Yew release 0.18.0 will introduce optional attributes -
@@ -404,7 +343,16 @@ impl PureComponent for PureTextInputTooltipStatic {
                 <div class="field">
                     <label class="label">{ &self.label }</label>
                     <div class="field has-addons is-expanded">
-                        <button class="button is-static">{ &self.statictext }</button>
+                        {
+                            // Only display static button if a static text value was provided.
+                            if self.statictext.is_empty() {
+                                html! {}
+                            } else {
+                                html! {
+                                    <button class="button is-static">{ &self.statictext }</button>
+                                }
+                            }
+                        }
                         <input
                             class="input"
                             type="text"
@@ -426,7 +374,15 @@ impl PureComponent for PureTextInputTooltipStatic {
                         class="field has-addons is-expanded has-tooltip-arrow has-tooltip-bottom has-tooltip-active"
                         data-tooltip={ &self.tooltip }
                     >
-                        <button class="button is-static">{ &self.statictext }</button>
+                        {
+                            if self.statictext.is_empty() {
+                                html! {}
+                            } else {
+                                html! {
+                                    <button class="button is-static">{ &self.statictext }</button>
+                                }
+                            }
+                        }
                         <input
                             class="input"
                             type="text"

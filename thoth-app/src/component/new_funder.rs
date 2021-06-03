@@ -17,7 +17,7 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormTextInput;
-use crate::component::utils::FormTextInputTooltipStatic;
+use crate::component::utils::FormTextInputExtended;
 use crate::models::funder::create_funder_mutation::CreateFunderRequest;
 use crate::models::funder::create_funder_mutation::CreateFunderRequestBody;
 use crate::models::funder::create_funder_mutation::PushActionCreateFunder;
@@ -184,7 +184,7 @@ impl Component for NewFunderComponent {
                         oninput=self.link.callback(|e: InputData| Msg::ChangeFunderName(e.value))
                         required=true
                     />
-                    <FormTextInputTooltipStatic
+                    <FormTextInputExtended
                         label = "DOI"
                         statictext = DOI_DOMAIN
                         value=&self.funder_doi

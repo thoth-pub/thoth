@@ -22,7 +22,7 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::delete_dialogue::ConfirmDeleteComponent;
 use crate::component::utils::FormTextInput;
-use crate::component::utils::FormTextInputTooltipStatic;
+use crate::component::utils::FormTextInputExtended;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
 use crate::models::contributor::contributor_activity_query::ContributorActivityResponseData;
@@ -404,7 +404,7 @@ impl Component for ContributorComponent {
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
                                 required = true
                             />
-                            <FormTextInputTooltipStatic
+                            <FormTextInputExtended
                                 label = "ORCID"
                                 statictext = ORCID_DOMAIN
                                 value=&self.orcid

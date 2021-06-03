@@ -3,6 +3,7 @@ use std::io::Write;
 
 use chrono::prelude::*;
 use thoth_api::errors::{ThothError, ThothResult};
+use thoth_api::model::DOI_DOMAIN;
 use thoth_client::work::work_query::ContributionType;
 use thoth_client::work::work_query::LanguageRelation;
 use thoth_client::work::work_query::PublicationType;
@@ -239,7 +240,7 @@ fn handle_event<W: Write>(w: &mut EventWriter<W>, work: &mut WorkQueryWork) -> R
                     })
                     .ok();
                     write_element_block("IDValue", None, None, w, |w| {
-                        let sanitised_doi = doi.replace("https://doi.org/", "");
+                        let sanitised_doi = doi.replace(DOI_DOMAIN, "");
                         let event: XmlEvent = XmlEvent::Characters(&sanitised_doi);
                         w.write(event).ok();
                     })
