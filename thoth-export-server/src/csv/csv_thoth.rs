@@ -3,7 +3,8 @@ use serde::Serialize;
 use std::io::Write;
 use thoth_api::errors::ThothResult;
 use thoth_client::{
-    Work, WorkContributions, WorkIssues, WorkLanguages, WorkPublications, WorkPublicationsPrices,
+    Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublications,
+    WorkPublicationsPrices,
 };
 
 use super::{CsvCell, CsvRow, CsvSpecification};
@@ -30,6 +31,8 @@ struct CsvThothRow {
     series: String,
     #[serde(rename = "languages [(relation, ISO_639-3/B_language, is_main)]")]
     languages: String,
+    #[serde(rename = "funding [(funder, funder_doi, program, project, grant, jurisdiction)]")]
+    funding: String,
     landing_page: Option<String>,
 }
 
@@ -86,6 +89,13 @@ impl From<Work> for CsvThothRow {
                     .languages
                     .iter()
                     .map(|l| CsvCell::<CsvThoth>::csv_cell(l))
+                    .collect::<Vec<String>>(),
+            ),
+            funding: CsvCell::<CsvThoth>::csv_cell(
+                &work
+                    .fundings
+                    .iter()
+                    .map(|f| CsvCell::<CsvThoth>::csv_cell(f))
                     .collect::<Vec<String>>(),
             ),
             landing_page: work.landing_page,
@@ -168,6 +178,23 @@ impl CsvCell<CsvThoth> for WorkLanguages {
         format!(
             "(\"{:?}\", \"{:?}\", \"{}\")",
             self.language_relation, self.language_code, self.main_language,
+        )
+    }
+}
+
+impl CsvCell<CsvThoth> for WorkFundings {
+    fn csv_cell(&self) -> String {
+        format!(
+            "(\"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\")",
+            self.funder.funder_name,
+            self.funder
+                .funder_doi
+                .clone()
+                .unwrap_or_else(|| "".to_string()),
+            self.program.clone().unwrap_or_else(|| "".to_string()),
+            self.project_name.clone().unwrap_or_else(|| "".to_string()),
+            self.grant_number.clone().unwrap_or_else(|| "".to_string()),
+            self.jurisdiction.clone().unwrap_or_else(|| "".to_string()),
         )
     }
 }
