@@ -2,7 +2,7 @@ use csv::Writer;
 use serde::Serialize;
 use std::io::Write;
 use thoth_api::errors::ThothResult;
-use thoth_client::{Work, WorkContributions, WorkPublications, WorkPublicationsPrices};
+use thoth_client::{Work, WorkContributions, WorkIssues, WorkPublications, WorkPublicationsPrices};
 
 use super::{CsvCell, CsvRow, CsvSpecification};
 
@@ -24,6 +24,8 @@ struct CsvThothRow {
     contributions: String,
     #[serde(rename = "publications [(type, isbn, url, [(currency, price)])]")]
     publications: String,
+    #[serde(rename = "series [(type, name, issn_print, issn_digital, url, issue)]")]
+    series: String,
     landing_page: Option<String>,
 }
 
@@ -66,6 +68,13 @@ impl From<Work> for CsvThothRow {
                     .publications
                     .iter()
                     .map(|p| CsvCell::<CsvThoth>::csv_cell(p))
+                    .collect::<Vec<String>>(),
+            ),
+            series: CsvCell::<CsvThoth>::csv_cell(
+                &work
+                    .issues
+                    .iter()
+                    .map(|i| CsvCell::<CsvThoth>::csv_cell(i))
                     .collect::<Vec<String>>(),
             ),
             landing_page: work.landing_page,
@@ -123,5 +132,22 @@ impl CsvCell<CsvThoth> for WorkContributions {
 impl CsvCell<CsvThoth> for WorkPublicationsPrices {
     fn csv_cell(&self) -> String {
         format!("(\"{:?}\", \"{}\")", self.currency_code, self.unit_price,)
+    }
+}
+
+impl CsvCell<CsvThoth> for WorkIssues {
+    fn csv_cell(&self) -> String {
+        format!(
+            "(\"{:?}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\")",
+            self.series.series_type,
+            self.series.series_name,
+            self.series.issn_print,
+            self.series.issn_digital,
+            self.series
+                .series_url
+                .clone()
+                .unwrap_or_else(|| "".to_string()),
+            self.issue_ordinal,
+        )
     }
 }
