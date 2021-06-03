@@ -41,6 +41,7 @@ fragment Work on Work {
             seriesName
             issnPrint
             issnDigital
+            seriesUrl
         }
     }
     contributions {
