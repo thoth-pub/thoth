@@ -6,6 +6,7 @@ use paperclip::actix::{web::HttpResponse, OpenApiExt};
 use paperclip::v2::models::{Contact, DefaultApiRaw, Info, License, Tag};
 
 mod csv;
+mod data;
 mod format;
 mod platform;
 mod rapidoc;

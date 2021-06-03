@@ -6,17 +6,7 @@ use paperclip::actix::{
 use thoth_api::errors::ThothError;
 
 use super::model::Platform;
-
-const ALL_PLATFORMS: [Platform<'static>; 2] = [
-    Platform {
-        id: "thoth",
-        name: "Thoth",
-    },
-    Platform {
-        id: "project_muse",
-        name: "Project MUSE",
-    },
-];
+use crate::data::ALL_PLATFORMS;
 
 #[api_v2_operation(
     summary = "List supported platforms",

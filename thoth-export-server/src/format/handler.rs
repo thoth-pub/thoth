@@ -6,19 +6,7 @@ use paperclip::actix::{
 use thoth_api::errors::ThothError;
 
 use super::model::Format;
-
-const ALL_FORMATS: [Format<'static>; 2] = [
-    Format {
-        id: "onix_3.0",
-        name: "ONIX",
-        version: Some("3.0"),
-    },
-    Format {
-        id: "csv",
-        name: "CSV",
-        version: None,
-    },
-];
+use crate::data::ALL_FORMATS;
 
 #[api_v2_operation(
     summary = "List supported formats",

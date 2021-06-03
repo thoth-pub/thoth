@@ -4,23 +4,13 @@ use paperclip::actix::{
     web::{self, Json},
 };
 use thoth_api::errors::ThothError;
-
-use super::model::Specification;
-use crate::record::MetadataRecord;
-use crate::ApiConfig;
 use thoth_client::{ThothClient, Work};
 use uuid::Uuid;
 
-const ALL_SPECIFICATIONS: [Specification<'static>; 2] = [
-    Specification {
-        id: "onix_3.0::project_muse",
-        name: "Project MUSE ONIX 3.0",
-    },
-    Specification {
-        id: "csv::thoth",
-        name: "Thoth CSV",
-    },
-];
+use super::model::Specification;
+use crate::data::ALL_SPECIFICATIONS;
+use crate::record::MetadataRecord;
+use crate::ApiConfig;
 
 #[api_v2_operation(
     summary = "List supported specifications",
