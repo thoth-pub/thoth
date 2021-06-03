@@ -3,8 +3,8 @@ use serde::Serialize;
 use std::io::Write;
 use thoth_api::errors::ThothResult;
 use thoth_client::{
-    Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublications,
-    WorkPublicationsPrices,
+    SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages,
+    WorkPublications, WorkPublicationsPrices, WorkSubjects,
 };
 
 use super::{CsvCell, CsvRow, CsvSpecification};
@@ -31,6 +31,18 @@ struct CsvThothRow {
     series: String,
     #[serde(rename = "languages [(relation, ISO_639-3/B_language, is_main)]")]
     languages: String,
+    #[serde(rename = "BIC [code]")]
+    bic: String,
+    #[serde(rename = "THEMA [code]")]
+    thema: String,
+    #[serde(rename = "BISAC [code]")]
+    bisac: String,
+    #[serde(rename = "LCC [code]")]
+    lcc: String,
+    #[serde(rename = "custom_categories [category]")]
+    custom: String,
+    #[serde(rename = "keywords [keyword]")]
+    keywords: String,
     #[serde(rename = "funding [(funder, funder_doi, program, project, grant, jurisdiction)]")]
     funding: String,
     landing_page: Option<String>,
@@ -54,6 +66,8 @@ impl CsvRow<CsvThoth> for Work {
 
 impl From<Work> for CsvThothRow {
     fn from(work: Work) -> Self {
+        let mut subjects = work.subjects;
+        subjects.sort_by(|a, b| a.subject_ordinal.cmp(&b.subject_ordinal));
         CsvThothRow {
             publisher: work.imprint.publisher.publisher_name,
             imprint: work.imprint.imprint_name,
@@ -89,6 +103,48 @@ impl From<Work> for CsvThothRow {
                     .languages
                     .iter()
                     .map(|l| CsvCell::<CsvThoth>::csv_cell(l))
+                    .collect::<Vec<String>>(),
+            ),
+            bic: CsvCell::<CsvThoth>::csv_cell(
+                &subjects
+                    .iter()
+                    .filter(|s| s.subject_type.eq(&SubjectType::BIC))
+                    .map(|s| CsvCell::<CsvThoth>::csv_cell(s))
+                    .collect::<Vec<String>>(),
+            ),
+            thema: CsvCell::<CsvThoth>::csv_cell(
+                &subjects
+                    .iter()
+                    .filter(|s| s.subject_type.eq(&SubjectType::BIC))
+                    .map(|s| CsvCell::<CsvThoth>::csv_cell(s))
+                    .collect::<Vec<String>>(),
+            ),
+            bisac: CsvCell::<CsvThoth>::csv_cell(
+                &subjects
+                    .iter()
+                    .filter(|s| s.subject_type.eq(&SubjectType::BISAC))
+                    .map(|s| CsvCell::<CsvThoth>::csv_cell(s))
+                    .collect::<Vec<String>>(),
+            ),
+            lcc: CsvCell::<CsvThoth>::csv_cell(
+                &subjects
+                    .iter()
+                    .filter(|s| s.subject_type.eq(&SubjectType::LCC))
+                    .map(|s| CsvCell::<CsvThoth>::csv_cell(s))
+                    .collect::<Vec<String>>(),
+            ),
+            custom: CsvCell::<CsvThoth>::csv_cell(
+                &subjects
+                    .iter()
+                    .filter(|s| s.subject_type.eq(&SubjectType::CUSTOM))
+                    .map(|s| CsvCell::<CsvThoth>::csv_cell(s))
+                    .collect::<Vec<String>>(),
+            ),
+            keywords: CsvCell::<CsvThoth>::csv_cell(
+                &subjects
+                    .iter()
+                    .filter(|s| s.subject_type.eq(&SubjectType::KEYWORD))
+                    .map(|s| CsvCell::<CsvThoth>::csv_cell(s))
                     .collect::<Vec<String>>(),
             ),
             funding: CsvCell::<CsvThoth>::csv_cell(
@@ -179,6 +235,12 @@ impl CsvCell<CsvThoth> for WorkLanguages {
             "(\"{:?}\", \"{:?}\", \"{}\")",
             self.language_relation, self.language_code, self.main_language,
         )
+    }
+}
+
+impl CsvCell<CsvThoth> for WorkSubjects {
+    fn csv_cell(&self) -> String {
+        format!("{:?}", self.subject_code)
     }
 }
 
