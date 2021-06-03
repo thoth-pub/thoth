@@ -19,8 +19,28 @@ struct CsvThothRow {
     work_status: String,
     title: String,
     subtitle: Option<String>,
+    edition: i64,
     doi: Option<String>,
     publication_date: Option<String>,
+    publication_place: Option<String>,
+    license: Option<String>,
+    copyright_holder: String,
+    landing_page: Option<String>,
+    width: Option<i64>,
+    height: Option<i64>,
+    page_count: Option<i64>,
+    image_count: Option<i64>,
+    table_count: Option<i64>,
+    audio_count: Option<i64>,
+    video_count: Option<i64>,
+    lccn: Option<String>,
+    oclc: Option<String>,
+    short_abstract: Option<String>,
+    long_abstract: Option<String>,
+    general_note: Option<String>,
+    toc: Option<String>,
+    cover_url: Option<String>,
+    cover_caption: Option<String>,
     #[serde(
         rename = "contributions [(type, first_name, last_name, full_name, institution, orcid)]"
     )]
@@ -45,7 +65,6 @@ struct CsvThothRow {
     keywords: String,
     #[serde(rename = "funding [(funder, funder_doi, program, project, grant, jurisdiction)]")]
     funding: String,
-    landing_page: Option<String>,
 }
 
 impl CsvSpecification for CsvThoth {
@@ -75,8 +94,28 @@ impl From<Work> for CsvThothRow {
             work_status: format!("{:?}", work.work_status),
             title: work.title,
             subtitle: work.subtitle,
+            edition: work.edition,
             doi: work.doi,
             publication_date: work.publication_date.map(|d| d.to_string()),
+            publication_place: work.place,
+            license: work.license,
+            copyright_holder: work.copyright_holder,
+            landing_page: work.landing_page,
+            width: work.width,
+            height: work.height,
+            page_count: work.page_count,
+            image_count: work.image_count,
+            table_count: work.table_count,
+            audio_count: work.audio_count,
+            video_count: work.video_count,
+            lccn: work.lccn,
+            oclc: work.oclc,
+            short_abstract: work.short_abstract,
+            long_abstract: work.long_abstract,
+            general_note: work.general_note,
+            toc: work.toc,
+            cover_url: work.cover_url,
+            cover_caption: work.cover_caption,
             contributions: CsvCell::<CsvThoth>::csv_cell(
                 &work
                     .contributions
@@ -154,7 +193,6 @@ impl From<Work> for CsvThothRow {
                     .map(|f| CsvCell::<CsvThoth>::csv_cell(f))
                     .collect::<Vec<String>>(),
             ),
-            landing_page: work.landing_page,
         }
     }
 }
