@@ -86,7 +86,7 @@ impl CsvCell<CsvThoth> for Vec<String> {
 impl CsvCell<CsvThoth> for WorkPublications {
     fn csv_cell(&self) -> String {
         format!(
-            "(\"{:?}\", \"{}\", \"{}\", {}c)",
+            "(\"{:?}\", \"{}\", \"{}\", {})",
             self.publication_type,
             self.isbn.clone().unwrap_or_else(|| "".to_string()),
             self.publication_url
