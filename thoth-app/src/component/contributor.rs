@@ -1,3 +1,4 @@
+use thoth_api::contribution::model::SlimContribution;
 use thoth_api::contributor::model::Contributor;
 use uuid::Uuid;
 use yew::html;
@@ -24,7 +25,6 @@ use crate::component::utils::FormTextInput;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
 use crate::models::contributor::contributor_activity_query::ContributorActivityResponseData;
-use crate::models::contributor::contributor_activity_query::SlimContribution;
 use crate::models::contributor::contributor_query::ContributorRequest;
 use crate::models::contributor::contributor_query::ContributorRequestBody;
 use crate::models::contributor::contributor_query::FetchActionContributor;

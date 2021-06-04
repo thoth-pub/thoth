@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::work::model::SlimWork;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
 use uuid::Uuid;
@@ -71,6 +72,12 @@ const CREATE_WORK_MUTATION: &str = "
         }){
             workId
             title
+            imprint {
+                publisher {
+                    publisherId
+                    publisherName
+                }
+            }
         }
     }
 ";
@@ -119,13 +126,6 @@ pub struct Variables {
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
     pub imprint_id: Uuid,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimWork {
-    pub work_id: Uuid,
-    pub title: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

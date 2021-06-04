@@ -44,6 +44,13 @@ pub struct Publisher {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SlimPublisher {
+    pub publisher_id: Uuid,
+    pub publisher_name: String,
+}
+
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),

@@ -8,6 +8,7 @@ use crate::funder::model::Funder;
 use crate::schema::funding;
 #[cfg(feature = "backend")]
 use crate::schema::funding_history;
+use crate::work::model::SlimWork;
 
 #[cfg_attr(
     feature = "backend",
@@ -54,6 +55,12 @@ pub struct FundingExtended {
     pub grant_number: Option<String>,
     pub jurisdiction: Option<String>,
     pub funder: Funder,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SlimFunding {
+    pub work: SlimWork,
 }
 
 #[cfg_attr(

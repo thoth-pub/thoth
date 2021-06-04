@@ -23,9 +23,12 @@ const CREATE_PUBLICATION_MUTATION: &str = "
             publicationUrl
             workId
             work {
+                workId
+                title
                 imprint {
                     publisher {
                         publisherId
+                        publisherName
                     }
                 }
             }

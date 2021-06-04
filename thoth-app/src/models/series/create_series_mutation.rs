@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::series::model::SeriesType;
+use thoth_api::series::model::SlimSeries;
 use uuid::Uuid;
 
 const CREATE_SERIES_MUTATION: &str = "
@@ -46,13 +47,6 @@ pub struct Variables {
     pub issn_digital: String,
     pub series_url: Option<String>,
     pub imprint_id: Uuid,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimSeries {
-    pub series_id: Uuid,
-    pub series_name: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

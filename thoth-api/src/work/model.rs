@@ -10,6 +10,7 @@ use crate::contribution::model::Contribution;
 use crate::funding::model::FundingExtended as Funding;
 use crate::graphql::utils::Direction;
 use crate::imprint::model::ImprintExtended as Imprint;
+use crate::imprint::model::SlimImprint;
 use crate::issue::model::IssueExtended as Issue;
 use crate::language::model::Language;
 use crate::publication::model::PublicationExtended as Publication;
@@ -193,6 +194,14 @@ pub struct WorkExtended {
     pub subjects: Option<Vec<Subject>>,
     pub issues: Option<Vec<Issue>>,
     pub imprint: Imprint,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SlimWork {
+    pub work_id: Uuid,
+    pub title: String,
+    pub imprint: SlimImprint,
 }
 
 #[cfg_attr(

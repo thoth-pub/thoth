@@ -11,6 +11,7 @@ use crate::price::model::Price;
 use crate::schema::publication;
 #[cfg(feature = "backend")]
 use crate::schema::publication_history;
+use crate::work::model::SlimWork;
 use crate::work::model::WorkExtended as Work;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
@@ -93,24 +94,6 @@ pub struct PublicationExtended {
     pub publication_url: Option<String>,
     pub prices: Option<Vec<Price>>,
     pub work: SlimWork,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimWork {
-    pub imprint: SlimImprint,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimImprint {
-    pub publisher: SlimPublisher,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimPublisher {
-    pub publisher_id: Uuid,
 }
 
 #[cfg_attr(

@@ -68,9 +68,12 @@ pub const WORK_QUERY: &str = "
                     updatedAt
                 }
                 work {
+                    workId
+                    title
                     imprint {
                         publisher {
                             publisherId
+                            publisherName
                         }
                     }
                 }

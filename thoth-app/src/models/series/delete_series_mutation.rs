@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::series::model::SlimSeries;
 use uuid::Uuid;
 
 const DELETE_SERIES_MUTATION: &str = "
@@ -30,13 +31,6 @@ graphql_query_builder! {
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub series_id: Uuid,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimSeries {
-    pub series_id: Uuid,
-    pub series_name: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

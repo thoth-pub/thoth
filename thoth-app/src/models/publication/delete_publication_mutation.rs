@@ -14,9 +14,12 @@ const DELETE_PUBLICATION_MUTATION: &str = "
             publicationType
             workId
             work {
+                workId
+                title
                 imprint {
                     publisher {
                         publisherId
+                        publisherName
                     }
                 }
             }

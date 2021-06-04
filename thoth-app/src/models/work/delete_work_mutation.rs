@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::work::model::SlimWork;
 use uuid::Uuid;
 
 const DELETE_WORK_MUTATION: &str = "
@@ -11,6 +12,12 @@ const DELETE_WORK_MUTATION: &str = "
         ){
             workId
             title
+            imprint {
+                publisher {
+                    publisherId
+                    publisherName
+                }
+            }
         }
     }
 ";
@@ -30,13 +37,6 @@ graphql_query_builder! {
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub work_id: Uuid,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimWork {
-    pub work_id: Uuid,
-    pub title: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

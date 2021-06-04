@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::funding::model::SlimFunding;
 use uuid::Uuid;
 
 use crate::graphql_query_builder;
@@ -13,6 +14,7 @@ pub const FUNDER_ACTIVITY_QUERY: &str = "
                     title
                     imprint {
                         publisher {
+                            publisherId
                             publisherName
                         }
                     }
@@ -48,30 +50,4 @@ pub struct FunderActivityResponseData {
 #[serde(rename_all = "camelCase")]
 pub struct FunderActivity {
     pub fundings: Option<Vec<SlimFunding>>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimFunding {
-    pub work: SlimWork,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimWork {
-    pub work_id: Uuid,
-    pub title: String,
-    pub imprint: SlimImprint,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimImprint {
-    pub publisher: SlimPublisher,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimPublisher {
-    pub publisher_name: String,
 }
