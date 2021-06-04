@@ -3,12 +3,11 @@ use paperclip::actix::{
     api_v2_operation,
     web::{self, Json},
 };
-use thoth_api::errors::ThothError;
 use thoth_client::{ThothClient, Work};
 use uuid::Uuid;
 
 use super::model::Specification;
-use crate::data::ALL_SPECIFICATIONS;
+use crate::data::{find_specification, ALL_SPECIFICATIONS};
 use crate::record::MetadataRecord;
 
 #[api_v2_operation(
@@ -28,11 +27,8 @@ pub(crate) async fn get_all() -> Json<Vec<Specification<'static>>> {
 pub(crate) async fn get_one(
     web::Path(specification_id): web::Path<String>,
 ) -> Result<Json<Specification<'static>>, Error> {
-    ALL_SPECIFICATIONS
-        .iter()
-        .find(|s| s.id == specification_id)
-        .map(|s| Json(s.clone()))
-        .ok_or(ThothError::InvalidMetadataSpecification(specification_id))
+    find_specification(specification_id)
+        .map(Json)
         .map_err(|e| e.into())
 }
 
