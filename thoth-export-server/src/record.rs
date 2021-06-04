@@ -148,3 +148,39 @@ impl ToString for MetadataSpecification {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_all_specifications_are_supported_metadata_specification() {
+        for s in crate::data::ALL_SPECIFICATIONS.iter() {
+            assert!(MetadataSpecification::from_str(s.id).is_ok())
+        }
+    }
+
+    #[test]
+    fn test_unsupported_specification_error() {
+        assert!(MetadataSpecification::from_str("some_random_format").is_err())
+    }
+
+    #[test]
+    fn test_record_file_name() {
+        let to_test = MetadataRecord::new(
+            "some_id".to_string(),
+            MetadataSpecification::CsvThoth(CsvThoth {}),
+            vec![],
+        );
+        assert_eq!(to_test.file_name(), "csv__thoth__some_id.csv".to_string());
+        let to_test = MetadataRecord::new(
+            "some_id".to_string(),
+            MetadataSpecification::Onix3ProjectMuse(Onix3ProjectMuse {}),
+            vec![],
+        );
+        assert_eq!(
+            to_test.file_name(),
+            "onix_3.0__project_muse__some_id.xml".to_string()
+        )
+    }
+}
