@@ -22,7 +22,7 @@ use crate::models::publisher::create_publisher_mutation::CreatePublisherRequestB
 use crate::models::publisher::create_publisher_mutation::PushActionCreatePublisher;
 use crate::models::publisher::create_publisher_mutation::PushCreatePublisher;
 use crate::models::publisher::create_publisher_mutation::Variables;
-use crate::route::AdminRoute;
+use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
@@ -75,9 +75,7 @@ impl Component for NewPublisherComponent {
                                 format!("Saved {}", p.publisher_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Publisher(p.publisher_id),
-                            )));
+                            self.link.send_message(Msg::ChangeRoute(p.edit_route()));
                             true
                         }
                         None => {

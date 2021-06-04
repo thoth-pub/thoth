@@ -2,6 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::str::FromStr;
 use std::string::ParseError;
+use thoth_api::work::model::SlimWork;
 use thoth_api::work::model::WorkExtended as Work;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
@@ -296,6 +297,12 @@ impl DisplayWork for Work {
                 </article>
             </div>
         }
+    }
+}
+
+impl EditRoute for SlimWork {
+    fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Work(self.work_id))
     }
 }
 

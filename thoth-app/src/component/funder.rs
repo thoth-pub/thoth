@@ -40,6 +40,7 @@ use crate::models::funder::update_funder_mutation::PushUpdateFunder;
 use crate::models::funder::update_funder_mutation::UpdateFunderRequest;
 use crate::models::funder::update_funder_mutation::UpdateFunderRequestBody;
 use crate::models::funder::update_funder_mutation::Variables as UpdateVariables;
+use crate::models::EditRoute;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
@@ -304,7 +305,7 @@ impl Component for FunderComponent {
                                                 <p>
                                                     { "Funded: " }
                                                     <RouterAnchor<AppRoute>
-                                                        route=AppRoute::Admin(AdminRoute::Work(funding.work.work_id))
+                                                        route=funding.work.edit_route()
                                                     >
                                                         { &funding.work.title }
                                                     </  RouterAnchor<AppRoute>>

@@ -40,6 +40,7 @@ use crate::models::contributor::update_contributor_mutation::PushUpdateContribut
 use crate::models::contributor::update_contributor_mutation::UpdateContributorRequest;
 use crate::models::contributor::update_contributor_mutation::UpdateContributorRequestBody;
 use crate::models::contributor::update_contributor_mutation::Variables as UpdateVariables;
+use crate::models::EditRoute;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
@@ -330,7 +331,7 @@ impl Component for ContributorComponent {
                                                 <p>
                                                     { "Contributed to: " }
                                                     <RouterAnchor<AppRoute>
-                                                        route=AppRoute::Admin(AdminRoute::Work(contribution.work.work_id))
+                                                        route=contribution.work.edit_route()
                                                     >
                                                         { &contribution.work.title }
                                                     </  RouterAnchor<AppRoute>>

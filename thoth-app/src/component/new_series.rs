@@ -37,7 +37,7 @@ use crate::models::series::create_series_mutation::Variables;
 use crate::models::series::series_types_query::FetchActionSeriesTypes;
 use crate::models::series::series_types_query::FetchSeriesTypes;
 use crate::models::series::SeriesTypeValues;
-use crate::route::AdminRoute;
+use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
@@ -165,9 +165,7 @@ impl Component for NewSeriesComponent {
                                 format!("Saved {}", s.series_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Series(s.series_id),
-                            )));
+                            self.link.send_message(Msg::ChangeRoute(s.edit_route()));
                             true
                         }
                         None => {

@@ -2,6 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::series::model::SeriesExtended as Series;
 use thoth_api::series::model::SeriesType;
+use thoth_api::series::model::SlimSeries;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -52,6 +53,12 @@ impl MetadataTable for Series {
                 <td>{&self.updated_at.format("%F %T")}</td>
             </tr>
         }
+    }
+}
+
+impl EditRoute for SlimSeries {
+    fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Series(self.series_id))
     }
 }
 

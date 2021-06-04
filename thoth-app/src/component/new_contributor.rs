@@ -28,7 +28,7 @@ use crate::models::contributor::create_contributor_mutation::CreateContributorRe
 use crate::models::contributor::create_contributor_mutation::PushActionCreateContributor;
 use crate::models::contributor::create_contributor_mutation::PushCreateContributor;
 use crate::models::contributor::create_contributor_mutation::Variables;
-use crate::route::AdminRoute;
+use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
@@ -98,9 +98,7 @@ impl Component for NewContributorComponent {
                                 format!("Saved {}", c.full_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Contributor(c.contributor_id),
-                            )));
+                            self.link.send_message(Msg::ChangeRoute(c.edit_route()));
                             true
                         }
                         None => {

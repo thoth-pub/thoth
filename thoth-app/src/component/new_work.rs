@@ -45,7 +45,7 @@ use crate::models::work::work_types_query::FetchActionWorkTypes;
 use crate::models::work::work_types_query::FetchWorkTypes;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
-use crate::route::AdminRoute;
+use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
@@ -225,9 +225,7 @@ impl Component for NewWorkComponent {
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Work(w.work_id),
-                            )));
+                            self.link.send_message(Msg::ChangeRoute(w.edit_route()));
                             true
                         }
                         None => {
