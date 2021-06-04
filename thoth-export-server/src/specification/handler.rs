@@ -54,7 +54,7 @@ pub(crate) async fn by_work(
 }
 
 #[api_v2_operation(
-    summary = "Get a metadata record include all of a publisher's works",
+    summary = "Get a metadata record with all of a publisher's works",
     description = "Obtain a metadata record that adheres to a particular specification for a given publisher",
     produces = "text/xml, text/csv",
     tags(Specifications)
