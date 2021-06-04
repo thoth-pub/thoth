@@ -13,7 +13,7 @@ pub(crate) fn route(cfg: &mut web::ServiceConfig) {
                 web::resource("/{specification_id}/work/{work_id}").route(web::get().to(by_work)),
             )
             .service(
-                web::resource("/{specification_id}/publisher/{work_id}")
+                web::resource("/{specification_id}/publisher/{publisher_id}")
                     .route(web::get().to(by_publisher)),
             ),
     );
