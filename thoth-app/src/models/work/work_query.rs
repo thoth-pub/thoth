@@ -27,6 +27,7 @@ pub const WORK_QUERY: &str = "
             pageBreakdown
             imageCount
             tableCount
+            audioCount
             videoCount
             license
             copyrightHolder
