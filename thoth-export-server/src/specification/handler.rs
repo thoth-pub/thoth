@@ -10,7 +10,6 @@ use uuid::Uuid;
 use super::model::Specification;
 use crate::data::ALL_SPECIFICATIONS;
 use crate::record::MetadataRecord;
-use crate::ApiConfig;
 
 #[api_v2_operation(
     summary = "List supported specifications",
@@ -45,9 +44,9 @@ pub(crate) async fn get_one(
 )]
 pub(crate) async fn by_work(
     web::Path((specification_id, work_id)): web::Path<(String, Uuid)>,
-    config: web::Data<ApiConfig>,
+    thoth_client: web::Data<ThothClient>,
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
-    ThothClient::new(&config.graphql_endpoint)
+    thoth_client
         .get_work(work_id)
         .await
         .and_then(|data| {
@@ -66,9 +65,9 @@ pub(crate) async fn by_work(
 )]
 pub(crate) async fn by_publisher(
     web::Path((specification_id, publisher_id)): web::Path<(String, Uuid)>,
-    config: web::Data<ApiConfig>,
+    thoth_client: web::Data<ThothClient>,
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
-    ThothClient::new(&config.graphql_endpoint)
+    thoth_client
         .get_works(Some(vec![publisher_id]))
         .await
         .and_then(|data| {

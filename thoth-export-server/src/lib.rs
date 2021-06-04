@@ -4,6 +4,7 @@ use actix_cors::Cors;
 use actix_web::{middleware::Logger, App, HttpServer};
 use paperclip::actix::{web::HttpResponse, OpenApiExt};
 use paperclip::v2::models::{Contact, DefaultApiRaw, Info, License, Tag};
+use thoth_client::ThothClient;
 
 mod csv;
 mod data;
@@ -15,10 +16,6 @@ mod specification;
 mod xml;
 
 use crate::rapidoc::rapidoc_source;
-
-struct ApiConfig {
-    graphql_endpoint: String,
-}
 
 async fn index() -> HttpResponse {
     let html = rapidoc_source("/swagger.json");
@@ -77,9 +74,7 @@ pub async fn start_server(host: String, port: String, gql_endpoint: String) -> i
         App::new()
             .wrap(Logger::default())
             .wrap(Cors::default().allowed_methods(vec!["GET", "OPTIONS"]))
-            .data(ApiConfig {
-                graphql_endpoint: gql_endpoint.clone(),
-            })
+            .data(ThothClient::new(gql_endpoint.clone()))
             .service(actix_web::web::resource("/").route(actix_web::web::get().to(index)))
             .wrap_api_with_spec(spec)
             .configure(format::route)
