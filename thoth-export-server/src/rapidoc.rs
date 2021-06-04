@@ -9,6 +9,7 @@ pub fn rapidoc_source(openapi_spec: &str) -> String {
     <head>
       <title>Thoth API Documentation</title>
       <meta charset="utf-8">
+      <link rel="shortcut icon" href="https://thoth.pub/favicon.ico" />
       <script type="module" src="https://unpkg.com/rapidoc/dist/rapidoc-min.js"></script>
     </head>
     <body>
