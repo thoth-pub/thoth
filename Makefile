@@ -8,8 +8,15 @@ THOTH_EXPORT_API ?= http://localhost:8181
 	run-app \
 	run-graphql-api \
 	run-export-api \
+	test \
+	clippy \
+	format \
+	check-format \
+	check \
+	check-all \
 
 all: build-graphql-api build-export-api build-app
+check-all: test check clippy check-format
 
 run-app: build-app
 	RUST_BACKTRACE=1 cargo run start app
@@ -34,3 +41,24 @@ build-wasm:
 	THOTH_EXPORT_API=$(THOTH_EXPORT_API) \
 	wasm-pack build --debug thoth-app/ --target web && \
 		rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js
+
+test:
+	THOTH_GRAPHQL_API=$(THOTH_GRAPHQL_API) \
+	THOTH_EXPORT_API=$(THOTH_EXPORT_API) \
+	cargo test --workspace
+
+clippy:
+	THOTH_GRAPHQL_API=$(THOTH_GRAPHQL_API) \
+	THOTH_EXPORT_API=$(THOTH_EXPORT_API) \
+	cargo clippy --all --all-targets --all-features -- -D warnings
+
+format:
+	cargo fmt --all --
+
+check-format:
+	cargo fmt --all -- --check
+
+check:
+	THOTH_GRAPHQL_API=$(THOTH_GRAPHQL_API) \
+	THOTH_EXPORT_API=$(THOTH_EXPORT_API) \
+	cargo check --workspace
