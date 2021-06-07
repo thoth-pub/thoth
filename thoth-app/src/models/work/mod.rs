@@ -93,6 +93,7 @@ impl MetadataTable for Work {
 
 pub trait DisplayWork {
     fn onix_endpoint(&self) -> String;
+    fn csv_endpoint(&self) -> String;
     fn cover_alt_text(&self) -> String;
     fn license_icons(&self) -> Html;
     fn status_tag(&self) -> Html;
@@ -101,7 +102,11 @@ pub trait DisplayWork {
 
 impl DisplayWork for Work {
     fn onix_endpoint(&self) -> String {
-        format!("{}/onix/{}", THOTH_EXPORT_API, &self.work_id)
+        format!("{}/specifications/onix_3.0::project_muse/work/{}", THOTH_EXPORT_API, &self.work_id)
+    }
+
+    fn csv_endpoint(&self) -> String {
+        format!("{}/specifications/csv::thoth/work/{}", THOTH_EXPORT_API, &self.work_id)
     }
 
     fn cover_alt_text(&self) -> String {
@@ -199,7 +204,7 @@ impl DisplayWork for Work {
             .unwrap_or_else(|| "/img/cover-placeholder.jpg".to_string());
         let place = self.place.clone().unwrap_or_else(|| "".to_string());
         html! {
-            <div class="box">
+            <div class="box" style="min-height: 13em;">
                 <article class="media">
                     <div class="media-left">
                     <figure class="image is-96x96">
@@ -283,10 +288,15 @@ impl DisplayWork for Work {
                                         <div class="dropdown-content">
                                             <a
                                                 href={self.onix_endpoint()}
-                                                download={format!("{}.xml", &self.work_id)}
                                                 class="dropdown-item"
                                             >
                                             {"ONIX"}
+                                            </a>
+                                            <a
+                                                href={self.csv_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"CSV"}
                                             </a>
                                         </div>
                                     </div>
