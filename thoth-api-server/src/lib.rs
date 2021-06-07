@@ -201,10 +201,7 @@ pub async fn start_server(
                     .allowed_header(header::CONTENT_TYPE)
                     .supports_credentials(),
             )
-            .data(ApiConfig {
-                public_url: public_url.clone(),
-                ..Default::default()
-            })
+            .data(ApiConfig::new(public_url.clone()))
             .configure(config)
     })
     .bind(format!("{}:{}", host, port))?
