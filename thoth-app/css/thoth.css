@@ -54,14 +54,18 @@
 }
 
 .home-icons-item:nth-child(2):hover .title {
-    color: #00A15B;
+    color: #FF8D41;
 }
 
 .home-icons-item:nth-child(3):hover .title {
-    color: #D04F54;
+    color: #00A15B;
 }
 
 .home-icons-item:nth-child(4):hover .title {
+    color: #D04F54;
+}
+
+.home-icons-item:nth-child(5):hover .title {
     color: #7E308E;
 }
 
@@ -70,13 +74,17 @@
 }
 
 .home-icons-item:nth-child(2) figure {
-    color: #00A15B;
+    color: #FF8D41;
 }
 
 .home-icons-item:nth-child(3) figure {
-    color: #D04F54;
+    color: #00A15B;
 }
 
 .home-icons-item:nth-child(4) figure {
+    color: #D04F54;
+}
+
+.home-icons-item:nth-child(5) figure {
     color: #7E308E;
 }

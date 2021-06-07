@@ -4,7 +4,7 @@ use yew::Properties;
 use yewtil::Pure;
 use yewtil::PureComponent;
 
-use crate::THOTH_GRAPHQL_API;
+use crate::{THOTH_EXPORT_API, THOTH_GRAPHQL_API};
 
 pub type HeroComponent = Pure<PureHero>;
 
@@ -27,7 +27,7 @@ impl PureComponent for PureHero {
                                 <strong>{ "Open API" }</strong>
                             </p>
                             <p class="subtitle is-6">
-                                { "Try the " }<strong>{ "GraphiQL" }</strong>{ " playground" }
+                                { "Try it with " }<strong>{ "GraphiQL" }</strong>
                             </p>
                             <figure>
                                 <span class="icon is-large">
@@ -36,7 +36,21 @@ impl PureComponent for PureHero {
                             </figure>
                         </a>
 
-                        <a class="home-icons-item column has-text-centered" href="https://creativecommons.org/publicdomain/zero/1.0/">
+                        <a class="home-icons-item column has-text-centered" href={THOTH_EXPORT_API}>
+                            <p class="title is-4">
+                                <strong>{ "Open Standards" }</strong>
+                            </p>
+                            <p class="subtitle is-6">
+                                { "Read the " }<strong>{ "Export API" }</strong>{ " docs" }
+                            </p>
+                            <figure>
+                                <span class="icon is-large">
+                                    <i class="fas fa-file-export fa-3x" aria-hidden="true"></i>
+                                </span>
+                            </figure>
+                        </a>
+
+                        <a class="home-icons-item column has-text-centered" href="https://doi.org/10.21428/785a6451.eb0d86e8">
                             <p class="title is-4">
                                 <strong>{ "Open Metadata" }</strong>
                             </p>
