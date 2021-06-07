@@ -2,8 +2,7 @@
 
 /// Generate the HTML source to show a GraphiQL interface
 pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
-    let default_query = r#"
-# Welcome to Thoth's GraphQL API explorer (GraphiQL).
+    let default_query = r#"# Welcome to Thoth's GraphQL API explorer (GraphiQL).
 #
 # GraphiQL is an in-browser tool for writing, validating, and
 # testing GraphQL queries.
