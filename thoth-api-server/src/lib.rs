@@ -1,3 +1,5 @@
+mod graphiql;
+
 use std::{io, sync::Arc};
 
 use actix_cors::Cors;
@@ -6,7 +8,7 @@ use actix_web::{
     error, get, http::header, middleware::Logger, post, web, App, Error, HttpResponse, HttpServer,
     Result,
 };
-use juniper::{http::graphiql::graphiql_source, http::GraphQLRequest};
+use juniper::http::GraphQLRequest;
 use serde::Serialize;
 use thoth_api::{
     account::model::AccountDetails,
@@ -21,6 +23,8 @@ use thoth_api::{
     graphql::model::Context,
     graphql::model::{create_schema, Schema},
 };
+
+use crate::graphiql::graphiql_source;
 
 #[derive(Serialize)]
 struct ApiConfig {
@@ -54,7 +58,7 @@ impl Default for ApiConfig {
 }
 
 #[get("/graphiql")]
-async fn graphiql(config: web::Data<ApiConfig>) -> HttpResponse {
+async fn graphiql_interface(config: web::Data<ApiConfig>) -> HttpResponse {
     let html = graphiql_source(&config.public_url);
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
@@ -166,7 +170,7 @@ fn config(cfg: &mut web::ServiceConfig) {
     cfg.data(pool);
     cfg.service(graphql_index);
     cfg.service(graphql);
-    cfg.service(graphiql);
+    cfg.service(graphiql_interface);
     cfg.service(login_credentials);
     cfg.service(login_session);
     cfg.service(account_details);
