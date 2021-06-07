@@ -57,6 +57,11 @@ impl Default for ApiConfig {
     }
 }
 
+#[get("/")]
+async fn index(config: web::Data<ApiConfig>) -> HttpResponse {
+    HttpResponse::Ok().json(config.into_inner())
+}
+
 #[get("/graphiql")]
 async fn graphiql_interface(config: web::Data<ApiConfig>) -> HttpResponse {
     let html = graphiql_source(&config.public_url);
@@ -64,9 +69,13 @@ async fn graphiql_interface(config: web::Data<ApiConfig>) -> HttpResponse {
         .content_type("text/html; charset=utf-8")
         .body(html)
 }
+
 #[get("/graphql")]
 async fn graphql_index(config: web::Data<ApiConfig>) -> HttpResponse {
-    HttpResponse::Ok().json(ApiConfig::new(config.public_url.to_string()))
+    HttpResponse::MethodNotAllowed().json(format!(
+        "GraphQL API must be queried making a POST request to {}",
+        config.public_url
+    ))
 }
 
 #[post("/graphql")]
@@ -168,6 +177,7 @@ fn config(cfg: &mut web::ServiceConfig) {
 
     cfg.data(schema.clone());
     cfg.data(pool);
+    cfg.service(index);
     cfg.service(graphql_index);
     cfg.service(graphql);
     cfg.service(graphiql_interface);

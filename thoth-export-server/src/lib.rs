@@ -2,7 +2,7 @@ use std::io;
 
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, App, HttpServer};
-use paperclip::actix::{web::HttpResponse, OpenApiExt};
+use paperclip::actix::{web, web::HttpResponse, OpenApiExt};
 use paperclip::v2::models::{Contact, DefaultApiRaw, Info, License, Tag};
 use thoth_client::ThothClient;
 
@@ -17,23 +17,39 @@ mod xml;
 
 use crate::rapidoc::rapidoc_source;
 
-async fn index() -> HttpResponse {
-    let html = rapidoc_source("/swagger.json");
+struct ApiConfig {
+    api_schema: String,
+}
+
+impl ApiConfig {
+    pub fn new(public_url: String) -> Self {
+        Self {
+            api_schema: format!("{}/swagger.json", public_url),
+        }
+    }
+}
+
+async fn index(config: web::Data<ApiConfig>) -> HttpResponse {
+    let html = rapidoc_source(&config.api_schema);
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(html)
 }
 
 #[actix_web::main]
-pub async fn start_server(host: String, port: String, gql_endpoint: String) -> io::Result<()> {
+pub async fn start_server(
+    host: String,
+    port: String,
+    public_url: String,
+    gql_endpoint: String,
+) -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     log::info!("Setting Thoth GraphQL endpoint to {}", gql_endpoint);
 
     HttpServer::new(move || {
         let spec = DefaultApiRaw {
             // TODO get host and path from input
-            host: Some("api.thoth.pub".to_string()),
-            base_path: Some("/export".to_string()),
+            host: Some(public_url.clone()),
             tags: vec![
                 Tag {
                     name: "Formats".to_string(),
@@ -75,6 +91,7 @@ pub async fn start_server(host: String, port: String, gql_endpoint: String) -> i
             .wrap(Logger::default())
             .wrap(Cors::default().allowed_methods(vec!["GET", "OPTIONS"]))
             .data(ThothClient::new(gql_endpoint.clone()))
+            .data(ApiConfig::new(public_url.clone()))
             .service(actix_web::web::resource("/").route(actix_web::web::get().to(index)))
             .wrap_api_with_spec(spec)
             .configure(format::route)

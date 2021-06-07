@@ -86,6 +86,17 @@ fn gql_endpoint_argument() -> Arg<'static, 'static> {
         .takes_value(true)
 }
 
+fn export_url_argument() -> Arg<'static, 'static> {
+    Arg::with_name("export-url")
+        .short("u")
+        .long("export-url")
+        .value_name("THOTH_EXPORT_API")
+        .env("THOTH_EXPORT_API")
+        .default_value("http://localhost:8181")
+        .help("Thoth Export API's, public facing, root URL.")
+        .takes_value(true)
+}
+
 fn thoth_commands() -> App<'static, 'static> {
     App::new(env!("CARGO_PKG_NAME"))
         .version(crate_version!())
@@ -118,6 +129,7 @@ fn thoth_commands() -> App<'static, 'static> {
                         .about("Start the thoth metadata export API")
                         .arg(host_argument("EXPORT_API_HOST"))
                         .arg(port_argument("8181", "EXPORT_API_PORT"))
+                        .arg(export_url_argument())
                         .arg(gql_endpoint_argument()),
                 ),
         )
@@ -164,8 +176,9 @@ fn main() -> ThothResult<()> {
             ("export-api", Some(client_matches)) => {
                 let host = client_matches.value_of("host").unwrap().to_owned();
                 let port = client_matches.value_of("port").unwrap().to_owned();
+                let url = client_matches.value_of("export-url").unwrap().to_owned();
                 let gql_endpoint = client_matches.value_of("gql-endpoint").unwrap().to_owned();
-                export_server(host, port, gql_endpoint).map_err(|e| e.into())
+                export_server(host, port, url, gql_endpoint).map_err(|e| e.into())
             }
             _ => unreachable!(),
         },
