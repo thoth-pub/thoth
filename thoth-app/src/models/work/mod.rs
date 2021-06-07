@@ -102,11 +102,17 @@ pub trait DisplayWork {
 
 impl DisplayWork for Work {
     fn onix_endpoint(&self) -> String {
-        format!("{}/specifications/onix_3.0::project_muse/work/{}", THOTH_EXPORT_API, &self.work_id)
+        format!(
+            "{}/specifications/onix_3.0::project_muse/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
     }
 
     fn csv_endpoint(&self) -> String {
-        format!("{}/specifications/csv::thoth/work/{}", THOTH_EXPORT_API, &self.work_id)
+        format!(
+            "{}/specifications/csv::thoth/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
     }
 
     fn cover_alt_text(&self) -> String {
