@@ -28,7 +28,6 @@ static_files! {
     (WASM, wasm_file) => ("../static/pkg/thoth_app_bg.wasm", "/thoth_app_bg.wasm", "application/wasm"),
     (PKG, pkg_file) => ("../static/pkg/package.json", "/package.json", "application/json"),
     (TS1, ts1_file) => ("../static/pkg/thoth_app.d.ts", "/thoth_app.d.ts", "application/typescript"),
-    (TS2, ts2_file) => ("../static/pkg/thoth_app_bg.d.ts", "/thoth_app_bg.d.ts", "application/typescript"),
     (BULMA, bulma_file) => ("../static/css/bulma-pageloader.min.css", "/css/bulma-pageloader.min.css", "text/css; charset=utf-8"),
     (CSS, css_file) => ("../static/css/thoth.css", "/css/thoth.css", "text/css; charset=utf-8"),
     (LOGO, logo_file) => ("../static/img/thoth-logo.png", "/img/thoth-logo.png", "image/png"),
