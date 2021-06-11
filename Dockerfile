@@ -4,7 +4,7 @@ ARG MUSL_IMAGE=ekidd/rust-musl-builder:1.51.0
 FROM ${RUST_IMAGE} as wasm
 
 ARG THOTH_GRAPHQL_API=https://api.thoth.pub
-ARG THOTH_EXPORT_API=https://api.thoth.pub/export
+ARG THOTH_EXPORT_API=https://export.thoth.pub
 ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
 ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
 
@@ -31,6 +31,14 @@ RUN rollup thoth-app/main.js \
 
 # Switch to musl for static compiling
 FROM ${MUSL_IMAGE} as build
+
+# "An ARG instruction goes out of scope at the end of the build stage where it was defined.
+# To use an arg in multiple stages, each stage must include the ARG instruction."
+# https://docs.docker.com/engine/reference/builder/#scope
+ARG THOTH_GRAPHQL_API=https://api.thoth.pub
+ARG THOTH_EXPORT_API=https://export.thoth.pub
+ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
+ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
 
 COPY --from=wasm --chown=rust:rust /wasm/ /home/rust/src/
 # Build Thoth for release
