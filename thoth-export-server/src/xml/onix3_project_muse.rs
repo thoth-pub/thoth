@@ -300,8 +300,9 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                         write_element_block("PublishingDate", w, |w| {
                             let mut date_fmt: HashMap<&str, &str> = HashMap::new();
                             date_fmt.insert("dateformat", "01"); // 01 YYYYMM
-                                                                 // 19 Publication date of print counterpart
+
                             write_element_block("PublishingDateRole", w, |w| {
+                                // 19 Publication date of print counterpart
                                 w.write(XmlEvent::Characters("19")).ok();
                             })
                             .ok();
