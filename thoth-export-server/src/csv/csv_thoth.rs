@@ -29,6 +29,7 @@ struct CsvThothRow {
     width: Option<i64>,
     height: Option<i64>,
     page_count: Option<i64>,
+    page_breakdown: Option<String>,
     image_count: Option<i64>,
     table_count: Option<i64>,
     audio_count: Option<i64>,
@@ -104,6 +105,7 @@ impl From<Work> for CsvThothRow {
             width: work.width,
             height: work.height,
             page_count: work.page_count,
+            page_breakdown: work.page_breakdown,
             image_count: work.image_count,
             table_count: work.table_count,
             audio_count: work.audio_count,
@@ -154,7 +156,7 @@ impl From<Work> for CsvThothRow {
             thema: CsvCell::<CsvThoth>::csv_cell(
                 &subjects
                     .iter()
-                    .filter(|s| s.subject_type.eq(&SubjectType::BIC))
+                    .filter(|s| s.subject_type.eq(&SubjectType::THEMA))
                     .map(|s| CsvCell::<CsvThoth>::csv_cell(s))
                     .collect::<Vec<String>>(),
             ),
@@ -485,8 +487,8 @@ mod tests {
         };
     }
 
-    const TEST_RESULT: &str = r#""publisher","imprint","work_type","work_status","title","subtitle","edition","doi","publication_date","publication_place","license","copyright_holder","landing_page","width","height","page_count","image_count","table_count","audio_count","video_count","lccn","oclc","short_abstract","long_abstract","general_note","toc","cover_url","cover_caption","contributions [(type, first_name, last_name, full_name, institution, orcid)]","publications [(type, isbn, url, [(ISO_4217_currency, price)])]","series [(type, name, issn_print, issn_digital, url, issue)]","languages [(relation, ISO_639-3/B_language, is_main)]","BIC [code]","THEMA [code]","BISAC [code]","LCC [code]","custom_categories [category]","keywords [keyword]","funding [(funder, funder_doi, program, project, grant, jurisdiction)]"
-"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","https://doi.org/10.00001/BOOK.0001","","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","156","234","334","15","","","","","","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","","","https://www.book.com/cover","","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", """", ""https://orcid.org/0000-0000-0000-0001""),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", """", """")]","[(""PAPERBACK"", ""978-1-00000-000-0"", ""https://www.book.com/paperback"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")]),(""HARDBACK"", ""978-1-00000-000-1"", ""https://www.book.com/hardback"", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")]),(""PDF"", ""978-1-00000-000-2"", ""https://www.book.com/pdf"", ),(""HTML"", """", ""https://www.book.com/html"", ),(""XML"", ""978-1-00000-000-3"", ""https://www.book.com/xml"", )]","","[(""ORIGINAL"", ""SPA"", ""true"")]","[""AAA"",""AAB""]","[""AAA"",""AAB""]","[""AAA000000"",""AAA000001""]","","[""Category1""]","[""keyword1"",""keyword2""]",""
+    const TEST_RESULT: &str = r#""publisher","imprint","work_type","work_status","title","subtitle","edition","doi","publication_date","publication_place","license","copyright_holder","landing_page","width","height","page_count","page_breakdown","image_count","table_count","audio_count","video_count","lccn","oclc","short_abstract","long_abstract","general_note","toc","cover_url","cover_caption","contributions [(type, first_name, last_name, full_name, institution, orcid)]","publications [(type, isbn, url, [(ISO_4217_currency, price)])]","series [(type, name, issn_print, issn_digital, url, issue)]","languages [(relation, ISO_639-3/B_language, is_main)]","BIC [code]","THEMA [code]","BISAC [code]","LCC [code]","custom_categories [category]","keywords [keyword]","funding [(funder, funder_doi, program, project, grant, jurisdiction)]"
+"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","https://doi.org/10.00001/BOOK.0001","","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","156","234","334","x+334","15","","","","","","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","","","https://www.book.com/cover","","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", """", ""https://orcid.org/0000-0000-0000-0001""),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", """", """")]","[(""PAPERBACK"", ""978-1-00000-000-0"", ""https://www.book.com/paperback"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")]),(""HARDBACK"", ""978-1-00000-000-1"", ""https://www.book.com/hardback"", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")]),(""PDF"", ""978-1-00000-000-2"", ""https://www.book.com/pdf"", ),(""HTML"", """", ""https://www.book.com/html"", ),(""XML"", ""978-1-00000-000-3"", ""https://www.book.com/xml"", )]","","[(""ORIGINAL"", ""SPA"", ""true"")]","[""AAA"",""AAB""]","","[""AAA000000"",""AAA000001""]","","[""Category1""]","[""keyword1"",""keyword2""]",""
 "#;
 
     #[test]
