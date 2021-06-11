@@ -24,7 +24,7 @@ COPY . .
 # Compile WASM for release
 RUN wasm-pack build thoth-app/ \
   --target web \
-  --debug
+  --release
 RUN rollup thoth-app/main.js \
   --format iife \
   --file thoth-app/pkg/thoth_app.js
@@ -42,7 +42,7 @@ ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
 
 COPY --from=wasm --chown=rust:rust /wasm/ /home/rust/src/
 # Build Thoth for release
-RUN cargo build
+RUN cargo build --release
 
 # Switch to minimal image for run time
 FROM scratch
