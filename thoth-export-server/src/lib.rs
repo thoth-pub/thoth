@@ -48,7 +48,6 @@ pub async fn start_server(
 
     HttpServer::new(move || {
         let spec = DefaultApiRaw {
-            // TODO get host and path from input
             host: Some(public_url.clone()),
             tags: vec![
                 Tag {
