@@ -29,6 +29,8 @@ pub enum ThothError {
     InvalidUuid,
     #[fail(display = "CSV Error: {}", _0)]
     CsvError(String),
+    #[fail(display = "Could not generate {}: {}", _0, _1)]
+    IncompleteMetadataRecord(String, String),
 }
 
 impl juniper::IntoFieldError for ThothError {
