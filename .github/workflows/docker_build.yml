@@ -20,6 +20,7 @@ jobs:
           push: false
           tags: openbookpublishers/thoth:latest
           build-args: |
-            THOTH_API=https://api.thoth.pub
+            THOTH_GRAPHQL_API=https://api.thoth.pub
+            THOTH_EXPORT_API=https://export.thoth.pub
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}

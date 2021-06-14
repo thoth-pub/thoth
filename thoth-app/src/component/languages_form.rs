@@ -312,8 +312,8 @@ impl Component for LanguagesFormComponent {
                             >
                                 <FormLanguageCodeSelect
                                     label = "Language Code"
-                                    value=&self.new_language.language_code
-                                    data=&self.data.language_codes
+                                    value=self.new_language.language_code.clone()
+                                    data=self.data.language_codes.clone()
                                     onchange=self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
@@ -327,8 +327,8 @@ impl Component for LanguagesFormComponent {
                                 />
                                 <FormLanguageRelationSelect
                                     label = "Language Relation"
-                                    value=&self.new_language.language_relation
-                                    data=&self.data.language_relations
+                                    value=self.new_language.language_relation.clone()
+                                    data=self.data.language_relations.clone()
                                     onchange=self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
@@ -342,7 +342,7 @@ impl Component for LanguagesFormComponent {
                                 />
                                 <FormBooleanSelect
                                     label = "Main"
-                                    value=&self.new_language.main_language
+                                    value=self.new_language.main_language
                                     onchange=self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
@@ -375,7 +375,7 @@ impl Component for LanguagesFormComponent {
                     </div>
                 </div>
                 {
-                    if languages.len() > 0 {
+                    if !languages.is_empty() {
                         html!{{for languages.iter().map(|p| self.render_language(p))}}
                     } else {
                         html! {

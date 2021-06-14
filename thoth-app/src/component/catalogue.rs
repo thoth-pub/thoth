@@ -183,7 +183,7 @@ impl Component for CatalogueComponent {
                                     <input
                                         class="input"
                                         type="search"
-                                        value=self.search_term
+                                        value=self.search_term.clone()
                                         placeholder=self.search_text()
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeSearchTerm(e.value))
                                     />

@@ -309,8 +309,8 @@ impl Component for PublicationsFormComponent {
                             >
                                 <FormPublicationTypeSelect
                                     label = "Publication Type"
-                                    value=&self.new_publication.publication_type
-                                    data=&self.data.publication_types
+                                    value=self.new_publication.publication_type.clone()
+                                    data=self.data.publication_types.clone()
                                     onchange=self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
@@ -324,12 +324,12 @@ impl Component for PublicationsFormComponent {
                                 />
                                 <FormTextInput
                                     label = "ISBN"
-                                    value=&self.new_publication.isbn.clone().unwrap_or("".to_string())
+                                    value=self.new_publication.isbn.clone().unwrap_or_else(|| "".to_string()).clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeIsbn(e.value))
                                 />
                                 <FormUrlInput
                                     label = "URL"
-                                    value=&self.new_publication.publication_url.clone().unwrap_or("".to_string())
+                                    value=self.new_publication.publication_url.clone().unwrap_or_else(|| "".to_string()).clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeUrl(e.value))
                                 />
                             </form>
@@ -354,7 +354,7 @@ impl Component for PublicationsFormComponent {
                     </div>
                 </div>
                 {
-                    if publications.len() > 0 {
+                    if !publications.is_empty() {
                         html!{{for publications.iter().map(|p| self.render_publication(p))}}
                     } else {
                         html! {
@@ -396,14 +396,14 @@ impl PublicationsFormComponent {
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "ISBN" }</label>
                         <div class="control is-expanded">
-                            {&p.isbn.clone().unwrap_or("".to_string())}
+                            {&p.isbn.clone().unwrap_or_else(|| "".to_string())}
                         </div>
                     </div>
 
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "URL" }</label>
                         <div class="control is-expanded">
-                            {&p.publication_url.clone().unwrap_or("".to_string())}
+                            {&p.publication_url.clone().unwrap_or_else(|| "".to_string())}
                         </div>
                     </div>
 

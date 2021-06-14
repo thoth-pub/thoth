@@ -382,7 +382,7 @@ impl Component for SeriesComponent {
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
                                         onclick=self.link.callback(|_| Msg::DeleteSeries)
-                                        object_name=&self.series.series_name
+                                        object_name=self.series.series_name.clone()
                                     />
                                 </p>
                             </div>
@@ -390,7 +390,7 @@ impl Component for SeriesComponent {
                         <form onsubmit=callback>
                             <FormSeriesTypeSelect
                                 label = "Series Type"
-                                value=&self.series.series_type
+                                value=self.series.series_type.clone()
                                 onchange=self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {
                                         let value = elem.value();
@@ -398,13 +398,13 @@ impl Component for SeriesComponent {
                                     }
                                     _ => unreachable!(),
                                 })
-                                data=&self.data.series_types
+                                data=self.data.series_types.clone()
                                 required = true
                             />
                             <FormImprintSelect
                                 label = "Imprint"
-                                value=&self.series.imprint.imprint_id
-                                data=&self.data.imprints
+                                value=self.series.imprint.imprint_id
+                                data=self.data.imprints.clone()
                                 onchange=self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {
                                         let value = elem.value();
@@ -416,25 +416,25 @@ impl Component for SeriesComponent {
                             />
                             <FormTextInput
                                 label = "Series Name"
-                                value=&self.series.series_name
+                                value=self.series.series_name.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesName(e.value))
                                 required=true
                             />
                             <FormTextInput
                                 label = "ISSN Print"
-                                value=&self.series.issn_print
+                                value=self.series.issn_print.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeIssnPrint(e.value))
                                 required=true
                             />
                             <FormTextInput
                                 label = "ISSN Digital"
-                                value=&self.series.issn_digital
+                                value=self.series.issn_digital.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeIssnDigital(e.value))
                                 required=true
                             />
                             <FormUrlInput
                                 label = "Series URL"
-                                value=&self.series.series_url
+                                value=self.series.series_url.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesUrl(e.value))
                             />
 

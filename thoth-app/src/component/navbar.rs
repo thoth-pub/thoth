@@ -6,7 +6,7 @@ use yew_router::prelude::*;
 
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::THOTH_API;
+use crate::{THOTH_EXPORT_API, THOTH_GRAPHQL_API};
 
 pub struct NavbarComponent {
     props: Props,
@@ -50,6 +50,7 @@ impl Component for NavbarComponent {
             e.prevent_default();
             Msg::Logout
         });
+        let graphiql = format!("{}/graphiql", THOTH_GRAPHQL_API);
         html! {
             <nav class="navbar is-warning" role="navigation" aria-label="main navigation">
                 <div class="navbar-brand">
@@ -85,9 +86,18 @@ impl Component for NavbarComponent {
                                 <a class="navbar-item"  href="https://github.com/thoth-pub/thoth/projects" title="Timeline">
                                     { "Timeline" }
                                 </a>
+                                <a class="navbar-item"  href="https://doi.org/10.21428/785a6451.eb0d86e8" title="Open Data Statement">
+                                    { "Open Data Statement" }
+                                </a>
+                                <a class="navbar-item"  href="https://doi.org/10.21428/785a6451.939caeab" title="Scoping Report">
+                                    { "Scoping Report" }
+                                </a>
                                 <hr class="navbar-divider" />
-                                <a class="navbar-item" href={format!("{}/graphiql", THOTH_API)} title="GraphiQL">
+                                <a class="navbar-item" href={graphiql} title="GraphiQL">
                                     { "GraphiQL" }
+                                </a>
+                                <a class="navbar-item" href={THOTH_EXPORT_API} title="Export API">
+                                    { "Export API" }
                                 </a>
                             </div>
                         </div>

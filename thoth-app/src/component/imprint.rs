@@ -349,7 +349,7 @@ impl Component for ImprintComponent {
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
                                         onclick=self.link.callback(|_| Msg::DeleteImprint)
-                                        object_name=&self.imprint.imprint_name
+                                        object_name=self.imprint.imprint_name.clone()
                                     />
                                 </p>
                             </div>
@@ -358,8 +358,8 @@ impl Component for ImprintComponent {
                         <form onsubmit=callback>
                             <FormPublisherSelect
                                 label = "Publisher"
-                                value=&self.imprint.publisher.publisher_id
-                                data=&self.data.publishers
+                                value=self.imprint.publisher.publisher_id
+                                data=self.data.publishers.clone()
                                 onchange=self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {
                                         let value = elem.value();
@@ -371,13 +371,13 @@ impl Component for ImprintComponent {
                             />
                             <FormTextInput
                                 label = "Imprint Name"
-                                value=&self.imprint.imprint_name
+                                value=self.imprint.imprint_name.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeImprintName(e.value))
                                 required=true
                             />
                             <FormUrlInput
                                 label = "Imprint URL"
-                                value=&self.imprint.imprint_url
+                                value=self.imprint.imprint_url.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeImprintUrl(e.value))
                             />
 
