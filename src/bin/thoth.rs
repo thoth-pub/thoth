@@ -8,6 +8,7 @@ use thoth::api::db::{establish_connection, run_migrations};
 use thoth::api::errors::ThothResult;
 use thoth::api_server;
 use thoth::app_server;
+use thoth::export_server;
 
 fn host_argument(env_value: &'static str) -> Arg<'static, 'static> {
     Arg::with_name("host")
@@ -63,6 +64,39 @@ fn session_argument() -> Arg<'static, 'static> {
         .takes_value(true)
 }
 
+fn gql_url_argument() -> Arg<'static, 'static> {
+    Arg::with_name("gql-url")
+        .short("u")
+        .long("gql-url")
+        .value_name("THOTH_GRAPHQL_API")
+        .env("THOTH_GRAPHQL_API")
+        .default_value("http://localhost:8000")
+        .help("Thoth GraphQL's, public facing, root URL.")
+        .takes_value(true)
+}
+
+fn gql_endpoint_argument() -> Arg<'static, 'static> {
+    Arg::with_name("gql-endpoint")
+        .short("g")
+        .long("gql-endpoint")
+        .value_name("THOTH_GRAPHQL_ENDPOINT")
+        .env("THOTH_GRAPHQL_ENDPOINT")
+        .default_value("http://localhost:8000/graphql")
+        .help("Thoth GraphQL's endpoint")
+        .takes_value(true)
+}
+
+fn export_url_argument() -> Arg<'static, 'static> {
+    Arg::with_name("export-url")
+        .short("u")
+        .long("export-url")
+        .value_name("THOTH_EXPORT_API")
+        .env("THOTH_EXPORT_API")
+        .default_value("http://localhost:8181")
+        .help("Thoth Export API's, public facing, root URL.")
+        .takes_value(true)
+}
+
 fn thoth_commands() -> App<'static, 'static> {
     App::new(env!("CARGO_PKG_NAME"))
         .version(crate_version!())
@@ -75,10 +109,11 @@ fn thoth_commands() -> App<'static, 'static> {
                 .about("Start an instance of Thoth API or GUI")
                 .setting(AppSettings::SubcommandRequiredElseHelp)
                 .subcommand(
-                    App::new("api")
-                        .about("Start the thoth API server")
-                        .arg(host_argument("API_HOST"))
-                        .arg(port_argument("8000", "API_PORT"))
+                    App::new("graphql-api")
+                        .about("Start the thoth GraphQL API server")
+                        .arg(host_argument("GRAPHQL_API_HOST"))
+                        .arg(port_argument("8000", "GRAPHQL_API_PORT"))
+                        .arg(gql_url_argument())
                         .arg(domain_argument())
                         .arg(key_argument())
                         .arg(session_argument()),
@@ -88,13 +123,22 @@ fn thoth_commands() -> App<'static, 'static> {
                         .about("Start the thoth client GUI")
                         .arg(host_argument("APP_HOST"))
                         .arg(port_argument("8080", "APP_PORT")),
+                )
+                .subcommand(
+                    App::new("export-api")
+                        .about("Start the thoth metadata export API")
+                        .arg(host_argument("EXPORT_API_HOST"))
+                        .arg(port_argument("8181", "EXPORT_API_PORT"))
+                        .arg(export_url_argument())
+                        .arg(gql_endpoint_argument()),
                 ),
         )
         .subcommand(
             App::new("init")
                 .about("Run the database migrations and start the thoth API server")
-                .arg(host_argument("API_HOST"))
-                .arg(port_argument("8000", "API_PORT"))
+                .arg(host_argument("GRAPHQL_API_HOST"))
+                .arg(port_argument("8000", "GRAPHQL_API_PORT"))
+                .arg(gql_url_argument())
                 .arg(domain_argument())
                 .arg(key_argument())
                 .arg(session_argument()),
@@ -114,18 +158,27 @@ fn main() -> ThothResult<()> {
 
     match thoth_commands().get_matches().subcommand() {
         ("start", Some(start_matches)) => match start_matches.subcommand() {
-            ("api", Some(api_matches)) => {
+            ("graphql-api", Some(api_matches)) => {
                 let host = api_matches.value_of("host").unwrap().to_owned();
                 let port = api_matches.value_of("port").unwrap().to_owned();
+                let url = api_matches.value_of("gql-url").unwrap().to_owned();
                 let domain = api_matches.value_of("domain").unwrap().to_owned();
                 let secret_str = api_matches.value_of("key").unwrap().to_owned();
                 let session_duration = value_t!(api_matches.value_of("duration"), i64).unwrap();
-                api_server(host, port, domain, secret_str, session_duration).map_err(|e| e.into())
+                api_server(host, port, url, domain, secret_str, session_duration)
+                    .map_err(|e| e.into())
             }
             ("app", Some(client_matches)) => {
                 let host = client_matches.value_of("host").unwrap().to_owned();
                 let port = client_matches.value_of("port").unwrap().to_owned();
                 app_server(host, port).map_err(|e| e.into())
+            }
+            ("export-api", Some(client_matches)) => {
+                let host = client_matches.value_of("host").unwrap().to_owned();
+                let port = client_matches.value_of("port").unwrap().to_owned();
+                let url = client_matches.value_of("export-url").unwrap().to_owned();
+                let gql_endpoint = client_matches.value_of("gql-endpoint").unwrap().to_owned();
+                export_server(host, port, url, gql_endpoint).map_err(|e| e.into())
             }
             _ => unreachable!(),
         },
@@ -133,11 +186,12 @@ fn main() -> ThothResult<()> {
         ("init", Some(init_matches)) => {
             let host = init_matches.value_of("host").unwrap().to_owned();
             let port = init_matches.value_of("port").unwrap().to_owned();
+            let url = init_matches.value_of("gql-url").unwrap().to_owned();
             let domain = init_matches.value_of("domain").unwrap().to_owned();
             let secret_str = init_matches.value_of("key").unwrap().to_owned();
             let session_duration = value_t!(init_matches.value_of("duration"), i64).unwrap();
             run_migrations()?;
-            api_server(host, port, domain, secret_str, session_duration).map_err(|e| e.into())
+            api_server(host, port, url, domain, secret_str, session_duration).map_err(|e| e.into())
         }
         ("account", Some(account_matches)) => match account_matches.subcommand() {
             ("register", Some(_)) => {

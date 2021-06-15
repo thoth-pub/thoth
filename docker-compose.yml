@@ -11,14 +11,24 @@ services:
     env_file:
       - .env
 
-  api:
+  graphql-api:
     image: openbookpublishers/thoth
-    container_name: "thoth_api"
+    container_name: "thoth_graphql_api"
     restart: unless-stopped
     env_file:
       - .env
     depends_on:
       - db
+
+  export-api:
+    image: openbookpublishers/thoth
+    container_name: "thoth_export_api"
+    restart: unless-stopped
+    command: ["start", "export-api"]
+    env_file:
+      - .env
+    depends_on:
+      - graphql-api
 
   app:
     image: openbookpublishers/thoth
@@ -28,7 +38,8 @@ services:
     env_file:
       - .env
     depends_on:
-      - api
+      - graphql-api
+      - export-api
 
 volumes:
   db:

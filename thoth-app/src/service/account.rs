@@ -123,7 +123,7 @@ impl AccountService {
             }
         };
 
-        let url = format!("{}{}", crate::THOTH_API, url);
+        let url = format!("{}{}", crate::THOTH_GRAPHQL_API, url);
         let mut builder = Request::builder()
             .method(method)
             .uri(url.as_str())
