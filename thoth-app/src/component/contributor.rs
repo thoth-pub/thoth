@@ -356,7 +356,7 @@ impl Component for ContributorComponent {
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
                                         onclick=self.link.callback(|_| Msg::DeleteContributor)
-                                        object_name=&self.contributor.full_name
+                                        object_name=self.contributor.full_name.clone()
                                     />
                                 </p>
                             </div>
@@ -390,30 +390,30 @@ impl Component for ContributorComponent {
                         <form onsubmit=callback>
                             <FormTextInput
                                 label = "Given Name"
-                                value=&self.contributor.first_name
+                                value=self.contributor.first_name.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
                             />
                             <FormTextInput
                                 label = "Family Name"
-                                value=&self.contributor.last_name
+                                value=self.contributor.last_name.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
                             />
                             <FormTextInput
                                 label = "Full Name"
-                                value=&self.contributor.full_name
+                                value=self.contributor.full_name.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
                                 required = true
                             />
                             <FormTextInputExtended
                                 label = "ORCID"
                                 statictext = ORCID_DOMAIN
-                                value=&self.orcid
-                                tooltip=&self.orcid_warning
+                                value=self.orcid.clone()
+                                tooltip=self.orcid_warning.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
                             />
                             <FormUrlInput
                                 label = "Website"
-                                value=&self.contributor.website
+                                value=self.contributor.website.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeWebsite(e.value))
                             />
 

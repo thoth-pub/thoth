@@ -282,8 +282,8 @@ impl Component for SubjectsFormComponent {
                             >
                                 <FormSubjectTypeSelect
                                     label = "Subject Type"
-                                    value=&self.new_subject.subject_type
-                                    data=&self.data.subject_types
+                                    value=self.new_subject.subject_type.clone()
+                                    data=self.data.subject_types.clone()
                                     onchange=self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
@@ -297,12 +297,12 @@ impl Component for SubjectsFormComponent {
                                 />
                                 <FormTextInput
                                     label = "Subject Code"
-                                    value=&self.new_subject.subject_code.clone()
+                                    value=self.new_subject.subject_code.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeCode(e.value))
                                 />
                                 <FormNumberInput
                                     label = "Subject Ordinal"
-                                    value=&self.new_subject.subject_ordinal.clone()
+                                    value=self.new_subject.subject_ordinal
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
                                 />
                             </form>
@@ -327,7 +327,7 @@ impl Component for SubjectsFormComponent {
                     </div>
                 </div>
                 {
-                    if subjects.len() > 0 {
+                    if !subjects.is_empty() {
                         html!{{for subjects.iter().map(|p| self.render_subject(p))}}
                     } else {
                         html! {

@@ -137,7 +137,7 @@ impl Component for LoginComponent {
                                 <input
                                     class="input"
                                     type="email"
-                                    value=&self.request.email
+                                    value=self.request.email.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeEmail(e.value))
                                     placeholder=INPUT_EMAIL
                                 />
@@ -151,7 +151,7 @@ impl Component for LoginComponent {
                                 <input
                                     class="input"
                                     type="password"
-                                    value=&self.request.password
+                                    value=self.request.password.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangePassword(e.value))
                                     placeholder=INPUT_PASSWORD
                                 />

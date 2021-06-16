@@ -14,7 +14,8 @@ mod string;
 
 use crate::component::root::RootComponent;
 
-pub const THOTH_API: &str = env!("THOTH_API");
+pub const THOTH_GRAPHQL_API: &str = env!("THOTH_GRAPHQL_API");
+pub const THOTH_EXPORT_API: &str = env!("THOTH_EXPORT_API");
 const SESSION_KEY: &str = "thoth.token";
 
 #[wasm_bindgen]

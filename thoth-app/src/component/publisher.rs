@@ -289,7 +289,7 @@ impl Component for PublisherComponent {
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
                                         onclick=self.link.callback(|_| Msg::DeletePublisher)
-                                        object_name=&self.publisher.publisher_name
+                                        object_name=self.publisher.publisher_name.clone()
                                     />
                                 </p>
                             </div>
@@ -298,18 +298,18 @@ impl Component for PublisherComponent {
                         <form onsubmit=callback>
                             <FormTextInput
                                 label = "Publisher Name"
-                                value=&self.publisher.publisher_name
+                                value=self.publisher.publisher_name.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangePublisherName(e.value))
                                 required=true
                             />
                             <FormTextInput
                                 label = "Publisher Short Name"
-                                value=&self.publisher.publisher_shortname
+                                value=self.publisher.publisher_shortname.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangePublisherShortname(e.value))
                             />
                             <FormUrlInput
                                 label = "Publisher URL"
-                                value=&self.publisher.publisher_url
+                                value=self.publisher.publisher_url.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangePublisherUrl(e.value))
                             />
 

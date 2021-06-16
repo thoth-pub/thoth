@@ -16,7 +16,7 @@ macro_rules! graphql_query_builder {
         use yewtil::fetch::Json;
         use yewtil::fetch::MethodBody;
 
-        use crate::THOTH_API;
+        use crate::THOTH_GRAPHQL_API;
 
         pub type $fetch = Fetch<$request, $response_body>;
         pub type $fetch_action = FetchAction<$response_body>;
@@ -43,7 +43,7 @@ macro_rules! graphql_query_builder {
             type Format = Json;
 
             fn url(&self) -> String {
-                format!("{}/graphql", THOTH_API)
+                format!("{}/graphql", THOTH_GRAPHQL_API)
             }
 
             fn method(&self) -> MethodBody<Self::RequestBody> {
