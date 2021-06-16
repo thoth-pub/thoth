@@ -70,7 +70,7 @@ where
     fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self>;
 
     /// Retrieve the ID of the publisher linked to this entity (if applicable)
-    fn publisher_id(&self, db: &crate::db::PgPool) -> Uuid;
+    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid>;
 }
 
 #[cfg(feature = "backend")]

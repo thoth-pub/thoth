@@ -105,8 +105,10 @@ impl Crud for Funder {
         }
     }
 
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> Uuid {
-        unimplemented!()
+    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        Err(ThothError::InternalError(
+            "Method publisher_id() is not supported for Funder objects".to_string(),
+        ))
     }
 
     crud_methods!(funder::table, funder::dsl::funder);

@@ -130,10 +130,8 @@ impl Crud for Subject {
         }
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> Uuid {
-        crate::work::model::Work::from_id(db, &self.work_id)
-            .unwrap()
-            .publisher_id(db)
+    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        crate::work::model::Work::from_id(db, &self.work_id)?.publisher_id(db)
     }
 
     crud_methods!(subject::table, subject::dsl::subject);

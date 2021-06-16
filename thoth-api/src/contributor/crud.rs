@@ -118,8 +118,10 @@ impl Crud for Contributor {
         }
     }
 
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> Uuid {
-        unimplemented!()
+    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        Err(ThothError::InternalError(
+            "Method publisher_id() is not supported for Contributor objects".to_string(),
+        ))
     }
 
     crud_methods!(contributor::table, contributor::dsl::contributor);

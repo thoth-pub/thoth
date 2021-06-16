@@ -166,10 +166,8 @@ impl Crud for Series {
         }
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> Uuid {
-        crate::imprint::model::Imprint::from_id(db, &self.imprint_id)
-            .unwrap()
-            .publisher_id(db)
+    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        crate::imprint::model::Imprint::from_id(db, &self.imprint_id)?.publisher_id(db)
     }
 
     crud_methods!(series::table, series::dsl::series);
