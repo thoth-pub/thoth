@@ -10,6 +10,45 @@ use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
+use uuid::Uuid;
+
+impl Work {
+    pub fn from_doi(db: &crate::db::PgPool, doi: String) -> ThothResult<Self> {
+        use diesel::sql_types::Nullable;
+        use diesel::sql_types::Text;
+        let connection = db.get().unwrap();
+        // Allow case-insensitive searching (DOIs in database may have mixed casing)
+        sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
+        crate::schema::work::dsl::work
+            .filter(lower(crate::schema::work::dsl::doi).eq(doi.to_lowercase()))
+            .get_result::<Work>(&connection)
+            .map_err(|e| e.into())
+    }
+
+    pub fn can_update_imprint(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        use crate::schema::issue::dsl;
+        let connection = db.get().unwrap();
+        // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
+        // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
+        // is converting i64 to string and then parsing it as i32. This should work until we reach
+        // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
+        let issue_count = dsl::issue
+            .filter(dsl::work_id.eq(self.work_id))
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading issue count for work")
+            .to_string()
+            .parse::<i32>()
+            .unwrap();
+        // If a work has any related issues, its imprint cannot be changed,
+        // because an issue's series and work must both have the same imprint.
+        if issue_count == 0 {
+            Ok(())
+        } else {
+            Err(ThothError::IssueImprintsError)
+        }
+    }
+}
 
 impl Crud for Work {
     type NewEntity = NewWork;
@@ -18,7 +57,7 @@ impl Crud for Work {
     type FilterParameter1 = WorkType;
     type FilterParameter2 = WorkStatus;
 
-    fn pk(&self) -> uuid::Uuid {
+    fn pk(&self) -> Uuid {
         self.work_id
     }
 
@@ -28,9 +67,9 @@ impl Crud for Work {
         offset: i32,
         filter: Option<String>,
         order: Self::OrderByEntity,
-        publishers: Vec<uuid::Uuid>,
-        parent_id_1: Option<uuid::Uuid>,
-        _: Option<uuid::Uuid>,
+        publishers: Vec<Uuid>,
+        parent_id_1: Option<Uuid>,
+        _: Option<Uuid>,
         work_type: Option<Self::FilterParameter1>,
         work_status: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Work>> {
@@ -244,7 +283,7 @@ impl Crud for Work {
     fn count(
         db: &crate::db::PgPool,
         filter: Option<String>,
-        publishers: Vec<uuid::Uuid>,
+        publishers: Vec<Uuid>,
         work_type: Option<Self::FilterParameter1>,
         work_status: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
@@ -322,13 +361,17 @@ impl Crud for Work {
         }
     }
 
+    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        crate::imprint::model::Imprint::from_id(db, &self.imprint_id)?.publisher_id(db)
+    }
+
     crud_methods!(work::table, work::dsl::work);
 }
 
 impl HistoryEntry for Work {
     type NewHistoryEntity = NewWorkHistory;
 
-    fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             work_id: self.work_id,
             account_id: *account_id,
@@ -396,7 +439,7 @@ mod tests {
     #[test]
     fn test_new_work_history_from_work() {
         let work: Work = Default::default();
-        let account_id: uuid::Uuid = Default::default();
+        let account_id: Uuid = Default::default();
         let new_work_history = work.new_history_entry(&account_id);
         assert_eq!(new_work_history.work_id, work.work_id);
         assert_eq!(new_work_history.account_id, account_id);

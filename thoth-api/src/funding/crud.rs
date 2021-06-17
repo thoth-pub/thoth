@@ -8,6 +8,7 @@ use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{funding, funding_history};
 use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use uuid::Uuid;
 
 impl Crud for Funding {
     type NewEntity = NewFunding;
@@ -16,7 +17,7 @@ impl Crud for Funding {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
 
-    fn pk(&self) -> uuid::Uuid {
+    fn pk(&self) -> Uuid {
         self.funding_id
     }
 
@@ -26,9 +27,9 @@ impl Crud for Funding {
         offset: i32,
         _: Option<String>,
         order: Self::OrderByEntity,
-        publishers: Vec<uuid::Uuid>,
-        parent_id_1: Option<uuid::Uuid>,
-        parent_id_2: Option<uuid::Uuid>,
+        publishers: Vec<Uuid>,
+        parent_id_1: Option<Uuid>,
+        parent_id_2: Option<Uuid>,
         _: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Funding>> {
@@ -117,7 +118,7 @@ impl Crud for Funding {
     fn count(
         db: &crate::db::PgPool,
         _: Option<String>,
-        _: Vec<uuid::Uuid>,
+        _: Vec<Uuid>,
         _: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
@@ -134,13 +135,17 @@ impl Crud for Funding {
         }
     }
 
+    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        crate::work::model::Work::from_id(db, &self.work_id)?.publisher_id(db)
+    }
+
     crud_methods!(funding::table, funding::dsl::funding);
 }
 
 impl HistoryEntry for Funding {
     type NewHistoryEntity = NewFundingHistory;
 
-    fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             funding_id: self.funding_id,
             account_id: *account_id,
@@ -185,7 +190,7 @@ mod tests {
     #[test]
     fn test_new_funding_history_from_funding() {
         let funding: Funding = Default::default();
-        let account_id: uuid::Uuid = Default::default();
+        let account_id: Uuid = Default::default();
         let new_funding_history = funding.new_history_entry(&account_id);
         assert_eq!(new_funding_history.funding_id, funding.funding_id);
         assert_eq!(new_funding_history.account_id, account_id);
