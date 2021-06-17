@@ -6,6 +6,7 @@ use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{issue, issue_history};
 use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use uuid::Uuid;
 
 impl Crud for Issue {
     type NewEntity = NewIssue;
@@ -14,7 +15,7 @@ impl Crud for Issue {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
 
-    fn pk(&self) -> uuid::Uuid {
+    fn pk(&self) -> Uuid {
         self.issue_id
     }
 
@@ -24,9 +25,9 @@ impl Crud for Issue {
         offset: i32,
         _: Option<String>,
         order: Self::OrderByEntity,
-        publishers: Vec<uuid::Uuid>,
-        parent_id_1: Option<uuid::Uuid>,
-        parent_id_2: Option<uuid::Uuid>,
+        publishers: Vec<Uuid>,
+        parent_id_1: Option<Uuid>,
+        parent_id_2: Option<Uuid>,
         _: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Issue>> {
@@ -95,7 +96,7 @@ impl Crud for Issue {
     fn count(
         db: &crate::db::PgPool,
         _: Option<String>,
-        _: Vec<uuid::Uuid>,
+        _: Vec<Uuid>,
         _: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
@@ -112,13 +113,17 @@ impl Crud for Issue {
         }
     }
 
+    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        crate::work::model::Work::from_id(db, &self.work_id)?.publisher_id(db)
+    }
+
     crud_methods!(issue::table, issue::dsl::issue);
 }
 
 impl HistoryEntry for Issue {
     type NewHistoryEntity = NewIssueHistory;
 
-    fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             issue_id: self.issue_id,
             account_id: *account_id,
@@ -131,6 +136,39 @@ impl DbInsert for NewIssueHistory {
     type MainEntity = IssueHistory;
 
     db_insert!(issue_history::table);
+}
+
+impl NewIssue {
+    pub fn imprints_match(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        issue_imprints_match(self.work_id, self.series_id, db)
+    }
+}
+
+impl PatchIssue {
+    pub fn imprints_match(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        issue_imprints_match(self.work_id, self.series_id, db)
+    }
+}
+
+fn issue_imprints_match(work_id: Uuid, series_id: Uuid, db: &crate::db::PgPool) -> ThothResult<()> {
+    use diesel::prelude::*;
+
+    let connection = db.get().unwrap();
+    let series_imprint = crate::schema::series::table
+        .select(crate::schema::series::imprint_id)
+        .filter(crate::schema::series::series_id.eq(series_id))
+        .first::<Uuid>(&connection)
+        .expect("Error loading series for issue");
+    let work_imprint = crate::schema::work::table
+        .select(crate::schema::work::imprint_id)
+        .filter(crate::schema::work::work_id.eq(work_id))
+        .first::<Uuid>(&connection)
+        .expect("Error loading work for issue");
+    if work_imprint == series_imprint {
+        Ok(())
+    } else {
+        Err(ThothError::IssueImprintsError)
+    }
 }
 
 #[cfg(test)]
@@ -146,7 +184,7 @@ mod tests {
     #[test]
     fn test_new_issue_history_from_issue() {
         let issue: Issue = Default::default();
-        let account_id: uuid::Uuid = Default::default();
+        let account_id: Uuid = Default::default();
         let new_issue_history = issue.new_history_entry(&account_id);
         assert_eq!(new_issue_history.issue_id, issue.issue_id);
         assert_eq!(new_issue_history.account_id, account_id);

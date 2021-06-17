@@ -10,6 +10,7 @@ use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
+use uuid::Uuid;
 
 impl Crud for Series {
     type NewEntity = NewSeries;
@@ -18,7 +19,7 @@ impl Crud for Series {
     type FilterParameter1 = SeriesType;
     type FilterParameter2 = ();
 
-    fn pk(&self) -> uuid::Uuid {
+    fn pk(&self) -> Uuid {
         self.series_id
     }
 
@@ -28,9 +29,9 @@ impl Crud for Series {
         offset: i32,
         filter: Option<String>,
         order: Self::OrderByEntity,
-        publishers: Vec<uuid::Uuid>,
-        _: Option<uuid::Uuid>,
-        _: Option<uuid::Uuid>,
+        publishers: Vec<Uuid>,
+        _: Option<Uuid>,
+        _: Option<Uuid>,
         series_type: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Series>> {
@@ -116,7 +117,7 @@ impl Crud for Series {
     fn count(
         db: &crate::db::PgPool,
         filter: Option<String>,
-        publishers: Vec<uuid::Uuid>,
+        publishers: Vec<Uuid>,
         series_type: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
@@ -165,13 +166,17 @@ impl Crud for Series {
         }
     }
 
+    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        crate::imprint::model::Imprint::from_id(db, &self.imprint_id)?.publisher_id(db)
+    }
+
     crud_methods!(series::table, series::dsl::series);
 }
 
 impl HistoryEntry for Series {
     type NewHistoryEntity = NewSeriesHistory;
 
-    fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             series_id: self.series_id,
             account_id: *account_id,
@@ -199,7 +204,7 @@ mod tests {
     #[test]
     fn test_new_series_history_from_series() {
         let series: Series = Default::default();
-        let account_id: uuid::Uuid = Default::default();
+        let account_id: Uuid = Default::default();
         let new_series_history = series.new_history_entry(&account_id);
         assert_eq!(new_series_history.series_id, series.series_id);
         assert_eq!(new_series_history.account_id, account_id);

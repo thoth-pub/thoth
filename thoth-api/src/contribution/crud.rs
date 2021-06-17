@@ -9,6 +9,7 @@ use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{contribution, contribution_history};
 use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use uuid::Uuid;
 
 impl Crud for Contribution {
     type NewEntity = NewContribution;
@@ -17,7 +18,7 @@ impl Crud for Contribution {
     type FilterParameter1 = ContributionType;
     type FilterParameter2 = ();
 
-    fn pk(&self) -> uuid::Uuid {
+    fn pk(&self) -> Uuid {
         self.contribution_id
     }
 
@@ -27,9 +28,9 @@ impl Crud for Contribution {
         offset: i32,
         _: Option<String>,
         order: Self::OrderByEntity,
-        publishers: Vec<uuid::Uuid>,
-        parent_id_1: Option<uuid::Uuid>,
-        parent_id_2: Option<uuid::Uuid>,
+        publishers: Vec<Uuid>,
+        parent_id_1: Option<Uuid>,
+        parent_id_2: Option<Uuid>,
         contribution_type: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Contribution>> {
@@ -131,7 +132,7 @@ impl Crud for Contribution {
     fn count(
         db: &crate::db::PgPool,
         _: Option<String>,
-        _: Vec<uuid::Uuid>,
+        _: Vec<Uuid>,
         contribution_type: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
@@ -152,13 +153,17 @@ impl Crud for Contribution {
         }
     }
 
+    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        crate::work::model::Work::from_id(db, &self.work_id)?.publisher_id(db)
+    }
+
     crud_methods!(contribution::table, contribution::dsl::contribution);
 }
 
 impl HistoryEntry for Contribution {
     type NewHistoryEntity = NewContributionHistory;
 
-    fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             contribution_id: self.contribution_id,
             account_id: *account_id,
@@ -186,7 +191,7 @@ mod tests {
     #[test]
     fn test_new_contribution_history_from_contribution() {
         let contribution: Contribution = Default::default();
-        let account_id: uuid::Uuid = Default::default();
+        let account_id: Uuid = Default::default();
         let new_contribution_history = contribution.new_history_entry(&account_id);
         assert_eq!(
             new_contribution_history.contribution_id,
