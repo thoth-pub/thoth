@@ -1,3 +1,4 @@
+use core::convert::From;
 use failure::Fail;
 
 /// A specialised result type for returning Thoth data
@@ -35,6 +36,7 @@ pub enum ThothError {
 
 impl juniper::IntoFieldError for ThothError {
     fn into_field_error(self) -> juniper::FieldError {
+        use juniper::graphql_value;
         match self {
             ThothError::InvalidSubjectCode { .. } => juniper::FieldError::new(
                 self.to_string(),
@@ -58,7 +60,7 @@ impl juniper::IntoFieldError for ThothError {
     }
 }
 
-#[cfg(feature = "backend")]
+#[cfg(not(target_arch = "wasm32"))]
 impl actix_web::error::ResponseError for ThothError {
     fn error_response(&self) -> actix_web::HttpResponse {
         use actix_web::HttpResponse;
@@ -78,7 +80,7 @@ impl actix_web::error::ResponseError for ThothError {
     }
 }
 
-#[cfg(feature = "backend")]
+#[cfg(not(target_arch = "wasm32"))]
 impl From<diesel::result::Error> for ThothError {
     fn from(error: diesel::result::Error) -> ThothError {
         use diesel::result::Error;
@@ -93,7 +95,7 @@ impl From<diesel::result::Error> for ThothError {
     }
 }
 
-#[cfg(feature = "backend")]
+#[cfg(not(target_arch = "wasm32"))]
 impl From<csv::Error> for ThothError {
     fn from(e: csv::Error) -> Self {
         ThothError::CsvError(e.to_string())
@@ -141,7 +143,7 @@ impl From<uuid::parser::ParseError> for ThothError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use thoth_api::errors::*;
 
     #[test]
     fn test_uuid_error() {

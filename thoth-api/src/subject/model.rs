@@ -7,8 +7,8 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::errors::ThothError;
-use crate::errors::ThothResult;
+use thoth_errors::ThothError;
+use thoth_errors::ThothResult;
 #[cfg(feature = "backend")]
 use crate::schema::subject;
 #[cfg(feature = "backend")]

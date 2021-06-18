@@ -2,7 +2,7 @@ use super::model::{
     Language, LanguageCode, LanguageField, LanguageHistory, LanguageRelation, NewLanguage,
     NewLanguageHistory, PatchLanguage,
 };
-use crate::errors::{ThothError, ThothResult};
+use thoth_errors::{ThothError, ThothResult};
 use crate::graphql::model::LanguageOrderBy;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};

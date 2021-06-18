@@ -1,6 +1,6 @@
 use csv::{QuoteStyle, Writer, WriterBuilder};
 use std::io::Write;
-use thoth_api::errors::{ThothError, ThothResult};
+use thoth_errors::{ThothError, ThothResult};
 use thoth_client::Work;
 
 pub(crate) trait CsvSpecification {

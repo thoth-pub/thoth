@@ -5,7 +5,7 @@ use graphql_client::GraphQLQuery;
 use graphql_client::Response;
 use serde::Serialize;
 use std::future::Future;
-use thoth_api::errors::{ThothError, ThothResult};
+use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 pub use crate::queries::work_query::*;

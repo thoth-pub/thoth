@@ -11,7 +11,7 @@ use crate::account::model::DecodedToken;
 use crate::contribution::model::*;
 use crate::contributor::model::*;
 use crate::db::PgPool;
-use crate::errors::{ThothError, ThothResult};
+use thoth_errors::{ThothError, ThothResult};
 use crate::funder::model::*;
 use crate::funding::model::*;
 use crate::imprint::model::*;

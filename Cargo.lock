@@ -3891,6 +3891,7 @@ dependencies = [
  "thoth-api",
  "thoth-api-server",
  "thoth-app-server",
+ "thoth-errors",
  "thoth-export-server",
 ]
 
@@ -3902,12 +3903,10 @@ dependencies = [
  "argon2rs",
  "cargo-husky",
  "chrono",
- "csv",
  "diesel",
  "diesel-derive-enum",
  "diesel_migrations",
  "dotenv",
- "failure",
  "futures 0.3.5",
  "jsonwebtoken",
  "juniper",
@@ -3915,13 +3914,12 @@ dependencies = [
  "phf",
  "rand 0.7.3",
  "regex 1.4.3",
- "reqwest 0.10.3",
  "serde",
  "serde_derive",
  "serde_json",
  "strum 0.20.0",
+ "thoth-errors",
  "uuid 0.7.4",
- "xml-rs",
 ]
 
 [[package]]
@@ -3936,6 +3934,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thoth-api",
+ "thoth-errors",
 ]
 
 [[package]]
@@ -3950,6 +3949,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "thoth-api",
+ "thoth-errors",
  "url 2.1.1",
  "uuid 0.7.4",
  "wasm-bindgen",
@@ -3979,7 +3979,23 @@ dependencies = [
  "serde",
  "serde_json",
  "thoth-api",
+ "thoth-errors",
  "uuid 0.7.4",
+]
+
+[[package]]
+name = "thoth-errors"
+version = "0.4.0"
+dependencies = [
+ "actix-web",
+ "csv",
+ "diesel",
+ "failure",
+ "juniper",
+ "reqwest 0.10.3",
+ "serde",
+ "uuid 0.7.4",
+ "xml-rs",
 ]
 
 [[package]]
@@ -3996,8 +4012,8 @@ dependencies = [
  "paperclip",
  "serde",
  "serde_json",
- "thoth-api",
  "thoth-client",
+ "thoth-errors",
  "uuid 0.7.4",
  "xml-rs",
 ]

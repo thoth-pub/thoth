@@ -34,3 +34,4 @@ serde_json = "1.0"
 url = "2.1.1"
 uuid = { version = "0.7", features = ["serde", "v4"] }
 thoth-api = { version = "0.4.0", path = "../thoth-api"  }
+thoth-errors = { version = "0.4.0", path = "../thoth-errors" }

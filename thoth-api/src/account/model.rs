@@ -3,8 +3,8 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::errors::ThothError;
-use crate::errors::ThothResult;
+use thoth_errors::ThothError;
+use thoth_errors::ThothResult;
 #[cfg(feature = "backend")]
 use crate::schema::account;
 #[cfg(feature = "backend")]

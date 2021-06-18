@@ -2,7 +2,7 @@ use super::model::{
     Contribution, ContributionField, ContributionHistory, ContributionType, NewContribution,
     NewContributionHistory, PatchContribution,
 };
-use crate::errors::{ThothError, ThothResult};
+use thoth_errors::{ThothError, ThothResult};
 use crate::graphql::model::ContributionOrderBy;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};

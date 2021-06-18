@@ -1,7 +1,7 @@
 use super::model::{
     Funder, FunderField, FunderHistory, FunderOrderBy, NewFunder, NewFunderHistory, PatchFunder,
 };
-use crate::errors::{ThothError, ThothResult};
+use thoth_errors::{ThothError, ThothResult};
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{funder, funder_history};

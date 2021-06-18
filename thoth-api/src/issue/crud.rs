@@ -1,5 +1,5 @@
 use super::model::{Issue, IssueField, IssueHistory, NewIssue, NewIssueHistory, PatchIssue};
-use crate::errors::{ThothError, ThothResult};
+use thoth_errors::{ThothError, ThothResult};
 use crate::graphql::model::IssueOrderBy;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
