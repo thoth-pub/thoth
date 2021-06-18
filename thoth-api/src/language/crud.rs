@@ -2,13 +2,13 @@ use super::model::{
     Language, LanguageCode, LanguageField, LanguageHistory, LanguageRelation, NewLanguage,
     NewLanguageHistory, PatchLanguage,
 };
-use thoth_errors::{ThothError, ThothResult};
 use crate::graphql::model::LanguageOrderBy;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{language, language_history};
 use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 impl Crud for Language {

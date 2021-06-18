@@ -10,8 +10,8 @@ use crate::account::model::NewPublisherAccount;
 use crate::account::model::PublisherAccount;
 use crate::account::util::verify;
 use crate::db::PgPool;
-use thoth_errors::{ThothError, ThothResult};
 use crate::publisher::model::Publisher;
+use thoth_errors::{ThothError, ThothResult};
 
 pub fn login(user_email: &str, user_password: &str, pool: &PgPool) -> ThothResult<Account> {
     use crate::schema::account::dsl;

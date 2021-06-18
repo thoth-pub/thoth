@@ -1,13 +1,13 @@
 use super::model::{
     CurrencyCode, NewPrice, NewPriceHistory, PatchPrice, Price, PriceField, PriceHistory,
 };
-use thoth_errors::{ThothError, ThothResult};
 use crate::graphql::model::PriceOrderBy;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{price, price_history};
 use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 impl Crud for Price {

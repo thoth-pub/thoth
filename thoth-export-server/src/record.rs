@@ -5,8 +5,8 @@ use paperclip::util::{ready, Ready};
 use paperclip::v2::models::{DefaultOperationRaw, Either, Response};
 use paperclip::v2::schema::Apiv2Schema;
 use std::str::FromStr;
-use thoth_errors::{ThothError, ThothResult};
 use thoth_client::Work;
+use thoth_errors::{ThothError, ThothResult};
 
 use crate::csv::{CsvSpecification, CsvThoth};
 use crate::xml::{Onix3ProjectMuse, XmlSpecification};

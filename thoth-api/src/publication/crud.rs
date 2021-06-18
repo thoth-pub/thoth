@@ -2,7 +2,6 @@ use super::model::{
     NewPublication, NewPublicationHistory, PatchPublication, Publication, PublicationField,
     PublicationHistory, PublicationOrderBy, PublicationType,
 };
-use thoth_errors::{ThothError, ThothResult};
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
@@ -10,6 +9,7 @@ use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
+use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 impl Crud for Publication {

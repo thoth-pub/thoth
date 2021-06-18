@@ -7,12 +7,12 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use thoth_errors::ThothError;
-use thoth_errors::ThothResult;
 #[cfg(feature = "backend")]
 use crate::schema::subject;
 #[cfg(feature = "backend")]
 use crate::schema::subject_history;
+use thoth_errors::ThothError;
+use thoth_errors::ThothResult;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Subject_type")]
