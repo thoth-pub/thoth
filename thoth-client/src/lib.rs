@@ -48,7 +48,7 @@ impl ThothClient {
     /// # Example
     ///
     /// ```no_run
-    /// # use thoth_api::errors::ThothResult;
+    /// # use thoth_errors::ThothResult;
     /// # use thoth_client::{ThothClient, Work};
     /// # use uuid::Uuid;
     ///
@@ -78,7 +78,7 @@ impl ThothClient {
     /// # Example
     ///
     /// ```no_run
-    /// # use thoth_api::errors::ThothResult;
+    /// # use thoth_errors::ThothResult;
     /// # use thoth_client::{ThothClient, Work};
     /// # use uuid::Uuid;
     ///
