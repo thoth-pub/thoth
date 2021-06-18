@@ -1,7 +1,7 @@
 <div align="center">
   <img src="https://www.openbookpublishers.com/shopimages/thoth-logo.png" height="400" />
 
-  <h1>Thoth Client</h1>
+  <h1>Thoth Export API</h1>
 
   <p>
     <strong>Web server for <a href="https://github.com/thoth-pub/thoth/">Thoth</a>'s, metadata management and dissemination system, metadata exports API</strong>
