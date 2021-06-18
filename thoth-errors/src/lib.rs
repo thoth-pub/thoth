@@ -145,7 +145,7 @@ impl From<uuid::parser::ParseError> for ThothError {
 
 #[cfg(test)]
 mod tests {
-    use thoth_api::errors::*;
+    use super::*;
 
     #[test]
     fn test_uuid_error() {
