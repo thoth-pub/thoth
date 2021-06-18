@@ -34,6 +34,7 @@ pub enum ThothError {
     IncompleteMetadataRecord(String, String),
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl juniper::IntoFieldError for ThothError {
     fn into_field_error(self) -> juniper::FieldError {
         use juniper::graphql_value;
