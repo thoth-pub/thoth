@@ -120,6 +120,7 @@ impl From<reqwest::Error> for ThothError {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<xml::writer::Error> for ThothError {
     fn from(error: xml::writer::Error) -> ThothError {
         ThothError::InternalError(error.to_string())
