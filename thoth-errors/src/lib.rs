@@ -148,6 +148,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_csv_error() {
+        // We are just testing that _a_ `csv::error` is converted to `ThothError::CsvError`.
+        // The test instantiation is copied from the library: https://github.com/BurntSushi/rust-csv/blob/40ea4c49d7467d2b607a6396424f8e0e101adae1/src/writer.rs#L1268
+        let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
+        wtr.write_record(&csv::ByteRecord::from(vec!["a", "b", "c"])).unwrap();
+        let err = wtr.write_record(&csv::ByteRecord::from(vec!["a"])).unwrap_err();
+        assert!(matches!(ThothError::from(err), ThothError::CsvError { .. }));
+    }
+
+    #[test]
     fn test_uuid_error() {
         assert_eq!(
             ThothError::from(uuid::Uuid::parse_str("not-a-uuid").unwrap_err()),
