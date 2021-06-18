@@ -12,46 +12,47 @@ pub const ORCID_DOMAIN: &str = "https://orcid.org/";
 
 #[cfg_attr(
     feature = "backend",
-    derive(DieselNewType, juniper::GraphQLScalarValue)
+    derive(DieselNewType, juniper::GraphQLScalarValue),
+    graphql(
+        description = r#"Digital Object Identifier. Expressed as `^https:\/\/doi\.org\/10\.\d{4,9}\/[-._\;\(\)\/:a-zA-Z0-9]+$`"#
+    ),
 )]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Doi(String);
 
 #[cfg_attr(
     feature = "backend",
-    derive(DieselNewType, juniper::GraphQLScalarValue)
+    derive(DieselNewType, juniper::GraphQLScalarValue),
+    graphql(
+        description = r#"ORCID (Open Researcher and Contributor ID) identifier. Expressed as `^https:\/\/orcid\.org\/0000-000(1-[5-9]|2-[0-9]|3-[0-4])\d{3}-\d{3}[\dX]$`"#
+    )
 )]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Orcid(String);
 
 #[cfg_attr(
     feature = "backend",
-    derive(DieselNewType, juniper::GraphQLScalarValue)
+    derive(DieselNewType, juniper::GraphQLScalarValue),
+    graphql(description = "RFC 3339 combined date and time in UTC time zone")
 )]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Timestamp(DateTime<Utc>);
 
 impl Default for Doi {
     fn default() -> Doi {
-        Doi {
-            0: Default::default(),
-        }
+        Doi(Default::default())
     }
 }
 
 impl Default for Orcid {
     fn default() -> Orcid {
-        Orcid {
-            0: Default::default(),
-        }
+        Orcid(Default::default())
     }
 }
 
 impl Default for Timestamp {
     fn default() -> Timestamp {
-        Timestamp {
-            0: TimeZone::timestamp(&Utc, 0, 0),
-        }
+        Timestamp(TimeZone::timestamp(&Utc, 0, 0))
     }
 }
 
@@ -80,34 +81,28 @@ impl FromStr for Doi {
         use lazy_static::lazy_static;
         use regex::Regex;
         lazy_static! {
-        static ref RE: Regex = Regex::new(
+            static ref RE: Regex = Regex::new(
             // ^    = beginning of string
             // (?:) = non-capturing group
             // i    = case-insensitive flag
             // $    = end of string
-            // Matches strings of format "[[http[s]://]doi.org/]10.XXX/XXX"
+            // Matches strings of format "[[http[s]://][www.][dx.]doi.org/]10.XXX/XXX"
             // and captures the identifier segment starting with the "10." directory indicator
             // Corresponds to database constraints although regex syntax differs slightly
             // (e.g. `;()/` do not need to be escaped here)
-            r#"^(?i:(?:https?://)?doi\.org/)?(10\.\d{4,9}/[-._;()/:a-zA-Z0-9]+$)"#).unwrap();
+            r#"^(?i:(?:https?://)?(?:www\.)?(?:dx\.)?doi\.org/)?(10\.\d{4,9}/[-._;()/:a-zA-Z0-9]+$)"#).unwrap();
         }
         if let Some(matches) = RE.captures(input) {
             // The 0th capture always corresponds to the entire match
             if let Some(identifier) = matches.get(1) {
                 let standardised = format!("{}{}", DOI_DOMAIN, identifier.as_str());
-                let doi: Doi = Doi { 0: standardised };
+                let doi: Doi = Doi(standardised);
                 Ok(doi)
             } else {
-                Err(ThothError::IdentifierParseError(
-                    input.to_string(),
-                    "DOI".to_string(),
-                ))
+                Err(ThothError::DoiParseError(input.to_string()))
             }
         } else {
-            Err(ThothError::IdentifierParseError(
-                input.to_string(),
-                "DOI".to_string(),
-            ))
+            Err(ThothError::DoiParseError(input.to_string()))
         }
     }
 }
@@ -124,29 +119,29 @@ impl FromStr for Orcid {
             // (?:) = non-capturing group
             // i    = case-insensitive flag
             // $    = end of string
-            // Matches strings of format "[[http[s]://]orcid.org/]0000-000X-XXXX-XXXX"
+            // Matches strings of format "[[http[s]://][www.]orcid.org/]0000-000X-XXXX-XXXX"
             // and captures the 16-digit identifier segment
             // Corresponds to database constraints although regex syntax differs slightly
-            r#"^(?i:(?:https?://)?orcid\.org/)?(0000-000(?:1-[5-9]|2-[0-9]|3-[0-4])\d{3}-\d{3}[\dX]$)"#).unwrap();
+            r#"^(?i:(?:https?://)?(?:www\.)?orcid\.org/)?(0000-000(?:1-[5-9]|2-[0-9]|3-[0-4])\d{3}-\d{3}[\dX]$)"#).unwrap();
         }
         if let Some(matches) = RE.captures(input) {
             // The 0th capture always corresponds to the entire match
             if let Some(identifier) = matches.get(1) {
                 let standardised = format!("{}{}", ORCID_DOMAIN, identifier.as_str());
-                let orcid: Orcid = Orcid { 0: standardised };
+                let orcid: Orcid = Orcid(standardised);
                 Ok(orcid)
             } else {
-                Err(ThothError::IdentifierParseError(
-                    input.to_string(),
-                    "ORCID".to_string(),
-                ))
+                Err(ThothError::OrcidParseError(input.to_string()))
             }
         } else {
-            Err(ThothError::IdentifierParseError(
-                input.to_string(),
-                "ORCID".to_string(),
-            ))
+            Err(ThothError::OrcidParseError(input.to_string()))
         }
+    }
+}
+
+impl Doi {
+    pub fn to_lowercase_string(&self) -> String {
+        self.0.to_lowercase()
     }
 }
 
@@ -371,39 +366,30 @@ macro_rules! db_insert {
 #[test]
 fn test_doi_default() {
     let doi: Doi = Default::default();
-    assert_eq!(doi, Doi { 0: "".to_string() });
+    assert_eq!(doi, Doi("".to_string()));
 }
 
 #[test]
 fn test_orcid_default() {
     let orcid: Orcid = Default::default();
-    assert_eq!(orcid, Orcid { 0: "".to_string() });
+    assert_eq!(orcid, Orcid("".to_string()));
 }
 
 #[test]
 fn test_timestamp_default() {
     let stamp: Timestamp = Default::default();
-    assert_eq!(
-        stamp,
-        Timestamp {
-            0: TimeZone::timestamp(&Utc, 0, 0)
-        }
-    );
+    assert_eq!(stamp, Timestamp(TimeZone::timestamp(&Utc, 0, 0)));
 }
 
 #[test]
 fn test_doi_display() {
-    let doi = Doi {
-        0: "https://doi.org/10.12345/Test-Suffix.01".to_string(),
-    };
+    let doi = Doi("https://doi.org/10.12345/Test-Suffix.01".to_string());
     assert_eq!(format!("{}", doi), "10.12345/Test-Suffix.01");
 }
 
 #[test]
 fn test_orcid_display() {
-    let orcid = Orcid {
-        0: "https://orcid.org/0000-0002-1234-5678".to_string(),
-    };
+    let orcid = Orcid("https://orcid.org/0000-0002-1234-5678".to_string());
     assert_eq!(format!("{}", orcid), "0000-0002-1234-5678");
 }
 
@@ -415,9 +401,7 @@ fn test_timestamp_display() {
 
 #[test]
 fn test_doi_fromstr() {
-    let standardised = Doi {
-        0: "https://doi.org/10.12345/Test-Suffix.01".to_string(),
-    };
+    let standardised = Doi("https://doi.org/10.12345/Test-Suffix.01".to_string());
     assert_eq!(
         Doi::from_str("https://doi.org/10.12345/Test-Suffix.01").unwrap(),
         standardised
@@ -442,6 +426,42 @@ fn test_doi_fromstr() {
         Doi::from_str("Https://DOI.org/10.12345/Test-Suffix.01").unwrap(),
         standardised
     );
+    assert_eq!(
+        Doi::from_str("https://www.doi.org/10.12345/Test-Suffix.01").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Doi::from_str("http://www.doi.org/10.12345/Test-Suffix.01").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Doi::from_str("www.doi.org/10.12345/Test-Suffix.01").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Doi::from_str("https://dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Doi::from_str("http://dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Doi::from_str("dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Doi::from_str("https://www.dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Doi::from_str("http://www.dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Doi::from_str("www.dx.doi.org/10.12345/Test-Suffix.01").unwrap(),
+        standardised
+    );
     assert!(Doi::from_str("htts://doi.org/10.12345/Test-Suffix.01").is_err());
     assert!(Doi::from_str("https://10.12345/Test-Suffix.01").is_err());
     assert!(Doi::from_str("https://test.org/10.12345/Test-Suffix.01").is_err());
@@ -454,9 +474,7 @@ fn test_doi_fromstr() {
 
 #[test]
 fn test_orcid_fromstr() {
-    let standardised = Orcid {
-        0: "https://orcid.org/0000-0002-1234-5678".to_string(),
-    };
+    let standardised = Orcid("https://orcid.org/0000-0002-1234-5678".to_string());
     assert_eq!(
         Orcid::from_str("https://orcid.org/0000-0002-1234-5678").unwrap(),
         standardised
@@ -479,6 +497,18 @@ fn test_orcid_fromstr() {
     );
     assert_eq!(
         Orcid::from_str("Https://ORCiD.org/0000-0002-1234-5678").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Orcid::from_str("https://www.orcid.org/0000-0002-1234-5678").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Orcid::from_str("http://www.orcid.org/0000-0002-1234-5678").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Orcid::from_str("www.orcid.org/0000-0002-1234-5678").unwrap(),
         standardised
     );
     assert!(Orcid::from_str("htts://orcid.org/0000-0002-1234-5678").is_err());

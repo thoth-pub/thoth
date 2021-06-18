@@ -32,10 +32,15 @@ pub enum ThothError {
     #[fail(display = "Could not generate {}: {}", _0, _1)]
     IncompleteMetadataRecord(String, String),
     #[fail(
-        display = "{} is not a validly formatted {} and will not be saved",
-        _0, _1
+        display = "{} is not a validly formatted ORCID and will not be saved",
+        _0
     )]
-    IdentifierParseError(String, String),
+    OrcidParseError(String),
+    #[fail(
+        display = "{} is not a validly formatted DOI and will not be saved",
+        _0
+    )]
+    DoiParseError(String),
 }
 
 impl juniper::IntoFieldError for ThothError {

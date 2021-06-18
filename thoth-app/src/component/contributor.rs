@@ -306,10 +306,12 @@ impl Component for ContributorComponent {
                     // If no ORCID was provided, no format check is required.
                     // Don't update self.contributor.orcid yet, as user may later
                     // overwrite a new valid value with an invalid one.
-                    if !self.orcid.is_empty() && self.orcid.parse::<Orcid>().is_err() {
-                        self.orcid_warning = self.orcid.parse::<Orcid>().unwrap_err().to_string();
-                    } else {
-                        self.orcid_warning.clear();
+                    self.orcid_warning.clear();
+                    if !self.orcid.is_empty() {
+                        match self.orcid.parse::<Orcid>() {
+                            Err(e) => self.orcid_warning = e.to_string(),
+                            Ok(value) => self.orcid = value.to_string(),
+                        }
                     }
                     true
                 } else {

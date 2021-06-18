@@ -349,10 +349,12 @@ impl Component for NewWorkComponent {
                     // If no DOI was provided, no format check is required.
                     // Don't update self.work.doi yet, as user may later
                     // overwrite a new valid value with an invalid one.
-                    if !self.doi.is_empty() && self.doi.parse::<Doi>().is_err() {
-                        self.doi_warning = self.doi.parse::<Doi>().unwrap_err().to_string();
-                    } else {
-                        self.doi_warning.clear();
+                    self.doi_warning.clear();
+                    if !self.doi.is_empty() {
+                        match self.doi.parse::<Doi>() {
+                            Err(e) => self.doi_warning = e.to_string(),
+                            Ok(value) => self.doi = value.to_string(),
+                        }
                     }
                     true
                 } else {

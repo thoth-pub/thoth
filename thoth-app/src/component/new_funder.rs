@@ -138,11 +138,12 @@ impl Component for NewFunderComponent {
                     // If no DOI was provided, no format check is required.
                     // Don't update self.funder.funder_doi yet, as user may later
                     // overwrite a new valid value with an invalid one.
-                    if !self.funder_doi.is_empty() && self.funder_doi.parse::<Doi>().is_err() {
-                        self.funder_doi_warning =
-                            self.funder_doi.parse::<Doi>().unwrap_err().to_string();
-                    } else {
-                        self.funder_doi_warning.clear();
+                    self.funder_doi_warning.clear();
+                    if !self.funder_doi.is_empty() {
+                        match self.funder_doi.parse::<Doi>() {
+                            Err(e) => self.funder_doi_warning = e.to_string(),
+                            Ok(value) => self.funder_doi = value.to_string(),
+                        }
                     }
                     true
                 } else {

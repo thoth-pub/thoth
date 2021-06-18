@@ -151,7 +151,7 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Query a single work using its DOI")]
-    fn work_by_doi(context: &Context, doi: String) -> FieldResult<Work> {
+    fn work_by_doi(context: &Context, doi: Doi) -> FieldResult<Work> {
         Work::from_doi(&context.db, doi).map_err(|e| e.into())
     }
 

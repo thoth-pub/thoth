@@ -4,7 +4,7 @@ use super::model::{
 };
 use crate::errors::{ThothError, ThothResult};
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
 use crate::schema::{work, work_history};
 use crate::{crud_methods, db_insert};
 use diesel::{
@@ -13,14 +13,14 @@ use diesel::{
 use uuid::Uuid;
 
 impl Work {
-    pub fn from_doi(db: &crate::db::PgPool, doi: String) -> ThothResult<Self> {
+    pub fn from_doi(db: &crate::db::PgPool, doi: Doi) -> ThothResult<Self> {
         use diesel::sql_types::Nullable;
         use diesel::sql_types::Text;
         let connection = db.get().unwrap();
         // Allow case-insensitive searching (DOIs in database may have mixed casing)
         sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
         crate::schema::work::dsl::work
-            .filter(lower(crate::schema::work::dsl::doi).eq(doi.to_lowercase()))
+            .filter(lower(crate::schema::work::dsl::doi).eq(doi.to_lowercase_string()))
             .get_result::<Work>(&connection)
             .map_err(|e| e.into())
     }
