@@ -1,5 +1,3 @@
-use chrono::DateTime;
-use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use std::fmt;
@@ -8,6 +6,8 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
+use crate::model::Orcid;
+use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::contributor;
 #[cfg(feature = "backend")]
@@ -35,17 +35,17 @@ pub enum ContributorField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contributor {
     pub contributor_id: Uuid,
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
-    pub orcid: Option<String>,
+    pub orcid: Option<Orcid>,
     pub website: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 #[cfg_attr(
@@ -57,7 +57,7 @@ pub struct NewContributor {
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
-    pub orcid: Option<String>,
+    pub orcid: Option<Orcid>,
     pub website: Option<String>,
 }
 
@@ -72,7 +72,7 @@ pub struct PatchContributor {
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
-    pub orcid: Option<String>,
+    pub orcid: Option<Orcid>,
     pub website: Option<String>,
 }
 
@@ -82,7 +82,7 @@ pub struct ContributorHistory {
     pub contributor_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Timestamp,
 }
 
 #[cfg_attr(
@@ -101,7 +101,7 @@ pub struct NewContributorHistory {
     derive(juniper::GraphQLInputObject),
     graphql(description = "Field and order to use when sorting contributors list")
 )]
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ContributorOrderBy {
     pub field: ContributorField,
     pub direction: Direction,
@@ -110,21 +110,6 @@ pub struct ContributorOrderBy {
 impl Default for ContributorField {
     fn default() -> Self {
         ContributorField::FullName
-    }
-}
-
-impl Default for Contributor {
-    fn default() -> Contributor {
-        Contributor {
-            contributor_id: Default::default(),
-            first_name: None,
-            last_name: "".to_string(),
-            full_name: "".to_string(),
-            orcid: None,
-            website: None,
-            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-        }
     }
 }
 

@@ -1,4 +1,6 @@
 use thoth_api::contributor::model::Contributor;
+use thoth_api::model::{Orcid, ORCID_DOMAIN};
+use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -21,6 +23,7 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::delete_dialogue::ConfirmDeleteComponent;
 use crate::component::utils::FormTextInput;
+use crate::component::utils::FormTextInputExtended;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
 use crate::models::contributor::contributor_activity_query::ContributorActivityResponseData;
@@ -46,6 +49,9 @@ use crate::string::SAVE_BUTTON;
 
 pub struct ContributorComponent {
     contributor: Contributor,
+    // Track the user-entered ORCID string, which may not be validly formatted
+    orcid: String,
+    orcid_warning: String,
     fetch_contributor: FetchContributor,
     push_contributor: PushUpdateContributor,
     delete_contributor: PushDeleteContributor,
@@ -94,6 +100,8 @@ impl Component for ContributorComponent {
         let delete_contributor = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
+        let orcid = Default::default();
+        let orcid_warning = Default::default();
         let router = RouteAgentDispatcher::new();
         let mut _contributor_activity_checker =
             ContributorActivityChecker::bridge(link.callback(Msg::GetContributorActivity));
@@ -106,6 +114,8 @@ impl Component for ContributorComponent {
 
         ContributorComponent {
             contributor,
+            orcid,
+            orcid_warning,
             fetch_contributor,
             push_contributor,
             delete_contributor,
@@ -141,6 +151,13 @@ impl Component for ContributorComponent {
                             Some(c) => c.to_owned(),
                             None => Default::default(),
                         };
+                        // Initialise user-entered ORCID variable to match ORCID in database
+                        self.orcid = self
+                            .contributor
+                            .orcid
+                            .clone()
+                            .unwrap_or_default()
+                            .to_string();
                         true
                     }
                     FetchState::Failed(_, _err) => false,
@@ -160,6 +177,14 @@ impl Component for ContributorComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.update_contributor {
                         Some(c) => {
+                            // Save was successful: update user-entered ORCID variable to match ORCID in database
+                            self.orcid = self
+                                .contributor
+                                .orcid
+                                .clone()
+                                .unwrap_or_default()
+                                .to_string();
+                            self.orcid_warning.clear();
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!("Saved {}", c.full_name),
                                 NotificationStatus::Success,
@@ -184,6 +209,14 @@ impl Component for ContributorComponent {
                 }
             }
             Msg::UpdateContributor => {
+                // Only update the ORCID value with the current user-entered string
+                // if it is validly formatted - otherwise keep the database version.
+                // If no ORCID was provided, no format check is required.
+                if self.orcid.is_empty() {
+                    self.contributor.orcid.neq_assign(None);
+                } else if let Ok(result) = self.orcid.parse::<Orcid>() {
+                    self.contributor.orcid.neq_assign(Some(result));
+                }
                 let body = UpdateContributorRequestBody {
                     variables: UpdateVariables {
                         contributor_id: self.contributor.contributor_id,
@@ -269,11 +302,25 @@ impl Component for ContributorComponent {
                 .full_name
                 .neq_assign(full_name.trim().to_owned()),
             Msg::ChangeOrcid(value) => {
-                let orcid = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.contributor.orcid.neq_assign(orcid)
+                if self.orcid.neq_assign(value.trim().to_owned()) {
+                    // If ORCID is not correctly formatted, display a warning.
+                    // Don't update self.contributor.orcid yet, as user may later
+                    // overwrite a new valid value with an invalid one.
+                    self.orcid_warning.clear();
+                    match self.orcid.parse::<Orcid>() {
+                        Err(e) => {
+                            match e {
+                                // If no ORCID was provided, no warning is required.
+                                ThothError::OrcidEmptyError => {}
+                                _ => self.orcid_warning = e.to_string(),
+                            }
+                        }
+                        Ok(value) => self.orcid = value.to_string(),
+                    }
+                    true
+                } else {
+                    false
+                }
             }
             Msg::ChangeWebsite(value) => {
                 let website = match value.trim().is_empty() {
@@ -363,9 +410,11 @@ impl Component for ContributorComponent {
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
                                 required = true
                             />
-                            <FormUrlInput
-                                label = "ORCID (Full URL)"
-                                value=self.contributor.orcid.clone()
+                            <FormTextInputExtended
+                                label = "ORCID"
+                                statictext = ORCID_DOMAIN
+                                value=self.orcid.clone()
+                                tooltip=self.orcid_warning.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
                             />
                             <FormUrlInput

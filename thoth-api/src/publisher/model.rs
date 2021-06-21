@@ -1,5 +1,3 @@
-use chrono::DateTime;
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use strum::Display;
@@ -7,6 +5,7 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
+use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::publisher;
 #[cfg(feature = "backend")]
@@ -33,15 +32,15 @@ pub enum PublisherField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Publisher {
     pub publisher_id: Uuid,
     pub publisher_name: String,
     pub publisher_shortname: Option<String>,
     pub publisher_url: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 #[cfg_attr(
@@ -74,7 +73,7 @@ pub struct PublisherHistory {
     pub publisher_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Timestamp,
 }
 
 #[cfg_attr(
@@ -93,7 +92,7 @@ pub struct NewPublisherHistory {
     derive(juniper::GraphQLInputObject),
     graphql(description = "Field and order to use when sorting publishers list")
 )]
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct PublisherOrderBy {
     pub field: PublisherField,
     pub direction: Direction,
@@ -102,19 +101,6 @@ pub struct PublisherOrderBy {
 impl Default for PublisherField {
     fn default() -> Self {
         PublisherField::PublisherName
-    }
-}
-
-impl Default for Publisher {
-    fn default() -> Publisher {
-        Publisher {
-            publisher_id: Default::default(),
-            publisher_name: "".to_string(),
-            publisher_shortname: None,
-            publisher_url: None,
-            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-        }
     }
 }
 

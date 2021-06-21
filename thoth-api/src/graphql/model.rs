@@ -1,6 +1,4 @@
 use chrono::naive::NaiveDate;
-use chrono::DateTime;
-use chrono::Utc;
 use juniper::FieldResult;
 use juniper::RootNode;
 use std::sync::Arc;
@@ -17,6 +15,9 @@ use crate::imprint::model::*;
 use crate::issue::model::*;
 use crate::language::model::*;
 use crate::model::Crud;
+use crate::model::Doi;
+use crate::model::Orcid;
+use crate::model::Timestamp;
 use crate::price::model::*;
 use crate::publication::model::*;
 use crate::publisher::model::*;
@@ -150,7 +151,7 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Query a single work using its DOI")]
-    fn work_by_doi(context: &Context, doi: String) -> FieldResult<Work> {
+    fn work_by_doi(context: &Context, doi: Doi) -> FieldResult<Work> {
         Work::from_doi(&context.db, doi).map_err(|e| e.into())
     }
 
@@ -1437,7 +1438,7 @@ impl Work {
     #[graphql(
         description = "Digital Object Identifier of the work as full URL. It must use the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.11647/obp.0001)"
     )]
-    pub fn doi(&self) -> Option<&String> {
+    pub fn doi(&self) -> Option<&Doi> {
         self.doi.as_ref()
     }
 
@@ -1525,12 +1526,12 @@ impl Work {
         self.cover_caption.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn imprint(&self, context: &Context) -> FieldResult<Imprint> {
@@ -1808,12 +1809,12 @@ impl Publication {
         self.publication_url.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     #[graphql(
@@ -1879,12 +1880,12 @@ impl Publisher {
         self.publisher_url.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     #[graphql(
@@ -1945,12 +1946,12 @@ impl Imprint {
         self.imprint_url.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn publisher(&self, context: &Context) -> FieldResult<Publisher> {
@@ -2028,7 +2029,7 @@ impl Contributor {
         &self.full_name
     }
 
-    pub fn orcid(&self) -> Option<&String> {
+    pub fn orcid(&self) -> Option<&Orcid> {
         self.orcid.as_ref()
     }
 
@@ -2036,12 +2037,12 @@ impl Contributor {
         self.website.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     #[graphql(
@@ -2115,12 +2116,12 @@ impl Contribution {
         self.institution.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn first_name(&self) -> Option<&String> {
@@ -2170,12 +2171,12 @@ impl Series {
         self.series_url.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn imprint(&self, context: &Context) -> FieldResult<Imprint> {
@@ -2239,12 +2240,12 @@ impl Issue {
         &self.issue_ordinal
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn series(&self, context: &Context) -> FieldResult<Series> {
@@ -2278,12 +2279,12 @@ impl Language {
         self.main_language
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
@@ -2309,12 +2310,12 @@ impl Price {
         self.unit_price
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn publication(&self, context: &Context) -> FieldResult<Publication> {
@@ -2344,12 +2345,12 @@ impl Subject {
         &self.subject_ordinal
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
@@ -2367,16 +2368,16 @@ impl Funder {
         &self.funder_name
     }
 
-    pub fn funder_doi(&self) -> Option<&String> {
+    pub fn funder_doi(&self) -> Option<&Doi> {
         self.funder_doi.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     #[graphql(
@@ -2452,12 +2453,12 @@ impl Funding {
         self.jurisdiction.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn work(&self, context: &Context) -> FieldResult<Work> {

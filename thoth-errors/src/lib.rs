@@ -32,6 +32,20 @@ pub enum ThothError {
     CsvError(String),
     #[fail(display = "Could not generate {}: {}", _0, _1)]
     IncompleteMetadataRecord(String, String),
+    #[fail(
+        display = "{} is not a validly formatted ORCID and will not be saved",
+        _0
+    )]
+    OrcidParseError(String),
+    #[fail(
+        display = "{} is not a validly formatted DOI and will not be saved",
+        _0
+    )]
+    DoiParseError(String),
+    #[fail(display = "Cannot parse ORCID: no value provided")]
+    OrcidEmptyError,
+    #[fail(display = "Cannot parse DOI: no value provided")]
+    DoiEmptyError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]

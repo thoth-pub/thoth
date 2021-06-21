@@ -32,7 +32,7 @@ impl MetadataTable for Imprint {
                 <td>{&self.imprint_name}</td>
                 <td>{&self.publisher.publisher_name}</td>
                 <td>{imprint_url}</td>
-                <td>{&self.updated_at.format("%F %T")}</td>
+                <td>{&self.updated_at}</td>
             </tr>
         }
     }

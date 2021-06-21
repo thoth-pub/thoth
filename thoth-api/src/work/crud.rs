@@ -3,7 +3,7 @@ use super::model::{
     WorkType,
 };
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, HistoryEntry};
+use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
 use crate::schema::{work, work_history};
 use crate::{crud_methods, db_insert};
 use diesel::{
@@ -13,14 +13,14 @@ use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 impl Work {
-    pub fn from_doi(db: &crate::db::PgPool, doi: String) -> ThothResult<Self> {
+    pub fn from_doi(db: &crate::db::PgPool, doi: Doi) -> ThothResult<Self> {
         use diesel::sql_types::Nullable;
         use diesel::sql_types::Text;
         let connection = db.get().unwrap();
         // Allow case-insensitive searching (DOIs in database may have mixed casing)
         sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
         crate::schema::work::dsl::work
-            .filter(lower(crate::schema::work::dsl::doi).eq(doi.to_lowercase()))
+            .filter(lower(crate::schema::work::dsl::doi).eq(doi.to_lowercase_string()))
             .get_result::<Work>(&connection)
             .map_err(|e| e.into())
     }
@@ -389,46 +389,6 @@ impl DbInsert for NewWorkHistory {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    impl Default for Work {
-        fn default() -> Self {
-            Work {
-                work_id: Default::default(),
-                work_type: Default::default(),
-                work_status: Default::default(),
-                full_title: Default::default(),
-                title: Default::default(),
-                subtitle: Default::default(),
-                reference: Default::default(),
-                edition: Default::default(),
-                imprint_id: Default::default(),
-                doi: Default::default(),
-                publication_date: Default::default(),
-                place: Default::default(),
-                width: Default::default(),
-                height: Default::default(),
-                page_count: Default::default(),
-                page_breakdown: Default::default(),
-                image_count: Default::default(),
-                table_count: Default::default(),
-                audio_count: Default::default(),
-                video_count: Default::default(),
-                license: Default::default(),
-                copyright_holder: Default::default(),
-                landing_page: Default::default(),
-                lccn: Default::default(),
-                oclc: Default::default(),
-                short_abstract: Default::default(),
-                long_abstract: Default::default(),
-                general_note: Default::default(),
-                toc: Default::default(),
-                cover_url: Default::default(),
-                cover_caption: Default::default(),
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-            }
-        }
-    }
 
     #[test]
     fn test_work_pk() {

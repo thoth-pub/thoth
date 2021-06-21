@@ -164,23 +164,6 @@ impl DbInsert for NewFundingHistory {
 mod tests {
     use super::*;
 
-    impl Default for Funding {
-        fn default() -> Self {
-            Funding {
-                funding_id: Default::default(),
-                work_id: Default::default(),
-                funder_id: Default::default(),
-                program: Default::default(),
-                project_name: Default::default(),
-                project_shortname: Default::default(),
-                grant_number: Default::default(),
-                jurisdiction: Default::default(),
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-            }
-        }
-    }
-
     #[test]
     fn test_funding_pk() {
         let funding: Funding = Default::default();

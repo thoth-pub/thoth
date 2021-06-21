@@ -1,6 +1,4 @@
 use chrono::naive::NaiveDate;
-use chrono::DateTime;
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use strum::EnumString;
@@ -12,6 +10,8 @@ use crate::graphql::utils::Direction;
 use crate::imprint::model::ImprintExtended as Imprint;
 use crate::issue::model::IssueExtended as Issue;
 use crate::language::model::Language;
+use crate::model::Doi;
+use crate::model::Timestamp;
 use crate::publication::model::PublicationExtended as Publication;
 #[cfg(feature = "backend")]
 use crate::schema::work;
@@ -115,7 +115,7 @@ pub enum WorkField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Work {
     pub work_id: Uuid,
     pub work_type: WorkType,
@@ -126,7 +126,7 @@ pub struct Work {
     pub reference: Option<String>,
     pub edition: i32,
     pub imprint_id: Uuid,
-    pub doi: Option<String>,
+    pub doi: Option<Doi>,
     pub publication_date: Option<NaiveDate>,
     pub place: Option<String>,
     pub width: Option<i32>,
@@ -148,8 +148,8 @@ pub struct Work {
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -163,7 +163,7 @@ pub struct WorkExtended {
     pub subtitle: Option<String>,
     pub reference: Option<String>,
     pub edition: i32,
-    pub doi: Option<String>,
+    pub doi: Option<Doi>,
     pub publication_date: Option<String>,
     pub place: Option<String>,
     pub width: Option<i32>,
@@ -185,7 +185,7 @@ pub struct WorkExtended {
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
-    pub updated_at: DateTime<Utc>,
+    pub updated_at: Timestamp,
     pub contributions: Option<Vec<Contribution>>,
     pub publications: Option<Vec<Publication>>,
     pub languages: Option<Vec<Language>>,
@@ -209,7 +209,7 @@ pub struct NewWork {
     pub reference: Option<String>,
     pub edition: i32,
     pub imprint_id: Uuid,
-    pub doi: Option<String>,
+    pub doi: Option<Doi>,
     pub publication_date: Option<NaiveDate>,
     pub place: Option<String>,
     pub width: Option<i32>,
@@ -249,7 +249,7 @@ pub struct PatchWork {
     pub reference: Option<String>,
     pub edition: i32,
     pub imprint_id: Uuid,
-    pub doi: Option<String>,
+    pub doi: Option<Doi>,
     pub publication_date: Option<NaiveDate>,
     pub place: Option<String>,
     pub width: Option<i32>,
@@ -279,7 +279,7 @@ pub struct WorkHistory {
     pub work_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Timestamp,
 }
 
 #[cfg_attr(feature = "backend", derive(Insertable), table_name = "work_history")]
@@ -294,7 +294,7 @@ pub struct NewWorkHistory {
     derive(juniper::GraphQLInputObject),
     graphql(description = "Field and order to use when sorting works list")
 )]
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct WorkOrderBy {
     pub field: WorkField,
     pub direction: Direction,
@@ -340,42 +340,42 @@ impl Default for WorkExtended {
     fn default() -> WorkExtended {
         WorkExtended {
             work_id: Default::default(),
-            work_type: WorkType::Monograph,
-            work_status: WorkStatus::Inactive,
-            full_title: "".to_string(),
-            title: "".to_string(),
-            subtitle: None,
-            reference: None,
+            work_type: Default::default(),
+            work_status: Default::default(),
+            full_title: Default::default(),
+            title: Default::default(),
+            subtitle: Default::default(),
+            reference: Default::default(),
             edition: 1,
-            doi: None,
-            publication_date: None,
-            place: None,
-            width: None,
-            height: None,
-            page_count: None,
-            page_breakdown: None,
-            image_count: None,
-            table_count: None,
-            audio_count: None,
-            video_count: None,
-            license: None,
-            copyright_holder: "".to_string(),
-            landing_page: None,
-            lccn: None,
-            oclc: None,
-            short_abstract: None,
-            long_abstract: None,
-            general_note: None,
-            toc: None,
-            cover_url: None,
-            cover_caption: None,
-            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-            contributions: None,
-            publications: None,
-            languages: None,
-            fundings: None,
-            subjects: None,
-            issues: None,
+            doi: Default::default(),
+            publication_date: Default::default(),
+            place: Default::default(),
+            width: Default::default(),
+            height: Default::default(),
+            page_count: Default::default(),
+            page_breakdown: Default::default(),
+            image_count: Default::default(),
+            table_count: Default::default(),
+            audio_count: Default::default(),
+            video_count: Default::default(),
+            license: Default::default(),
+            copyright_holder: Default::default(),
+            landing_page: Default::default(),
+            lccn: Default::default(),
+            oclc: Default::default(),
+            short_abstract: Default::default(),
+            long_abstract: Default::default(),
+            general_note: Default::default(),
+            toc: Default::default(),
+            cover_url: Default::default(),
+            cover_caption: Default::default(),
+            updated_at: Default::default(),
+            contributions: Default::default(),
+            publications: Default::default(),
+            languages: Default::default(),
+            fundings: Default::default(),
+            subjects: Default::default(),
+            issues: Default::default(),
             imprint: Default::default(),
         }
     }

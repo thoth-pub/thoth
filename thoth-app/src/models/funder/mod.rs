@@ -24,7 +24,11 @@ impl EditRoute for Funder {
 
 impl MetadataTable for Funder {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
-        let funder_doi = self.funder_doi.clone().unwrap_or_else(|| "".to_string());
+        let funder_doi = self
+            .funder_doi
+            .as_ref()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "".to_string());
         html! {
             <tr
                 class="row"
@@ -33,7 +37,7 @@ impl MetadataTable for Funder {
                 <td>{&self.funder_id}</td>
                 <td>{&self.funder_name}</td>
                 <td>{funder_doi}</td>
-                <td>{&self.updated_at.format("%F %T")}</td>
+                <td>{&self.updated_at}</td>
             </tr>
         }
     }
