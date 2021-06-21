@@ -3,9 +3,9 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 #[cfg(feature = "backend")]
+use thoth_errors::{ThothError, ThothResult};
+#[cfg(feature = "backend")]
 use uuid::Uuid;
-
-use crate::errors::{ThothError, ThothResult};
 
 pub const DOI_DOMAIN: &str = "https://doi.org/";
 pub const ORCID_DOMAIN: &str = "https://orcid.org/";

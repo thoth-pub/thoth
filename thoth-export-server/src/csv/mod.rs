@@ -1,7 +1,7 @@
 use csv::{QuoteStyle, Writer, WriterBuilder};
 use std::io::Write;
-use thoth_api::errors::{ThothError, ThothResult};
 use thoth_client::Work;
+use thoth_errors::{ThothError, ThothResult};
 
 pub(crate) trait CsvSpecification {
     const QUOTE_STYLE: QuoteStyle = QuoteStyle::Always;

@@ -837,7 +837,7 @@ impl PureCurrencyCodeSelect {
 
 impl PureImprintSelect {
     fn render_imprint(&self, i: &Imprint) -> VNode {
-        let value = &self.value.clone().unwrap_or_default();
+        let value = &self.value.unwrap_or_default();
         if &i.imprint_id == value {
             html! {
                 <option value={i.imprint_id.to_string()} selected=true>
@@ -854,7 +854,7 @@ impl PureImprintSelect {
 
 impl PurePublisherSelect {
     fn render_publisher(&self, p: &Publisher) -> VNode {
-        let value = &self.value.clone().unwrap_or_default();
+        let value = &self.value.unwrap_or_default();
         if &p.publisher_id == value {
             html! {
                 <option value={p.publisher_id.to_string()} selected=true>

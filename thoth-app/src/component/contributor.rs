@@ -1,6 +1,6 @@
 use thoth_api::contributor::model::Contributor;
-use thoth_api::errors::ThothError;
 use thoth_api::model::{Orcid, ORCID_DOMAIN};
+use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;

@@ -1,6 +1,6 @@
-use thoth_api::errors::ThothError;
 use thoth_api::funder::model::Funder;
 use thoth_api::model::{Doi, DOI_DOMAIN};
+use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;

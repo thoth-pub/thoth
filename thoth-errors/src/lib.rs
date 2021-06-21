@@ -1,3 +1,4 @@
+use core::convert::From;
 use failure::Fail;
 
 /// A specialised result type for returning Thoth data
@@ -47,8 +48,10 @@ pub enum ThothError {
     DoiEmptyError,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl juniper::IntoFieldError for ThothError {
     fn into_field_error(self) -> juniper::FieldError {
+        use juniper::graphql_value;
         match self {
             ThothError::InvalidSubjectCode { .. } => juniper::FieldError::new(
                 self.to_string(),
@@ -72,7 +75,7 @@ impl juniper::IntoFieldError for ThothError {
     }
 }
 
-#[cfg(feature = "backend")]
+#[cfg(not(target_arch = "wasm32"))]
 impl actix_web::error::ResponseError for ThothError {
     fn error_response(&self) -> actix_web::HttpResponse {
         use actix_web::HttpResponse;
@@ -92,7 +95,7 @@ impl actix_web::error::ResponseError for ThothError {
     }
 }
 
-#[cfg(feature = "backend")]
+#[cfg(not(target_arch = "wasm32"))]
 impl From<diesel::result::Error> for ThothError {
     fn from(error: diesel::result::Error) -> ThothError {
         use diesel::result::Error;
@@ -107,7 +110,7 @@ impl From<diesel::result::Error> for ThothError {
     }
 }
 
-#[cfg(feature = "backend")]
+#[cfg(not(target_arch = "wasm32"))]
 impl From<csv::Error> for ThothError {
     fn from(e: csv::Error) -> Self {
         ThothError::CsvError(e.to_string())
@@ -132,6 +135,7 @@ impl From<reqwest::Error> for ThothError {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<xml::writer::Error> for ThothError {
     fn from(error: xml::writer::Error) -> ThothError {
         ThothError::InternalError(error.to_string())
@@ -156,6 +160,19 @@ impl From<uuid::parser::ParseError> for ThothError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_csv_error() {
+        // We are just testing that _a_ `csv::error` is converted to `ThothError::CsvError`.
+        // The test instantiation is copied from the library: https://github.com/BurntSushi/rust-csv/blob/40ea4c49d7467d2b607a6396424f8e0e101adae1/src/writer.rs#L1268
+        let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
+        wtr.write_record(&csv::ByteRecord::from(vec!["a", "b", "c"]))
+            .unwrap();
+        let err = wtr
+            .write_record(&csv::ByteRecord::from(vec!["a"]))
+            .unwrap_err();
+        assert!(matches!(ThothError::from(err), ThothError::CsvError { .. }));
+    }
 
     #[test]
     fn test_uuid_error() {

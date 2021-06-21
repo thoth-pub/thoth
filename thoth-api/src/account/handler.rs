@@ -20,7 +20,7 @@ use crate::account::service::get_account;
 use crate::account::util::make_hash;
 use crate::account::util::make_salt;
 use crate::db::PgPool;
-use crate::errors::{ThothError, ThothResult};
+use thoth_errors::{ThothError, ThothResult};
 
 impl Account {
     pub fn get_permissions(&self, pool: &PgPool) -> ThothResult<Vec<LinkedPublisher>> {

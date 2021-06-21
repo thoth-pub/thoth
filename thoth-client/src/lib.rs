@@ -5,7 +5,7 @@ use graphql_client::GraphQLQuery;
 use graphql_client::Response;
 use serde::Serialize;
 use std::future::Future;
-use thoth_api::errors::{ThothError, ThothResult};
+use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 pub use crate::queries::work_query::*;
@@ -48,7 +48,7 @@ impl ThothClient {
     /// # Example
     ///
     /// ```no_run
-    /// # use thoth_api::errors::ThothResult;
+    /// # use thoth_errors::ThothResult;
     /// # use thoth_client::{ThothClient, Work};
     /// # use uuid::Uuid;
     ///
@@ -78,7 +78,7 @@ impl ThothClient {
     /// # Example
     ///
     /// ```no_run
-    /// # use thoth_api::errors::ThothResult;
+    /// # use thoth_errors::ThothResult;
     /// # use thoth_client::{ThothClient, Work};
     /// # use uuid::Uuid;
     ///

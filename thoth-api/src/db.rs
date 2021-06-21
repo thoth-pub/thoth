@@ -6,7 +6,7 @@ use diesel::r2d2::{ConnectionManager, Pool};
 use diesel_migrations::embed_migrations;
 use dotenv::dotenv;
 
-use crate::errors::{ThothError, ThothResult};
+use thoth_errors::{ThothError, ThothResult};
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
