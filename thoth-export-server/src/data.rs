@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use thoth_api::errors::{ThothError, ThothResult};
+use thoth_errors::{ThothError, ThothResult};
 
 use crate::format::model::Format;
 use crate::platform::model::Platform;

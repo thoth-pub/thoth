@@ -1,5 +1,5 @@
 #[cfg(feature = "backend")]
-use crate::errors::ThothResult;
+use thoth_errors::ThothResult;
 #[cfg(feature = "backend")]
 use uuid::Uuid;
 

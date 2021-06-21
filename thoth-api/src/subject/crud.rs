@@ -1,13 +1,13 @@
 use super::model::{
     NewSubject, NewSubjectHistory, PatchSubject, Subject, SubjectField, SubjectHistory, SubjectType,
 };
-use crate::errors::{ThothError, ThothResult};
 use crate::graphql::model::SubjectOrderBy;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{subject, subject_history};
 use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
+use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 impl Crud for Subject {

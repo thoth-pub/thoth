@@ -2,13 +2,13 @@ use super::model::{
     Contribution, ContributionField, ContributionHistory, ContributionType, NewContribution,
     NewContributionHistory, PatchContribution,
 };
-use crate::errors::{ThothError, ThothResult};
 use crate::graphql::model::ContributionOrderBy;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{contribution, contribution_history};
 use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 impl Crud for Contribution {

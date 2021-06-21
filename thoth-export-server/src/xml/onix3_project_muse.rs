@@ -9,7 +9,7 @@ use xml::writer::{EventWriter, XmlEvent};
 
 use super::{write_element_block, XmlElement, XmlSpecification};
 use crate::xml::{write_full_element_block, XmlElementBlock};
-use thoth_api::errors::{ThothError, ThothResult};
+use thoth_errors::{ThothError, ThothResult};
 
 pub struct Onix3ProjectMuse {}
 

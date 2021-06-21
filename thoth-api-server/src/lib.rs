@@ -19,10 +19,10 @@ use thoth_api::{
     account::service::login,
     db::establish_connection,
     db::PgPool,
-    errors::ThothError,
     graphql::model::Context,
     graphql::model::{create_schema, Schema},
 };
+use thoth_errors::ThothError;
 
 use crate::graphiql::graphiql_source;
 

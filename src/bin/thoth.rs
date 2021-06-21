@@ -5,10 +5,10 @@ use std::env;
 use thoth::api::account::model::{AccountData, LinkedPublisher};
 use thoth::api::account::service::{all_emails, all_publishers, register, update_password};
 use thoth::api::db::{establish_connection, run_migrations};
-use thoth::api::errors::ThothResult;
 use thoth::api_server;
 use thoth::app_server;
 use thoth::export_server;
+use thoth_errors::ThothResult;
 
 fn host_argument(env_value: &'static str) -> Arg<'static, 'static> {
     Arg::with_name("host")
