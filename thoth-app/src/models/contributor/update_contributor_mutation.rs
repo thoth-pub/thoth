@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::contributor::model::Contributor;
+use thoth_api::model::Orcid;
 use uuid::Uuid;
 
 const UPDATE_CONTRIBUTOR_MUTATION: &str = "
@@ -9,7 +10,7 @@ const UPDATE_CONTRIBUTOR_MUTATION: &str = "
         $firstName: String,
         $lastName: String!,
         $fullName: String!,
-        $orcid: String,
+        $orcid: Orcid,
         $website: String
     ) {
         updateContributor(data: {
@@ -47,7 +48,7 @@ pub struct Variables {
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
-    pub orcid: Option<String>,
+    pub orcid: Option<Orcid>,
     pub website: Option<String>,
 }
 

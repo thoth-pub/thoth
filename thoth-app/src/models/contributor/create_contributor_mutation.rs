@@ -1,13 +1,14 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::contributor::model::Contributor;
+use thoth_api::model::Orcid;
 
 const CREATE_CONTRIBUTOR_MUTATION: &str = "
     mutation CreateContributor(
         $firstName: String,
         $lastName: String!,
         $fullName: String!,
-        $orcid: String,
+        $orcid: Orcid,
         $website: String
     ) {
         createContributor(data: {
@@ -43,7 +44,7 @@ pub struct Variables {
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
-    pub orcid: Option<String>,
+    pub orcid: Option<Orcid>,
     pub website: Option<String>,
 }
 

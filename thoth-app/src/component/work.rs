@@ -5,11 +5,13 @@ use thoth_api::funding::model::FundingExtended as Funding;
 use thoth_api::imprint::model::ImprintExtended as Imprint;
 use thoth_api::issue::model::IssueExtended as Issue;
 use thoth_api::language::model::Language;
+use thoth_api::model::{Doi, DOI_DOMAIN};
 use thoth_api::publication::model::PublicationExtended as Publication;
 use thoth_api::subject::model::Subject;
 use thoth_api::work::model::WorkExtended as Work;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
+use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -38,6 +40,7 @@ use crate::component::utils::FormDateInput;
 use crate::component::utils::FormImprintSelect;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormTextInput;
+use crate::component::utils::FormTextInputExtended;
 use crate::component::utils::FormTextarea;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::FormWorkStatusSelect;
@@ -66,6 +69,10 @@ use crate::string::SAVE_BUTTON;
 
 pub struct WorkComponent {
     work: Work,
+    // Track the user-entered DOI string, which may not be validly formatted
+    doi: String,
+    doi_warning: String,
+    // Track imprint stored in database, as distinct from imprint selected in dropdown
     imprint_id: Uuid,
     data: WorkFormData,
     fetch_work: FetchWork,
@@ -145,7 +152,8 @@ impl Component for WorkComponent {
         let delete_work = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let work: Work = Default::default();
-        // Track imprint stored in database, as distinct from imprint selected in dropdown
+        let doi = Default::default();
+        let doi_warning = Default::default();
         let imprint_id = work.imprint.imprint_id;
         let data: WorkFormData = Default::default();
         let router = RouteAgentDispatcher::new();
@@ -154,6 +162,8 @@ impl Component for WorkComponent {
 
         WorkComponent {
             work,
+            doi,
+            doi_warning,
             imprint_id,
             data,
             fetch_work,
@@ -178,6 +188,8 @@ impl Component for WorkComponent {
                             Some(w) => w.to_owned(),
                             None => Default::default(),
                         };
+                        // Initialise user-entered DOI variable to match DOI in database
+                        self.doi = self.work.doi.clone().unwrap_or_default().to_string();
                         self.imprint_id = self.work.imprint.imprint_id;
                         self.data.imprints = body.data.imprints.to_owned();
                         self.data.work_types = body.data.work_types.enum_values.to_owned();
@@ -224,11 +236,14 @@ impl Component for WorkComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.update_work {
                         Some(w) => {
+                            // Save was successful: update user-entered DOI variable to match DOI in database
+                            self.doi = self.work.doi.clone().unwrap_or_default().to_string();
+                            self.doi_warning.clear();
+                            self.imprint_id = self.work.imprint.imprint_id;
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
                             )));
-                            self.imprint_id = self.work.imprint.imprint_id;
                             true
                         }
                         None => {
@@ -249,6 +264,14 @@ impl Component for WorkComponent {
                 }
             }
             Msg::UpdateWork => {
+                // Only update the DOI value with the current user-entered string
+                // if it is validly formatted - otherwise keep the database version.
+                // If no DOI was provided, no format check is required.
+                if self.doi.is_empty() {
+                    self.work.doi.neq_assign(None);
+                } else if let Ok(result) = self.doi.parse::<Doi>() {
+                    self.work.doi.neq_assign(Some(result));
+                }
                 let body = UpdateWorkRequestBody {
                     variables: UpdateVariables {
                         work_id: self.work.work_id,
@@ -389,11 +412,25 @@ impl Component for WorkComponent {
                 self.work.edition.neq_assign(edition)
             }
             Msg::ChangeDoi(value) => {
-                let doi = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.doi.neq_assign(doi)
+                if self.doi.neq_assign(value.trim().to_owned()) {
+                    // If DOI is not correctly formatted, display a warning.
+                    // Don't update self.work.doi yet, as user may later
+                    // overwrite a new valid value with an invalid one.
+                    self.doi_warning.clear();
+                    match self.doi.parse::<Doi>() {
+                        Err(e) => {
+                            match e {
+                                // If no DOI was provided, no warning is required.
+                                ThothError::DoiEmptyError => {}
+                                _ => self.doi_warning = e.to_string(),
+                            }
+                        }
+                        Ok(value) => self.doi = value.to_string(),
+                    }
+                    true
+                } else {
+                    false
+                }
             }
             Msg::ChangeDate(date) => self.work.publication_date.neq_assign(Some(date)),
             Msg::ChangePlace(value) => {
@@ -703,9 +740,11 @@ impl Component for WorkComponent {
                             </div>
                             <div class="field is-horizontal">
                                 <div class="field-body">
-                                    <FormUrlInput
+                                    <FormTextInputExtended
                                         label = "DOI"
-                                        value=self.work.doi.clone()
+                                        statictext = DOI_DOMAIN
+                                        value=self.doi.clone()
+                                        tooltip=self.doi_warning.clone()
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeDoi(e.value))
                                     />
                                     <FormTextInput

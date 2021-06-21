@@ -1,5 +1,7 @@
 use thoth_api::funder::model::Funder;
 use thoth_api::funding::model::SlimFunding;
+use thoth_api::model::{Doi, DOI_DOMAIN};
+use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -22,7 +24,7 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::delete_dialogue::ConfirmDeleteComponent;
 use crate::component::utils::FormTextInput;
-use crate::component::utils::FormUrlInput;
+use crate::component::utils::FormTextInputExtended;
 use crate::component::utils::Loader;
 use crate::models::funder::delete_funder_mutation::DeleteFunderRequest;
 use crate::models::funder::delete_funder_mutation::DeleteFunderRequestBody;
@@ -47,6 +49,9 @@ use crate::string::SAVE_BUTTON;
 
 pub struct FunderComponent {
     funder: Funder,
+    // Track the user-entered DOI string, which may not be validly formatted
+    funder_doi: String,
+    funder_doi_warning: String,
     fetch_funder: FetchFunder,
     push_funder: PushUpdateFunder,
     delete_funder: PushDeleteFunder,
@@ -92,6 +97,8 @@ impl Component for FunderComponent {
         let delete_funder = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let funder: Funder = Default::default();
+        let funder_doi = Default::default();
+        let funder_doi_warning = Default::default();
         let router = RouteAgentDispatcher::new();
         let mut _funder_activity_checker =
             FunderActivityChecker::bridge(link.callback(Msg::GetFunderActivity));
@@ -104,6 +111,8 @@ impl Component for FunderComponent {
 
         FunderComponent {
             funder,
+            funder_doi,
+            funder_doi_warning,
             fetch_funder,
             push_funder,
             delete_funder,
@@ -139,6 +148,13 @@ impl Component for FunderComponent {
                             Some(c) => c.to_owned(),
                             None => Default::default(),
                         };
+                        // Initialise user-entered DOI variable to match DOI in database
+                        self.funder_doi = self
+                            .funder
+                            .funder_doi
+                            .clone()
+                            .unwrap_or_default()
+                            .to_string();
                         true
                     }
                     FetchState::Failed(_, _err) => false,
@@ -158,6 +174,14 @@ impl Component for FunderComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.update_funder {
                         Some(f) => {
+                            // Save was successful: update user-entered DOI variable to match DOI in database
+                            self.funder_doi = self
+                                .funder
+                                .funder_doi
+                                .clone()
+                                .unwrap_or_default()
+                                .to_string();
+                            self.funder_doi_warning.clear();
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!("Saved {}", f.funder_name),
                                 NotificationStatus::Success,
@@ -182,6 +206,14 @@ impl Component for FunderComponent {
                 }
             }
             Msg::UpdateFunder => {
+                // Only update the DOI value with the current user-entered string
+                // if it is validly formatted - otherwise keep the database version.
+                // If no DOI was provided, no format check is required.
+                if self.funder_doi.is_empty() {
+                    self.funder.funder_doi.neq_assign(None);
+                } else if let Ok(result) = self.funder_doi.parse::<Doi>() {
+                    self.funder.funder_doi.neq_assign(Some(result));
+                }
                 let body = UpdateFunderRequestBody {
                     variables: UpdateVariables {
                         funder_id: self.funder.funder_id,
@@ -251,11 +283,25 @@ impl Component for FunderComponent {
                 .funder_name
                 .neq_assign(funder_name.trim().to_owned()),
             Msg::ChangeFunderDoi(value) => {
-                let funder_doi = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.funder.funder_doi.neq_assign(funder_doi)
+                if self.funder_doi.neq_assign(value.trim().to_owned()) {
+                    // If DOI is not correctly formatted, display a warning.
+                    // Don't update self.funder.funder_doi yet, as user may later
+                    // overwrite a new valid value with an invalid one.
+                    self.funder_doi_warning.clear();
+                    match self.funder_doi.parse::<Doi>() {
+                        Err(e) => {
+                            match e {
+                                // If no DOI was provided, no warning is required.
+                                ThothError::DoiEmptyError => {}
+                                _ => self.funder_doi_warning = e.to_string(),
+                            }
+                        }
+                        Ok(value) => self.funder_doi = value.to_string(),
+                    }
+                    true
+                } else {
+                    false
+                }
             }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
@@ -328,9 +374,11 @@ impl Component for FunderComponent {
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeFunderName(e.value))
                                 required=true
                             />
-                            <FormUrlInput
+                            <FormTextInputExtended
                                 label = "Funder DOI"
-                                value=self.funder.funder_doi.clone()
+                                statictext = DOI_DOMAIN
+                                value=self.funder_doi.clone()
+                                tooltip=self.funder_doi_warning.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeFunderDoi(e.value))
                             />
 

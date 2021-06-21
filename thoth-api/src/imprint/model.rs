@@ -1,5 +1,3 @@
-use chrono::DateTime;
-use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 use strum::Display;
@@ -7,6 +5,7 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
+use crate::model::Timestamp;
 use crate::publisher::model::Publisher;
 use crate::publisher::model::SlimPublisher;
 #[cfg(feature = "backend")]
@@ -33,23 +32,23 @@ pub enum ImprintField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Imprint {
     pub imprint_id: Uuid,
     pub publisher_id: Uuid,
     pub imprint_name: String,
     pub imprint_url: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ImprintExtended {
     pub imprint_id: Uuid,
     pub imprint_name: String,
     pub imprint_url: Option<String>,
-    pub updated_at: DateTime<Utc>,
+    pub updated_at: Timestamp,
     pub publisher: Publisher,
 }
 
@@ -89,7 +88,7 @@ pub struct ImprintHistory {
     pub imprint_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Timestamp,
 }
 
 #[cfg_attr(
@@ -108,7 +107,7 @@ pub struct NewImprintHistory {
     derive(juniper::GraphQLInputObject),
     graphql(description = "Field and order to use when sorting imprints list")
 )]
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ImprintOrderBy {
     pub field: ImprintField,
     pub direction: Direction,
@@ -117,18 +116,6 @@ pub struct ImprintOrderBy {
 impl Default for ImprintField {
     fn default() -> Self {
         ImprintField::ImprintName
-    }
-}
-
-impl Default for ImprintExtended {
-    fn default() -> ImprintExtended {
-        ImprintExtended {
-            imprint_id: Default::default(),
-            imprint_name: "".to_string(),
-            imprint_url: None,
-            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-            publisher: Default::default(),
-        }
     }
 }
 

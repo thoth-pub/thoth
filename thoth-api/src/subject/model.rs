@@ -1,5 +1,3 @@
-use chrono::DateTime;
-use chrono::Utc;
 use phf::phf_map;
 use phf::Map;
 use serde::{Deserialize, Serialize};
@@ -7,6 +5,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
+use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::subject;
 #[cfg(feature = "backend")]
@@ -54,8 +53,8 @@ pub struct Subject {
     pub subject_type: SubjectType,
     pub subject_code: String,
     pub subject_ordinal: i32,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 #[cfg_attr(
@@ -90,7 +89,7 @@ pub struct SubjectHistory {
     pub subject_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Timestamp,
 }
 
 #[cfg_attr(
@@ -135,10 +134,10 @@ impl Default for Subject {
             subject_id: Default::default(),
             work_id: Default::default(),
             subject_type: Default::default(),
-            subject_code: "".to_string(),
+            subject_code: Default::default(),
             subject_ordinal: 1,
-            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
+            created_at: Default::default(),
+            updated_at: Default::default(),
         }
     }
 }

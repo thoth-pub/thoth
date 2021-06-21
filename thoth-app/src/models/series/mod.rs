@@ -50,7 +50,7 @@ impl MetadataTable for Series {
                 <td>{&self.series_type}</td>
                 <td>{&self.issn_print}</td>
                 <td>{&self.issn_digital}</td>
-                <td>{&self.updated_at.format("%F %T")}</td>
+                <td>{&self.updated_at}</td>
             </tr>
         }
     }
