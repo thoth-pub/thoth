@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::Write;
-use thoth_api::errors::{ThothError, ThothResult};
 use thoth_client::Work;
+use thoth_errors::{ThothError, ThothResult};
 use xml::writer::events::StartElementBuilder;
 use xml::writer::{EmitterConfig, EventWriter, XmlEvent};
 

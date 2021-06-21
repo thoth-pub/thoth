@@ -1,6 +1,6 @@
 use semver::Version;
 use thoth_api::account::model::AccountDetails;
-use thoth_api::errors::ThothError;
+use thoth_errors::ThothError;
 use yew::html;
 use yew::prelude::worker::*;
 use yew::prelude::*;
