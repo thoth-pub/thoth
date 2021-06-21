@@ -1,6 +1,6 @@
 [package]
 name = "thoth-api"
-version = "0.3.6"
+version = "0.4.0"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -13,12 +13,13 @@ travis-ci = { repository = "openbookpublishers/thoth" }
 maintenance = { status = "actively-developed" }
 
 [features]
-backend = ["diesel", "diesel-derive-enum", "diesel_migrations", "actix-web", "futures"]
+backend = ["csv", "diesel", "diesel-derive-enum", "diesel_migrations", "actix-web", "futures"]
 
 [dependencies]
-actix-web = { version = "3.0.0", optional = true }
+actix-web = { version = "3.3.2", optional = true }
 argon2rs = "0.2.5"
 chrono = { version = "0.4", features = ["serde"] }
+csv = { version = "1.1.6", optional = true }
 diesel = { version = "1.4.0", features = ["postgres", "uuidv07", "chrono", "r2d2", "64-column-tables", "serde_json"], optional = true }
 diesel-derive-enum = { version = "1.1.0", features = ["postgres"], optional = true }
 diesel_migrations = { version = "1.4.0", features = ["postgres"], optional = true }
@@ -27,7 +28,7 @@ failure = "0.1.6"
 futures = { version  = "0.3.5", optional = true }
 jsonwebtoken = "7.2.0"
 juniper = "0.14.2"
-lazy_static = "1"
+lazy_static = "1.4.0"
 phf = { version = "0.8", features = ["macros"] }
 rand = "0.7.3"
 regex = "1.4.1"

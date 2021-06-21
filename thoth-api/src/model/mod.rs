@@ -1,5 +1,7 @@
 #[cfg(feature = "backend")]
 use crate::errors::ThothResult;
+#[cfg(feature = "backend")]
+use uuid::Uuid;
 
 #[cfg(feature = "backend")]
 #[allow(clippy::too_many_arguments)]
@@ -20,7 +22,7 @@ where
     type FilterParameter2;
 
     /// Specify the entity's primary key
-    fn pk(&self) -> uuid::Uuid;
+    fn pk(&self) -> Uuid;
 
     /// Query the database to obtain a list of entities based on some criteria.
     ///
@@ -34,24 +36,24 @@ where
         offset: i32,
         filter: Option<String>,
         order: Self::OrderByEntity,
-        publishers: Vec<uuid::Uuid>,
-        parent_id_1: Option<uuid::Uuid>,
-        parent_id_2: Option<uuid::Uuid>,
+        publishers: Vec<Uuid>,
+        parent_id_1: Option<Uuid>,
+        parent_id_2: Option<Uuid>,
         filter_param_1: Option<Self::FilterParameter1>,
         filter_param_2: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Self>>;
 
-    /// Query the database to obtain the total number of entities satisfying the search criteriac
+    /// Query the database to obtain the total number of entities satisfying the search criteria
     fn count(
         db: &crate::db::PgPool,
         filter: Option<String>,
-        publishers: Vec<uuid::Uuid>,
+        publishers: Vec<Uuid>,
         filter_param_1: Option<Self::FilterParameter1>,
         filter_param_2: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32>;
 
     /// Query the database to obtain an instance of the entity given its ID
-    fn from_id(db: &crate::db::PgPool, entity_id: &uuid::Uuid) -> ThothResult<Self>;
+    fn from_id(db: &crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self>;
 
     /// Insert a new record in the database and obtain the resulting instance
     fn create(db: &crate::db::PgPool, data: &Self::NewEntity) -> ThothResult<Self>;
@@ -61,11 +63,14 @@ where
         &self,
         db: &crate::db::PgPool,
         data: &Self::PatchEntity,
-        account_id: &uuid::Uuid,
+        account_id: &Uuid,
     ) -> ThothResult<Self>;
 
     /// Delete the record from the database and obtain the deleted instance
     fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self>;
+
+    /// Retrieve the ID of the publisher linked to this entity (if applicable)
+    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid>;
 }
 
 #[cfg(feature = "backend")]
@@ -77,7 +82,7 @@ where
     /// The structure used to create a new history entity, e.g. `NewImprintHistory` for `Imprint`
     type NewHistoryEntity;
 
-    fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity;
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity;
 }
 
 #[cfg(feature = "backend")]
@@ -106,7 +111,7 @@ where
 ///     type NewEntity = NewImprint;
 ///     type PatchEntity = PatchImprint;
 ///
-///     fn pk(&self) -> uuid::Uuid {
+///     fn pk(&self) -> Uuid {
 ///         self.imprint_id
 ///     }
 ///
@@ -119,7 +124,7 @@ where
 #[macro_export]
 macro_rules! crud_methods {
     ($table_dsl:expr, $entity_dsl:expr) => {
-        fn from_id(db: &crate::db::PgPool, entity_id: &uuid::Uuid) -> ThothResult<Self> {
+        fn from_id(db: &crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
             use diesel::{QueryDsl, RunQueryDsl};
 
             let connection = db.get().unwrap();
@@ -148,7 +153,7 @@ macro_rules! crud_methods {
             &self,
             db: &crate::db::PgPool,
             data: &Self::PatchEntity,
-            account_id: &uuid::Uuid,
+            account_id: &Uuid,
         ) -> ThothResult<Self> {
             use diesel::{Connection, QueryDsl, RunQueryDsl};
 

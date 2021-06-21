@@ -1,1 +1,12 @@
+.env
+.env.example
+.git
+.github
+.gitignore
 target/
+LICENSE
+README.md
+Dockerfile
+Makefile
+docker-compose.yml
+CHANGELOG.md

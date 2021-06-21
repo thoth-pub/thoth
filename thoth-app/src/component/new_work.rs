@@ -514,8 +514,8 @@ impl Component for NewWorkComponent {
                         <div class="field-body">
                             <FormWorkTypeSelect
                                 label = "Work Type"
-                                value=&self.work.work_type
-                                data=&self.data.work_types
+                                value=self.work.work_type.clone()
+                                data=self.data.work_types.clone()
                                 onchange=self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {
                                         let value = elem.value();
@@ -527,8 +527,8 @@ impl Component for NewWorkComponent {
                             />
                             <FormWorkStatusSelect
                                 label = "Work Status"
-                                value=&self.work.work_status
-                                data=&self.data.work_statuses
+                                value=self.work.work_status.clone()
+                                data=self.data.work_statuses.clone()
                                 onchange=self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {
                                         let value = elem.value();
@@ -540,8 +540,8 @@ impl Component for NewWorkComponent {
                             />
                             <FormImprintSelect
                                 label = "Imprint"
-                                value=&self.imprint_id
-                                data=&self.data.imprints
+                                value=self.imprint_id
+                                data=self.data.imprints.clone()
                                 onchange=self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {
                                         let value = elem.value();
@@ -555,29 +555,29 @@ impl Component for NewWorkComponent {
                     </div>
                     <FormTextInput
                         label = "Title"
-                        value=&self.work.title
+                        value=self.work.title.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeTitle(e.value))
                         required = true
                     />
                     <FormTextInput
                         label = "Subtitle"
-                        value=&self.work.subtitle
+                        value=self.work.subtitle.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeSubtitle(e.value))
                     />
                     <FormNumberInput
                         label = "Edition"
-                        value=&self.work.edition
+                        value=self.work.edition
                         oninput=self.link.callback(|e: InputData| Msg::ChangeEdition(e.value))
                         required = true
                     />
                     <FormDateInput
                         label = "Publication Date"
-                        value=&self.work.publication_date
+                        value=self.work.publication_date.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeDate(e.value))
                     />
                     <FormTextInput
                         label = "Place of Publication"
-                        value=&self.work.place
+                        value=self.work.place.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangePlace(e.value))
                     />
                     <div class="field">
@@ -586,7 +586,7 @@ impl Component for NewWorkComponent {
                                 <div class="tile is-child">
                                     <figure class="image is-fullwidth">
                                         <img
-                                            src={&self.work.cover_url.clone().unwrap_or("".to_string())}
+                                            src={self.work.cover_url.clone().unwrap_or_else(|| "".to_string()).clone()}
                                             loading="lazy"
                                         />
                                     </figure>
@@ -596,12 +596,12 @@ impl Component for NewWorkComponent {
                                 <div class="tile is-child">
                                     <FormUrlInput
                                         label = "Cover URL"
-                                        value=&self.work.cover_url
+                                        value=self.work.cover_url.clone()
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeCoverUrl(e.value))
                                     />
                                     <FormTextarea
                                         label = "Cover Caption"
-                                        value=&self.work.cover_caption
+                                        value=self.work.cover_caption.clone()
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeCoverCaption(e.value))
                                     />
                                 </div>
@@ -612,23 +612,23 @@ impl Component for NewWorkComponent {
                         <div class="field-body">
                             <FormUrlInput
                                 label = "DOI"
-                                value=&self.work.doi
+                                value=self.work.doi.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeDoi(e.value))
                             />
                             <FormTextInput
                                 label = "LCCN"
-                                value=&self.work.lccn
+                                value=self.work.lccn.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeLccn(e.value))
                             />
                             <FormTextInput
                                 label = "OCLC Number"
-                                value=&self.work.oclc
+                                value=self.work.oclc.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeOclc(e.value))
                             />
                             <FormTextInput
                                 label = "Internal Reference"
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeReference(e.value))
-                                value=&self.work.reference
+                                value=self.work.reference.clone()
                             />
                         </div>
                     </div>
@@ -636,22 +636,22 @@ impl Component for NewWorkComponent {
                         <div class="field-body">
                             <FormNumberInput
                                 label = "Width"
-                                value=&self.work.width
+                                value=self.work.width
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
                             />
                             <FormNumberInput
                                 label = "Height"
-                                value=&self.work.height
+                                value=self.work.height
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
                             />
                             <FormNumberInput
                                 label = "Page Count"
-                                value=&self.work.page_count
+                                value=self.work.page_count
                                 oninput=self.link.callback(|e: InputData| Msg::ChangePageCount(e.value))
                             />
                             <FormTextInput
                                 label = "Page Breakdown"
-                                value=&self.work.page_breakdown
+                                value=self.work.page_breakdown.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangePageBreakdown(e.value))
                             />
                         </div>
@@ -660,60 +660,60 @@ impl Component for NewWorkComponent {
                         <div class="field-body">
                             <FormNumberInput
                                 label = "Image Count"
-                                value=&self.work.image_count
+                                value=self.work.image_count
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeImageCount(e.value))
                             />
                             <FormNumberInput
                                 label = "Table Count"
-                                value=&self.work.table_count
+                                value=self.work.table_count
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeTableCount(e.value))
                             />
                             <FormNumberInput
                                 label = "Audio Count"
-                                value=&self.work.audio_count
+                                value=self.work.audio_count
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeAudioCount(e.value))
                             />
                             <FormNumberInput
                                 label = "Video Count"
-                                value=&self.work.video_count
+                                value=self.work.video_count
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeVideoCount(e.value))
                             />
                         </div>
                     </div>
                     <FormTextInput
                         label = "Copyright Holder"
-                        value=&self.work.copyright_holder
+                        value=self.work.copyright_holder.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeCopyright(e.value))
                         required = true
                     />
                     <FormTextInput
                         label = "License"
-                        value=&self.work.license
+                        value=self.work.license.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeLicense(e.value))
                     />
                     <FormUrlInput
                         label = "Landing Page"
-                        value=&self.work.landing_page
+                        value=self.work.landing_page.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeLandingPage(e.value))
                     />
                     <FormTextarea
                         label = "Short Abstract"
-                        value=&self.work.short_abstract
+                        value=self.work.short_abstract.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeShortAbstract(e.value))
                     />
                     <FormTextarea
                         label = "Long Abstract"
-                        value=&self.work.long_abstract
+                        value=self.work.long_abstract.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeLongAbstract(e.value))
                     />
                     <FormTextarea
                         label = "General Note"
-                        value=&self.work.general_note
+                        value=self.work.general_note.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeNote(e.value))
                     />
                     <FormTextarea
                         label = "Table of Content"
-                        value=&self.work.toc
+                        value=self.work.toc.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeToc(e.value))
                     />
 

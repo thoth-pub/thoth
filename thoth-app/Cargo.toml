@@ -1,6 +1,6 @@
 [package]
 name = "thoth-app"
-version = "0.3.6"
+version = "0.4.0"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -23,14 +23,14 @@ anyhow = "1.0.32"
 chrono = { version = "0.4", features = ["serde"] }
 log = "0.4.11"
 thiserror = "1.0.20"
-yew = "0.17.3"
-yew-router = "0.14.0"
-yewtil = { version = "0.3.2", features = ["fetch", "pure"] }
-wasm-bindgen = "0.2.67"
+yew = "0.18.0"
+yew-router = "0.15.0"
+yewtil = { version = "0.4.0", features = ["fetch", "pure"] }
+wasm-bindgen = "0.2.74"
 wasm-logger = "0.2.0"
 semver = "0.11.0"
 serde = { version = "1.0.115", features = ["derive"] }
 serde_json = "1.0"
 url = "2.1.1"
 uuid = { version = "0.7", features = ["serde", "v4"] }
-thoth-api = { version = "0.3.6", path = "../thoth-api"  }
+thoth-api = { version = "0.4.0", path = "../thoth-api"  }

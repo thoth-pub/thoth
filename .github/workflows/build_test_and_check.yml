@@ -9,7 +9,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  THOTH_API: https://api.thoth.openbookpublishers.com
+  THOTH_GRAPHQL_API: https://api.thoth.pub
+  THOTH_EXPORT_API: https://export.thoth.pub
 
 jobs:
   build_test_and_lint:

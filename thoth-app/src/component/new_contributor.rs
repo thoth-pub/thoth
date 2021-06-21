@@ -254,18 +254,18 @@ impl Component for NewContributorComponent {
                 <form onsubmit=callback>
                     <FormTextInput
                         label = "Given Name"
-                        value=&self.contributor.first_name
+                        value=self.contributor.first_name.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
                     />
                     <FormTextInput
                         label = "Family Name"
-                        value=&self.contributor.last_name
+                        value=self.contributor.last_name.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
                         required=true
                     />
                     <FormTextInputTooltip
                         label = "Full Name"
-                        value=&self.contributor.full_name
+                        value=self.contributor.full_name.clone()
                         tooltip=tooltip
                         oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
                         onfocus=self.link.callback(|_| Msg::ToggleDuplicateTooltip(true))
@@ -274,12 +274,12 @@ impl Component for NewContributorComponent {
                     />
                     <FormUrlInput
                         label = "ORCID (Full URL)"
-                        value=&self.contributor.orcid
+                        value=self.contributor.orcid.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
                     />
                     <FormUrlInput
                         label = "Website"
-                        value=&self.contributor.website
+                        value=self.contributor.website.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeWebsite(e.value))
                     />
 

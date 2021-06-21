@@ -10,20 +10,19 @@
   <p>
     <a href="https://github.com/thoth-pub/thoth/actions"><img alt="GitHub Workflow" src="https://img.shields.io/github/workflow/status/thoth-pub/thoth/build-and-test/master"></a>
     <a href="https://github.com/thoth-pub/thoth/releases"><img alt="Thoth Releases" src="https://img.shields.io/github/release/thoth-pub/thoth.svg?colorB=58839b&maxAge=86400"/></a>
-    <a href="https://crates.io/crates/thoth"><img alt="Crate Info" src="https://img.shields.io/crates/v/thoth.svg?maxAge=86400"/></a>
     <a href="https://github.com/thoth-pub/thoth/blob/master/LICENSE"><img alt="License Info" src="https://img.shields.io/github/license/thoth-pub/thoth.svg?colorB=blue"/></a>
   </p>
 </div>
 
 ## About
 
-**Thoth** (/θoʊθ, toʊt/, Greek Θώθ < Coptic Ⲑⲱⲟⲩⲧ < Egyptian *ḏḥwtj*) is an Open Dissemination System for Open Access books. Written purely in rust, it consists of:
+**Thoth** (/toʊt, θoʊθ/, Greek Θώθ < Coptic Ⲑⲱⲟⲩⲧ < Egyptian *ḏḥwtj*) is an Open Dissemination System for Open Access books. Written purely in rust, it consists of:
 
-* A GraphQL API, implementing a data model specifically designed for OA books
-* An actions API to export metadata in formats like ONIX, MARC, etc.
-* A WebAssembly GUI to manage metadata records.
+* A [GraphQL API](https://api.thoth.pub), implementing a data model specifically designed for OA books
+* A [REST API](https://export.thoth.pub) to export metadata in formats like ONIX, MARC, etc.
+* A [WebAssembly GUI](https://thoth.pub) to manage metadata records.
 
-For more information about Thoth, its data and metadata formats, and more, see the repo's [wiki](https://github.com/thoth-pub/thoth/wiki). You can also use GraphiQL to [explore the GraphQL API](https://api.thoth.pub/graphiql) (click on "Docs" at the top right).
+For more information about Thoth, its data and metadata formats, and more, see the repo's [wiki](https://github.com/thoth-pub/thoth/wiki). You can also use GraphiQL to [explore the GraphQL API](https://api.thoth.pub/graphiql) (click on "Docs" at the top right), or RapiDoc to [inspect the REST API](https://export.thoth.pub).
 
 ## Getting Started
 
@@ -75,7 +74,10 @@ wasm-pack build thoth-app/ --target web \
 The wasm APP needs to know the endpoint the API will be running at compile time, we must provide `THOTH_API` as a build argument to the docker daemon upon build:
 
 ```
-docker build --build-arg THOTH_API=https://api.thoth.openbookpublishers.com . -t openbookpublishers/thoth
+docker build \
+    --build-arg THOTH_GRAPHQL_API=https://api.thoth.pub \
+    --build-arg THOTH_EXPORT_API=https://export.thoth.pub \
+    . -t openbookpublishers/thoth
 ```
 
 ## Acknowledgements

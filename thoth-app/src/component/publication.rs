@@ -257,9 +257,9 @@ impl Component for PublicationComponent {
                         </article>
 
                         <PricesFormComponent
-                            prices=&self.publication.prices
-                            publication_id=&self.publication.publication_id
-                            update_prices=self.link.callback(|p: Option<Vec<Price>>| Msg::UpdatePrices(p))
+                            prices=self.publication.prices.clone()
+                            publication_id=self.publication.publication_id
+                            update_prices=self.link.callback(Msg::UpdatePrices)
                         />
                     </>
                 }

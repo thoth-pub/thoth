@@ -28,7 +28,6 @@ static_files! {
     (WASM, wasm_file) => ("../static/pkg/thoth_app_bg.wasm", "/thoth_app_bg.wasm", "application/wasm"),
     (PKG, pkg_file) => ("../static/pkg/package.json", "/package.json", "application/json"),
     (TS1, ts1_file) => ("../static/pkg/thoth_app.d.ts", "/thoth_app.d.ts", "application/typescript"),
-    (TS2, ts2_file) => ("../static/pkg/thoth_app_bg.d.ts", "/thoth_app_bg.d.ts", "application/typescript"),
     (BULMA, bulma_file) => ("../static/css/bulma-pageloader.min.css", "/css/bulma-pageloader.min.css", "text/css; charset=utf-8"),
     (CSS, css_file) => ("../static/css/thoth.css", "/css/thoth.css", "text/css; charset=utf-8"),
     (LOGO, logo_file) => ("../static/img/thoth-logo.png", "/img/thoth-logo.png", "image/png"),
@@ -72,18 +71,14 @@ async fn index() -> HttpResponse {
         .body(INDEX_FILE)
 }
 
-#[actix_rt::main]
+#[actix_web::main]
 pub async fn start_server(host: String, port: String) -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
-            .wrap(
-                Cors::new()
-                    .allowed_methods(vec!["GET", "POST", "OPTIONS"])
-                    .finish(),
-            )
+            .wrap(Cors::default().allowed_methods(vec!["GET", "POST", "OPTIONS"]))
             .configure(config)
             .default_service(web::route().to(index))
     })

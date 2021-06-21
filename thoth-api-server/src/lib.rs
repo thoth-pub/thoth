@@ -1,12 +1,15 @@
+mod graphiql;
+
 use std::{io, sync::Arc};
 
 use actix_cors::Cors;
 use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
 use actix_web::{
-    error, get, middleware::Logger, post, web, App, Error, HttpRequest, HttpResponse, HttpServer,
+    error, get, http::header, middleware::Logger, post, web, App, Error, HttpResponse, HttpServer,
     Result,
 };
-use juniper::{http::graphiql::graphiql_source, http::GraphQLRequest};
+use juniper::http::GraphQLRequest;
+use serde::Serialize;
 use thoth_api::{
     account::model::AccountDetails,
     account::model::DecodedToken,
@@ -20,19 +23,59 @@ use thoth_api::{
     graphql::model::Context,
     graphql::model::{create_schema, Schema},
 };
-use thoth_client::work::get_work;
-use uuid::Uuid;
 
-mod onix;
+use crate::graphiql::graphiql_source;
 
-use crate::onix::generate_onix_3;
+#[derive(Serialize)]
+struct ApiConfig {
+    api_name: String,
+    api_version: String,
+    api_schema: String,
+    public_url: String,
+    schema_explorer_url: String,
+}
+
+impl ApiConfig {
+    pub fn new(public_url: String) -> Self {
+        Self {
+            public_url: format!("{}/graphql", public_url),
+            schema_explorer_url: format!("{}/graphiql", public_url),
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for ApiConfig {
+    fn default() -> Self {
+        Self {
+            api_name: "Thoth Metadata GraphQL API".to_string(),
+            api_version: env!("CARGO_PKG_VERSION").parse().unwrap(),
+            api_schema: "".to_string(),
+            public_url: "".to_string(),
+            schema_explorer_url: "".to_string(),
+        }
+    }
+}
+
+#[get("/")]
+async fn index(config: web::Data<ApiConfig>) -> HttpResponse {
+    HttpResponse::Ok().json(config.into_inner())
+}
 
 #[get("/graphiql")]
-async fn graphiql() -> HttpResponse {
-    let html = graphiql_source("/graphql");
+async fn graphiql_interface(config: web::Data<ApiConfig>) -> HttpResponse {
+    let html = graphiql_source(&config.public_url);
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(html)
+}
+
+#[get("/graphql")]
+async fn graphql_index(config: web::Data<ApiConfig>) -> HttpResponse {
+    HttpResponse::MethodNotAllowed().json(format!(
+        "GraphQL API must be queried making a POST request to {}",
+        config.public_url
+    ))
 }
 
 #[post("/graphql")]
@@ -51,33 +94,6 @@ async fn graphql(
     Ok(HttpResponse::Ok()
         .content_type("application/json")
         .body(result))
-}
-
-#[get("/onix/{uuid}")]
-async fn onix_endpoint(req: HttpRequest, path: web::Path<(Uuid,)>) -> HttpResponse {
-    let work_id = (path.0).0;
-    let scheme = if req.app_config().secure() {
-        "https".to_string()
-    } else {
-        "http".to_string()
-    };
-    let thoth_url = format!("{}://{}/graphql", scheme, req.app_config().local_addr());
-    if let Ok(work) = get_work(work_id, thoth_url).await {
-        if let Ok(body) = generate_onix_3(work) {
-            HttpResponse::Ok()
-                .header(
-                    "Content-Disposition",
-                    format!("attachment; filename=\"{}.xml\"", work_id),
-                )
-                .content_type("text/xml; charset=utf-8")
-                .body(String::from_utf8(body).unwrap())
-        } else {
-            HttpResponse::InternalServerError()
-                .body(format!("Could not generate ONIX for: {}", work_id))
-        }
-    } else {
-        HttpResponse::NotFound().body(format!("Not found: {}", work_id))
-    }
 }
 
 #[post("/account/login")]
@@ -161,18 +177,20 @@ fn config(cfg: &mut web::ServiceConfig) {
 
     cfg.data(schema.clone());
     cfg.data(pool);
+    cfg.service(index);
+    cfg.service(graphql_index);
     cfg.service(graphql);
-    cfg.service(graphiql);
-    cfg.service(onix_endpoint);
+    cfg.service(graphiql_interface);
     cfg.service(login_credentials);
     cfg.service(login_session);
     cfg.service(account_details);
 }
 
-#[actix_rt::main]
+#[actix_web::main]
 pub async fn start_server(
     host: String,
     port: String,
+    public_url: String,
     domain: String,
     secret_str: String,
     session_duration: i64,
@@ -190,10 +208,14 @@ pub async fn start_server(
                     .max_age(session_duration),
             ))
             .wrap(
-                Cors::new()
+                Cors::default()
                     .allowed_methods(vec!["GET", "POST", "OPTIONS"])
-                    .finish(),
+                    .allow_any_origin()
+                    .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
+                    .allowed_header(header::CONTENT_TYPE)
+                    .supports_credentials(),
             )
+            .data(ApiConfig::new(public_url.clone()))
             .configure(config)
     })
     .bind(format!("{}:{}", host, port))?
