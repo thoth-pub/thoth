@@ -2,7 +2,6 @@ use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
-#[cfg(feature = "backend")]
 use thoth_errors::{ThothError, ThothResult};
 #[cfg(feature = "backend")]
 use uuid::Uuid;
