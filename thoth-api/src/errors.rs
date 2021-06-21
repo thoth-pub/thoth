@@ -41,6 +41,10 @@ pub enum ThothError {
         _0
     )]
     DoiParseError(String),
+    #[fail(display = "Cannot parse ORCID: no value provided")]
+    OrcidEmptyError,
+    #[fail(display = "Cannot parse DOI: no value provided")]
+    DoiEmptyError,
 }
 
 impl juniper::IntoFieldError for ThothError {

@@ -1,4 +1,5 @@
 use thoth_api::contributor::model::Contributor;
+use thoth_api::errors::ThothError;
 use thoth_api::model::{Orcid, ORCID_DOMAIN};
 use yew::html;
 use yew::prelude::*;
@@ -219,15 +220,18 @@ impl Component for NewContributorComponent {
             Msg::ChangeOrcid(value) => {
                 if self.orcid.neq_assign(value.trim().to_owned()) {
                     // If ORCID is not correctly formatted, display a warning.
-                    // If no ORCID was provided, no format check is required.
                     // Don't update self.contributor.orcid yet, as user may later
                     // overwrite a new valid value with an invalid one.
                     self.orcid_warning.clear();
-                    if !self.orcid.is_empty() {
-                        match self.orcid.parse::<Orcid>() {
-                            Err(e) => self.orcid_warning = e.to_string(),
-                            Ok(value) => self.orcid = value.to_string(),
+                    match self.orcid.parse::<Orcid>() {
+                        Err(e) => {
+                            match e {
+                                // If no ORCID was provided, no warning is required.
+                                ThothError::OrcidEmptyError => {}
+                                _ => self.orcid_warning = e.to_string(),
+                            }
                         }
+                        Ok(value) => self.orcid = value.to_string(),
                     }
                     true
                 } else {

@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
+use thoth_api::errors::ThothError;
 use thoth_api::imprint::model::ImprintExtended as Imprint;
 use thoth_api::model::{Doi, DOI_DOMAIN};
 use thoth_api::work::model::WorkExtended as Work;
@@ -346,15 +347,18 @@ impl Component for NewWorkComponent {
             Msg::ChangeDoi(value) => {
                 if self.doi.neq_assign(value.trim().to_owned()) {
                     // If DOI is not correctly formatted, display a warning.
-                    // If no DOI was provided, no format check is required.
                     // Don't update self.work.doi yet, as user may later
                     // overwrite a new valid value with an invalid one.
                     self.doi_warning.clear();
-                    if !self.doi.is_empty() {
-                        match self.doi.parse::<Doi>() {
-                            Err(e) => self.doi_warning = e.to_string(),
-                            Ok(value) => self.doi = value.to_string(),
+                    match self.doi.parse::<Doi>() {
+                        Err(e) => {
+                            match e {
+                                // If no DOI was provided, no warning is required.
+                                ThothError::DoiEmptyError => {}
+                                _ => self.doi_warning = e.to_string(),
+                            }
                         }
+                        Ok(value) => self.doi = value.to_string(),
                     }
                     true
                 } else {

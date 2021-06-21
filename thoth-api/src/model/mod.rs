@@ -15,7 +15,7 @@ pub const ORCID_DOMAIN: &str = "https://orcid.org/";
     derive(DieselNewType, juniper::GraphQLScalarValue),
     graphql(
         description = r#"Digital Object Identifier. Expressed as `^https:\/\/doi\.org\/10\.\d{4,9}\/[-._\;\(\)\/:a-zA-Z0-9]+$`"#
-    ),
+    )
 )]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Doi(String);
@@ -92,7 +92,9 @@ impl FromStr for Doi {
             // (e.g. `;()/` do not need to be escaped here)
             r#"^(?i:(?:https?://)?(?:www\.)?(?:dx\.)?doi\.org/)?(10\.\d{4,9}/[-._;()/:a-zA-Z0-9]+$)"#).unwrap();
         }
-        if let Some(matches) = RE.captures(input) {
+        if input.is_empty() {
+            Err(ThothError::DoiEmptyError)
+        } else if let Some(matches) = RE.captures(input) {
             // The 0th capture always corresponds to the entire match
             if let Some(identifier) = matches.get(1) {
                 let standardised = format!("{}{}", DOI_DOMAIN, identifier.as_str());
@@ -124,7 +126,9 @@ impl FromStr for Orcid {
             // Corresponds to database constraints although regex syntax differs slightly
             r#"^(?i:(?:https?://)?(?:www\.)?orcid\.org/)?(0000-000(?:1-[5-9]|2-[0-9]|3-[0-4])\d{3}-\d{3}[\dX]$)"#).unwrap();
         }
-        if let Some(matches) = RE.captures(input) {
+        if input.is_empty() {
+            Err(ThothError::OrcidEmptyError)
+        } else if let Some(matches) = RE.captures(input) {
             // The 0th capture always corresponds to the entire match
             if let Some(identifier) = matches.get(1) {
                 let standardised = format!("{}{}", ORCID_DOMAIN, identifier.as_str());

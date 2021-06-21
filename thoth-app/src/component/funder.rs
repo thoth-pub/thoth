@@ -1,3 +1,4 @@
+use thoth_api::errors::ThothError;
 use thoth_api::funder::model::Funder;
 use thoth_api::model::{Doi, DOI_DOMAIN};
 use uuid::Uuid;
@@ -283,15 +284,18 @@ impl Component for FunderComponent {
             Msg::ChangeFunderDoi(value) => {
                 if self.funder_doi.neq_assign(value.trim().to_owned()) {
                     // If DOI is not correctly formatted, display a warning.
-                    // If no DOI was provided, no format check is required.
                     // Don't update self.funder.funder_doi yet, as user may later
                     // overwrite a new valid value with an invalid one.
                     self.funder_doi_warning.clear();
-                    if !self.funder_doi.is_empty() {
-                        match self.funder_doi.parse::<Doi>() {
-                            Err(e) => self.funder_doi_warning = e.to_string(),
-                            Ok(value) => self.funder_doi = value.to_string(),
+                    match self.funder_doi.parse::<Doi>() {
+                        Err(e) => {
+                            match e {
+                                // If no DOI was provided, no warning is required.
+                                ThothError::DoiEmptyError => {}
+                                _ => self.funder_doi_warning = e.to_string(),
+                            }
                         }
+                        Ok(value) => self.funder_doi = value.to_string(),
                     }
                     true
                 } else {
