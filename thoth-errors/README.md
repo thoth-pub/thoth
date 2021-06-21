@@ -4,7 +4,7 @@
   <h1>Thoth Errors</h1>
 
   <p>
-    <strong>Errors library for <a href="https://github.com/thoth-pub/thoth/">Thoth</a>'s, metadata management and dissemination system</strong>
+    <strong>Errors library for <a href="https://github.com/thoth-pub/thoth/">Thoth</a>, metadata management and dissemination system</strong>
   </p>
 
   <p>
