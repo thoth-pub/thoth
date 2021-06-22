@@ -6,9 +6,11 @@ extern crate diesel;
 extern crate diesel_derive_enum;
 #[cfg(feature = "backend")]
 #[macro_use]
+extern crate diesel_derive_newtype;
+#[cfg(feature = "backend")]
+#[macro_use]
 extern crate diesel_migrations;
 extern crate dotenv;
-#[macro_use]
 extern crate juniper;
 
 pub mod account;
@@ -16,7 +18,6 @@ pub mod contribution;
 pub mod contributor;
 #[cfg(feature = "backend")]
 pub mod db;
-pub mod errors;
 pub mod funder;
 pub mod funding;
 pub mod graphql;

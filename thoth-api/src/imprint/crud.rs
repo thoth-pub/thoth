@@ -2,7 +2,6 @@ use super::model::{
     Imprint, ImprintField, ImprintHistory, ImprintOrderBy, NewImprint, NewImprintHistory,
     PatchImprint,
 };
-use crate::errors::{ThothError, ThothResult};
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{imprint, imprint_history};
@@ -10,6 +9,8 @@ use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
+use thoth_errors::{ThothError, ThothResult};
+use uuid::Uuid;
 
 impl Crud for Imprint {
     type NewEntity = NewImprint;
@@ -18,7 +19,7 @@ impl Crud for Imprint {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
 
-    fn pk(&self) -> uuid::Uuid {
+    fn pk(&self) -> Uuid {
         self.imprint_id
     }
 
@@ -28,9 +29,9 @@ impl Crud for Imprint {
         offset: i32,
         filter: Option<String>,
         order: Self::OrderByEntity,
-        publishers: Vec<uuid::Uuid>,
-        parent_id_1: Option<uuid::Uuid>,
-        _: Option<uuid::Uuid>,
+        publishers: Vec<Uuid>,
+        parent_id_1: Option<Uuid>,
+        _: Option<Uuid>,
         _: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Imprint>> {
@@ -89,7 +90,7 @@ impl Crud for Imprint {
     fn count(
         db: &crate::db::PgPool,
         filter: Option<String>,
-        publishers: Vec<uuid::Uuid>,
+        publishers: Vec<Uuid>,
         _: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
@@ -120,13 +121,17 @@ impl Crud for Imprint {
         }
     }
 
+    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        Ok(self.publisher_id)
+    }
+
     crud_methods!(imprint::table, imprint::dsl::imprint);
 }
 
 impl HistoryEntry for Imprint {
     type NewHistoryEntity = NewImprintHistory;
 
-    fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             imprint_id: self.imprint_id,
             account_id: *account_id,
@@ -145,19 +150,6 @@ impl DbInsert for NewImprintHistory {
 mod tests {
     use super::*;
 
-    impl Default for Imprint {
-        fn default() -> Self {
-            Imprint {
-                imprint_id: Default::default(),
-                publisher_id: Default::default(),
-                imprint_name: Default::default(),
-                imprint_url: Default::default(),
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-            }
-        }
-    }
-
     #[test]
     fn test_imprint_pk() {
         let imprint: Imprint = Default::default();
@@ -167,7 +159,7 @@ mod tests {
     #[test]
     fn test_new_imprint_history_from_imprint() {
         let imprint: Imprint = Default::default();
-        let account_id: uuid::Uuid = Default::default();
+        let account_id: Uuid = Default::default();
         let new_imprint_history = imprint.new_history_entry(&account_id);
         assert_eq!(new_imprint_history.imprint_id, imprint.imprint_id);
         assert_eq!(new_imprint_history.account_id, account_id);

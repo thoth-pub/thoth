@@ -1,7 +1,4 @@
 use chrono::naive::NaiveDate;
-use chrono::DateTime;
-use chrono::Utc;
-use diesel::prelude::*;
 use juniper::FieldResult;
 use juniper::RootNode;
 use std::sync::Arc;
@@ -12,20 +9,22 @@ use crate::account::model::DecodedToken;
 use crate::contribution::model::*;
 use crate::contributor::model::*;
 use crate::db::PgPool;
-use crate::errors::ThothError;
-use crate::errors::ThothResult;
 use crate::funder::model::*;
 use crate::funding::model::*;
 use crate::imprint::model::*;
 use crate::issue::model::*;
 use crate::language::model::*;
 use crate::model::Crud;
+use crate::model::Doi;
+use crate::model::Orcid;
+use crate::model::Timestamp;
 use crate::price::model::*;
 use crate::publication::model::*;
 use crate::publisher::model::*;
 use crate::series::model::*;
 use crate::subject::model::*;
 use crate::work::model::*;
+use thoth_errors::{ThothError, ThothResult};
 
 use super::utils::Direction;
 
@@ -152,16 +151,8 @@ impl QueryRoot {
     }
 
     #[graphql(description = "Query a single work using its DOI")]
-    fn work_by_doi(context: &Context, doi: String) -> FieldResult<Work> {
-        let connection = context.db.get().unwrap();
-        use diesel::sql_types::Nullable;
-        use diesel::sql_types::Text;
-        // Allow case-insensitive searching (DOIs in database may have mixed casing)
-        sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
-        crate::schema::work::dsl::work
-            .filter(lower(crate::schema::work::dsl::doi).eq(doi.to_lowercase()))
-            .get_result::<Work>(&connection)
-            .map_err(|e| e.into())
+    fn work_by_doi(context: &Context, doi: Doi) -> FieldResult<Work> {
+        Work::from_doi(&context.db, doi).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -944,7 +935,9 @@ pub struct MutationRoot;
 impl MutationRoot {
     fn create_work(context: &Context, data: NewWork) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_imprint(data.imprint_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
 
         Work::create(&context.db, &data).map_err(|e| e.into())
     }
@@ -973,36 +966,47 @@ impl MutationRoot {
 
     fn create_contribution(context: &Context, data: NewContribution) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
         Contribution::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_publication(context: &Context, data: NewPublication) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
         Publication::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_series(context: &Context, data: NewSeries) -> FieldResult<Series> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_imprint(data.imprint_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
 
         Series::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_issue(context: &Context, data: NewIssue) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
-        issue_imprints_match(data.work_id, data.series_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+
+        data.imprints_match(&context.db)?;
 
         Issue::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_language(context: &Context, data: NewLanguage) -> FieldResult<Language> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
         Language::create(&context.db, &data).map_err(|e| e.into())
     }
@@ -1014,21 +1018,30 @@ impl MutationRoot {
 
     fn create_funding(context: &Context, data: NewFunding) -> FieldResult<Funding> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
         Funding::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_price(context: &Context, data: NewPrice) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_publication(data.publication_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_publication_id(
+                &context.db,
+                data.publication_id,
+            )?)?;
 
         Price::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_subject(context: &Context, data: NewSubject) -> FieldResult<Subject> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
         check_subject(&data.subject_type, &data.subject_code)?;
 
@@ -1037,12 +1050,16 @@ impl MutationRoot {
 
     fn update_work(context: &Context, data: PatchWork) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_imprint(data.imprint_id, context)?;
-
         let work = Work::from_id(&context.db, &data.work_id).unwrap();
+        context
+            .account_access
+            .can_edit(work.publisher_id(&context.db)?)?;
+
         if !(data.imprint_id == work.imprint_id) {
-            user_can_edit_imprint(work.imprint_id, context)?;
-            can_update_work_imprint(work.work_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
+            work.can_update_imprint(&context.db)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         work.update(&context.db, &data, &account_id)
@@ -1051,11 +1068,11 @@ impl MutationRoot {
 
     fn update_publisher(context: &Context, data: PatchPublisher) -> FieldResult<Publisher> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        context.account_access.can_edit(data.publisher_id)?;
-
         let publisher = Publisher::from_id(&context.db, &data.publisher_id).unwrap();
+        context.account_access.can_edit(publisher.publisher_id)?;
+
         if !(data.publisher_id == publisher.publisher_id) {
-            context.account_access.can_edit(publisher.publisher_id)?;
+            context.account_access.can_edit(data.publisher_id)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         publisher
@@ -1065,11 +1082,13 @@ impl MutationRoot {
 
     fn update_imprint(context: &Context, data: PatchImprint) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        context.account_access.can_edit(data.publisher_id)?;
-
         let imprint = Imprint::from_id(&context.db, &data.imprint_id).unwrap();
+        context
+            .account_access
+            .can_edit(imprint.publisher_id(&context.db)?)?;
+
         if !(data.publisher_id == imprint.publisher_id) {
-            context.account_access.can_edit(imprint.publisher_id)?;
+            context.account_access.can_edit(data.publisher_id)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         imprint
@@ -1091,11 +1110,15 @@ impl MutationRoot {
         data: PatchContribution,
     ) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
-
         let contribution = Contribution::from_id(&context.db, &data.contribution_id).unwrap();
+        context
+            .account_access
+            .can_edit(contribution.publisher_id(&context.db)?)?;
+
         if !(data.work_id == contribution.work_id) {
-            user_can_edit_work(contribution.work_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         contribution
@@ -1105,11 +1128,15 @@ impl MutationRoot {
 
     fn update_publication(context: &Context, data: PatchPublication) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
-
         let publication = Publication::from_id(&context.db, &data.publication_id).unwrap();
+        context
+            .account_access
+            .can_edit(publication.publisher_id(&context.db)?)?;
+
         if !(data.work_id == publication.work_id) {
-            user_can_edit_work(publication.work_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         publication
@@ -1119,11 +1146,15 @@ impl MutationRoot {
 
     fn update_series(context: &Context, data: PatchSeries) -> FieldResult<Series> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_imprint(data.imprint_id, context)?;
-
         let series = Series::from_id(&context.db, &data.series_id).unwrap();
+        context
+            .account_access
+            .can_edit(series.publisher_id(&context.db)?)?;
+
         if !(data.imprint_id == series.imprint_id) {
-            user_can_edit_imprint(series.imprint_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         series
@@ -1133,12 +1164,17 @@ impl MutationRoot {
 
     fn update_issue(context: &Context, data: PatchIssue) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
-        issue_imprints_match(data.work_id, data.series_id, context)?;
-
         let issue = Issue::from_id(&context.db, &data.issue_id).unwrap();
+        context
+            .account_access
+            .can_edit(issue.publisher_id(&context.db)?)?;
+
+        data.imprints_match(&context.db)?;
+
         if !(data.work_id == issue.work_id) {
-            user_can_edit_work(issue.work_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         issue
@@ -1148,11 +1184,15 @@ impl MutationRoot {
 
     fn update_language(context: &Context, data: PatchLanguage) -> FieldResult<Language> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
-
         let language = Language::from_id(&context.db, &data.language_id).unwrap();
+        context
+            .account_access
+            .can_edit(language.publisher_id(&context.db)?)?;
+
         if !(data.work_id == language.work_id) {
-            user_can_edit_work(language.work_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
@@ -1172,11 +1212,15 @@ impl MutationRoot {
 
     fn update_funding(context: &Context, data: PatchFunding) -> FieldResult<Funding> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
-
         let funding = Funding::from_id(&context.db, &data.funding_id).unwrap();
+        context
+            .account_access
+            .can_edit(funding.publisher_id(&context.db)?)?;
+
         if !(data.work_id == funding.work_id) {
-            user_can_edit_work(funding.work_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
@@ -1187,11 +1231,18 @@ impl MutationRoot {
 
     fn update_price(context: &Context, data: PatchPrice) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_publication(data.publication_id, context)?;
-
         let price = Price::from_id(&context.db, &data.price_id).unwrap();
+        context
+            .account_access
+            .can_edit(price.publisher_id(&context.db)?)?;
+
         if !(data.publication_id == price.publication_id) {
-            user_can_edit_publication(price.publication_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_publication_id(
+                    &context.db,
+                    data.publication_id,
+                )?)?;
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
@@ -1202,11 +1253,15 @@ impl MutationRoot {
 
     fn update_subject(context: &Context, data: PatchSubject) -> FieldResult<Subject> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(data.work_id, context)?;
-
         let subject = Subject::from_id(&context.db, &data.subject_id).unwrap();
+        context
+            .account_access
+            .can_edit(subject.publisher_id(&context.db)?)?;
+
         if !(data.work_id == subject.work_id) {
-            user_can_edit_work(subject.work_id, context)?;
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
 
         check_subject(&data.subject_type, &data.subject_code)?;
@@ -1219,28 +1274,28 @@ impl MutationRoot {
 
     fn delete_work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_work(work_id, context)?;
+        let work = Work::from_id(&context.db, &work_id).unwrap();
+        context
+            .account_access
+            .can_edit(work.publisher_id(&context.db)?)?;
 
-        Work::from_id(&context.db, &work_id)
-            .unwrap()
-            .delete(&context.db)
-            .map_err(|e| e.into())
+        work.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_publisher(context: &Context, publisher_id: Uuid) -> FieldResult<Publisher> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let publisher = Publisher::from_id(&context.db, &publisher_id).unwrap();
         context.account_access.can_edit(publisher_id)?;
 
-        Publisher::from_id(&context.db, &publisher_id)
-            .unwrap()
-            .delete(&context.db)
-            .map_err(|e| e.into())
+        publisher.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_imprint(context: &Context, imprint_id: Uuid) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let imprint = Imprint::from_id(&context.db, &imprint_id).unwrap();
-        context.account_access.can_edit(imprint.publisher_id)?;
+        context
+            .account_access
+            .can_edit(imprint.publisher_id(&context.db)?)?;
 
         imprint.delete(&context.db).map_err(|e| e.into())
     }
@@ -1256,25 +1311,29 @@ impl MutationRoot {
     fn delete_contribution(context: &Context, contribution_id: Uuid) -> FieldResult<Contribution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let contribution = Contribution::from_id(&context.db, &contribution_id).unwrap();
-        user_can_edit_work(contribution.work_id, context)?;
+        context
+            .account_access
+            .can_edit(contribution.publisher_id(&context.db)?)?;
 
         contribution.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_publication(context: &Context, publication_id: Uuid) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        user_can_edit_publication(publication_id, context)?;
+        let publication = Publication::from_id(&context.db, &publication_id).unwrap();
+        context
+            .account_access
+            .can_edit(publication.publisher_id(&context.db)?)?;
 
-        Publication::from_id(&context.db, &publication_id)
-            .unwrap()
-            .delete(&context.db)
-            .map_err(|e| e.into())
+        publication.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_series(context: &Context, series_id: Uuid) -> FieldResult<Series> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let series = Series::from_id(&context.db, &series_id).unwrap();
-        user_can_edit_imprint(series.imprint_id, context)?;
+        context
+            .account_access
+            .can_edit(series.publisher_id(&context.db)?)?;
 
         series.delete(&context.db).map_err(|e| e.into())
     }
@@ -1282,7 +1341,9 @@ impl MutationRoot {
     fn delete_issue(context: &Context, issue_id: Uuid) -> FieldResult<Issue> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let issue = Issue::from_id(&context.db, &issue_id).unwrap();
-        user_can_edit_work(issue.work_id, context)?;
+        context
+            .account_access
+            .can_edit(issue.publisher_id(&context.db)?)?;
 
         issue.delete(&context.db).map_err(|e| e.into())
     }
@@ -1290,7 +1351,9 @@ impl MutationRoot {
     fn delete_language(context: &Context, language_id: Uuid) -> FieldResult<Language> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let language = Language::from_id(&context.db, &language_id).unwrap();
-        user_can_edit_work(language.work_id, context)?;
+        context
+            .account_access
+            .can_edit(language.publisher_id(&context.db)?)?;
 
         language.delete(&context.db).map_err(|e| e.into())
     }
@@ -1306,7 +1369,9 @@ impl MutationRoot {
     fn delete_funding(context: &Context, funding_id: Uuid) -> FieldResult<Funding> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let funding = Funding::from_id(&context.db, &funding_id).unwrap();
-        user_can_edit_work(funding.work_id, context)?;
+        context
+            .account_access
+            .can_edit(funding.publisher_id(&context.db)?)?;
 
         funding.delete(&context.db).map_err(|e| e.into())
     }
@@ -1314,7 +1379,9 @@ impl MutationRoot {
     fn delete_price(context: &Context, price_id: Uuid) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let price = Price::from_id(&context.db, &price_id).unwrap();
-        user_can_edit_publication(price.publication_id, context)?;
+        context
+            .account_access
+            .can_edit(price.publisher_id(&context.db)?)?;
 
         price.delete(&context.db).map_err(|e| e.into())
     }
@@ -1322,7 +1389,9 @@ impl MutationRoot {
     fn delete_subject(context: &Context, subject_id: Uuid) -> FieldResult<Subject> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let subject = Subject::from_id(&context.db, &subject_id).unwrap();
-        user_can_edit_work(subject.work_id, context)?;
+        context
+            .account_access
+            .can_edit(subject.publisher_id(&context.db)?)?;
 
         subject.delete(&context.db).map_err(|e| e.into())
     }
@@ -1369,7 +1438,7 @@ impl Work {
     #[graphql(
         description = "Digital Object Identifier of the work as full URL. It must use the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.11647/obp.0001)"
     )]
-    pub fn doi(&self) -> Option<&String> {
+    pub fn doi(&self) -> Option<&Doi> {
         self.doi.as_ref()
     }
 
@@ -1457,12 +1526,12 @@ impl Work {
         self.cover_caption.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn imprint(&self, context: &Context) -> FieldResult<Imprint> {
@@ -1740,12 +1809,12 @@ impl Publication {
         self.publication_url.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     #[graphql(
@@ -1811,12 +1880,12 @@ impl Publisher {
         self.publisher_url.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     #[graphql(
@@ -1877,12 +1946,12 @@ impl Imprint {
         self.imprint_url.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn publisher(&self, context: &Context) -> FieldResult<Publisher> {
@@ -1960,7 +2029,7 @@ impl Contributor {
         &self.full_name
     }
 
-    pub fn orcid(&self) -> Option<&String> {
+    pub fn orcid(&self) -> Option<&Orcid> {
         self.orcid.as_ref()
     }
 
@@ -1968,12 +2037,12 @@ impl Contributor {
         self.website.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     #[graphql(
@@ -2047,12 +2116,12 @@ impl Contribution {
         self.institution.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn first_name(&self) -> Option<&String> {
@@ -2102,12 +2171,12 @@ impl Series {
         self.series_url.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn imprint(&self, context: &Context) -> FieldResult<Imprint> {
@@ -2171,12 +2240,12 @@ impl Issue {
         &self.issue_ordinal
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn series(&self, context: &Context) -> FieldResult<Series> {
@@ -2210,12 +2279,12 @@ impl Language {
         self.main_language
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
@@ -2241,12 +2310,12 @@ impl Price {
         self.unit_price
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn publication(&self, context: &Context) -> FieldResult<Publication> {
@@ -2276,12 +2345,12 @@ impl Subject {
         &self.subject_ordinal
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
@@ -2299,16 +2368,16 @@ impl Funder {
         &self.funder_name
     }
 
-    pub fn funder_doi(&self) -> Option<&String> {
+    pub fn funder_doi(&self) -> Option<&Doi> {
         self.funder_doi.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     #[graphql(
@@ -2384,12 +2453,12 @@ impl Funding {
         self.jurisdiction.as_ref()
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
     }
 
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
     }
 
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
@@ -2407,75 +2476,17 @@ pub fn create_schema() -> Schema {
     Schema::new(QueryRoot {}, MutationRoot {})
 }
 
-fn user_can_edit_imprint(imprint_id: Uuid, context: &Context) -> ThothResult<()> {
-    use crate::schema::imprint::dsl;
-    let pub_id = dsl::imprint
-        .select(dsl::publisher_id)
-        .filter(dsl::imprint_id.eq(imprint_id))
-        .first::<Uuid>(&context.db.get().unwrap())
-        .expect("Error checking permissions");
-    context.account_access.can_edit(pub_id)
+fn publisher_id_from_imprint_id(db: &crate::db::PgPool, imprint_id: Uuid) -> ThothResult<Uuid> {
+    Imprint::from_id(db, &imprint_id)?.publisher_id(db)
 }
 
-fn user_can_edit_work(work_id: Uuid, context: &Context) -> ThothResult<()> {
-    use crate::schema::imprint::dsl::*;
-    let pub_id = imprint
-        .inner_join(crate::schema::work::table)
-        .select(publisher_id)
-        .filter(crate::schema::work::work_id.eq(work_id))
-        .first::<Uuid>(&context.db.get().unwrap())
-        .expect("Error checking permissions");
-    context.account_access.can_edit(pub_id)
+fn publisher_id_from_work_id(db: &crate::db::PgPool, work_id: Uuid) -> ThothResult<Uuid> {
+    Work::from_id(db, &work_id)?.publisher_id(db)
 }
 
-fn user_can_edit_publication(publication_id: Uuid, context: &Context) -> ThothResult<()> {
-    use crate::schema::imprint::dsl::*;
-    let pub_id = imprint
-        .inner_join(crate::schema::work::table.inner_join(crate::schema::publication::table))
-        .select(publisher_id)
-        .filter(crate::schema::publication::publication_id.eq(publication_id))
-        .first::<Uuid>(&context.db.get().unwrap())
-        .expect("Error checking permissions");
-    context.account_access.can_edit(pub_id)
-}
-
-fn issue_imprints_match(work_id: Uuid, series_id: Uuid, context: &Context) -> ThothResult<()> {
-    let series_imprint = crate::schema::series::table
-        .select(crate::schema::series::imprint_id)
-        .filter(crate::schema::series::series_id.eq(series_id))
-        .first::<Uuid>(&context.db.get().unwrap())
-        .expect("Error loading series for issue");
-    let work_imprint = crate::schema::work::table
-        .select(crate::schema::work::imprint_id)
-        .filter(crate::schema::work::work_id.eq(work_id))
-        .first::<Uuid>(&context.db.get().unwrap())
-        .expect("Error loading work for issue");
-    if work_imprint == series_imprint {
-        Ok(())
-    } else {
-        Err(ThothError::IssueImprintsError)
-    }
-}
-
-fn can_update_work_imprint(work_id: Uuid, context: &Context) -> ThothResult<()> {
-    use crate::schema::issue::dsl;
-    // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
-    // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
-    // is converting i64 to string and then parsing it as i32. This should work until we reach
-    // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-    let issue_count = dsl::issue
-        .filter(dsl::work_id.eq(work_id))
-        .count()
-        .get_result::<i64>(&context.db.get().unwrap())
-        .expect("Error loading issue count for work")
-        .to_string()
-        .parse::<i32>()
-        .unwrap();
-    // If a work has any related issues, its imprint cannot be changed,
-    // because an issue's series and work must both have the same imprint.
-    if issue_count == 0 {
-        Ok(())
-    } else {
-        Err(ThothError::IssueImprintsError)
-    }
+fn publisher_id_from_publication_id(
+    db: &crate::db::PgPool,
+    publication_id: Uuid,
+) -> ThothResult<Uuid> {
+    Publication::from_id(db, &publication_id)?.publisher_id(db)
 }

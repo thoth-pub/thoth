@@ -1,10 +1,9 @@
-use chrono::DateTime;
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
+use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::price;
 #[cfg(feature = "backend")]
@@ -25,15 +24,15 @@ pub enum PriceField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Price {
     pub price_id: Uuid,
     pub publication_id: Uuid,
     pub currency_code: CurrencyCode,
     pub unit_price: f64,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 #[cfg_attr(
@@ -376,7 +375,7 @@ pub struct PriceHistory {
     pub price_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Timestamp,
 }
 
 #[cfg_attr(feature = "backend", derive(Insertable), table_name = "price_history")]
@@ -384,19 +383,6 @@ pub struct NewPriceHistory {
     pub price_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-}
-
-impl Default for Price {
-    fn default() -> Price {
-        Price {
-            price_id: Default::default(),
-            publication_id: Default::default(),
-            currency_code: Default::default(),
-            unit_price: 0.00,
-            created_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-        }
-    }
 }
 
 impl Default for CurrencyCode {

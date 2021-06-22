@@ -2,13 +2,14 @@ use super::model::{
     Language, LanguageCode, LanguageField, LanguageHistory, LanguageRelation, NewLanguage,
     NewLanguageHistory, PatchLanguage,
 };
-use crate::errors::{ThothError, ThothResult};
 use crate::graphql::model::LanguageOrderBy;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{language, language_history};
 use crate::{crud_methods, db_insert};
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use thoth_errors::{ThothError, ThothResult};
+use uuid::Uuid;
 
 impl Crud for Language {
     type NewEntity = NewLanguage;
@@ -17,7 +18,7 @@ impl Crud for Language {
     type FilterParameter1 = LanguageCode;
     type FilterParameter2 = LanguageRelation;
 
-    fn pk(&self) -> uuid::Uuid {
+    fn pk(&self) -> Uuid {
         self.language_id
     }
 
@@ -27,9 +28,9 @@ impl Crud for Language {
         offset: i32,
         _: Option<String>,
         order: Self::OrderByEntity,
-        publishers: Vec<uuid::Uuid>,
-        parent_id_1: Option<uuid::Uuid>,
-        _: Option<uuid::Uuid>,
+        publishers: Vec<Uuid>,
+        parent_id_1: Option<Uuid>,
+        _: Option<Uuid>,
         language_code: Option<Self::FilterParameter1>,
         language_relation: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Language>> {
@@ -106,7 +107,7 @@ impl Crud for Language {
     fn count(
         db: &crate::db::PgPool,
         _: Option<String>,
-        _: Vec<uuid::Uuid>,
+        _: Vec<Uuid>,
         language_code: Option<Self::FilterParameter1>,
         language_relation: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
@@ -129,13 +130,17 @@ impl Crud for Language {
         }
     }
 
+    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        crate::work::model::Work::from_id(db, &self.work_id)?.publisher_id(db)
+    }
+
     crud_methods!(language::table, language::dsl::language);
 }
 
 impl HistoryEntry for Language {
     type NewHistoryEntity = NewLanguageHistory;
 
-    fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             language_id: self.language_id,
             account_id: *account_id,
@@ -163,7 +168,7 @@ mod tests {
     #[test]
     fn test_new_language_history_from_language() {
         let language: Language = Default::default();
-        let account_id: uuid::Uuid = Default::default();
+        let account_id: Uuid = Default::default();
         let new_language_history = language.new_history_entry(&account_id);
         assert_eq!(new_language_history.language_id, language.language_id);
         assert_eq!(new_language_history.account_id, account_id);

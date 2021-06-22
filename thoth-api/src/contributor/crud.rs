@@ -2,7 +2,6 @@ use super::model::{
     Contributor, ContributorField, ContributorHistory, ContributorOrderBy, NewContributor,
     NewContributorHistory, PatchContributor,
 };
-use crate::errors::{ThothError, ThothResult};
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{contributor, contributor_history};
@@ -10,6 +9,8 @@ use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
+use thoth_errors::{ThothError, ThothResult};
+use uuid::Uuid;
 
 impl Crud for Contributor {
     type NewEntity = NewContributor;
@@ -18,7 +19,7 @@ impl Crud for Contributor {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
 
-    fn pk(&self) -> uuid::Uuid {
+    fn pk(&self) -> Uuid {
         self.contributor_id
     }
 
@@ -28,9 +29,9 @@ impl Crud for Contributor {
         offset: i32,
         filter: Option<String>,
         order: Self::OrderByEntity,
-        _: Vec<uuid::Uuid>,
-        _: Option<uuid::Uuid>,
-        _: Option<uuid::Uuid>,
+        _: Vec<Uuid>,
+        _: Option<Uuid>,
+        _: Option<Uuid>,
         _: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Contributor>> {
@@ -92,7 +93,7 @@ impl Crud for Contributor {
     fn count(
         db: &crate::db::PgPool,
         filter: Option<String>,
-        _: Vec<uuid::Uuid>,
+        _: Vec<Uuid>,
         _: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
@@ -117,13 +118,19 @@ impl Crud for Contributor {
         }
     }
 
+    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        Err(ThothError::InternalError(
+            "Method publisher_id() is not supported for Contributor objects".to_string(),
+        ))
+    }
+
     crud_methods!(contributor::table, contributor::dsl::contributor);
 }
 
 impl HistoryEntry for Contributor {
     type NewHistoryEntity = NewContributorHistory;
 
-    fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             contributor_id: self.contributor_id,
             account_id: *account_id,
@@ -151,7 +158,7 @@ mod tests {
     #[test]
     fn test_new_contributor_history_from_contributor() {
         let contributor: Contributor = Default::default();
-        let account_id: uuid::Uuid = Default::default();
+        let account_id: Uuid = Default::default();
         let new_contributor_history = contributor.new_history_entry(&account_id);
         assert_eq!(
             new_contributor_history.contributor_id,

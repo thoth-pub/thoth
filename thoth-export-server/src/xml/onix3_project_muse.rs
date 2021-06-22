@@ -9,7 +9,8 @@ use xml::writer::{EventWriter, XmlEvent};
 
 use super::{write_element_block, XmlElement, XmlSpecification};
 use crate::xml::{write_full_element_block, XmlElementBlock};
-use thoth_api::errors::{ThothError, ThothResult};
+use thoth_api::model::DOI_DOMAIN;
+use thoth_errors::{ThothError, ThothResult};
 
 pub struct Onix3ProjectMuse {}
 
@@ -106,7 +107,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                             w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
                         })?;
                         write_element_block("IDValue", w, |w| {
-                            w.write(XmlEvent::Characters(&doi.replace("https://doi.org/", "")))
+                            w.write(XmlEvent::Characters(&doi.replace(DOI_DOMAIN, "")))
                                 .map_err(|e| e.into())
                         })
                     })?;

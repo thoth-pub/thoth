@@ -1,7 +1,6 @@
 use super::model::{
     Funder, FunderField, FunderHistory, FunderOrderBy, NewFunder, NewFunderHistory, PatchFunder,
 };
-use crate::errors::{ThothError, ThothResult};
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{funder, funder_history};
@@ -9,6 +8,8 @@ use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
+use thoth_errors::{ThothError, ThothResult};
+use uuid::Uuid;
 
 impl Crud for Funder {
     type NewEntity = NewFunder;
@@ -17,7 +18,7 @@ impl Crud for Funder {
     type FilterParameter1 = ();
     type FilterParameter2 = ();
 
-    fn pk(&self) -> uuid::Uuid {
+    fn pk(&self) -> Uuid {
         self.funder_id
     }
 
@@ -27,9 +28,9 @@ impl Crud for Funder {
         offset: i32,
         filter: Option<String>,
         order: Self::OrderByEntity,
-        _: Vec<uuid::Uuid>,
-        _: Option<uuid::Uuid>,
-        _: Option<uuid::Uuid>,
+        _: Vec<Uuid>,
+        _: Option<Uuid>,
+        _: Option<Uuid>,
         _: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Funder>> {
@@ -79,7 +80,7 @@ impl Crud for Funder {
     fn count(
         db: &crate::db::PgPool,
         filter: Option<String>,
-        _: Vec<uuid::Uuid>,
+        _: Vec<Uuid>,
         _: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
@@ -104,13 +105,19 @@ impl Crud for Funder {
         }
     }
 
+    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        Err(ThothError::InternalError(
+            "Method publisher_id() is not supported for Funder objects".to_string(),
+        ))
+    }
+
     crud_methods!(funder::table, funder::dsl::funder);
 }
 
 impl HistoryEntry for Funder {
     type NewHistoryEntity = NewFunderHistory;
 
-    fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             funder_id: self.funder_id,
             account_id: *account_id,
@@ -138,7 +145,7 @@ mod tests {
     #[test]
     fn test_new_funder_history_from_funder() {
         let funder: Funder = Default::default();
-        let account_id: uuid::Uuid = Default::default();
+        let account_id: Uuid = Default::default();
         let new_funder_history = funder.new_history_entry(&account_id);
         assert_eq!(new_funder_history.funder_id, funder.funder_id);
         assert_eq!(new_funder_history.account_id, account_id);

@@ -1,6 +1,6 @@
 use semver::Version;
 use serde_json::Value;
-use thoth_api::errors::ThothError;
+use thoth_errors::ThothError;
 use yew::callback::Callback;
 use yew::format::Nothing;
 use yew::format::Text;

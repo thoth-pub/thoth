@@ -1,4 +1,6 @@
 use thoth_api::contributor::model::Contributor;
+use thoth_api::model::{Orcid, ORCID_DOMAIN};
+use thoth_errors::ThothError;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
@@ -16,7 +18,7 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormTextInput;
-use crate::component::utils::FormTextInputTooltip;
+use crate::component::utils::FormTextInputExtended;
 use crate::component::utils::FormUrlInput;
 use crate::models::contributor::contributors_query::ContributorsRequest;
 use crate::models::contributor::contributors_query::ContributorsRequestBody;
@@ -37,6 +39,9 @@ const MIN_FULLNAME_LEN: usize = 2;
 
 pub struct NewContributorComponent {
     contributor: Contributor,
+    // Track the user-entered ORCID string, which may not be validly formatted
+    orcid: String,
+    orcid_warning: String,
     push_contributor: PushCreateContributor,
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
@@ -69,12 +74,16 @@ impl Component for NewContributorComponent {
         let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
+        let orcid = Default::default();
+        let orcid_warning = Default::default();
         let show_duplicate_tooltip = false;
         let fetch_contributors = Default::default();
         let contributors = Default::default();
 
         NewContributorComponent {
             contributor,
+            orcid,
+            orcid_warning,
             push_contributor,
             link,
             router,
@@ -121,6 +130,14 @@ impl Component for NewContributorComponent {
                 }
             }
             Msg::CreateContributor => {
+                // Only update the ORCID value with the current user-entered string
+                // if it is validly formatted - otherwise keep the default.
+                // If no ORCID was provided, no format check is required.
+                if self.orcid.is_empty() {
+                    self.contributor.orcid.neq_assign(None);
+                } else if let Ok(result) = self.orcid.parse::<Orcid>() {
+                    self.contributor.orcid.neq_assign(Some(result));
+                }
                 let body = CreateContributorRequestBody {
                     variables: Variables {
                         first_name: self.contributor.first_name.clone(),
@@ -201,11 +218,25 @@ impl Component for NewContributorComponent {
                 }
             }
             Msg::ChangeOrcid(value) => {
-                let orcid = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.contributor.orcid.neq_assign(orcid)
+                if self.orcid.neq_assign(value.trim().to_owned()) {
+                    // If ORCID is not correctly formatted, display a warning.
+                    // Don't update self.contributor.orcid yet, as user may later
+                    // overwrite a new valid value with an invalid one.
+                    self.orcid_warning.clear();
+                    match self.orcid.parse::<Orcid>() {
+                        Err(e) => {
+                            match e {
+                                // If no ORCID was provided, no warning is required.
+                                ThothError::OrcidEmptyError => {}
+                                _ => self.orcid_warning = e.to_string(),
+                            }
+                        }
+                        Ok(value) => self.orcid = value.to_string(),
+                    }
+                    true
+                } else {
+                    false
+                }
             }
             Msg::ChangeWebsite(value) => {
                 let website = match value.trim().is_empty() {
@@ -265,7 +296,7 @@ impl Component for NewContributorComponent {
                         oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
                         required=true
                     />
-                    <FormTextInputTooltip
+                    <FormTextInputExtended
                         label = "Full Name"
                         value=self.contributor.full_name.clone()
                         tooltip=tooltip
@@ -274,9 +305,11 @@ impl Component for NewContributorComponent {
                         onblur=self.link.callback(|_| Msg::ToggleDuplicateTooltip(false))
                         required=true
                     />
-                    <FormUrlInput
-                        label = "ORCID (Full URL)"
-                        value=self.contributor.orcid.clone()
+                    <FormTextInputExtended
+                        label = "ORCID"
+                        statictext = ORCID_DOMAIN
+                        value=self.orcid.clone()
+                        tooltip=self.orcid_warning.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
                     />
                     <FormUrlInput

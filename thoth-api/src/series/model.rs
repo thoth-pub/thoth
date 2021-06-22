@@ -1,5 +1,3 @@
-use chrono::DateTime;
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use strum::Display;
@@ -8,6 +6,7 @@ use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
 use crate::imprint::model::ImprintExtended as Imprint;
+use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::series;
 #[cfg(feature = "backend")]
@@ -48,7 +47,7 @@ pub enum SeriesField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Series {
     pub series_id: Uuid,
     pub series_type: SeriesType,
@@ -57,11 +56,11 @@ pub struct Series {
     pub issn_digital: String,
     pub series_url: Option<String>,
     pub imprint_id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SeriesExtended {
     pub series_id: Uuid,
@@ -70,7 +69,7 @@ pub struct SeriesExtended {
     pub issn_print: String,
     pub issn_digital: String,
     pub series_url: Option<String>,
-    pub updated_at: DateTime<Utc>,
+    pub updated_at: Timestamp,
     pub imprint: Imprint,
 }
 
@@ -110,7 +109,7 @@ pub struct SeriesHistory {
     pub series_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Timestamp,
 }
 
 #[cfg_attr(feature = "backend", derive(Insertable), table_name = "series_history")]
@@ -125,7 +124,7 @@ pub struct NewSeriesHistory {
     derive(juniper::GraphQLInputObject),
     graphql(description = "Field and order to use when sorting seriess list")
 )]
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct SeriesOrderBy {
     pub field: SeriesField,
     pub direction: Direction,
@@ -140,21 +139,6 @@ impl Default for SeriesType {
 impl Default for SeriesField {
     fn default() -> Self {
         SeriesField::SeriesName
-    }
-}
-
-impl Default for SeriesExtended {
-    fn default() -> SeriesExtended {
-        SeriesExtended {
-            series_id: Default::default(),
-            series_type: Default::default(),
-            series_name: "".to_string(),
-            issn_print: "".to_string(),
-            issn_digital: "".to_string(),
-            series_url: None,
-            updated_at: chrono::TimeZone::timestamp(&Utc, 0, 0),
-            imprint: Default::default(),
-        }
     }
 }
 

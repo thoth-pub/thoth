@@ -1,11 +1,11 @@
 use csv::Writer;
 use serde::Serialize;
 use std::io::Write;
-use thoth_api::errors::ThothResult;
 use thoth_client::{
     SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages,
     WorkPublications, WorkPublicationsPrices, WorkSubjects,
 };
+use thoth_errors::ThothResult;
 
 use super::{CsvCell, CsvRow, CsvSpecification};
 

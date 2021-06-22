@@ -27,7 +27,12 @@ pub struct PublicationTypeValues {
 impl MetadataTable for Publication {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let isbn = &self.isbn.clone().unwrap_or_else(|| "".to_string());
-        let doi = &self.work.doi.clone().unwrap_or_else(|| "".to_string());
+        let doi = self
+            .work
+            .doi
+            .as_ref()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "".to_string());
         let publication_url = &self
             .publication_url
             .clone()
@@ -44,7 +49,7 @@ impl MetadataTable for Publication {
                 <td>{&self.publication_type}</td>
                 <td>{isbn}</td>
                 <td>{publication_url}</td>
-                <td>{&self.updated_at.format("%F %T")}</td>
+                <td>{&self.updated_at}</td>
             </tr>
         }
     }

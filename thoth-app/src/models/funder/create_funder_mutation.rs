@@ -1,11 +1,12 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::funder::model::Funder;
+use thoth_api::model::Doi;
 
 const CREATE_FUNDER_MUTATION: &str = "
     mutation CreateFunder(
         $funderName: String!,
-        $funderDoi: String
+        $funderDoi: Doi
     ) {
         createFunder(data: {
             funderName: $funderName
@@ -34,7 +35,7 @@ graphql_query_builder! {
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub funder_name: String,
-    pub funder_doi: Option<String>,
+    pub funder_doi: Option<Doi>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

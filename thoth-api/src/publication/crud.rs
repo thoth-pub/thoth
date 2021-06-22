@@ -2,7 +2,6 @@ use super::model::{
     NewPublication, NewPublicationHistory, PatchPublication, Publication, PublicationField,
     PublicationHistory, PublicationOrderBy, PublicationType,
 };
-use crate::errors::{ThothError, ThothResult};
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
@@ -10,6 +9,8 @@ use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
+use thoth_errors::{ThothError, ThothResult};
+use uuid::Uuid;
 
 impl Crud for Publication {
     type NewEntity = NewPublication;
@@ -18,7 +19,7 @@ impl Crud for Publication {
     type FilterParameter1 = PublicationType;
     type FilterParameter2 = ();
 
-    fn pk(&self) -> uuid::Uuid {
+    fn pk(&self) -> Uuid {
         self.publication_id
     }
 
@@ -28,9 +29,9 @@ impl Crud for Publication {
         offset: i32,
         filter: Option<String>,
         order: Self::OrderByEntity,
-        publishers: Vec<uuid::Uuid>,
-        parent_id_1: Option<uuid::Uuid>,
-        _: Option<uuid::Uuid>,
+        publishers: Vec<Uuid>,
+        parent_id_1: Option<Uuid>,
+        _: Option<Uuid>,
         publication_type: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Publication>> {
@@ -114,7 +115,7 @@ impl Crud for Publication {
     fn count(
         db: &crate::db::PgPool,
         filter: Option<String>,
-        publishers: Vec<uuid::Uuid>,
+        publishers: Vec<Uuid>,
         publication_type: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
@@ -162,13 +163,17 @@ impl Crud for Publication {
         }
     }
 
+    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        crate::work::model::Work::from_id(db, &self.work_id)?.publisher_id(db)
+    }
+
     crud_methods!(publication::table, publication::dsl::publication);
 }
 
 impl HistoryEntry for Publication {
     type NewHistoryEntity = NewPublicationHistory;
 
-    fn new_history_entry(&self, account_id: &uuid::Uuid) -> Self::NewHistoryEntity {
+    fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
             publication_id: self.publication_id,
             account_id: *account_id,
@@ -187,20 +192,6 @@ impl DbInsert for NewPublicationHistory {
 mod tests {
     use super::*;
 
-    impl Default for Publication {
-        fn default() -> Self {
-            Publication {
-                publication_id: Default::default(),
-                publication_type: Default::default(),
-                work_id: Default::default(),
-                isbn: Default::default(),
-                publication_url: Default::default(),
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-            }
-        }
-    }
-
     #[test]
     fn test_publication_pk() {
         let publication: Publication = Default::default();
@@ -210,7 +201,7 @@ mod tests {
     #[test]
     fn test_new_publication_history_from_publication() {
         let publication: Publication = Default::default();
-        let account_id: uuid::Uuid = Default::default();
+        let account_id: Uuid = Default::default();
         let new_publication_history = publication.new_history_entry(&account_id);
         assert_eq!(
             new_publication_history.publication_id,
