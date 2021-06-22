@@ -4,12 +4,21 @@ All notable changes to thoth will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [[0.4.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.4.0) - 2021-06-14
+## [[0.4.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.4.1) - 2021-06-22
+### Changed
+  - [#234](https://github.com/thoth-pub/thoth/issues/234) - Move database calls out of GraphQL model
+
+### Added
+  - [#136](https://github.com/thoth-pub/thoth/issues/135), [#233](https://github.com/thoth-pub/thoth/issues/233) - Implement `Doi` and `Orcid` types to standardise parsing
+  - `thoth-errors` crate to share `ThothError` and `ThothResult`
+
+## [[0.4.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.4.0) - 2021-06-15
 ### Changed
   - Updated `yew` to [`v0.18.0`](https://github.com/yewstack/yew/releases/tag/0.18.0)
   - Updated `actix-web` to [`3.3.2`](https://github.com/actix/actix-web/releases/tag/web-v3.3.2)
   - Catch client errors with `ThothError::EntityNotFound`
   - Use a custom instance of GaphiQL
+  - Unify `Work` output structure in client using GraphQL fragments
 
 ### Added
   - [#235](https://github.com/thoth-pub/thoth/issues/235) - Export API with openapi schema
