@@ -23,9 +23,14 @@ pub const PUBLICATION_QUERY: &str = "
                 workId
                 title
                 imprint {
+                    imprintId
+                    imprintName
+                    updatedAt
                     publisher {
                         publisherId
                         publisherName
+                        createdAt
+                        updatedAt
                     }
                 }
             }

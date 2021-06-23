@@ -74,9 +74,14 @@ const CREATE_WORK_MUTATION: &str = "
             workId
             title
             imprint {
+                imprintId
+                imprintName
+                updatedAt
                 publisher {
                     publisherId
                     publisherName
+                    createdAt
+                    updatedAt
                 }
             }
         }

@@ -8,7 +8,6 @@ use crate::contribution::model::Contribution;
 use crate::funding::model::FundingExtended as Funding;
 use crate::graphql::utils::Direction;
 use crate::imprint::model::ImprintExtended as Imprint;
-use crate::imprint::model::SlimImprint;
 use crate::issue::model::IssueExtended as Issue;
 use crate::language::model::Language;
 use crate::model::Doi;
@@ -201,7 +200,7 @@ pub struct WorkExtended {
 pub struct SlimWork {
     pub work_id: Uuid,
     pub title: String,
-    pub imprint: SlimImprint,
+    pub imprint: Imprint,
 }
 
 #[cfg_attr(

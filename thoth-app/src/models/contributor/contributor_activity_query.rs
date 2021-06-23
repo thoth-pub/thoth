@@ -13,9 +13,14 @@ pub const CONTRIBUTOR_ACTIVITY_QUERY: &str = "
                     workId
                     title
                     imprint {
+                        imprintId
+                        imprintName
+                        updatedAt
                         publisher {
                             publisherId
                             publisherName
+                            createdAt
+                            updatedAt
                         }
                     }
                 }

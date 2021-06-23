@@ -7,7 +7,6 @@ use uuid::Uuid;
 use crate::graphql::utils::Direction;
 use crate::model::Timestamp;
 use crate::publisher::model::Publisher;
-use crate::publisher::model::SlimPublisher;
 #[cfg(feature = "backend")]
 use crate::schema::imprint;
 #[cfg(feature = "backend")]
@@ -50,12 +49,6 @@ pub struct ImprintExtended {
     pub imprint_url: Option<String>,
     pub updated_at: Timestamp,
     pub publisher: Publisher,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimImprint {
-    pub publisher: SlimPublisher,
 }
 
 #[cfg_attr(
