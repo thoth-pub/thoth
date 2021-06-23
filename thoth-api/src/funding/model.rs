@@ -28,7 +28,8 @@ pub enum FundingField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Funding {
     pub funding_id: Uuid,
     pub work_id: Uuid,

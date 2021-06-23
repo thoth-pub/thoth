@@ -23,7 +23,8 @@ pub enum IssueField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Issue {
     pub issue_id: Uuid,
     pub series_id: Uuid,

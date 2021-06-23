@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::funding::model::Funding;
 use uuid::Uuid;
 
 const DELETE_FUNDING_MUTATION: &str = "
@@ -10,6 +11,10 @@ const DELETE_FUNDING_MUTATION: &str = "
             fundingId: $fundingId
         ){
             fundingId
+            workId
+            funderId
+            createdAt
+            updatedAt
         }
     }
 ";
@@ -33,12 +38,6 @@ pub struct Variables {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct SlimFunding {
-    pub funding_id: Uuid,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct DeleteFundingResponseData {
-    pub delete_funding: Option<SlimFunding>,
+    pub delete_funding: Option<Funding>,
 }
