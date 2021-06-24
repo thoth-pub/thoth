@@ -2171,6 +2171,10 @@ impl Series {
         self.series_url.as_ref()
     }
 
+    pub fn imprint_id(&self) -> Uuid {
+        self.imprint_id
+    }
+
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }

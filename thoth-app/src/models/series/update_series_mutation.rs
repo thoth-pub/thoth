@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::series::model::SeriesType;
-use thoth_api::series::model::SlimSeries;
+use thoth_api::series::model::Series;
 use uuid::Uuid;
 
 const UPDATE_SERIES_MUTATION: &str = "
@@ -24,7 +24,13 @@ const UPDATE_SERIES_MUTATION: &str = "
             imprintId: $imprintId
         }){
             seriesId
+            seriesType
             seriesName
+            issnPrint
+            issnDigital
+            imprintId
+            createdAt
+            updatedAt
         }
     }
 ";
@@ -55,5 +61,5 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSeriesResponseData {
-    pub update_series: Option<SlimSeries>,
+    pub update_series: Option<Series>,
 }

@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::series::model::SeriesExtended as Series;
+use thoth_api::series::model::Series;
+use thoth_api::series::model::SeriesExtended;
 use thoth_api::series::model::SeriesType;
-use thoth_api::series::model::SlimSeries;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -24,21 +24,27 @@ pub struct SeriesTypeValues {
     pub name: SeriesType,
 }
 
-impl Dropdown for Series {}
-
-impl CreateRoute for Series {
-    fn create_route() -> AppRoute {
-        AppRoute::Admin(AdminRoute::NewSeries)
-    }
-}
-
 impl EditRoute for Series {
     fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Series(self.series_id))
     }
 }
 
-impl MetadataTable for Series {
+impl Dropdown for SeriesExtended {}
+
+impl CreateRoute for SeriesExtended {
+    fn create_route() -> AppRoute {
+        AppRoute::Admin(AdminRoute::NewSeries)
+    }
+}
+
+impl EditRoute for SeriesExtended {
+    fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Series(self.series_id))
+    }
+}
+
+impl MetadataTable for SeriesExtended {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         html! {
             <tr
@@ -53,12 +59,6 @@ impl MetadataTable for Series {
                 <td>{&self.updated_at}</td>
             </tr>
         }
-    }
-}
-
-impl EditRoute for SlimSeries {
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Series(self.series_id))
     }
 }
 

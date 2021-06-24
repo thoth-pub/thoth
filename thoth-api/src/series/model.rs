@@ -47,7 +47,8 @@ pub enum SeriesField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Series {
     pub series_id: Uuid,
     pub series_type: SeriesType,
@@ -71,13 +72,6 @@ pub struct SeriesExtended {
     pub series_url: Option<String>,
     pub updated_at: Timestamp,
     pub imprint: Imprint,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimSeries {
-    pub series_id: Uuid,
-    pub series_name: String,
 }
 
 #[cfg_attr(
