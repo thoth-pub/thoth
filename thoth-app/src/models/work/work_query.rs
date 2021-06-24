@@ -3,7 +3,7 @@ use serde::Serialize;
 use thoth_api::imprint::model::ImprintExtended as Imprint;
 use uuid::Uuid;
 
-use super::Work;
+use super::WorkExtended as Work;
 use super::WorkStatusDefinition;
 use super::WorkTypeDefinition;
 

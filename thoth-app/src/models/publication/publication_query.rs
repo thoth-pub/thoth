@@ -21,7 +21,13 @@ pub const PUBLICATION_QUERY: &str = "
             }
             work {
                 workId
+                workType
+                workStatus
+                fullTitle
                 title
+                edition
+                copyrightHolder
+                updatedAt
                 imprint {
                     imprintId
                     imprintName

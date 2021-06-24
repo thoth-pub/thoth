@@ -115,7 +115,8 @@ pub enum WorkField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Work {
     pub work_id: Uuid,
     pub work_type: WorkType,
@@ -195,13 +196,6 @@ pub struct WorkExtended {
     pub imprint: Imprint,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimWork {
-    pub work_id: Uuid,
-    pub title: String,
-    pub imprint: Imprint,
-}
 
 #[cfg_attr(
     feature = "backend",

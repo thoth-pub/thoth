@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::model::Doi;
-use thoth_api::work::model::SlimWork;
+use thoth_api::work::model::Work;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
 use uuid::Uuid;
@@ -74,18 +74,15 @@ const UPDATE_WORK_MUTATION: &str = "
             coverCaption: $coverCaption
         }){
             workId
+            workType
+            workStatus
+            fullTitle
             title
-            imprint {
-                imprintId
-                imprintName
-                updatedAt
-                publisher {
-                    publisherId
-                    publisherName
-                    createdAt
-                    updatedAt
-                }
-            }
+            edition
+            imprintId
+            copyrightHolder
+            createdAt
+            updatedAt
         }
     }
 ";
@@ -140,5 +137,5 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateWorkResponseData {
-    pub update_work: Option<SlimWork>,
+    pub update_work: Option<Work>,
 }

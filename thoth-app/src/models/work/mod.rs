@@ -2,8 +2,8 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::str::FromStr;
 use std::string::ParseError;
-use thoth_api::work::model::SlimWork;
-use thoth_api::work::model::WorkExtended as Work;
+use thoth_api::work::model::Work;
+use thoth_api::work::model::WorkExtended;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
 use yew::html;
@@ -52,19 +52,25 @@ pub struct WorkStatusValues {
     pub name: WorkStatus,
 }
 
-impl CreateRoute for Work {
-    fn create_route() -> AppRoute {
-        AppRoute::Admin(AdminRoute::NewWork)
-    }
-}
-
 impl EditRoute for Work {
     fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Work(self.work_id))
     }
 }
 
-impl MetadataTable for Work {
+impl CreateRoute for WorkExtended {
+    fn create_route() -> AppRoute {
+        AppRoute::Admin(AdminRoute::NewWork)
+    }
+}
+
+impl EditRoute for WorkExtended {
+    fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Work(self.work_id))
+    }
+}
+
+impl MetadataTable for WorkExtended {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let doi = self
             .doi
@@ -105,7 +111,7 @@ pub trait DisplayWork {
     fn as_catalogue_box(&self) -> Html;
 }
 
-impl DisplayWork for Work {
+impl DisplayWork for WorkExtended {
     fn onix_endpoint(&self) -> String {
         format!(
             "{}/specifications/onix_3.0::project_muse/work/{}",
@@ -322,12 +328,6 @@ impl DisplayWork for Work {
                 </article>
             </div>
         }
-    }
-}
-
-impl EditRoute for SlimWork {
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Work(self.work_id))
     }
 }
 

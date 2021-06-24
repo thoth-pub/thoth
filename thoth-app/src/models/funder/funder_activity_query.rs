@@ -11,7 +11,13 @@ pub const FUNDER_ACTIVITY_QUERY: &str = "
             fundings {
                 work {
                     workId
+                    workType
+                    workStatus
+                    fullTitle
                     title
+                    edition
+                    copyrightHolder
+                    updatedAt
                     imprint {
                         imprintId
                         imprintName

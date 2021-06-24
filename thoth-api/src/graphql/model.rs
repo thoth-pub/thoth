@@ -1435,6 +1435,10 @@ impl Work {
         &self.edition
     }
 
+    pub fn imprint_id(&self) -> Uuid {
+        self.imprint_id
+    }
+
     #[graphql(
         description = "Digital Object Identifier of the work as full URL. It must use the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.11647/obp.0001)"
     )]

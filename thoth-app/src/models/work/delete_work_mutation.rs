@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::work::model::SlimWork;
+use thoth_api::work::model::Work;
 use uuid::Uuid;
 
 const DELETE_WORK_MUTATION: &str = "
@@ -11,18 +11,15 @@ const DELETE_WORK_MUTATION: &str = "
             workId: $workId
         ){
             workId
+            workType
+            workStatus
+            fullTitle
             title
-            imprint {
-                imprintId
-                imprintName
-                updatedAt
-                publisher {
-                    publisherId
-                    publisherName
-                    createdAt
-                    updatedAt
-                }
-            }
+            edition
+            imprintId
+            copyrightHolder
+            createdAt
+            updatedAt
         }
     }
 ";
@@ -47,5 +44,5 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DeleteWorkResponseData {
-    pub delete_work: Option<SlimWork>,
+    pub delete_work: Option<Work>,
 }

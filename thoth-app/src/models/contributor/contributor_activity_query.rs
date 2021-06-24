@@ -11,7 +11,13 @@ pub const CONTRIBUTOR_ACTIVITY_QUERY: &str = "
             contributions {
                 work {
                     workId
+                    workType
+                    workStatus
+                    fullTitle
                     title
+                    edition
+                    copyrightHolder
+                    updatedAt
                     imprint {
                         imprintId
                         imprintName

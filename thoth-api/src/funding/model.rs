@@ -7,7 +7,7 @@ use crate::model::Timestamp;
 use crate::schema::funding;
 #[cfg(feature = "backend")]
 use crate::schema::funding_history;
-use crate::work::model::SlimWork;
+use crate::work::model::WorkExtended;
 
 #[cfg_attr(
     feature = "backend",
@@ -60,7 +60,7 @@ pub struct FundingExtended {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SlimFunding {
-    pub work: SlimWork,
+    pub work: WorkExtended,
 }
 
 #[cfg_attr(

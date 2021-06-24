@@ -8,7 +8,7 @@ use crate::model::Timestamp;
 use crate::schema::contribution;
 #[cfg(feature = "backend")]
 use crate::schema::contribution_history;
-use crate::work::model::SlimWork;
+use crate::work::model::WorkExtended;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Contribution_type")]
@@ -74,7 +74,7 @@ pub struct Contribution {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SlimContribution {
-    pub work: SlimWork,
+    pub work: WorkExtended,
 }
 
 #[cfg_attr(
