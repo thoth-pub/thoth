@@ -73,24 +73,13 @@ pub struct Publication {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct DetailedPublication {
-    pub publication_id: Uuid,
-    pub publication_type: PublicationType,
-    pub work_id: Uuid,
-    pub isbn: Option<String>,
-    pub publication_url: Option<String>,
-    pub updated_at: Timestamp,
-    pub work: Work,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct PublicationExtended {
     pub publication_id: Uuid,
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<String>,
     pub publication_url: Option<String>,
+    pub updated_at: Timestamp,
     pub prices: Option<Vec<Price>>,
     pub work: Work,
 }

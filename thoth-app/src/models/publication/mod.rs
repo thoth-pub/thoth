@@ -1,7 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::publication::model::Publication;
-use thoth_api::publication::model::DetailedPublication;
 use thoth_api::publication::model::PublicationExtended;
 use thoth_api::publication::model::PublicationType;
 use yew::html;
@@ -37,7 +36,7 @@ impl EditRoute for PublicationExtended {
     }
 }
 
-impl MetadataTable for DetailedPublication {
+impl MetadataTable for PublicationExtended {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let isbn = &self.isbn.clone().unwrap_or_else(|| "".to_string());
         let doi = self
@@ -68,15 +67,9 @@ impl MetadataTable for DetailedPublication {
     }
 }
 
-impl CreateRoute for DetailedPublication {
+impl CreateRoute for PublicationExtended {
     fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewPublication)
-    }
-}
-
-impl EditRoute for DetailedPublication {
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Publication(self.publication_id))
     }
 }
 

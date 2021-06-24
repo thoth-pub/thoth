@@ -11,6 +11,7 @@ pub const PUBLICATION_QUERY: &str = "
             workId
             isbn
             publicationUrl
+            updatedAt
             prices {
                 priceId
                 publicationId

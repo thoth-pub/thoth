@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::publication::model::DetailedPublication as Publication;
+use thoth_api::publication::model::PublicationExtended as Publication;
 use thoth_api::publication::model::PublicationOrderBy;
 
 pub const PUBLICATIONS_QUERY: &str = "
