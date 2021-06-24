@@ -59,7 +59,8 @@ pub enum PublicationField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Publication {
     pub publication_id: Uuid,
     pub publication_type: PublicationType,

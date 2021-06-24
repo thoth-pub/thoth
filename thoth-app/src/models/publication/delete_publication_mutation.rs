@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::publication::model::PublicationExtended as Publication;
+use thoth_api::publication::model::Publication;
 use uuid::Uuid;
 
 const DELETE_PUBLICATION_MUTATION: &str = "
@@ -13,27 +13,8 @@ const DELETE_PUBLICATION_MUTATION: &str = "
             publicationId
             publicationType
             workId
-            work {
-                workId
-                workType
-                workStatus
-                fullTitle
-                title
-                edition
-                copyrightHolder
-                updatedAt
-                imprint {
-                    imprintId
-                    imprintName
-                    updatedAt
-                    publisher {
-                        publisherId
-                        publisherName
-                        createdAt
-                        updatedAt
-                    }
-                }
-            }
+            createdAt
+            updatedAt
         }
     }
 ";

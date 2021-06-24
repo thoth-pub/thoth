@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use thoth_api::publication::model::PublicationExtended as Publication;
+use thoth_api::publication::model::Publication;
 use thoth_api::publication::model::PublicationType;
 use uuid::Uuid;
 use yew::html;

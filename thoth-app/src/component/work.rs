@@ -6,7 +6,7 @@ use thoth_api::imprint::model::ImprintExtended as Imprint;
 use thoth_api::issue::model::IssueExtended as Issue;
 use thoth_api::language::model::Language;
 use thoth_api::model::{Doi, DOI_DOMAIN};
-use thoth_api::publication::model::PublicationExtended as Publication;
+use thoth_api::publication::model::Publication;
 use thoth_api::subject::model::Subject;
 use thoth_api::work::model::WorkExtended as Work;
 use thoth_api::work::model::WorkStatus;

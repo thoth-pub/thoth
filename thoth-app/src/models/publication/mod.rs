@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::publication::model::DetailedPublication as Publication;
+use thoth_api::publication::model::Publication;
+use thoth_api::publication::model::DetailedPublication;
 use thoth_api::publication::model::PublicationExtended;
 use thoth_api::publication::model::PublicationType;
 use yew::html;
@@ -24,7 +25,19 @@ pub struct PublicationTypeValues {
     pub name: PublicationType,
 }
 
-impl MetadataTable for Publication {
+impl EditRoute for Publication {
+    fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Publication(self.publication_id))
+    }
+}
+
+impl EditRoute for PublicationExtended {
+    fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Publication(self.publication_id))
+    }
+}
+
+impl MetadataTable for DetailedPublication {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let isbn = &self.isbn.clone().unwrap_or_else(|| "".to_string());
         let doi = self
@@ -55,19 +68,13 @@ impl MetadataTable for Publication {
     }
 }
 
-impl CreateRoute for Publication {
+impl CreateRoute for DetailedPublication {
     fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewPublication)
     }
 }
 
-impl EditRoute for Publication {
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Publication(self.publication_id))
-    }
-}
-
-impl EditRoute for PublicationExtended {
+impl EditRoute for DetailedPublication {
     fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Publication(self.publication_id))
     }

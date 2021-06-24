@@ -12,7 +12,7 @@ use crate::issue::model::IssueExtended as Issue;
 use crate::language::model::Language;
 use crate::model::Doi;
 use crate::model::Timestamp;
-use crate::publication::model::PublicationExtended as Publication;
+use crate::publication::model::Publication;
 #[cfg(feature = "backend")]
 use crate::schema::work;
 #[cfg(feature = "backend")]
@@ -195,7 +195,6 @@ pub struct WorkExtended {
     pub issues: Option<Vec<Issue>>,
     pub imprint: Imprint,
 }
-
 
 #[cfg_attr(
     feature = "backend",
