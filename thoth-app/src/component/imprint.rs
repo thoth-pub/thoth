@@ -1,5 +1,5 @@
 use thoth_api::account::model::AccountDetails;
-use thoth_api::imprint::model::ImprintExtended;
+use thoth_api::imprint::model::ImprintWithPublisher;
 use thoth_api::publisher::model::Publisher;
 use uuid::Uuid;
 use yew::html;
@@ -48,7 +48,7 @@ use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct ImprintComponent {
-    imprint: ImprintExtended,
+    imprint: ImprintWithPublisher,
     fetch_imprint: FetchImprint,
     push_imprint: PushUpdateImprint,
     delete_imprint: PushDeleteImprint,
@@ -97,7 +97,7 @@ impl Component for ImprintComponent {
         let push_imprint = Default::default();
         let delete_imprint = Default::default();
         let notification_bus = NotificationBus::dispatcher();
-        let imprint: ImprintExtended = Default::default();
+        let imprint: ImprintWithPublisher = Default::default();
         let router = RouteAgentDispatcher::new();
 
         link.send_message(Msg::GetImprint);

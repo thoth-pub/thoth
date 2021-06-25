@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::series::model::SeriesExtended;
 use thoth_api::series::model::SeriesOrderBy;
+use thoth_api::series::model::SeriesWithImprint;
 
 pub const SERIESES_QUERY: &str = "
     query SeriesesQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: SeriesOrderBy) {
@@ -55,6 +55,6 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SeriesesResponseData {
-    pub serieses: Vec<SeriesExtended>,
+    pub serieses: Vec<SeriesWithImprint>,
     pub series_count: i32,
 }

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::contribution::model::SlimContribution;
+use thoth_api::contribution::model::ContributionWithWork;
 use uuid::Uuid;
 
 use crate::graphql_query_builder;
@@ -60,5 +60,5 @@ pub struct ContributorActivityResponseData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ContributorActivity {
-    pub contributions: Option<Vec<SlimContribution>>,
+    pub contributions: Option<Vec<ContributionWithWork>>,
 }

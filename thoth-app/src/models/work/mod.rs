@@ -3,9 +3,9 @@ use serde::Serialize;
 use std::str::FromStr;
 use std::string::ParseError;
 use thoth_api::work::model::Work;
-use thoth_api::work::model::WorkExtended;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
+use thoth_api::work::model::WorkWithRelations;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -58,19 +58,19 @@ impl EditRoute for Work {
     }
 }
 
-impl CreateRoute for WorkExtended {
+impl CreateRoute for WorkWithRelations {
     fn create_route() -> AppRoute {
         AppRoute::Admin(AdminRoute::NewWork)
     }
 }
 
-impl EditRoute for WorkExtended {
+impl EditRoute for WorkWithRelations {
     fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Work(self.work_id))
     }
 }
 
-impl MetadataTable for WorkExtended {
+impl MetadataTable for WorkWithRelations {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let doi = self
             .doi
@@ -111,7 +111,7 @@ pub trait DisplayWork {
     fn as_catalogue_box(&self) -> Html;
 }
 
-impl DisplayWork for WorkExtended {
+impl DisplayWork for WorkWithRelations {
     fn onix_endpoint(&self) -> String {
         format!(
             "{}/specifications/onix_3.0::project_muse/work/{}",

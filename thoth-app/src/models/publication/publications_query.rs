@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::publication::model::PublicationExtended;
 use thoth_api::publication::model::PublicationOrderBy;
+use thoth_api::publication::model::PublicationWithRelations;
 
 pub const PUBLICATIONS_QUERY: &str = "
     query PublicationsQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: PublicationOrderBy) {
@@ -65,6 +65,6 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicationsResponseData {
-    pub publications: Vec<PublicationExtended>,
+    pub publications: Vec<PublicationWithRelations>,
     pub publication_count: i32,
 }

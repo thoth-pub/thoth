@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::issue::model::IssueExtended;
+use thoth_api::issue::model::IssueWithSeries;
 use uuid::Uuid;
 
 const CREATE_ISSUE_MUTATION: &str = "
@@ -66,5 +66,5 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateIssueResponseData {
-    pub create_issue: Option<IssueExtended>,
+    pub create_issue: Option<IssueWithSeries>,
 }

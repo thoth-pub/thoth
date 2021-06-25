@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::publication::model::PublicationExtended;
+use thoth_api::publication::model::PublicationWithRelations;
 use uuid::Uuid;
 
 pub const PUBLICATION_QUERY: &str = "
@@ -64,5 +64,5 @@ pub struct Variables {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct PublicationResponseData {
-    pub publication: Option<PublicationExtended>,
+    pub publication: Option<PublicationWithRelations>,
 }

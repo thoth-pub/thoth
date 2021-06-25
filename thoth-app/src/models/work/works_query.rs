@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::work::model::WorkExtended;
 use thoth_api::work::model::WorkOrderBy;
+use thoth_api::work::model::WorkWithRelations;
 
 pub const WORKS_QUERY: &str = "
     query WorksQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: WorkOrderBy) {
@@ -72,6 +72,6 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorksResponseData {
-    pub works: Vec<WorkExtended>,
+    pub works: Vec<WorkWithRelations>,
     pub work_count: i32,
 }

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::funding::model::SlimFunding;
+use thoth_api::funding::model::FundingWithWork;
 use uuid::Uuid;
 
 use crate::graphql_query_builder;
@@ -60,5 +60,5 @@ pub struct FunderActivityResponseData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FunderActivity {
-    pub fundings: Option<Vec<SlimFunding>>,
+    pub fundings: Option<Vec<FundingWithWork>>,
 }

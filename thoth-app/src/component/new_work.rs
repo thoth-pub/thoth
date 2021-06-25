@@ -1,8 +1,8 @@
 use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
-use thoth_api::imprint::model::ImprintExtended;
+use thoth_api::imprint::model::ImprintWithPublisher;
 use thoth_api::model::{Doi, DOI_DOMAIN};
-use thoth_api::work::model::WorkExtended;
+use thoth_api::work::model::WorkWithRelations;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
 use thoth_errors::ThothError;
@@ -53,7 +53,7 @@ use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct NewWorkComponent {
-    work: WorkExtended,
+    work: WorkWithRelations,
     // Track the user-entered DOI string, which may not be validly formatted
     doi: String,
     doi_warning: String,
@@ -72,7 +72,7 @@ pub struct NewWorkComponent {
 
 #[derive(Default)]
 struct WorkFormData {
-    imprints: Vec<ImprintExtended>,
+    imprints: Vec<ImprintWithPublisher>,
     work_types: Vec<WorkTypeValues>,
     work_statuses: Vec<WorkStatusValues>,
 }
@@ -130,7 +130,7 @@ impl Component for NewWorkComponent {
         let push_work = Default::default();
         let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
-        let work: WorkExtended = Default::default();
+        let work: WorkWithRelations = Default::default();
         let doi = Default::default();
         let doi_warning = Default::default();
         let imprint_id: Uuid = Default::default();

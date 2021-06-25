@@ -1,5 +1,5 @@
 use thoth_api::funder::model::Funder;
-use thoth_api::funding::model::FundingExtended;
+use thoth_api::funding::model::FundingWithFunder;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -38,7 +38,7 @@ use crate::string::REMOVE_BUTTON;
 pub struct FundingsFormComponent {
     props: Props,
     data: FundingsFormData,
-    new_funding: FundingExtended,
+    new_funding: FundingWithFunder,
     show_add_form: bool,
     show_results: bool,
     fetch_funders: FetchFunders,
@@ -75,9 +75,9 @@ pub enum Msg {
 
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
-    pub fundings: Option<Vec<FundingExtended>>,
+    pub fundings: Option<Vec<FundingWithFunder>>,
     pub work_id: Uuid,
-    pub update_fundings: Callback<Option<Vec<FundingExtended>>>,
+    pub update_fundings: Callback<Option<Vec<FundingWithFunder>>>,
 }
 
 impl Component for FundingsFormComponent {
@@ -86,7 +86,7 @@ impl Component for FundingsFormComponent {
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let data: FundingsFormData = Default::default();
-        let new_funding: FundingExtended = Default::default();
+        let new_funding: FundingWithFunder = Default::default();
         let show_add_form = false;
         let show_results = false;
         let fetch_funders = Default::default();
@@ -141,7 +141,7 @@ impl Component for FundingsFormComponent {
                     FetchState::Fetched(body) => match &body.data.create_funding {
                         Some(i) => {
                             let funding = i.clone();
-                            let mut fundings: Vec<FundingExtended> =
+                            let mut fundings: Vec<FundingWithFunder> =
                                 self.props.fundings.clone().unwrap_or_default();
                             fundings.push(funding);
                             self.props.update_fundings.emit(Some(fundings));
@@ -195,7 +195,7 @@ impl Component for FundingsFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_funding {
                         Some(funding) => {
-                            let to_keep: Vec<FundingExtended> = self
+                            let to_keep: Vec<FundingWithFunder> = self
                                 .props
                                 .fundings
                                 .clone()
@@ -452,7 +452,7 @@ impl FundingsFormComponent {
         }
     }
 
-    fn render_funding(&self, f: &FundingExtended) -> Html {
+    fn render_funding(&self, f: &FundingWithFunder) -> Html {
         let funding_id = f.funding_id;
         html! {
             <div class="panel-block field is-horizontal">

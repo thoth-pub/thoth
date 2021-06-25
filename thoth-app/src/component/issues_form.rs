@@ -1,6 +1,6 @@
 use thoth_api::account::model::AccountDetails;
-use thoth_api::issue::model::IssueExtended;
-use thoth_api::series::model::SeriesExtended;
+use thoth_api::issue::model::IssueWithSeries;
+use thoth_api::series::model::SeriesWithImprint;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -39,7 +39,7 @@ use crate::string::REMOVE_BUTTON;
 pub struct IssuesFormComponent {
     props: Props,
     data: IssuesFormData,
-    new_issue: IssueExtended,
+    new_issue: IssueWithSeries,
     show_add_form: bool,
     show_results: bool,
     fetch_serieses: FetchSerieses,
@@ -51,7 +51,7 @@ pub struct IssuesFormComponent {
 
 #[derive(Default)]
 struct IssuesFormData {
-    serieses: Vec<SeriesExtended>,
+    serieses: Vec<SeriesWithImprint>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -63,7 +63,7 @@ pub enum Msg {
     CreateIssue,
     SetIssueDeleteState(PushActionDeleteIssue),
     DeleteIssue(Uuid),
-    AddIssue(SeriesExtended),
+    AddIssue(SeriesWithImprint),
     ToggleSearchResultDisplay(bool),
     SearchSeries(String),
     ChangeOrdinal(String),
@@ -72,11 +72,11 @@ pub enum Msg {
 
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
-    pub issues: Option<Vec<IssueExtended>>,
+    pub issues: Option<Vec<IssueWithSeries>>,
     pub work_id: Uuid,
     pub imprint_id: Uuid,
     pub current_user: AccountDetails,
-    pub update_issues: Callback<Option<Vec<IssueExtended>>>,
+    pub update_issues: Callback<Option<Vec<IssueWithSeries>>>,
 }
 
 impl Component for IssuesFormComponent {
@@ -85,7 +85,7 @@ impl Component for IssuesFormComponent {
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let data: IssuesFormData = Default::default();
-        let new_issue: IssueExtended = Default::default();
+        let new_issue: IssueWithSeries = Default::default();
         let show_add_form = false;
         let show_results = false;
         let fetch_serieses = Default::default();
@@ -150,7 +150,7 @@ impl Component for IssuesFormComponent {
                     FetchState::Fetched(body) => match &body.data.create_issue {
                         Some(i) => {
                             let issue = i.clone();
-                            let mut issues: Vec<IssueExtended> =
+                            let mut issues: Vec<IssueWithSeries> =
                                 self.props.issues.clone().unwrap_or_default();
                             issues.push(issue);
                             self.props.update_issues.emit(Some(issues));
@@ -200,7 +200,7 @@ impl Component for IssuesFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_issue {
                         Some(issue) => {
-                            let to_keep: Vec<IssueExtended> = self
+                            let to_keep: Vec<IssueWithSeries> = self
                                 .props
                                 .issues
                                 .clone()
@@ -428,7 +428,7 @@ impl IssuesFormComponent {
         }
     }
 
-    fn render_issue(&self, i: &IssueExtended) -> Html {
+    fn render_issue(&self, i: &IssueWithSeries) -> Html {
         let issue_id = i.issue_id;
         html! {
             <div class="panel-block field is-horizontal">

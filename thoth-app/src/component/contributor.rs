@@ -1,4 +1,4 @@
-use thoth_api::contribution::model::SlimContribution;
+use thoth_api::contribution::model::ContributionWithWork;
 use thoth_api::contributor::model::Contributor;
 use thoth_api::model::{Orcid, ORCID_DOMAIN};
 use thoth_errors::ThothError;
@@ -60,7 +60,7 @@ pub struct ContributorComponent {
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     _contributor_activity_checker: Box<dyn Bridge<ContributorActivityChecker>>,
-    contributor_activity: Vec<SlimContribution>,
+    contributor_activity: Vec<ContributionWithWork>,
 }
 
 pub enum Msg {

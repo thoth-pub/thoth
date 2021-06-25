@@ -3,13 +3,13 @@ use crate::models::series::serieses_query::FetchSerieses;
 use crate::models::series::serieses_query::SeriesesRequest;
 use crate::models::series::serieses_query::SeriesesRequestBody;
 use crate::models::series::serieses_query::Variables;
-use thoth_api::series::model::SeriesExtended;
 use thoth_api::series::model::SeriesField;
 use thoth_api::series::model::SeriesOrderBy;
+use thoth_api::series::model::SeriesWithImprint;
 
 pagination_component! {
     SeriesesComponent,
-    SeriesExtended,
+    SeriesWithImprint,
     serieses,
     series_count,
     SeriesesRequest,

@@ -1,5 +1,5 @@
 use thoth_api::funder::model::Funder;
-use thoth_api::funding::model::SlimFunding;
+use thoth_api::funding::model::FundingWithWork;
 use thoth_api::model::{Doi, DOI_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -59,7 +59,7 @@ pub struct FunderComponent {
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     _funder_activity_checker: Box<dyn Bridge<FunderActivityChecker>>,
-    funder_activity: Vec<SlimFunding>,
+    funder_activity: Vec<FundingWithWork>,
 }
 
 pub enum Msg {

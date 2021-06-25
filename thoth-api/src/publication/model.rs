@@ -10,7 +10,7 @@ use crate::price::model::Price;
 use crate::schema::publication;
 #[cfg(feature = "backend")]
 use crate::schema::publication_history;
-use crate::work::model::WorkExtended;
+use crate::work::model::WorkWithRelations;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Publication_type")]
@@ -73,7 +73,7 @@ pub struct Publication {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct PublicationExtended {
+pub struct PublicationWithRelations {
     pub publication_id: Uuid,
     pub publication_type: PublicationType,
     pub work_id: Uuid,
@@ -81,7 +81,7 @@ pub struct PublicationExtended {
     pub publication_url: Option<String>,
     pub updated_at: Timestamp,
     pub prices: Option<Vec<Price>>,
-    pub work: WorkExtended,
+    pub work: WorkWithRelations,
 }
 
 #[cfg_attr(

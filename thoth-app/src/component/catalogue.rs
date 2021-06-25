@@ -1,4 +1,4 @@
-use thoth_api::work::model::WorkExtended;
+use thoth_api::work::model::WorkWithRelations;
 use yew::html;
 use yew::prelude::Component;
 use yew::prelude::FocusEvent;
@@ -25,7 +25,7 @@ pub struct CatalogueComponent {
     offset: i32,
     page_size: i32,
     search_term: String,
-    data: Vec<WorkExtended>,
+    data: Vec<WorkWithRelations>,
     result_count: i32,
     fetch_data: FetchWorks,
     link: ComponentLink<Self>,

@@ -43,7 +43,7 @@ pub struct Imprint {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct ImprintExtended {
+pub struct ImprintWithPublisher {
     pub imprint_id: Uuid,
     pub imprint_name: String,
     pub imprint_url: Option<String>,

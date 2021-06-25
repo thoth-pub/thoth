@@ -5,7 +5,7 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
-use crate::imprint::model::ImprintExtended;
+use crate::imprint::model::ImprintWithPublisher;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::series;
@@ -63,7 +63,7 @@ pub struct Series {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct SeriesExtended {
+pub struct SeriesWithImprint {
     pub series_id: Uuid,
     pub series_type: SeriesType,
     pub series_name: String,
@@ -71,7 +71,7 @@ pub struct SeriesExtended {
     pub issn_digital: String,
     pub series_url: Option<String>,
     pub updated_at: Timestamp,
-    pub imprint: ImprintExtended,
+    pub imprint: ImprintWithPublisher,
 }
 
 #[cfg_attr(
@@ -143,7 +143,7 @@ impl Default for SeriesField {
     }
 }
 
-impl fmt::Display for SeriesExtended {
+impl fmt::Display for SeriesWithImprint {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::series::model::SeriesExtended;
+use thoth_api::series::model::SeriesWithImprint;
 use uuid::Uuid;
 
 pub const SERIES_QUERY: &str = "
@@ -49,5 +49,5 @@ pub struct Variables {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct SeriesResponseData {
-    pub series: Option<SeriesExtended>,
+    pub series: Option<SeriesWithImprint>,
 }

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::imprint::model::ImprintExtended;
+use thoth_api::imprint::model::ImprintWithPublisher;
 use uuid::Uuid;
 
 const UPDATE_IMPRINT_MUTATION: &str = "
@@ -55,5 +55,5 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateImprintResponseData {
-    pub update_imprint: Option<ImprintExtended>,
+    pub update_imprint: Option<ImprintWithPublisher>,
 }

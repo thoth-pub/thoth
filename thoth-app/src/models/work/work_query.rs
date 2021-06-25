@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::imprint::model::ImprintExtended;
-use thoth_api::work::model::WorkExtended;
+use thoth_api::imprint::model::ImprintWithPublisher;
+use thoth_api::work::model::WorkWithRelations;
 use uuid::Uuid;
 
 use super::WorkStatusDefinition;
@@ -185,8 +185,8 @@ pub struct Variables {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct WorkResponseData {
-    pub work: Option<WorkExtended>,
-    pub imprints: Vec<ImprintExtended>,
+    pub work: Option<WorkWithRelations>,
+    pub imprints: Vec<ImprintWithPublisher>,
     pub work_types: WorkTypeDefinition,
     pub work_statuses: WorkStatusDefinition,
 }
