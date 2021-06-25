@@ -31,7 +31,8 @@ pub enum ImprintField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Imprint {
     pub imprint_id: Uuid,
     pub publisher_id: Uuid,

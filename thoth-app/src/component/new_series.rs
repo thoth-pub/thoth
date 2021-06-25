@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::imprint::model::ImprintWithPublisher;
-use thoth_api::series::model::SeriesWithImprint;
+use thoth_api::series::model::Series;
 use thoth_api::series::model::SeriesType;
 use uuid::Uuid;
 use yew::html;
@@ -42,7 +42,7 @@ use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct NewSeriesComponent {
-    series: SeriesWithImprint,
+    series: Series,
     push_series: PushCreateSeries,
     data: SeriesFormData,
     fetch_imprints: FetchImprints,
@@ -86,7 +86,7 @@ impl Component for NewSeriesComponent {
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let push_series = Default::default();
         let notification_bus = NotificationBus::dispatcher();
-        let series: SeriesWithImprint = Default::default();
+        let series: Series = Default::default();
         let data: SeriesFormData = Default::default();
         let fetch_imprints: FetchImprints = Default::default();
         let fetch_series_types: FetchSeriesTypes = Default::default();
@@ -193,7 +193,7 @@ impl Component for NewSeriesComponent {
                         issn_print: self.series.issn_print.clone(),
                         issn_digital: self.series.issn_digital.clone(),
                         series_url: self.series.series_url.clone(),
-                        imprint_id: self.series.imprint.imprint_id,
+                        imprint_id: self.series.imprint_id,
                     },
                     ..Default::default()
                 };
@@ -206,7 +206,7 @@ impl Component for NewSeriesComponent {
                 false
             }
             Msg::ChangeSeriesType(series_type) => self.series.series_type.neq_assign(series_type),
-            Msg::ChangeImprint(imprint_id) => self.series.imprint.imprint_id.neq_assign(imprint_id),
+            Msg::ChangeImprint(imprint_id) => self.series.imprint_id.neq_assign(imprint_id),
             Msg::ChangeSeriesName(series_name) => self
                 .series
                 .series_name
@@ -276,7 +276,7 @@ impl Component for NewSeriesComponent {
                     />
                     <FormImprintSelect
                         label = "Imprint"
-                        value=self.series.imprint.imprint_id
+                        value=self.series.imprint_id
                         data=self.data.imprints.clone()
                         onchange=self.link.callback(|event| match event {
                             ChangeData::Select(elem) => {

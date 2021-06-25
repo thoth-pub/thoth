@@ -1,3 +1,4 @@
+use thoth_api::imprint::model::Imprint;
 use thoth_api::imprint::model::ImprintWithPublisher;
 use yew::html;
 use yew::prelude::Html;
@@ -7,6 +8,12 @@ use yew::MouseEvent;
 use super::{CreateRoute, EditRoute, MetadataTable};
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
+
+impl EditRoute for Imprint {
+    fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Imprint(self.imprint_id))
+    }
+}
 
 impl CreateRoute for ImprintWithPublisher {
     fn create_route() -> AppRoute {

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::imprint::model::ImprintWithPublisher;
+use thoth_api::imprint::model::Imprint;
 use uuid::Uuid;
 
 const DELETE_IMPRINT_MUTATION: &str = "
@@ -11,17 +11,10 @@ const DELETE_IMPRINT_MUTATION: &str = "
             imprintId: $imprintId
         ){
             imprintId
+            publisherId
             imprintName
-            imprintUrl
+            createdAt
             updatedAt
-            publisher {
-                publisherId
-                publisherName
-                publisherShortname
-                publisherUrl
-                createdAt
-                updatedAt
-            }
         }
     }
 ";
@@ -46,5 +39,5 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DeleteImprintResponseData {
-    pub delete_imprint: Option<ImprintWithPublisher>,
+    pub delete_imprint: Option<Imprint>,
 }

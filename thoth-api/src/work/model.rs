@@ -301,6 +301,16 @@ pub struct WorkOrderBy {
     pub direction: Direction,
 }
 
+impl Work {
+    pub fn compile_fulltitle(&self) -> String {
+        if let Some(subtitle) = &self.subtitle.clone() {
+            format!("{}: {}", self.title, subtitle)
+        } else {
+            self.title.to_string()
+        }
+    }
+}
+
 impl WorkWithRelations {
     pub fn compile_fulltitle(&self) -> String {
         if let Some(subtitle) = &self.subtitle.clone() {

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::imprint::model::ImprintWithPublisher;
+use thoth_api::imprint::model::Imprint;
 use uuid::Uuid;
 
 const CREATE_IMPRINT_MUTATION: &str = "
@@ -15,17 +15,10 @@ const CREATE_IMPRINT_MUTATION: &str = "
             publisherId: $publisherId
         }){
             imprintId
+            publisherId
             imprintName
-            imprintUrl
+            createdAt
             updatedAt
-            publisher {
-                publisherId
-                publisherName
-                publisherShortname
-                publisherUrl
-                createdAt
-                updatedAt
-            }
         }
     }
 ";
@@ -52,5 +45,5 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateImprintResponseData {
-    pub create_imprint: Option<ImprintWithPublisher>,
+    pub create_imprint: Option<Imprint>,
 }
