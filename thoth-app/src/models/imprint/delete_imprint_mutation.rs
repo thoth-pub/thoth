@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::imprint::model::ImprintExtended;
 use uuid::Uuid;
-
-use super::Imprint;
 
 const DELETE_IMPRINT_MUTATION: &str = "
     mutation DeleteImprint(
@@ -47,5 +46,5 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DeleteImprintResponseData {
-    pub delete_imprint: Option<Imprint>,
+    pub delete_imprint: Option<ImprintExtended>,
 }

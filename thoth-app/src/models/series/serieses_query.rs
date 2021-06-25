@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::series::model::SeriesExtended as Series;
+use thoth_api::series::model::SeriesExtended;
 use thoth_api::series::model::SeriesOrderBy;
 
 pub const SERIESES_QUERY: &str = "
@@ -55,6 +55,6 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SeriesesResponseData {
-    pub serieses: Vec<Series>,
+    pub serieses: Vec<SeriesExtended>,
     pub series_count: i32,
 }

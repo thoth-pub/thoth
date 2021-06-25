@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::imprint::model::ImprintExtended;
 use uuid::Uuid;
-
-use super::Imprint;
 
 pub const IMPRINT_QUERY: &str = "
     query ImprintQuery($imprintId: Uuid!) {
@@ -42,5 +41,5 @@ pub struct Variables {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ImprintResponseData {
-    pub imprint: Option<Imprint>,
+    pub imprint: Option<ImprintExtended>,
 }

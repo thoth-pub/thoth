@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
-use thoth_api::imprint::model::ImprintExtended as Imprint;
-use thoth_api::series::model::SeriesExtended as Series;
+use thoth_api::imprint::model::ImprintExtended;
+use thoth_api::series::model::SeriesExtended;
 use thoth_api::series::model::SeriesType;
 use uuid::Uuid;
 use yew::html;
@@ -54,7 +54,7 @@ use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct SeriesComponent {
-    series: Series,
+    series: SeriesExtended,
     fetch_series: FetchSeries,
     push_series: PushUpdateSeries,
     data: SeriesFormData,
@@ -69,7 +69,7 @@ pub struct SeriesComponent {
 
 #[derive(Default)]
 struct SeriesFormData {
-    imprints: Vec<Imprint>,
+    imprints: Vec<ImprintExtended>,
     series_types: Vec<SeriesTypeValues>,
 }
 
@@ -109,7 +109,7 @@ impl Component for SeriesComponent {
         let push_series = Default::default();
         let delete_series = Default::default();
         let notification_bus = NotificationBus::dispatcher();
-        let series: Series = Default::default();
+        let series: SeriesExtended = Default::default();
         let data: SeriesFormData = Default::default();
         let fetch_imprints: FetchImprints = Default::default();
         let fetch_series_types: FetchSeriesTypes = Default::default();

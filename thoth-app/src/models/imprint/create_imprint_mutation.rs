@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::imprint::model::ImprintExtended;
 use uuid::Uuid;
-
-use super::Imprint;
 
 const CREATE_IMPRINT_MUTATION: &str = "
     mutation CreateImprint(
@@ -53,5 +52,5 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateImprintResponseData {
-    pub create_imprint: Option<Imprint>,
+    pub create_imprint: Option<ImprintExtended>,
 }

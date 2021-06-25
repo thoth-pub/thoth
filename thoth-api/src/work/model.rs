@@ -5,10 +5,10 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::contribution::model::Contribution;
-use crate::funding::model::FundingExtended as Funding;
+use crate::funding::model::FundingExtended;
 use crate::graphql::utils::Direction;
-use crate::imprint::model::ImprintExtended as Imprint;
-use crate::issue::model::IssueExtended as Issue;
+use crate::imprint::model::ImprintExtended;
+use crate::issue::model::IssueExtended;
 use crate::language::model::Language;
 use crate::model::Doi;
 use crate::model::Timestamp;
@@ -190,10 +190,10 @@ pub struct WorkExtended {
     pub contributions: Option<Vec<Contribution>>,
     pub publications: Option<Vec<Publication>>,
     pub languages: Option<Vec<Language>>,
-    pub fundings: Option<Vec<Funding>>,
+    pub fundings: Option<Vec<FundingExtended>>,
     pub subjects: Option<Vec<Subject>>,
-    pub issues: Option<Vec<Issue>>,
-    pub imprint: Imprint,
+    pub issues: Option<Vec<IssueExtended>>,
+    pub imprint: ImprintExtended,
 }
 
 #[cfg_attr(

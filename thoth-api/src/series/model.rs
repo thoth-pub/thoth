@@ -5,7 +5,7 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
-use crate::imprint::model::ImprintExtended as Imprint;
+use crate::imprint::model::ImprintExtended;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::series;
@@ -71,7 +71,7 @@ pub struct SeriesExtended {
     pub issn_digital: String,
     pub series_url: Option<String>,
     pub updated_at: Timestamp,
-    pub imprint: Imprint,
+    pub imprint: ImprintExtended,
 }
 
 #[cfg_attr(

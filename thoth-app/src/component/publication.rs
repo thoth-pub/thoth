@@ -1,6 +1,6 @@
 use thoth_api::account::model::AccountDetails;
 use thoth_api::price::model::Price;
-use thoth_api::publication::model::PublicationExtended as Publication;
+use thoth_api::publication::model::PublicationExtended;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -35,7 +35,7 @@ use crate::route::AppRoute;
 use crate::string::DELETE_BUTTON;
 
 pub struct PublicationComponent {
-    publication: Publication,
+    publication: PublicationExtended,
     fetch_publication: FetchPublication,
     delete_publication: PushDeletePublication,
     link: ComponentLink<Self>,
@@ -67,7 +67,7 @@ impl Component for PublicationComponent {
         let fetch_publication: FetchPublication = Default::default();
         let delete_publication = Default::default();
         let notification_bus = NotificationBus::dispatcher();
-        let publication: Publication = Default::default();
+        let publication: PublicationExtended = Default::default();
         let router = RouteAgentDispatcher::new();
 
         link.send_message(Msg::GetPublication);

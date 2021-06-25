@@ -3,13 +3,13 @@ use crate::models::publication::publications_query::FetchPublications;
 use crate::models::publication::publications_query::PublicationsRequest;
 use crate::models::publication::publications_query::PublicationsRequestBody;
 use crate::models::publication::publications_query::Variables;
-use thoth_api::publication::model::PublicationExtended as Publication;
+use thoth_api::publication::model::PublicationExtended;
 use thoth_api::publication::model::PublicationField;
 use thoth_api::publication::model::PublicationOrderBy;
 
 pagination_component! {
     PublicationsComponent,
-    Publication,
+    PublicationExtended,
     publications,
     publication_count,
     PublicationsRequest,

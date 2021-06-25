@@ -6,7 +6,7 @@ use crate::model::Timestamp;
 use crate::schema::issue;
 #[cfg(feature = "backend")]
 use crate::schema::issue_history;
-use crate::series::model::SeriesExtended as Series;
+use crate::series::model::SeriesExtended;
 
 #[cfg_attr(
     feature = "backend",
@@ -41,7 +41,7 @@ pub struct IssueExtended {
     pub work_id: Uuid,
     pub series_id: Uuid,
     pub issue_ordinal: i32,
-    pub series: Series,
+    pub series: SeriesExtended,
 }
 
 #[cfg_attr(

@@ -3,13 +3,13 @@ use crate::models::work::works_query::FetchWorks;
 use crate::models::work::works_query::Variables;
 use crate::models::work::works_query::WorksRequest;
 use crate::models::work::works_query::WorksRequestBody;
-use thoth_api::work::model::WorkExtended as Work;
+use thoth_api::work::model::WorkExtended;
 use thoth_api::work::model::WorkField;
 use thoth_api::work::model::WorkOrderBy;
 
 pagination_component! {
     WorksComponent,
-    Work,
+    WorkExtended,
     works,
     work_count,
     WorksRequest,

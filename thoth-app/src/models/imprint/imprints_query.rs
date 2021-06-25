@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::imprint::model::ImprintExtended;
 use thoth_api::imprint::model::ImprintOrderBy;
-
-use super::Imprint;
 
 const IMPRINTS_QUERY: &str = "
     query ImprintsQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: ImprintOrderBy) {
@@ -48,6 +47,6 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ImprintsResponseData {
-    pub imprints: Vec<Imprint>,
+    pub imprints: Vec<ImprintExtended>,
     pub imprint_count: i32,
 }

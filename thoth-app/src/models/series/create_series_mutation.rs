@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::series::model::SeriesType;
 use thoth_api::series::model::Series;
+use thoth_api::series::model::SeriesType;
 use uuid::Uuid;
 
 const CREATE_SERIES_MUTATION: &str = "

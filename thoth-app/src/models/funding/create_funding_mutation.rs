@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::funding::model::FundingExtended as Funding;
+use thoth_api::funding::model::FundingExtended;
 use uuid::Uuid;
 
 const CREATE_FUNDING_MUTATION: &str = "
@@ -66,5 +66,5 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateFundingResponseData {
-    pub create_funding: Option<Funding>,
+    pub create_funding: Option<FundingExtended>,
 }

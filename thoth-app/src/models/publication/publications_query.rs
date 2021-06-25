@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::publication::model::PublicationExtended as Publication;
+use thoth_api::publication::model::PublicationExtended;
 use thoth_api::publication::model::PublicationOrderBy;
 
 pub const PUBLICATIONS_QUERY: &str = "
@@ -65,6 +65,6 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicationsResponseData {
-    pub publications: Vec<Publication>,
+    pub publications: Vec<PublicationExtended>,
     pub publication_count: i32,
 }

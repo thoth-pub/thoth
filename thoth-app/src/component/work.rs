@@ -1,14 +1,14 @@
 use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::contribution::model::Contribution;
-use thoth_api::funding::model::FundingExtended as Funding;
-use thoth_api::imprint::model::ImprintExtended as Imprint;
-use thoth_api::issue::model::IssueExtended as Issue;
+use thoth_api::funding::model::FundingExtended;
+use thoth_api::imprint::model::ImprintExtended;
+use thoth_api::issue::model::IssueExtended;
 use thoth_api::language::model::Language;
 use thoth_api::model::{Doi, DOI_DOMAIN};
 use thoth_api::publication::model::Publication;
 use thoth_api::subject::model::Subject;
-use thoth_api::work::model::WorkExtended as Work;
+use thoth_api::work::model::WorkExtended;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
 use thoth_errors::ThothError;
@@ -68,7 +68,7 @@ use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct WorkComponent {
-    work: Work,
+    work: WorkExtended,
     // Track the user-entered DOI string, which may not be validly formatted
     doi: String,
     doi_warning: String,
@@ -86,7 +86,7 @@ pub struct WorkComponent {
 
 #[derive(Default)]
 struct WorkFormData {
-    imprints: Vec<Imprint>,
+    imprints: Vec<ImprintExtended>,
     work_types: Vec<WorkTypeValues>,
     work_statuses: Vec<WorkStatusValues>,
 }
@@ -128,11 +128,11 @@ pub enum Msg {
     ChangeCoverUrl(String),
     ChangeCoverCaption(String),
     UpdateContributions(Option<Vec<Contribution>>),
-    UpdateFundings(Option<Vec<Funding>>),
+    UpdateFundings(Option<Vec<FundingExtended>>),
     UpdatePublications(Option<Vec<Publication>>),
     UpdateLanguages(Option<Vec<Language>>),
     UpdateSubjects(Option<Vec<Subject>>),
-    UpdateIssues(Option<Vec<Issue>>),
+    UpdateIssues(Option<Vec<IssueExtended>>),
     ChangeRoute(AppRoute),
 }
 
@@ -151,7 +151,7 @@ impl Component for WorkComponent {
         let push_work = Default::default();
         let delete_work = Default::default();
         let notification_bus = NotificationBus::dispatcher();
-        let work: Work = Default::default();
+        let work: WorkExtended = Default::default();
         let doi = Default::default();
         let doi_warning = Default::default();
         let imprint_id = work.imprint.imprint_id;
