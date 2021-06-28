@@ -20,6 +20,8 @@ const CREATE_PUBLICATION_MUTATION: &str = "
             publicationId
             publicationType
             workId
+            isbn
+            publicationUrl
             createdAt
             updatedAt
         }
