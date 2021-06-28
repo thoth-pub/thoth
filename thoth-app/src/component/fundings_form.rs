@@ -53,7 +53,6 @@ struct FundingsFormData {
     funders: Vec<Funder>,
 }
 
-#[allow(clippy::large_enum_variant)]
 pub enum Msg {
     ToggleAddFormDisplay(bool),
     SetFundersFetchState(FetchActionFunders),
