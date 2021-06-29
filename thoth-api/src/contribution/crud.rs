@@ -51,6 +51,7 @@ impl Crud for Contribution {
                 dsl::first_name,
                 dsl::last_name,
                 dsl::full_name,
+                dsl::contribution_ordinal,
             ))
             .into_boxed();
 
@@ -102,6 +103,10 @@ impl Crud for Contribution {
             ContributionField::FullName => match order.direction {
                 Direction::Asc => query = query.order(dsl::full_name.asc()),
                 Direction::Desc => query = query.order(dsl::full_name.desc()),
+            },
+            ContributionField::ContributionOrdinal => match order.direction {
+                Direction::Asc => query = query.order(dsl::contribution_ordinal.asc()),
+                Direction::Desc => query = query.order(dsl::contribution_ordinal.desc()),
             },
         }
         // This loop must appear before any other filter statements, as it takes advantage of
