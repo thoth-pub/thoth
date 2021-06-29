@@ -18,6 +18,7 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormBooleanSelect;
 use crate::component::utils::FormContributionTypeSelect;
+use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormTextInput;
 use crate::models::contribution::contribution_types_query::FetchActionContributionTypes;
 use crate::models::contribution::contribution_types_query::FetchContributionTypes;
@@ -84,6 +85,7 @@ pub enum Msg {
     ChangeBiography(String),
     ChangeContributiontype(ContributionType),
     ChangeMainContribution(bool),
+    ChangeOrdinal(String),
     DoNothing,
 }
 
@@ -218,6 +220,7 @@ impl Component for ContributionsFormComponent {
                         first_name: self.new_contribution.first_name.clone(),
                         last_name: self.new_contribution.last_name.clone(),
                         full_name: self.new_contribution.full_name.clone(),
+                        contribution_ordinal: self.new_contribution.contribution_ordinal,
                     },
                     ..Default::default()
                 };
@@ -336,6 +339,13 @@ impl Component for ContributionsFormComponent {
             }
             Msg::ChangeMainContribution(val) => {
                 self.new_contribution.main_contribution.neq_assign(val)
+            }
+            Msg::ChangeOrdinal(ordinal) => {
+                let ordinal = ordinal.parse::<i32>().unwrap_or(0);
+                self.new_contribution
+                    .contribution_ordinal
+                    .neq_assign(ordinal);
+                false // otherwise we re-render the component and reset the value
             }
             Msg::DoNothing => false, // callbacks need to return a message
         }
@@ -461,6 +471,11 @@ impl Component for ContributionsFormComponent {
                                     })
                                     required = true
                                 />
+                                <FormNumberInput
+                                    label = "Contribution Ordinal"
+                                    value=self.new_contribution.contribution_ordinal
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
+                                />
                             </form>
                         </section>
                         <footer class="modal-card-foot">
@@ -554,6 +569,12 @@ impl ContributionsFormComponent {
                                     false => { NO }
                                 }
                             }
+                        </div>
+                    </div>
+                    <div class="field" style="width: 8em;">
+                        <label class="label">{ "Contribution Ordinal" }</label>
+                        <div class="control is-expanded">
+                            {&c.contribution_ordinal.clone()}
                         </div>
                     </div>
 

@@ -30,6 +30,7 @@ pub const WORKS_QUERY: &str = "
                 updatedAt
                 lastName
                 fullName
+                contributionOrdinal
             }
             imprint {
                 imprintId

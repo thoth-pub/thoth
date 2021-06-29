@@ -52,6 +52,7 @@ pub const WORK_QUERY: &str = "
                 updatedAt
                 lastName
                 fullName
+                contributionOrdinal
             }
             publications {
                 publicationId
