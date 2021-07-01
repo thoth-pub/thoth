@@ -1,4 +1,5 @@
-use thoth_api::imprint::model::ImprintExtended as Imprint;
+use thoth_api::imprint::model::Imprint;
+use thoth_api::imprint::model::ImprintWithPublisher;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -8,19 +9,25 @@ use super::{CreateRoute, EditRoute, MetadataTable};
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
-impl CreateRoute for Imprint {
-    fn create_route() -> AppRoute {
-        AppRoute::Admin(AdminRoute::NewImprint)
-    }
-}
-
 impl EditRoute for Imprint {
     fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Imprint(self.imprint_id))
     }
 }
 
-impl MetadataTable for Imprint {
+impl CreateRoute for ImprintWithPublisher {
+    fn create_route() -> AppRoute {
+        AppRoute::Admin(AdminRoute::NewImprint)
+    }
+}
+
+impl EditRoute for ImprintWithPublisher {
+    fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Imprint(self.imprint_id))
+    }
+}
+
+impl MetadataTable for ImprintWithPublisher {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         let imprint_url = self.imprint_url.clone().unwrap_or_else(|| "".to_string());
         html! {

@@ -1,5 +1,5 @@
 use thoth_api::account::model::AccountDetails;
-use thoth_api::imprint::model::ImprintExtended as Imprint;
+use thoth_api::imprint::model::Imprint;
 use thoth_api::publisher::model::Publisher;
 use uuid::Uuid;
 use yew::html;
@@ -31,7 +31,7 @@ use crate::models::publisher::publishers_query::FetchPublishers;
 use crate::models::publisher::publishers_query::PublishersRequest;
 use crate::models::publisher::publishers_query::PublishersRequestBody;
 use crate::models::publisher::publishers_query::Variables as PublishersVariables;
-use crate::route::AdminRoute;
+use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
@@ -135,9 +135,7 @@ impl Component for NewImprintComponent {
                                 format!("Saved {}", i.imprint_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Imprint(i.imprint_id),
-                            )));
+                            self.link.send_message(Msg::ChangeRoute(i.edit_route()));
                             true
                         }
                         None => {

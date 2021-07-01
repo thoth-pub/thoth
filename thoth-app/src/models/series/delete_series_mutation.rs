@@ -1,16 +1,23 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::series::model::Series;
 use uuid::Uuid;
 
 const DELETE_SERIES_MUTATION: &str = "
     mutation DeleteSeries(
-            $seriesId: Uuid!
+        $seriesId: Uuid!
     ) {
         deleteSeries(
             seriesId: $seriesId
         ){
             seriesId
+            seriesType
             seriesName
+            issnPrint
+            issnDigital
+            imprintId
+            createdAt
+            updatedAt
         }
     }
 ";
@@ -34,13 +41,6 @@ pub struct Variables {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct SlimSeries {
-    pub series_id: Uuid,
-    pub series_name: String,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct DeleteSeriesResponseData {
-    pub delete_series: Option<SlimSeries>,
+    pub delete_series: Option<Series>,
 }

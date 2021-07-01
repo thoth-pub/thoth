@@ -1,10 +1,10 @@
 use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
-use thoth_api::imprint::model::ImprintExtended as Imprint;
+use thoth_api::imprint::model::ImprintWithPublisher;
 use thoth_api::model::{Doi, DOI_DOMAIN};
-use thoth_api::work::model::WorkExtended as Work;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
+use thoth_api::work::model::WorkWithRelations;
 use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
@@ -48,12 +48,12 @@ use crate::models::work::work_types_query::FetchActionWorkTypes;
 use crate::models::work::work_types_query::FetchWorkTypes;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
-use crate::route::AdminRoute;
+use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct NewWorkComponent {
-    work: Work,
+    work: WorkWithRelations,
     // Track the user-entered DOI string, which may not be validly formatted
     doi: String,
     doi_warning: String,
@@ -72,11 +72,12 @@ pub struct NewWorkComponent {
 
 #[derive(Default)]
 struct WorkFormData {
-    imprints: Vec<Imprint>,
+    imprints: Vec<ImprintWithPublisher>,
     work_types: Vec<WorkTypeValues>,
     work_statuses: Vec<WorkStatusValues>,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum Msg {
     SetImprintsFetchState(FetchActionImprints),
     GetImprints,
@@ -130,7 +131,7 @@ impl Component for NewWorkComponent {
         let push_work = Default::default();
         let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
-        let work: Work = Default::default();
+        let work: WorkWithRelations = Default::default();
         let doi = Default::default();
         let doi_warning = Default::default();
         let imprint_id: Uuid = Default::default();
@@ -236,9 +237,7 @@ impl Component for NewWorkComponent {
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Work(w.work_id),
-                            )));
+                            self.link.send_message(Msg::ChangeRoute(w.edit_route()));
                             true
                         }
                         None => {

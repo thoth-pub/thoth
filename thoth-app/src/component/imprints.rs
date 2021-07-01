@@ -3,13 +3,13 @@ use crate::models::imprint::imprints_query::FetchImprints;
 use crate::models::imprint::imprints_query::ImprintsRequest;
 use crate::models::imprint::imprints_query::ImprintsRequestBody;
 use crate::models::imprint::imprints_query::Variables;
-use thoth_api::imprint::model::ImprintExtended as Imprint;
 use thoth_api::imprint::model::ImprintField;
 use thoth_api::imprint::model::ImprintOrderBy;
+use thoth_api::imprint::model::ImprintWithPublisher;
 
 pagination_component! {
     ImprintsComponent,
-    Imprint,
+    ImprintWithPublisher,
     imprints,
     imprint_count,
     ImprintsRequest,

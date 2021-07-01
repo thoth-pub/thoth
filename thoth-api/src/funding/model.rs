@@ -7,6 +7,7 @@ use crate::model::Timestamp;
 use crate::schema::funding;
 #[cfg(feature = "backend")]
 use crate::schema::funding_history;
+use crate::work::model::WorkWithRelations;
 
 #[cfg_attr(
     feature = "backend",
@@ -27,7 +28,8 @@ pub enum FundingField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Funding {
     pub funding_id: Uuid,
     pub work_id: Uuid,
@@ -43,7 +45,7 @@ pub struct Funding {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct FundingExtended {
+pub struct FundingWithFunder {
     pub funding_id: Uuid,
     pub work_id: Uuid,
     pub funder_id: Uuid,
@@ -53,6 +55,12 @@ pub struct FundingExtended {
     pub grant_number: Option<String>,
     pub jurisdiction: Option<String>,
     pub funder: Funder,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FundingWithWork {
+    pub work: WorkWithRelations,
 }
 
 #[cfg_attr(

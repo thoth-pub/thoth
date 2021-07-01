@@ -1,9 +1,9 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::imprint::model::ImprintExtended as Imprint;
+use thoth_api::imprint::model::ImprintWithPublisher;
+use thoth_api::work::model::WorkWithRelations;
 use uuid::Uuid;
 
-use super::Work;
 use super::WorkStatusDefinition;
 use super::WorkTypeDefinition;
 
@@ -27,6 +27,7 @@ pub const WORK_QUERY: &str = "
             pageBreakdown
             imageCount
             tableCount
+            audioCount
             videoCount
             license
             copyrightHolder
@@ -60,21 +61,8 @@ pub const WORK_QUERY: &str = "
                 workId
                 isbn
                 publicationUrl
-                prices {
-                    priceId
-                    publicationId
-                    currencyCode
-                    unitPrice
-                    createdAt
-                    updatedAt
-                }
-                work {
-                    imprint {
-                        publisher {
-                            publisherId
-                        }
-                    }
-                }
+                createdAt
+                updatedAt
             }
             languages {
                 languageId
@@ -198,8 +186,8 @@ pub struct Variables {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct WorkResponseData {
-    pub work: Option<Work>,
-    pub imprints: Vec<Imprint>,
+    pub work: Option<WorkWithRelations>,
+    pub imprints: Vec<ImprintWithPublisher>,
     pub work_types: WorkTypeDefinition,
     pub work_statuses: WorkStatusDefinition,
 }

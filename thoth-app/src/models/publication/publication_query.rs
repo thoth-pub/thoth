@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::publication::model::PublicationExtended as Publication;
+use thoth_api::publication::model::PublicationWithRelations;
 use uuid::Uuid;
 
 pub const PUBLICATION_QUERY: &str = "
@@ -11,6 +11,7 @@ pub const PUBLICATION_QUERY: &str = "
             workId
             isbn
             publicationUrl
+            updatedAt
             prices {
                 priceId
                 publicationId
@@ -20,9 +21,23 @@ pub const PUBLICATION_QUERY: &str = "
                 updatedAt
             }
             work {
+                workId
+                workType
+                workStatus
+                fullTitle
+                title
+                edition
+                copyrightHolder
+                updatedAt
                 imprint {
+                    imprintId
+                    imprintName
+                    updatedAt
                     publisher {
                         publisherId
+                        publisherName
+                        createdAt
+                        updatedAt
                     }
                 }
             }
@@ -49,5 +64,5 @@ pub struct Variables {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct PublicationResponseData {
-    pub publication: Option<Publication>,
+    pub publication: Option<PublicationWithRelations>,
 }

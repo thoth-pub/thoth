@@ -5,14 +5,14 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::contribution::model::Contribution;
-use crate::funding::model::FundingExtended as Funding;
+use crate::funding::model::FundingWithFunder;
 use crate::graphql::utils::Direction;
-use crate::imprint::model::ImprintExtended as Imprint;
-use crate::issue::model::IssueExtended as Issue;
+use crate::imprint::model::ImprintWithPublisher;
+use crate::issue::model::IssueWithSeries;
 use crate::language::model::Language;
 use crate::model::Doi;
 use crate::model::Timestamp;
-use crate::publication::model::PublicationExtended as Publication;
+use crate::publication::model::Publication;
 #[cfg(feature = "backend")]
 use crate::schema::work;
 #[cfg(feature = "backend")]
@@ -115,7 +115,8 @@ pub enum WorkField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Work {
     pub work_id: Uuid,
     pub work_type: WorkType,
@@ -154,7 +155,7 @@ pub struct Work {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct WorkExtended {
+pub struct WorkWithRelations {
     pub work_id: Uuid,
     pub work_type: WorkType,
     pub work_status: WorkStatus,
@@ -189,10 +190,10 @@ pub struct WorkExtended {
     pub contributions: Option<Vec<Contribution>>,
     pub publications: Option<Vec<Publication>>,
     pub languages: Option<Vec<Language>>,
-    pub fundings: Option<Vec<Funding>>,
+    pub fundings: Option<Vec<FundingWithFunder>>,
     pub subjects: Option<Vec<Subject>>,
-    pub issues: Option<Vec<Issue>>,
-    pub imprint: Imprint,
+    pub issues: Option<Vec<IssueWithSeries>>,
+    pub imprint: ImprintWithPublisher,
 }
 
 #[cfg_attr(
@@ -300,7 +301,17 @@ pub struct WorkOrderBy {
     pub direction: Direction,
 }
 
-impl WorkExtended {
+impl Work {
+    pub fn compile_fulltitle(&self) -> String {
+        if let Some(subtitle) = &self.subtitle.clone() {
+            format!("{}: {}", self.title, subtitle)
+        } else {
+            self.title.to_string()
+        }
+    }
+}
+
+impl WorkWithRelations {
     pub fn compile_fulltitle(&self) -> String {
         if let Some(subtitle) = &self.subtitle.clone() {
             format!("{}: {}", self.title, subtitle)
@@ -336,9 +347,9 @@ impl Default for WorkField {
     }
 }
 
-impl Default for WorkExtended {
-    fn default() -> WorkExtended {
-        WorkExtended {
+impl Default for WorkWithRelations {
+    fn default() -> WorkWithRelations {
+        WorkWithRelations {
             work_id: Default::default(),
             work_type: Default::default(),
             work_status: Default::default(),

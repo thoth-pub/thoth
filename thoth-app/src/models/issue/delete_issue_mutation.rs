@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::issue::model::Issue;
 use uuid::Uuid;
 
 const DELETE_ISSUE_MUTATION: &str = "
@@ -10,9 +11,11 @@ const DELETE_ISSUE_MUTATION: &str = "
             issueId: $issueId
         ){
             issueId
-            workId
             seriesId
+            workId
             issueOrdinal
+            createdAt
+            updatedAt
         }
     }
 ";
@@ -36,15 +39,6 @@ pub struct Variables {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct SlimIssue {
-    pub issue_id: Uuid,
-    pub work_id: Uuid,
-    pub series_id: Uuid,
-    pub issue_ordinal: i32,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct DeleteIssueResponseData {
-    pub delete_issue: Option<SlimIssue>,
+    pub delete_issue: Option<Issue>,
 }
