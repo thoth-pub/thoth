@@ -1,5 +1,5 @@
 use thoth_api::contribution::model::ContributionType;
-use thoth_api::imprint::model::ImprintExtended as Imprint;
+use thoth_api::imprint::model::ImprintWithPublisher;
 use thoth_api::language::model::LanguageCode;
 use thoth_api::language::model::LanguageRelation;
 use thoth_api::price::model::CurrencyCode;
@@ -266,7 +266,7 @@ pub struct PureBooleanSelect {
 #[derive(Clone, PartialEq, Properties)]
 pub struct PureImprintSelect {
     pub label: String,
-    pub data: Vec<Imprint>,
+    pub data: Vec<ImprintWithPublisher>,
     pub value: Option<Uuid>,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
@@ -836,7 +836,7 @@ impl PureCurrencyCodeSelect {
 }
 
 impl PureImprintSelect {
-    fn render_imprint(&self, i: &Imprint) -> VNode {
+    fn render_imprint(&self, i: &ImprintWithPublisher) -> VNode {
         let value = &self.value.unwrap_or_default();
         if &i.imprint_id == value {
             html! {

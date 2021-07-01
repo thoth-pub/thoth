@@ -1,3 +1,4 @@
+use thoth_api::contribution::model::ContributionWithWork;
 use thoth_api::contributor::model::Contributor;
 use thoth_api::model::{Orcid, ORCID_DOMAIN};
 use thoth_errors::ThothError;
@@ -27,7 +28,6 @@ use crate::component::utils::FormTextInputExtended;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
 use crate::models::contributor::contributor_activity_query::ContributorActivityResponseData;
-use crate::models::contributor::contributor_activity_query::SlimContribution;
 use crate::models::contributor::contributor_query::ContributorRequest;
 use crate::models::contributor::contributor_query::ContributorRequestBody;
 use crate::models::contributor::contributor_query::FetchActionContributor;
@@ -43,6 +43,7 @@ use crate::models::contributor::update_contributor_mutation::PushUpdateContribut
 use crate::models::contributor::update_contributor_mutation::UpdateContributorRequest;
 use crate::models::contributor::update_contributor_mutation::UpdateContributorRequestBody;
 use crate::models::contributor::update_contributor_mutation::Variables as UpdateVariables;
+use crate::models::EditRoute;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
@@ -59,7 +60,7 @@ pub struct ContributorComponent {
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     _contributor_activity_checker: Box<dyn Bridge<ContributorActivityChecker>>,
-    contributor_activity: Vec<SlimContribution>,
+    contributor_activity: Vec<ContributionWithWork>,
 }
 
 pub enum Msg {
@@ -377,7 +378,7 @@ impl Component for ContributorComponent {
                                                 <p>
                                                     { "Contributed to: " }
                                                     <RouterAnchor<AppRoute>
-                                                        route=AppRoute::Admin(AdminRoute::Work(contribution.work.work_id))
+                                                        route=contribution.work.edit_route()
                                                     >
                                                         { &contribution.work.title }
                                                     </  RouterAnchor<AppRoute>>

@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::contribution::model::ContributionWithWork;
 use uuid::Uuid;
 
 use crate::graphql_query_builder;
@@ -10,10 +11,22 @@ pub const CONTRIBUTOR_ACTIVITY_QUERY: &str = "
             contributions {
                 work {
                     workId
+                    workType
+                    workStatus
+                    fullTitle
                     title
+                    edition
+                    copyrightHolder
+                    updatedAt
                     imprint {
+                        imprintId
+                        imprintName
+                        updatedAt
                         publisher {
+                            publisherId
                             publisherName
+                            createdAt
+                            updatedAt
                         }
                     }
                 }
@@ -47,31 +60,5 @@ pub struct ContributorActivityResponseData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ContributorActivity {
-    pub contributions: Option<Vec<SlimContribution>>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimContribution {
-    pub work: SlimWork,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimWork {
-    pub work_id: Uuid,
-    pub title: String,
-    pub imprint: SlimImprint,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimImprint {
-    pub publisher: SlimPublisher,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimPublisher {
-    pub publisher_name: String,
+    pub contributions: Option<Vec<ContributionWithWork>>,
 }

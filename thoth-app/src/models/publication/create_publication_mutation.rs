@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::publication::model::PublicationExtended as Publication;
+use thoth_api::publication::model::Publication;
 use thoth_api::publication::model::PublicationType;
 use uuid::Uuid;
 
@@ -19,16 +19,11 @@ const CREATE_PUBLICATION_MUTATION: &str = "
         }){
             publicationId
             publicationType
+            workId
             isbn
             publicationUrl
-            workId
-            work {
-                imprint {
-                    publisher {
-                        publisherId
-                    }
-                }
-            }
+            createdAt
+            updatedAt
         }
     }
 ";
