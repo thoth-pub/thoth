@@ -34,6 +34,7 @@ table! {
         first_name -> Nullable<Text>,
         last_name -> Text,
         full_name -> Text,
+        contribution_ordinal -> Int4,
     }
 }
 

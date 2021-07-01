@@ -2144,6 +2144,10 @@ impl Contribution {
         &self.full_name
     }
 
+    pub fn contribution_ordinal(&self) -> &i32 {
+        &self.contribution_ordinal
+    }
+
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
