@@ -42,10 +42,17 @@ pub enum ThothError {
         _0
     )]
     DoiParseError(String),
+    #[fail(
+        display = "{} is not a validly formatted ISBN and will not be saved",
+        _0
+    )]
+    IsbnParseError(String),
     #[fail(display = "Cannot parse ORCID: no value provided")]
     OrcidEmptyError,
     #[fail(display = "Cannot parse DOI: no value provided")]
     DoiEmptyError,
+    #[fail(display = "Cannot parse ISBN: no value provided")]
+    IsbnEmptyError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]

@@ -4,6 +4,7 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
+use crate::model::Isbn;
 use crate::model::Timestamp;
 use crate::price::model::Price;
 #[cfg(feature = "backend")]
@@ -65,7 +66,7 @@ pub struct Publication {
     pub publication_id: Uuid,
     pub publication_type: PublicationType,
     pub work_id: Uuid,
-    pub isbn: Option<String>,
+    pub isbn: Option<Isbn>,
     pub publication_url: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
@@ -77,7 +78,7 @@ pub struct PublicationWithRelations {
     pub publication_id: Uuid,
     pub publication_type: PublicationType,
     pub work_id: Uuid,
-    pub isbn: Option<String>,
+    pub isbn: Option<Isbn>,
     pub publication_url: Option<String>,
     pub updated_at: Timestamp,
     pub prices: Option<Vec<Price>>,
@@ -92,7 +93,7 @@ pub struct PublicationWithRelations {
 pub struct NewPublication {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
-    pub isbn: Option<String>,
+    pub isbn: Option<Isbn>,
     pub publication_url: Option<String>,
 }
 
@@ -106,7 +107,7 @@ pub struct PatchPublication {
     pub publication_id: Uuid,
     pub publication_type: PublicationType,
     pub work_id: Uuid,
-    pub isbn: Option<String>,
+    pub isbn: Option<Isbn>,
     pub publication_url: Option<String>,
 }
 

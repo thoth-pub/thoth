@@ -145,7 +145,8 @@ impl Component for PublicationComponent {
                                 format!(
                                     "Deleted {}",
                                     &p.isbn
-                                        .clone()
+                                        .as_ref()
+                                        .map(|s| s.to_string())
                                         .unwrap_or_else(|| p.publication_id.to_string())
                                 ),
                                 NotificationStatus::Success,
@@ -236,7 +237,7 @@ impl Component for PublicationComponent {
                             <div class="field">
                                 <label class="label">{ "ISBN" }</label>
                                 <div class="control is-expanded">
-                                    {&self.publication.isbn.clone().unwrap_or_else(|| "".to_string())}
+                                    {&self.publication.isbn.as_ref().map(|s| s.to_string()).unwrap_or_else(|| "".to_string())}
                                 </div>
                             </div>
 
