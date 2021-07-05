@@ -16,6 +16,7 @@ use crate::issue::model::*;
 use crate::language::model::*;
 use crate::model::Crud;
 use crate::model::Doi;
+use crate::model::Isbn;
 use crate::model::Orcid;
 use crate::model::Timestamp;
 use crate::price::model::*;
@@ -1435,6 +1436,10 @@ impl Work {
         &self.edition
     }
 
+    pub fn imprint_id(&self) -> Uuid {
+        self.imprint_id
+    }
+
     #[graphql(
         description = "Digital Object Identifier of the work as full URL. It must use the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.11647/obp.0001)"
     )]
@@ -1801,7 +1806,7 @@ impl Publication {
         self.work_id
     }
 
-    pub fn isbn(&self) -> Option<&String> {
+    pub fn isbn(&self) -> Option<&Isbn> {
         self.isbn.as_ref()
     }
 
@@ -1936,6 +1941,10 @@ impl Publisher {
 impl Imprint {
     pub fn imprint_id(&self) -> Uuid {
         self.imprint_id
+    }
+
+    pub fn publisher_id(&self) -> Uuid {
+        self.publisher_id
     }
 
     pub fn imprint_name(&self) -> &String {
@@ -2136,6 +2145,10 @@ impl Contribution {
         &self.full_name
     }
 
+    pub fn contribution_ordinal(&self) -> &i32 {
+        &self.contribution_ordinal
+    }
+
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
@@ -2169,6 +2182,10 @@ impl Series {
 
     pub fn series_url(&self) -> Option<&String> {
         self.series_url.as_ref()
+    }
+
+    pub fn imprint_id(&self) -> Uuid {
+        self.imprint_id
     }
 
     pub fn created_at(&self) -> Timestamp {
@@ -2477,7 +2494,7 @@ pub fn create_schema() -> Schema {
 }
 
 fn publisher_id_from_imprint_id(db: &crate::db::PgPool, imprint_id: Uuid) -> ThothResult<Uuid> {
-    Imprint::from_id(db, &imprint_id)?.publisher_id(db)
+    Ok(Imprint::from_id(db, &imprint_id)?.publisher_id)
 }
 
 fn publisher_id_from_work_id(db: &crate::db::PgPool, work_id: Uuid) -> ThothResult<Uuid> {

@@ -6,7 +6,7 @@ use crate::model::Timestamp;
 use crate::schema::issue;
 #[cfg(feature = "backend")]
 use crate::schema::issue_history;
-use crate::series::model::SeriesExtended as Series;
+use crate::series::model::SeriesWithImprint;
 
 #[cfg_attr(
     feature = "backend",
@@ -23,7 +23,8 @@ pub enum IssueField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Issue {
     pub issue_id: Uuid,
     pub series_id: Uuid,
@@ -35,12 +36,12 @@ pub struct Issue {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct IssueExtended {
+pub struct IssueWithSeries {
     pub issue_id: Uuid,
     pub work_id: Uuid,
     pub series_id: Uuid,
     pub issue_ordinal: i32,
-    pub series: Series,
+    pub series: SeriesWithImprint,
 }
 
 #[cfg_attr(
@@ -83,9 +84,9 @@ pub struct NewIssueHistory {
     pub data: serde_json::Value,
 }
 
-impl Default for IssueExtended {
-    fn default() -> IssueExtended {
-        IssueExtended {
+impl Default for IssueWithSeries {
+    fn default() -> IssueWithSeries {
+        IssueWithSeries {
             issue_id: Default::default(),
             work_id: Default::default(),
             series_id: Default::default(),

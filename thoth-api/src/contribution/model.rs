@@ -8,6 +8,7 @@ use crate::model::Timestamp;
 use crate::schema::contribution;
 #[cfg(feature = "backend")]
 use crate::schema::contribution_history;
+use crate::work::model::WorkWithRelations;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Contribution_type")]
@@ -50,6 +51,7 @@ pub enum ContributionField {
     FirstName,
     LastName,
     FullName,
+    ContributionOrdinal,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -68,6 +70,13 @@ pub struct Contribution {
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
+    pub contribution_ordinal: i32,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ContributionWithWork {
+    pub work: WorkWithRelations,
 }
 
 #[cfg_attr(
@@ -85,6 +94,7 @@ pub struct NewContribution {
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
+    pub contribution_ordinal: i32,
 }
 
 #[cfg_attr(
@@ -104,6 +114,7 @@ pub struct PatchContribution {
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
+    pub contribution_ordinal: i32,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]

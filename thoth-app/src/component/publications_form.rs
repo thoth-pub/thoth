@@ -1,6 +1,8 @@
 use std::str::FromStr;
-use thoth_api::publication::model::PublicationExtended as Publication;
+use thoth_api::model::Isbn;
+use thoth_api::publication::model::Publication;
 use thoth_api::publication::model::PublicationType;
+use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -19,7 +21,7 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormPublicationTypeSelect;
-use crate::component::utils::FormTextInput;
+use crate::component::utils::FormTextInputExtended;
 use crate::component::utils::FormUrlInput;
 use crate::models::publication::create_publication_mutation::CreatePublicationRequest;
 use crate::models::publication::create_publication_mutation::CreatePublicationRequestBody;
@@ -45,6 +47,9 @@ pub struct PublicationsFormComponent {
     props: Props,
     data: PublicationsFormData,
     new_publication: Publication,
+    // Track the user-entered ISBN string, which may not be validly formatted
+    isbn: String,
+    isbn_warning: String,
     show_add_form: bool,
     fetch_publication_types: FetchPublicationTypes,
     push_publication: PushCreatePublication,
@@ -89,6 +94,8 @@ impl Component for PublicationsFormComponent {
         let data: PublicationsFormData = Default::default();
         let show_add_form = false;
         let new_publication: Publication = Default::default();
+        let isbn = Default::default();
+        let isbn_warning = Default::default();
         let push_publication = Default::default();
         let delete_publication = Default::default();
         let notification_bus = NotificationBus::dispatcher();
@@ -100,6 +107,8 @@ impl Component for PublicationsFormComponent {
             props,
             data,
             new_publication,
+            isbn,
+            isbn_warning,
             show_add_form,
             fetch_publication_types: Default::default(),
             push_publication,
@@ -114,6 +123,12 @@ impl Component for PublicationsFormComponent {
         match msg {
             Msg::ToggleAddFormDisplay(value) => {
                 self.show_add_form = value;
+                // Ensure ISBN variables are cleared on re-opening form,
+                // otherwise a previously-entered valid ISBN value may be
+                // saved although an invalid value was subsequently entered
+                self.new_publication.isbn = Default::default();
+                self.isbn = Default::default();
+                self.isbn_warning = Default::default();
                 true
             }
             Msg::SetPublicationTypesFetchState(fetch_state) => {
@@ -170,6 +185,14 @@ impl Component for PublicationsFormComponent {
                 }
             }
             Msg::CreatePublication => {
+                // Only update the ISBN value with the current user-entered string
+                // if it is validly formatted - otherwise keep the default.
+                // If no ISBN was provided, no format check is required.
+                if self.isbn.is_empty() {
+                    self.new_publication.isbn.neq_assign(None);
+                } else if let Ok(result) = self.isbn.parse::<Isbn>() {
+                    self.new_publication.isbn.neq_assign(Some(result));
+                }
                 let body = CreatePublicationRequestBody {
                     variables: Variables {
                         work_id: self.props.work_id,
@@ -241,11 +264,25 @@ impl Component for PublicationsFormComponent {
                 self.new_publication.publication_type.neq_assign(val)
             }
             Msg::ChangeIsbn(value) => {
-                let isbn = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.new_publication.isbn.neq_assign(isbn)
+                if self.isbn.neq_assign(value.trim().to_owned()) {
+                    // If ISBN is not correctly formatted, display a warning.
+                    // Don't update self.new_publication.isbn yet, as user may later
+                    // overwrite a new valid value with an invalid one.
+                    self.isbn_warning.clear();
+                    match self.isbn.parse::<Isbn>() {
+                        Err(e) => {
+                            match e {
+                                // If no ISBN was provided, no warning is required.
+                                ThothError::IsbnEmptyError => {}
+                                _ => self.isbn_warning = e.to_string(),
+                            }
+                        }
+                        Ok(value) => self.isbn = value.to_string(),
+                    }
+                    true
+                } else {
+                    false
+                }
             }
             Msg::ChangeUrl(value) => {
                 let url = match value.trim().is_empty() {
@@ -322,9 +359,10 @@ impl Component for PublicationsFormComponent {
                                     })
                                     required = true
                                 />
-                                <FormTextInput
+                                <FormTextInputExtended
                                     label = "ISBN"
-                                    value=self.new_publication.isbn.clone().unwrap_or_else(|| "".to_string()).clone()
+                                    value=self.isbn.clone()
+                                    tooltip=self.isbn_warning.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeIsbn(e.value))
                                 />
                                 <FormUrlInput
@@ -396,7 +434,7 @@ impl PublicationsFormComponent {
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "ISBN" }</label>
                         <div class="control is-expanded">
-                            {&p.isbn.clone().unwrap_or_else(|| "".to_string())}
+                            {&p.isbn.as_ref().map(|s| s.to_string()).unwrap_or_else(|| "".to_string())}
                         </div>
                     </div>
 

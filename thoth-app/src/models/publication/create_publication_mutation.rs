@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::publication::model::PublicationExtended as Publication;
+use thoth_api::model::Isbn;
+use thoth_api::publication::model::Publication;
 use thoth_api::publication::model::PublicationType;
 use uuid::Uuid;
 
@@ -8,7 +9,7 @@ const CREATE_PUBLICATION_MUTATION: &str = "
     mutation CreatePublication(
         $publicationType: PublicationType!,
         $workId: Uuid!,
-        $isbn: String,
+        $isbn: Isbn,
         $publicationUrl: String,
     ) {
         createPublication(data: {
@@ -19,16 +20,11 @@ const CREATE_PUBLICATION_MUTATION: &str = "
         }){
             publicationId
             publicationType
+            workId
             isbn
             publicationUrl
-            workId
-            work {
-                imprint {
-                    publisher {
-                        publisherId
-                    }
-                }
-            }
+            createdAt
+            updatedAt
         }
     }
 ";
@@ -49,7 +45,7 @@ graphql_query_builder! {
 pub struct Variables {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
-    pub isbn: Option<String>,
+    pub isbn: Option<Isbn>,
     pub publication_url: Option<String>,
 }
 

@@ -1,7 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::series::model::SeriesExtended as Series;
+use thoth_api::series::model::Series;
 use thoth_api::series::model::SeriesType;
+use thoth_api::series::model::SeriesWithImprint;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -23,21 +24,27 @@ pub struct SeriesTypeValues {
     pub name: SeriesType,
 }
 
-impl Dropdown for Series {}
-
-impl CreateRoute for Series {
-    fn create_route() -> AppRoute {
-        AppRoute::Admin(AdminRoute::NewSeries)
-    }
-}
-
 impl EditRoute for Series {
     fn edit_route(&self) -> AppRoute {
         AppRoute::Admin(AdminRoute::Series(self.series_id))
     }
 }
 
-impl MetadataTable for Series {
+impl Dropdown for SeriesWithImprint {}
+
+impl CreateRoute for SeriesWithImprint {
+    fn create_route() -> AppRoute {
+        AppRoute::Admin(AdminRoute::NewSeries)
+    }
+}
+
+impl EditRoute for SeriesWithImprint {
+    fn edit_route(&self) -> AppRoute {
+        AppRoute::Admin(AdminRoute::Series(self.series_id))
+    }
+}
+
+impl MetadataTable for SeriesWithImprint {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
         html! {
             <tr

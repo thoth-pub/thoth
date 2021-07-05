@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
-use thoth_api::imprint::model::ImprintExtended as Imprint;
-use thoth_api::series::model::SeriesExtended as Series;
+use thoth_api::imprint::model::ImprintWithPublisher;
+use thoth_api::series::model::Series;
 use thoth_api::series::model::SeriesType;
 use uuid::Uuid;
 use yew::html;
@@ -37,7 +37,7 @@ use crate::models::series::create_series_mutation::Variables;
 use crate::models::series::series_types_query::FetchActionSeriesTypes;
 use crate::models::series::series_types_query::FetchSeriesTypes;
 use crate::models::series::SeriesTypeValues;
-use crate::route::AdminRoute;
+use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
@@ -55,7 +55,7 @@ pub struct NewSeriesComponent {
 
 #[derive(Default)]
 struct SeriesFormData {
-    imprints: Vec<Imprint>,
+    imprints: Vec<ImprintWithPublisher>,
     series_types: Vec<SeriesTypeValues>,
 }
 
@@ -165,9 +165,7 @@ impl Component for NewSeriesComponent {
                                 format!("Saved {}", s.series_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Series(s.series_id),
-                            )));
+                            self.link.send_message(Msg::ChangeRoute(s.edit_route()));
                             true
                         }
                         None => {
@@ -195,7 +193,7 @@ impl Component for NewSeriesComponent {
                         issn_print: self.series.issn_print.clone(),
                         issn_digital: self.series.issn_digital.clone(),
                         series_url: self.series.series_url.clone(),
-                        imprint_id: self.series.imprint.imprint_id,
+                        imprint_id: self.series.imprint_id,
                     },
                     ..Default::default()
                 };
@@ -208,7 +206,7 @@ impl Component for NewSeriesComponent {
                 false
             }
             Msg::ChangeSeriesType(series_type) => self.series.series_type.neq_assign(series_type),
-            Msg::ChangeImprint(imprint_id) => self.series.imprint.imprint_id.neq_assign(imprint_id),
+            Msg::ChangeImprint(imprint_id) => self.series.imprint_id.neq_assign(imprint_id),
             Msg::ChangeSeriesName(series_name) => self
                 .series
                 .series_name
@@ -278,7 +276,7 @@ impl Component for NewSeriesComponent {
                     />
                     <FormImprintSelect
                         label = "Imprint"
-                        value=self.series.imprint.imprint_id
+                        value=self.series.imprint_id
                         data=self.data.imprints.clone()
                         onchange=self.link.callback(|event| match event {
                             ChangeData::Select(elem) => {

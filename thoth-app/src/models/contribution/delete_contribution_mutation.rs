@@ -19,6 +19,7 @@ const DELETE_CONTRIBUTION_MUTATION: &str = "
             updatedAt
             lastName
             fullName
+            contributionOrdinal
         }
     }
 ";

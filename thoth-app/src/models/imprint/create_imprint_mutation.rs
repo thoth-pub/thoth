@@ -1,8 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::imprint::model::Imprint;
 use uuid::Uuid;
-
-use super::Imprint;
 
 const CREATE_IMPRINT_MUTATION: &str = "
     mutation CreateImprint(
@@ -16,17 +15,10 @@ const CREATE_IMPRINT_MUTATION: &str = "
             publisherId: $publisherId
         }){
             imprintId
+            publisherId
             imprintName
-            imprintUrl
+            createdAt
             updatedAt
-            publisher {
-                publisherId
-                publisherName
-                publisherShortname
-                publisherUrl
-                createdAt
-                updatedAt
-            }
         }
     }
 ";

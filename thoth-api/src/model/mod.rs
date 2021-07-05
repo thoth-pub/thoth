@@ -1,4 +1,5 @@
 use chrono::{DateTime, TimeZone, Utc};
+use isbn2::Isbn13;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -18,6 +19,16 @@ pub const ORCID_DOMAIN: &str = "https://orcid.org/";
 )]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Doi(String);
+
+#[cfg_attr(
+    feature = "backend",
+    derive(DieselNewType, juniper::GraphQLScalarValue),
+    graphql(
+        description = "13-digit International Standard Book Number, with its parts separated by hyphens"
+    )
+)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Isbn(String);
 
 #[cfg_attr(
     feature = "backend",
@@ -43,6 +54,12 @@ impl Default for Doi {
     }
 }
 
+impl Default for Isbn {
+    fn default() -> Isbn {
+        Isbn(Default::default())
+    }
+}
+
 impl Default for Orcid {
     fn default() -> Orcid {
         Orcid(Default::default())
@@ -58,6 +75,12 @@ impl Default for Timestamp {
 impl fmt::Display for Doi {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", &self.0.replace(DOI_DOMAIN, ""))
+    }
+}
+
+impl fmt::Display for Isbn {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", &self.0)
     }
 }
 
@@ -104,6 +127,24 @@ impl FromStr for Doi {
             }
         } else {
             Err(ThothError::DoiParseError(input.to_string()))
+        }
+    }
+}
+
+impl FromStr for Isbn {
+    type Err = ThothError;
+
+    fn from_str(input: &str) -> ThothResult<Isbn> {
+        if input.is_empty() {
+            Err(ThothError::IsbnEmptyError)
+        } else {
+            match input.parse::<Isbn13>() {
+                Ok(parsed) => match parsed.hyphenate() {
+                    Ok(hyphenated) => Ok(Isbn(hyphenated.to_string())),
+                    Err(_) => Err(ThothError::IsbnParseError(input.to_string())),
+                },
+                Err(_) => Err(ThothError::IsbnParseError(input.to_string())),
+            }
         }
     }
 }
@@ -373,6 +414,12 @@ fn test_doi_default() {
 }
 
 #[test]
+fn test_isbn_default() {
+    let isbn: Isbn = Default::default();
+    assert_eq!(isbn, Isbn("".to_string()));
+}
+
+#[test]
 fn test_orcid_default() {
     let orcid: Orcid = Default::default();
     assert_eq!(orcid, Orcid("".to_string()));
@@ -388,6 +435,12 @@ fn test_timestamp_default() {
 fn test_doi_display() {
     let doi = Doi("https://doi.org/10.12345/Test-Suffix.01".to_string());
     assert_eq!(format!("{}", doi), "10.12345/Test-Suffix.01");
+}
+
+#[test]
+fn test_isbn_display() {
+    let isbn = Isbn("978-3-16-148410-0".to_string());
+    assert_eq!(format!("{}", isbn), "978-3-16-148410-0");
 }
 
 #[test]
@@ -473,6 +526,30 @@ fn test_doi_fromstr() {
     assert!(Doi::from_str("//doi.org/10.12345/Test-Suffix.01").is_err());
     assert!(Doi::from_str("https://doi-org/10.12345/Test-Suffix.01").is_err());
     assert!(Doi::from_str("10.https://doi.org/12345/Test-Suffix.01").is_err());
+}
+
+#[test]
+fn test_isbn_fromstr() {
+    // Note the `isbn2` crate contains tests of valid/invalid ISBN values -
+    // this focuses on testing that a valid ISBN in any format is standardised
+    let standardised = Isbn("978-3-16-148410-0".to_string());
+    assert_eq!(Isbn::from_str("978-3-16-148410-0").unwrap(), standardised);
+    assert_eq!(Isbn::from_str("9783161484100").unwrap(), standardised);
+    assert_eq!(Isbn::from_str("978 3 16 148410 0").unwrap(), standardised);
+    assert_eq!(Isbn::from_str("978 3 16-148410-0").unwrap(), standardised);
+    assert_eq!(Isbn::from_str("9-7-831614-8-4-100").unwrap(), standardised);
+    assert_eq!(
+        Isbn::from_str("   97831    614 84  100    ").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Isbn::from_str("---97--831614----8-4100--").unwrap(),
+        standardised
+    );
+    assert!(Isbn::from_str("978-3-16-148410-1").is_err());
+    assert!(Isbn::from_str("1234567890123").is_err());
+    assert!(Isbn::from_str("0-684-84328-5").is_err());
+    assert!(Isbn::from_str("abcdef").is_err());
 }
 
 #[test]

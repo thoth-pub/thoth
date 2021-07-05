@@ -24,7 +24,7 @@ use crate::models::funder::create_funder_mutation::CreateFunderRequestBody;
 use crate::models::funder::create_funder_mutation::PushActionCreateFunder;
 use crate::models::funder::create_funder_mutation::PushCreateFunder;
 use crate::models::funder::create_funder_mutation::Variables;
-use crate::route::AdminRoute;
+use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
@@ -83,9 +83,7 @@ impl Component for NewFunderComponent {
                                 format!("Saved {}", f.funder_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Funder(f.funder_id),
-                            )));
+                            self.link.send_message(Msg::ChangeRoute(f.edit_route()));
                             true
                         }
                         None => {

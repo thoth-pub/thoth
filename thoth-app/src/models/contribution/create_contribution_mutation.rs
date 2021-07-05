@@ -15,6 +15,7 @@ const CREATE_CONTRIBUTION_MUTATION: &str = "
         $firstName: String,
         $lastName: String!,
         $fullName: String!,
+        $contributionOrdinal: Int!,
     ) {
         createContribution(data: {
             workId: $workId
@@ -26,6 +27,7 @@ const CREATE_CONTRIBUTION_MUTATION: &str = "
             firstName: $firstName
             lastName: $lastName
             fullName: $fullName
+            contributionOrdinal: $contributionOrdinal
         }){
             contributionId
             workId
@@ -39,6 +41,7 @@ const CREATE_CONTRIBUTION_MUTATION: &str = "
             firstName
             lastName
             fullName
+            contributionOrdinal
         }
     }
 ";
@@ -66,6 +69,7 @@ pub struct Variables {
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
+    pub contribution_ordinal: i32,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

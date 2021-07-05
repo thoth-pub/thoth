@@ -1,6 +1,6 @@
 use thoth_api::account::model::AccountDetails;
 use thoth_api::price::model::Price;
-use thoth_api::publication::model::PublicationExtended as Publication;
+use thoth_api::publication::model::PublicationWithRelations;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -35,7 +35,7 @@ use crate::route::AppRoute;
 use crate::string::DELETE_BUTTON;
 
 pub struct PublicationComponent {
-    publication: Publication,
+    publication: PublicationWithRelations,
     fetch_publication: FetchPublication,
     delete_publication: PushDeletePublication,
     link: ComponentLink<Self>,
@@ -67,7 +67,7 @@ impl Component for PublicationComponent {
         let fetch_publication: FetchPublication = Default::default();
         let delete_publication = Default::default();
         let notification_bus = NotificationBus::dispatcher();
-        let publication: Publication = Default::default();
+        let publication: PublicationWithRelations = Default::default();
         let router = RouteAgentDispatcher::new();
 
         link.send_message(Msg::GetPublication);
@@ -145,7 +145,8 @@ impl Component for PublicationComponent {
                                 format!(
                                     "Deleted {}",
                                     &p.isbn
-                                        .clone()
+                                        .as_ref()
+                                        .map(|s| s.to_string())
                                         .unwrap_or_else(|| p.publication_id.to_string())
                                 ),
                                 NotificationStatus::Success,
@@ -236,7 +237,7 @@ impl Component for PublicationComponent {
                             <div class="field">
                                 <label class="label">{ "ISBN" }</label>
                                 <div class="control is-expanded">
-                                    {&self.publication.isbn.clone().unwrap_or_else(|| "".to_string())}
+                                    {&self.publication.isbn.as_ref().map(|s| s.to_string()).unwrap_or_else(|| "".to_string())}
                                 </div>
                             </div>
 

@@ -4,13 +4,14 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
+use crate::model::Isbn;
 use crate::model::Timestamp;
 use crate::price::model::Price;
 #[cfg(feature = "backend")]
 use crate::schema::publication;
 #[cfg(feature = "backend")]
 use crate::schema::publication_history;
-use crate::work::model::WorkExtended as Work;
+use crate::work::model::WorkWithRelations;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Publication_type")]
@@ -59,12 +60,13 @@ pub enum PublicationField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Publication {
     pub publication_id: Uuid,
     pub publication_type: PublicationType,
     pub work_id: Uuid,
-    pub isbn: Option<String>,
+    pub isbn: Option<Isbn>,
     pub publication_url: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
@@ -72,44 +74,15 @@ pub struct Publication {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct DetailedPublication {
+pub struct PublicationWithRelations {
     pub publication_id: Uuid,
     pub publication_type: PublicationType,
     pub work_id: Uuid,
-    pub isbn: Option<String>,
+    pub isbn: Option<Isbn>,
     pub publication_url: Option<String>,
     pub updated_at: Timestamp,
-    pub work: Work,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct PublicationExtended {
-    pub publication_id: Uuid,
-    pub publication_type: PublicationType,
-    pub work_id: Uuid,
-    pub isbn: Option<String>,
-    pub publication_url: Option<String>,
     pub prices: Option<Vec<Price>>,
-    pub work: SlimWork,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimWork {
-    pub imprint: SlimImprint,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimImprint {
-    pub publisher: SlimPublisher,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SlimPublisher {
-    pub publisher_id: Uuid,
+    pub work: WorkWithRelations,
 }
 
 #[cfg_attr(
@@ -120,7 +93,7 @@ pub struct SlimPublisher {
 pub struct NewPublication {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
-    pub isbn: Option<String>,
+    pub isbn: Option<Isbn>,
     pub publication_url: Option<String>,
 }
 
@@ -134,7 +107,7 @@ pub struct PatchPublication {
     pub publication_id: Uuid,
     pub publication_type: PublicationType,
     pub work_id: Uuid,
-    pub isbn: Option<String>,
+    pub isbn: Option<Isbn>,
     pub publication_url: Option<String>,
 }
 

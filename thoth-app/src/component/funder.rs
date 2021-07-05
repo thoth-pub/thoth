@@ -1,4 +1,5 @@
 use thoth_api::funder::model::Funder;
+use thoth_api::funding::model::FundingWithWork;
 use thoth_api::model::{Doi, DOI_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -31,7 +32,6 @@ use crate::models::funder::delete_funder_mutation::PushActionDeleteFunder;
 use crate::models::funder::delete_funder_mutation::PushDeleteFunder;
 use crate::models::funder::delete_funder_mutation::Variables as DeleteVariables;
 use crate::models::funder::funder_activity_query::FunderActivityResponseData;
-use crate::models::funder::funder_activity_query::SlimFunding;
 use crate::models::funder::funder_query::FetchActionFunder;
 use crate::models::funder::funder_query::FetchFunder;
 use crate::models::funder::funder_query::FunderRequest;
@@ -42,6 +42,7 @@ use crate::models::funder::update_funder_mutation::PushUpdateFunder;
 use crate::models::funder::update_funder_mutation::UpdateFunderRequest;
 use crate::models::funder::update_funder_mutation::UpdateFunderRequestBody;
 use crate::models::funder::update_funder_mutation::Variables as UpdateVariables;
+use crate::models::EditRoute;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
@@ -58,7 +59,7 @@ pub struct FunderComponent {
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     _funder_activity_checker: Box<dyn Bridge<FunderActivityChecker>>,
-    funder_activity: Vec<SlimFunding>,
+    funder_activity: Vec<FundingWithWork>,
 }
 
 pub enum Msg {
@@ -350,7 +351,7 @@ impl Component for FunderComponent {
                                                 <p>
                                                     { "Funded: " }
                                                     <RouterAnchor<AppRoute>
-                                                        route=AppRoute::Admin(AdminRoute::Work(funding.work.work_id))
+                                                        route=funding.work.edit_route()
                                                     >
                                                         { &funding.work.title }
                                                     </  RouterAnchor<AppRoute>>
