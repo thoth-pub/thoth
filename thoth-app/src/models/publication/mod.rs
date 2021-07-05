@@ -38,7 +38,11 @@ impl EditRoute for PublicationWithRelations {
 
 impl MetadataTable for PublicationWithRelations {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
-        let isbn = &self.isbn.clone().unwrap_or_else(|| "".to_string());
+        let isbn = self
+            .isbn
+            .as_ref()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "".to_string());
         let doi = self
             .work
             .doi

@@ -16,6 +16,7 @@ use crate::issue::model::*;
 use crate::language::model::*;
 use crate::model::Crud;
 use crate::model::Doi;
+use crate::model::Isbn;
 use crate::model::Orcid;
 use crate::model::Timestamp;
 use crate::price::model::*;
@@ -1805,7 +1806,7 @@ impl Publication {
         self.work_id
     }
 
-    pub fn isbn(&self) -> Option<&String> {
+    pub fn isbn(&self) -> Option<&Isbn> {
         self.isbn.as_ref()
     }
 

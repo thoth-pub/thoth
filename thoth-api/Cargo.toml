@@ -19,6 +19,7 @@ backend = ["diesel", "diesel-derive-enum", "diesel_migrations", "futures", "acti
 thoth-errors = { version = "0.4.1", path = "../thoth-errors" }
 actix-web = { version = "3.3.2", optional = true }
 argon2rs = "0.2.5"
+isbn2 = "0.4.0"
 chrono = { version = "0.4", features = ["serde"] }
 diesel = { version = "1.4.0", features = ["postgres", "uuidv07", "chrono", "r2d2", "64-column-tables", "serde_json"], optional = true }
 diesel-derive-enum = { version = "1.1.0", features = ["postgres"], optional = true }

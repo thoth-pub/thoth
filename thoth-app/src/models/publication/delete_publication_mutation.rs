@@ -13,6 +13,7 @@ const DELETE_PUBLICATION_MUTATION: &str = "
             publicationId
             publicationType
             workId
+            isbn
             createdAt
             updatedAt
         }
