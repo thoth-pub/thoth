@@ -34,7 +34,7 @@ impl XmlSpecification for Onix3Oapen {
                 })?;
                 write_element_block("SentDateTime", w, |w| {
                     w.write(XmlEvent::Characters(
-                        &Utc::now().format("%Y%m%dT%H%M%S").to_string(),
+                        &Utc::now().format("%Y%m%d").to_string(),
                     ))
                     .map_err(|e| e.into())
                 })
@@ -146,6 +146,36 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                             })
                         })?;
                     }
+                    for issue in &self.issues {
+                        write_element_block("Collection", w, |w| {
+                            // 10 Publisher collection (e.g. series)
+                            write_element_block("CollectionType", w, |w| {
+                                w.write(XmlEvent::Characters("10")).map_err(|e| e.into())
+                            })?;
+                            write_element_block("TitleDetail", w, |w| {
+                                // 01 Cover title (serial)
+                                write_element_block("TitleType", w, |w| {
+                                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("TitleElement", w, |w| {
+                                    // 02 Collection level
+                                    write_element_block("TitleElementLevel", w, |w| {
+                                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("PartNumber", w, |w| {
+                                        w.write(XmlEvent::Characters(
+                                            &issue.issue_ordinal.to_string(),
+                                        ))
+                                        .map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("TitleText", w, |w| {
+                                        w.write(XmlEvent::Characters(&issue.series.series_name))
+                                            .map_err(|e| e.into())
+                                    })
+                                })
+                            })
+                        })?;
+                    }
                     write_element_block("TitleDetail", w, |w| {
                         // 01 Distinctive title (book)
                         write_element_block("TitleType", w, |w| {
@@ -196,12 +226,30 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                     for subject in &self.subjects {
                         write_element_block("Subject", w, |w| {
                             XmlElement::<Onix3Oapen>::xml_element(&subject.subject_type, w)?;
-                            write_element_block("SubjectCode", w, |w| {
-                                w.write(XmlEvent::Characters(&subject.subject_code))
-                                    .map_err(|e| e.into())
-                            })
+                            match subject.subject_type {
+                                SubjectType::KEYWORD | SubjectType::CUSTOM => {
+                                    write_element_block("SubjectHeadingText", w, |w| {
+                                        w.write(XmlEvent::Characters(&subject.subject_code))
+                                            .map_err(|e| e.into())
+                                    })
+                                }
+                                _ => write_element_block("SubjectCode", w, |w| {
+                                    w.write(XmlEvent::Characters(&subject.subject_code))
+                                        .map_err(|e| e.into())
+                                }),
+                            }
                         })?;
                     }
+                    write_element_block("Audience", w, |w| {
+                        // 01 ONIX audience codes
+                        write_element_block("AudienceCodeType", w, |w| {
+                            w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                        })?;
+                        // 06 Professional and scholarly
+                        write_element_block("AudienceCodeValue", w, |w| {
+                            w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                        })
+                    })?;
                     Ok(())
                 })?;
                 if self.long_abstract.is_some() || self.toc.is_some() {
@@ -239,6 +287,32 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                                 })
                             })?;
                         }
+                        if let Some(cover_url) = &self.cover_url {
+                            write_element_block("SupportingResource", w, |w| {
+                                // 01 Front cover
+                                write_element_block("ResourceContentType", w, |w| {
+                                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                                })?;
+                                // 00 Unrestricted
+                                write_element_block("ContentAudience", w, |w| {
+                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                })?;
+                                // 03 Image
+                                write_element_block("ResourceMode", w, |w| {
+                                    w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("ResourceVersion", w, |w| {
+                                    // 02 Downloadable file
+                                    write_element_block("ResourceForm", w, |w| {
+                                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("ResourceLink", w, |w| {
+                                        w.write(XmlEvent::Characters(cover_url))
+                                            .map_err(|e| e.into())
+                                    })
+                                })
+                            })?;
+                        }
                         Ok(())
                     })?;
                 }
@@ -259,6 +333,38 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                                 .map_err(|e| e.into())
                         })
                     })?;
+                    for funding in &self.fundings {
+                        write_element_block("Publisher", w, |w| {
+                            // 16 Funding body
+                            write_element_block("PublishingRole", w, |w| {
+                                w.write(XmlEvent::Characters("16")).map_err(|e| e.into())
+                            })?;
+                            write_element_block("PublisherName", w, |w| {
+                                w.write(XmlEvent::Characters(&funding.funder.funder_name))
+                                    .map_err(|e| e.into())
+                            })?;
+                            if let Some(program) = &funding.program {
+                                write_element_block("Funding", w, |w| {
+                                    write_element_block("FundingIdentifier", w, |w| {
+                                        // 01 Proprietary
+                                        write_element_block("FundingIDType", w, |w| {
+                                            w.write(XmlEvent::Characters("01"))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("IDTypeName", w, |w| {
+                                            w.write(XmlEvent::Characters("program"))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("IDValue", w, |w| {
+                                            w.write(XmlEvent::Characters(program))
+                                                .map_err(|e| e.into())
+                                        })
+                                    })
+                                })?;
+                            }
+                            Ok(())
+                        })?;
+                    }
                     if let Some(place) = &self.place {
                         write_element_block("CityOfPublication", w, |w| {
                             w.write(XmlEvent::Characters(&place)).map_err(|e| e.into())
@@ -268,15 +374,15 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                     if let Some(date) = self.publication_date {
                         write_element_block("PublishingDate", w, |w| {
                             let mut date_fmt: HashMap<&str, &str> = HashMap::new();
-                            date_fmt.insert("dateformat", "01"); // 01 YYYYMM
+                            date_fmt.insert("dateformat", "05"); // 01 YYYY
 
                             write_element_block("PublishingDateRole", w, |w| {
                                 // 19 Publication date of print counterpart
                                 w.write(XmlEvent::Characters("19")).map_err(|e| e.into())
                             })?;
-                            // dateformat="01" YYYYMM
+                            // dateformat="05" YYYY
                             write_full_element_block("Date", None, Some(date_fmt), w, |w| {
-                                w.write(XmlEvent::Characters(&date.format("%Y%m").to_string()))
+                                w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
                                     .map_err(|e| e.into())
                             })
                         })?;
@@ -292,9 +398,9 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                                     w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
                                 })?;
                                 write_element_block("ProductIdentifier", w, |w| {
-                                    // 06 ISBN
+                                    // 15 ISBN-13
                                     write_element_block("ProductIDType", w, |w| {
-                                        w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                                        w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
                                     })?;
                                     write_element_block("IDValue", w, |w| {
                                         w.write(XmlEvent::Characters(&isbn)).map_err(|e| e.into())
@@ -306,15 +412,21 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                     })?;
                 }
                 write_element_block("ProductSupply", w, |w| {
-                    let mut supplies: HashMap<String, String> = HashMap::new();
+                    let mut supplies: HashMap<String, (String, String)> = HashMap::new();
                     supplies.insert(
                         pdf_url.to_string(),
-                        "Publisher's website: download the title".to_string(),
+                        (
+                            "29".to_string(),
+                            "Publisher's website: download the title".to_string(),
+                        ),
                     );
                     if let Some(landing_page) = &self.landing_page {
                         supplies.insert(
                             landing_page.to_string(),
-                            "Publisher's website: web shop".to_string(),
+                            (
+                                "01".to_string(),
+                                "Publisher's website: web shop".to_string(),
+                            ),
                         );
                     }
                     for (url, description) in supplies.iter() {
@@ -322,7 +434,7 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                             write_element_block("Supplier", w, |w| {
                                 // 09 Publisher to end-customers
                                 write_element_block("SupplierRole", w, |w| {
-                                    w.write(XmlEvent::Characters("11")).map_err(|e| e.into())
+                                    w.write(XmlEvent::Characters("09")).map_err(|e| e.into())
                                 })?;
                                 write_element_block("SupplierName", w, |w| {
                                     w.write(XmlEvent::Characters(
@@ -333,10 +445,11 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                                 write_element_block("Website", w, |w| {
                                     // 01 Publisher’s corporate website
                                     write_element_block("WebsiteRole", w, |w| {
-                                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                                        w.write(XmlEvent::Characters(&description.0))
+                                            .map_err(|e| e.into())
                                     })?;
                                     write_element_block("WebsiteDescription", w, |w| {
-                                        w.write(XmlEvent::Characters(&description))
+                                        w.write(XmlEvent::Characters(&description.1))
                                             .map_err(|e| e.into())
                                     })?;
                                     write_element_block("WebsiteLink", w, |w| {
