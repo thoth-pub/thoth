@@ -77,3 +77,5 @@ pub(crate) trait XmlElementBlock<T: XmlSpecification> {
 
 mod onix3_project_muse;
 pub(crate) use onix3_project_muse::Onix3ProjectMuse;
+mod onix3_oapen;
+pub(crate) use onix3_oapen::Onix3Oapen;
