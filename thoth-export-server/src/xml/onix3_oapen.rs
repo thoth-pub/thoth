@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
     ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
-    WorkLanguages, WorkPublications, WorkStatus,
+    WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkStatus,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -147,34 +147,7 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                         })?;
                     }
                     for issue in &self.issues {
-                        write_element_block("Collection", w, |w| {
-                            // 10 Publisher collection (e.g. series)
-                            write_element_block("CollectionType", w, |w| {
-                                w.write(XmlEvent::Characters("10")).map_err(|e| e.into())
-                            })?;
-                            write_element_block("TitleDetail", w, |w| {
-                                // 01 Cover title (serial)
-                                write_element_block("TitleType", w, |w| {
-                                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("TitleElement", w, |w| {
-                                    // 02 Collection level
-                                    write_element_block("TitleElementLevel", w, |w| {
-                                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("PartNumber", w, |w| {
-                                        w.write(XmlEvent::Characters(
-                                            &issue.issue_ordinal.to_string(),
-                                        ))
-                                        .map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("TitleText", w, |w| {
-                                        w.write(XmlEvent::Characters(&issue.series.series_name))
-                                            .map_err(|e| e.into())
-                                    })
-                                })
-                            })
-                        })?;
+                        XmlElementBlock::<Onix3Oapen>::xml_element(issue, w).ok();
                     }
                     write_element_block("TitleDetail", w, |w| {
                         // 01 Distinctive title (book)
@@ -323,51 +296,7 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                         })
                     })?;
                     for funding in &self.fundings {
-                        write_element_block("Publisher", w, |w| {
-                            // 16 Funding body
-                            write_element_block("PublishingRole", w, |w| {
-                                w.write(XmlEvent::Characters("16")).map_err(|e| e.into())
-                            })?;
-                            write_element_block("PublisherName", w, |w| {
-                                w.write(XmlEvent::Characters(&funding.funder.funder_name))
-                                    .map_err(|e| e.into())
-                            })?;
-                            let mut identifiers: HashMap<String, String> = HashMap::new();
-                            if let Some(program) = &funding.program {
-                                identifiers.insert("programname".to_string(), program.to_string());
-                            }
-                            if let Some(project_name) = &funding.project_name {
-                                identifiers
-                                    .insert("projectname".to_string(), project_name.to_string());
-                            }
-                            if let Some(grant_number) = &funding.grant_number {
-                                identifiers
-                                    .insert("grantnumber".to_string(), grant_number.to_string());
-                            }
-                            if !identifiers.is_empty() {
-                                write_element_block("Funding", w, |w| {
-                                    for (typename, value) in &identifiers {
-                                        write_element_block("FundingIdentifier", w, |w| {
-                                            // 01 Proprietary
-                                            write_element_block("FundingIDType", w, |w| {
-                                                w.write(XmlEvent::Characters("01"))
-                                                    .map_err(|e| e.into())
-                                            })?;
-                                            write_element_block("IDTypeName", w, |w| {
-                                                w.write(XmlEvent::Characters(&typename))
-                                                    .map_err(|e| e.into())
-                                            })?;
-                                            write_element_block("IDValue", w, |w| {
-                                                w.write(XmlEvent::Characters(&value))
-                                                    .map_err(|e| e.into())
-                                            })
-                                        })?;
-                                    }
-                                    Ok(())
-                                })?;
-                            }
-                            Ok(())
-                        })?;
+                        XmlElementBlock::<Onix3Oapen>::xml_element(funding, w).ok();
                     }
                     if let Some(place) = &self.place {
                         write_element_block("CityOfPublication", w, |w| {
@@ -634,6 +563,83 @@ impl XmlElementBlock<Onix3Oapen> for WorkLanguages {
                 ))
                 .map_err(|e| e.into())
             })
+        })
+    }
+}
+
+impl XmlElementBlock<Onix3Oapen> for WorkIssues {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_element_block("Collection", w, |w| {
+            // 10 Publisher collection (e.g. series)
+            write_element_block("CollectionType", w, |w| {
+                w.write(XmlEvent::Characters("10")).map_err(|e| e.into())
+            })?;
+            write_element_block("TitleDetail", w, |w| {
+                // 01 Cover title (serial)
+                write_element_block("TitleType", w, |w| {
+                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                })?;
+                write_element_block("TitleElement", w, |w| {
+                    // 02 Collection level
+                    write_element_block("TitleElementLevel", w, |w| {
+                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("PartNumber", w, |w| {
+                        w.write(XmlEvent::Characters(&self.issue_ordinal.to_string()))
+                            .map_err(|e| e.into())
+                    })?;
+                    write_element_block("TitleText", w, |w| {
+                        w.write(XmlEvent::Characters(&self.series.series_name))
+                            .map_err(|e| e.into())
+                    })
+                })
+            })
+        })
+    }
+}
+
+impl XmlElementBlock<Onix3Oapen> for WorkFundings {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_element_block("Publisher", w, |w| {
+            // 16 Funding body
+            write_element_block("PublishingRole", w, |w| {
+                w.write(XmlEvent::Characters("16")).map_err(|e| e.into())
+            })?;
+            write_element_block("PublisherName", w, |w| {
+                w.write(XmlEvent::Characters(&self.funder.funder_name))
+                    .map_err(|e| e.into())
+            })?;
+            let mut identifiers: HashMap<String, String> = HashMap::new();
+            if let Some(program) = &self.program {
+                identifiers.insert("programname".to_string(), program.to_string());
+            }
+            if let Some(project_name) = &self.project_name {
+                identifiers.insert("projectname".to_string(), project_name.to_string());
+            }
+            if let Some(grant_number) = &self.grant_number {
+                identifiers.insert("grantnumber".to_string(), grant_number.to_string());
+            }
+            if !identifiers.is_empty() {
+                write_element_block("Funding", w, |w| {
+                    for (typename, value) in &identifiers {
+                        write_element_block("FundingIdentifier", w, |w| {
+                            // 01 Proprietary
+                            write_element_block("FundingIDType", w, |w| {
+                                w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                            })?;
+                            write_element_block("IDTypeName", w, |w| {
+                                w.write(XmlEvent::Characters(&typename))
+                                    .map_err(|e| e.into())
+                            })?;
+                            write_element_block("IDValue", w, |w| {
+                                w.write(XmlEvent::Characters(&value)).map_err(|e| e.into())
+                            })
+                        })?;
+                    }
+                    Ok(())
+                })?;
+            }
+            Ok(())
         })
     }
 }
