@@ -224,21 +224,25 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                         })?;
                     }
                     for subject in &self.subjects {
-                        write_element_block("Subject", w, |w| {
-                            XmlElement::<Onix3Oapen>::xml_element(&subject.subject_type, w)?;
-                            match subject.subject_type {
-                                SubjectType::KEYWORD | SubjectType::CUSTOM => {
-                                    write_element_block("SubjectHeadingText", w, |w| {
+                        // Don't output Custom codes, as these are not imported by OAPEN,
+                        // and only used for internal purposes
+                        if subject.subject_type != SubjectType::CUSTOM {
+                            write_element_block("Subject", w, |w| {
+                                XmlElement::<Onix3Oapen>::xml_element(&subject.subject_type, w)?;
+                                match subject.subject_type {
+                                    SubjectType::KEYWORD => {
+                                        write_element_block("SubjectHeadingText", w, |w| {
+                                            w.write(XmlEvent::Characters(&subject.subject_code))
+                                                .map_err(|e| e.into())
+                                        })
+                                    }
+                                    _ => write_element_block("SubjectCode", w, |w| {
                                         w.write(XmlEvent::Characters(&subject.subject_code))
                                             .map_err(|e| e.into())
-                                    })
+                                    }),
                                 }
-                                _ => write_element_block("SubjectCode", w, |w| {
-                                    w.write(XmlEvent::Characters(&subject.subject_code))
-                                        .map_err(|e| e.into())
-                                }),
-                            }
-                        })?;
+                            })?;
+                        }
                     }
                     write_element_block("Audience", w, |w| {
                         // 01 ONIX audience codes
@@ -269,21 +273,6 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                                 write_full_element_block("Text", None, Some(lang_fmt), w, |w| {
                                     w.write(XmlEvent::Characters(&labstract))
                                         .map_err(|e| e.into())
-                                })
-                            })?;
-                        }
-                        if let Some(toc) = &self.toc {
-                            write_element_block("TextContent", w, |w| {
-                                // 04 Table of contents
-                                write_element_block("TextType", w, |w| {
-                                    w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
-                                })?;
-                                // 00 Unrestricted
-                                write_element_block("ContentAudience", w, |w| {
-                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("Text", w, |w| {
-                                    w.write(XmlEvent::Characters(&toc)).map_err(|e| e.into())
                                 })
                             })?;
                         }
@@ -343,23 +332,38 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                                 w.write(XmlEvent::Characters(&funding.funder.funder_name))
                                     .map_err(|e| e.into())
                             })?;
+                            let mut identifiers: HashMap<String, String> = HashMap::new();
                             if let Some(program) = &funding.program {
+                                identifiers.insert("programname".to_string(), program.to_string());
+                            }
+                            if let Some(project_name) = &funding.project_name {
+                                identifiers
+                                    .insert("projectname".to_string(), project_name.to_string());
+                            }
+                            if let Some(grant_number) = &funding.grant_number {
+                                identifiers
+                                    .insert("grantnumber".to_string(), grant_number.to_string());
+                            }
+                            if !identifiers.is_empty() {
                                 write_element_block("Funding", w, |w| {
-                                    write_element_block("FundingIdentifier", w, |w| {
-                                        // 01 Proprietary
-                                        write_element_block("FundingIDType", w, |w| {
-                                            w.write(XmlEvent::Characters("01"))
-                                                .map_err(|e| e.into())
+                                    for (typename, value) in &identifiers {
+                                        write_element_block("FundingIdentifier", w, |w| {
+                                            // 01 Proprietary
+                                            write_element_block("FundingIDType", w, |w| {
+                                                w.write(XmlEvent::Characters("01"))
+                                                    .map_err(|e| e.into())
+                                            })?;
+                                            write_element_block("IDTypeName", w, |w| {
+                                                w.write(XmlEvent::Characters(&typename))
+                                                    .map_err(|e| e.into())
+                                            })?;
+                                            write_element_block("IDValue", w, |w| {
+                                                w.write(XmlEvent::Characters(&value))
+                                                    .map_err(|e| e.into())
+                                            })
                                         })?;
-                                        write_element_block("IDTypeName", w, |w| {
-                                            w.write(XmlEvent::Characters("program"))
-                                                .map_err(|e| e.into())
-                                        })?;
-                                        write_element_block("IDValue", w, |w| {
-                                            w.write(XmlEvent::Characters(program))
-                                                .map_err(|e| e.into())
-                                        })
-                                    })
+                                    }
+                                    Ok(())
                                 })?;
                             }
                             Ok(())
@@ -534,8 +538,8 @@ impl XmlElement<Onix3Oapen> for SubjectType {
             SubjectType::KEYWORD => "20",
             SubjectType::LCC => "04",
             SubjectType::THEMA => "93",
-            SubjectType::CUSTOM => "B2",
-            SubjectType::Other(_) => unreachable!(),
+            // Custom codes are not output for OAPEN
+            SubjectType::CUSTOM | SubjectType::Other(_) => unreachable!(),
         }
     }
 }
@@ -560,14 +564,14 @@ impl XmlElement<Onix3Oapen> for ContributionType {
         match self {
             ContributionType::AUTHOR => "A01",
             ContributionType::EDITOR => "B01",
-            ContributionType::TRANSLATOR => "B06",
-            ContributionType::PHOTOGRAPHER => "A13",
-            ContributionType::ILUSTRATOR => "A12",
-            ContributionType::MUSIC_EDITOR => "B25",
-            ContributionType::FOREWORD_BY => "A23",
-            ContributionType::INTRODUCTION_BY => "A24",
-            ContributionType::AFTERWORD_BY => "A19",
-            ContributionType::PREFACE_BY => "A15",
+            ContributionType::TRANSLATOR
+            | ContributionType::PHOTOGRAPHER
+            | ContributionType::ILUSTRATOR
+            | ContributionType::MUSIC_EDITOR
+            | ContributionType::FOREWORD_BY
+            | ContributionType::INTRODUCTION_BY
+            | ContributionType::AFTERWORD_BY
+            | ContributionType::PREFACE_BY => "Z01",
             ContributionType::Other(_) => unreachable!(),
         }
     }
