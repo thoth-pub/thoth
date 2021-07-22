@@ -176,7 +176,9 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                             }
                         })
                     })?;
-                    XmlElementBlock::<Onix3Oapen>::xml_element(&self.contributions, w).ok();
+                    for contribution in &self.contributions {
+                        XmlElementBlock::<Onix3Oapen>::xml_element(contribution, w).ok();
+                    }
                     for language in &self.languages {
                         XmlElementBlock::<Onix3Oapen>::xml_element(language, w).ok();
                     }
@@ -506,48 +508,42 @@ impl XmlElement<Onix3Oapen> for ContributionType {
     }
 }
 
-// Replace with implementation for WorkContributions (without the vector)
-// when we implement contribution ordering
-impl XmlElementBlock<Onix3Oapen> for Vec<WorkContributions> {
+impl XmlElementBlock<Onix3Oapen> for WorkContributions {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        for (mut sequence_number, contribution) in self.iter().enumerate() {
-            sequence_number += 1;
-            write_element_block("Contributor", w, |w| {
-                write_element_block("SequenceNumber", w, |w| {
-                    w.write(XmlEvent::Characters(&sequence_number.to_string()))
+        write_element_block("Contributor", w, |w| {
+            write_element_block("SequenceNumber", w, |w| {
+                w.write(XmlEvent::Characters(&self.contribution_ordinal.to_string()))
+                    .map_err(|e| e.into())
+            })?;
+            XmlElement::<Onix3Oapen>::xml_element(&self.contribution_type, w)?;
+
+            if let Some(orcid) = &self.contributor.orcid {
+                write_element_block("NameIdentifier", w, |w| {
+                    write_element_block("NameIDType", w, |w| {
+                        w.write(XmlEvent::Characters("21")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(&orcid)).map_err(|e| e.into())
+                    })
+                })?;
+            }
+            if let Some(first_name) = &self.first_name {
+                write_element_block("NamesBeforeKey", w, |w| {
+                    w.write(XmlEvent::Characters(&first_name))
                         .map_err(|e| e.into())
                 })?;
-                XmlElement::<Onix3Oapen>::xml_element(&contribution.contribution_type, w)?;
-
-                if let Some(orcid) = &contribution.contributor.orcid {
-                    write_element_block("NameIdentifier", w, |w| {
-                        write_element_block("NameIDType", w, |w| {
-                            w.write(XmlEvent::Characters("21")).map_err(|e| e.into())
-                        })?;
-                        write_element_block("IDValue", w, |w| {
-                            w.write(XmlEvent::Characters(&orcid)).map_err(|e| e.into())
-                        })
-                    })?;
-                }
-                if let Some(first_name) = &contribution.first_name {
-                    write_element_block("NamesBeforeKey", w, |w| {
-                        w.write(XmlEvent::Characters(&first_name))
-                            .map_err(|e| e.into())
-                    })?;
-                    write_element_block("KeyNames", w, |w| {
-                        w.write(XmlEvent::Characters(&contribution.last_name))
-                            .map_err(|e| e.into())
-                    })?;
-                } else {
-                    write_element_block("PersonName", w, |w| {
-                        w.write(XmlEvent::Characters(&contribution.full_name))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-                Ok(())
-            })?;
-        }
-        Ok(())
+                write_element_block("KeyNames", w, |w| {
+                    w.write(XmlEvent::Characters(&self.last_name))
+                        .map_err(|e| e.into())
+                })?;
+            } else {
+                write_element_block("PersonName", w, |w| {
+                    w.write(XmlEvent::Characters(&self.full_name))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            Ok(())
+        })
     }
 }
 
