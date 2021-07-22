@@ -294,9 +294,9 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                                     w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
                                 })?;
                                 write_element_block("ProductIdentifier", w, |w| {
-                                    // 06 ISBN
+                                    // 15 ISBN-13
                                     write_element_block("ProductIDType", w, |w| {
-                                        w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                                        w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
                                     })?;
                                     write_element_block("IDValue", w, |w| {
                                         w.write(XmlEvent::Characters(&isbn)).map_err(|e| e.into())
@@ -308,15 +308,21 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                     })?;
                 }
                 write_element_block("ProductSupply", w, |w| {
-                    let mut supplies: HashMap<String, String> = HashMap::new();
+                    let mut supplies: HashMap<String, (String, String)> = HashMap::new();
                     supplies.insert(
                         pdf_url.to_string(),
-                        "Publisher's website: download the title".to_string(),
+                        (
+                            "29".to_string(),
+                            "Publisher's website: download the title".to_string(),
+                        ),
                     );
                     if let Some(landing_page) = &self.landing_page {
                         supplies.insert(
                             landing_page.to_string(),
-                            "Publisher's website: web shop".to_string(),
+                            (
+                                "01".to_string(),
+                                "Publisher's website: web shop".to_string(),
+                            ),
                         );
                     }
                     for (url, description) in supplies.iter() {
@@ -324,7 +330,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                             write_element_block("Supplier", w, |w| {
                                 // 09 Publisher to end-customers
                                 write_element_block("SupplierRole", w, |w| {
-                                    w.write(XmlEvent::Characters("11")).map_err(|e| e.into())
+                                    w.write(XmlEvent::Characters("09")).map_err(|e| e.into())
                                 })?;
                                 write_element_block("SupplierName", w, |w| {
                                     w.write(XmlEvent::Characters(
@@ -335,10 +341,11 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                                 write_element_block("Website", w, |w| {
                                     // 01 Publisher’s corporate website
                                     write_element_block("WebsiteRole", w, |w| {
-                                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                                        w.write(XmlEvent::Characters(&description.0))
+                                            .map_err(|e| e.into())
                                     })?;
                                     write_element_block("WebsiteDescription", w, |w| {
-                                        w.write(XmlEvent::Characters(&description))
+                                        w.write(XmlEvent::Characters(&description.1))
                                             .map_err(|e| e.into())
                                     })?;
                                     write_element_block("WebsiteLink", w, |w| {
