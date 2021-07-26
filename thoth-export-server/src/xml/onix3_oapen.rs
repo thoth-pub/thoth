@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
     ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
-    WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkStatus,
+    WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkSubjects,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -199,25 +199,7 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                         })?;
                     }
                     for subject in &self.subjects {
-                        // Don't output Custom codes, as these are not imported by OAPEN,
-                        // and only used for internal purposes
-                        if subject.subject_type != SubjectType::CUSTOM {
-                            write_element_block("Subject", w, |w| {
-                                XmlElement::<Onix3Oapen>::xml_element(&subject.subject_type, w)?;
-                                match subject.subject_type {
-                                    SubjectType::KEYWORD => {
-                                        write_element_block("SubjectHeadingText", w, |w| {
-                                            w.write(XmlEvent::Characters(&subject.subject_code))
-                                                .map_err(|e| e.into())
-                                        })
-                                    }
-                                    _ => write_element_block("SubjectCode", w, |w| {
-                                        w.write(XmlEvent::Characters(&subject.subject_code))
-                                            .map_err(|e| e.into())
-                                    }),
-                                }
-                            })?;
-                        }
+                        XmlElementBlock::<Onix3Oapen>::xml_element(subject, w).ok();
                     }
                     write_element_block("Audience", w, |w| {
                         // 01 ONIX audience codes
@@ -640,6 +622,29 @@ impl XmlElementBlock<Onix3Oapen> for WorkFundings {
     }
 }
 
+impl XmlElementBlock<Onix3Oapen> for WorkSubjects {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        // Don't output Custom codes, as these are not imported by OAPEN,
+        // and only used for internal purposes
+        if self.subject_type != SubjectType::CUSTOM {
+            write_element_block("Subject", w, |w| {
+                XmlElement::<Onix3Oapen>::xml_element(&self.subject_type, w)?;
+                match self.subject_type {
+                    SubjectType::KEYWORD => write_element_block("SubjectHeadingText", w, |w| {
+                        w.write(XmlEvent::Characters(&self.subject_code))
+                            .map_err(|e| e.into())
+                    }),
+                    _ => write_element_block("SubjectCode", w, |w| {
+                        w.write(XmlEvent::Characters(&self.subject_code))
+                            .map_err(|e| e.into())
+                    }),
+                }
+            })?;
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     // Testing note: XML nodes cannot be guaranteed to be output in the same order every time
@@ -878,6 +883,59 @@ mod tests {
         assert!(!output.contains(r#"      <IDValue>Name of project</IDValue>"#));
         assert!(!output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
         assert!(!output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
+    }
+
+    #[test]
+    fn test_onix3_oapen_subjects() {
+        let mut test_subject = WorkSubjects {
+            subject_code: "AAB".to_string(),
+            subject_type: SubjectType::BIC,
+            subject_ordinal: 1,
+        };
+
+        // Test BIC output
+        let output = generate_test_output(&test_subject);
+        assert!(output.contains(r#"<Subject>"#));
+        assert!(output.contains(r#"  <SubjectSchemeIdentifier>12</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"  <SubjectCode>AAB</SubjectCode>"#));
+
+        // Test BISAC output
+        test_subject.subject_code = "AAA000000".to_string();
+        test_subject.subject_type = SubjectType::BISAC;
+        let output = generate_test_output(&test_subject);
+        assert!(output.contains(r#"<Subject>"#));
+        assert!(output.contains(r#"  <SubjectSchemeIdentifier>10</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"  <SubjectCode>AAA000000</SubjectCode>"#));
+
+        // Test LCC output
+        test_subject.subject_code = "JA85".to_string();
+        test_subject.subject_type = SubjectType::LCC;
+        let output = generate_test_output(&test_subject);
+        assert!(output.contains(r#"<Subject>"#));
+        assert!(output.contains(r#"  <SubjectSchemeIdentifier>04</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"  <SubjectCode>JA85</SubjectCode>"#));
+
+        // Test Thema output
+        test_subject.subject_code = "JWA".to_string();
+        test_subject.subject_type = SubjectType::THEMA;
+        let output = generate_test_output(&test_subject);
+        assert!(output.contains(r#"<Subject>"#));
+        assert!(output.contains(r#"  <SubjectSchemeIdentifier>93</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"  <SubjectCode>JWA</SubjectCode>"#));
+
+        // Test keyword output
+        test_subject.subject_code = "keyword1".to_string();
+        test_subject.subject_type = SubjectType::KEYWORD;
+        let output = generate_test_output(&test_subject);
+        assert!(output.contains(r#"<Subject>"#));
+        assert!(output.contains(r#"  <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"  <SubjectHeadingText>keyword1</SubjectHeadingText>"#));
+
+        // Custom subjects are not output
+        test_subject.subject_code = "custom1".to_string();
+        test_subject.subject_type = SubjectType::CUSTOM;
+        let output = generate_test_output(&test_subject);
+        assert_eq!(output, "".to_string());
     }
 
     #[test]
