@@ -359,6 +359,7 @@ mod tests {
                     main_contribution: true,
                     biography: None,
                     institution: None,
+                    contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some("https://orcid.org/0000-0000-0000-0001".to_string()),
                     },
@@ -371,6 +372,7 @@ mod tests {
                     main_contribution: true,
                     biography: None,
                     institution: None,
+                    contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
                         orcid: None,
                     },

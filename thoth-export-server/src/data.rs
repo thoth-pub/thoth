@@ -14,6 +14,12 @@ lazy_static! {
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/project_muse"),],
         },
         Specification {
+            id: "onix_3.0::oapen",
+            name: "OAPEN ONIX 3.0",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_3.0"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/oapen"),],
+        },
+        Specification {
             id: "csv::thoth",
             name: "Thoth CSV",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/csv"),
@@ -37,16 +43,27 @@ lazy_static! {
                 "/specifications/onix_3.0::project_muse"
             ),],
         },
+        Platform {
+            id: "oapen",
+            name: "OAPEN",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/onix_3.0::oapen"
+            ),],
+        },
     ];
     pub(crate) static ref ALL_FORMATS: Vec<Format<'static>> = vec![
         Format {
             id: "onix_3.0",
             name: "ONIX",
             version: Some("3.0"),
-            specifications: vec![concat!(
-                env!("THOTH_EXPORT_API"),
-                "/specifications/onix_3.0::project_muse"
-            ),],
+            specifications: vec![
+                concat!(
+                    env!("THOTH_EXPORT_API"),
+                    "/specifications/onix_3.0::project_muse"
+                ),
+                concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.0::oapen"),
+            ],
         },
         Format {
             id: "csv",

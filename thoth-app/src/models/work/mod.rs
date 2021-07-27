@@ -103,7 +103,8 @@ impl MetadataTable for WorkWithRelations {
 }
 
 pub trait DisplayWork {
-    fn onix_endpoint(&self) -> String;
+    fn onix_projectmuse_endpoint(&self) -> String;
+    fn onix_oapen_endpoint(&self) -> String;
     fn csv_endpoint(&self) -> String;
     fn cover_alt_text(&self) -> String;
     fn license_icons(&self) -> Html;
@@ -112,9 +113,16 @@ pub trait DisplayWork {
 }
 
 impl DisplayWork for WorkWithRelations {
-    fn onix_endpoint(&self) -> String {
+    fn onix_projectmuse_endpoint(&self) -> String {
         format!(
             "{}/specifications/onix_3.0::project_muse/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
+    fn onix_oapen_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/onix_3.0::oapen/work/{}",
             THOTH_EXPORT_API, &self.work_id
         )
     }
@@ -308,10 +316,16 @@ impl DisplayWork for WorkWithRelations {
                                     <div class="dropdown-menu" id="dropdown-menu" role="menu">
                                         <div class="dropdown-content">
                                             <a
-                                                href={self.onix_endpoint()}
+                                                href={self.onix_projectmuse_endpoint()}
                                                 class="dropdown-item"
                                             >
-                                            {"ONIX"}
+                                            {"ONIX (Project Muse)"}
+                                            </a>
+                                            <a
+                                                href={self.onix_oapen_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"ONIX (OAPEN)"}
                                             </a>
                                             <a
                                                 href={self.csv_endpoint()}
