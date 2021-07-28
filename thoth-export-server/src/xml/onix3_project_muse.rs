@@ -173,7 +173,9 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                             }
                         })
                     })?;
-                    XmlElementBlock::<Onix3ProjectMuse>::xml_element(&self.contributions, w).ok();
+                    for contribution in &self.contributions {
+                        XmlElementBlock::<Onix3ProjectMuse>::xml_element(contribution, w).ok();
+                    }
                     for language in &self.languages {
                         XmlElementBlock::<Onix3ProjectMuse>::xml_element(language, w).ok();
                     }
@@ -292,9 +294,9 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                                     w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
                                 })?;
                                 write_element_block("ProductIdentifier", w, |w| {
-                                    // 06 ISBN
+                                    // 15 ISBN-13
                                     write_element_block("ProductIDType", w, |w| {
-                                        w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                                        w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
                                     })?;
                                     write_element_block("IDValue", w, |w| {
                                         w.write(XmlEvent::Characters(&isbn)).map_err(|e| e.into())
@@ -306,15 +308,21 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                     })?;
                 }
                 write_element_block("ProductSupply", w, |w| {
-                    let mut supplies: HashMap<String, String> = HashMap::new();
+                    let mut supplies: HashMap<String, (String, String)> = HashMap::new();
                     supplies.insert(
                         pdf_url.to_string(),
-                        "Publisher's website: download the title".to_string(),
+                        (
+                            "29".to_string(),
+                            "Publisher's website: download the title".to_string(),
+                        ),
                     );
                     if let Some(landing_page) = &self.landing_page {
                         supplies.insert(
                             landing_page.to_string(),
-                            "Publisher's website: web shop".to_string(),
+                            (
+                                "01".to_string(),
+                                "Publisher's website: web shop".to_string(),
+                            ),
                         );
                     }
                     for (url, description) in supplies.iter() {
@@ -322,7 +330,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                             write_element_block("Supplier", w, |w| {
                                 // 09 Publisher to end-customers
                                 write_element_block("SupplierRole", w, |w| {
-                                    w.write(XmlEvent::Characters("11")).map_err(|e| e.into())
+                                    w.write(XmlEvent::Characters("09")).map_err(|e| e.into())
                                 })?;
                                 write_element_block("SupplierName", w, |w| {
                                     w.write(XmlEvent::Characters(
@@ -333,10 +341,11 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                                 write_element_block("Website", w, |w| {
                                     // 01 Publisher’s corporate website
                                     write_element_block("WebsiteRole", w, |w| {
-                                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                                        w.write(XmlEvent::Characters(&description.0))
+                                            .map_err(|e| e.into())
                                     })?;
                                     write_element_block("WebsiteDescription", w, |w| {
-                                        w.write(XmlEvent::Characters(&description))
+                                        w.write(XmlEvent::Characters(&description.1))
                                             .map_err(|e| e.into())
                                     })?;
                                     write_element_block("WebsiteLink", w, |w| {
@@ -460,48 +469,42 @@ impl XmlElement<Onix3ProjectMuse> for ContributionType {
     }
 }
 
-// Replace with implementation for WorkContributions (without the vector)
-// when we implement contribution ordering
-impl XmlElementBlock<Onix3ProjectMuse> for Vec<WorkContributions> {
+impl XmlElementBlock<Onix3ProjectMuse> for WorkContributions {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        for (mut sequence_number, contribution) in self.iter().enumerate() {
-            sequence_number += 1;
-            write_element_block("Contributor", w, |w| {
-                write_element_block("SequenceNumber", w, |w| {
-                    w.write(XmlEvent::Characters(&sequence_number.to_string()))
+        write_element_block("Contributor", w, |w| {
+            write_element_block("SequenceNumber", w, |w| {
+                w.write(XmlEvent::Characters(&self.contribution_ordinal.to_string()))
+                    .map_err(|e| e.into())
+            })?;
+            XmlElement::<Onix3ProjectMuse>::xml_element(&self.contribution_type, w)?;
+
+            if let Some(orcid) = &self.contributor.orcid {
+                write_element_block("NameIdentifier", w, |w| {
+                    write_element_block("NameIDType", w, |w| {
+                        w.write(XmlEvent::Characters("21")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(&orcid)).map_err(|e| e.into())
+                    })
+                })?;
+            }
+            if let Some(first_name) = &self.first_name {
+                write_element_block("NamesBeforeKey", w, |w| {
+                    w.write(XmlEvent::Characters(&first_name))
                         .map_err(|e| e.into())
                 })?;
-                XmlElement::<Onix3ProjectMuse>::xml_element(&contribution.contribution_type, w)?;
-
-                if let Some(orcid) = &contribution.contributor.orcid {
-                    write_element_block("NameIdentifier", w, |w| {
-                        write_element_block("NameIDType", w, |w| {
-                            w.write(XmlEvent::Characters("21")).map_err(|e| e.into())
-                        })?;
-                        write_element_block("IDValue", w, |w| {
-                            w.write(XmlEvent::Characters(&orcid)).map_err(|e| e.into())
-                        })
-                    })?;
-                }
-                if let Some(first_name) = &contribution.first_name {
-                    write_element_block("NamesBeforeKey", w, |w| {
-                        w.write(XmlEvent::Characters(&first_name))
-                            .map_err(|e| e.into())
-                    })?;
-                    write_element_block("KeyNames", w, |w| {
-                        w.write(XmlEvent::Characters(&contribution.last_name))
-                            .map_err(|e| e.into())
-                    })?;
-                } else {
-                    write_element_block("PersonName", w, |w| {
-                        w.write(XmlEvent::Characters(&contribution.full_name))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-                Ok(())
-            })?;
-        }
-        Ok(())
+                write_element_block("KeyNames", w, |w| {
+                    w.write(XmlEvent::Characters(&self.last_name))
+                        .map_err(|e| e.into())
+                })?;
+            } else {
+                write_element_block("PersonName", w, |w| {
+                    w.write(XmlEvent::Characters(&self.full_name))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            Ok(())
+        })
     }
 }
 

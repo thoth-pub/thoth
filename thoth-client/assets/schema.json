@@ -5637,6 +5637,22 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
+              "name": "contributionOrdinal",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Int",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
               "name": "work",
               "type": {
                 "kind": "NON_NULL",
