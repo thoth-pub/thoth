@@ -717,15 +717,15 @@ impl Component for NewWorkComponent {
                         </div>
                     </div>
                     <FormTextInput
+                        label = "License"
+                        value=self.work.license.clone()
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeLicense(e.value))
+                    />
+                    <FormTextInput
                         label = "Copyright Holder"
                         value=self.work.copyright_holder.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeCopyright(e.value))
                         required = true
-                    />
-                    <FormTextInput
-                        label = "License"
-                        value=self.work.license.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeLicense(e.value))
                     />
                     <FormUrlInput
                         label = "Landing Page"
