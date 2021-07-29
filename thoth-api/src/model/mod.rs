@@ -3,12 +3,22 @@ use isbn2::Isbn13;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
+use strum::Display;
+use strum::EnumString;
 use thoth_errors::{ThothError, ThothResult};
 #[cfg(feature = "backend")]
 use uuid::Uuid;
 
 pub const DOI_DOMAIN: &str = "https://doi.org/";
 pub const ORCID_DOMAIN: &str = "https://orcid.org/";
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
+#[strum(serialize_all = "lowercase")]
+pub enum LengthUnit {
+    Mm,
+    Cm,
+    In,
+}
 
 #[cfg_attr(
     feature = "backend",
@@ -47,6 +57,12 @@ pub struct Orcid(String);
 )]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Timestamp(DateTime<Utc>);
+
+impl Default for LengthUnit {
+    fn default() -> LengthUnit {
+        LengthUnit::Mm
+    }
+}
 
 impl Default for Doi {
     fn default() -> Doi {

@@ -1,10 +1,12 @@
 use thoth_api::account::model::AccountDetails;
+use thoth_api::model::LengthUnit;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 use yew_router::route::Route;
+use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
@@ -42,10 +44,12 @@ pub struct AdminComponent {
     notification_bus: NotificationDispatcher,
     router: RouteAgentDispatcher<()>,
     link: ComponentLink<Self>,
+    units_selection: LengthUnit,
 }
 
 pub enum Msg {
     RedirectToLogin,
+    UpdateLengthUnit(LengthUnit),
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -68,6 +72,7 @@ impl Component for AdminComponent {
             notification_bus: NotificationBus::dispatcher(),
             router: RouteAgentDispatcher::new(),
             link,
+            units_selection: Default::default(),
         }
     }
 
@@ -97,6 +102,7 @@ impl Component for AdminComponent {
                     .send(RouteRequest::ChangeRoute(Route::from(AppRoute::Login)));
                 false
             }
+            Msg::UpdateLengthUnit(length_unit) => self.units_selection.neq_assign(length_unit),
         }
     }
 
@@ -137,7 +143,7 @@ impl Component for AdminComponent {
                                 AdminRoute::Admin => html!{<DashboardComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Dashboard => html!{<DashboardComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Works => html!{<WorksComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Work(id) => html!{<WorkComponent work_id = *id current_user = self.props.current_user.clone().unwrap() />},
+                                AdminRoute::Work(id) => html!{<WorkComponent work_id = *id current_user = self.props.current_user.clone().unwrap() units_selection = self.units_selection.clone() update_units_selection = self.link.callback(Msg::UpdateLengthUnit) />},
                                 AdminRoute::NewWork => html!{<NewWorkComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Publishers => html!{<PublishersComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id = *id current_user = self.props.current_user.clone().unwrap() />},

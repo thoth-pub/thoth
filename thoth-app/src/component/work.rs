@@ -5,7 +5,7 @@ use thoth_api::funding::model::FundingWithFunder;
 use thoth_api::imprint::model::ImprintWithPublisher;
 use thoth_api::issue::model::IssueWithSeries;
 use thoth_api::language::model::Language;
-use thoth_api::model::{Doi, DOI_DOMAIN};
+use thoth_api::model::{Doi, LengthUnit, DOI_DOMAIN};
 use thoth_api::publication::model::Publication;
 use thoth_api::subject::model::Subject;
 use thoth_api::work::model::WorkStatus;
@@ -110,6 +110,7 @@ pub enum Msg {
     ChangePlace(String),
     ChangeWidth(String),
     ChangeHeight(String),
+    ChangeLengthUnit(LengthUnit),
     ChangePageCount(String),
     ChangePageBreakdown(String),
     ChangeImageCount(String),
@@ -140,6 +141,8 @@ pub enum Msg {
 pub struct Props {
     pub work_id: Uuid,
     pub current_user: AccountDetails,
+    pub units_selection: LengthUnit,
+    pub update_units_selection: Callback<LengthUnit>,
 }
 
 impl Component for WorkComponent {
@@ -456,6 +459,13 @@ impl Component for WorkComponent {
                 };
                 self.work.height.neq_assign(height)
             }
+            Msg::ChangeLengthUnit(length_unit) => {
+                self.props.update_units_selection.emit(length_unit);
+                // Callback will prompt parent to update this component's props.
+                // This will trigger a re-render in change(), so not necessary
+                // to also re-render here.
+                false
+            }
             Msg::ChangePageCount(value) => {
                 let count: i32 = value.parse().unwrap_or(0);
                 let page_count = match count == 0 {
@@ -598,12 +608,16 @@ impl Component for WorkComponent {
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         let updated_permissions =
             self.props.current_user.resource_access != props.current_user.resource_access;
+        let updated_units = self.props.units_selection != props.units_selection;
         self.props = props;
         if updated_permissions {
             // Required in order to retrieve updated list of imprints for dropdown
             self.link.send_message(Msg::GetWork);
         }
-        false
+        // Units are the only changed props which require a re-render.
+        // Changed permissions will automatically trigger a re-render
+        // once GetWork msg is processed.
+        updated_units
     }
 
     fn view(&self) -> Html {
@@ -621,6 +635,7 @@ impl Component for WorkComponent {
                     true => self.data.imprints.clone(),
                     false => vec![self.work.imprint.clone()],
                 };
+                let units = vec![LengthUnit::Mm, LengthUnit::Cm, LengthUnit::In];
                 html! {
                     <>
                         <nav class="level">
@@ -766,16 +781,86 @@ impl Component for WorkComponent {
                             </div>
                             <div class="field is-horizontal">
                                 <div class="field-body">
-                                    <FormNumberInput
-                                        label = "Width"
-                                        value=self.work.width
-                                        oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
-                                    />
-                                    <FormNumberInput
-                                        label = "Height"
-                                        value=self.work.height
-                                        oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
-                                    />
+                                    <div class="field">
+                                        <label class="label">{"Width"}</label>
+                                        <div class="field has-addons is-expanded">
+                                            <input
+                                                class="input is-expanded"
+                                                input_type="number"
+                                                placeholder="Width"
+                                                value=self.work.width.unwrap_or(0).to_string().clone()
+                                                oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
+                                                required=false
+                                            />
+                                            <div class="select is-fullwidth">
+                                            <select
+                                                required=true
+                                                onchange=self.link.callback(|event| match event {
+                                                    ChangeData::Select(elem) => {
+                                                        let value = elem.value();
+                                                        Msg::ChangeLengthUnit(LengthUnit::from_str(&value).unwrap())
+                                                    }
+                                                    _ => unreachable!(),
+                                                })>
+                                                {
+                                                    for units.iter().map(|unit| {
+                                                        if unit == &self.props.units_selection {
+                                                            html! {
+                                                                <option value={unit.to_string()} selected=true>
+                                                                    {&unit}
+                                                                </option>
+                                                            }
+                                                        } else {
+                                                            html! {
+                                                                <option value={unit.to_string()}>{&unit}</option>
+                                                            }
+                                                        }
+                                                    })
+                                                }
+                                            </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="field">
+                                        <label class="label">{"Height"}</label>
+                                        <div class="field has-addons is-expanded">
+                                            <input
+                                                class="input is-expanded"
+                                                input_type="number"
+                                                placeholder="Height"
+                                                value=self.work.height.unwrap_or(0).to_string().clone()
+                                                oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
+                                                required=false
+                                            />
+                                            <div class="select is-fullwidth">
+                                            <select
+                                                required=true
+                                                onchange=self.link.callback(|event| match event {
+                                                    ChangeData::Select(elem) => {
+                                                        let value = elem.value();
+                                                        Msg::ChangeLengthUnit(LengthUnit::from_str(&value).unwrap())
+                                                    }
+                                                    _ => unreachable!(),
+                                                })>
+                                                {
+                                                    for units.iter().map(|unit| {
+                                                        if unit == &self.props.units_selection {
+                                                            html! {
+                                                                <option value={unit.to_string()} selected=true>
+                                                                    {&unit}
+                                                                </option>
+                                                            }
+                                                        } else {
+                                                            html! {
+                                                                <option value={unit.to_string()}>{&unit}</option>
+                                                            }
+                                                        }
+                                                    })
+                                                }
+                                            </select>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <FormNumberInput
                                         label = "Page Count"
                                         value=self.work.page_count
