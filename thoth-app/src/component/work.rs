@@ -38,6 +38,7 @@ use crate::component::publications_form::PublicationsFormComponent;
 use crate::component::subjects_form::SubjectsFormComponent;
 use crate::component::utils::FormDateInput;
 use crate::component::utils::FormImprintSelect;
+use crate::component::utils::FormLengthUnitSelect;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormTextInputExtended;
@@ -781,86 +782,29 @@ impl Component for WorkComponent {
                             </div>
                             <div class="field is-horizontal">
                                 <div class="field-body">
-                                    <div class="field">
-                                        <label class="label">{"Width"}</label>
-                                        <div class="field has-addons is-expanded">
-                                            <input
-                                                class="input is-expanded"
-                                                input_type="number"
-                                                placeholder="Width"
-                                                value=self.work.width.unwrap_or(0).to_string().clone()
-                                                oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
-                                                required=false
-                                            />
-                                            <div class="select is-fullwidth">
-                                            <select
-                                                required=true
-                                                onchange=self.link.callback(|event| match event {
-                                                    ChangeData::Select(elem) => {
-                                                        let value = elem.value();
-                                                        Msg::ChangeLengthUnit(LengthUnit::from_str(&value).unwrap())
-                                                    }
-                                                    _ => unreachable!(),
-                                                })>
-                                                {
-                                                    for units.iter().map(|unit| {
-                                                        if unit == &self.props.units_selection {
-                                                            html! {
-                                                                <option value={unit.to_string()} selected=true>
-                                                                    {&unit}
-                                                                </option>
-                                                            }
-                                                        } else {
-                                                            html! {
-                                                                <option value={unit.to_string()}>{&unit}</option>
-                                                            }
-                                                        }
-                                                    })
-                                                }
-                                            </select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="field">
-                                        <label class="label">{"Height"}</label>
-                                        <div class="field has-addons is-expanded">
-                                            <input
-                                                class="input is-expanded"
-                                                input_type="number"
-                                                placeholder="Height"
-                                                value=self.work.height.unwrap_or(0).to_string().clone()
-                                                oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
-                                                required=false
-                                            />
-                                            <div class="select is-fullwidth">
-                                            <select
-                                                required=true
-                                                onchange=self.link.callback(|event| match event {
-                                                    ChangeData::Select(elem) => {
-                                                        let value = elem.value();
-                                                        Msg::ChangeLengthUnit(LengthUnit::from_str(&value).unwrap())
-                                                    }
-                                                    _ => unreachable!(),
-                                                })>
-                                                {
-                                                    for units.iter().map(|unit| {
-                                                        if unit == &self.props.units_selection {
-                                                            html! {
-                                                                <option value={unit.to_string()} selected=true>
-                                                                    {&unit}
-                                                                </option>
-                                                            }
-                                                        } else {
-                                                            html! {
-                                                                <option value={unit.to_string()}>{&unit}</option>
-                                                            }
-                                                        }
-                                                    })
-                                                }
-                                            </select>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <FormNumberInput
+                                        label = "Width"
+                                        value=self.work.width
+                                        oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
+                                    />
+                                    <FormNumberInput
+                                        label = "Height"
+                                        value=self.work.height
+                                        oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
+                                    />
+                                    <FormLengthUnitSelect
+                                        label = "Units"
+                                        value=self.props.units_selection.clone()
+                                        data=units
+                                        onchange=self.link.callback(|event| match event {
+                                            ChangeData::Select(elem) => {
+                                                let value = elem.value();
+                                                Msg::ChangeLengthUnit(LengthUnit::from_str(&value).unwrap())
+                                            }
+                                            _ => unreachable!(),
+                                        })
+                                        required = true
+                                    />
                                     <FormNumberInput
                                         label = "Page Count"
                                         value=self.work.page_count

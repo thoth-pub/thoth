@@ -2,6 +2,7 @@ use thoth_api::contribution::model::ContributionType;
 use thoth_api::imprint::model::ImprintWithPublisher;
 use thoth_api::language::model::LanguageCode;
 use thoth_api::language::model::LanguageRelation;
+use thoth_api::model::LengthUnit;
 use thoth_api::price::model::CurrencyCode;
 use thoth_api::publication::model::PublicationType;
 use thoth_api::publisher::model::Publisher;
@@ -51,6 +52,7 @@ pub type FormSubjectTypeSelect = Pure<PureSubjectTypeSelect>;
 pub type FormLanguageCodeSelect = Pure<PureLanguageCodeSelect>;
 pub type FormLanguageRelationSelect = Pure<PureLanguageRelationSelect>;
 pub type FormCurrencyCodeSelect = Pure<PureCurrencyCodeSelect>;
+pub type FormLengthUnitSelect = Pure<PureLengthUnitSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
 pub type FormPublisherSelect = Pure<PurePublisherSelect>;
@@ -247,6 +249,16 @@ pub struct PureCurrencyCodeSelect {
     pub label: String,
     pub data: Vec<CurrencyCodeValues>,
     pub value: CurrencyCode,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureLengthUnitSelect {
+    pub label: String,
+    pub data: Vec<LengthUnit>,
+    pub value: LengthUnit,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -629,6 +641,26 @@ impl PureComponent for PureCurrencyCodeSelect {
     }
 }
 
+impl PureComponent for PureLengthUnitSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                    >
+                        { for self.data.iter().map(|u| self.render_lengthunit(u)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
 impl PureComponent for PureBooleanSelect {
     fn render(&self) -> VNode {
         html! {
@@ -830,6 +862,22 @@ impl PureCurrencyCodeSelect {
         } else {
             html! {
                 <option value={c.name.to_string()}>{&c.name}</option>
+            }
+        }
+    }
+}
+
+impl PureLengthUnitSelect {
+    fn render_lengthunit(&self, u: &LengthUnit) -> VNode {
+        if u == &self.value {
+            html! {
+                <option value={u.to_string()} selected=true>
+                    {&u}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={u.to_string()}>{&u}</option>
             }
         }
     }
