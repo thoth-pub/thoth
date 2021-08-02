@@ -140,8 +140,7 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                                     w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
                                 })?;
                                 write_element_block("EpubLicenseExpressionLink", w, |w| {
-                                    w.write(XmlEvent::Characters(&license))
-                                        .map_err(|e| e.into())
+                                    w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
                                 })
                             })
                         })?;
@@ -165,7 +164,7 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                                         .map_err(|e| e.into())
                                 })?;
                                 write_element_block("Subtitle", w, |w| {
-                                    w.write(XmlEvent::Characters(&subtitle))
+                                    w.write(XmlEvent::Characters(subtitle))
                                         .map_err(|e| e.into())
                                 })
                             } else {
@@ -228,7 +227,7 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                                     w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                                 })?;
                                 write_full_element_block("Text", None, Some(lang_fmt), w, |w| {
-                                    w.write(XmlEvent::Characters(&labstract))
+                                    w.write(XmlEvent::Characters(labstract))
                                         .map_err(|e| e.into())
                                 })
                             })?;
@@ -284,7 +283,7 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                     }
                     if let Some(place) = &self.place {
                         write_element_block("CityOfPublication", w, |w| {
-                            w.write(XmlEvent::Characters(&place)).map_err(|e| e.into())
+                            w.write(XmlEvent::Characters(place)).map_err(|e| e.into())
                         })?;
                     }
                     XmlElement::<Onix3Oapen>::xml_element(&self.work_status, w)?;
@@ -320,7 +319,7 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                                         w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
                                     })?;
                                     write_element_block("IDValue", w, |w| {
-                                        w.write(XmlEvent::Characters(&isbn)).map_err(|e| e.into())
+                                        w.write(XmlEvent::Characters(isbn)).map_err(|e| e.into())
                                     })
                                 })
                             })?;
@@ -370,7 +369,7 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                                             .map_err(|e| e.into())
                                     })?;
                                     write_element_block("WebsiteLink", w, |w| {
-                                        w.write(XmlEvent::Characters(&url)).map_err(|e| e.into())
+                                        w.write(XmlEvent::Characters(url)).map_err(|e| e.into())
                                     })
                                 })
                             })?;
@@ -505,13 +504,13 @@ impl XmlElementBlock<Onix3Oapen> for WorkContributions {
                         w.write(XmlEvent::Characters("21")).map_err(|e| e.into())
                     })?;
                     write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(&orcid)).map_err(|e| e.into())
+                        w.write(XmlEvent::Characters(orcid)).map_err(|e| e.into())
                     })
                 })?;
             }
             if let Some(first_name) = &self.first_name {
                 write_element_block("NamesBeforeKey", w, |w| {
-                    w.write(XmlEvent::Characters(&first_name))
+                    w.write(XmlEvent::Characters(first_name))
                         .map_err(|e| e.into())
                 })?;
                 write_element_block("KeyNames", w, |w| {
@@ -606,11 +605,11 @@ impl XmlElementBlock<Onix3Oapen> for WorkFundings {
                                 w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                             })?;
                             write_element_block("IDTypeName", w, |w| {
-                                w.write(XmlEvent::Characters(&typename))
+                                w.write(XmlEvent::Characters(typename))
                                     .map_err(|e| e.into())
                             })?;
                             write_element_block("IDValue", w, |w| {
-                                w.write(XmlEvent::Characters(&value)).map_err(|e| e.into())
+                                w.write(XmlEvent::Characters(value)).map_err(|e| e.into())
                             })
                         })?;
                     }

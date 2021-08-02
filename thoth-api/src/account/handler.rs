@@ -49,7 +49,7 @@ impl Account {
         let connection = pool.get().unwrap();
         dotenv().ok();
         let linked_publishers: Vec<LinkedPublisher> =
-            self.get_permissions(&pool).unwrap_or_default();
+            self.get_permissions(pool).unwrap_or_default();
         let namespace = self.get_account_access(linked_publishers);
         let secret_str = env::var("SECRET_KEY").expect("SECRET_KEY must be set");
         let secret: &[u8] = secret_str.as_bytes();
