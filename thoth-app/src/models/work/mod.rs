@@ -286,16 +286,24 @@ impl DisplayWork for WorkWithRelations {
                         </div>
                         <nav class="level">
                             <div class="level-left">
-                                <a
-                                    class="level-item button is-small"
-                                    aria-label="read"
-                                    href={doi.to_string()}
-                                >
-                                    <span class="icon is-small">
-                                    <i class="fas fa-book" aria-hidden="true"></i>
-                                    </span>
-                                    <span>{"Read"}</span>
-                                </a>
+                                {
+                                    if let Some(landing_page) = self.landing_page.clone() {
+                                        html!{
+                                            <a
+                                                class="level-item button is-small"
+                                                aria-label="read"
+                                                href={landing_page}
+                                            >
+                                                <span class="icon is-small">
+                                                <i class="fas fa-book" aria-hidden="true"></i>
+                                                </span>
+                                                <span>{"Read"}</span>
+                                            </a>
+                                        }
+                                    } else {
+                                        html! {}
+                                    }
+                                }
 
                                 <div class="level-item dropdown is-hoverable">
                                     <div class="dropdown-trigger">

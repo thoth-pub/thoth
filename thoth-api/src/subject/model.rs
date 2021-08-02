@@ -107,7 +107,7 @@ pub fn check_subject(subject_type: &SubjectType, code: &str) -> ThothResult<()> 
     let valid = match &subject_type {
         SubjectType::Bic => true,
         SubjectType::Bisac => true,
-        SubjectType::Thema => THEMA_CODES.contains_key::<str>(&code),
+        SubjectType::Thema => THEMA_CODES.contains_key::<str>(code),
         SubjectType::Lcc => true,
         SubjectType::Custom => true,
         SubjectType::Keyword => true,
