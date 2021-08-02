@@ -265,7 +265,7 @@ fn main() -> ThothResult<()> {
                     .interact_on(&Term::stdout())?;
                 let email = all_emails.get(email_selection).unwrap();
 
-                update_password(&email, &password, &pool).map(|_| ())
+                update_password(email, &password, &pool).map(|_| ())
             }
             _ => unreachable!(),
         },

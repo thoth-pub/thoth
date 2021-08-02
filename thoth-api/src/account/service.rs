@@ -22,7 +22,7 @@ pub fn login(user_email: &str, user_password: &str, pool: &PgPool) -> ThothResul
         .first::<Account>(&conn)
         .map_err(|_| ThothError::Unauthorised)?;
 
-    if verify(&account, &user_password) {
+    if verify(&account, user_password) {
         Ok(account)
     } else {
         Err(ThothError::Unauthorised)
@@ -48,8 +48,7 @@ pub fn get_account_details(email: &str, pool: &PgPool) -> ThothResult<AccountDet
         .filter(dsl::email.eq(email))
         .first::<Account>(&conn)
         .map_err(|_| ThothError::Unauthorised)?;
-    let linked_publishers: Vec<LinkedPublisher> =
-        account.get_permissions(&pool).unwrap_or_default();
+    let linked_publishers: Vec<LinkedPublisher> = account.get_permissions(pool).unwrap_or_default();
     let resource_access = account.get_account_access(linked_publishers);
     let account_details = AccountDetails {
         account_id: account.account_id,
