@@ -13,6 +13,7 @@ pub const WORKS_QUERY: &str = "
             title
             edition
             copyrightHolder
+            landingPage
             doi
             coverUrl
             license
