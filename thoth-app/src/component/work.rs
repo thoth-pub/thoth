@@ -221,6 +221,7 @@ impl Component for WorkComponent {
                     variables: Variables {
                         work_id: Some(self.props.work_id),
                         publishers: self.props.current_user.resource_access.restricted_to(),
+                        units: self.props.units_selection.clone(),
                     },
                     ..Default::default()
                 };
@@ -309,6 +310,7 @@ impl Component for WorkComponent {
                         toc: self.work.toc.clone(),
                         cover_url: self.work.cover_url.clone(),
                         cover_caption: self.work.cover_caption.clone(),
+                        units: self.props.units_selection.clone(),
                     },
                     ..Default::default()
                 };
@@ -611,14 +613,12 @@ impl Component for WorkComponent {
             self.props.current_user.resource_access != props.current_user.resource_access;
         let updated_units = self.props.units_selection != props.units_selection;
         self.props = props;
-        if updated_permissions {
+        if updated_permissions || updated_units {
             // Required in order to retrieve updated list of imprints for dropdown
+            // and/or Width/Height values in the newly-selected units
             self.link.send_message(Msg::GetWork);
         }
-        // Units are the only changed props which require a re-render.
-        // Changed permissions will automatically trigger a re-render
-        // once GetWork msg is processed.
-        updated_units
+        false
     }
 
     fn view(&self) -> Html {

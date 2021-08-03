@@ -12,7 +12,9 @@ use uuid::Uuid;
 pub const DOI_DOMAIN: &str = "https://doi.org/";
 pub const ORCID_DOMAIN: &str = "https://orcid.org/";
 
+#[cfg_attr(feature = "backend", derive(juniper::GraphQLEnum))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase")]
 pub enum LengthUnit {
     Mm,
@@ -421,6 +423,27 @@ macro_rules! db_insert {
             }
         }
     };
+}
+
+pub trait Convert {
+    fn convert_units_from_to(&self, current_units: &LengthUnit, new_units: &LengthUnit) -> i32;
+}
+
+impl Convert for i32 {
+    fn convert_units_from_to(&self, current_units: &LengthUnit, new_units: &LengthUnit) -> i32 {
+        match (current_units, new_units) {
+            // If current units and new units are the same, no conversion is needed
+            (LengthUnit::Mm, LengthUnit::Mm)
+            | (LengthUnit::Cm, LengthUnit::Cm)
+            | (LengthUnit::In, LengthUnit::In) => *self,
+            (LengthUnit::Mm, LengthUnit::Cm) => self / 10,
+            (LengthUnit::Cm, LengthUnit::Mm) => self * 10,
+            (LengthUnit::Mm, LengthUnit::In) => (*self as f32 * 0.03937008) as i32,
+            (LengthUnit::In, LengthUnit::Mm) => (*self as f32 / 0.03937008) as i32,
+            // We don't currently support conversion between cm and in as it is not required
+            _ => unimplemented!(),
+        }
+    }
 }
 
 #[test]

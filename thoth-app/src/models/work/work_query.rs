@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::imprint::model::ImprintWithPublisher;
+use thoth_api::model::LengthUnit;
 use thoth_api::work::model::WorkWithRelations;
 use uuid::Uuid;
 
@@ -8,7 +9,7 @@ use super::WorkStatusDefinition;
 use super::WorkTypeDefinition;
 
 pub const WORK_QUERY: &str = "
-    query WorkQuery($workId: Uuid!, $publishers: [Uuid!]) {
+    query WorkQuery($workId: Uuid!, $publishers: [Uuid!], $units: LengthUnit) {
         work(workId: $workId) {
             workId
             workType
@@ -21,8 +22,8 @@ pub const WORK_QUERY: &str = "
             doi
             publicationDate
             place
-            width
-            height
+            width(units: $units)
+            height(units: $units)
             pageCount
             pageBreakdown
             imageCount
@@ -182,6 +183,7 @@ graphql_query_builder! {
 pub struct Variables {
     pub work_id: Option<Uuid>,
     pub publishers: Option<Vec<String>>,
+    pub units: LengthUnit,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
