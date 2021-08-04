@@ -62,6 +62,7 @@ use crate::models::work::work_query::FetchWork;
 use crate::models::work::work_query::Variables;
 use crate::models::work::work_query::WorkRequest;
 use crate::models::work::work_query::WorkRequestBody;
+use crate::models::work::LengthUnitValues;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
 use crate::route::AdminRoute;
@@ -90,6 +91,7 @@ struct WorkFormData {
     imprints: Vec<ImprintWithPublisher>,
     work_types: Vec<WorkTypeValues>,
     work_statuses: Vec<WorkStatusValues>,
+    length_units: Vec<LengthUnitValues>,
 }
 
 pub enum Msg {
@@ -196,6 +198,7 @@ impl Component for WorkComponent {
                         self.doi = self.work.doi.clone().unwrap_or_default().to_string();
                         self.imprint_id = self.work.imprint.imprint_id;
                         self.data.imprints = body.data.imprints.to_owned();
+                        self.data.length_units = body.data.length_units.enum_values.to_owned();
                         self.data.work_types = body.data.work_types.enum_values.to_owned();
                         self.data.work_statuses = body.data.work_statuses.enum_values.to_owned();
 
@@ -636,7 +639,6 @@ impl Component for WorkComponent {
                     true => self.data.imprints.clone(),
                     false => vec![self.work.imprint.clone()],
                 };
-                let units = vec![LengthUnit::Mm, LengthUnit::Cm, LengthUnit::In];
                 html! {
                     <>
                         <nav class="level">
@@ -795,7 +797,7 @@ impl Component for WorkComponent {
                                     <FormLengthUnitSelect
                                         label = "Units"
                                         value=self.props.units_selection.clone()
-                                        data=units
+                                        data=self.data.length_units.clone()
                                         onchange=self.link.callback(|event| match event {
                                             ChangeData::Select(elem) => {
                                                 let value = elem.value();

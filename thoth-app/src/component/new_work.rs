@@ -43,10 +43,13 @@ use crate::models::work::create_work_mutation::CreateWorkRequestBody;
 use crate::models::work::create_work_mutation::PushActionCreateWork;
 use crate::models::work::create_work_mutation::PushCreateWork;
 use crate::models::work::create_work_mutation::Variables;
+use crate::models::work::length_units_query::FetchActionLengthUnits;
+use crate::models::work::length_units_query::FetchLengthUnits;
 use crate::models::work::work_statuses_query::FetchActionWorkStatuses;
 use crate::models::work::work_statuses_query::FetchWorkStatuses;
 use crate::models::work::work_types_query::FetchActionWorkTypes;
 use crate::models::work::work_types_query::FetchWorkTypes;
+use crate::models::work::LengthUnitValues;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
 use crate::models::EditRoute;
@@ -63,6 +66,7 @@ pub struct NewWorkComponent {
     push_work: PushCreateWork,
     data: WorkFormData,
     fetch_imprints: FetchImprints,
+    fetch_length_units: FetchLengthUnits,
     fetch_work_types: FetchWorkTypes,
     fetch_work_statuses: FetchWorkStatuses,
     link: ComponentLink<Self>,
@@ -76,12 +80,15 @@ struct WorkFormData {
     imprints: Vec<ImprintWithPublisher>,
     work_types: Vec<WorkTypeValues>,
     work_statuses: Vec<WorkStatusValues>,
+    length_units: Vec<LengthUnitValues>,
 }
 
 #[allow(clippy::large_enum_variant)]
 pub enum Msg {
     SetImprintsFetchState(FetchActionImprints),
     GetImprints,
+    SetLengthUnitsFetchState(FetchActionLengthUnits),
+    GetLengthUnits,
     SetWorkTypesFetchState(FetchActionWorkTypes),
     GetWorkTypes,
     SetWorkStatusesFetchState(FetchActionWorkStatuses),
@@ -141,10 +148,12 @@ impl Component for NewWorkComponent {
         let imprint_id: Uuid = Default::default();
         let data: WorkFormData = Default::default();
         let fetch_imprints: FetchImprints = Default::default();
+        let fetch_length_units: FetchLengthUnits = Default::default();
         let fetch_work_types: FetchWorkTypes = Default::default();
         let fetch_work_statuses: FetchWorkStatuses = Default::default();
 
         link.send_message(Msg::GetImprints);
+        link.send_message(Msg::GetLengthUnits);
         link.send_message(Msg::GetWorkTypes);
         link.send_message(Msg::GetWorkStatuses);
 
@@ -156,6 +165,7 @@ impl Component for NewWorkComponent {
             push_work,
             data,
             fetch_imprints,
+            fetch_length_units,
             fetch_work_types,
             fetch_work_statuses,
             link,
@@ -192,6 +202,23 @@ impl Component for NewWorkComponent {
                     .send_future(self.fetch_imprints.fetch(Msg::SetImprintsFetchState));
                 self.link
                     .send_message(Msg::SetImprintsFetchState(FetchAction::Fetching));
+                false
+            }
+            Msg::SetLengthUnitsFetchState(fetch_state) => {
+                self.fetch_length_units.apply(fetch_state);
+                self.data.length_units = match self.fetch_length_units.as_ref().state() {
+                    FetchState::NotFetching(_) => vec![],
+                    FetchState::Fetching(_) => vec![],
+                    FetchState::Fetched(body) => body.data.length_units.enum_values.clone(),
+                    FetchState::Failed(_, _err) => vec![],
+                };
+                true
+            }
+            Msg::GetLengthUnits => {
+                self.link
+                    .send_future(self.fetch_length_units.fetch(Msg::SetLengthUnitsFetchState));
+                self.link
+                    .send_message(Msg::SetLengthUnitsFetchState(FetchAction::Fetching));
                 false
             }
             Msg::SetWorkTypesFetchState(fetch_state) => {
@@ -541,7 +568,6 @@ impl Component for NewWorkComponent {
             event.prevent_default();
             Msg::CreateWork
         });
-        let units = vec![LengthUnit::Mm, LengthUnit::Cm, LengthUnit::In];
         html! {
             <>
                 <nav class="level">
@@ -693,7 +719,7 @@ impl Component for NewWorkComponent {
                             <FormLengthUnitSelect
                                 label = "Units"
                                 value=self.props.units_selection.clone()
-                                data=units
+                                data=self.data.length_units.clone()
                                 onchange=self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {
                                         let value = elem.value();

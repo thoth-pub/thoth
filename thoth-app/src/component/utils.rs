@@ -29,6 +29,7 @@ use crate::models::price::CurrencyCodeValues;
 use crate::models::publication::PublicationTypeValues;
 use crate::models::series::SeriesTypeValues;
 use crate::models::subject::SubjectTypeValues;
+use crate::models::work::LengthUnitValues;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
 use crate::string::NO;
@@ -257,7 +258,7 @@ pub struct PureCurrencyCodeSelect {
 #[derive(Clone, PartialEq, Properties)]
 pub struct PureLengthUnitSelect {
     pub label: String,
-    pub data: Vec<LengthUnit>,
+    pub data: Vec<LengthUnitValues>,
     pub value: LengthUnit,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
@@ -868,16 +869,16 @@ impl PureCurrencyCodeSelect {
 }
 
 impl PureLengthUnitSelect {
-    fn render_lengthunit(&self, u: &LengthUnit) -> VNode {
-        if u == &self.value {
+    fn render_lengthunit(&self, u: &LengthUnitValues) -> VNode {
+        if u.name == self.value {
             html! {
-                <option value={u.to_string()} selected=true>
-                    {&u}
+                <option value={u.name.to_string()} selected=true>
+                    {&u.name}
                 </option>
             }
         } else {
             html! {
-                <option value={u.to_string()}>{&u}</option>
+                <option value={u.name.to_string()}>{&u.name}</option>
             }
         }
     }

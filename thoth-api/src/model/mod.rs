@@ -12,7 +12,8 @@ use uuid::Uuid;
 pub const DOI_DOMAIN: &str = "https://doi.org/";
 pub const ORCID_DOMAIN: &str = "https://orcid.org/";
 
-#[cfg_attr(feature = "backend", derive(juniper::GraphQLEnum))]
+#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
+#[cfg_attr(feature = "backend", DieselType = "Length_unit")]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase")]

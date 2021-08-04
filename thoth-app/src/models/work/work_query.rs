@@ -5,6 +5,7 @@ use thoth_api::model::LengthUnit;
 use thoth_api::work::model::WorkWithRelations;
 use uuid::Uuid;
 
+use super::LengthUnitDefinition;
 use super::WorkStatusDefinition;
 use super::WorkTypeDefinition;
 
@@ -154,6 +155,11 @@ pub const WORK_QUERY: &str = "
                 updatedAt
             }
         }
+        length_units: __type(name: \"LengthUnit\") {
+            enumValues {
+                name
+            }
+        }
         work_types: __type(name: \"WorkType\") {
             enumValues {
                 name
@@ -190,6 +196,7 @@ pub struct Variables {
 pub struct WorkResponseData {
     pub work: Option<WorkWithRelations>,
     pub imprints: Vec<ImprintWithPublisher>,
+    pub length_units: LengthUnitDefinition,
     pub work_types: WorkTypeDefinition,
     pub work_statuses: WorkStatusDefinition,
 }
