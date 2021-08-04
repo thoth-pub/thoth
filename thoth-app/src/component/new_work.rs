@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::imprint::model::ImprintWithPublisher;
-use thoth_api::model::{Doi, DOI_DOMAIN};
+use thoth_api::model::{Doi, LengthUnit, DOI_DOMAIN};
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
 use thoth_api::work::model::WorkWithRelations;
@@ -25,6 +25,7 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormDateInput;
 use crate::component::utils::FormImprintSelect;
+use crate::component::utils::FormLengthUnitSelect;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormTextInputExtended;
@@ -99,6 +100,7 @@ pub enum Msg {
     ChangePlace(String),
     ChangeWidth(String),
     ChangeHeight(String),
+    ChangeLengthUnit(LengthUnit),
     ChangePageCount(String),
     ChangePageBreakdown(String),
     ChangeImageCount(String),
@@ -121,6 +123,8 @@ pub enum Msg {
 #[derive(Clone, Properties)]
 pub struct Props {
     pub current_user: AccountDetails,
+    pub units_selection: LengthUnit,
+    pub update_units_selection: Callback<LengthUnit>,
 }
 
 impl Component for NewWorkComponent {
@@ -298,6 +302,7 @@ impl Component for NewWorkComponent {
                         cover_url: self.work.cover_url.clone(),
                         cover_caption: self.work.cover_caption.clone(),
                         imprint_id: self.imprint_id,
+                        units: self.props.units_selection.clone(),
                     },
                     ..Default::default()
                 };
@@ -387,6 +392,10 @@ impl Component for NewWorkComponent {
                     false => Some(count),
                 };
                 self.work.height.neq_assign(height)
+            }
+            Msg::ChangeLengthUnit(length_unit) => {
+                self.props.update_units_selection.emit(length_unit);
+                false
             }
             Msg::ChangePageCount(value) => {
                 let count: i32 = value.parse().unwrap_or(0);
@@ -532,6 +541,7 @@ impl Component for NewWorkComponent {
             event.prevent_default();
             Msg::CreateWork
         });
+        let units = vec![LengthUnit::Mm, LengthUnit::Cm, LengthUnit::In];
         html! {
             <>
                 <nav class="level">
@@ -679,6 +689,19 @@ impl Component for NewWorkComponent {
                                 label = "Height"
                                 value=self.work.height
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
+                            />
+                            <FormLengthUnitSelect
+                                label = "Units"
+                                value=self.props.units_selection.clone()
+                                data=units
+                                onchange=self.link.callback(|event| match event {
+                                    ChangeData::Select(elem) => {
+                                        let value = elem.value();
+                                        Msg::ChangeLengthUnit(LengthUnit::from_str(&value).unwrap())
+                                    }
+                                    _ => unreachable!(),
+                                })
+                                required = true
                             />
                             <FormNumberInput
                                 label = "Page Count"

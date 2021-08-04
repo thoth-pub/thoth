@@ -936,13 +936,13 @@ pub struct MutationRoot;
 
 #[juniper::object(Context = Context)]
 impl MutationRoot {
-    fn create_work(context: &Context, data: NewWork) -> FieldResult<Work> {
+    fn create_work(context: &Context, data: NewWork, units: LengthUnit) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
             .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
 
-        Work::create(&context.db, &data).map_err(|e| e.into())
+        Work::create_with_units(&context.db, data, units).map_err(|e| e.into())
     }
 
     fn create_publisher(context: &Context, data: NewPublisher) -> FieldResult<Publisher> {

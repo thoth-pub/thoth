@@ -144,7 +144,7 @@ impl Component for AdminComponent {
                                 AdminRoute::Dashboard => html!{<DashboardComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Works => html!{<WorksComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Work(id) => html!{<WorkComponent work_id = *id current_user = self.props.current_user.clone().unwrap() units_selection = self.units_selection.clone() update_units_selection = self.link.callback(Msg::UpdateLengthUnit) />},
-                                AdminRoute::NewWork => html!{<NewWorkComponent current_user = self.props.current_user.clone().unwrap() />},
+                                AdminRoute::NewWork => html!{<NewWorkComponent current_user = self.props.current_user.clone().unwrap() units_selection = self.units_selection.clone() update_units_selection = self.link.callback(Msg::UpdateLengthUnit) />},
                                 AdminRoute::Publishers => html!{<PublishersComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id = *id current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::NewPublisher => html!{<NewPublisherComponent/>},

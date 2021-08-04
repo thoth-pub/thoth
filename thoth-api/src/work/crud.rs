@@ -65,6 +65,21 @@ impl Work {
             .map(|h| h.convert_units_from_to(&units, &LengthUnit::Mm));
         self.update(db, &converted_data, account_id)
     }
+
+    pub fn create_with_units(
+        db: &crate::db::PgPool,
+        data: NewWork,
+        units: LengthUnit,
+    ) -> ThothResult<Self> {
+        let mut converted_data = data;
+        converted_data.width = converted_data
+            .width
+            .map(|w| w.convert_units_from_to(&units, &LengthUnit::Mm));
+        converted_data.height = converted_data
+            .height
+            .map(|h| h.convert_units_from_to(&units, &LengthUnit::Mm));
+        Self::create(db, &converted_data)
+    }
 }
 
 impl Crud for Work {
