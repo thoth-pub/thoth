@@ -2,6 +2,8 @@ use thoth_api::account::model::AccountDetails;
 use thoth_api::model::LengthUnit;
 use yew::html;
 use yew::prelude::*;
+use yew::services::storage::Area;
+use yew::services::storage::StorageService;
 use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
@@ -38,6 +40,8 @@ use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::service::account::AccountService;
 use crate::string::PERMISSIONS_ERROR;
+use crate::string::STORAGE_ERROR;
+use crate::UNITS_KEY;
 
 pub struct AdminComponent {
     props: Props,
@@ -66,13 +70,26 @@ impl Component for AdminComponent {
         if !AccountService::new().is_loggedin() {
             link.send_message(Msg::RedirectToLogin);
         }
+        let mut units_selection: LengthUnit = Default::default();
+        let mut storage_service = StorageService::new(Area::Local).expect(STORAGE_ERROR);
+        if let Ok(units_string) = storage_service.restore(UNITS_KEY) {
+            if let Ok(units) = units_string.parse::<LengthUnit>() {
+                units_selection = units;
+            } else {
+                // Couldn't parse stored units - overwrite them with default
+                storage_service.store(UNITS_KEY, Ok(units_selection.to_string()));
+            }
+        } else {
+            // No stored units found - store the default
+            storage_service.store(UNITS_KEY, Ok(units_selection.to_string()));
+        }
 
         AdminComponent {
             props,
             notification_bus: NotificationBus::dispatcher(),
             router: RouteAgentDispatcher::new(),
             link,
-            units_selection: Default::default(),
+            units_selection,
         }
     }
 
@@ -102,7 +119,16 @@ impl Component for AdminComponent {
                     .send(RouteRequest::ChangeRoute(Route::from(AppRoute::Login)));
                 false
             }
-            Msg::UpdateLengthUnit(length_unit) => self.units_selection.neq_assign(length_unit),
+            Msg::UpdateLengthUnit(length_unit) => {
+                if self.units_selection.neq_assign(length_unit) {
+                    StorageService::new(Area::Local)
+                        .expect(STORAGE_ERROR)
+                        .store(UNITS_KEY, Ok(self.units_selection.to_string()));
+                    true
+                } else {
+                    false
+                }
+            }
         }
     }
 
