@@ -427,20 +427,20 @@ macro_rules! db_insert {
 }
 
 pub trait Convert {
-    fn convert_units_from_to(&self, current_units: &LengthUnit, new_units: &LengthUnit) -> i32;
+    fn convert_units_from_to(&self, current_units: &LengthUnit, new_units: &LengthUnit) -> f64;
 }
 
-impl Convert for i32 {
-    fn convert_units_from_to(&self, current_units: &LengthUnit, new_units: &LengthUnit) -> i32 {
+impl Convert for f64 {
+    fn convert_units_from_to(&self, current_units: &LengthUnit, new_units: &LengthUnit) -> f64 {
         match (current_units, new_units) {
             // If current units and new units are the same, no conversion is needed
             (LengthUnit::Mm, LengthUnit::Mm)
             | (LengthUnit::Cm, LengthUnit::Cm)
             | (LengthUnit::In, LengthUnit::In) => *self,
-            (LengthUnit::Mm, LengthUnit::Cm) => self / 10,
-            (LengthUnit::Cm, LengthUnit::Mm) => self * 10,
-            (LengthUnit::Mm, LengthUnit::In) => (*self as f32 * 0.03937008) as i32,
-            (LengthUnit::In, LengthUnit::Mm) => (*self as f32 / 0.03937008) as i32,
+            (LengthUnit::Mm, LengthUnit::Cm) => self / 10.0,
+            (LengthUnit::Cm, LengthUnit::Mm) => self * 10.0,
+            (LengthUnit::Mm, LengthUnit::In) => self * 0.03937008,
+            (LengthUnit::In, LengthUnit::Mm) => self / 0.03937008,
             // We don't currently support conversion between cm and in as it is not required
             _ => unimplemented!(),
         }

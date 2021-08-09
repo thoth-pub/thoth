@@ -24,6 +24,7 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormDateInput;
+use crate::component::utils::FormFloatInput;
 use crate::component::utils::FormImprintSelect;
 use crate::component::utils::FormLengthUnitSelect;
 use crate::component::utils::FormNumberInput;
@@ -405,16 +406,16 @@ impl Component for NewWorkComponent {
                 self.work.place.neq_assign(place)
             }
             Msg::ChangeWidth(value) => {
-                let count: i32 = value.parse().unwrap_or(0);
-                let width = match count == 0 {
+                let count: f64 = value.parse().unwrap_or(0.0);
+                let width = match count == 0.0 {
                     true => None,
                     false => Some(count),
                 };
                 self.work.width.neq_assign(width)
             }
             Msg::ChangeHeight(value) => {
-                let count: i32 = value.parse().unwrap_or(0);
-                let height = match count == 0 {
+                let count: f64 = value.parse().unwrap_or(0.0);
+                let height = match count == 0.0 {
                     true => None,
                     false => Some(count),
                 };
@@ -706,12 +707,12 @@ impl Component for NewWorkComponent {
                     </div>
                     <div class="field is-horizontal">
                         <div class="field-body">
-                            <FormNumberInput
+                            <FormFloatInput
                                 label = "Width"
                                 value=self.work.width
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
                             />
-                            <FormNumberInput
+                            <FormFloatInput
                                 label = "Height"
                                 value=self.work.height
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))

@@ -1466,7 +1466,7 @@ impl Work {
             ),
         )
     )]
-    pub fn width(&self, units: LengthUnit) -> Option<i32> {
+    pub fn width(&self, units: LengthUnit) -> Option<f64> {
         self.width
             .map(|w| w.convert_units_from_to(&LengthUnit::Mm, &units))
     }
@@ -1480,7 +1480,7 @@ impl Work {
             ),
         )
     )]
-    pub fn height(&self, units: LengthUnit) -> Option<i32> {
+    pub fn height(&self, units: LengthUnit) -> Option<f64> {
         self.height
             .map(|h| h.convert_units_from_to(&LengthUnit::Mm, &units))
     }
