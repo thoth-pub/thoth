@@ -569,6 +569,13 @@ impl Component for NewWorkComponent {
             event.prevent_default();
             Msg::CreateWork
         });
+        // Restrict the number of decimal places the user can enter for width/height values
+        // based on currently selected units. Note inches may still be rounded further on save.
+        let step = match self.props.units_selection {
+            LengthUnit::Mm => "1".to_string(),
+            LengthUnit::Cm => "0.1".to_string(),
+            LengthUnit::In => "0.0001".to_string(),
+        };
         html! {
             <>
                 <nav class="level">
@@ -711,11 +718,13 @@ impl Component for NewWorkComponent {
                                 label = "Width"
                                 value=self.work.width
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
+                                step=step.clone()
                             />
                             <FormFloatInput
                                 label = "Height"
                                 value=self.work.height
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
+                                step=step.clone()
                             />
                             <FormLengthUnitSelect
                                 label = "Units"

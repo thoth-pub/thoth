@@ -83,6 +83,8 @@ const UPDATE_WORK_MUTATION: &str = "
             title
             edition
             imprintId
+            width
+            height
             copyrightHolder
             createdAt
             updatedAt

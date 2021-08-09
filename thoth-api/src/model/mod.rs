@@ -437,10 +437,23 @@ impl Convert for f64 {
             (LengthUnit::Mm, LengthUnit::Mm)
             | (LengthUnit::Cm, LengthUnit::Cm)
             | (LengthUnit::In, LengthUnit::In) => *self,
-            (LengthUnit::Mm, LengthUnit::Cm) => self / 10.0,
-            (LengthUnit::Cm, LengthUnit::Mm) => self * 10.0,
-            (LengthUnit::Mm, LengthUnit::In) => self * 0.03937008,
-            (LengthUnit::In, LengthUnit::Mm) => self / 0.03937008,
+            // Return cm values rounded to max 1 decimal place (1 cm = 10 mm)
+            (LengthUnit::Mm, LengthUnit::Cm) => self.round() / 10.0,
+            // Return mm values rounded to nearest mm (1 cm = 10 mm)
+            (LengthUnit::Cm, LengthUnit::Mm) => (self * 10.0).round(),
+            // Return inch values rounded to 4 decimal places, then re-rounded
+            // to nearest 16th of an inch (1 inch = 25.4 mm)
+            (LengthUnit::Mm, LengthUnit::In) => {
+                let unrounded_inches = self / 25.4;
+                // To round to a non-integer scale, multiply by the appropriate factor,
+                // round to the nearest integer, then divide again by the same factor
+                let rounded_to_four_dp = (unrounded_inches * 10000.0).round() / 10000.0;
+                (rounded_to_four_dp * 16.0).round() / 16.0
+            }
+            // Return mm values rounded to nearest mm (1 inch = 25.4 mm)
+            (LengthUnit::In, LengthUnit::Mm) => {
+                (self * 25.4).round()
+            }
             // We don't currently support conversion between cm and in as it is not required
             _ => unimplemented!(),
         }

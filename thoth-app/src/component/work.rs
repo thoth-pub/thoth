@@ -249,6 +249,12 @@ impl Component for WorkComponent {
                             self.doi = self.work.doi.clone().unwrap_or_default().to_string();
                             self.doi_warning.clear();
                             self.imprint_id = self.work.imprint.imprint_id;
+                            if self.props.units_selection == LengthUnit::In {
+                                // User-entered dimensions may have been rounded on save due to
+                                // conversion to mm - update display with database values
+                                self.work.width = w.width;
+                                self.work.height = w.height;
+                            }
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
@@ -640,6 +646,13 @@ impl Component for WorkComponent {
                     true => self.data.imprints.clone(),
                     false => vec![self.work.imprint.clone()],
                 };
+                // Restrict the number of decimal places the user can enter for width/height values
+                // based on currently selected units. Note inches may still be rounded further on save.
+                let step = match self.props.units_selection {
+                    LengthUnit::Mm => "1".to_string(),
+                    LengthUnit::Cm => "0.1".to_string(),
+                    LengthUnit::In => "0.0001".to_string(),
+                };
                 html! {
                     <>
                         <nav class="level">
@@ -789,11 +802,13 @@ impl Component for WorkComponent {
                                         label = "Width"
                                         value=self.work.width
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
+                                        step=step.clone()
                                     />
                                     <FormFloatInput
                                         label = "Height"
                                         value=self.work.height
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
+                                        step=step.clone()
                                     />
                                     <FormLengthUnitSelect
                                         label = "Units"
