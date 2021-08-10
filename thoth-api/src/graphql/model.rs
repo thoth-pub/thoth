@@ -1458,7 +1458,7 @@ impl Work {
     }
 
     #[graphql(
-        description = "Width of the physical Work",
+        description = "Width of the physical Work (in mm, cm or in)",
         arguments(
             units(
                 default = LengthUnit::default(),
@@ -1472,7 +1472,7 @@ impl Work {
     }
 
     #[graphql(
-        description = "Height of the physical Work",
+        description = "Height of the physical Work (in mm, cm or in)",
         arguments(
             units(
                 default = LengthUnit::default(),

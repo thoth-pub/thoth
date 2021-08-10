@@ -12,8 +12,12 @@ use uuid::Uuid;
 pub const DOI_DOMAIN: &str = "https://doi.org/";
 pub const ORCID_DOMAIN: &str = "https://orcid.org/";
 
-#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
-#[cfg_attr(feature = "backend", DieselType = "Length_unit")]
+#[cfg_attr(
+    feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Unit of measurement for physical Work dimensions (mm, cm or in)"),
+    DieselType = "Length_unit"
+)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase")]
@@ -451,9 +455,7 @@ impl Convert for f64 {
                 (rounded_to_four_dp * 16.0).round() / 16.0
             }
             // Return mm values rounded to nearest mm (1 inch = 25.4 mm)
-            (LengthUnit::In, LengthUnit::Mm) => {
-                (self * 25.4).round()
-            }
+            (LengthUnit::In, LengthUnit::Mm) => (self * 25.4).round(),
             // We don't currently support conversion between cm and in as it is not required
             _ => unimplemented!(),
         }
@@ -652,4 +654,80 @@ fn test_orcid_fromstr() {
     assert!(Orcid::from_str("//orcid.org/0000-0002-1234-5678").is_err());
     assert!(Orcid::from_str("https://orcid-org/0000-0002-1234-5678").is_err());
     assert!(Orcid::from_str("0000-0002-1234-5678https://orcid.org/").is_err());
+}
+
+#[test]
+// Float equality comparison is fine here because the floats
+// have already been rounded by the functions under test
+#[allow(clippy::float_cmp)]
+fn test_convert_units_from_to() {
+    use LengthUnit::*;
+    assert_eq!(123.456.convert_units_from_to(&Mm, &Cm), 12.3);
+    assert_eq!(123.456.convert_units_from_to(&Mm, &In), 4.875);
+    assert_eq!(123.456.convert_units_from_to(&Cm, &Mm), 1235.0);
+    assert_eq!(123.456.convert_units_from_to(&In, &Mm), 3136.0);
+    // Test some standard print sizes
+    assert_eq!(4.25.convert_units_from_to(&In, &Mm), 108.0);
+    assert_eq!(108.0.convert_units_from_to(&Mm, &In), 4.25);
+    assert_eq!(6.0.convert_units_from_to(&In, &Mm), 152.0);
+    assert_eq!(152.0.convert_units_from_to(&Mm, &In), 6.0);
+    assert_eq!(8.5.convert_units_from_to(&In, &Mm), 216.0);
+    assert_eq!(216.0.convert_units_from_to(&Mm, &In), 8.5);
+    // Test that converting and then converting back again
+    // returns a value within a reasonable margin of error
+    assert_eq!(
+        5.06.convert_units_from_to(&In, &Mm)
+            .convert_units_from_to(&Mm, &In),
+        5.0625
+    );
+    assert_eq!(
+        6.5.convert_units_from_to(&In, &Mm)
+            .convert_units_from_to(&Mm, &In),
+        6.5
+    );
+    assert_eq!(
+        7.44.convert_units_from_to(&In, &Mm)
+            .convert_units_from_to(&Mm, &In),
+        7.4375
+    );
+    assert_eq!(
+        8.27.convert_units_from_to(&In, &Mm)
+            .convert_units_from_to(&Mm, &In),
+        8.25
+    );
+    assert_eq!(
+        9.0.convert_units_from_to(&In, &Mm)
+            .convert_units_from_to(&Mm, &In),
+        9.0
+    );
+    assert_eq!(
+        10.88
+            .convert_units_from_to(&In, &Mm)
+            .convert_units_from_to(&Mm, &In),
+        10.875
+    );
+    assert_eq!(
+        102.0
+            .convert_units_from_to(&Mm, &In)
+            .convert_units_from_to(&In, &Mm),
+        102.0
+    );
+    assert_eq!(
+        120.0
+            .convert_units_from_to(&Mm, &In)
+            .convert_units_from_to(&In, &Mm),
+        121.0
+    );
+    assert_eq!(
+        168.0
+            .convert_units_from_to(&Mm, &In)
+            .convert_units_from_to(&In, &Mm),
+        168.0
+    );
+    assert_eq!(
+        190.0
+            .convert_units_from_to(&Mm, &In)
+            .convert_units_from_to(&In, &Mm),
+        191.0
+    );
 }
