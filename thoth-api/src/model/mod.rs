@@ -14,9 +14,8 @@ pub const ORCID_DOMAIN: &str = "https://orcid.org/";
 
 #[cfg_attr(
     feature = "backend",
-    derive(DbEnum, juniper::GraphQLEnum),
-    graphql(description = "Unit of measurement for physical Work dimensions (mm, cm or in)"),
-    DieselType = "Length_unit"
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Unit of measurement for physical Work dimensions (mm, cm or in)")
 )]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
