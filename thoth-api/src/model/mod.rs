@@ -444,14 +444,12 @@ impl Convert for f64 {
             (LengthUnit::Mm, LengthUnit::Cm) => self.round() / 10.0,
             // Return mm values rounded to nearest mm (1 cm = 10 mm)
             (LengthUnit::Cm, LengthUnit::Mm) => (self * 10.0).round(),
-            // Return inch values rounded to 4 decimal places, then re-rounded
-            // to nearest 16th of an inch (1 inch = 25.4 mm)
+            // Return inch values rounded to 2 decimal places (1 inch = 25.4 mm)
             (LengthUnit::Mm, LengthUnit::In) => {
                 let unrounded_inches = self / 25.4;
                 // To round to a non-integer scale, multiply by the appropriate factor,
                 // round to the nearest integer, then divide again by the same factor
-                let rounded_to_four_dp = (unrounded_inches * 10000.0).round() / 10000.0;
-                (rounded_to_four_dp * 16.0).round() / 16.0
+                (unrounded_inches * 100.0).round() / 100.0
             }
             // Return mm values rounded to nearest mm (1 inch = 25.4 mm)
             (LengthUnit::In, LengthUnit::Mm) => (self * 25.4).round(),
@@ -662,14 +660,14 @@ fn test_orcid_fromstr() {
 fn test_convert_units_from_to() {
     use LengthUnit::*;
     assert_eq!(123.456.convert_units_from_to(&Mm, &Cm), 12.3);
-    assert_eq!(123.456.convert_units_from_to(&Mm, &In), 4.875);
+    assert_eq!(123.456.convert_units_from_to(&Mm, &In), 4.86);
     assert_eq!(123.456.convert_units_from_to(&Cm, &Mm), 1235.0);
     assert_eq!(123.456.convert_units_from_to(&In, &Mm), 3136.0);
     // Test some standard print sizes
     assert_eq!(4.25.convert_units_from_to(&In, &Mm), 108.0);
     assert_eq!(108.0.convert_units_from_to(&Mm, &In), 4.25);
     assert_eq!(6.0.convert_units_from_to(&In, &Mm), 152.0);
-    assert_eq!(152.0.convert_units_from_to(&Mm, &In), 6.0);
+    assert_eq!(152.0.convert_units_from_to(&Mm, &In), 5.98);
     assert_eq!(8.5.convert_units_from_to(&In, &Mm), 216.0);
     assert_eq!(216.0.convert_units_from_to(&Mm, &In), 8.5);
     // Test that converting and then converting back again
@@ -677,7 +675,7 @@ fn test_convert_units_from_to() {
     assert_eq!(
         5.06.convert_units_from_to(&In, &Mm)
             .convert_units_from_to(&Mm, &In),
-        5.0625
+        5.08
     );
     assert_eq!(
         6.5.convert_units_from_to(&In, &Mm)
@@ -687,23 +685,23 @@ fn test_convert_units_from_to() {
     assert_eq!(
         7.44.convert_units_from_to(&In, &Mm)
             .convert_units_from_to(&Mm, &In),
-        7.4375
+        7.44
     );
     assert_eq!(
         8.27.convert_units_from_to(&In, &Mm)
             .convert_units_from_to(&Mm, &In),
-        8.25
+        8.27
     );
     assert_eq!(
         9.0.convert_units_from_to(&In, &Mm)
             .convert_units_from_to(&Mm, &In),
-        9.0
+        9.02
     );
     assert_eq!(
         10.88
             .convert_units_from_to(&In, &Mm)
             .convert_units_from_to(&Mm, &In),
-        10.875
+        10.87
     );
     assert_eq!(
         102.0
@@ -715,7 +713,7 @@ fn test_convert_units_from_to() {
         120.0
             .convert_units_from_to(&Mm, &In)
             .convert_units_from_to(&In, &Mm),
-        121.0
+        120.0
     );
     assert_eq!(
         168.0
@@ -727,6 +725,6 @@ fn test_convert_units_from_to() {
         190.0
             .convert_units_from_to(&Mm, &In)
             .convert_units_from_to(&In, &Mm),
-        191.0
+        190.0
     );
 }

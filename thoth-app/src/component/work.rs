@@ -647,11 +647,11 @@ impl Component for WorkComponent {
                     false => vec![self.work.imprint.clone()],
                 };
                 // Restrict the number of decimal places the user can enter for width/height values
-                // based on currently selected units. Note inches may still be rounded further on save.
+                // based on currently selected units.
                 let step = match self.props.units_selection {
                     LengthUnit::Mm => "1".to_string(),
                     LengthUnit::Cm => "0.1".to_string(),
-                    LengthUnit::In => "0.0001".to_string(),
+                    LengthUnit::In => "0.01".to_string(),
                 };
                 html! {
                     <>
