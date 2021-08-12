@@ -3,7 +3,7 @@ use super::model::{
     WorkType,
 };
 use crate::graphql::utils::Direction;
-use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
+use crate::model::{Convert, Crud, DbInsert, Doi, HistoryEntry, LengthUnit};
 use crate::schema::{work, work_history};
 use crate::{crud_methods, db_insert};
 use diesel::{
@@ -46,6 +46,72 @@ impl Work {
             Ok(())
         } else {
             Err(ThothError::IssueImprintsError)
+        }
+    }
+
+    pub fn update_with_units(
+        &self,
+        db: &crate::db::PgPool,
+        data: PatchWork,
+        account_id: &Uuid,
+        units: LengthUnit,
+    ) -> ThothResult<Self> {
+        if units == LengthUnit::Mm {
+            // Data is already in units compatible with the database -
+            // no conversions required before/after updating
+            self.update(db, &data, account_id)
+        } else {
+            let mut converted_data = data;
+            converted_data.width = converted_data
+                .width
+                .map(|w| w.convert_units_from_to(&units, &LengthUnit::Mm));
+            converted_data.height = converted_data
+                .height
+                .map(|h| h.convert_units_from_to(&units, &LengthUnit::Mm));
+            let result = self.update(db, &converted_data, account_id);
+            if let Ok(mut retrieved_data) = result {
+                retrieved_data.width = retrieved_data
+                    .width
+                    .map(|w| w.convert_units_from_to(&LengthUnit::Mm, &units));
+                retrieved_data.height = retrieved_data
+                    .height
+                    .map(|h| h.convert_units_from_to(&LengthUnit::Mm, &units));
+                Ok(retrieved_data)
+            } else {
+                result
+            }
+        }
+    }
+
+    pub fn create_with_units(
+        db: &crate::db::PgPool,
+        data: NewWork,
+        units: LengthUnit,
+    ) -> ThothResult<Self> {
+        if units == LengthUnit::Mm {
+            // Data is already in units compatible with the database -
+            // no conversions required before/after creating
+            Self::create(db, &data)
+        } else {
+            let mut converted_data = data;
+            converted_data.width = converted_data
+                .width
+                .map(|w| w.convert_units_from_to(&units, &LengthUnit::Mm));
+            converted_data.height = converted_data
+                .height
+                .map(|h| h.convert_units_from_to(&units, &LengthUnit::Mm));
+            let result = Self::create(db, &converted_data);
+            if let Ok(mut retrieved_data) = result {
+                retrieved_data.width = retrieved_data
+                    .width
+                    .map(|w| w.convert_units_from_to(&LengthUnit::Mm, &units));
+                retrieved_data.height = retrieved_data
+                    .height
+                    .map(|h| h.convert_units_from_to(&LengthUnit::Mm, &units));
+                Ok(retrieved_data)
+            } else {
+                result
+            }
         }
     }
 }

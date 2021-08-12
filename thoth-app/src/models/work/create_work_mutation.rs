@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::model::Doi;
+use thoth_api::model::LengthUnit;
 use thoth_api::work::model::Work;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
@@ -8,6 +9,7 @@ use uuid::Uuid;
 
 const CREATE_WORK_MUTATION: &str = "
     mutation CreateWork(
+        $units: LengthUnit!
         $workType: WorkType!,
         $workStatus: WorkStatus!,
         $fullTitle: String!,
@@ -19,8 +21,8 @@ const CREATE_WORK_MUTATION: &str = "
         $doi: Doi,
         $publicationDate: NaiveDate,
         $place: String,
-        $width: Int,
-        $height: Int,
+        $width: Float,
+        $height: Float,
         $pageCount: Int,
         $pageBreakdown: String,
         $imageCount: Int,
@@ -39,7 +41,8 @@ const CREATE_WORK_MUTATION: &str = "
         $coverUrl: String,
         $coverCaption: String
     ) {
-        createWork(data: {
+        createWork(units: $units,
+            data: {
             workType: $workType
             workStatus: $workStatus
             fullTitle: $fullTitle
@@ -109,8 +112,8 @@ pub struct Variables {
     pub doi: Option<Doi>,
     pub publication_date: Option<String>,
     pub place: Option<String>,
-    pub width: Option<i32>,
-    pub height: Option<i32>,
+    pub width: Option<f64>,
+    pub height: Option<f64>,
     pub page_count: Option<i32>,
     pub page_breakdown: Option<String>,
     pub image_count: Option<i32>,
@@ -129,6 +132,7 @@ pub struct Variables {
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
     pub imprint_id: Uuid,
+    pub units: LengthUnit,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
