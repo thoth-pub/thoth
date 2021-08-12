@@ -2,6 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::str::FromStr;
 use std::string::ParseError;
+use thoth_api::model::LengthUnit;
 use thoth_api::work::model::Work;
 use thoth_api::work::model::WorkStatus;
 use thoth_api::work::model::WorkType;
@@ -30,6 +31,12 @@ pub enum License {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct LengthUnitDefinition {
+    pub enum_values: Vec<LengthUnitValues>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkTypeDefinition {
     pub enum_values: Vec<WorkTypeValues>,
 }
@@ -38,6 +45,12 @@ pub struct WorkTypeDefinition {
 #[serde(rename_all = "camelCase")]
 pub struct WorkStatusDefinition {
     pub enum_values: Vec<WorkStatusValues>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LengthUnitValues {
+    pub name: LengthUnit,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -428,6 +441,7 @@ impl FromStr for License {
 
 pub mod create_work_mutation;
 pub mod delete_work_mutation;
+pub mod length_units_query;
 pub mod update_work_mutation;
 pub mod work_query;
 pub mod work_statuses_query;

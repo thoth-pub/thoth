@@ -14,9 +14,11 @@ use crate::funding::model::*;
 use crate::imprint::model::*;
 use crate::issue::model::*;
 use crate::language::model::*;
+use crate::model::Convert;
 use crate::model::Crud;
 use crate::model::Doi;
 use crate::model::Isbn;
+use crate::model::LengthUnit;
 use crate::model::Orcid;
 use crate::model::Timestamp;
 use crate::price::model::*;
@@ -934,13 +936,13 @@ pub struct MutationRoot;
 
 #[juniper::object(Context = Context)]
 impl MutationRoot {
-    fn create_work(context: &Context, data: NewWork) -> FieldResult<Work> {
+    fn create_work(context: &Context, data: NewWork, units: LengthUnit) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
             .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
 
-        Work::create(&context.db, &data).map_err(|e| e.into())
+        Work::create_with_units(&context.db, data, units).map_err(|e| e.into())
     }
 
     fn create_publisher(context: &Context, data: NewPublisher) -> FieldResult<Publisher> {
@@ -1049,7 +1051,7 @@ impl MutationRoot {
         Subject::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn update_work(context: &Context, data: PatchWork) -> FieldResult<Work> {
+    fn update_work(context: &Context, data: PatchWork, units: LengthUnit) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let work = Work::from_id(&context.db, &data.work_id).unwrap();
         context
@@ -1063,7 +1065,7 @@ impl MutationRoot {
             work.can_update_imprint(&context.db)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        work.update(&context.db, &data, &account_id)
+        work.update_with_units(&context.db, data, &account_id, units)
             .map_err(|e| e.into())
     }
 
@@ -1455,12 +1457,32 @@ impl Work {
         self.place.as_ref()
     }
 
-    pub fn width(&self) -> Option<&i32> {
-        self.width.as_ref()
+    #[graphql(
+        description = "Width of the physical Work (in mm, cm or in)",
+        arguments(
+            units(
+                default = LengthUnit::default(),
+                description = "Unit of measurement in which to represent the width (mm, cm or in)",
+            ),
+        )
+    )]
+    pub fn width(&self, units: LengthUnit) -> Option<f64> {
+        self.width
+            .map(|w| w.convert_units_from_to(&LengthUnit::Mm, &units))
     }
 
-    pub fn height(&self) -> Option<&i32> {
-        self.height.as_ref()
+    #[graphql(
+        description = "Height of the physical Work (in mm, cm or in)",
+        arguments(
+            units(
+                default = LengthUnit::default(),
+                description = "Unit of measurement in which to represent the height (mm, cm or in)",
+            ),
+        )
+    )]
+    pub fn height(&self, units: LengthUnit) -> Option<f64> {
+        self.height
+            .map(|h| h.convert_units_from_to(&LengthUnit::Mm, &units))
     }
 
     pub fn page_count(&self) -> Option<&i32> {

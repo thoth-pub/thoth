@@ -5,7 +5,7 @@ use thoth_api::funding::model::FundingWithFunder;
 use thoth_api::imprint::model::ImprintWithPublisher;
 use thoth_api::issue::model::IssueWithSeries;
 use thoth_api::language::model::Language;
-use thoth_api::model::{Doi, DOI_DOMAIN};
+use thoth_api::model::{Doi, LengthUnit, DOI_DOMAIN};
 use thoth_api::publication::model::Publication;
 use thoth_api::subject::model::Subject;
 use thoth_api::work::model::WorkStatus;
@@ -37,7 +37,9 @@ use crate::component::languages_form::LanguagesFormComponent;
 use crate::component::publications_form::PublicationsFormComponent;
 use crate::component::subjects_form::SubjectsFormComponent;
 use crate::component::utils::FormDateInput;
+use crate::component::utils::FormFloatInput;
 use crate::component::utils::FormImprintSelect;
+use crate::component::utils::FormLengthUnitSelect;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormTextInputExtended;
@@ -61,6 +63,7 @@ use crate::models::work::work_query::FetchWork;
 use crate::models::work::work_query::Variables;
 use crate::models::work::work_query::WorkRequest;
 use crate::models::work::work_query::WorkRequestBody;
+use crate::models::work::LengthUnitValues;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
 use crate::route::AdminRoute;
@@ -89,6 +92,7 @@ struct WorkFormData {
     imprints: Vec<ImprintWithPublisher>,
     work_types: Vec<WorkTypeValues>,
     work_statuses: Vec<WorkStatusValues>,
+    length_units: Vec<LengthUnitValues>,
 }
 
 pub enum Msg {
@@ -110,6 +114,7 @@ pub enum Msg {
     ChangePlace(String),
     ChangeWidth(String),
     ChangeHeight(String),
+    ChangeLengthUnit(LengthUnit),
     ChangePageCount(String),
     ChangePageBreakdown(String),
     ChangeImageCount(String),
@@ -140,6 +145,8 @@ pub enum Msg {
 pub struct Props {
     pub work_id: Uuid,
     pub current_user: AccountDetails,
+    pub units_selection: LengthUnit,
+    pub update_units_selection: Callback<LengthUnit>,
 }
 
 impl Component for WorkComponent {
@@ -192,6 +199,7 @@ impl Component for WorkComponent {
                         self.doi = self.work.doi.clone().unwrap_or_default().to_string();
                         self.imprint_id = self.work.imprint.imprint_id;
                         self.data.imprints = body.data.imprints.to_owned();
+                        self.data.length_units = body.data.length_units.enum_values.to_owned();
                         self.data.work_types = body.data.work_types.enum_values.to_owned();
                         self.data.work_statuses = body.data.work_statuses.enum_values.to_owned();
 
@@ -217,6 +225,7 @@ impl Component for WorkComponent {
                     variables: Variables {
                         work_id: Some(self.props.work_id),
                         publishers: self.props.current_user.resource_access.restricted_to(),
+                        units: self.props.units_selection.clone(),
                     },
                     ..Default::default()
                 };
@@ -240,6 +249,12 @@ impl Component for WorkComponent {
                             self.doi = self.work.doi.clone().unwrap_or_default().to_string();
                             self.doi_warning.clear();
                             self.imprint_id = self.work.imprint.imprint_id;
+                            if self.props.units_selection == LengthUnit::In {
+                                // User-entered dimensions may have been rounded on save due to
+                                // conversion to mm - update display with database values
+                                self.work.width = w.width;
+                                self.work.height = w.height;
+                            }
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
@@ -305,6 +320,7 @@ impl Component for WorkComponent {
                         toc: self.work.toc.clone(),
                         cover_url: self.work.cover_url.clone(),
                         cover_caption: self.work.cover_caption.clone(),
+                        units: self.props.units_selection.clone(),
                     },
                     ..Default::default()
                 };
@@ -441,20 +457,27 @@ impl Component for WorkComponent {
                 self.work.place.neq_assign(place)
             }
             Msg::ChangeWidth(value) => {
-                let count: i32 = value.parse().unwrap_or(0);
-                let width = match count == 0 {
+                let count: f64 = value.parse().unwrap_or(0.0);
+                let width = match count == 0.0 {
                     true => None,
                     false => Some(count),
                 };
                 self.work.width.neq_assign(width)
             }
             Msg::ChangeHeight(value) => {
-                let count: i32 = value.parse().unwrap_or(0);
-                let height = match count == 0 {
+                let count: f64 = value.parse().unwrap_or(0.0);
+                let height = match count == 0.0 {
                     true => None,
                     false => Some(count),
                 };
                 self.work.height.neq_assign(height)
+            }
+            Msg::ChangeLengthUnit(length_unit) => {
+                self.props.update_units_selection.emit(length_unit);
+                // Callback will prompt parent to update this component's props.
+                // This will trigger a re-render in change(), so not necessary
+                // to also re-render here.
+                false
             }
             Msg::ChangePageCount(value) => {
                 let count: i32 = value.parse().unwrap_or(0);
@@ -598,9 +621,11 @@ impl Component for WorkComponent {
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         let updated_permissions =
             self.props.current_user.resource_access != props.current_user.resource_access;
+        let updated_units = self.props.units_selection != props.units_selection;
         self.props = props;
-        if updated_permissions {
+        if updated_permissions || updated_units {
             // Required in order to retrieve updated list of imprints for dropdown
+            // and/or Width/Height values in the newly-selected units
             self.link.send_message(Msg::GetWork);
         }
         false
@@ -620,6 +645,13 @@ impl Component for WorkComponent {
                 let imprints = match self.work.issues.as_ref().unwrap_or(&vec![]).is_empty() {
                     true => self.data.imprints.clone(),
                     false => vec![self.work.imprint.clone()],
+                };
+                // Restrict the number of decimal places the user can enter for width/height values
+                // based on currently selected units.
+                let step = match self.props.units_selection {
+                    LengthUnit::Mm => "1".to_string(),
+                    LengthUnit::Cm => "0.1".to_string(),
+                    LengthUnit::In => "0.01".to_string(),
                 };
                 html! {
                     <>
@@ -766,15 +798,30 @@ impl Component for WorkComponent {
                             </div>
                             <div class="field is-horizontal">
                                 <div class="field-body">
-                                    <FormNumberInput
+                                    <FormFloatInput
                                         label = "Width"
                                         value=self.work.width
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
+                                        step=step.clone()
                                     />
-                                    <FormNumberInput
+                                    <FormFloatInput
                                         label = "Height"
                                         value=self.work.height
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
+                                        step=step.clone()
+                                    />
+                                    <FormLengthUnitSelect
+                                        label = "Units"
+                                        value=self.props.units_selection.clone()
+                                        data=self.data.length_units.clone()
+                                        onchange=self.link.callback(|event| match event {
+                                            ChangeData::Select(elem) => {
+                                                let value = elem.value();
+                                                Msg::ChangeLengthUnit(LengthUnit::from_str(&value).unwrap())
+                                            }
+                                            _ => unreachable!(),
+                                        })
+                                        required = true
                                     />
                                     <FormNumberInput
                                         label = "Page Count"
