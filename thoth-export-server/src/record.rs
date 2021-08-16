@@ -8,16 +8,20 @@ use std::str::FromStr;
 use thoth_client::Work;
 use thoth_errors::{ThothError, ThothResult};
 
-use crate::csv::{CsvSpecification, CsvThoth};
+use crate::csv::{CsvSpecification, CsvThoth, KbartOclc};
 use crate::xml::{Onix3Oapen, Onix3ProjectMuse, XmlSpecification};
 
 pub(crate) trait AsRecord {}
 impl AsRecord for Vec<Work> {}
 
+pub const DELIMITER_COMMA: u8 = b',';
+pub const DELIMITER_TAB: u8 = b'\t';
+
 pub(crate) enum MetadataSpecification {
     Onix3ProjectMuse(Onix3ProjectMuse),
     Onix3Oapen(Onix3Oapen),
     CsvThoth(CsvThoth),
+    KbartOclc(KbartOclc),
 }
 
 pub(crate) struct MetadataRecord<T: AsRecord> {
@@ -32,8 +36,10 @@ where
 {
     const XML_MIME_TYPE: &'static str = "text/xml; charset=utf-8";
     const CSV_MIME_TYPE: &'static str = "text/csv; charset=utf-8";
+    const TXT_MIME_TYPE: &'static str = "text/plain; charset=utf-8";
     const XML_EXTENSION: &'static str = ".xml";
     const CSV_EXTENSION: &'static str = ".csv";
+    const TXT_EXTENSION: &'static str = ".txt";
 
     pub(crate) fn new(id: String, specification: MetadataSpecification, data: T) -> Self {
         MetadataRecord {
@@ -48,6 +54,7 @@ where
             MetadataSpecification::Onix3ProjectMuse(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Onix3Oapen(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::CsvThoth(_) => Self::CSV_MIME_TYPE,
+            MetadataSpecification::KbartOclc(_) => Self::TXT_MIME_TYPE,
         }
     }
 
@@ -56,6 +63,7 @@ where
             MetadataSpecification::Onix3ProjectMuse(_) => self.xml_file_name(),
             MetadataSpecification::Onix3Oapen(_) => self.xml_file_name(),
             MetadataSpecification::CsvThoth(_) => self.csv_file_name(),
+            MetadataSpecification::KbartOclc(_) => self.txt_file_name(),
         }
     }
 
@@ -65,6 +73,10 @@ where
 
     fn csv_file_name(&self) -> String {
         self.format_file_name(Self::CSV_EXTENSION)
+    }
+
+    fn txt_file_name(&self) -> String {
+        self.format_file_name(Self::TXT_EXTENSION)
     }
 
     fn format_file_name(&self, extension: &'static str) -> String {
@@ -88,7 +100,12 @@ impl MetadataRecord<Vec<Work>> {
                 onix3_project_muse.generate(&self.data)
             }
             MetadataSpecification::Onix3Oapen(onix3_oapen) => onix3_oapen.generate(&self.data),
-            MetadataSpecification::CsvThoth(csv_thoth) => csv_thoth.generate(&self.data),
+            MetadataSpecification::CsvThoth(csv_thoth) => {
+                csv_thoth.generate(&self.data, DELIMITER_COMMA)
+            }
+            MetadataSpecification::KbartOclc(kbart_oclc) => {
+                kbart_oclc.generate(&self.data, DELIMITER_TAB)
+            }
         }
     }
 }
@@ -140,6 +157,7 @@ impl FromStr for MetadataSpecification {
             }
             "onix_3.0::oapen" => Ok(MetadataSpecification::Onix3Oapen(Onix3Oapen {})),
             "csv::thoth" => Ok(MetadataSpecification::CsvThoth(CsvThoth {})),
+            "kbart::oclc" => Ok(MetadataSpecification::KbartOclc(KbartOclc {})),
             _ => Err(ThothError::InvalidMetadataSpecification(input.to_string())),
         }
     }
@@ -151,6 +169,7 @@ impl ToString for MetadataSpecification {
             MetadataSpecification::Onix3ProjectMuse(_) => "onix_3.0::project_muse".to_string(),
             MetadataSpecification::Onix3Oapen(_) => "onix_3.0::oapen".to_string(),
             MetadataSpecification::CsvThoth(_) => "csv::thoth".to_string(),
+            MetadataSpecification::KbartOclc(_) => "kbart::oclc".to_string(),
         }
     }
 }
@@ -197,5 +216,11 @@ mod tests {
             to_test.file_name(),
             "onix_3.0__oapen__some_id.xml".to_string()
         );
+        let to_test = MetadataRecord::new(
+            "some_id".to_string(),
+            MetadataSpecification::KbartOclc(KbartOclc {}),
+            vec![],
+        );
+        assert_eq!(to_test.file_name(), "kbart__oclc__some_id.txt".to_string());
     }
 }

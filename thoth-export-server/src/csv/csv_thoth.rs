@@ -304,6 +304,7 @@ impl CsvCell<CsvThoth> for WorkFundings {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::record::DELIMITER_COMMA;
     use lazy_static::lazy_static;
     use std::str::FromStr;
     use thoth_client::{
@@ -495,7 +496,7 @@ mod tests {
 
     #[test]
     fn test_csv_thoth() {
-        let to_test = CsvThoth.generate(&[TEST_WORK.clone()]);
+        let to_test = CsvThoth.generate(&[TEST_WORK.clone()], DELIMITER_COMMA);
 
         assert_eq!(to_test, Ok(TEST_RESULT.to_string()))
     }
