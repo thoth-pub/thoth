@@ -29,7 +29,7 @@ struct KbartOclcRow {
     publisher_name: Option<String>,
     publication_type: Option<String>,
     date_monograph_published_print: Option<i64>,
-    date_monograph_published_online: Option<i64>,
+    date_monograph_published_online: i64,
     monograph_volume: Option<i64>,
     monograph_edition: Option<i64>,
     first_editor: Option<String>,
@@ -59,56 +59,82 @@ impl TryFrom<Work> for KbartOclcRow {
 
     fn try_from(work: Work) -> ThothResult<Self> {
         // title_url is mandatory in KBART but optional in Thoth
-        if let Some(title_url) = work.landing_page {
+        if work.landing_page.is_none() {
+            Err(ThothError::IncompleteMetadataRecord(
+                "kbart::oclc".to_string(),
+                "Missing Title URL".to_string(),
+            ))
+        // Don't output works with no publication date (mandatory in KBART)
+        } else if work.publication_date.is_none() {
+            Err(ThothError::IncompleteMetadataRecord(
+                "kbart::oclc".to_string(),
+                "Missing Publication Date".to_string(),
+            ))
+        } else {
             let publication_title = match work.subtitle {
                 Some(subtitle) => format!("{}: {}", work.title, subtitle),
                 None => work.full_title,
             };
             let mut print_identifier = None;
             let mut online_identifier = None;
+            let mut print_edition_exists = false;
             for publication in work.publications {
-                if publication.publication_type == PublicationType::PAPERBACK {
-                    print_identifier = publication.isbn.clone();
-                }
-                if publication.publication_type == PublicationType::PDF {
+                if publication.publication_type == PublicationType::PDF
+                    && publication.isbn.is_some()
+                {
                     online_identifier = publication.isbn.clone();
                 }
+                if publication.publication_type == PublicationType::PAPERBACK {
+                    print_edition_exists = true;
+                    if publication.isbn.is_some() {
+                        print_identifier = publication.isbn.clone();
+                    }
+                }
+                if publication.publication_type == PublicationType::HARDBACK {
+                    print_edition_exists = true;
+                }
             }
-            let mut main_authors = vec![];
-            let mut main_editors = vec![];
+            let mut first_author = None;
+            let mut first_editor = None;
             let mut contributions = work.contributions;
+            // The first author/editor will usually be the contributor with contribution_ordinal 1,
+            // but this is not guaranteed, so we select the highest-ranked contributor of the
+            // appropriate contribution type who is listed as a "main" contributor.
             contributions.sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
             for contribution in contributions {
                 if contribution.main_contribution {
                     if work.work_type == WorkType::EDITED_BOOK {
                         if contribution.contribution_type == ContributionType::EDITOR {
-                            main_editors.push(contribution.last_name);
+                            first_editor = Some(contribution.last_name);
+                            break;
                         }
                     } else if contribution.contribution_type == ContributionType::AUTHOR {
-                        main_authors.push(contribution.last_name);
+                        first_author = Some(contribution.last_name);
+                        break;
                     }
                 }
             }
-            let first_author = match main_authors.is_empty() {
-                true => None,
-                false => Some(main_authors.join("; ")),
-            };
-            let first_editor = match main_editors.is_empty() {
-                true => None,
-                false => Some(main_editors.join("; ")),
-            };
             let publication_type = match work.work_type {
-                WorkType::BOOK_SET => Some("serial".to_string()),
-                _ => Some("monograph".to_string()),
+                WorkType::BOOK_SET => Some("Serial".to_string()),
+                _ => Some("Monograph".to_string()),
             };
             let publication_year = work
                 .publication_date
-                .map(|date| chrono::Datelike::year(&date).into());
+                .map(|date| chrono::Datelike::year(&date).into())
+                .unwrap();
+            let date_monograph_published_print = match print_edition_exists {
+                true => Some(publication_year),
+                false => None,
+            };
             let mut monograph_volume = None;
             let mut parent_publication_title_id = None;
             if !work.issues.is_empty() {
+                // Note that it is possible for a work to belong to more than one series.
+                // Only one series can be listed in KBART, so we select the first one found.
                 monograph_volume = Some(work.issues[0].issue_ordinal);
-                parent_publication_title_id = Some(work.issues[0].series.series_name.clone());
+                // This should match the series' `title_id` if also provided in the KBART.
+                // Ideally it should be a DOI, otherwise an internal ID.
+                parent_publication_title_id = Some(work.issues[0].series.series_id.to_string());
             }
             Ok(KbartOclcRow {
                 publication_title,
@@ -120,7 +146,7 @@ impl TryFrom<Work> for KbartOclcRow {
                 date_last_issue_online: None,
                 num_last_vol_online: None,
                 num_last_issue_online: None,
-                title_url,
+                title_url: work.landing_page.unwrap(),
                 first_author,
                 title_id: work.doi,
                 embargo_info: None,
@@ -128,7 +154,7 @@ impl TryFrom<Work> for KbartOclcRow {
                 notes: None,
                 publisher_name: Some(work.imprint.publisher.publisher_name),
                 publication_type,
-                date_monograph_published_print: publication_year,
+                date_monograph_published_print,
                 date_monograph_published_online: publication_year,
                 monograph_volume,
                 monograph_edition: Some(work.edition),
@@ -137,11 +163,6 @@ impl TryFrom<Work> for KbartOclcRow {
                 preceding_publication_title_id: None,
                 access_type: Some("F".to_string()),
             })
-        } else {
-            Err(ThothError::IncompleteMetadataRecord(
-                "kbart::oclc".to_string(),
-                "Missing Title URL".to_string(),
-            ))
         }
     }
 }

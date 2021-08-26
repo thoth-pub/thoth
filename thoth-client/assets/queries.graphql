@@ -37,6 +37,7 @@ fragment Work on Work {
     issues {
         issueOrdinal
         series {
+            seriesId
             seriesType
             seriesName
             issnPrint
