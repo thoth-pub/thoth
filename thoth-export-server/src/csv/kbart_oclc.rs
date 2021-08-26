@@ -27,7 +27,7 @@ struct KbartOclcRow {
     coverage_depth: String,
     notes: Option<String>,
     publisher_name: Option<String>,
-    publication_type: Option<String>,
+    publication_type: String,
     date_monograph_published_print: Option<i64>,
     date_monograph_published_online: i64,
     monograph_volume: Option<i64>,
@@ -35,15 +35,24 @@ struct KbartOclcRow {
     first_editor: Option<String>,
     parent_publication_title_id: Option<String>,
     preceding_publication_title_id: Option<String>,
-    access_type: Option<String>,
+    access_type: String,
 }
 
 impl CsvSpecification for KbartOclc {
     fn handle_event<W: Write>(w: &mut Writer<W>, works: &[Work]) -> ThothResult<()> {
-        for work in works.iter() {
-            CsvRow::<KbartOclc>::csv_row(work, w)?;
+        match works.len() {
+            0 => Err(ThothError::IncompleteMetadataRecord(
+                "onix_3.0::project_muse".to_string(),
+                "Not enough data".to_string(),
+            )),
+            1 => CsvRow::<KbartOclc>::csv_row(works.first().unwrap(), w),
+            _ => {
+                for work in works.iter() {
+                    CsvRow::<KbartOclc>::csv_row(work, w).ok();
+                }
+                Ok(())
+            }
         }
-        Ok(())
     }
 }
 
@@ -62,7 +71,7 @@ impl TryFrom<Work> for KbartOclcRow {
         if work.landing_page.is_none() {
             Err(ThothError::IncompleteMetadataRecord(
                 "kbart::oclc".to_string(),
-                "Missing Title URL".to_string(),
+                "Missing Landing Page".to_string(),
             ))
         // Don't output works with no publication date (mandatory in KBART)
         } else if work.publication_date.is_none() {
@@ -71,10 +80,6 @@ impl TryFrom<Work> for KbartOclcRow {
                 "Missing Publication Date".to_string(),
             ))
         } else {
-            let publication_title = match work.subtitle {
-                Some(subtitle) => format!("{}: {}", work.title, subtitle),
-                None => work.full_title,
-            };
             let mut print_identifier = None;
             let mut online_identifier = None;
             let mut print_edition_exists = false;
@@ -114,30 +119,19 @@ impl TryFrom<Work> for KbartOclcRow {
                     }
                 }
             }
-            let publication_type = match work.work_type {
-                WorkType::BOOK_SET => Some("Serial".to_string()),
-                _ => Some("Monograph".to_string()),
-            };
-            let publication_year = work
+            let date_monograph_published_online = work
                 .publication_date
                 .map(|date| chrono::Datelike::year(&date).into())
                 .unwrap();
             let date_monograph_published_print = match print_edition_exists {
-                true => Some(publication_year),
+                true => Some(date_monograph_published_online),
                 false => None,
             };
-            let mut monograph_volume = None;
-            let mut parent_publication_title_id = None;
-            if !work.issues.is_empty() {
-                // Note that it is possible for a work to belong to more than one series.
-                // Only one series can be listed in KBART, so we select the first one found.
-                monograph_volume = Some(work.issues[0].issue_ordinal);
-                // This should match the series' `title_id` if also provided in the KBART.
-                // Ideally it should be a DOI, otherwise an internal ID.
-                parent_publication_title_id = Some(work.issues[0].series.series_id.to_string());
-            }
             Ok(KbartOclcRow {
-                publication_title,
+                publication_title: match work.subtitle {
+                    Some(subtitle) => format!("{}: {}", work.title, subtitle),
+                    None => work.full_title,
+                },
                 print_identifier,
                 online_identifier,
                 date_first_issue_online: None,
@@ -153,15 +147,25 @@ impl TryFrom<Work> for KbartOclcRow {
                 coverage_depth: "fulltext".to_string(),
                 notes: None,
                 publisher_name: Some(work.imprint.publisher.publisher_name),
-                publication_type,
+                publication_type: match work.work_type {
+                    WorkType::BOOK_SET => "Serial".to_string(),
+                    _ => "Monograph".to_string(),
+                },
                 date_monograph_published_print,
-                date_monograph_published_online: publication_year,
-                monograph_volume,
+                date_monograph_published_online,
+                // Note that it is possible for a work to belong to more than one series.
+                // Only one series can be listed in KBART, so we select the first one found (if any).
+                monograph_volume: work.issues.first().map(|i| i.issue_ordinal),
                 monograph_edition: Some(work.edition),
                 first_editor,
-                parent_publication_title_id,
+                // This should match the series' `title_id` if also provided in the KBART.
+                // Ideally it should be a DOI, otherwise an internal ID.
+                parent_publication_title_id: work
+                    .issues
+                    .first()
+                    .map(|i| i.series.series_id.to_string()),
                 preceding_publication_title_id: None,
-                access_type: Some("F".to_string()),
+                access_type: "F".to_string(),
             })
         }
     }
