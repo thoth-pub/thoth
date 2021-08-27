@@ -159,11 +159,10 @@ impl TryFrom<Work> for KbartOclcRow {
                 monograph_edition: Some(work.edition),
                 first_editor,
                 // This should match the series' `title_id` if also provided in the KBART.
-                // Ideally it should be a DOI, otherwise an internal ID.
                 parent_publication_title_id: work
                     .issues
                     .first()
-                    .map(|i| i.series.series_id.to_string()),
+                    .map(|i| i.series.issn_digital.to_string()),
                 preceding_publication_title_id: None,
                 access_type: "F".to_string(),
             })
