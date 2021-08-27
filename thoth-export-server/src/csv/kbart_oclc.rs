@@ -169,3 +169,156 @@ impl TryFrom<Work> for KbartOclcRow {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::record::DELIMITER_TAB;
+    use lazy_static::lazy_static;
+    use std::str::FromStr;
+    use thoth_client::{
+        ContributionType, PublicationType, WorkContributions, WorkContributionsContributor,
+        WorkImprint, WorkImprintPublisher, WorkIssues, WorkIssuesSeries, WorkPublications,
+        WorkStatus, WorkType,
+    };
+    use uuid::Uuid;
+
+    lazy_static! {
+        static ref TEST_WORK: Work = Work {
+            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            work_status: WorkStatus::ACTIVE,
+            full_title: "Book Title: Book Subtitle".to_string(),
+            title: "Book Title".to_string(),
+            subtitle: Some("Separate Subtitle".to_string()),
+            work_type: WorkType::MONOGRAPH,
+            edition: 1,
+            doi: Some("https://doi.org/10.00001/BOOK.0001".to_string()),
+            publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
+            license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),
+            copyright_holder: "Author 1; Author 2".to_string(),
+            short_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
+            long_abstract: Some(
+                "Lorem ipsum dolor sit amet, consectetur adipiscing elit".to_string()
+            ),
+            general_note: None,
+            place: Some("León, Spain".to_string()),
+            width: Some(156.0),
+            height: Some(234.0),
+            page_count: Some(334),
+            page_breakdown: Some("x+334".to_string()),
+            image_count: Some(15),
+            table_count: None,
+            audio_count: None,
+            video_count: None,
+            landing_page: Some("https://www.book.com".to_string()),
+            toc: None,
+            lccn: None,
+            oclc: None,
+            cover_url: Some("https://www.book.com/cover".to_string()),
+            cover_caption: None,
+            imprint: WorkImprint {
+                imprint_name: "OA Editions Imprint".to_string(),
+                publisher: WorkImprintPublisher {
+                    publisher_name: "OA Editions".to_string(),
+                },
+            },
+            issues: vec![
+                WorkIssues {
+                    issue_ordinal: 20,
+                    series: WorkIssuesSeries {
+                        series_type: thoth_client::SeriesType::BOOK_SERIES,
+                        series_name: "Name of series".to_string(),
+                        issn_print: "1234-5678".to_string(),
+                        issn_digital: "8765-4321".to_string(),
+                        series_url: None,
+                    },
+                },
+                WorkIssues {
+                    issue_ordinal: 50,
+                    series: WorkIssuesSeries {
+                        series_type: thoth_client::SeriesType::BOOK_SERIES,
+                        series_name: "Name of second series".to_string(),
+                        issn_print: "1111-2222".to_string(),
+                        issn_digital: "3333-4444".to_string(),
+                        series_url: None,
+                    },
+                }
+            ],
+            contributions: vec![
+                WorkContributions {
+                    contribution_type: ContributionType::AUTHOR,
+                    first_name: Some("Author".to_string()),
+                    last_name: "First".to_string(),
+                    full_name: "Author First".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    institution: None,
+                    contribution_ordinal: 1,
+                    contributor: WorkContributionsContributor {
+                        orcid: Some("https://orcid.org/0000-0000-0000-0001".to_string()),
+                    },
+                },
+                WorkContributions {
+                    contribution_type: ContributionType::AUTHOR,
+                    first_name: Some("Author".to_string()),
+                    last_name: "Second".to_string(),
+                    full_name: "Author Second".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    institution: None,
+                    contribution_ordinal: 2,
+                    contributor: WorkContributionsContributor { orcid: None },
+                },
+            ],
+            languages: vec![],
+            publications: vec![
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
+                    publication_type: PublicationType::PAPERBACK,
+                    publication_url: Some("https://www.book.com/paperback".to_string()),
+                    isbn: Some("978-1-00000-000-0".to_string()),
+                    prices: vec![],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000003").unwrap(),
+                    publication_type: PublicationType::HARDBACK,
+                    publication_url: Some("https://www.book.com/hardback".to_string()),
+                    isbn: Some("978-1-00000-000-1".to_string()),
+                    prices: vec![],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
+                    publication_type: PublicationType::PDF,
+                    publication_url: Some("https://www.book.com/pdf".to_string()),
+                    isbn: Some("978-1-00000-000-2".to_string()),
+                    prices: vec![],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-EEEE-000000000005").unwrap(),
+                    publication_type: PublicationType::HTML,
+                    publication_url: Some("https://www.book.com/html".to_string()),
+                    isbn: None,
+                    prices: vec![],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-FFFF-000000000006").unwrap(),
+                    publication_type: PublicationType::XML,
+                    publication_url: Some("https://www.book.com/xml".to_string()),
+                    isbn: Some("978-1-00000-000-3".to_string()),
+                    prices: vec![],
+                },
+            ],
+            subjects: vec![],
+            fundings: vec![],
+        };
+    }
+
+    const TEST_RESULT: &str = "\"publication_title\"\t\"print_identifier\"\t\"online_identifier\"\t\"date_first_issue_online\"\t\"num_first_vol_online\"\t\"num_first_issue_online\"\t\"date_last_issue_online\"\t\"num_last_vol_online\"\t\"num_last_issue_online\"\t\"title_url\"\t\"first_author\"\t\"title_id\"\t\"embargo_info\"\t\"coverage_depth\"\t\"notes\"\t\"publisher_name\"\t\"publication_type\"\t\"date_monograph_published_print\"\t\"date_monograph_published_online\"\t\"monograph_volume\"\t\"monograph_edition\"\t\"first_editor\"\t\"parent_publication_title_id\"\t\"preceding_publication_title_id\"\t\"access_type\"\n\"Book Title: Separate Subtitle\"\t\"978-1-00000-000-0\"\t\"978-1-00000-000-2\"\t\"\"\t\"\"\t\"\"\t\"\"\t\"\"\t\"\"\t\"https://www.book.com\"\t\"First\"\t\"https://doi.org/10.00001/BOOK.0001\"\t\"\"\t\"fulltext\"\t\"\"\t\"OA Editions\"\t\"Monograph\"\t\"1999\"\t\"1999\"\t\"20\"\t\"1\"\t\"\"\t\"8765-4321\"\t\"\"\t\"F\"\n";
+
+    #[test]
+    fn test_kbart_oclc() {
+        let to_test = KbartOclc.generate(&[TEST_WORK.clone()], DELIMITER_TAB);
+
+        assert_eq!(to_test, Ok(TEST_RESULT.to_string()))
+    }
+}
