@@ -6,7 +6,9 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{contributor, contributor_history};
 use crate::{crud_methods, db_insert};
-use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{
+    BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
+};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
@@ -72,12 +74,12 @@ impl Crud for Contributor {
             },
         }
         if let Some(filter) = filter {
-            for substring in filter.split_whitespace() {
-                query = query
-                    .or_filter(full_name.ilike(format!("%{}%", substring)))
-                    .or_filter(last_name.ilike(format!("%{}%", substring)))
-                    .or_filter(orcid.ilike(format!("%{}%", substring)));
-            }
+            query = query.filter(
+                full_name
+                    .ilike(format!("%{}%", filter))
+                    .or(last_name.ilike(format!("%{}%", filter)))
+                    .or(orcid.ilike(format!("%{}%", filter))),
+            );
         }
         match query
             .limit(limit.into())
@@ -100,12 +102,12 @@ impl Crud for Contributor {
         let connection = db.get().unwrap();
         let mut query = contributor.into_boxed();
         if let Some(filter) = filter {
-            for substring in filter.split_whitespace() {
-                query = query
-                    .or_filter(full_name.ilike(format!("%{}%", substring)))
-                    .or_filter(last_name.ilike(format!("%{}%", substring)))
-                    .or_filter(orcid.ilike(format!("%{}%", substring)));
-            }
+            query = query.filter(
+                full_name
+                    .ilike(format!("%{}%", filter))
+                    .or(last_name.ilike(format!("%{}%", filter)))
+                    .or(orcid.ilike(format!("%{}%", filter))),
+            );
         }
 
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
