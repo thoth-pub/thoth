@@ -106,7 +106,7 @@ impl From<Work> for CsvThothRow {
             title: work.title,
             subtitle: work.subtitle,
             edition: work.edition,
-            doi: work.doi,
+            doi: work.doi.map(|d| d.to_string()),
             publication_date: work.publication_date.map(|d| d.to_string()),
             publication_place: work.place,
             license: work.license,
@@ -228,7 +228,10 @@ impl CsvCell<CsvThoth> for WorkPublications {
         format!(
             "(\"{:?}\", \"{}\", \"{}\", {})",
             self.publication_type,
-            self.isbn.clone().unwrap_or_else(|| "".to_string()),
+            self.isbn
+                .as_ref()
+                .map(|i| i.to_string())
+                .unwrap_or_else(|| "".to_string()),
             self.publication_url
                 .clone()
                 .unwrap_or_else(|| "".to_string()),
@@ -254,7 +257,8 @@ impl CsvCell<CsvThoth> for WorkContributions {
             self.institution.clone().unwrap_or_else(|| "".to_string()),
             self.contributor
                 .orcid
-                .clone()
+                .as_ref()
+                .map(|o| o.to_string())
                 .unwrap_or_else(|| "".to_string())
         )
     }
@@ -305,7 +309,8 @@ impl CsvCell<CsvThoth> for WorkFundings {
             self.funder.funder_name,
             self.funder
                 .funder_doi
-                .clone()
+                .as_ref()
+                .map(|d| d.to_string())
                 .unwrap_or_else(|| "".to_string()),
             self.program.clone().unwrap_or_else(|| "".to_string()),
             self.project_name.clone().unwrap_or_else(|| "".to_string()),
@@ -320,6 +325,9 @@ mod tests {
     use super::*;
     use lazy_static::lazy_static;
     use std::str::FromStr;
+    use thoth_api::model::Doi;
+    use thoth_api::model::Isbn;
+    use thoth_api::model::Orcid;
     use thoth_client::{
         ContributionType, CurrencyCode, LanguageCode, LanguageRelation, PublicationType,
         WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkStatus, WorkType,
@@ -335,7 +343,7 @@ mod tests {
             subtitle: Some("Book Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
             edition: 1,
-            doi: Some("https://doi.org/10.00001/BOOK.0001".to_string()),
+            doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: None,
             license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: "Author 1; Author 2".to_string(),
@@ -379,7 +387,7 @@ mod tests {
                     institution: None,
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
-                        orcid: Some("https://orcid.org/0000-0000-0000-0001".to_string()),
+                        orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
                     },
                 },
                 WorkContributions {
@@ -408,7 +416,7 @@ mod tests {
                     publication_id: Uuid::from_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     publication_type: PublicationType::PAPERBACK,
                     publication_url: Some("https://www.book.com/paperback".to_string()),
-                    isbn: Some("978-1-00000-000-0".to_string()),
+                    isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
                     prices: vec![
                         WorkPublicationsPrices {
                             currency_code: CurrencyCode::EUR,
@@ -428,7 +436,7 @@ mod tests {
                     publication_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000003").unwrap(),
                     publication_type: PublicationType::HARDBACK,
                     publication_url: Some("https://www.book.com/hardback".to_string()),
-                    isbn: Some("978-1-00000-000-1".to_string()),
+                    isbn: Some(Isbn::from_str("978-1-4028-9462-6").unwrap()),
                     prices: vec![
                         WorkPublicationsPrices {
                             currency_code: CurrencyCode::EUR,
@@ -448,7 +456,7 @@ mod tests {
                     publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
                     publication_type: PublicationType::PDF,
                     publication_url: Some("https://www.book.com/pdf".to_string()),
-                    isbn: Some("978-1-00000-000-2".to_string()),
+                    isbn: Some(Isbn::from_str("978-1-56619-909-4").unwrap()),
                     prices: vec![],
                 },
                 WorkPublications {
@@ -462,7 +470,7 @@ mod tests {
                     publication_id: Uuid::from_str("00000000-0000-0000-FFFF-000000000006").unwrap(),
                     publication_type: PublicationType::XML,
                     publication_url: Some("https://www.book.com/xml".to_string()),
-                    isbn: Some("978-1-00000-000-3".to_string()),
+                    isbn: Some(Isbn::from_str("978-92-95055-02-5").unwrap()),
                     prices: vec![],
                 },
             ],
@@ -508,7 +516,7 @@ mod tests {
     }
 
     const TEST_RESULT: &str = r#""publisher","imprint","work_type","work_status","title","subtitle","edition","doi","publication_date","publication_place","license","copyright_holder","landing_page","width (mm)","width (cm)","width (in)","height (mm)","height (cm)","height (in)","page_count","page_breakdown","image_count","table_count","audio_count","video_count","lccn","oclc","short_abstract","long_abstract","general_note","toc","cover_url","cover_caption","contributions [(type, first_name, last_name, full_name, institution, orcid)]","publications [(type, isbn, url, [(ISO_4217_currency, price)])]","series [(type, name, issn_print, issn_digital, url, issue)]","languages [(relation, ISO_639-3/B_language, is_main)]","BIC [code]","THEMA [code]","BISAC [code]","LCC [code]","custom_categories [category]","keywords [keyword]","funding [(funder, funder_doi, program, project, grant, jurisdiction)]"
-"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","https://doi.org/10.00001/BOOK.0001","","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","156.0","15.6","6.14","234.0","23.4","9.21","334","x+334","15","","","","","","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","","","https://www.book.com/cover","","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", """", ""https://orcid.org/0000-0000-0000-0001""),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", """", """")]","[(""PAPERBACK"", ""978-1-00000-000-0"", ""https://www.book.com/paperback"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")]),(""HARDBACK"", ""978-1-00000-000-1"", ""https://www.book.com/hardback"", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")]),(""PDF"", ""978-1-00000-000-2"", ""https://www.book.com/pdf"", ),(""HTML"", """", ""https://www.book.com/html"", ),(""XML"", ""978-1-00000-000-3"", ""https://www.book.com/xml"", )]","","[(""ORIGINAL"", ""SPA"", ""true"")]","[""AAA"",""AAB""]","","[""AAA000000"",""AAA000001""]","","[""Category1""]","[""keyword1"",""keyword2""]",""
+"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","10.00001/BOOK.0001","","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","156.0","15.6","6.14","234.0","23.4","9.21","334","x+334","15","","","","","","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","","","https://www.book.com/cover","","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", """", ""0000-0002-0000-0001""),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", """", """")]","[(""PAPERBACK"", ""978-3-16-148410-0"", ""https://www.book.com/paperback"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")]),(""HARDBACK"", ""978-1-4028-9462-6"", ""https://www.book.com/hardback"", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")]),(""PDF"", ""978-1-56619-909-4"", ""https://www.book.com/pdf"", ),(""HTML"", """", ""https://www.book.com/html"", ),(""XML"", ""978-92-95055-02-5"", ""https://www.book.com/xml"", )]","","[(""ORIGINAL"", ""SPA"", ""true"")]","[""AAA"",""AAB""]","","[""AAA000000"",""AAA000001""]","","[""Category1""]","[""keyword1"",""keyword2""]",""
 "#;
 
     #[test]
