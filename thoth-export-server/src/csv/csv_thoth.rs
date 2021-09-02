@@ -323,6 +323,8 @@ impl CsvCell<CsvThoth> for WorkFundings {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::record::DELIMITER_COMMA;
+    use csv::QuoteStyle;
     use lazy_static::lazy_static;
     use std::str::FromStr;
     use thoth_api::model::Doi;
@@ -521,7 +523,7 @@ mod tests {
 
     #[test]
     fn test_csv_thoth() {
-        let to_test = CsvThoth.generate(&[TEST_WORK.clone()]);
+        let to_test = CsvThoth.generate(&[TEST_WORK.clone()], QuoteStyle::Always, DELIMITER_COMMA);
 
         assert_eq!(to_test, Ok(TEST_RESULT.to_string()))
     }

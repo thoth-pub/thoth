@@ -4,11 +4,15 @@ use thoth_client::Work;
 use thoth_errors::{ThothError, ThothResult};
 
 pub(crate) trait CsvSpecification {
-    const QUOTE_STYLE: QuoteStyle = QuoteStyle::Always;
-
-    fn generate(&self, works: &[Work]) -> ThothResult<String> {
+    fn generate(
+        &self,
+        works: &[Work],
+        quote_style: QuoteStyle,
+        delimiter: u8,
+    ) -> ThothResult<String> {
         let mut writer = WriterBuilder::new()
-            .quote_style(Self::QUOTE_STYLE)
+            .quote_style(quote_style)
+            .delimiter(delimiter)
             .from_writer(Vec::new());
         Self::handle_event(&mut writer, works)
             .map(|_| writer.into_inner().map_err(|e| e.error().into()))
@@ -32,3 +36,5 @@ pub(crate) trait CsvCell<T: CsvSpecification> {
 
 mod csv_thoth;
 pub(crate) use csv_thoth::CsvThoth;
+mod kbart_oclc;
+pub(crate) use kbart_oclc::KbartOclc;
