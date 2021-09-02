@@ -1,4 +1,5 @@
 use actix_web::{http::StatusCode, HttpRequest, Responder};
+use csv::QuoteStyle;
 use paperclip::actix::web::HttpResponse;
 use paperclip::actix::OperationModifier;
 use paperclip::util::{ready, Ready};
@@ -101,10 +102,10 @@ impl MetadataRecord<Vec<Work>> {
             }
             MetadataSpecification::Onix3Oapen(onix3_oapen) => onix3_oapen.generate(&self.data),
             MetadataSpecification::CsvThoth(csv_thoth) => {
-                csv_thoth.generate(&self.data, DELIMITER_COMMA)
+                csv_thoth.generate(&self.data, QuoteStyle::Always, DELIMITER_COMMA)
             }
             MetadataSpecification::KbartOclc(kbart_oclc) => {
-                kbart_oclc.generate(&self.data, DELIMITER_TAB)
+                kbart_oclc.generate(&self.data, QuoteStyle::Necessary, DELIMITER_TAB)
             }
         }
     }

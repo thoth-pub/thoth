@@ -174,6 +174,7 @@ impl TryFrom<Work> for KbartOclcRow {
 mod tests {
     use super::*;
     use crate::record::DELIMITER_TAB;
+    use csv::QuoteStyle;
     use lazy_static::lazy_static;
     use std::str::FromStr;
     use thoth_client::{
@@ -313,11 +314,12 @@ mod tests {
         };
     }
 
-    const TEST_RESULT: &str = "\"publication_title\"\t\"print_identifier\"\t\"online_identifier\"\t\"date_first_issue_online\"\t\"num_first_vol_online\"\t\"num_first_issue_online\"\t\"date_last_issue_online\"\t\"num_last_vol_online\"\t\"num_last_issue_online\"\t\"title_url\"\t\"first_author\"\t\"title_id\"\t\"embargo_info\"\t\"coverage_depth\"\t\"notes\"\t\"publisher_name\"\t\"publication_type\"\t\"date_monograph_published_print\"\t\"date_monograph_published_online\"\t\"monograph_volume\"\t\"monograph_edition\"\t\"first_editor\"\t\"parent_publication_title_id\"\t\"preceding_publication_title_id\"\t\"access_type\"\n\"Book Title: Separate Subtitle\"\t\"978-1-00000-000-0\"\t\"978-1-00000-000-2\"\t\"\"\t\"\"\t\"\"\t\"\"\t\"\"\t\"\"\t\"https://www.book.com\"\t\"First\"\t\"https://doi.org/10.00001/BOOK.0001\"\t\"\"\t\"fulltext\"\t\"\"\t\"OA Editions\"\t\"Monograph\"\t\"1999\"\t\"1999\"\t\"20\"\t\"1\"\t\"\"\t\"8765-4321\"\t\"\"\t\"F\"\n";
+    const TEST_RESULT: &str = "publication_title\tprint_identifier\tonline_identifier\tdate_first_issue_online\tnum_first_vol_online\tnum_first_issue_online\tdate_last_issue_online\tnum_last_vol_online\tnum_last_issue_online\ttitle_url\tfirst_author\ttitle_id\tembargo_info\tcoverage_depth\tnotes\tpublisher_name\tpublication_type\tdate_monograph_published_print\tdate_monograph_published_online\tmonograph_volume\tmonograph_edition\tfirst_editor\tparent_publication_title_id\tpreceding_publication_title_id\taccess_type\nBook Title: Separate Subtitle\t978-1-00000-000-0\t978-1-00000-000-2\t\t\t\t\t\t\thttps://www.book.com\tFirst\thttps://doi.org/10.00001/BOOK.0001\t\tfulltext\t\tOA Editions\tMonograph\t1999\t1999\t20\t1\t\t8765-4321\t\tF\n";
 
     #[test]
     fn test_kbart_oclc() {
-        let to_test = KbartOclc.generate(&[TEST_WORK.clone()], DELIMITER_TAB);
+        let to_test =
+            KbartOclc.generate(&[TEST_WORK.clone()], QuoteStyle::Necessary, DELIMITER_TAB);
 
         assert_eq!(to_test, Ok(TEST_RESULT.to_string()))
     }
