@@ -77,6 +77,7 @@ impl Crud for Contributor {
             query = query.filter(
                 full_name
                     .ilike(format!("%{}%", filter))
+                    .or(last_name.ilike(format!("%{}%", filter)))
                     .or(orcid.ilike(format!("%{}%", filter))),
             );
         }
@@ -104,6 +105,7 @@ impl Crud for Contributor {
             query = query.filter(
                 full_name
                     .ilike(format!("%{}%", filter))
+                    .or(last_name.ilike(format!("%{}%", filter)))
                     .or(orcid.ilike(format!("%{}%", filter))),
             );
         }
