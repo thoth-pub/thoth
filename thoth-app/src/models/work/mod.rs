@@ -119,6 +119,7 @@ pub trait DisplayWork {
     fn onix_projectmuse_endpoint(&self) -> String;
     fn onix_oapen_endpoint(&self) -> String;
     fn csv_endpoint(&self) -> String;
+    fn kbart_endpoint(&self) -> String;
     fn cover_alt_text(&self) -> String;
     fn license_icons(&self) -> Html;
     fn status_tag(&self) -> Html;
@@ -143,6 +144,13 @@ impl DisplayWork for WorkWithRelations {
     fn csv_endpoint(&self) -> String {
         format!(
             "{}/specifications/csv::thoth/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
+    fn kbart_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/kbart::oclc/work/{}",
             THOTH_EXPORT_API, &self.work_id
         )
     }
@@ -340,7 +348,7 @@ impl DisplayWork for WorkWithRelations {
                                                 href={self.onix_projectmuse_endpoint()}
                                                 class="dropdown-item"
                                             >
-                                            {"ONIX (Project Muse)"}
+                                            {"ONIX (Project MUSE)"}
                                             </a>
                                             <a
                                                 href={self.onix_oapen_endpoint()}
@@ -353,6 +361,12 @@ impl DisplayWork for WorkWithRelations {
                                                 class="dropdown-item"
                                             >
                                             {"CSV"}
+                                            </a>
+                                            <a
+                                                href={self.kbart_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"KBART"}
                                             </a>
                                         </div>
                                     </div>
