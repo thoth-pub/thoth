@@ -25,6 +25,18 @@ lazy_static! {
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/csv"),
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/thoth"),],
         },
+        Specification {
+            id: "kbart::oclc",
+            name: "OCLC KBART",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/kbart"),
+            accepted_by: vec![
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/oclc_kb"),
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/proquest_kb"),
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/proquest_exlibris"),
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/ebsco_kb"),
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/jisc_kb"),
+            ],
+        },
     ];
     pub(crate) static ref ALL_PLATFORMS: Vec<Platform<'static>> = vec![
         Platform {
@@ -51,6 +63,46 @@ lazy_static! {
                 "/specifications/onix_3.0::oapen"
             ),],
         },
+        Platform {
+            id: "oclc_kb",
+            name: "OCLC KB",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/kbart::oclc"
+            ),],
+        },
+        Platform {
+            id: "proquest_kb",
+            name: "ProQuest KB",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/kbart::oclc"
+            ),],
+        },
+        Platform {
+            id: "proquest_exlibris",
+            name: "ProQuest ExLibris",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/kbart::oclc"
+            ),],
+        },
+        Platform {
+            id: "ebsco_kb",
+            name: "EBSCO KB",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/kbart::oclc"
+            ),],
+        },
+        Platform {
+            id: "jisc_kb",
+            name: "JISC KB",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/kbart::oclc"
+            ),],
+        },
     ];
     pub(crate) static ref ALL_FORMATS: Vec<Format<'static>> = vec![
         Format {
@@ -72,6 +124,15 @@ lazy_static! {
             specifications: vec![concat!(
                 env!("THOTH_EXPORT_API"),
                 "/specifications/csv::thoth"
+            ),],
+        },
+        Format {
+            id: "kbart",
+            name: "KBART",
+            version: None,
+            specifications: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/kbart::oclc"
             ),],
         },
     ];

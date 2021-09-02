@@ -18,6 +18,7 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::component::delete_dialogue::ConfirmDeleteComponent;
 use crate::component::prices_form::PricesFormComponent;
 use crate::component::utils::Loader;
 use crate::models::publication::delete_publication_mutation::DeletePublicationRequest;
@@ -32,7 +33,6 @@ use crate::models::publication::publication_query::PublicationRequestBody;
 use crate::models::publication::publication_query::Variables;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
-use crate::string::DELETE_BUTTON;
 
 pub struct PublicationComponent {
     publication: PublicationWithRelations,
@@ -219,9 +219,15 @@ impl Component for PublicationComponent {
                             </div>
                             <div class="level-right">
                                 <p class="level-item">
-                                    <button class="button is-danger" onclick=self.link.callback(|_| Msg::DeletePublication)>
-                                        { DELETE_BUTTON }
-                                    </button>
+                                    <ConfirmDeleteComponent
+                                        onclick=self.link.callback(|_| Msg::DeletePublication)
+                                        object_name=self
+                                            .publication.isbn
+                                            .as_ref()
+                                            .map(|s| s.to_string())
+                                            .unwrap_or_else(|| self.publication.publication_id.to_string())
+                                            .clone()
+                                    />
                                 </p>
                             </div>
                         </nav>
