@@ -9,7 +9,6 @@ use xml::writer::{EventWriter, XmlEvent};
 
 use super::{write_element_block, XmlElement, XmlSpecification};
 use crate::xml::{write_full_element_block, XmlElementBlock};
-use thoth_api::model::DOI_DOMAIN;
 use thoth_errors::{ThothError, ThothResult};
 
 pub struct Onix3Oapen {}
@@ -107,7 +106,7 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                             w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
                         })?;
                         write_element_block("IDValue", w, |w| {
-                            w.write(XmlEvent::Characters(&doi.replace(DOI_DOMAIN, "")))
+                            w.write(XmlEvent::Characters(&doi.to_string()))
                                 .map_err(|e| e.into())
                         })
                     })?;
@@ -400,7 +399,7 @@ fn get_publications_data(publications: &[WorkPublications]) -> (String, Vec<Stri
     let mut isbns: Vec<String> = Vec::new();
 
     for publication in publications {
-        if let Some(isbn) = &publication.isbn {
+        if let Some(isbn) = &publication.isbn.as_ref().map(|i| i.to_string()) {
             isbns.push(isbn.replace("-", ""));
             // The default product ISBN is the PDF's
             if publication.publication_type.eq(&PublicationType::PDF) {
@@ -504,7 +503,8 @@ impl XmlElementBlock<Onix3Oapen> for WorkContributions {
                         w.write(XmlEvent::Characters("21")).map_err(|e| e.into())
                     })?;
                     write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(orcid)).map_err(|e| e.into())
+                        w.write(XmlEvent::Characters(&orcid.to_string()))
+                            .map_err(|e| e.into())
                     })
                 })?;
             }
@@ -650,6 +650,9 @@ mod tests {
     // We therefore rely on `assert!(contains)` rather than `assert_eq!`
     use super::*;
     use std::str::FromStr;
+    use thoth_api::model::Doi;
+    use thoth_api::model::Isbn;
+    use thoth_api::model::Orcid;
     use thoth_client::{
         ContributionType, LanguageCode, LanguageRelation, PublicationType,
         WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssuesSeries,
@@ -685,7 +688,7 @@ mod tests {
             institution: None,
             contribution_ordinal: 1,
             contributor: WorkContributionsContributor {
-                orcid: Some("https://orcid.org/0000-0000-0000-0001".to_string()),
+                orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
             },
         };
 
@@ -695,7 +698,7 @@ mod tests {
         assert!(output.contains(r#"  <ContributorRole>A01</ContributorRole>"#));
         assert!(output.contains(r#"  <NameIdentifier>"#));
         assert!(output.contains(r#"    <NameIDType>21</NameIDType>"#));
-        assert!(output.contains(r#"    <IDValue>https://orcid.org/0000-0000-0000-0001</IDValue>"#));
+        assert!(output.contains(r#"    <IDValue>0000-0002-0000-0001</IDValue>"#));
         assert!(output.contains(r#"  </NameIdentifier>"#));
         // Given name is output as NamesBeforeKey and family name as KeyNames
         assert!(output.contains(r#"  <NamesBeforeKey>Author</NamesBeforeKey>"#));
@@ -714,7 +717,7 @@ mod tests {
         // No ORCID supplied
         assert!(!output.contains(r#"  <NameIdentifier>"#));
         assert!(!output.contains(r#"    <NameIDType>21</NameIDType>"#));
-        assert!(!output.contains(r#"    <IDValue>https://orcid.org/0000-0000-0000-0001</IDValue>"#));
+        assert!(!output.contains(r#"    <IDValue>0000-0002-0000-0001</IDValue>"#));
         assert!(!output.contains(r#"  </NameIdentifier>"#));
         // No given name supplied, so PersonName is output instead of KeyNames and NamesBeforeKey
         assert!(!output.contains(r#"  <NamesBeforeKey>Author</NamesBeforeKey>"#));
@@ -947,7 +950,7 @@ mod tests {
             subtitle: Some("Book Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
             edition: 1,
-            doi: Some("https://doi.org/10.00001/BOOK.0001".to_string()),
+            doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: "Author 1; Author 2".to_string(),
@@ -955,8 +958,12 @@ mod tests {
             long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
             place: Some("León, Spain".to_string()),
-            width: None,
-            height: None,
+            width_mm: None,
+            width_cm: None,
+            width_in: None,
+            height_mm: None,
+            height_cm: None,
+            height_in: None,
             page_count: Some(334),
             page_breakdown: None,
             image_count: None,
@@ -982,7 +989,7 @@ mod tests {
                 publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
                 publication_type: PublicationType::PDF,
                 publication_url: Some("https://www.book.com/pdf".to_string()),
-                isbn: Some("978-1-00000-000-2".to_string()),
+                isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
                 prices: vec![],
             }],
             subjects: vec![],
@@ -1002,7 +1009,7 @@ mod tests {
         assert!(output
             .contains(r#"    <IDValue>urn:uuid:00000000-0000-0000-aaaa-000000000001</IDValue>"#));
         assert!(output.contains(r#"    <ProductIDType>15</ProductIDType>"#));
-        assert!(output.contains(r#"    <IDValue>9781000000002</IDValue>"#));
+        assert!(output.contains(r#"    <IDValue>9783161484100</IDValue>"#));
         assert!(output.contains(r#"    <ProductIDType>06</ProductIDType>"#));
         assert!(output.contains(r#"    <IDValue>10.00001/BOOK.0001</IDValue>"#));
         assert!(output.contains(r#"  <DescriptiveDetail>"#));
@@ -1060,7 +1067,7 @@ mod tests {
         assert!(output.contains(r#"      <ProductRelationCode>06</ProductRelationCode>"#));
         assert!(output.contains(r#"      <ProductIdentifier>"#));
         assert!(output.contains(r#"        <ProductIDType>15</ProductIDType>"#));
-        assert!(output.contains(r#"        <IDValue>9781000000002</IDValue>"#));
+        assert!(output.contains(r#"        <IDValue>9783161484100</IDValue>"#));
         assert!(output.contains(r#"  <ProductSupply>"#));
         assert!(output.contains(r#"    <SupplyDetail>"#));
         assert!(output.contains(r#"      <Supplier>"#));

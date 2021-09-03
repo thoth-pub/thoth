@@ -14,8 +14,12 @@ fragment Work on Work {
     longAbstract
     generalNote
     place
-    width
-    height
+    widthMm: width(units: MM)
+    widthCm: width(units: CM)
+    widthIn: width(units: IN)
+    heightMm: height(units: MM)
+    heightCm: height(units: CM)
+    heightIn: height(units: IN)
     pageCount
     pageBreakdown
     imageCount

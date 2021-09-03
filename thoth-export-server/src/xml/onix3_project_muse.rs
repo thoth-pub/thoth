@@ -9,7 +9,6 @@ use xml::writer::{EventWriter, XmlEvent};
 
 use super::{write_element_block, XmlElement, XmlSpecification};
 use crate::xml::{write_full_element_block, XmlElementBlock};
-use thoth_api::model::DOI_DOMAIN;
 use thoth_errors::{ThothError, ThothResult};
 
 pub struct Onix3ProjectMuse {}
@@ -107,7 +106,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                             w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
                         })?;
                         write_element_block("IDValue", w, |w| {
-                            w.write(XmlEvent::Characters(&doi.replace(DOI_DOMAIN, "")))
+                            w.write(XmlEvent::Characters(&doi.to_string()))
                                 .map_err(|e| e.into())
                         })
                     })?;
@@ -379,7 +378,7 @@ fn get_publications_data(publications: &[WorkPublications]) -> (String, Vec<Stri
     let mut isbns: Vec<String> = Vec::new();
 
     for publication in publications {
-        if let Some(isbn) = &publication.isbn {
+        if let Some(isbn) = &publication.isbn.as_ref().map(|i| i.to_string()) {
             isbns.push(isbn.replace("-", ""));
             // The default product ISBN is the PDF's
             if publication.publication_type.eq(&PublicationType::PDF) {
@@ -483,7 +482,8 @@ impl XmlElementBlock<Onix3ProjectMuse> for WorkContributions {
                         w.write(XmlEvent::Characters("21")).map_err(|e| e.into())
                     })?;
                     write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(orcid)).map_err(|e| e.into())
+                        w.write(XmlEvent::Characters(&orcid.to_string()))
+                            .map_err(|e| e.into())
                     })
                 })?;
             }
