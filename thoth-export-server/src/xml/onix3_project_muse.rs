@@ -534,7 +534,8 @@ mod tests {
     use thoth_api::model::Orcid;
     use thoth_client::{
         ContributionType, LanguageCode, LanguageRelation, PublicationType,
-        WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkStatus, WorkType,
+        WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkStatus, WorkSubjects,
+        WorkType,
     };
     use uuid::Uuid;
 
@@ -707,7 +708,38 @@ mod tests {
                 isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
                 prices: vec![],
             }],
-            subjects: vec![],
+            subjects: vec![
+                WorkSubjects {
+                    subject_code: "AAB".to_string(),
+                    subject_type: SubjectType::BIC,
+                    subject_ordinal: 1,
+                },
+                WorkSubjects {
+                    subject_code: "AAA000000".to_string(),
+                    subject_type: SubjectType::BISAC,
+                    subject_ordinal: 2,
+                },
+                WorkSubjects {
+                    subject_code: "JA85".to_string(),
+                    subject_type: SubjectType::LCC,
+                    subject_ordinal: 3,
+                },
+                WorkSubjects {
+                    subject_code: "JWA".to_string(),
+                    subject_type: SubjectType::THEMA,
+                    subject_ordinal: 4,
+                },
+                WorkSubjects {
+                    subject_code: "keyword1".to_string(),
+                    subject_type: SubjectType::KEYWORD,
+                    subject_ordinal: 5,
+                },
+                WorkSubjects {
+                    subject_code: "custom1".to_string(),
+                    subject_type: SubjectType::CUSTOM,
+                    subject_ordinal: 6,
+                },
+            ],
             fundings: vec![],
         };
 
@@ -751,6 +783,19 @@ mod tests {
         assert!(output.contains(r#"      <ExtentType>00</ExtentType>"#));
         assert!(output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
         assert!(output.contains(r#"      <ExtentUnit>03</ExtentUnit>"#));
+        assert!(output.contains(r#"    <Subject>"#));
+        assert!(output.contains(r#"      <SubjectSchemeIdentifier>12</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"      <SubjectCode>AAB</SubjectCode>"#));
+        assert!(output.contains(r#"      <SubjectSchemeIdentifier>10</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"      <SubjectCode>AAA000000</SubjectCode>"#));
+        assert!(output.contains(r#"      <SubjectSchemeIdentifier>04</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"      <SubjectCode>JA85</SubjectCode>"#));
+        assert!(output.contains(r#"      <SubjectSchemeIdentifier>93</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"      <SubjectCode>JWA</SubjectCode>"#));
+        assert!(output.contains(r#"      <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
+        assert!(output.contains(r#"      <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
         assert!(output.contains(r#"  <CollateralDetail>"#));
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
@@ -803,6 +848,7 @@ mod tests {
         test_work.place = None;
         test_work.publication_date = None;
         test_work.landing_page = None;
+        test_work.subjects.clear();
         let output = generate_test_output(&test_work);
         // No DOI supplied
         assert!(!output.contains(r#"    <ProductIDType>06</ProductIDType>"#));
@@ -844,6 +890,20 @@ mod tests {
             r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
         assert!(!output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
+        // No subjects supplied
+        assert!(!output.contains(r#"    <Subject>"#));
+        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>12</SubjectSchemeIdentifier>"#));
+        assert!(!output.contains(r#"      <SubjectCode>AAB</SubjectCode>"#));
+        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>10</SubjectSchemeIdentifier>"#));
+        assert!(!output.contains(r#"      <SubjectCode>AAA000000</SubjectCode>"#));
+        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>04</SubjectSchemeIdentifier>"#));
+        assert!(!output.contains(r#"      <SubjectCode>JA85</SubjectCode>"#));
+        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>93</SubjectSchemeIdentifier>"#));
+        assert!(!output.contains(r#"      <SubjectCode>JWA</SubjectCode>"#));
+        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>"#));
+        assert!(!output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
+        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
+        assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
 
         // Replace long abstract but remove TOC
         // Result: CollateralDetail block still present, but now only contains long abstract
