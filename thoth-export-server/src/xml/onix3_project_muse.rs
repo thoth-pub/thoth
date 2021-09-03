@@ -534,8 +534,8 @@ mod tests {
     use thoth_api::model::Orcid;
     use thoth_client::{
         ContributionType, LanguageCode, LanguageRelation, PublicationType,
-        WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkStatus, WorkSubjects,
-        WorkType,
+        WorkContributionsContributor, WorkFundings, WorkImprint, WorkImprintPublisher, WorkIssues,
+        WorkIssuesSeries, WorkStatus, WorkSubjects, WorkType,
     };
     use uuid::Uuid;
 
@@ -698,7 +698,16 @@ mod tests {
                     publisher_name: "OA Editions".to_string(),
                 },
             },
-            issues: vec![],
+            issues: vec![WorkIssues {
+                issue_ordinal: 1,
+                series: WorkIssuesSeries {
+                    series_type: thoth_client::SeriesType::JOURNAL,
+                    series_name: "Name of series".to_string(),
+                    issn_print: "1234-5678".to_string(),
+                    issn_digital: "8765-4321".to_string(),
+                    series_url: None,
+                },
+            }],
             contributions: vec![],
             languages: vec![],
             publications: vec![WorkPublications {
@@ -740,7 +749,17 @@ mod tests {
                     subject_ordinal: 6,
                 },
             ],
-            fundings: vec![],
+            fundings: vec![WorkFundings {
+                program: Some("Name of program".to_string()),
+                project_name: Some("Name of project".to_string()),
+                project_shortname: None,
+                grant_number: Some("Number of grant".to_string()),
+                jurisdiction: None,
+                funder: thoth_client::WorkFundingsFunder {
+                    funder_name: "Name of funder".to_string(),
+                    funder_doi: None,
+                },
+            }],
         };
 
         // Test standard output
@@ -838,6 +857,27 @@ mod tests {
         assert!(output.contains(r#"          <WebsiteRole>29</WebsiteRole>"#));
         assert!(output.contains(r#"          <WebsiteDescription>Publisher's website: download the title</WebsiteDescription>"#));
         assert!(output.contains(r#"          <WebsiteLink>https://www.book.com/pdf</WebsiteLink>"#));
+
+        // Test that OAPEN-only blocks are not output in Project MUSE format
+        assert!(!output.contains(r#"    <Audience>"#));
+        assert!(!output.contains(r#"      <AudienceCodeType>01</AudienceCodeType>"#));
+        assert!(!output.contains(r#"      <AudienceCodeValue>06</AudienceCodeValue>"#));
+        assert!(!output.contains(r#"      <PublishingRole>16</PublishingRole>"#));
+        assert!(!output.contains(r#"      <PublisherName>Name of funder</PublisherName>"#));
+        assert!(!output.contains(r#"      <Funding>"#));
+        assert!(!output.contains(r#"        <FundingIdentifier>"#));
+        assert!(!output.contains(r#"          <FundingIDType>01</FundingIDType>"#));
+        assert!(!output.contains(r#"          <IDTypeName>programname</IDTypeName>"#));
+        assert!(!output.contains(r#"          <IDValue>Name of program</IDValue>"#));
+        assert!(!output.contains(r#"          <IDTypeName>projectname</IDTypeName>"#));
+        assert!(!output.contains(r#"          <IDValue>Name of project</IDValue>"#));
+        assert!(!output.contains(r#"          <IDTypeName>grantnumber</IDTypeName>"#));
+        assert!(!output.contains(r#"          <IDValue>Number of grant</IDValue>"#));
+        assert!(!output.contains(r#"    <Collection>"#));
+        assert!(!output.contains(r#"      <CollectionType>10</CollectionType>"#));
+        assert!(!output.contains(r#"          <TitleElementLevel>02</TitleElementLevel>"#));
+        assert!(!output.contains(r#"          <PartNumber>1</PartNumber>"#));
+        assert!(!output.contains(r#"          <TitleText>Name of series</TitleText>"#));
 
         // Remove some values to test non-output of optional blocks
         test_work.doi = None;
