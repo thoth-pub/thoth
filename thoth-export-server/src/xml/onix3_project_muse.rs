@@ -602,21 +602,31 @@ mod tests {
         assert!(!output.contains(r#"  <KeyNames>1</KeyNames>"#));
         assert!(output.contains(r#"  <PersonName>Author 1</PersonName>"#));
 
-        // All roles except Author and Editor are output as Z01
-        for contribution_type in [
-            ContributionType::TRANSLATOR,
-            ContributionType::PHOTOGRAPHER,
-            ContributionType::ILUSTRATOR,
-            ContributionType::MUSIC_EDITOR,
-            ContributionType::FOREWORD_BY,
-            ContributionType::INTRODUCTION_BY,
-            ContributionType::AFTERWORD_BY,
-            ContributionType::PREFACE_BY,
-        ] {
-            test_contribution.contribution_type = contribution_type;
-            let output = generate_test_output(&test_contribution);
-            assert!(output.contains(r#"  <ContributorRole>Z01</ContributorRole>"#));
-        }
+        // Test all remaining contributor roles
+        test_contribution.contribution_type = ContributionType::TRANSLATOR;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>B06</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::PHOTOGRAPHER;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A13</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::ILUSTRATOR;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A12</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::MUSIC_EDITOR;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>B25</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::FOREWORD_BY;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A23</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::INTRODUCTION_BY;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A24</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::AFTERWORD_BY;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A19</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::PREFACE_BY;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A15</ContributorRole>"#));
     }
 
     #[test]
@@ -676,10 +686,10 @@ mod tests {
             audio_count: None,
             video_count: None,
             landing_page: Some("https://www.book.com".to_string()),
-            toc: None,
+            toc: Some("1. Chapter 1".to_string()),
             lccn: None,
             oclc: None,
-            cover_url: Some("https://www.book.com/cover".to_string()),
+            cover_url: None,
             cover_caption: None,
             imprint: WorkImprint {
                 imprint_name: "OA Editions Imprint".to_string(),
@@ -741,22 +751,14 @@ mod tests {
         assert!(output.contains(r#"      <ExtentType>00</ExtentType>"#));
         assert!(output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
         assert!(output.contains(r#"      <ExtentUnit>03</ExtentUnit>"#));
-        assert!(output.contains(r#"    <Audience>"#));
-        assert!(output.contains(r#"      <AudienceCodeType>01</AudienceCodeType>"#));
-        assert!(output.contains(r#"      <AudienceCodeValue>06</AudienceCodeValue>"#));
         assert!(output.contains(r#"  <CollateralDetail>"#));
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
         assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        assert!(output.contains(r#"    <SupportingResource>"#));
-        assert!(output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
-        assert!(output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
-        assert!(output.contains(r#"      <ResourceVersion>"#));
-        assert!(output.contains(r#"        <ResourceForm>02</ResourceForm>"#));
-        assert!(
-            output.contains(r#"        <ResourceLink>https://www.book.com/cover</ResourceLink>"#)
-        );
+        assert!(output.contains(r#"    <TextContent>"#));
+        assert!(output.contains(r#"      <TextType>04</TextType>"#));
+        assert!(output.contains(r#"      <Text>1. Chapter 1</Text>"#));
         assert!(output.contains(r#"  <PublishingDetail>"#));
         assert!(output.contains(r#"    <Imprint>"#));
         assert!(output.contains(r#"      <ImprintName>OA Editions Imprint</ImprintName>"#));
@@ -767,7 +769,7 @@ mod tests {
         assert!(output.contains(r#"    <PublishingStatus>04</PublishingStatus>"#));
         assert!(output.contains(r#"    <PublishingDate>"#));
         assert!(output.contains(r#"      <PublishingDateRole>19</PublishingDateRole>"#));
-        assert!(output.contains(r#"      <Date dateformat="05">1999</Date>"#));
+        assert!(output.contains(r#"      <Date dateformat="01">199912</Date>"#));
         assert!(output.contains(r#"    <RelatedProduct>"#));
         assert!(output.contains(r#"      <ProductRelationCode>06</ProductRelationCode>"#));
         assert!(output.contains(r#"      <ProductIdentifier>"#));
@@ -822,18 +824,12 @@ mod tests {
         assert!(!output.contains(r#"      <ExtentType>00</ExtentType>"#));
         assert!(!output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
         assert!(!output.contains(r#"      <ExtentUnit>03</ExtentUnit>"#));
-        // No long abstract supplied: CollateralDetail block only contains cover URL
+        // No long abstract supplied: CollateralDetail block only contains TOC
         assert!(output.contains(r#"  <CollateralDetail>"#));
-        assert!(output.contains(r#"    <SupportingResource>"#));
-        assert!(output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
+        assert!(output.contains(r#"    <TextContent>"#));
+        assert!(output.contains(r#"      <TextType>04</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
-        assert!(output.contains(r#"      <ResourceVersion>"#));
-        assert!(output.contains(r#"        <ResourceForm>02</ResourceForm>"#));
-        assert!(
-            output.contains(r#"        <ResourceLink>https://www.book.com/cover</ResourceLink>"#)
-        );
-        assert!(!output.contains(r#"    <TextContent>"#));
+        assert!(output.contains(r#"      <Text>1. Chapter 1</Text>"#));
         assert!(!output.contains(r#"      <TextType>03</TextType>"#));
         assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
         // No place supplied
@@ -841,7 +837,7 @@ mod tests {
         // No publication date supplied
         assert!(!output.contains(r#"    <PublishingDate>"#));
         assert!(!output.contains(r#"      <PublishingDateRole>19</PublishingDateRole>"#));
-        assert!(!output.contains(r#"      <Date dateformat="05">1999</Date>"#));
+        assert!(!output.contains(r#"      <Date dateformat="01">199912</Date>"#));
         // No landing page supplied: only one SupplyDetail block, linking to PDF download
         assert!(!output.contains(r#"          <WebsiteRole>01</WebsiteRole>"#));
         assert!(!output.contains(
@@ -849,25 +845,20 @@ mod tests {
         ));
         assert!(!output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
 
-        // Replace long abstract but remove cover URL
+        // Replace long abstract but remove TOC
         // Result: CollateralDetail block still present, but now only contains long abstract
         test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
-        test_work.cover_url = None;
+        test_work.toc = None;
         let output = generate_test_output(&test_work);
         assert!(output.contains(r#"  <CollateralDetail>"#));
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
         assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        assert!(!output.contains(r#"    <SupportingResource>"#));
-        assert!(!output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
-        assert!(!output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
-        assert!(!output.contains(r#"      <ResourceVersion>"#));
-        assert!(!output.contains(r#"        <ResourceForm>02</ResourceForm>"#));
-        assert!(!output
-            .contains(r#"        <ResourceLink>"https://www.book.com/cover"</ResourceLink>"#));
+        assert!(!output.contains(r#"      <TextType>04</TextType>"#));
+        assert!(!output.contains(r#"      <Text>1. Chapter 1</Text>"#));
 
-        // Remove both cover URL and long abstract
+        // Remove both TOC and long abstract
         // Result: No CollateralDetail block present at all
         test_work.long_abstract = None;
         let output = generate_test_output(&test_work);
@@ -876,13 +867,8 @@ mod tests {
         assert!(!output.contains(r#"      <TextType>03</TextType>"#));
         assert!(!output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
         assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        assert!(!output.contains(r#"    <SupportingResource>"#));
-        assert!(!output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
-        assert!(!output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
-        assert!(!output.contains(r#"      <ResourceVersion>"#));
-        assert!(!output.contains(r#"        <ResourceForm>02</ResourceForm>"#));
-        assert!(!output
-            .contains(r#"        <ResourceLink>"https://www.book.com/cover"</ResourceLink>"#));
+        assert!(!output.contains(r#"      <TextType>04</TextType>"#));
+        assert!(!output.contains(r#"      <Text>1. Chapter 1</Text>"#));
 
         // Remove the only publication, which is the PDF
         // Result: error (can't generate OAPEN ONIX without PDF URL)
