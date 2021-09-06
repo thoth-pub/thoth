@@ -79,3 +79,5 @@ mod onix3_project_muse;
 pub(crate) use onix3_project_muse::Onix3ProjectMuse;
 mod onix3_oapen;
 pub(crate) use onix3_oapen::Onix3Oapen;
+mod onix21_ebsco;
+pub(crate) use onix21_ebsco::Onix21Ebsco;
