@@ -2,8 +2,8 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
-    WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkSubjects,
+    ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType, Work,
+    WorkContributions, WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkSubjects,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -22,13 +22,13 @@ impl XmlSpecification for Onix21Ebsco {
 
         write_full_element_block("ONIXMessage", None, Some(attr_map), w, |w| {
             write_element_block("Header", w, |w| {
-                    write_element_block("FromCompany", w, |w| {
-                        w.write(XmlEvent::Characters("Thoth")).map_err(|e| e.into())
-                    })?;
-                    write_element_block("FromEmail", w, |w| {
-                        w.write(XmlEvent::Characters("info@thoth.pub"))
-                            .map_err(|e| e.into())
-                    })?;
+                write_element_block("FromCompany", w, |w| {
+                    w.write(XmlEvent::Characters("Thoth")).map_err(|e| e.into())
+                })?;
+                write_element_block("FromEmail", w, |w| {
+                    w.write(XmlEvent::Characters("info@thoth.pub"))
+                        .map_err(|e| e.into())
+                })?;
                 write_element_block("SentDate", w, |w| {
                     w.write(XmlEvent::Characters(
                         &Utc::today().format("%Y%m%d").to_string(),
@@ -63,12 +63,12 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
             .publications
             .iter()
             .find(|p| p.publication_type.eq(&PublicationType::PAPERBACK))
-            .and_then(
-                |p| p.prices.iter().find(
-                    |pr| pr.currency_code.eq(&CurrencyCode::USD)
-                )
-                .map(|pr| pr.unit_price)
-            )
+            .and_then(|p| {
+                p.prices
+                    .iter()
+                    .find(|pr| pr.currency_code.eq(&CurrencyCode::USD))
+                    .map(|pr| pr.unit_price)
+            })
         {
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
@@ -114,244 +114,246 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
                         })
                     })?;
                 }
-                    // DG Electronic book text in proprietary or open standard format
-                    write_element_block("ProductForm", w, |w| {
-                        w.write(XmlEvent::Characters("DG")).map_err(|e| e.into())
-                    })?;
-                    // 000 Epublication 'content package'
-                    write_element_block("EpubType", w, |w| {
-                        w.write(XmlEvent::Characters("000")).map_err(|e| e.into())
-                    })?;
-                    for issue in &self.issues {
-                        XmlElementBlock::<Onix21Ebsco>::xml_element(issue, w).ok();
-                    }
-                    write_element_block("Title", w, |w| {
-                        // 01 Distinctive title (book)
-                        write_element_block("TitleType", w, |w| {
-                            w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                        })?;
-                            if let Some(subtitle) = &self.subtitle {
-                                write_element_block("TitleText", w, |w| {
-                                    w.write(XmlEvent::Characters(&self.title))
-                                        .map_err(|e| e.into())
-                                })?;
-                                write_element_block("Subtitle", w, |w| {
-                                    w.write(XmlEvent::Characters(subtitle))
-                                        .map_err(|e| e.into())
-                                })
-                            } else {
-                                write_element_block("TitleText", w, |w| {
-                                    w.write(XmlEvent::Characters(&self.full_title))
-                                        .map_err(|e| e.into())
-                                })
-                            }
-                    })?;
-                    write_element_block("WorkIdentifier", w, |w| {
-                        // 01 Proprietary
-                        write_element_block("WorkIDType", w, |w| {
-                            w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                        })?;
-                        write_element_block("IDTypeName", w, |w| {
-                            w.write(XmlEvent::Characters("Thoth WorkID")).map_err(|e| e.into())
-                        })?;
-                        write_element_block("IDValue", w, |w| {
-                            w.write(XmlEvent::Characters(&work_id))
-                                .map_err(|e| e.into())
-                        })
-                    })?;
-                    let mut websites: HashMap<String, (String, String)> = HashMap::new();
-                    if let Some(pdf_url) = self
-                        .publications
-                        .iter()
-                        .find(|p| p.publication_type.eq(&PublicationType::PDF))
-                        .and_then(|p| p.publication_url.as_ref()) {
-                        websites.insert(
-                            pdf_url.to_string(),
-                            (
-                                "29".to_string(),
-                                "Publisher's website: download the title".to_string(),
-                            ),
-                        );
-                    }
-                    if let Some(landing_page) = &self.landing_page {
-                        websites.insert(
-                            landing_page.to_string(),
-                            (
-                                "01".to_string(),
-                                "Publisher's website: web shop".to_string(),
-                            ),
-                        );
-                    }
-                    for (url, description) in websites.iter() {
-                        write_element_block("Website", w, |w| {
-                            // 01 Publisher’s corporate website
-                            write_element_block("WebsiteRole", w, |w| {
-                                w.write(XmlEvent::Characters(&description.0))
-                                    .map_err(|e| e.into())
-                            })?;
-                            write_element_block("WebsiteDescription", w, |w| {
-                                w.write(XmlEvent::Characters(&description.1))
-                                    .map_err(|e| e.into())
-                            })?;
-                            write_element_block("WebsiteLink", w, |w| {
-                                w.write(XmlEvent::Characters(url)).map_err(|e| e.into())
-                            })
-                        })?;
-                    }
-                    for contribution in &self.contributions {
-                        XmlElementBlock::<Onix21Ebsco>::xml_element(contribution, w).ok();
-                    }
-                    for language in &self.languages {
-                        XmlElementBlock::<Onix21Ebsco>::xml_element(language, w).ok();
-                    }
-                    if let Some(page_count) = self.page_count {
-                        write_element_block("Extent", w, |w| {
-                            // 00 Main content
-                            write_element_block("ExtentType", w, |w| {
-                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                            })?;
-                            write_element_block("ExtentValue", w, |w| {
-                                w.write(XmlEvent::Characters(&page_count.to_string()))
-                                    .map_err(|e| e.into())
-                            })?;
-                            // 03 Pages
-                            write_element_block("ExtentUnit", w, |w| {
-                                w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
-                            })
-                        })?;
-                    }
-                    for subject in &self.subjects {
-                        XmlElementBlock::<Onix21Ebsco>::xml_element(subject, w).ok();
-                    }
-                    write_element_block("Audience", w, |w| {
-                        // 01 ONIX audience codes
-                        write_element_block("AudienceCodeType", w, |w| {
-                            w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                        })?;
-                        // 06 Professional and scholarly
-                        write_element_block("AudienceCodeValue", w, |w| {
-                            w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
-                        })
-                    })?;
-                        if let Some(labstract) = &self.long_abstract {
-                            write_element_block("OtherText", w, |w| {
-                                // 03 Long description
-                                write_element_block("TextTypeCode", w, |w| {
-                                    w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
-                                })?;
-                                // 06 Default text format
-                                write_element_block("TextFormat", w, |w| {
-                                    w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
-                                })?;
-                                write_full_element_block("Text", None, None, w, |w| {
-                                    w.write(XmlEvent::Characters(labstract))
-                                        .map_err(|e| e.into())
-                                })
-                            })?;
-                        }
-                        if let Some(cover_url) = &self.cover_url {
-                            write_element_block("MediaFile", w, |w| {
-                                // 04 Image: front cover
-                                write_element_block("MediaFileTypeCode", w, |w| {
-                                    w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
-                                })?;
-                                // 01 URL
-                                write_element_block("MediaFileLinkTypeCode", w, |w| {
-                                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                                })?;
-                                    write_element_block("MediaFileLink", w, |w| {
-                                        w.write(XmlEvent::Characters(cover_url))
-                                            .map_err(|e| e.into())
-                                    })
-                            })?;
-                        }
-                    write_element_block("Imprint", w, |w| {
-                        write_element_block("ImprintName", w, |w| {
-                            w.write(XmlEvent::Characters(&self.imprint.imprint_name))
-                                .map_err(|e| e.into())
-                        })
-                    })?;
-                    write_element_block("Publisher", w, |w| {
-                        // 01 Publisher
-                        write_element_block("PublishingRole", w, |w| {
-                            w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                        })?;
-                        write_element_block("PublisherName", w, |w| {
-                            w.write(XmlEvent::Characters(&self.imprint.publisher.publisher_name))
-                                .map_err(|e| e.into())
-                        })?;
-                        if let Some(publisher_url) = &self.imprint.publisher.publisher_url {
-                            write_element_block("Website", w, |w| {
-                                write_element_block("WebsiteLink", w, |w| {
-                                    w.write(XmlEvent::Characters(publisher_url)).map_err(|e| e.into())
-                                })
-                            })?;
-                        }
-                        Ok(())
-                    })?;
-                    if let Some(place) = &self.place {
-                        write_element_block("CityOfPublication", w, |w| {
-                            w.write(XmlEvent::Characters(place)).map_err(|e| e.into())
-                        })?;
-                    }
-                    XmlElement::<Onix21Ebsco>::xml_element(&self.work_status, w)?;
-                    if let Some(date) = self.publication_date {
-                        write_element_block("PublicationDate", w, |w| {
-                                w.write(XmlEvent::Characters(&date.format("%Y%m%d").to_string()))
-                                    .map_err(|e| e.into())
-                            })?;
-                        write_element_block("CopyrightYear", w, |w| {
-                            w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
-                                .map_err(|e| e.into())
-                        })?;
-                    }
-                if !isbns.is_empty() {
-                        for isbn in &isbns {
-                            write_element_block("RelatedProduct", w, |w| {
-                                // 06 Alternative format
-                                write_element_block("RelationCode", w, |w| {
-                                    w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("ProductIdentifier", w, |w| {
-                                    // 15 ISBN-13
-                                    write_element_block("ProductIDType", w, |w| {
-                                        w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("IDValue", w, |w| {
-                                        w.write(XmlEvent::Characters(isbn)).map_err(|e| e.into())
-                                    })
-                                })
-                            })?;
-                        }
+                // DG Electronic book text in proprietary or open standard format
+                write_element_block("ProductForm", w, |w| {
+                    w.write(XmlEvent::Characters("DG")).map_err(|e| e.into())
+                })?;
+                // 000 Epublication 'content package'
+                write_element_block("EpubType", w, |w| {
+                    w.write(XmlEvent::Characters("000")).map_err(|e| e.into())
+                })?;
+                for issue in &self.issues {
+                    XmlElementBlock::<Onix21Ebsco>::xml_element(issue, w).ok();
                 }
-                        write_element_block("SupplyDetail", w, |w| {
-                                write_element_block("SupplierName", w, |w| {
-                                    w.write(XmlEvent::Characters(
-                                        &self.imprint.publisher.publisher_name,
-                                    ))
+                write_element_block("Title", w, |w| {
+                    // 01 Distinctive title (book)
+                    write_element_block("TitleType", w, |w| {
+                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                    })?;
+                    if let Some(subtitle) = &self.subtitle {
+                        write_element_block("TitleText", w, |w| {
+                            w.write(XmlEvent::Characters(&self.title))
+                                .map_err(|e| e.into())
+                        })?;
+                        write_element_block("Subtitle", w, |w| {
+                            w.write(XmlEvent::Characters(subtitle))
+                                .map_err(|e| e.into())
+                        })
+                    } else {
+                        write_element_block("TitleText", w, |w| {
+                            w.write(XmlEvent::Characters(&self.full_title))
+                                .map_err(|e| e.into())
+                        })
+                    }
+                })?;
+                write_element_block("WorkIdentifier", w, |w| {
+                    // 01 Proprietary
+                    write_element_block("WorkIDType", w, |w| {
+                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDTypeName", w, |w| {
+                        w.write(XmlEvent::Characters("Thoth WorkID"))
+                            .map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(&work_id))
+                            .map_err(|e| e.into())
+                    })
+                })?;
+                let mut websites: HashMap<String, (String, String)> = HashMap::new();
+                if let Some(pdf_url) = self
+                    .publications
+                    .iter()
+                    .find(|p| p.publication_type.eq(&PublicationType::PDF))
+                    .and_then(|p| p.publication_url.as_ref())
+                {
+                    websites.insert(
+                        pdf_url.to_string(),
+                        (
+                            "29".to_string(),
+                            "Publisher's website: download the title".to_string(),
+                        ),
+                    );
+                }
+                if let Some(landing_page) = &self.landing_page {
+                    websites.insert(
+                        landing_page.to_string(),
+                        (
+                            "01".to_string(),
+                            "Publisher's website: web shop".to_string(),
+                        ),
+                    );
+                }
+                for (url, description) in websites.iter() {
+                    write_element_block("Website", w, |w| {
+                        // 01 Publisher’s corporate website
+                        write_element_block("WebsiteRole", w, |w| {
+                            w.write(XmlEvent::Characters(&description.0))
+                                .map_err(|e| e.into())
+                        })?;
+                        write_element_block("WebsiteDescription", w, |w| {
+                            w.write(XmlEvent::Characters(&description.1))
+                                .map_err(|e| e.into())
+                        })?;
+                        write_element_block("WebsiteLink", w, |w| {
+                            w.write(XmlEvent::Characters(url)).map_err(|e| e.into())
+                        })
+                    })?;
+                }
+                for contribution in &self.contributions {
+                    XmlElementBlock::<Onix21Ebsco>::xml_element(contribution, w).ok();
+                }
+                for language in &self.languages {
+                    XmlElementBlock::<Onix21Ebsco>::xml_element(language, w).ok();
+                }
+                if let Some(page_count) = self.page_count {
+                    write_element_block("Extent", w, |w| {
+                        // 00 Main content
+                        write_element_block("ExtentType", w, |w| {
+                            w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("ExtentValue", w, |w| {
+                            w.write(XmlEvent::Characters(&page_count.to_string()))
+                                .map_err(|e| e.into())
+                        })?;
+                        // 03 Pages
+                        write_element_block("ExtentUnit", w, |w| {
+                            w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
+                        })
+                    })?;
+                }
+                for subject in &self.subjects {
+                    XmlElementBlock::<Onix21Ebsco>::xml_element(subject, w).ok();
+                }
+                write_element_block("Audience", w, |w| {
+                    // 01 ONIX audience codes
+                    write_element_block("AudienceCodeType", w, |w| {
+                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                    })?;
+                    // 06 Professional and scholarly
+                    write_element_block("AudienceCodeValue", w, |w| {
+                        w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                    })
+                })?;
+                if let Some(labstract) = &self.long_abstract {
+                    write_element_block("OtherText", w, |w| {
+                        // 03 Long description
+                        write_element_block("TextTypeCode", w, |w| {
+                            w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
+                        })?;
+                        // 06 Default text format
+                        write_element_block("TextFormat", w, |w| {
+                            w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                        })?;
+                        write_full_element_block("Text", None, None, w, |w| {
+                            w.write(XmlEvent::Characters(labstract))
+                                .map_err(|e| e.into())
+                        })
+                    })?;
+                }
+                if let Some(cover_url) = &self.cover_url {
+                    write_element_block("MediaFile", w, |w| {
+                        // 04 Image: front cover
+                        write_element_block("MediaFileTypeCode", w, |w| {
+                            w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
+                        })?;
+                        // 01 URL
+                        write_element_block("MediaFileLinkTypeCode", w, |w| {
+                            w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("MediaFileLink", w, |w| {
+                            w.write(XmlEvent::Characters(cover_url))
+                                .map_err(|e| e.into())
+                        })
+                    })?;
+                }
+                write_element_block("Imprint", w, |w| {
+                    write_element_block("ImprintName", w, |w| {
+                        w.write(XmlEvent::Characters(&self.imprint.imprint_name))
+                            .map_err(|e| e.into())
+                    })
+                })?;
+                write_element_block("Publisher", w, |w| {
+                    // 01 Publisher
+                    write_element_block("PublishingRole", w, |w| {
+                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("PublisherName", w, |w| {
+                        w.write(XmlEvent::Characters(&self.imprint.publisher.publisher_name))
+                            .map_err(|e| e.into())
+                    })?;
+                    if let Some(publisher_url) = &self.imprint.publisher.publisher_url {
+                        write_element_block("Website", w, |w| {
+                            write_element_block("WebsiteLink", w, |w| {
+                                w.write(XmlEvent::Characters(publisher_url))
                                     .map_err(|e| e.into())
-                                })?;
-                                // 09 Publisher to end-customers
-                                write_element_block("SupplierRole", w, |w| {
-                                    w.write(XmlEvent::Characters("09")).map_err(|e| e.into())
-                                })?;
-                            // 99 Contact supplier
-                            write_element_block("ProductAvailability", w, |w| {
-                                w.write(XmlEvent::Characters("99")).map_err(|e| e.into())
+                            })
+                        })?;
+                    }
+                    Ok(())
+                })?;
+                if let Some(place) = &self.place {
+                    write_element_block("CityOfPublication", w, |w| {
+                        w.write(XmlEvent::Characters(place)).map_err(|e| e.into())
+                    })?;
+                }
+                XmlElement::<Onix21Ebsco>::xml_element(&self.work_status, w)?;
+                if let Some(date) = self.publication_date {
+                    write_element_block("PublicationDate", w, |w| {
+                        w.write(XmlEvent::Characters(&date.format("%Y%m%d").to_string()))
+                            .map_err(|e| e.into())
+                    })?;
+                    write_element_block("CopyrightYear", w, |w| {
+                        w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                if !isbns.is_empty() {
+                    for isbn in &isbns {
+                        write_element_block("RelatedProduct", w, |w| {
+                            // 06 Alternative format
+                            write_element_block("RelationCode", w, |w| {
+                                w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
                             })?;
-                            write_element_block("Price", w, |w| {
-                                // 02 RRP including tax
-                                write_element_block("PriceTypeCode", w, |w| {
-                                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                            write_element_block("ProductIdentifier", w, |w| {
+                                // 15 ISBN-13
+                                write_element_block("ProductIDType", w, |w| {
+                                    w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
                                 })?;
-                                write_element_block("PriceAmount", w, |w| {
-                                    w.write(XmlEvent::Characters(&pb_price.to_string())).map_err(|e| e.into())
-                                })?;
-                                write_element_block("CurrencyCode", w, |w| {
-                                    w.write(XmlEvent::Characters("USD")).map_err(|e| e.into())
+                                write_element_block("IDValue", w, |w| {
+                                    w.write(XmlEvent::Characters(isbn)).map_err(|e| e.into())
                                 })
                             })
+                        })?;
+                    }
+                }
+                write_element_block("SupplyDetail", w, |w| {
+                    write_element_block("SupplierName", w, |w| {
+                        w.write(XmlEvent::Characters(&self.imprint.publisher.publisher_name))
+                            .map_err(|e| e.into())
+                    })?;
+                    // 09 Publisher to end-customers
+                    write_element_block("SupplierRole", w, |w| {
+                        w.write(XmlEvent::Characters("09")).map_err(|e| e.into())
+                    })?;
+                    // 99 Contact supplier
+                    write_element_block("ProductAvailability", w, |w| {
+                        w.write(XmlEvent::Characters("99")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("Price", w, |w| {
+                        // 02 RRP including tax
+                        write_element_block("PriceTypeCode", w, |w| {
+                            w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("PriceAmount", w, |w| {
+                            w.write(XmlEvent::Characters(&pb_price.to_string()))
+                                .map_err(|e| e.into())
+                        })?;
+                        write_element_block("CurrencyCode", w, |w| {
+                            w.write(XmlEvent::Characters("USD")).map_err(|e| e.into())
                         })
+                    })
+                })
             })
         } else {
             Err(ThothError::IncompleteMetadataRecord(
@@ -515,33 +517,33 @@ impl XmlElementBlock<Onix21Ebsco> for WorkLanguages {
 impl XmlElementBlock<Onix21Ebsco> for WorkIssues {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Series", w, |w| {
-                    write_element_block("TitleOfSeries", w, |w| {
-                        w.write(XmlEvent::Characters(&self.series.series_name))
-                            .map_err(|e| e.into())
-                    })?;
-                    write_element_block("NumberWithinSeries", w, |w| {
-                        w.write(XmlEvent::Characters(&self.issue_ordinal.to_string()))
-                            .map_err(|e| e.into())
-                    })
+            write_element_block("TitleOfSeries", w, |w| {
+                w.write(XmlEvent::Characters(&self.series.series_name))
+                    .map_err(|e| e.into())
+            })?;
+            write_element_block("NumberWithinSeries", w, |w| {
+                w.write(XmlEvent::Characters(&self.issue_ordinal.to_string()))
+                    .map_err(|e| e.into())
+            })
         })
     }
 }
 
 impl XmlElementBlock<Onix21Ebsco> for WorkSubjects {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-            write_element_block("Subject", w, |w| {
-                XmlElement::<Onix21Ebsco>::xml_element(&self.subject_type, w)?;
-                match self.subject_type {
-                    SubjectType::KEYWORD => write_element_block("SubjectHeadingText", w, |w| {
-                        w.write(XmlEvent::Characters(&self.subject_code))
-                            .map_err(|e| e.into())
-                    }),
-                    _ => write_element_block("SubjectCode", w, |w| {
-                        w.write(XmlEvent::Characters(&self.subject_code))
-                            .map_err(|e| e.into())
-                    }),
-                }
-            })
+        write_element_block("Subject", w, |w| {
+            XmlElement::<Onix21Ebsco>::xml_element(&self.subject_type, w)?;
+            match self.subject_type {
+                SubjectType::KEYWORD => write_element_block("SubjectHeadingText", w, |w| {
+                    w.write(XmlEvent::Characters(&self.subject_code))
+                        .map_err(|e| e.into())
+                }),
+                _ => write_element_block("SubjectCode", w, |w| {
+                    w.write(XmlEvent::Characters(&self.subject_code))
+                        .map_err(|e| e.into())
+                }),
+            }
+        })
     }
 }
 
