@@ -534,10 +534,12 @@ impl XmlElementBlock<Onix21Ebsco> for WorkSubjects {
         write_element_block("Subject", w, |w| {
             XmlElement::<Onix21Ebsco>::xml_element(&self.subject_type, w)?;
             match self.subject_type {
-                SubjectType::KEYWORD => write_element_block("SubjectHeadingText", w, |w| {
-                    w.write(XmlEvent::Characters(&self.subject_code))
-                        .map_err(|e| e.into())
-                }),
+                SubjectType::KEYWORD | SubjectType::CUSTOM => {
+                    write_element_block("SubjectHeadingText", w, |w| {
+                        w.write(XmlEvent::Characters(&self.subject_code))
+                            .map_err(|e| e.into())
+                    })
+                }
                 _ => write_element_block("SubjectCode", w, |w| {
                     w.write(XmlEvent::Characters(&self.subject_code))
                         .map_err(|e| e.into())
@@ -556,6 +558,7 @@ mod tests {
     use thoth_api::model::Doi;
     use thoth_api::model::Isbn;
     use thoth_api::model::Orcid;
+    use thoth_client::WorkPublicationsPrices;
     use thoth_client::{
         ContributionType, LanguageCode, LanguageRelation, PublicationType,
         WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssuesSeries,
@@ -627,21 +630,31 @@ mod tests {
         assert!(!output.contains(r#"  <KeyNames>1</KeyNames>"#));
         assert!(output.contains(r#"  <PersonName>Author 1</PersonName>"#));
 
-        // All roles except Author and Editor are output as Z01
-        for contribution_type in [
-            ContributionType::TRANSLATOR,
-            ContributionType::PHOTOGRAPHER,
-            ContributionType::ILUSTRATOR,
-            ContributionType::MUSIC_EDITOR,
-            ContributionType::FOREWORD_BY,
-            ContributionType::INTRODUCTION_BY,
-            ContributionType::AFTERWORD_BY,
-            ContributionType::PREFACE_BY,
-        ] {
-            test_contribution.contribution_type = contribution_type;
-            let output = generate_test_output(&test_contribution);
-            assert!(output.contains(r#"  <ContributorRole>Z01</ContributorRole>"#));
-        }
+        // Test all remaining contributor roles
+        test_contribution.contribution_type = ContributionType::TRANSLATOR;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>B06</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::PHOTOGRAPHER;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A13</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::ILUSTRATOR;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A12</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::MUSIC_EDITOR;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>B25</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::FOREWORD_BY;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A23</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::INTRODUCTION_BY;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A24</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::AFTERWORD_BY;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A19</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::PREFACE_BY;
+        let output = generate_test_output(&test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A15</ContributorRole>"#));
     }
 
     #[test]
@@ -685,27 +698,17 @@ mod tests {
 
         // Test standard output
         let output = generate_test_output(&test_issue);
-        assert!(output.contains(r#"<Collection>"#));
-        assert!(output.contains(r#"  <CollectionType>10</CollectionType>"#));
-        assert!(output.contains(r#"  <TitleDetail>"#));
-        assert!(output.contains(r#"    <TitleType>01</TitleType>"#));
-        assert!(output.contains(r#"    <TitleElement>"#));
-        assert!(output.contains(r#"      <TitleElementLevel>02</TitleElementLevel>"#));
-        assert!(output.contains(r#"      <PartNumber>1</PartNumber>"#));
-        assert!(output.contains(r#"      <TitleText>Name of series</TitleText>"#));
+        assert!(output.contains(r#"<Series>"#));
+        assert!(output.contains(r#"  <TitleOfSeries>Name of series</TitleOfSeries>"#));
+        assert!(output.contains(r#"  <NumberWithinSeries>1</NumberWithinSeries>"#));
 
         // Change all possible values to test that output is updated
         test_issue.issue_ordinal = 2;
         test_issue.series.series_name = "Different series".to_string();
         let output = generate_test_output(&test_issue);
-        assert!(output.contains(r#"<Collection>"#));
-        assert!(output.contains(r#"  <CollectionType>10</CollectionType>"#));
-        assert!(output.contains(r#"  <TitleDetail>"#));
-        assert!(output.contains(r#"    <TitleType>01</TitleType>"#));
-        assert!(output.contains(r#"    <TitleElement>"#));
-        assert!(output.contains(r#"      <TitleElementLevel>02</TitleElementLevel>"#));
-        assert!(output.contains(r#"      <PartNumber>2</PartNumber>"#));
-        assert!(output.contains(r#"      <TitleText>Different series</TitleText>"#));
+        assert!(output.contains(r#"<Series>"#));
+        assert!(output.contains(r#"  <TitleOfSeries>Different series</TitleOfSeries>"#));
+        assert!(output.contains(r#"  <NumberWithinSeries>2</NumberWithinSeries>"#));
     }
 
     #[test]
@@ -754,11 +757,12 @@ mod tests {
         assert!(output.contains(r#"  <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"  <SubjectHeadingText>keyword1</SubjectHeadingText>"#));
 
-        // Custom subjects are not output
+        // Test custom output
         test_subject.subject_code = "custom1".to_string();
         test_subject.subject_type = SubjectType::CUSTOM;
         let output = generate_test_output(&test_subject);
-        assert_eq!(output, "".to_string());
+        assert!(output.contains(r#"  <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"  <SubjectHeadingText>custom1</SubjectHeadingText>"#));
     }
 
     #[test]
@@ -768,7 +772,7 @@ mod tests {
             work_status: WorkStatus::ACTIVE,
             full_title: "Book Title: Book Subtitle".to_string(),
             title: "Book Title".to_string(),
-            subtitle: Some("Book Subtitle".to_string()),
+            subtitle: Some("Separate Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
             edition: 1,
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
@@ -807,13 +811,35 @@ mod tests {
             issues: vec![],
             contributions: vec![],
             languages: vec![],
-            publications: vec![WorkPublications {
-                publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
-                publication_type: PublicationType::PDF,
-                publication_url: Some("https://www.book.com/pdf".to_string()),
-                isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
-                prices: vec![],
-            }],
+            publications: vec![
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    publication_type: PublicationType::PAPERBACK,
+                    publication_url: Some("https://www.book.com/paperback".to_string()),
+                    isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+                    prices: vec![
+                        WorkPublicationsPrices {
+                            currency_code: CurrencyCode::EUR,
+                            unit_price: 25.95,
+                        },
+                        WorkPublicationsPrices {
+                            currency_code: CurrencyCode::GBP,
+                            unit_price: 22.95,
+                        },
+                        WorkPublicationsPrices {
+                            currency_code: CurrencyCode::USD,
+                            unit_price: 31.95,
+                        },
+                    ],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
+                    publication_type: PublicationType::PDF,
+                    publication_url: Some("https://www.book.com/pdf".to_string()),
+                    isbn: Some(Isbn::from_str("978-1-56619-909-4").unwrap()),
+                    prices: vec![],
+                },
+            ],
             subjects: vec![],
             fundings: vec![],
         };
@@ -834,80 +860,66 @@ mod tests {
         assert!(output.contains(r#"    <IDValue>9783161484100</IDValue>"#));
         assert!(output.contains(r#"    <ProductIDType>06</ProductIDType>"#));
         assert!(output.contains(r#"    <IDValue>10.00001/BOOK.0001</IDValue>"#));
-        assert!(output.contains(r#"  <DescriptiveDetail>"#));
-        assert!(output.contains(r#"    <ProductComposition>00</ProductComposition>"#));
-        assert!(output.contains(r#"    <ProductForm>EB</ProductForm>"#));
-        assert!(output.contains(r#"    <ProductFormDetail>E107</ProductFormDetail>"#));
-        assert!(output.contains(r#"    <PrimaryContentType>10</PrimaryContentType>"#));
-        assert!(output.contains(r#"    <EpubLicense>"#));
-        assert!(
-            output.contains(r#"      <EpubLicenseName>Creative Commons License</EpubLicenseName>"#)
-        );
-        assert!(output.contains(r#"      <EpubLicenseExpression>"#));
-        assert!(
-            output.contains(r#"        <EpubLicenseExpressionType>02</EpubLicenseExpressionType>"#)
-        );
-        assert!(output.contains(r#"        <EpubLicenseExpressionLink>https://creativecommons.org/licenses/by/4.0/</EpubLicenseExpressionLink>"#));
-        assert!(output.contains(r#"    <TitleDetail>"#));
-        assert!(output.contains(r#"      <TitleType>01</TitleType>"#));
-        assert!(output.contains(r#"      <TitleElement>"#));
-        assert!(output.contains(r#"        <TitleElementLevel>01</TitleElementLevel>"#));
-        assert!(output.contains(r#"        <TitleText>Book Title</TitleText>"#));
-        assert!(output.contains(r#"        <Subtitle>Book Subtitle</Subtitle>"#));
-        assert!(output.contains(r#"    <Extent>"#));
-        assert!(output.contains(r#"      <ExtentType>00</ExtentType>"#));
-        assert!(output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
-        assert!(output.contains(r#"      <ExtentUnit>03</ExtentUnit>"#));
-        assert!(output.contains(r#"    <Audience>"#));
-        assert!(output.contains(r#"      <AudienceCodeType>01</AudienceCodeType>"#));
-        assert!(output.contains(r#"      <AudienceCodeValue>06</AudienceCodeValue>"#));
-        assert!(output.contains(r#"  <CollateralDetail>"#));
-        assert!(output.contains(r#"    <TextContent>"#));
-        assert!(output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        assert!(output.contains(r#"    <SupportingResource>"#));
-        assert!(output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
-        assert!(output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
-        assert!(output.contains(r#"      <ResourceVersion>"#));
-        assert!(output.contains(r#"        <ResourceForm>02</ResourceForm>"#));
-        assert!(
-            output.contains(r#"        <ResourceLink>https://www.book.com/cover</ResourceLink>"#)
-        );
-        assert!(output.contains(r#"  <PublishingDetail>"#));
-        assert!(output.contains(r#"    <Imprint>"#));
-        assert!(output.contains(r#"      <ImprintName>OA Editions Imprint</ImprintName>"#));
-        assert!(output.contains(r#"    <Publisher>"#));
-        assert!(output.contains(r#"      <PublishingRole>01</PublishingRole>"#));
-        assert!(output.contains(r#"      <PublisherName>OA Editions</PublisherName>"#));
-        assert!(output.contains(r#"    <CityOfPublication>León, Spain</CityOfPublication>"#));
-        assert!(output.contains(r#"    <PublishingStatus>04</PublishingStatus>"#));
-        assert!(output.contains(r#"    <PublishingDate>"#));
-        assert!(output.contains(r#"      <PublishingDateRole>19</PublishingDateRole>"#));
-        assert!(output.contains(r#"      <Date dateformat="05">1999</Date>"#));
-        assert!(output.contains(r#"    <RelatedProduct>"#));
-        assert!(output.contains(r#"      <ProductRelationCode>06</ProductRelationCode>"#));
-        assert!(output.contains(r#"      <ProductIdentifier>"#));
-        assert!(output.contains(r#"        <ProductIDType>15</ProductIDType>"#));
-        assert!(output.contains(r#"        <IDValue>9783161484100</IDValue>"#));
-        assert!(output.contains(r#"  <ProductSupply>"#));
-        assert!(output.contains(r#"    <SupplyDetail>"#));
-        assert!(output.contains(r#"      <Supplier>"#));
-        assert!(output.contains(r#"        <SupplierRole>09</SupplierRole>"#));
-        assert!(output.contains(r#"        <SupplierName>OA Editions</SupplierName>"#));
-        assert!(output.contains(r#"        <Website>"#));
-        assert!(output.contains(r#"          <WebsiteRole>01</WebsiteRole>"#));
+        assert!(output.contains(r#"  <ProductForm>DG</ProductForm>"#));
+        assert!(output.contains(r#"  <EpubType>000</EpubType>"#));
+        assert!(output.contains(r#"  <Title>"#));
+        assert!(output.contains(r#"    <TitleType>01</TitleType>"#));
+        assert!(output.contains(r#"    <TitleText>Book Title</TitleText>"#));
+        assert!(output.contains(r#"    <Subtitle>Separate Subtitle</Subtitle>"#));
+        assert!(output.contains(r#"  <WorkIdentifier>"#));
+        assert!(output.contains(r#"    <WorkIDType>01</WorkIDType>"#));
+        assert!(output.contains(r#"    <IDTypeName>Thoth WorkID</IDTypeName>"#));
+        assert!(output
+            .contains(r#"    <IDValue>urn:uuid:00000000-0000-0000-aaaa-000000000001</IDValue>"#));
+        assert!(output.contains(r#"  <Website>"#));
+        assert!(output.contains(r#"    <WebsiteRole>01</WebsiteRole>"#));
         assert!(output.contains(
-            r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
+            r#"    <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
-        assert!(output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
-        assert!(output.contains(r#"      <ProductAvailability>99</ProductAvailability>"#));
-        assert!(output.contains(r#"      <UnpricedItemType>04</UnpricedItemType>"#));
-        assert!(output.contains(r#"        <SupplierRole>09</SupplierRole>"#));
-        assert!(output.contains(r#"        <SupplierName>OA Editions</SupplierName>"#));
-        assert!(output.contains(r#"          <WebsiteRole>29</WebsiteRole>"#));
-        assert!(output.contains(r#"          <WebsiteDescription>Publisher's website: download the title</WebsiteDescription>"#));
-        assert!(output.contains(r#"          <WebsiteLink>https://www.book.com/pdf</WebsiteLink>"#));
+        assert!(output.contains(r#"    <WebsiteLink>https://www.book.com</WebsiteLink>"#));
+        assert!(output.contains(r#"    <WebsiteRole>29</WebsiteRole>"#));
+        assert!(output.contains(r#"    <WebsiteDescription>Publisher's website: download the title</WebsiteDescription>"#));
+        assert!(output.contains(r#"    <WebsiteLink>https://www.book.com/pdf</WebsiteLink>"#));
+        assert!(output.contains(r#"  <Extent>"#));
+        assert!(output.contains(r#"    <ExtentType>00</ExtentType>"#));
+        assert!(output.contains(r#"    <ExtentValue>334</ExtentValue>"#));
+        assert!(output.contains(r#"    <ExtentUnit>03</ExtentUnit>"#));
+        assert!(output.contains(r#"  <Audience>"#));
+        assert!(output.contains(r#"    <AudienceCodeType>01</AudienceCodeType>"#));
+        assert!(output.contains(r#"    <AudienceCodeValue>06</AudienceCodeValue>"#));
+        assert!(output.contains(r#"  <OtherText>"#));
+        assert!(output.contains(r#"    <TextTypeCode>03</TextTypeCode>"#));
+        assert!(output.contains(r#"    <TextFormat>06</TextFormat>"#));
+        assert!(output.contains(r#"    <Text>Lorem ipsum dolor sit amet</Text>"#));
+        assert!(output.contains(r#"  <MediaFile>"#));
+        assert!(output.contains(r#"    <MediaFileTypeCode>04</MediaFileTypeCode>"#));
+        assert!(output.contains(r#"    <MediaFileLinkTypeCode>01</MediaFileLinkTypeCode>"#));
+        assert!(output.contains(r#"    <MediaFileLink>https://www.book.com/cover</MediaFileLink>"#));
+        assert!(output.contains(r#"  <Imprint>"#));
+        assert!(output.contains(r#"    <ImprintName>OA Editions Imprint</ImprintName>"#));
+        assert!(output.contains(r#"  <Publisher>"#));
+        assert!(output.contains(r#"    <PublishingRole>01</PublishingRole>"#));
+        assert!(output.contains(r#"    <PublisherName>OA Editions</PublisherName>"#));
+        assert!(output.contains(r#"    <Website>"#));
+        assert!(output.contains(r#"      <WebsiteLink>https://www.publisher.com</WebsiteLink>"#));
+        assert!(output.contains(r#"  <CityOfPublication>León, Spain</CityOfPublication>"#));
+        assert!(output.contains(r#"  <PublishingStatus>04</PublishingStatus>"#));
+        assert!(output.contains(r#"  <PublicationDate>19991231</PublicationDate>"#));
+        assert!(output.contains(r#"  <CopyrightYear>1999</CopyrightYear>"#));
+        assert!(output.contains(r#"  <RelatedProduct>"#));
+        assert!(output.contains(r#"    <RelationCode>06</RelationCode>"#));
+        assert!(output.contains(r#"    <ProductIdentifier>"#));
+        assert!(output.contains(r#"      <ProductIDType>15</ProductIDType>"#));
+        assert!(output.contains(r#"      <IDValue>9783161484100</IDValue>"#));
+        assert!(output.contains(r#"      <IDValue>9781566199094</IDValue>"#));
+        assert!(output.contains(r#"  <SupplyDetail>"#));
+        assert!(output.contains(r#"    <SupplierName>OA Editions</SupplierName>"#));
+        assert!(output.contains(r#"    <SupplierRole>09</SupplierRole>"#));
+        assert!(output.contains(r#"    <ProductAvailability>99</ProductAvailability>"#));
+        assert!(output.contains(r#"    <Price>"#));
+        assert!(output.contains(r#"      <PriceTypeCode>02</PriceTypeCode>"#));
+        assert!(output.contains(r#"      <PriceAmount>31.95</PriceAmount>"#));
+        assert!(output.contains(r#"      <CurrencyCode>USD</CurrencyCode>"#));
 
         // Remove some values to test non-output of optional blocks
         test_work.doi = None;
@@ -918,92 +930,57 @@ mod tests {
         test_work.place = None;
         test_work.publication_date = None;
         test_work.landing_page = None;
+        test_work.cover_url = None;
+        test_work.imprint.publisher.publisher_url = None;
+        test_work.publications.pop(); // Remove second (PDF) publication
         let output = generate_test_output(&test_work);
         // No DOI supplied
         assert!(!output.contains(r#"    <ProductIDType>06</ProductIDType>"#));
         assert!(!output.contains(r#"    <IDValue>10.00001/BOOK.0001</IDValue>"#));
-        // No licence supplied
-        assert!(!output.contains(r#"    <EpubLicense>"#));
-        assert!(!output
-            .contains(r#"      <EpubLicenseName>Creative Commons License</EpubLicenseName>"#));
-        assert!(!output.contains(r#"      <EpubLicenseExpression>"#));
-        assert!(!output
-            .contains(r#"        <EpubLicenseExpressionType>02</EpubLicenseExpressionType>"#));
-        assert!(!output.contains(r#"        <EpubLicenseExpressionLink>https://creativecommons.org/licenses/by/4.0/</EpubLicenseExpressionLink>"#));
         // No subtitle supplied: work FullTitle is used instead of Title
-        assert!(!output.contains(r#"        <TitleText>Book Title</TitleText>"#));
-        assert!(!output.contains(r#"        <Subtitle>Book Subtitle</Subtitle>"#));
-        assert!(output.contains(r#"        <TitleText>Book Title: Book Subtitle</TitleText>"#));
-        // No page count supplied
-        assert!(!output.contains(r#"    <Extent>"#));
-        assert!(!output.contains(r#"      <ExtentType>00</ExtentType>"#));
-        assert!(!output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
-        assert!(!output.contains(r#"      <ExtentUnit>03</ExtentUnit>"#));
-        // No long abstract supplied: CollateralDetail block only contains cover URL
-        assert!(output.contains(r#"  <CollateralDetail>"#));
-        assert!(output.contains(r#"    <SupportingResource>"#));
-        assert!(output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
-        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
-        assert!(output.contains(r#"      <ResourceVersion>"#));
-        assert!(output.contains(r#"        <ResourceForm>02</ResourceForm>"#));
-        assert!(
-            output.contains(r#"        <ResourceLink>https://www.book.com/cover</ResourceLink>"#)
-        );
-        assert!(!output.contains(r#"    <TextContent>"#));
-        assert!(!output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        // No place supplied
-        assert!(!output.contains(r#"    <CityOfPublication>León, Spain</CityOfPublication>"#));
-        // No publication date supplied
-        assert!(!output.contains(r#"    <PublishingDate>"#));
-        assert!(!output.contains(r#"      <PublishingDateRole>19</PublishingDateRole>"#));
-        assert!(!output.contains(r#"      <Date dateformat="05">1999</Date>"#));
-        // No landing page supplied: only one SupplyDetail block, linking to PDF download
-        assert!(!output.contains(r#"          <WebsiteRole>01</WebsiteRole>"#));
+        assert!(!output.contains(r#"    <TitleText>Book Title</TitleText>"#));
+        assert!(!output.contains(r#"    <Subtitle>Separate Subtitle</Subtitle>"#));
+        assert!(output.contains(r#"    <TitleText>Book Title: Book Subtitle</TitleText>"#));
+        // No landing page supplied
+        assert!(!output.contains(r#"    <WebsiteRole>01</WebsiteRole>"#));
         assert!(!output.contains(
-            r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
+            r#"    <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
-        assert!(!output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
+        assert!(!output.contains(r#"    <WebsiteLink>https://www.book.com</WebsiteLink>"#));
+        // PDF publication removed, hence no PDF URL supplied (and no PDF RelatedProduct)
+        assert!(!output.contains(r#"    <WebsiteRole>29</WebsiteRole>"#));
+        assert!(!output.contains(r#"    <WebsiteDescription>Publisher's website: download the title</WebsiteDescription>"#));
+        assert!(!output.contains(r#"    <WebsiteLink>https://www.book.com/pdf</WebsiteLink>"#));
+        assert!(!output.contains(r#"      <IDValue>9781566199094</IDValue>"#));
+        // No page count supplied
+        assert!(!output.contains(r#"  <Extent>"#));
+        assert!(!output.contains(r#"    <ExtentType>00</ExtentType>"#));
+        assert!(!output.contains(r#"    <ExtentValue>334</ExtentValue>"#));
+        assert!(!output.contains(r#"    <ExtentUnit>03</ExtentUnit>"#));
+        // No long abstract supplied
+        assert!(!output.contains(r#"  <OtherText>"#));
+        assert!(!output.contains(r#"    <TextTypeCode>03</TextTypeCode>"#));
+        assert!(!output.contains(r#"    <TextFormat>06</TextFormat>"#));
+        assert!(!output.contains(r#"    <Text>Lorem ipsum dolor sit amet</Text>"#));
+        // No cover URL supplied
+        assert!(!output.contains(r#"  <MediaFile>"#));
+        assert!(!output.contains(r#"    <MediaFileTypeCode>04</MediaFileTypeCode>"#));
+        assert!(!output.contains(r#"    <MediaFileLinkTypeCode>01</MediaFileLinkTypeCode>"#));
+        assert!(
+            !output.contains(r#"    <MediaFileLink>https://www.book.com/cover</MediaFileLink>"#)
+        );
+        // No publisher website supplied (and no other <Website> blocks remain)
+        assert!(!output.contains(r#"    <Website>"#));
+        assert!(!output.contains(r#"      <WebsiteLink>https://www.publisher.com</WebsiteLink>"#));
+        // No place supplied
+        assert!(!output.contains(r#"  <CityOfPublication>León, Spain</CityOfPublication>"#));
+        // No publication date supplied
+        assert!(!output.contains(r#"  <PublicationDate>19991231</PublicationDate>"#));
+        assert!(!output.contains(r#"  <CopyrightYear>1999</CopyrightYear>"#));
 
-        // Replace long abstract but remove cover URL
-        // Result: CollateralDetail block still present, but now only contains long abstract
-        test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
-        test_work.cover_url = None;
-        let output = generate_test_output(&test_work);
-        assert!(output.contains(r#"  <CollateralDetail>"#));
-        assert!(output.contains(r#"    <TextContent>"#));
-        assert!(output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        assert!(!output.contains(r#"    <SupportingResource>"#));
-        assert!(!output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
-        assert!(!output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
-        assert!(!output.contains(r#"      <ResourceVersion>"#));
-        assert!(!output.contains(r#"        <ResourceForm>02</ResourceForm>"#));
-        assert!(!output
-            .contains(r#"        <ResourceLink>"https://www.book.com/cover"</ResourceLink>"#));
-
-        // Remove both cover URL and long abstract
-        // Result: No CollateralDetail block present at all
-        test_work.long_abstract = None;
-        let output = generate_test_output(&test_work);
-        assert!(!output.contains(r#"  <CollateralDetail>"#));
-        assert!(!output.contains(r#"    <TextContent>"#));
-        assert!(!output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(!output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        assert!(!output.contains(r#"    <SupportingResource>"#));
-        assert!(!output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
-        assert!(!output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
-        assert!(!output.contains(r#"      <ResourceVersion>"#));
-        assert!(!output.contains(r#"        <ResourceForm>02</ResourceForm>"#));
-        assert!(!output
-            .contains(r#"        <ResourceLink>"https://www.book.com/cover"</ResourceLink>"#));
-
-        // Remove the only publication, which is the PDF
-        // Result: error (can't generate OAPEN ONIX without PDF URL)
-        test_work.publications.clear();
+        // Remove the prices from the first (only) publication, which is the paperback
+        // Result: error (can't generate EBSCO ONIX without USD paperback price)
+        test_work.publications[0].prices.clear();
         // Can't use helper function for this as it assumes Ok rather than Err
         let mut buffer = Vec::new();
         let mut writer = xml::writer::EmitterConfig::new()
