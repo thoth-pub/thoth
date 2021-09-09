@@ -248,7 +248,8 @@ impl XmlElementBlock<Onix3Jstor> for Work {
                             w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                         })?;
                         write_element_block("Text", w, |w| {
-                            w.write(XmlEvent::Characters("Open Access")).map_err(|e| e.into())
+                            w.write(XmlEvent::Characters("Open Access"))
+                                .map_err(|e| e.into())
                         })
                     })
                 })?;
@@ -833,6 +834,9 @@ mod tests {
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>04</TextType>"#));
         assert!(output.contains(r#"      <Text>1. Chapter 1</Text>"#));
+        assert!(output.contains(r#"    <TextContent>"#));
+        assert!(output.contains(r#"      <TextType>20</TextType>"#));
+        assert!(output.contains(r#"      <Text>Open Access</Text>"#));
         assert!(output.contains(r#"  <PublishingDetail>"#));
         assert!(output.contains(r#"    <Imprint>"#));
         assert!(output.contains(r#"      <ImprintName>OA Editions Imprint</ImprintName>"#));
@@ -842,8 +846,8 @@ mod tests {
         assert!(output.contains(r#"    <CityOfPublication>León, Spain</CityOfPublication>"#));
         assert!(output.contains(r#"    <PublishingStatus>04</PublishingStatus>"#));
         assert!(output.contains(r#"    <PublishingDate>"#));
-        assert!(output.contains(r#"      <PublishingDateRole>19</PublishingDateRole>"#));
-        assert!(output.contains(r#"      <Date dateformat="01">199912</Date>"#));
+        assert!(output.contains(r#"      <PublishingDateRole>01</PublishingDateRole>"#));
+        assert!(output.contains(r#"      <Date dateformat="00">19991231</Date>"#));
         assert!(output.contains(r#"    <RelatedProduct>"#));
         assert!(output.contains(r#"      <ProductRelationCode>06</ProductRelationCode>"#));
         assert!(output.contains(r#"      <ProductIdentifier>"#));
@@ -861,7 +865,7 @@ mod tests {
         ));
         assert!(output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
         assert!(output.contains(r#"      <ProductAvailability>99</ProductAvailability>"#));
-        assert!(output.contains(r#"      <UnpricedItemType>04</UnpricedItemType>"#));
+        assert!(output.contains(r#"      <UnpricedItemType>01</UnpricedItemType>"#));
         assert!(output.contains(r#"        <SupplierRole>09</SupplierRole>"#));
         assert!(output.contains(r#"        <SupplierName>OA Editions</SupplierName>"#));
         assert!(output.contains(r#"          <WebsiteRole>29</WebsiteRole>"#));
@@ -895,6 +899,7 @@ mod tests {
         test_work.subtitle = None;
         test_work.page_count = None;
         test_work.long_abstract = None;
+        test_work.toc = None;
         test_work.place = None;
         test_work.publication_date = None;
         test_work.landing_page = None;
@@ -920,20 +925,22 @@ mod tests {
         assert!(!output.contains(r#"      <ExtentType>00</ExtentType>"#));
         assert!(!output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
         assert!(!output.contains(r#"      <ExtentUnit>03</ExtentUnit>"#));
-        // No long abstract supplied: CollateralDetail block only contains TOC
-        assert!(output.contains(r#"  <CollateralDetail>"#));
-        assert!(output.contains(r#"    <TextContent>"#));
-        assert!(output.contains(r#"      <TextType>04</TextType>"#));
-        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text>1. Chapter 1</Text>"#));
+        // No long abstract supplied
         assert!(!output.contains(r#"      <TextType>03</TextType>"#));
         assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        // No TOC supplied
+        assert!(!output.contains(r#"      <TextType>04</TextType>"#));
+        assert!(!output.contains(r#"      <Text>1. Chapter 1</Text>"#));
+        // CollateralDetail block is still present as it always contains Open Access statement
+        assert!(output.contains(r#"  <CollateralDetail>"#));
+        assert!(output.contains(r#"    <TextContent>"#));
+        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
         // No place supplied
         assert!(!output.contains(r#"    <CityOfPublication>León, Spain</CityOfPublication>"#));
         // No publication date supplied
         assert!(!output.contains(r#"    <PublishingDate>"#));
-        assert!(!output.contains(r#"      <PublishingDateRole>19</PublishingDateRole>"#));
-        assert!(!output.contains(r#"      <Date dateformat="01">199912</Date>"#));
+        assert!(!output.contains(r#"      <PublishingDateRole>01</PublishingDateRole>"#));
+        assert!(!output.contains(r#"      <Date dateformat="00">19991231</Date>"#));
         // No landing page supplied: only one SupplyDetail block, linking to PDF download
         assert!(!output.contains(r#"          <WebsiteRole>01</WebsiteRole>"#));
         assert!(!output.contains(
@@ -955,31 +962,6 @@ mod tests {
         assert!(!output.contains(r#"      <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
         assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
 
-        // Replace long abstract but remove TOC
-        // Result: CollateralDetail block still present, but now only contains long abstract
-        test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
-        test_work.toc = None;
-        let output = generate_test_output(&test_work);
-        assert!(output.contains(r#"  <CollateralDetail>"#));
-        assert!(output.contains(r#"    <TextContent>"#));
-        assert!(output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        assert!(!output.contains(r#"      <TextType>04</TextType>"#));
-        assert!(!output.contains(r#"      <Text>1. Chapter 1</Text>"#));
-
-        // Remove both TOC and long abstract
-        // Result: No CollateralDetail block present at all
-        test_work.long_abstract = None;
-        let output = generate_test_output(&test_work);
-        assert!(!output.contains(r#"  <CollateralDetail>"#));
-        assert!(!output.contains(r#"    <TextContent>"#));
-        assert!(!output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(!output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        assert!(!output.contains(r#"      <TextType>04</TextType>"#));
-        assert!(!output.contains(r#"      <Text>1. Chapter 1</Text>"#));
-
         // Remove the only publication, which is the PDF
         // Result: error (can't generate OAPEN ONIX without PDF URL)
         test_work.publications.clear();
@@ -988,13 +970,12 @@ mod tests {
         let mut writer = xml::writer::EmitterConfig::new()
             .perform_indent(true)
             .create_writer(&mut buffer);
-        let wrapped_output =
-            XmlElementBlock::<Onix3Jstor>::xml_element(&test_work, &mut writer)
-                .map(|_| buffer)
-                .and_then(|onix| {
-                    String::from_utf8(onix)
-                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
-                });
+        let wrapped_output = XmlElementBlock::<Onix3Jstor>::xml_element(&test_work, &mut writer)
+            .map(|_| buffer)
+            .and_then(|onix| {
+                String::from_utf8(onix)
+                    .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
+            });
         assert!(wrapped_output.is_err());
         let output = wrapped_output.unwrap_err().to_string();
         assert_eq!(
