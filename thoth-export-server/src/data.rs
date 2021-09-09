@@ -20,6 +20,12 @@ lazy_static! {
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/oapen"),],
         },
         Specification {
+            id: "onix_3.0::jstor",
+            name: "JSTOR ONIX 3.0",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_3.0"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/jstor"),],
+        },
+        Specification {
             id: "csv::thoth",
             name: "Thoth CSV",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/csv"),
@@ -61,6 +67,14 @@ lazy_static! {
             accepts: vec![concat!(
                 env!("THOTH_EXPORT_API"),
                 "/specifications/onix_3.0::oapen"
+            ),],
+        },
+        Platform {
+            id: "jstor",
+            name: "JSTOR",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/onix_3.0::jstor"
             ),],
         },
         Platform {
