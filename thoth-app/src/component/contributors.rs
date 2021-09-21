@@ -3,9 +3,9 @@ use crate::models::contributor::contributors_query::ContributorsRequestBody;
 use crate::models::contributor::contributors_query::FetchActionContributors;
 use crate::models::contributor::contributors_query::FetchContributors;
 use crate::models::contributor::contributors_query::Variables;
-use thoth_api::contributor::model::Contributor;
-use thoth_api::contributor::model::ContributorField;
-use thoth_api::contributor::model::ContributorOrderBy;
+use thoth_api::model::contributor::Contributor;
+use thoth_api::model::contributor::ContributorField;
+use thoth_api::model::contributor::ContributorOrderBy;
 
 pagination_component! {
     ContributorsComponent,

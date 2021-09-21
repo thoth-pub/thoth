@@ -19,7 +19,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::contribution::model::Contribution_type;
+    use crate::model::contribution::Contribution_type;
 
     contribution (contribution_id) {
         contribution_id -> Uuid,
@@ -182,8 +182,8 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::language::model::Language_relation;
-    use crate::language::model::Language_code;
+    use crate::model::language::Language_relation;
+    use crate::model::language::Language_code;
 
     language (language_id) {
         language_id -> Uuid,
@@ -210,7 +210,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::price::model::Currency_code;
+    use crate::model::price::Currency_code;
 
     price (price_id) {
         price_id -> Uuid,
@@ -236,7 +236,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::publication::model::Publication_type;
+    use crate::model::publication::Publication_type;
 
     publication (publication_id) {
         publication_id -> Uuid,
@@ -300,7 +300,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::series::model::Series_type;
+    use crate::model::series::Series_type;
 
     series (series_id) {
         series_id -> Uuid,
@@ -329,7 +329,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::subject::model::Subject_type;
+    use crate::model::subject::Subject_type;
 
     subject (subject_id) {
         subject_id -> Uuid,
@@ -356,8 +356,8 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::work::model::Work_type;
-    use crate::work::model::Work_status;
+    use crate::model::work::Work_type;
+    use crate::model::work::Work_status;
 
     work (work_id) {
         work_id -> Uuid,

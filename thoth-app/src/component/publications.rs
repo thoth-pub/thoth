@@ -3,9 +3,9 @@ use crate::models::publication::publications_query::FetchPublications;
 use crate::models::publication::publications_query::PublicationsRequest;
 use crate::models::publication::publications_query::PublicationsRequestBody;
 use crate::models::publication::publications_query::Variables;
-use thoth_api::publication::model::PublicationField;
-use thoth_api::publication::model::PublicationOrderBy;
-use thoth_api::publication::model::PublicationWithRelations;
+use thoth_api::model::publication::PublicationField;
+use thoth_api::model::publication::PublicationOrderBy;
+use thoth_api::model::publication::PublicationWithRelations;
 
 pagination_component! {
     PublicationsComponent,

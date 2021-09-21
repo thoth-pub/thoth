@@ -1,5 +1,5 @@
-use thoth_api::funder::model::Funder;
-use thoth_api::funding::model::FundingWithFunder;
+use thoth_api::model::funder::Funder;
+use thoth_api::model::funding::FundingWithFunder;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;

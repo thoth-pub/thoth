@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::imprint::model::ImprintWithPublisher;
+use thoth_api::model::imprint::ImprintWithPublisher;
+use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::LengthUnit;
-use thoth_api::work::model::WorkWithRelations;
 use uuid::Uuid;
 
 use super::LengthUnitDefinition;

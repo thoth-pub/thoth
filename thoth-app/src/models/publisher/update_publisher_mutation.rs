@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::publisher::model::Publisher;
+use thoth_api::model::publisher::Publisher;
 use uuid::Uuid;
 
 const UPDATE_PUBLISHER_MUTATION: &str = "

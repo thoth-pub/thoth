@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::series::model::SeriesOrderBy;
-use thoth_api::series::model::SeriesWithImprint;
+use thoth_api::model::series::SeriesOrderBy;
+use thoth_api::model::series::SeriesWithImprint;
 
 pub const SERIESES_QUERY: &str = "
     query SeriesesQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: SeriesOrderBy) {
