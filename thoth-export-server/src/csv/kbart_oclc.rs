@@ -175,7 +175,7 @@ mod tests {
     use super::*;
     use crate::record::DELIMITER_TAB;
     use csv::QuoteStyle;
-    use lazy_static::lazy_static;
+    use std::fmt;
     use std::str::FromStr;
     use thoth_api::model::Doi;
     use thoth_api::model::Isbn;
@@ -187,8 +187,50 @@ mod tests {
     };
     use uuid::Uuid;
 
-    lazy_static! {
-        static ref TEST_WORK: Work = Work {
+    struct TestResult {
+        headers: String,
+        title: String,
+        print_identifier: String,
+        online_identifier: String,
+        title_url: String,
+        first_author: String,
+        title_id: String,
+        publisher_name: String,
+        publication_type: String,
+        date_monograph_published_print: String,
+        date_monograph_published_online: String,
+        monograph_volume: String,
+        monograph_edition: String,
+        first_editor: String,
+        parent_publication_title_id: String,
+    }
+
+    impl fmt::Display for TestResult {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            writeln!(f,
+                "{}{}\t{}\t{}\t\t\t\t\t\t\t{}\t{}\t{}\t\tfulltext\t\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t\tF",
+                self.headers,
+                self.title,
+                self.print_identifier,
+                self.online_identifier,
+                self.title_url,
+                self.first_author,
+                self.title_id,
+                self.publisher_name,
+                self.publication_type,
+                self.date_monograph_published_print,
+                self.date_monograph_published_online,
+                self.monograph_volume,
+                self.monograph_edition,
+                self.first_editor,
+                self.parent_publication_title_id,
+            )
+        }
+    }
+
+    #[test]
+    fn test_kbart_oclc() {
+        let mut test_work: Work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
             full_title: "Book Title: Book Subtitle".to_string(),
@@ -202,7 +244,7 @@ mod tests {
             copyright_holder: "Author 1; Author 2".to_string(),
             short_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             long_abstract: Some(
-                "Lorem ipsum dolor sit amet, consectetur adipiscing elit".to_string()
+                "Lorem ipsum dolor sit amet, consectetur adipiscing elit".to_string(),
             ),
             general_note: None,
             place: Some("León, Spain".to_string()),
@@ -250,7 +292,7 @@ mod tests {
                         issn_digital: "3333-4444".to_string(),
                         series_url: None,
                     },
-                }
+                },
             ],
             contributions: vec![
                 WorkContributions {
@@ -264,7 +306,7 @@ mod tests {
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(
-                            Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()
+                            Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap(),
                         ),
                     },
                 },
@@ -279,14 +321,25 @@ mod tests {
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor { orcid: None },
                 },
+                WorkContributions {
+                    contribution_type: ContributionType::EDITOR,
+                    first_name: Some("Editor".to_string()),
+                    last_name: "FirstEd".to_string(),
+                    full_name: "Editor FirstEd".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    institution: None,
+                    contribution_ordinal: 3,
+                    contributor: WorkContributionsContributor { orcid: None },
+                },
             ],
             languages: vec![],
             publications: vec![
                 WorkPublications {
-                    publication_id: Uuid::from_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
-                    publication_type: PublicationType::PAPERBACK,
-                    publication_url: Some("https://www.book.com/paperback".to_string()),
-                    isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+                    publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
+                    publication_type: PublicationType::PDF,
+                    publication_url: Some("https://www.book.com/pdf".to_string()),
+                    isbn: Some(Isbn::from_str("978-1-56619-909-4").unwrap()),
                     prices: vec![],
                 },
                 WorkPublications {
@@ -297,10 +350,10 @@ mod tests {
                     prices: vec![],
                 },
                 WorkPublications {
-                    publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
-                    publication_type: PublicationType::PDF,
-                    publication_url: Some("https://www.book.com/pdf".to_string()),
-                    isbn: Some(Isbn::from_str("978-1-56619-909-4").unwrap()),
+                    publication_id: Uuid::from_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
+                    publication_type: PublicationType::PAPERBACK,
+                    publication_url: Some("https://www.book.com/paperback".to_string()),
+                    isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
                     prices: vec![],
                 },
                 WorkPublications {
@@ -321,15 +374,88 @@ mod tests {
             subjects: vec![],
             fundings: vec![],
         };
-    }
-
-    const TEST_RESULT: &str = "publication_title\tprint_identifier\tonline_identifier\tdate_first_issue_online\tnum_first_vol_online\tnum_first_issue_online\tdate_last_issue_online\tnum_last_vol_online\tnum_last_issue_online\ttitle_url\tfirst_author\ttitle_id\tembargo_info\tcoverage_depth\tnotes\tpublisher_name\tpublication_type\tdate_monograph_published_print\tdate_monograph_published_online\tmonograph_volume\tmonograph_edition\tfirst_editor\tparent_publication_title_id\tpreceding_publication_title_id\taccess_type\nBook Title: Separate Subtitle\t978-3-16-148410-0\t978-1-56619-909-4\t\t\t\t\t\t\thttps://www.book.com\tFirst\t10.00001/BOOK.0001\t\tfulltext\t\tOA Editions\tMonograph\t1999\t1999\t20\t1\t\t8765-4321\t\tF\n";
-
-    #[test]
-    fn test_kbart_oclc() {
+        let mut test_result = TestResult {
+            headers: "publication_title\tprint_identifier\tonline_identifier\tdate_first_issue_online\tnum_first_vol_online\tnum_first_issue_online\tdate_last_issue_online\tnum_last_vol_online\tnum_last_issue_online\ttitle_url\tfirst_author\ttitle_id\tembargo_info\tcoverage_depth\tnotes\tpublisher_name\tpublication_type\tdate_monograph_published_print\tdate_monograph_published_online\tmonograph_volume\tmonograph_edition\tfirst_editor\tparent_publication_title_id\tpreceding_publication_title_id\taccess_type\n".to_string(),
+            title: "Book Title: Separate Subtitle".to_string(),
+            print_identifier: "978-3-16-148410-0".to_string(),
+            online_identifier: "978-1-56619-909-4".to_string(),
+            title_url: "https://www.book.com".to_string(),
+            first_author: "First".to_string(),
+            title_id: "10.00001/BOOK.0001".to_string(),
+            publisher_name: "OA Editions".to_string(),
+            publication_type: "Monograph".to_string(),
+            date_monograph_published_print: "1999".to_string(),
+            date_monograph_published_online: "1999".to_string(),
+            monograph_volume: "20".to_string(),
+            monograph_edition: "1".to_string(),
+            first_editor: "".to_string(),
+            parent_publication_title_id: "8765-4321".to_string(),
+        };
         let to_test =
-            KbartOclc.generate(&[TEST_WORK.clone()], QuoteStyle::Necessary, DELIMITER_TAB);
+            KbartOclc.generate(&[test_work.clone()], QuoteStyle::Necessary, DELIMITER_TAB);
+        assert_eq!(to_test, Ok(test_result.to_string()));
 
-        assert_eq!(to_test, Ok(TEST_RESULT.to_string()))
+        // Remove subtitle: full title is used instead of title + subtitle
+        test_work.subtitle = None;
+        test_result.title = "Book Title: Book Subtitle".to_string();
+        // Remove DOI: no title_id
+        test_work.doi = None;
+        test_result.title_id = "".to_string();
+        // Remove paperback publication: date_monograph_published_print (for hardback)
+        // still appears, but no print_identifier (paperback ISBN) is present
+        test_work.publications.remove(2);
+        test_result.print_identifier = "".to_string();
+        // Make first-numbered author a non-main contributor:
+        // second-numbered author appears as first_author instead
+        test_work.contributions[0].main_contribution = false;
+        test_result.first_author = "Second".to_string();
+        // Make work a book set: publication_type becomes Serial
+        test_work.work_type = WorkType::BOOK_SET;
+        test_result.publication_type = "Serial".to_string();
+        let to_test =
+            KbartOclc.generate(&[test_work.clone()], QuoteStyle::Necessary, DELIMITER_TAB);
+        assert_eq!(to_test, Ok(test_result.to_string()));
+
+        // Remove hardback publication: no date_monograph_published_print
+        test_work.publications.remove(1);
+        test_result.date_monograph_published_print = "".to_string();
+        // Remove PDF publication's ISBN: no online_identifier
+        test_work.publications[0].isbn = None;
+        test_result.online_identifier = "".to_string();
+        // Make work an edited book: first_author becomes empty,
+        // first_editor lists first-numbered editor,
+        // publication_type reverts to Monograph
+        test_work.work_type = WorkType::EDITED_BOOK;
+        test_result.first_author = "".to_string();
+        test_result.first_editor = "FirstEd".to_string();
+        test_result.publication_type = "Monograph".to_string();
+        let to_test =
+            KbartOclc.generate(&[test_work.clone()], QuoteStyle::Necessary, DELIMITER_TAB);
+        assert_eq!(to_test, Ok(test_result.to_string()));
+
+        // Remove landing page: KBART fails to generate
+        test_work.landing_page = None;
+        let to_test =
+            KbartOclc.generate(&[test_work.clone()], QuoteStyle::Necessary, DELIMITER_TAB);
+        assert_eq!(
+            to_test,
+            Err(ThothError::IncompleteMetadataRecord(
+                "kbart::oclc".to_string(),
+                "Missing Landing Page".to_string(),
+            ))
+        );
+
+        // Reinstate landing page but remove publication date: ditto
+        test_work.landing_page = Some("https://www.book.com".to_string());
+        test_work.publication_date = None;
+        let to_test =
+            KbartOclc.generate(&[test_work.clone()], QuoteStyle::Necessary, DELIMITER_TAB);
+        assert_eq!(
+            to_test,
+            Err(ThothError::IncompleteMetadataRecord(
+                "kbart::oclc".to_string(),
+                "Missing Publication Date".to_string(),
+            ))
+        );
     }
 }
