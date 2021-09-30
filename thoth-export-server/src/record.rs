@@ -17,6 +17,8 @@ impl AsRecord for Vec<Work> {}
 
 pub const DELIMITER_COMMA: u8 = b',';
 pub const DELIMITER_TAB: u8 = b'\t';
+pub const XML_DECLARATION: &str = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
+pub const DOCTYPE_ONIX21_REF: &str = "<!DOCTYPE ONIXMessage SYSTEM \"http://www.editeur.org/onix/2.1/reference/onix-international.dtd\">\n";
 
 pub(crate) enum MetadataSpecification {
     Onix3ProjectMuse(Onix3ProjectMuse),
@@ -101,10 +103,14 @@ impl MetadataRecord<Vec<Work>> {
     fn generate(&self) -> ThothResult<String> {
         match &self.specification {
             MetadataSpecification::Onix3ProjectMuse(onix3_project_muse) => {
-                onix3_project_muse.generate(&self.data)
+                onix3_project_muse.generate(&self.data, None)
             }
-            MetadataSpecification::Onix3Oapen(onix3_oapen) => onix3_oapen.generate(&self.data),
-            MetadataSpecification::Onix21Ebsco(onix21_ebsco) => onix21_ebsco.generate(&self.data),
+            MetadataSpecification::Onix3Oapen(onix3_oapen) => {
+                onix3_oapen.generate(&self.data, None)
+            }
+            MetadataSpecification::Onix21Ebsco(onix21_ebsco) => {
+                onix21_ebsco.generate(&self.data, Some(DOCTYPE_ONIX21_REF))
+            }
             MetadataSpecification::CsvThoth(csv_thoth) => {
                 csv_thoth.generate(&self.data, QuoteStyle::Always, DELIMITER_COMMA)
             }

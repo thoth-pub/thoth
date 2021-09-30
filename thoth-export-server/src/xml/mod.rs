@@ -1,3 +1,4 @@
+use crate::record::XML_DECLARATION;
 use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::Work;
@@ -42,9 +43,12 @@ pub(crate) fn write_full_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> T
 }
 
 pub(crate) trait XmlSpecification {
-    fn generate(&self, works: &[Work]) -> ThothResult<String> {
-        let mut buffer = Vec::new();
+    fn generate(&self, works: &[Work], doctype: Option<&str>) -> ThothResult<String> {
+        let mut buffer = format!("{}{}", XML_DECLARATION, doctype.unwrap_or_default())
+            .as_bytes()
+            .to_vec();
         let mut writer = EmitterConfig::new()
+            .write_document_declaration(false)
             .perform_indent(true)
             .create_writer(&mut buffer);
         Self::handle_event(&mut writer, works)

@@ -15,12 +15,7 @@ pub struct Onix21Ebsco {}
 
 impl XmlSpecification for Onix21Ebsco {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
-        let mut attr_map: HashMap<&str, &str> = HashMap::new();
-
-        attr_map.insert("release", "2.1");
-        attr_map.insert("xmlns", "http://ns.editeur.org/onix/2.1/reference");
-
-        write_full_element_block("ONIXMessage", None, Some(attr_map), w, |w| {
+        write_full_element_block("ONIXMessage", None, None, w, |w| {
             write_element_block("Header", w, |w| {
                 write_element_block("FromCompany", w, |w| {
                     w.write(XmlEvent::Characters("Thoth")).map_err(|e| e.into())
@@ -118,9 +113,27 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
                 write_element_block("ProductForm", w, |w| {
                     w.write(XmlEvent::Characters("DG")).map_err(|e| e.into())
                 })?;
-                // 000 Epublication 'content package'
                 write_element_block("EpubType", w, |w| {
-                    w.write(XmlEvent::Characters("000")).map_err(|e| e.into())
+                    // 000 Epublication 'content package'
+                    let mut epub_type = "000";
+                    // EBSCO preference is to specify PDF/EPUB where possible
+                    if self
+                        .publications
+                        .iter()
+                        .any(|p| p.publication_type.eq(&PublicationType::PDF))
+                    {
+                        // 002 PDF
+                        epub_type = "002";
+                    } else if self
+                        .publications
+                        .iter()
+                        .any(|p| p.publication_type.eq(&PublicationType::EPUB))
+                    {
+                        // 029 EPUB
+                        epub_type = "029";
+                    }
+                    w.write(XmlEvent::Characters(epub_type))
+                        .map_err(|e| e.into())
                 })?;
                 for issue in &self.issues {
                     XmlElementBlock::<Onix21Ebsco>::xml_element(issue, w).ok();
@@ -308,6 +321,15 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
                             .map_err(|e| e.into())
                     })?;
                 }
+                write_element_block("SalesRights", w, |w| {
+                    // 02 For sale with non-exclusive rights in the specified countries or territories
+                    write_element_block("SalesRightsType", w, |w| {
+                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("RightsTerritory", w, |w| {
+                        w.write(XmlEvent::Characters("WORLD")).map_err(|e| e.into())
+                    })
+                })?;
                 if !isbns.is_empty() {
                     for isbn in &isbns {
                         write_element_block("RelatedProduct", w, |w| {
@@ -468,9 +490,13 @@ impl XmlElementBlock<Onix21Ebsco> for WorkContributions {
             XmlElement::<Onix21Ebsco>::xml_element(&self.contribution_type, w)?;
 
             if let Some(orcid) = &self.contributor.orcid {
-                write_element_block("NameIdentifier", w, |w| {
-                    write_element_block("NameIDType", w, |w| {
-                        w.write(XmlEvent::Characters("21")).map_err(|e| e.into())
+                write_element_block("PersonNameIdentifier", w, |w| {
+                    // 01 Proprietary
+                    write_element_block("PersonNameIDType", w, |w| {
+                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDTypeName", w, |w| {
+                        w.write(XmlEvent::Characters("ORCID")).map_err(|e| e.into())
                     })?;
                     write_element_block("IDValue", w, |w| {
                         w.write(XmlEvent::Characters(&orcid.to_string()))
@@ -602,10 +628,11 @@ mod tests {
         let output = generate_test_output(&test_contribution);
         assert!(output.contains(r#"  <SequenceNumber>1</SequenceNumber>"#));
         assert!(output.contains(r#"  <ContributorRole>A01</ContributorRole>"#));
-        assert!(output.contains(r#"  <NameIdentifier>"#));
-        assert!(output.contains(r#"    <NameIDType>21</NameIDType>"#));
+        assert!(output.contains(r#"  <PersonNameIdentifier>"#));
+        assert!(output.contains(r#"    <PersonNameIDType>01</PersonNameIDType>"#));
+        assert!(output.contains(r#"    <IDTypeName>ORCID</IDTypeName>"#));
         assert!(output.contains(r#"    <IDValue>0000-0002-0000-0001</IDValue>"#));
-        assert!(output.contains(r#"  </NameIdentifier>"#));
+        assert!(output.contains(r#"  </PersonNameIdentifier>"#));
         // Given name is output as NamesBeforeKey and family name as KeyNames
         assert!(output.contains(r#"  <NamesBeforeKey>Author</NamesBeforeKey>"#));
         assert!(output.contains(r#"  <KeyNames>1</KeyNames>"#));
@@ -621,10 +648,11 @@ mod tests {
         assert!(output.contains(r#"  <SequenceNumber>2</SequenceNumber>"#));
         assert!(output.contains(r#"  <ContributorRole>B01</ContributorRole>"#));
         // No ORCID supplied
-        assert!(!output.contains(r#"  <NameIdentifier>"#));
-        assert!(!output.contains(r#"    <NameIDType>21</NameIDType>"#));
+        assert!(!output.contains(r#"  <PersonNameIdentifier>"#));
+        assert!(!output.contains(r#"    <PersonNameIDType>01</PersonNameIDType>"#));
+        assert!(!output.contains(r#"    <IDTypeName>ORCID</IDTypeName>"#));
         assert!(!output.contains(r#"    <IDValue>0000-0002-0000-0001</IDValue>"#));
-        assert!(!output.contains(r#"  </NameIdentifier>"#));
+        assert!(!output.contains(r#"  </PersonNameIdentifier>"#));
         // No given name supplied, so PersonName is output instead of KeyNames and NamesBeforeKey
         assert!(!output.contains(r#"  <NamesBeforeKey>Author</NamesBeforeKey>"#));
         assert!(!output.contains(r#"  <KeyNames>1</KeyNames>"#));
@@ -861,7 +889,7 @@ mod tests {
         assert!(output.contains(r#"    <ProductIDType>06</ProductIDType>"#));
         assert!(output.contains(r#"    <IDValue>10.00001/BOOK.0001</IDValue>"#));
         assert!(output.contains(r#"  <ProductForm>DG</ProductForm>"#));
-        assert!(output.contains(r#"  <EpubType>000</EpubType>"#));
+        assert!(output.contains(r#"  <EpubType>002</EpubType>"#));
         assert!(output.contains(r#"  <Title>"#));
         assert!(output.contains(r#"    <TitleType>01</TitleType>"#));
         assert!(output.contains(r#"    <TitleText>Book Title</TitleText>"#));
@@ -906,6 +934,9 @@ mod tests {
         assert!(output.contains(r#"  <PublishingStatus>04</PublishingStatus>"#));
         assert!(output.contains(r#"  <PublicationDate>19991231</PublicationDate>"#));
         assert!(output.contains(r#"  <CopyrightYear>1999</CopyrightYear>"#));
+        assert!(output.contains(r#"  <SalesRights>"#));
+        assert!(output.contains(r#"    <SalesRightsType>02</SalesRightsType>"#));
+        assert!(output.contains(r#"    <RightsTerritory>WORLD</RightsTerritory>"#));
         assert!(output.contains(r#"  <RelatedProduct>"#));
         assert!(output.contains(r#"    <RelationCode>06</RelationCode>"#));
         assert!(output.contains(r#"    <ProductIdentifier>"#));
