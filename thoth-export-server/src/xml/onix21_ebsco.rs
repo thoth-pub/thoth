@@ -53,18 +53,19 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         let work_id = format!("urn:uuid:{}", self.work_id.to_string());
         let (main_isbn, isbns) = get_publications_data(&self.publications);
-        // We can only generate the document if there's a paperback price (USD)
-        if let Some(pb_price) = self
+        // We only submit PDFs and EPUBs to EBSCO Host, so don't
+        // generate ONIX for works which do not have either
+        let pdf_url = self
             .publications
             .iter()
-            .find(|p| p.publication_type.eq(&PublicationType::PAPERBACK))
-            .and_then(|p| {
-                p.prices
-                    .iter()
-                    .find(|pr| pr.currency_code.eq(&CurrencyCode::USD))
-                    .map(|pr| pr.unit_price)
-            })
-        {
+            .find(|p| p.publication_type.eq(&PublicationType::PDF))
+            .and_then(|p| p.publication_url.as_ref());
+        let epub_url = self
+            .publications
+            .iter()
+            .find(|p| p.publication_type.eq(&PublicationType::EPUB))
+            .and_then(|p| p.publication_url.as_ref());
+        if pdf_url.is_some() || epub_url.is_some() {
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
                     w.write(XmlEvent::Characters(&work_id))
@@ -114,21 +115,10 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
                     w.write(XmlEvent::Characters("DG")).map_err(|e| e.into())
                 })?;
                 write_element_block("EpubType", w, |w| {
-                    // 000 Epublication 'content package'
-                    let mut epub_type = "000";
-                    // EBSCO preference is to specify PDF/EPUB where possible
-                    if self
-                        .publications
-                        .iter()
-                        .any(|p| p.publication_type.eq(&PublicationType::PDF))
-                    {
-                        // 002 PDF
-                        epub_type = "002";
-                    } else if self
-                        .publications
-                        .iter()
-                        .any(|p| p.publication_type.eq(&PublicationType::EPUB))
-                    {
+                    // 002 PDF
+                    let mut epub_type = "002";
+                    // We definitely have either a PDF URL or an EPUB URL (or both)
+                    if pdf_url.is_none() {
                         // 029 EPUB
                         epub_type = "029";
                     }
@@ -174,14 +164,18 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
                     })
                 })?;
                 let mut websites: HashMap<String, (String, String)> = HashMap::new();
-                if let Some(pdf_url) = self
-                    .publications
-                    .iter()
-                    .find(|p| p.publication_type.eq(&PublicationType::PDF))
-                    .and_then(|p| p.publication_url.as_ref())
-                {
+                if let Some(pdf) = pdf_url {
                     websites.insert(
-                        pdf_url.to_string(),
+                        pdf.to_string(),
+                        (
+                            "29".to_string(),
+                            "Publisher's website: download the title".to_string(),
+                        ),
+                    );
+                }
+                if let Some(epub) = epub_url {
+                    websites.insert(
+                        epub.to_string(),
                         (
                             "29".to_string(),
                             "Publisher's website: download the title".to_string(),
@@ -248,6 +242,29 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
                         w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
                     })
                 })?;
+                write_element_block("OtherText", w, |w| {
+                    // 47 Open access statement
+                    // "Should always be accompanied by a link to the complete license (see code 46)"
+                    // (not specified as required by EBSCO Host themselves)
+                    write_element_block("TextTypeCode", w, |w| {
+                        w.write(XmlEvent::Characters("47")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("Text", w, |w| {
+                        w.write(XmlEvent::Characters("Open access - no commercial use"))
+                            .map_err(|e| e.into())
+                    })
+                })?;
+                if let Some(license) = &self.license {
+                    write_element_block("OtherText", w, |w| {
+                        // 46 License
+                        write_element_block("TextTypeCode", w, |w| {
+                            w.write(XmlEvent::Characters("46")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("Text", w, |w| {
+                            w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
+                        })
+                    })?;
+                }
                 if let Some(labstract) = &self.long_abstract {
                     write_element_block("OtherText", w, |w| {
                         // 03 Long description
@@ -258,7 +275,7 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
                         write_element_block("TextFormat", w, |w| {
                             w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
                         })?;
-                        write_full_element_block("Text", None, None, w, |w| {
+                        write_element_block("Text", w, |w| {
                             w.write(XmlEvent::Characters(labstract))
                                 .map_err(|e| e.into())
                         })
@@ -362,13 +379,48 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
                     write_element_block("ProductAvailability", w, |w| {
                         w.write(XmlEvent::Characters("99")).map_err(|e| e.into())
                     })?;
+                    // R Restrictions apply, see note
+                    write_element_block("AudienceRestrictionFlag", w, |w| {
+                        w.write(XmlEvent::Characters("R")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("AudienceRestrictionNote", w, |w| {
+                        w.write(XmlEvent::Characters("Open access"))
+                            .map_err(|e| e.into())
+                    })?;
+                    // Works are distributed to EBSCO Host as combined PDF/EPUB
+                    // "digital bundles" - PDF and EPUB may have different prices
+                    // so give the higher of the two. If both are free, EBSCO Host
+                    // request a price point of "0.01 USD" for Open Access titles.
+                    let pdf_price = self
+                        .publications
+                        .iter()
+                        .find(|p| p.publication_type.eq(&PublicationType::PDF))
+                        .and_then(|p| {
+                            p.prices
+                                .iter()
+                                .find(|pr| pr.currency_code.eq(&CurrencyCode::USD))
+                                .map(|pr| pr.unit_price)
+                        })
+                        .unwrap_or_default();
+                    let epub_price = self
+                        .publications
+                        .iter()
+                        .find(|p| p.publication_type.eq(&PublicationType::EPUB))
+                        .and_then(|p| {
+                            p.prices
+                                .iter()
+                                .find(|pr| pr.currency_code.eq(&CurrencyCode::USD))
+                                .map(|pr| pr.unit_price)
+                        })
+                        .unwrap_or_default();
+                    let bundle_price = pdf_price.max(epub_price.max(0.01));
                     write_element_block("Price", w, |w| {
                         // 02 RRP including tax
                         write_element_block("PriceTypeCode", w, |w| {
                             w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
                         })?;
                         write_element_block("PriceAmount", w, |w| {
-                            w.write(XmlEvent::Characters(&pb_price.to_string()))
+                            w.write(XmlEvent::Characters(&bundle_price.to_string()))
                                 .map_err(|e| e.into())
                         })?;
                         write_element_block("CurrencyCode", w, |w| {
@@ -380,7 +432,7 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
         } else {
             Err(ThothError::IncompleteMetadataRecord(
                 "onix_2.1::ebsco".to_string(),
-                "Missing paperback price".to_string(),
+                "No PDF or EPUB URL".to_string(),
             ))
         }
     }
@@ -842,30 +894,30 @@ mod tests {
             publications: vec![
                 WorkPublications {
                     publication_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
-                    publication_type: PublicationType::PAPERBACK,
-                    publication_url: Some("https://www.book.com/paperback".to_string()),
+                    publication_type: PublicationType::EPUB,
+                    publication_url: Some("https://www.book.com/epub".to_string()),
                     isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
-                    prices: vec![
-                        WorkPublicationsPrices {
-                            currency_code: CurrencyCode::EUR,
-                            unit_price: 25.95,
-                        },
-                        WorkPublicationsPrices {
-                            currency_code: CurrencyCode::GBP,
-                            unit_price: 22.95,
-                        },
-                        WorkPublicationsPrices {
-                            currency_code: CurrencyCode::USD,
-                            unit_price: 31.95,
-                        },
-                    ],
+                    prices: vec![],
                 },
                 WorkPublications {
                     publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
                     publication_type: PublicationType::PDF,
                     publication_url: Some("https://www.book.com/pdf".to_string()),
                     isbn: Some(Isbn::from_str("978-1-56619-909-4").unwrap()),
-                    prices: vec![],
+                    prices: vec![
+                        WorkPublicationsPrices {
+                            currency_code: CurrencyCode::EUR,
+                            unit_price: 5.95,
+                        },
+                        WorkPublicationsPrices {
+                            currency_code: CurrencyCode::GBP,
+                            unit_price: 4.95,
+                        },
+                        WorkPublicationsPrices {
+                            currency_code: CurrencyCode::USD,
+                            unit_price: 7.99,
+                        },
+                    ],
                 },
             ],
             subjects: vec![],
@@ -907,6 +959,7 @@ mod tests {
         assert!(output.contains(r#"    <WebsiteLink>https://www.book.com</WebsiteLink>"#));
         assert!(output.contains(r#"    <WebsiteRole>29</WebsiteRole>"#));
         assert!(output.contains(r#"    <WebsiteDescription>Publisher's website: download the title</WebsiteDescription>"#));
+        assert!(output.contains(r#"    <WebsiteLink>https://www.book.com/epub</WebsiteLink>"#));
         assert!(output.contains(r#"    <WebsiteLink>https://www.book.com/pdf</WebsiteLink>"#));
         assert!(output.contains(r#"  <Extent>"#));
         assert!(output.contains(r#"    <ExtentType>00</ExtentType>"#));
@@ -916,6 +969,10 @@ mod tests {
         assert!(output.contains(r#"    <AudienceCodeType>01</AudienceCodeType>"#));
         assert!(output.contains(r#"    <AudienceCodeValue>06</AudienceCodeValue>"#));
         assert!(output.contains(r#"  <OtherText>"#));
+        assert!(output.contains(r#"    <TextTypeCode>47</TextTypeCode>"#));
+        assert!(output.contains(r#"    <Text>Open access - no commercial use</Text>"#));
+        assert!(output.contains(r#"    <TextTypeCode>46</TextTypeCode>"#));
+        assert!(output.contains(r#"    <Text>https://creativecommons.org/licenses/by/4.0/</Text>"#));
         assert!(output.contains(r#"    <TextTypeCode>03</TextTypeCode>"#));
         assert!(output.contains(r#"    <TextFormat>06</TextFormat>"#));
         assert!(output.contains(r#"    <Text>Lorem ipsum dolor sit amet</Text>"#));
@@ -947,9 +1004,12 @@ mod tests {
         assert!(output.contains(r#"    <SupplierName>OA Editions</SupplierName>"#));
         assert!(output.contains(r#"    <SupplierRole>09</SupplierRole>"#));
         assert!(output.contains(r#"    <ProductAvailability>99</ProductAvailability>"#));
+        assert!(output.contains(r#"    <AudienceRestrictionFlag>R</AudienceRestrictionFlag>"#));
+        assert!(output
+            .contains(r#"    <AudienceRestrictionNote>Open access</AudienceRestrictionNote>"#));
         assert!(output.contains(r#"    <Price>"#));
         assert!(output.contains(r#"      <PriceTypeCode>02</PriceTypeCode>"#));
-        assert!(output.contains(r#"      <PriceAmount>31.95</PriceAmount>"#));
+        assert!(output.contains(r#"      <PriceAmount>7.99</PriceAmount>"#));
         assert!(output.contains(r#"      <CurrencyCode>USD</CurrencyCode>"#));
 
         // Remove some values to test non-output of optional blocks
@@ -960,6 +1020,7 @@ mod tests {
         test_work.long_abstract = None;
         test_work.place = None;
         test_work.publication_date = None;
+        test_work.license = None;
         test_work.landing_page = None;
         test_work.cover_url = None;
         test_work.imprint.publisher.publisher_url = None;
@@ -978,21 +1039,26 @@ mod tests {
             r#"    <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
         assert!(!output.contains(r#"    <WebsiteLink>https://www.book.com</WebsiteLink>"#));
-        // PDF publication removed, hence no PDF URL supplied (and no PDF RelatedProduct)
-        assert!(!output.contains(r#"    <WebsiteRole>29</WebsiteRole>"#));
-        assert!(!output.contains(r#"    <WebsiteDescription>Publisher's website: download the title</WebsiteDescription>"#));
+        // PDF publication removed, hence no PDF URL,
+        // no PDF RelatedProduct, and EpubType changes
         assert!(!output.contains(r#"    <WebsiteLink>https://www.book.com/pdf</WebsiteLink>"#));
         assert!(!output.contains(r#"      <IDValue>9781566199094</IDValue>"#));
+        assert!(!output.contains(r#"  <EpubType>002</EpubType>"#));
+        assert!(output.contains(r#"  <EpubType>029</EpubType>"#));
         // No page count supplied
         assert!(!output.contains(r#"  <Extent>"#));
         assert!(!output.contains(r#"    <ExtentType>00</ExtentType>"#));
         assert!(!output.contains(r#"    <ExtentValue>334</ExtentValue>"#));
         assert!(!output.contains(r#"    <ExtentUnit>03</ExtentUnit>"#));
         // No long abstract supplied
-        assert!(!output.contains(r#"  <OtherText>"#));
         assert!(!output.contains(r#"    <TextTypeCode>03</TextTypeCode>"#));
         assert!(!output.contains(r#"    <TextFormat>06</TextFormat>"#));
         assert!(!output.contains(r#"    <Text>Lorem ipsum dolor sit amet</Text>"#));
+        // No licence supplied
+        assert!(!output.contains(r#"    <TextTypeCode>46</TextTypeCode>"#));
+        assert!(
+            !output.contains(r#"    <Text>https://creativecommons.org/licenses/by/4.0/</Text>"#)
+        );
         // No cover URL supplied
         assert!(!output.contains(r#"  <MediaFile>"#));
         assert!(!output.contains(r#"    <MediaFileTypeCode>04</MediaFileTypeCode>"#));
@@ -1008,10 +1074,11 @@ mod tests {
         // No publication date supplied
         assert!(!output.contains(r#"  <PublicationDate>19991231</PublicationDate>"#));
         assert!(!output.contains(r#"  <CopyrightYear>1999</CopyrightYear>"#));
+        // No PDF or EPUB price supplied, so default of 0.01 USD is used
+        assert!(output.contains(r#"      <PriceAmount>0.01</PriceAmount>"#));
 
-        // Remove the prices from the first (only) publication, which is the paperback
-        // Result: error (can't generate EBSCO ONIX without USD paperback price)
-        test_work.publications[0].prices.clear();
+        // Remove the remaining (EPUB) publication's URL: error
+        test_work.publications[0].publication_url = None;
         // Can't use helper function for this as it assumes Ok rather than Err
         let mut buffer = Vec::new();
         let mut writer = xml::writer::EmitterConfig::new()
@@ -1027,7 +1094,7 @@ mod tests {
         let output = wrapped_output.unwrap_err().to_string();
         assert_eq!(
             output,
-            "Could not generate onix_2.1::ebsco: Missing paperback price".to_string()
+            "Could not generate onix_2.1::ebsco: No PDF or EPUB URL".to_string()
         );
     }
 }
