@@ -10,7 +10,7 @@ use thoth_client::Work;
 use thoth_errors::{ThothError, ThothResult};
 
 use crate::csv::{CsvSpecification, CsvThoth, KbartOclc};
-use crate::xml::{Onix21Ebsco, Onix3Oapen, Onix3ProjectMuse, XmlSpecification};
+use crate::xml::{Onix21Ebsco, Onix3Jstor, Onix3Oapen, Onix3ProjectMuse, XmlSpecification};
 
 pub(crate) trait AsRecord {}
 impl AsRecord for Vec<Work> {}
@@ -23,6 +23,7 @@ pub const DOCTYPE_ONIX21_REF: &str = "<!DOCTYPE ONIXMessage SYSTEM \"http://www.
 pub(crate) enum MetadataSpecification {
     Onix3ProjectMuse(Onix3ProjectMuse),
     Onix3Oapen(Onix3Oapen),
+    Onix3Jstor(Onix3Jstor),
     Onix21Ebsco(Onix21Ebsco),
     CsvThoth(CsvThoth),
     KbartOclc(KbartOclc),
@@ -57,6 +58,7 @@ where
         match &self.specification {
             MetadataSpecification::Onix3ProjectMuse(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Onix3Oapen(_) => Self::XML_MIME_TYPE,
+            MetadataSpecification::Onix3Jstor(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Onix21Ebsco(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::CsvThoth(_) => Self::CSV_MIME_TYPE,
             MetadataSpecification::KbartOclc(_) => Self::TXT_MIME_TYPE,
@@ -67,6 +69,7 @@ where
         match &self.specification {
             MetadataSpecification::Onix3ProjectMuse(_) => self.xml_file_name(),
             MetadataSpecification::Onix3Oapen(_) => self.xml_file_name(),
+            MetadataSpecification::Onix3Jstor(_) => self.xml_file_name(),
             MetadataSpecification::Onix21Ebsco(_) => self.xml_file_name(),
             MetadataSpecification::CsvThoth(_) => self.csv_file_name(),
             MetadataSpecification::KbartOclc(_) => self.txt_file_name(),
@@ -107,6 +110,9 @@ impl MetadataRecord<Vec<Work>> {
             }
             MetadataSpecification::Onix3Oapen(onix3_oapen) => {
                 onix3_oapen.generate(&self.data, None)
+            }
+            MetadataSpecification::Onix3Jstor(onix3_jstor) => {
+                onix3_jstor.generate(&self.data, None)
             }
             MetadataSpecification::Onix21Ebsco(onix21_ebsco) => {
                 onix21_ebsco.generate(&self.data, Some(DOCTYPE_ONIX21_REF))
@@ -167,6 +173,7 @@ impl FromStr for MetadataSpecification {
                 Ok(MetadataSpecification::Onix3ProjectMuse(Onix3ProjectMuse {}))
             }
             "onix_3.0::oapen" => Ok(MetadataSpecification::Onix3Oapen(Onix3Oapen {})),
+            "onix_3.0::jstor" => Ok(MetadataSpecification::Onix3Jstor(Onix3Jstor {})),
             "onix_2.1::ebsco" => Ok(MetadataSpecification::Onix21Ebsco(Onix21Ebsco {})),
             "csv::thoth" => Ok(MetadataSpecification::CsvThoth(CsvThoth {})),
             "kbart::oclc" => Ok(MetadataSpecification::KbartOclc(KbartOclc {})),
@@ -180,6 +187,7 @@ impl ToString for MetadataSpecification {
         match self {
             MetadataSpecification::Onix3ProjectMuse(_) => "onix_3.0::project_muse".to_string(),
             MetadataSpecification::Onix3Oapen(_) => "onix_3.0::oapen".to_string(),
+            MetadataSpecification::Onix3Jstor(_) => "onix_3.0::jstor".to_string(),
             MetadataSpecification::Onix21Ebsco(_) => "onix_2.1::ebsco".to_string(),
             MetadataSpecification::CsvThoth(_) => "csv::thoth".to_string(),
             MetadataSpecification::KbartOclc(_) => "kbart::oclc".to_string(),
@@ -228,6 +236,15 @@ mod tests {
         assert_eq!(
             to_test.file_name(),
             "onix_3.0__oapen__some_id.xml".to_string()
+        );
+        let to_test = MetadataRecord::new(
+            "some_id".to_string(),
+            MetadataSpecification::Onix3Jstor(Onix3Jstor {}),
+            vec![],
+        );
+        assert_eq!(
+            to_test.file_name(),
+            "onix_3.0__jstor__some_id.xml".to_string()
         );
         let to_test = MetadataRecord::new(
             "some_id".to_string(),

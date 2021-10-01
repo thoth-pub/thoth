@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::publication::model::PublicationOrderBy;
-use thoth_api::publication::model::PublicationWithRelations;
+use thoth_api::model::publication::PublicationOrderBy;
+use thoth_api::model::publication::PublicationWithRelations;
 
 pub const PUBLICATIONS_QUERY: &str = "
     query PublicationsQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: PublicationOrderBy) {

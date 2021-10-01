@@ -1,4 +1,4 @@
-use thoth_api::contributor::model::Contributor;
+use thoth_api::model::contributor::Contributor;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;

@@ -1,6 +1,6 @@
 use thoth_api::account::model::AccountDetails;
-use thoth_api::issue::model::IssueWithSeries;
-use thoth_api::series::model::SeriesWithImprint;
+use thoth_api::model::issue::IssueWithSeries;
+use thoth_api::model::series::SeriesWithImprint;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;

@@ -3,9 +3,9 @@ use crate::models::funder::funders_query::FetchFunders;
 use crate::models::funder::funders_query::FundersRequest;
 use crate::models::funder::funders_query::FundersRequestBody;
 use crate::models::funder::funders_query::Variables;
-use thoth_api::funder::model::Funder;
-use thoth_api::funder::model::FunderField;
-use thoth_api::funder::model::FunderOrderBy;
+use thoth_api::model::funder::Funder;
+use thoth_api::model::funder::FunderField;
+use thoth_api::model::funder::FunderOrderBy;
 
 pagination_component! {
     FundersComponent,

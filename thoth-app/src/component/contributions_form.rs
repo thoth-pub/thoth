@@ -1,7 +1,7 @@
 use std::str::FromStr;
-use thoth_api::contribution::model::Contribution;
-use thoth_api::contribution::model::ContributionType;
-use thoth_api::contributor::model::Contributor;
+use thoth_api::model::contribution::Contribution;
+use thoth_api::model::contribution::ContributionType;
+use thoth_api::model::contributor::Contributor;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;

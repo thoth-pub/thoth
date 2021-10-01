@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::series::model::Series;
-use thoth_api::series::model::SeriesType;
-use thoth_api::series::model::SeriesWithImprint;
+use thoth_api::model::series::Series;
+use thoth_api::model::series::SeriesType;
+use thoth_api::model::series::SeriesWithImprint;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;

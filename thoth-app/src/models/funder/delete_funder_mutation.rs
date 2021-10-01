@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::funder::model::Funder;
+use thoth_api::model::funder::Funder;
 use uuid::Uuid;
 
 const DELETE_FUNDER_MUTATION: &str = "

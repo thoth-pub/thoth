@@ -311,7 +311,7 @@ where
 /// -------------
 ///
 /// ```ignore
-/// use crate::imprint::model::{NewImprint, PatchImprint, Imprint, NewImprintHistory};
+/// use crate::model::imprint::{NewImprint, PatchImprint, Imprint, NewImprintHistory};
 /// use crate::crud_methods;
 /// use crate::model::Crud;
 ///
@@ -399,7 +399,7 @@ macro_rules! crud_methods {
 /// -------------
 ///
 /// ```ignore
-/// use crate::imprint::model::{ImprintHistory, NewImprintHistory};
+/// use crate::model::imprint::{ImprintHistory, NewImprintHistory};
 /// use crate::db_insert;
 /// use crate::model::DbInsert;
 ///
@@ -728,3 +728,17 @@ fn test_convert_units_from_to() {
         190.0
     );
 }
+
+pub mod contribution;
+pub mod contributor;
+pub mod funder;
+pub mod funding;
+pub mod imprint;
+pub mod issue;
+pub mod language;
+pub mod price;
+pub mod publication;
+pub mod publisher;
+pub mod series;
+pub mod subject;
+pub mod work;

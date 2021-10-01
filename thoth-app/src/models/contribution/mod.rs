@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::contribution::model::Contribution;
-use thoth_api::contribution::model::ContributionType;
+use thoth_api::model::contribution::Contribution;
+use thoth_api::model::contribution::ContributionType;
 use yew::prelude::html;
 use yew::Html;
 
