@@ -26,8 +26,8 @@ lazy_static! {
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/jstor"),],
         },
         Specification {
-            id: "onix_2.1::ebsco",
-            name: "EBSCO ONIX 2.1",
+            id: "onix_2.1::ebsco_host",
+            name: "EBSCO Host ONIX 2.1",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_2.1"),
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/ebsco_host"),],
         },
@@ -88,7 +88,7 @@ lazy_static! {
             name: "EBSCO Host",
             accepts: vec![concat!(
                 env!("THOTH_EXPORT_API"),
-                "/specifications/onix_2.1::ebsco"
+                "/specifications/onix_2.1::ebsco_host"
             ),],
         },
         Platform {
@@ -151,7 +151,7 @@ lazy_static! {
             version: Some("2.1"),
             specifications: vec![concat!(
                 env!("THOTH_EXPORT_API"),
-                "/specifications/onix_2.1::ebsco"
+                "/specifications/onix_2.1::ebsco_host"
             ),],
         },
         Format {

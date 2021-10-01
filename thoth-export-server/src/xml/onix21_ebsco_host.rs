@@ -11,9 +11,9 @@ use super::{write_element_block, XmlElement, XmlSpecification};
 use crate::xml::{write_full_element_block, XmlElementBlock};
 use thoth_errors::{ThothError, ThothResult};
 
-pub struct Onix21Ebsco {}
+pub struct Onix21EbscoHost {}
 
-impl XmlSpecification for Onix21Ebsco {
+impl XmlSpecification for Onix21EbscoHost {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
         write_full_element_block("ONIXMessage", None, None, w, |w| {
             write_element_block("Header", w, |w| {
@@ -34,13 +34,13 @@ impl XmlSpecification for Onix21Ebsco {
 
             match works.len() {
                 0 => Err(ThothError::IncompleteMetadataRecord(
-                    "onix_2.1::ebsco".to_string(),
+                    "onix_2.1::ebsco_host".to_string(),
                     "Not enough data".to_string(),
                 )),
-                1 => XmlElementBlock::<Onix21Ebsco>::xml_element(works.first().unwrap(), w),
+                1 => XmlElementBlock::<Onix21EbscoHost>::xml_element(works.first().unwrap(), w),
                 _ => {
                     for work in works.iter() {
-                        XmlElementBlock::<Onix21Ebsco>::xml_element(work, w).ok();
+                        XmlElementBlock::<Onix21EbscoHost>::xml_element(work, w).ok();
                     }
                     Ok(())
                 }
@@ -49,7 +49,7 @@ impl XmlSpecification for Onix21Ebsco {
     }
 }
 
-impl XmlElementBlock<Onix21Ebsco> for Work {
+impl XmlElementBlock<Onix21EbscoHost> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         let work_id = format!("urn:uuid:{}", self.work_id.to_string());
         let (main_isbn, isbns) = get_publications_data(&self.publications);
@@ -126,7 +126,7 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
                         .map_err(|e| e.into())
                 })?;
                 for issue in &self.issues {
-                    XmlElementBlock::<Onix21Ebsco>::xml_element(issue, w).ok();
+                    XmlElementBlock::<Onix21EbscoHost>::xml_element(issue, w).ok();
                 }
                 write_element_block("Title", w, |w| {
                     // 01 Distinctive title (book)
@@ -208,10 +208,10 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
                     })?;
                 }
                 for contribution in &self.contributions {
-                    XmlElementBlock::<Onix21Ebsco>::xml_element(contribution, w).ok();
+                    XmlElementBlock::<Onix21EbscoHost>::xml_element(contribution, w).ok();
                 }
                 for language in &self.languages {
-                    XmlElementBlock::<Onix21Ebsco>::xml_element(language, w).ok();
+                    XmlElementBlock::<Onix21EbscoHost>::xml_element(language, w).ok();
                 }
                 if let Some(page_count) = self.page_count {
                     write_element_block("Extent", w, |w| {
@@ -230,7 +230,7 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
                     })?;
                 }
                 for subject in &self.subjects {
-                    XmlElementBlock::<Onix21Ebsco>::xml_element(subject, w).ok();
+                    XmlElementBlock::<Onix21EbscoHost>::xml_element(subject, w).ok();
                 }
                 write_element_block("Audience", w, |w| {
                     // 01 ONIX audience codes
@@ -327,7 +327,7 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
                         w.write(XmlEvent::Characters(place)).map_err(|e| e.into())
                     })?;
                 }
-                XmlElement::<Onix21Ebsco>::xml_element(&self.work_status, w)?;
+                XmlElement::<Onix21EbscoHost>::xml_element(&self.work_status, w)?;
                 if let Some(date) = self.publication_date {
                     write_element_block("PublicationDate", w, |w| {
                         w.write(XmlEvent::Characters(&date.format("%Y%m%d").to_string()))
@@ -431,7 +431,7 @@ impl XmlElementBlock<Onix21Ebsco> for Work {
             })
         } else {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_2.1::ebsco".to_string(),
+                "onix_2.1::ebsco_host".to_string(),
                 "No PDF or EPUB URL".to_string(),
             ))
         }
@@ -460,7 +460,7 @@ fn get_publications_data(publications: &[WorkPublications]) -> (String, Vec<Stri
     (main_isbn, isbns)
 }
 
-impl XmlElement<Onix21Ebsco> for WorkStatus {
+impl XmlElement<Onix21EbscoHost> for WorkStatus {
     const ELEMENT: &'static str = "PublishingStatus";
 
     fn value(&self) -> &'static str {
@@ -483,7 +483,7 @@ impl XmlElement<Onix21Ebsco> for WorkStatus {
     }
 }
 
-impl XmlElement<Onix21Ebsco> for SubjectType {
+impl XmlElement<Onix21EbscoHost> for SubjectType {
     const ELEMENT: &'static str = "SubjectSchemeIdentifier";
 
     fn value(&self) -> &'static str {
@@ -499,7 +499,7 @@ impl XmlElement<Onix21Ebsco> for SubjectType {
     }
 }
 
-impl XmlElement<Onix21Ebsco> for LanguageRelation {
+impl XmlElement<Onix21EbscoHost> for LanguageRelation {
     const ELEMENT: &'static str = "LanguageRole";
 
     fn value(&self) -> &'static str {
@@ -512,7 +512,7 @@ impl XmlElement<Onix21Ebsco> for LanguageRelation {
     }
 }
 
-impl XmlElement<Onix21Ebsco> for ContributionType {
+impl XmlElement<Onix21EbscoHost> for ContributionType {
     const ELEMENT: &'static str = "ContributorRole";
 
     fn value(&self) -> &'static str {
@@ -532,14 +532,14 @@ impl XmlElement<Onix21Ebsco> for ContributionType {
     }
 }
 
-impl XmlElementBlock<Onix21Ebsco> for WorkContributions {
+impl XmlElementBlock<Onix21EbscoHost> for WorkContributions {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Contributor", w, |w| {
             write_element_block("SequenceNumber", w, |w| {
                 w.write(XmlEvent::Characters(&self.contribution_ordinal.to_string()))
                     .map_err(|e| e.into())
             })?;
-            XmlElement::<Onix21Ebsco>::xml_element(&self.contribution_type, w)?;
+            XmlElement::<Onix21EbscoHost>::xml_element(&self.contribution_type, w)?;
 
             if let Some(orcid) = &self.contributor.orcid {
                 write_element_block("PersonNameIdentifier", w, |w| {
@@ -576,10 +576,10 @@ impl XmlElementBlock<Onix21Ebsco> for WorkContributions {
     }
 }
 
-impl XmlElementBlock<Onix21Ebsco> for WorkLanguages {
+impl XmlElementBlock<Onix21EbscoHost> for WorkLanguages {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Language", w, |w| {
-            XmlElement::<Onix21Ebsco>::xml_element(&self.language_relation, w).ok();
+            XmlElement::<Onix21EbscoHost>::xml_element(&self.language_relation, w).ok();
             // not worth implementing XmlElement for LanguageCode as all cases would
             // need to be exhaustively matched and the codes are equivalent anyway
             write_element_block("LanguageCode", w, |w| {
@@ -592,7 +592,7 @@ impl XmlElementBlock<Onix21Ebsco> for WorkLanguages {
     }
 }
 
-impl XmlElementBlock<Onix21Ebsco> for WorkIssues {
+impl XmlElementBlock<Onix21EbscoHost> for WorkIssues {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Series", w, |w| {
             write_element_block("TitleOfSeries", w, |w| {
@@ -607,10 +607,10 @@ impl XmlElementBlock<Onix21Ebsco> for WorkIssues {
     }
 }
 
-impl XmlElementBlock<Onix21Ebsco> for WorkSubjects {
+impl XmlElementBlock<Onix21EbscoHost> for WorkSubjects {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Subject", w, |w| {
-            XmlElement::<Onix21Ebsco>::xml_element(&self.subject_type, w)?;
+            XmlElement::<Onix21EbscoHost>::xml_element(&self.subject_type, w)?;
             match self.subject_type {
                 SubjectType::KEYWORD | SubjectType::CUSTOM => {
                     write_element_block("SubjectHeadingText", w, |w| {
@@ -644,13 +644,13 @@ mod tests {
     };
     use uuid::Uuid;
 
-    fn generate_test_output(input: &impl XmlElementBlock<Onix21Ebsco>) -> String {
+    fn generate_test_output(input: &impl XmlElementBlock<Onix21EbscoHost>) -> String {
         // Helper function based on `XmlSpecification::generate`
         let mut buffer = Vec::new();
         let mut writer = xml::writer::EmitterConfig::new()
             .perform_indent(true)
             .create_writer(&mut buffer);
-        let wrapped_output = XmlElementBlock::<Onix21Ebsco>::xml_element(input, &mut writer)
+        let wrapped_output = XmlElementBlock::<Onix21EbscoHost>::xml_element(input, &mut writer)
             .map(|_| buffer)
             .and_then(|onix| {
                 String::from_utf8(onix)
@@ -661,7 +661,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix21_ebsco_contributions() {
+    fn test_onix21_ebsco_host_contributions() {
         let mut test_contribution = WorkContributions {
             contribution_type: ContributionType::AUTHOR,
             first_name: Some("Author".to_string()),
@@ -738,7 +738,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix21_ebsco_languages() {
+    fn test_onix21_ebsco_host_languages() {
         let mut test_language = WorkLanguages {
             language_code: LanguageCode::SPA,
             language_relation: LanguageRelation::TRANSLATED_FROM,
@@ -764,7 +764,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix21_ebsco_issues() {
+    fn test_onix21_ebsco_host_issues() {
         let mut test_issue = WorkIssues {
             issue_ordinal: 1,
             series: WorkIssuesSeries {
@@ -792,7 +792,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix21_ebsco_subjects() {
+    fn test_onix21_ebsco_host_subjects() {
         let mut test_subject = WorkSubjects {
             subject_code: "AAB".to_string(),
             subject_type: SubjectType::BIC,
@@ -846,7 +846,7 @@ mod tests {
     }
 
     #[test]
-    fn test_onix21_ebsco_works() {
+    fn test_onix21_ebsco_host_works() {
         let mut test_work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
@@ -1084,17 +1084,18 @@ mod tests {
         let mut writer = xml::writer::EmitterConfig::new()
             .perform_indent(true)
             .create_writer(&mut buffer);
-        let wrapped_output = XmlElementBlock::<Onix21Ebsco>::xml_element(&test_work, &mut writer)
-            .map(|_| buffer)
-            .and_then(|onix| {
-                String::from_utf8(onix)
-                    .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
-            });
+        let wrapped_output =
+            XmlElementBlock::<Onix21EbscoHost>::xml_element(&test_work, &mut writer)
+                .map(|_| buffer)
+                .and_then(|onix| {
+                    String::from_utf8(onix)
+                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
+                });
         assert!(wrapped_output.is_err());
         let output = wrapped_output.unwrap_err().to_string();
         assert_eq!(
             output,
-            "Could not generate onix_2.1::ebsco: No PDF or EPUB URL".to_string()
+            "Could not generate onix_2.1::ebsco_host: No PDF or EPUB URL".to_string()
         );
     }
 }
