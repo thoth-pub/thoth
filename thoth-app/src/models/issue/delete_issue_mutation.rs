@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::issue::model::Issue;
+use thoth_api::model::issue::Issue;
 use uuid::Uuid;
 
 const DELETE_ISSUE_MUTATION: &str = "

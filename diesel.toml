@@ -5,13 +5,13 @@
 file = "src/schema.rs"
 import_types = [
   "diesel::sql_types::*",
-  "crate::contribution::model::Contribution_type",
-  "crate::work::model::Work_type",
-  "crate::work::model::Work_status",
-  "crate::publication::model::Publication_type",
-  "crate::language::model::Language_relation",
-  "crate::language::model::Language_code",
-  "crate::series::model::Series_type",
-  "crate::price::model::Currency_code",
-  "crate::subject::model::Subject_type"
+  "crate::model::contribution::Contribution_type",
+  "crate::model::work::Work_type",
+  "crate::model::work::Work_status",
+  "crate::model::publication::Publication_type",
+  "crate::model::language::Language_relation",
+  "crate::model::language::Language_code",
+  "crate::model::series::Series_type",
+  "crate::model::price::Currency_code",
+  "crate::model::subject::Subject_type"
 ]

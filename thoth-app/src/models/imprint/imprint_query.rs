@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::imprint::model::ImprintWithPublisher;
+use thoth_api::model::imprint::ImprintWithPublisher;
 use uuid::Uuid;
 
 pub const IMPRINT_QUERY: &str = "

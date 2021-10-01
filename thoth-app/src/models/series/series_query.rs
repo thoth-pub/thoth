@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::series::model::SeriesWithImprint;
+use thoth_api::model::series::SeriesWithImprint;
 use uuid::Uuid;
 
 pub const SERIES_QUERY: &str = "

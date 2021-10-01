@@ -14,26 +14,13 @@ extern crate dotenv;
 extern crate juniper;
 
 pub mod account;
-pub mod contribution;
-pub mod contributor;
 #[cfg(feature = "backend")]
 pub mod db;
-pub mod funder;
-pub mod funding;
 pub mod graphql;
-pub mod imprint;
-pub mod issue;
-pub mod language;
 #[macro_use]
 pub mod model;
-pub mod price;
-pub mod publication;
-pub mod publisher;
 #[cfg(feature = "backend")]
 mod schema;
-pub mod series;
-pub mod subject;
-pub mod work;
 
 macro_rules! apis {
     ($($name:ident => $content:expr,)*) => (

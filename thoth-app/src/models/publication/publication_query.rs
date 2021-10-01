@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::publication::model::PublicationWithRelations;
+use thoth_api::model::publication::PublicationWithRelations;
 use uuid::Uuid;
 
 pub const PUBLICATION_QUERY: &str = "

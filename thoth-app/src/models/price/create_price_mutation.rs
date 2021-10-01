@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::price::model::CurrencyCode;
-use thoth_api::price::model::Price;
+use thoth_api::model::price::CurrencyCode;
+use thoth_api::model::price::Price;
 use uuid::Uuid;
 
 const CREATE_PRICE_MUTATION: &str = "

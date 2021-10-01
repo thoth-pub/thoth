@@ -1,7 +1,7 @@
 use std::str::FromStr;
+use thoth_api::model::publication::Publication;
+use thoth_api::model::publication::PublicationType;
 use thoth_api::model::Isbn;
-use thoth_api::publication::model::Publication;
-use thoth_api::publication::model::PublicationType;
 use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::issue::model::IssueWithSeries;
+use thoth_api::model::issue::IssueWithSeries;
 use uuid::Uuid;
 
 const CREATE_ISSUE_MUTATION: &str = "

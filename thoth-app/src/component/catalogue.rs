@@ -1,4 +1,4 @@
-use thoth_api::work::model::WorkWithRelations;
+use thoth_api::model::work::WorkWithRelations;
 use yew::html;
 use yew::prelude::Component;
 use yew::prelude::FocusEvent;
