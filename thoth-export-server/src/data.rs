@@ -11,7 +11,10 @@ lazy_static! {
             id: "onix_3.0::project_muse",
             name: "Project MUSE ONIX 3.0",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_3.0"),
-            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/project_muse"),],
+            accepted_by: vec![
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/project_muse"),
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/jstor")
+            ],
         },
         Specification {
             id: "onix_3.0::oapen",
@@ -72,10 +75,13 @@ lazy_static! {
         Platform {
             id: "jstor",
             name: "JSTOR",
-            accepts: vec![concat!(
-                env!("THOTH_EXPORT_API"),
-                "/specifications/onix_3.0::jstor"
-            ),],
+            accepts: vec![
+                concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.0::jstor"),
+                concat!(
+                    env!("THOTH_EXPORT_API"),
+                    "/specifications/onix_3.0::project_muse"
+                )
+            ],
         },
         Platform {
             id: "oclc_kb",

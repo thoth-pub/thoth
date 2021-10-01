@@ -221,44 +221,55 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                     }
                     Ok(())
                 })?;
-                if self.long_abstract.is_some() || self.toc.is_some() {
-                    write_element_block("CollateralDetail", w, |w| {
-                        if let Some(labstract) = &self.long_abstract {
-                            write_element_block("TextContent", w, |w| {
-                                let mut lang_fmt: HashMap<&str, &str> = HashMap::new();
-                                lang_fmt.insert("language", "eng");
-                                // 03 Description ("30 Abstract" not implemented in OAPEN)
-                                write_element_block("TextType", w, |w| {
-                                    w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
-                                })?;
-                                // 00 Unrestricted
-                                write_element_block("ContentAudience", w, |w| {
-                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                                })?;
-                                write_full_element_block("Text", None, Some(lang_fmt), w, |w| {
-                                    w.write(XmlEvent::Characters(labstract))
-                                        .map_err(|e| e.into())
-                                })
+                write_element_block("CollateralDetail", w, |w| {
+                    if let Some(labstract) = &self.long_abstract {
+                        write_element_block("TextContent", w, |w| {
+                            let mut lang_fmt: HashMap<&str, &str> = HashMap::new();
+                            lang_fmt.insert("language", "eng");
+                            // 03 Description ("30 Abstract" not implemented in OAPEN)
+                            write_element_block("TextType", w, |w| {
+                                w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
                             })?;
-                        }
-                        if let Some(toc) = &self.toc {
-                            write_element_block("TextContent", w, |w| {
-                                // 04 Table of contents
-                                write_element_block("TextType", w, |w| {
-                                    w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
-                                })?;
-                                // 00 Unrestricted
-                                write_element_block("ContentAudience", w, |w| {
-                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("Text", w, |w| {
-                                    w.write(XmlEvent::Characters(toc)).map_err(|e| e.into())
-                                })
+                            // 00 Unrestricted
+                            write_element_block("ContentAudience", w, |w| {
+                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                             })?;
-                        }
-                        Ok(())
-                    })?;
-                }
+                            write_full_element_block("Text", None, Some(lang_fmt), w, |w| {
+                                w.write(XmlEvent::Characters(labstract))
+                                    .map_err(|e| e.into())
+                            })
+                        })?;
+                    }
+                    if let Some(toc) = &self.toc {
+                        write_element_block("TextContent", w, |w| {
+                            // 04 Table of contents
+                            write_element_block("TextType", w, |w| {
+                                w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
+                            })?;
+                            // 00 Unrestricted
+                            write_element_block("ContentAudience", w, |w| {
+                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                            })?;
+                            write_element_block("Text", w, |w| {
+                                w.write(XmlEvent::Characters(toc)).map_err(|e| e.into())
+                            })
+                        })?;
+                    }
+                    write_element_block("TextContent", w, |w| {
+                        // 20 Open access statement
+                        write_element_block("TextType", w, |w| {
+                            w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
+                        })?;
+                        // 00 Unrestricted
+                        write_element_block("ContentAudience", w, |w| {
+                            w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("Text", w, |w| {
+                            w.write(XmlEvent::Characters("Open Access"))
+                                .map_err(|e| e.into())
+                        })
+                    })
+                })?;
                 write_element_block("PublishingDetail", w, |w| {
                     write_element_block("Imprint", w, |w| {
                         write_element_block("ImprintName", w, |w| {
@@ -285,15 +296,15 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                     if let Some(date) = self.publication_date {
                         write_element_block("PublishingDate", w, |w| {
                             let mut date_fmt: HashMap<&str, &str> = HashMap::new();
-                            date_fmt.insert("dateformat", "01"); // 01 YYYYMM
+                            date_fmt.insert("dateformat", "00"); // 00 YYYYMMDD
 
                             write_element_block("PublishingDateRole", w, |w| {
-                                // 19 Publication date of print counterpart
-                                w.write(XmlEvent::Characters("19")).map_err(|e| e.into())
+                                // 01 Publication date
+                                w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                             })?;
-                            // dateformat="01" YYYYMM
+                            // dateformat="00" YYYYMMDD
                             write_full_element_block("Date", None, Some(date_fmt), w, |w| {
-                                w.write(XmlEvent::Characters(&date.format("%Y%m").to_string()))
+                                w.write(XmlEvent::Characters(&date.format("%Y%m%d").to_string()))
                                     .map_err(|e| e.into())
                             })
                         })?;
@@ -372,9 +383,9 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                             write_element_block("ProductAvailability", w, |w| {
                                 w.write(XmlEvent::Characters("99")).map_err(|e| e.into())
                             })?;
-                            // 04 Contact supplier
+                            // 01 Free of charge
                             write_element_block("UnpricedItemType", w, |w| {
-                                w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
+                                w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                             })
                         })?;
                     }
@@ -838,6 +849,9 @@ mod tests {
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>04</TextType>"#));
         assert!(output.contains(r#"      <Text>1. Chapter 1</Text>"#));
+        assert!(output.contains(r#"    <TextContent>"#));
+        assert!(output.contains(r#"      <TextType>20</TextType>"#));
+        assert!(output.contains(r#"      <Text>Open Access</Text>"#));
         assert!(output.contains(r#"  <PublishingDetail>"#));
         assert!(output.contains(r#"    <Imprint>"#));
         assert!(output.contains(r#"      <ImprintName>OA Editions Imprint</ImprintName>"#));
@@ -847,8 +861,8 @@ mod tests {
         assert!(output.contains(r#"    <CityOfPublication>León, Spain</CityOfPublication>"#));
         assert!(output.contains(r#"    <PublishingStatus>04</PublishingStatus>"#));
         assert!(output.contains(r#"    <PublishingDate>"#));
-        assert!(output.contains(r#"      <PublishingDateRole>19</PublishingDateRole>"#));
-        assert!(output.contains(r#"      <Date dateformat="01">199912</Date>"#));
+        assert!(output.contains(r#"      <PublishingDateRole>01</PublishingDateRole>"#));
+        assert!(output.contains(r#"      <Date dateformat="00">19991231</Date>"#));
         assert!(output.contains(r#"    <RelatedProduct>"#));
         assert!(output.contains(r#"      <ProductRelationCode>06</ProductRelationCode>"#));
         assert!(output.contains(r#"      <ProductIdentifier>"#));
@@ -866,7 +880,7 @@ mod tests {
         ));
         assert!(output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
         assert!(output.contains(r#"      <ProductAvailability>99</ProductAvailability>"#));
-        assert!(output.contains(r#"      <UnpricedItemType>04</UnpricedItemType>"#));
+        assert!(output.contains(r#"      <UnpricedItemType>01</UnpricedItemType>"#));
         assert!(output.contains(r#"        <SupplierRole>09</SupplierRole>"#));
         assert!(output.contains(r#"        <SupplierName>OA Editions</SupplierName>"#));
         assert!(output.contains(r#"          <WebsiteRole>29</WebsiteRole>"#));
@@ -902,6 +916,7 @@ mod tests {
         test_work.subtitle = None;
         test_work.page_count = None;
         test_work.long_abstract = None;
+        test_work.toc = None;
         test_work.place = None;
         test_work.publication_date = None;
         test_work.landing_page = None;
@@ -927,20 +942,22 @@ mod tests {
         assert!(!output.contains(r#"      <ExtentType>00</ExtentType>"#));
         assert!(!output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
         assert!(!output.contains(r#"      <ExtentUnit>03</ExtentUnit>"#));
-        // No long abstract supplied: CollateralDetail block only contains TOC
-        assert!(output.contains(r#"  <CollateralDetail>"#));
-        assert!(output.contains(r#"    <TextContent>"#));
-        assert!(output.contains(r#"      <TextType>04</TextType>"#));
-        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text>1. Chapter 1</Text>"#));
+        // No long abstract supplied
         assert!(!output.contains(r#"      <TextType>03</TextType>"#));
         assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        // No TOC supplied
+        assert!(!output.contains(r#"      <TextType>04</TextType>"#));
+        assert!(!output.contains(r#"      <Text>1. Chapter 1</Text>"#));
+        // CollateralDetail block is still present as it always contains Open Access statement
+        assert!(output.contains(r#"  <CollateralDetail>"#));
+        assert!(output.contains(r#"    <TextContent>"#));
+        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
         // No place supplied
         assert!(!output.contains(r#"    <CityOfPublication>León, Spain</CityOfPublication>"#));
         // No publication date supplied
         assert!(!output.contains(r#"    <PublishingDate>"#));
-        assert!(!output.contains(r#"      <PublishingDateRole>19</PublishingDateRole>"#));
-        assert!(!output.contains(r#"      <Date dateformat="01">199912</Date>"#));
+        assert!(!output.contains(r#"      <PublishingDateRole>01</PublishingDateRole>"#));
+        assert!(!output.contains(r#"      <Date dateformat="00">19991231</Date>"#));
         // No landing page supplied: only one SupplyDetail block, linking to PDF download
         assert!(!output.contains(r#"          <WebsiteRole>01</WebsiteRole>"#));
         assert!(!output.contains(
@@ -956,31 +973,6 @@ mod tests {
         assert!(!output.contains(r#"      <SubjectCode>JWA</SubjectCode>"#));
         assert!(!output.contains(r#"      <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
         assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
-
-        // Replace long abstract but remove TOC
-        // Result: CollateralDetail block still present, but now only contains long abstract
-        test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
-        test_work.toc = None;
-        let output = generate_test_output(&test_work);
-        assert!(output.contains(r#"  <CollateralDetail>"#));
-        assert!(output.contains(r#"    <TextContent>"#));
-        assert!(output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        assert!(!output.contains(r#"      <TextType>04</TextType>"#));
-        assert!(!output.contains(r#"      <Text>1. Chapter 1</Text>"#));
-
-        // Remove both TOC and long abstract
-        // Result: No CollateralDetail block present at all
-        test_work.long_abstract = None;
-        let output = generate_test_output(&test_work);
-        assert!(!output.contains(r#"  <CollateralDetail>"#));
-        assert!(!output.contains(r#"    <TextContent>"#));
-        assert!(!output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(!output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        assert!(!output.contains(r#"      <TextType>04</TextType>"#));
-        assert!(!output.contains(r#"      <Text>1. Chapter 1</Text>"#));
 
         // Remove the only remaining (BIC) subject
         // Result: error (can't generate Project MUSE ONIX without either a BIC or BISAC subject)
