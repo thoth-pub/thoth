@@ -58,15 +58,26 @@ impl XmlSpecification for Onix3ProjectMuse {
 
 impl XmlElementBlock<Onix3ProjectMuse> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        let work_id = format!("urn:uuid:{}", self.work_id.to_string());
-        let (main_isbn, isbns) = get_publications_data(&self.publications);
+        // Project MUSE can only ingest works which have at least one BIC or BISAC subject code
+        if !self
+            .subjects
+            .iter()
+            .any(|s| s.subject_type.eq(&SubjectType::BISAC) || s.subject_type.eq(&SubjectType::BIC))
+        {
+            Err(ThothError::IncompleteMetadataRecord(
+                "onix_3.0::project_muse".to_string(),
+                "No BIC or BISAC subject code".to_string(),
+            ))
+        }
         // We can only generate the document if there's a PDF
-        if let Some(pdf_url) = self
+        else if let Some(pdf_url) = self
             .publications
             .iter()
             .find(|p| p.publication_type.eq(&PublicationType::PDF))
             .and_then(|p| p.publication_url.as_ref())
         {
+            let work_id = format!("urn:uuid:{}", self.work_id.to_string());
+            let (main_isbn, isbns) = get_publications_data(&self.publications);
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
                     w.write(XmlEvent::Characters(&work_id))
@@ -194,13 +205,19 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                         })?;
                     }
                     for subject in &self.subjects {
-                        write_element_block("Subject", w, |w| {
-                            XmlElement::<Onix3ProjectMuse>::xml_element(&subject.subject_type, w)?;
-                            write_element_block("SubjectCode", w, |w| {
-                                w.write(XmlEvent::Characters(&subject.subject_code))
-                                    .map_err(|e| e.into())
-                            })
-                        })?;
+                        // Project MUSE can't process records containing keywords
+                        if subject.subject_type != SubjectType::KEYWORD {
+                            write_element_block("Subject", w, |w| {
+                                XmlElement::<Onix3ProjectMuse>::xml_element(
+                                    &subject.subject_type,
+                                    w,
+                                )?;
+                                write_element_block("SubjectCode", w, |w| {
+                                    w.write(XmlEvent::Characters(&subject.subject_code))
+                                        .map_err(|e| e.into())
+                                })
+                            })?;
+                        }
                     }
                     Ok(())
                 })?;
@@ -425,11 +442,11 @@ impl XmlElement<Onix3ProjectMuse> for SubjectType {
         match self {
             SubjectType::BIC => "12",
             SubjectType::BISAC => "10",
-            SubjectType::KEYWORD => "20",
             SubjectType::LCC => "04",
             SubjectType::THEMA => "93",
             SubjectType::CUSTOM => "B2",
-            SubjectType::Other(_) => unreachable!(),
+            // Keywords are not output for Project MUSE
+            SubjectType::KEYWORD | SubjectType::Other(_) => unreachable!(),
         }
     }
 }
@@ -811,8 +828,6 @@ mod tests {
         assert!(output.contains(r#"      <SubjectCode>JA85</SubjectCode>"#));
         assert!(output.contains(r#"      <SubjectSchemeIdentifier>93</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"      <SubjectCode>JWA</SubjectCode>"#));
-        assert!(output.contains(r#"      <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>"#));
-        assert!(output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
         assert!(output.contains(r#"      <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
         assert!(output.contains(r#"  <CollateralDetail>"#));
@@ -859,6 +874,8 @@ mod tests {
         assert!(output.contains(r#"          <WebsiteLink>https://www.book.com/pdf</WebsiteLink>"#));
 
         // Test that OAPEN-only blocks are not output in Project MUSE format
+        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>"#));
+        assert!(!output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
         assert!(!output.contains(r#"    <Audience>"#));
         assert!(!output.contains(r#"      <AudienceCodeType>01</AudienceCodeType>"#));
         assert!(!output.contains(r#"      <AudienceCodeValue>06</AudienceCodeValue>"#));
@@ -888,7 +905,7 @@ mod tests {
         test_work.place = None;
         test_work.publication_date = None;
         test_work.landing_page = None;
-        test_work.subjects.clear();
+        test_work.subjects.drain(1..);
         let output = generate_test_output(&test_work);
         // No DOI supplied
         assert!(!output.contains(r#"    <ProductIDType>06</ProductIDType>"#));
@@ -930,18 +947,13 @@ mod tests {
             r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
         assert!(!output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
-        // No subjects supplied
-        assert!(!output.contains(r#"    <Subject>"#));
-        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>12</SubjectSchemeIdentifier>"#));
-        assert!(!output.contains(r#"      <SubjectCode>AAB</SubjectCode>"#));
+        // All subjects removed except BIC
         assert!(!output.contains(r#"      <SubjectSchemeIdentifier>10</SubjectSchemeIdentifier>"#));
         assert!(!output.contains(r#"      <SubjectCode>AAA000000</SubjectCode>"#));
         assert!(!output.contains(r#"      <SubjectSchemeIdentifier>04</SubjectSchemeIdentifier>"#));
         assert!(!output.contains(r#"      <SubjectCode>JA85</SubjectCode>"#));
         assert!(!output.contains(r#"      <SubjectSchemeIdentifier>93</SubjectSchemeIdentifier>"#));
         assert!(!output.contains(r#"      <SubjectCode>JWA</SubjectCode>"#));
-        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>"#));
-        assert!(!output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
         assert!(!output.contains(r#"      <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
         assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
 
@@ -970,8 +982,35 @@ mod tests {
         assert!(!output.contains(r#"      <TextType>04</TextType>"#));
         assert!(!output.contains(r#"      <Text>1. Chapter 1</Text>"#));
 
-        // Remove the only publication, which is the PDF
-        // Result: error (can't generate OAPEN ONIX without PDF URL)
+        // Remove the only remaining (BIC) subject
+        // Result: error (can't generate Project MUSE ONIX without either a BIC or BISAC subject)
+        test_work.subjects.clear();
+        // Can't use helper function for this as it assumes Ok rather than Err
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+        let wrapped_output =
+            XmlElementBlock::<Onix3ProjectMuse>::xml_element(&test_work, &mut writer)
+                .map(|_| buffer)
+                .and_then(|onix| {
+                    String::from_utf8(onix)
+                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
+                });
+        assert!(wrapped_output.is_err());
+        let output = wrapped_output.unwrap_err().to_string();
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::project_muse: No BIC or BISAC subject code".to_string()
+        );
+
+        // Reinstate the BIC subject but remove the only publication, which is the PDF
+        // Result: error (can't generate Project MUSE ONIX without PDF URL)
+        test_work.subjects = vec![WorkSubjects {
+            subject_code: "AAB".to_string(),
+            subject_type: SubjectType::BIC,
+            subject_ordinal: 1,
+        }];
         test_work.publications.clear();
         // Can't use helper function for this as it assumes Ok rather than Err
         let mut buffer = Vec::new();
