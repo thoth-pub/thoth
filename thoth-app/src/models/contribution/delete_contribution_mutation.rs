@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::contribution::model::Contribution;
+use thoth_api::model::contribution::Contribution;
 use uuid::Uuid;
 
 const DELETE_CONTRIBUTION_MUTATION: &str = "

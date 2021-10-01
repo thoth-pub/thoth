@@ -1,5 +1,5 @@
-use thoth_api::imprint::model::Imprint;
-use thoth_api::imprint::model::ImprintWithPublisher;
+use thoth_api::model::imprint::Imprint;
+use thoth_api::model::imprint::ImprintWithPublisher;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
