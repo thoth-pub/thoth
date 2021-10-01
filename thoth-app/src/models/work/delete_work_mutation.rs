@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::work::model::Work;
+use thoth_api::model::work::Work;
 use uuid::Uuid;
 
 const DELETE_WORK_MUTATION: &str = "

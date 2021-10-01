@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::funder::model::Funder;
-use thoth_api::funder::model::FunderOrderBy;
+use thoth_api::model::funder::Funder;
+use thoth_api::model::funder::FunderOrderBy;
 
 pub const FUNDERS_QUERY: &str = "
     query FundersQuery($limit: Int, $offset: Int, $filter: String, $order: FunderOrderBy) {

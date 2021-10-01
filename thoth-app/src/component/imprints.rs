@@ -3,9 +3,9 @@ use crate::models::imprint::imprints_query::FetchImprints;
 use crate::models::imprint::imprints_query::ImprintsRequest;
 use crate::models::imprint::imprints_query::ImprintsRequestBody;
 use crate::models::imprint::imprints_query::Variables;
-use thoth_api::imprint::model::ImprintField;
-use thoth_api::imprint::model::ImprintOrderBy;
-use thoth_api::imprint::model::ImprintWithPublisher;
+use thoth_api::model::imprint::ImprintField;
+use thoth_api::model::imprint::ImprintOrderBy;
+use thoth_api::model::imprint::ImprintWithPublisher;
 
 pagination_component! {
     ImprintsComponent,

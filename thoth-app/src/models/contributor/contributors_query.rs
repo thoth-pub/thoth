@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::contributor::model::Contributor;
-use thoth_api::contributor::model::ContributorOrderBy;
+use thoth_api::model::contributor::Contributor;
+use thoth_api::model::contributor::ContributorOrderBy;
 
 pub const CONTRIBUTORS_QUERY: &str = "
     query ContributorsQuery($limit: Int, $offset: Int, $filter: String, $order: ContributorOrderBy) {

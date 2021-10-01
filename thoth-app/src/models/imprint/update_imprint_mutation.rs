@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::imprint::model::Imprint;
+use thoth_api::model::imprint::Imprint;
 use uuid::Uuid;
 
 const UPDATE_IMPRINT_MUTATION: &str = "

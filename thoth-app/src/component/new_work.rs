@@ -1,10 +1,10 @@
 use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
-use thoth_api::imprint::model::ImprintWithPublisher;
+use thoth_api::model::imprint::ImprintWithPublisher;
+use thoth_api::model::work::WorkStatus;
+use thoth_api::model::work::WorkType;
+use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::{Doi, LengthUnit, DOI_DOMAIN};
-use thoth_api::work::model::WorkStatus;
-use thoth_api::work::model::WorkType;
-use thoth_api::work::model::WorkWithRelations;
 use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;

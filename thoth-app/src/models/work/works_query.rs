@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::work::model::WorkOrderBy;
-use thoth_api::work::model::WorkWithRelations;
+use thoth_api::model::work::WorkOrderBy;
+use thoth_api::model::work::WorkWithRelations;
 
 pub const WORKS_QUERY: &str = "
     query WorksQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: WorkOrderBy) {

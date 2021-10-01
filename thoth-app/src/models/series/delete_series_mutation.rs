@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::series::model::Series;
+use thoth_api::model::series::Series;
 use uuid::Uuid;
 
 const DELETE_SERIES_MUTATION: &str = "
