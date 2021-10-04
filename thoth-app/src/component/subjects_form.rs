@@ -1,6 +1,6 @@
 use std::str::FromStr;
-use thoth_api::subject::model::Subject;
-use thoth_api::subject::model::SubjectType;
+use thoth_api::model::subject::Subject;
+use thoth_api::model::subject::SubjectType;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;

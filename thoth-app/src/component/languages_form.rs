@@ -1,7 +1,7 @@
 use std::str::FromStr;
-use thoth_api::language::model::Language;
-use thoth_api::language::model::LanguageCode;
-use thoth_api::language::model::LanguageRelation;
+use thoth_api::model::language::Language;
+use thoth_api::model::language::LanguageCode;
+use thoth_api::model::language::LanguageRelation;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;

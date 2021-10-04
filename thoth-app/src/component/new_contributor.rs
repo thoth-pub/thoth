@@ -1,4 +1,4 @@
-use thoth_api::contributor::model::Contributor;
+use thoth_api::model::contributor::Contributor;
 use thoth_api::model::{Orcid, ORCID_DOMAIN};
 use thoth_errors::ThothError;
 use yew::html;

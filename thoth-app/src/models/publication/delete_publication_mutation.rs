@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::publication::model::Publication;
+use thoth_api::model::publication::Publication;
 use uuid::Uuid;
 
 const DELETE_PUBLICATION_MUTATION: &str = "

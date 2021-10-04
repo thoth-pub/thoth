@@ -20,6 +20,18 @@ lazy_static! {
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/oapen"),],
         },
         Specification {
+            id: "onix_3.0::jstor",
+            name: "JSTOR ONIX 3.0",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_3.0"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/jstor"),],
+        },
+        Specification {
+            id: "onix_2.1::ebsco_host",
+            name: "EBSCO Host ONIX 2.1",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_2.1"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/ebsco_host"),],
+        },
+        Specification {
             id: "csv::thoth",
             name: "Thoth CSV",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/csv"),
@@ -61,6 +73,22 @@ lazy_static! {
             accepts: vec![concat!(
                 env!("THOTH_EXPORT_API"),
                 "/specifications/onix_3.0::oapen"
+            ),],
+        },
+        Platform {
+            id: "jstor",
+            name: "JSTOR",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/onix_3.0::jstor"
+            ),],
+        },
+        Platform {
+            id: "ebsco_host",
+            name: "EBSCO Host",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/onix_2.1::ebsco_host"
             ),],
         },
         Platform {
@@ -116,6 +144,15 @@ lazy_static! {
                 ),
                 concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.0::oapen"),
             ],
+        },
+        Format {
+            id: "onix_2.1",
+            name: "ONIX",
+            version: Some("2.1"),
+            specifications: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/onix_2.1::ebsco_host"
+            ),],
         },
         Format {
             id: "csv",

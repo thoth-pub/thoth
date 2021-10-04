@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::language::model::LanguageCode;
-use thoth_api::language::model::LanguageRelation;
+use thoth_api::model::language::LanguageCode;
+use thoth_api::model::language::LanguageRelation;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

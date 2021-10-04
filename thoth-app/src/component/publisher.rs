@@ -1,5 +1,5 @@
 use thoth_api::account::model::AccountDetails;
-use thoth_api::publisher::model::Publisher;
+use thoth_api::model::publisher::Publisher;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;

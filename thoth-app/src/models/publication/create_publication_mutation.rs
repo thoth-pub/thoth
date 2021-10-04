@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::model::publication::Publication;
+use thoth_api::model::publication::PublicationType;
 use thoth_api::model::Isbn;
-use thoth_api::publication::model::Publication;
-use thoth_api::publication::model::PublicationType;
 use uuid::Uuid;
 
 const CREATE_PUBLICATION_MUTATION: &str = "
