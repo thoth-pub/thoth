@@ -347,12 +347,12 @@ mod tests {
             work_type: WorkType::MONOGRAPH,
             edition: 1,
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
-            publication_date: None,
+            publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
             license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: "Author 1; Author 2".to_string(),
             short_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.".to_string()),
             long_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string()),
-            general_note: None,
+            general_note: Some("This is a general note".to_string()),
             place: Some("León, Spain".to_string()),
             width_mm: Some(156.0),
             width_cm: Some(15.6),
@@ -363,15 +363,15 @@ mod tests {
             page_count: Some(334),
             page_breakdown: Some("x+334".to_string()),
             image_count: Some(15),
-            table_count: None,
-            audio_count: None,
-            video_count: None,
+            table_count: Some(20),
+            audio_count: Some(25),
+            video_count: Some(30),
             landing_page: Some("https://www.book.com".to_string()),
-            toc: None,
-            lccn: None,
-            oclc: None,
+            toc: Some("1. Chapter 1".to_string()),
+            lccn: Some("123456789".to_string()),
+            oclc: Some("987654321".to_string()),
             cover_url: Some("https://www.book.com/cover".to_string()),
-            cover_caption: None,
+            cover_caption: Some("This is a cover caption".to_string()),
             imprint: WorkImprint {
                 imprint_name: "OA Editions Imprint".to_string(),
                 publisher: WorkImprintPublisher {
@@ -379,7 +379,16 @@ mod tests {
                     publisher_url: None,
                 },
             },
-            issues: vec![],
+            issues: vec![WorkIssues {
+                issue_ordinal: 1,
+                series: WorkIssuesSeries {
+                    series_type: SeriesType::JOURNAL,
+                    series_name: "Name of series".to_string(),
+                    issn_print: "1234-5678".to_string(),
+                    issn_digital: "8765-4321".to_string(),
+                    series_url: Some("https://www.series.com".to_string()),
+                },
+            }],
             contributions: vec![
                 WorkContributions {
                     contribution_type: ContributionType::AUTHOR,
@@ -514,13 +523,33 @@ mod tests {
                     subject_type: SubjectType::KEYWORD,
                     subject_ordinal: 1,
                 },
+                WorkSubjects {
+                    subject_code: "JA85".to_string(),
+                    subject_type: SubjectType::LCC,
+                    subject_ordinal: 1,
+                },
+                WorkSubjects {
+                    subject_code: "JWA".to_string(),
+                    subject_type: SubjectType::THEMA,
+                    subject_ordinal: 1,
+                },
             ],
-            fundings: vec![],
+            fundings: vec![WorkFundings {
+                program: Some("Name of program".to_string()),
+                project_name: Some("Name of project".to_string()),
+                project_shortname: None,
+                grant_number: Some("Number of grant".to_string()),
+                jurisdiction: Some("Funding jurisdiction".to_string()),
+                funder: WorkFundingsFunder {
+                    funder_name: "Name of funder".to_string(),
+                    funder_doi: Some(Doi::from_str("https://doi.org/10.00001/FUNDER.0001").unwrap()),
+                },
+            }],
         };
     }
 
     const TEST_RESULT: &str = r#""publisher","imprint","work_type","work_status","title","subtitle","edition","doi","publication_date","publication_place","license","copyright_holder","landing_page","width (mm)","width (cm)","width (in)","height (mm)","height (cm)","height (in)","page_count","page_breakdown","image_count","table_count","audio_count","video_count","lccn","oclc","short_abstract","long_abstract","general_note","toc","cover_url","cover_caption","contributions [(type, first_name, last_name, full_name, institution, orcid)]","publications [(type, isbn, url, [(ISO_4217_currency, price)])]","series [(type, name, issn_print, issn_digital, url, issue)]","languages [(relation, ISO_639-3/B_language, is_main)]","BIC [code]","THEMA [code]","BISAC [code]","LCC [code]","custom_categories [category]","keywords [keyword]","funding [(funder, funder_doi, program, project, grant, jurisdiction)]"
-"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","10.00001/BOOK.0001","","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","156.0","15.6","6.14","234.0","23.4","9.21","334","x+334","15","","","","","","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","","","https://www.book.com/cover","","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", """", ""0000-0002-0000-0001""),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", """", """")]","[(""PAPERBACK"", ""978-3-16-148410-0"", ""https://www.book.com/paperback"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")]),(""HARDBACK"", ""978-1-4028-9462-6"", ""https://www.book.com/hardback"", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")]),(""PDF"", ""978-1-56619-909-4"", ""https://www.book.com/pdf"", ),(""HTML"", """", ""https://www.book.com/html"", ),(""XML"", ""978-92-95055-02-5"", ""https://www.book.com/xml"", )]","","[(""ORIGINAL"", ""SPA"", ""true"")]","[""AAA"",""AAB""]","","[""AAA000000"",""AAA000001""]","","[""Category1""]","[""keyword1"",""keyword2""]",""
+"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","10.00001/BOOK.0001","1999-12-31","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","156.0","15.6","6.14","234.0","23.4","9.21","334","x+334","15","20","25","30","123456789","987654321","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","This is a general note","1. Chapter 1","https://www.book.com/cover","This is a cover caption","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", """", ""0000-0002-0000-0001""),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", """", """")]","[(""PAPERBACK"", ""978-3-16-148410-0"", ""https://www.book.com/paperback"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")]),(""HARDBACK"", ""978-1-4028-9462-6"", ""https://www.book.com/hardback"", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")]),(""PDF"", ""978-1-56619-909-4"", ""https://www.book.com/pdf"", ),(""HTML"", """", ""https://www.book.com/html"", ),(""XML"", ""978-92-95055-02-5"", ""https://www.book.com/xml"", )]","[(""JOURNAL"", ""Name of series"", ""1234-5678"", ""8765-4321"", ""https://www.series.com"", ""1"")]","[(""ORIGINAL"", ""SPA"", ""true"")]","[""AAA"",""AAB""]","[""JWA""]","[""AAA000000"",""AAA000001""]","[""JA85""]","[""Category1""]","[""keyword1"",""keyword2""]","[(""Name of funder"", ""10.00001/FUNDER.0001"", ""Name of program"", ""Name of project"", ""Number of grant"", ""Funding jurisdiction"")]"
 "#;
 
     #[test]
