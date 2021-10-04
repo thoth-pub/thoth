@@ -332,7 +332,8 @@ mod tests {
     use thoth_api::model::Orcid;
     use thoth_client::{
         ContributionType, CurrencyCode, LanguageCode, LanguageRelation, PublicationType,
-        WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkStatus, WorkType,
+        SeriesType, WorkContributionsContributor, WorkFundingsFunder, WorkImprint,
+        WorkImprintPublisher, WorkIssuesSeries, WorkStatus, WorkType,
     };
     use uuid::Uuid;
 
@@ -527,5 +528,172 @@ mod tests {
         let to_test = CsvThoth.generate(&[TEST_WORK.clone()], QuoteStyle::Always, DELIMITER_COMMA);
 
         assert_eq!(to_test, Ok(TEST_RESULT.to_string()))
+    }
+
+    #[test]
+    fn test_csv_thoth_cell() {
+        assert_eq!(CsvCell::<CsvThoth>::csv_cell(&vec![]), "".to_string());
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&vec!["String1".to_string()]),
+            "[String1]".to_string()
+        );
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&vec!["String1".to_string(), "String2".to_string()]),
+            "[String1,String2]".to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_publications() {
+        let mut publication = WorkPublications {
+            publication_id: Uuid::from_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
+            publication_type: PublicationType::PAPERBACK,
+            publication_url: Some("https://www.book.com/paperback".to_string()),
+            isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+            prices: vec![WorkPublicationsPrices {
+                currency_code: CurrencyCode::EUR,
+                unit_price: 25.95,
+            }],
+        };
+        assert_eq!(CsvCell::<CsvThoth>::csv_cell(&publication),
+            r#"("PAPERBACK", "978-3-16-148410-0", "https://www.book.com/paperback", [("EUR", "25.95")])"#.to_string());
+        publication.publication_type = PublicationType::HARDBACK;
+        publication.isbn = None;
+        publication.publication_url = None;
+        publication.prices.clear();
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&publication),
+            r#"("HARDBACK", "", "", )"#.to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_contributions() {
+        let mut contribution = WorkContributions {
+            contribution_type: ContributionType::AUTHOR,
+            first_name: Some("Author".to_string()),
+            last_name: "1".to_string(),
+            full_name: "Author 1".to_string(),
+            main_contribution: true,
+            biography: None,
+            institution: Some("University of Life".to_string()),
+            contribution_ordinal: 1,
+            contributor: WorkContributionsContributor {
+                orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
+            },
+        };
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&contribution),
+            r#"("AUTHOR", "Author", "1", "Author 1", "University of Life", "0000-0002-0000-0001")"#
+                .to_string()
+        );
+        contribution.contribution_type = ContributionType::TRANSLATOR;
+        contribution.first_name = None;
+        contribution.institution = None;
+        contribution.contributor.orcid = None;
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&contribution),
+            r#"("TRANSLATOR", "", "1", "Author 1", "", "")"#.to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_prices() {
+        let mut price = WorkPublicationsPrices {
+            currency_code: CurrencyCode::GBP,
+            unit_price: 22.95,
+        };
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&price),
+            r#"("GBP", "22.95")"#.to_string()
+        );
+        price.currency_code = CurrencyCode::USD;
+        price.unit_price = 31.95;
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&price),
+            r#"("USD", "31.95")"#.to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_issues() {
+        let mut issue = WorkIssues {
+            issue_ordinal: 1,
+            series: WorkIssuesSeries {
+                series_type: SeriesType::JOURNAL,
+                series_name: "Name of series".to_string(),
+                issn_print: "1234-5678".to_string(),
+                issn_digital: "8765-4321".to_string(),
+                series_url: Some("https://www.series.com".to_string()),
+            },
+        };
+        assert_eq!(CsvCell::<CsvThoth>::csv_cell(&issue),
+            r#"("JOURNAL", "Name of series", "1234-5678", "8765-4321", "https://www.series.com", "1")"#.to_string());
+        issue.issue_ordinal = 2;
+        issue.series.series_type = SeriesType::BOOK_SERIES;
+        issue.series.series_url = None;
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&issue),
+            r#"("BOOK_SERIES", "Name of series", "1234-5678", "8765-4321", "", "2")"#.to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_languages() {
+        let mut language = WorkLanguages {
+            language_code: LanguageCode::SPA,
+            language_relation: LanguageRelation::TRANSLATED_FROM,
+            main_language: true,
+        };
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&language),
+            r#"("TRANSLATED_FROM", "SPA", "true")"#.to_string()
+        );
+        language.language_code = LanguageCode::WEL;
+        language.language_relation = LanguageRelation::TRANSLATED_INTO;
+        language.main_language = false;
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&language),
+            r#"("TRANSLATED_INTO", "WEL", "false")"#.to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_subjects() {
+        let subject = WorkSubjects {
+            subject_code: "AAB".to_string(),
+            subject_type: SubjectType::BIC,
+            subject_ordinal: 2,
+        };
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&subject),
+            r#""AAB""#.to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_fundings() {
+        let mut funding = WorkFundings {
+            program: Some("Name of program".to_string()),
+            project_name: Some("Name of project".to_string()),
+            project_shortname: None,
+            grant_number: Some("Number of grant".to_string()),
+            jurisdiction: Some("Funding jurisdiction".to_string()),
+            funder: WorkFundingsFunder {
+                funder_name: "Name of funder".to_string(),
+                funder_doi: Some(Doi::from_str("https://doi.org/10.00001/FUNDER.0001").unwrap()),
+            },
+        };
+        assert_eq!(CsvCell::<CsvThoth>::csv_cell(&funding),
+            r#"("Name of funder", "10.00001/FUNDER.0001", "Name of program", "Name of project", "Number of grant", "Funding jurisdiction")"#.to_string());
+        funding.funder.funder_doi = None;
+        funding.program = None;
+        funding.project_name = None;
+        funding.grant_number = None;
+        funding.jurisdiction = None;
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&funding),
+            r#"("Name of funder", "", "", "", "", "")"#.to_string()
+        );
     }
 }
