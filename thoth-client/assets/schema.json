@@ -132,7 +132,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -148,15 +148,56 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": "100",
+                  "description": "The number of items to return",
+                  "name": "limit",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "0",
+                  "description": "The number of items to skip",
+                  "name": "offset",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "\"\"",
+                  "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url",
+                  "name": "filter",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "String",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "{field: \"IMPRINT_NAME\", direction: \"ASC\"}",
+                  "description": "The order in which to sort the results",
+                  "name": "order",
+                  "type": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "ImprintOrderBy",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
-              "description": null,
+              "description": "Get imprints linked to this publisher",
               "isDeprecated": false,
               "name": "imprints",
               "type": {
@@ -3293,7 +3334,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -3309,7 +3350,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -3757,7 +3798,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -3773,7 +3814,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -3865,6 +3906,59 @@
           "possibleTypes": null
         },
         {
+          "description": "Field to use when sorting languages list",
+          "enumValues": [
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "LANGUAGE_ID"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "WORK_ID"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "LANGUAGE_CODE"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "LANGUAGE_RELATION"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "MAIN_LANGUAGE"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "CREATED_AT"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "UPDATED_AT"
+            }
+          ],
+          "fields": null,
+          "inputFields": null,
+          "interfaces": null,
+          "kind": "ENUM",
+          "name": "LanguageField",
+          "possibleTypes": null
+        },
+        {
           "description": "The amount of money, in any currency, that a publication costs.",
           "enumValues": null,
           "fields": [
@@ -3943,7 +4037,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -3959,7 +4053,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -3985,59 +4079,6 @@
           "interfaces": [],
           "kind": "OBJECT",
           "name": "Price",
-          "possibleTypes": null
-        },
-        {
-          "description": "Field to use when sorting languages list",
-          "enumValues": [
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "LANGUAGE_ID"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "WORK_ID"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "LANGUAGE_CODE"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "LANGUAGE_RELATION"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "MAIN_LANGUAGE"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "CREATED_AT"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "UPDATED_AT"
-            }
-          ],
-          "fields": null,
-          "inputFields": null,
-          "interfaces": null,
-          "kind": "ENUM",
-          "name": "LanguageField",
           "possibleTypes": null
         },
         {
@@ -4183,7 +4224,7 @@
               "name": "funderDoi",
               "type": {
                 "kind": "SCALAR",
-                "name": "String",
+                "name": "Doi",
                 "ofType": null
               }
             },
@@ -4198,7 +4239,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -4214,15 +4255,46 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": "100",
+                  "description": "The number of items to return",
+                  "name": "limit",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "0",
+                  "description": "The number of items to skip",
+                  "name": "offset",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "{field: \"PROGRAM\", direction: \"ASC\"}",
+                  "description": "The order in which to sort the results",
+                  "name": "order",
+                  "type": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "FundingOrderBy",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
-              "description": null,
+              "description": "Get fundings linked to this funder",
               "isDeprecated": false,
               "name": "fundings",
               "type": {
@@ -4310,6 +4382,63 @@
           "possibleTypes": null
         },
         {
+          "description": "RFC 3339 combined date and time in UTC time zone",
+          "enumValues": null,
+          "fields": null,
+          "inputFields": null,
+          "interfaces": null,
+          "kind": "SCALAR",
+          "name": "Timestamp",
+          "possibleTypes": null
+        },
+        {
+          "description": null,
+          "enumValues": [
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "BOOK_CHAPTER"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "MONOGRAPH"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "EDITED_BOOK"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "TEXTBOOK"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "JOURNAL_ISSUE"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "BOOK_SET"
+            }
+          ],
+          "fields": null,
+          "inputFields": null,
+          "interfaces": null,
+          "kind": "ENUM",
+          "name": "WorkType",
+          "possibleTypes": null
+        },
+        {
           "description": null,
           "enumValues": null,
           "fields": null,
@@ -4391,50 +4520,32 @@
           "possibleTypes": null
         },
         {
-          "description": null,
+          "description": "Unit of measurement for physical Work dimensions (mm, cm or in)",
           "enumValues": [
             {
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
-              "name": "BOOK_CHAPTER"
+              "name": "MM"
             },
             {
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
-              "name": "MONOGRAPH"
+              "name": "CM"
             },
             {
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
-              "name": "EDITED_BOOK"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "TEXTBOOK"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "JOURNAL_ISSUE"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "BOOK_SET"
+              "name": "IN"
             }
           ],
           "fields": null,
           "inputFields": null,
           "interfaces": null,
           "kind": "ENUM",
-          "name": "WorkType",
+          "name": "LengthUnit",
           "possibleTypes": null
         },
         {
@@ -4500,7 +4611,7 @@
               "name": "orcid",
               "type": {
                 "kind": "SCALAR",
-                "name": "String",
+                "name": "Orcid",
                 "ofType": null
               }
             },
@@ -4688,13 +4799,29 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
+              "name": "imprintId",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Uuid",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
               "name": "createdAt",
               "type": {
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -4710,7 +4837,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -4732,9 +4859,40 @@
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": "100",
+                  "description": "The number of items to return",
+                  "name": "limit",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "0",
+                  "description": "The number of items to skip",
+                  "name": "offset",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "{field: \"ISSUE_ORDINAL\", direction: \"ASC\"}",
+                  "description": "The order in which to sort the results",
+                  "name": "order",
+                  "type": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "IssueOrderBy",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
-              "description": null,
+              "description": "Get issues linked to this series",
               "isDeprecated": false,
               "name": "issues",
               "type": {
@@ -4967,43 +5125,24 @@
           "possibleTypes": null
         },
         {
-          "description": null,
+          "description": "Digital Object Identifier. Expressed as `^https:\\/\\/doi\\.org\\/10\\.\\d{4,9}\\/[-._\\;\\(\\)\\/:a-zA-Z0-9]+$`",
           "enumValues": null,
           "fields": null,
-          "inputFields": [
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "funderName",
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "SCALAR",
-                  "name": "String",
-                  "ofType": null
-                }
-              }
-            },
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "funderDoi",
-              "type": {
-                "kind": "SCALAR",
-                "name": "String",
-                "ofType": null
-              }
-            }
-          ],
+          "inputFields": null,
           "interfaces": null,
-          "kind": "INPUT_OBJECT",
-          "name": "NewFunder",
+          "kind": "SCALAR",
+          "name": "Doi",
           "possibleTypes": null
         },
         {
           "description": "Field to use when sorting issues list",
           "enumValues": [
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "ISSUE_ID"
+            },
             {
               "deprecationReason": null,
               "description": null,
@@ -5045,6 +5184,12 @@
         {
           "description": "Field to use when sorting contributions list",
           "enumValues": [
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "CONTRIBUTION_ID"
+            },
             {
               "deprecationReason": null,
               "description": null,
@@ -5110,6 +5255,12 @@
               "description": null,
               "isDeprecated": false,
               "name": "FULL_NAME"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "CONTRIBUTION_ORDINAL"
             }
           ],
           "fields": null,
@@ -5180,35 +5331,7 @@
             {
               "defaultValue": null,
               "description": null,
-              "name": "imprintId",
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "SCALAR",
-                  "name": "Uuid",
-                  "ofType": null
-                }
-              }
-            },
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "publisherId",
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "SCALAR",
-                  "name": "Uuid",
-                  "ofType": null
-                }
-              }
-            },
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "imprintName",
+              "name": "funderName",
               "type": {
                 "kind": "NON_NULL",
                 "name": null,
@@ -5222,17 +5345,17 @@
             {
               "defaultValue": null,
               "description": null,
-              "name": "imprintUrl",
+              "name": "funderDoi",
               "type": {
                 "kind": "SCALAR",
-                "name": "String",
+                "name": "Doi",
                 "ofType": null
               }
             }
           ],
           "interfaces": null,
           "kind": "INPUT_OBJECT",
-          "name": "PatchImprint",
+          "name": "NewFunder",
           "possibleTypes": null
         },
         {
@@ -5275,7 +5398,7 @@
           "possibleTypes": null
         },
         {
-          "description": "Field and order to use when sorting series list",
+          "description": "Field and order to use when sorting subjects list",
           "enumValues": null,
           "fields": null,
           "inputFields": [
@@ -5288,7 +5411,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "ENUM",
-                  "name": "SeriesField",
+                  "name": "SubjectField",
                   "ofType": null
                 }
               }
@@ -5310,7 +5433,7 @@
           ],
           "interfaces": null,
           "kind": "INPUT_OBJECT",
-          "name": "SeriesOrderBy",
+          "name": "SubjectOrderBy",
           "possibleTypes": null
         },
         {
@@ -5385,7 +5508,7 @@
               "name": "orcid",
               "type": {
                 "kind": "SCALAR",
-                "name": "String",
+                "name": "Orcid",
                 "ofType": null
               }
             },
@@ -5412,7 +5535,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -5428,15 +5551,56 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": "100",
+                  "description": "The number of items to return",
+                  "name": "limit",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "0",
+                  "description": "The number of items to skip",
+                  "name": "offset",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "{field: \"CONTRIBUTION_TYPE\", direction: \"ASC\"}",
+                  "description": "The order in which to sort the results",
+                  "name": "order",
+                  "type": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "ContributionOrderBy",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific type to filter by",
+                  "name": "contributionType",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "ContributionType",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
-              "description": null,
+              "description": "Get contributions linked to this contributor",
               "isDeprecated": false,
               "name": "contributions",
               "type": {
@@ -5468,6 +5632,22 @@
           "description": "A person's involvement in the production of a written text.",
           "enumValues": null,
           "fields": [
+            {
+              "args": [],
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "contributionId",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Uuid",
+                  "ofType": null
+                }
+              }
+            },
             {
               "args": [],
               "deprecationReason": null,
@@ -5567,7 +5747,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -5583,7 +5763,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -5782,7 +5962,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -5798,7 +5978,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -5827,7 +6007,7 @@
           "possibleTypes": null
         },
         {
-          "description": "Field and order to use when sorting subjects list",
+          "description": "Field and order to use when sorting seriess list",
           "enumValues": null,
           "fields": null,
           "inputFields": [
@@ -5840,7 +6020,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "ENUM",
-                  "name": "SubjectField",
+                  "name": "SeriesField",
                   "ofType": null
                 }
               }
@@ -5862,7 +6042,7 @@
           ],
           "interfaces": null,
           "kind": "INPUT_OBJECT",
-          "name": "SubjectOrderBy",
+          "name": "SeriesOrderBy",
           "possibleTypes": null
         },
         {
@@ -6000,7 +6180,7 @@
               "name": "orcid",
               "type": {
                 "kind": "SCALAR",
-                "name": "String",
+                "name": "Orcid",
                 "ofType": null
               }
             },
@@ -6080,7 +6260,7 @@
               "name": "isbn",
               "type": {
                 "kind": "SCALAR",
-                "name": "String",
+                "name": "Isbn",
                 "ofType": null
               }
             },
@@ -6107,7 +6287,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -6123,15 +6303,56 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": "100",
+                  "description": "The number of items to return",
+                  "name": "limit",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "0",
+                  "description": "The number of items to skip",
+                  "name": "offset",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "{field: \"CURRENCY_CODE\", direction: \"ASC\"}",
+                  "description": "The order in which to sort the results",
+                  "name": "order",
+                  "type": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "PriceOrderBy",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific currency to filter by",
+                  "name": "currencyCode",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "CurrencyCode",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
-              "description": null,
+              "description": "Get prices linked to this publication",
               "isDeprecated": false,
               "name": "prices",
               "type": {
@@ -6246,6 +6467,69 @@
             {
               "defaultValue": null,
               "description": null,
+              "name": "imprintId",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Uuid",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "publisherId",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Uuid",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "imprintName",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "imprintUrl",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          ],
+          "interfaces": null,
+          "kind": "INPUT_OBJECT",
+          "name": "PatchImprint",
+          "possibleTypes": null
+        },
+        {
+          "description": null,
+          "enumValues": null,
+          "fields": null,
+          "inputFields": [
+            {
+              "defaultValue": null,
+              "description": null,
               "name": "publicationId",
               "type": {
                 "kind": "NON_NULL",
@@ -6291,7 +6575,7 @@
               "name": "isbn",
               "type": {
                 "kind": "SCALAR",
-                "name": "String",
+                "name": "Isbn",
                 "ofType": null
               }
             },
@@ -6309,6 +6593,126 @@
           "interfaces": null,
           "kind": "INPUT_OBJECT",
           "name": "PatchPublication",
+          "possibleTypes": null
+        },
+        {
+          "description": "Field to use when sorting fundings list",
+          "enumValues": [
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "FUNDER_ID"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "WORK_ID"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "FUNDING_ID"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "PROGRAM"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "PROJECT_NAME"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "PROJECT_SHORTNAME"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "GRANT_NUMBER"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "JURISDICTION"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "CREATED_AT"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "UPDATED_AT"
+            }
+          ],
+          "fields": null,
+          "inputFields": null,
+          "interfaces": null,
+          "kind": "ENUM",
+          "name": "FundingField",
+          "possibleTypes": null
+        },
+        {
+          "description": null,
+          "enumValues": null,
+          "fields": null,
+          "inputFields": [
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "publisherId",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Uuid",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "imprintName",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "imprintUrl",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          ],
+          "interfaces": null,
+          "kind": "INPUT_OBJECT",
+          "name": "NewImprint",
           "possibleTypes": null
         },
         {
@@ -6417,77 +6821,6 @@
           "possibleTypes": null
         },
         {
-          "description": "Field to use when sorting fundings list",
-          "enumValues": [
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "FUNDING_ID"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "WORK_ID"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "FUNDER_ID"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "PROGRAM"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "PROJECT_NAME"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "PROJECT_SHORTNAME"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "GRANT_NUMBER"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "JURISDICTION"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "CREATED_AT"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "UPDATED_AT"
-            }
-          ],
-          "fields": null,
-          "inputFields": null,
-          "interfaces": null,
-          "kind": "ENUM",
-          "name": "FundingField",
-          "possibleTypes": null
-        },
-        {
           "description": null,
           "enumValues": null,
           "fields": null,
@@ -6495,7 +6828,7 @@
             {
               "defaultValue": null,
               "description": null,
-              "name": "publisherId",
+              "name": "issueId",
               "type": {
                 "kind": "NON_NULL",
                 "name": null,
@@ -6506,41 +6839,6 @@
                 }
               }
             },
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "imprintName",
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "SCALAR",
-                  "name": "String",
-                  "ofType": null
-                }
-              }
-            },
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "imprintUrl",
-              "type": {
-                "kind": "SCALAR",
-                "name": "String",
-                "ofType": null
-              }
-            }
-          ],
-          "interfaces": null,
-          "kind": "INPUT_OBJECT",
-          "name": "NewImprint",
-          "possibleTypes": null
-        },
-        {
-          "description": null,
-          "enumValues": null,
-          "fields": null,
-          "inputFields": [
             {
               "defaultValue": null,
               "description": null,
@@ -6694,141 +6992,6 @@
           "interfaces": [],
           "kind": "OBJECT",
           "name": "__Field",
-          "possibleTypes": null
-        },
-        {
-          "description": null,
-          "enumValues": null,
-          "fields": [
-            {
-              "args": [],
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "name",
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "SCALAR",
-                  "name": "String",
-                  "ofType": null
-                }
-              }
-            },
-            {
-              "args": [],
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "description",
-              "type": {
-                "kind": "SCALAR",
-                "name": "String",
-                "ofType": null
-              }
-            },
-            {
-              "args": [],
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "locations",
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "LIST",
-                  "name": null,
-                  "ofType": {
-                    "kind": "NON_NULL",
-                    "name": null,
-                    "ofType": {
-                      "kind": "ENUM",
-                      "name": "__DirectiveLocation",
-                      "ofType": null
-                    }
-                  }
-                }
-              }
-            },
-            {
-              "args": [],
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "args",
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "LIST",
-                  "name": null,
-                  "ofType": {
-                    "kind": "NON_NULL",
-                    "name": null,
-                    "ofType": {
-                      "kind": "OBJECT",
-                      "name": "__InputValue",
-                      "ofType": null
-                    }
-                  }
-                }
-              }
-            },
-            {
-              "args": [],
-              "deprecationReason": "Use the locations array instead",
-              "description": null,
-              "isDeprecated": true,
-              "name": "onOperation",
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "SCALAR",
-                  "name": "Boolean",
-                  "ofType": null
-                }
-              }
-            },
-            {
-              "args": [],
-              "deprecationReason": "Use the locations array instead",
-              "description": null,
-              "isDeprecated": true,
-              "name": "onFragment",
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "SCALAR",
-                  "name": "Boolean",
-                  "ofType": null
-                }
-              }
-            },
-            {
-              "args": [],
-              "deprecationReason": "Use the locations array instead",
-              "description": null,
-              "isDeprecated": true,
-              "name": "onField",
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "SCALAR",
-                  "name": "Boolean",
-                  "ofType": null
-                }
-              }
-            }
-          ],
-          "inputFields": null,
-          "interfaces": [],
-          "kind": "OBJECT",
-          "name": "__Directive",
           "possibleTypes": null
         },
         {
@@ -7041,7 +7204,7 @@
               "name": "doi",
               "type": {
                 "kind": "SCALAR",
-                "name": "String",
+                "name": "Doi",
                 "ofType": null
               }
             },
@@ -7263,6 +7426,141 @@
           "interfaces": null,
           "kind": "INPUT_OBJECT",
           "name": "PatchWork",
+          "possibleTypes": null
+        },
+        {
+          "description": null,
+          "enumValues": null,
+          "fields": [
+            {
+              "args": [],
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "name",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "description",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "locations",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "LIST",
+                  "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "ENUM",
+                      "name": "__DirectiveLocation",
+                      "ofType": null
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "args",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "LIST",
+                  "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "OBJECT",
+                      "name": "__InputValue",
+                      "ofType": null
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": "Use the locations array instead",
+              "description": null,
+              "isDeprecated": true,
+              "name": "onOperation",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Boolean",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": "Use the locations array instead",
+              "description": null,
+              "isDeprecated": true,
+              "name": "onFragment",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Boolean",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": "Use the locations array instead",
+              "description": null,
+              "isDeprecated": true,
+              "name": "onField",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Boolean",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "inputFields": null,
+          "interfaces": [],
+          "kind": "OBJECT",
+          "name": "__Directive",
           "possibleTypes": null
         },
         {
@@ -7560,7 +7858,7 @@
               "name": "doi",
               "type": {
                 "kind": "SCALAR",
-                "name": "String",
+                "name": "Doi",
                 "ofType": null
               }
             },
@@ -7891,6 +8189,20 @@
                     "ofType": {
                       "kind": "INPUT_OBJECT",
                       "name": "NewWork",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": null,
+                  "name": "units",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "ENUM",
+                      "name": "LengthUnit",
                       "ofType": null
                     }
                   }
@@ -8294,6 +8606,20 @@
                     "ofType": {
                       "kind": "INPUT_OBJECT",
                       "name": "PatchWork",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": null,
+                  "name": "units",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "ENUM",
+                      "name": "LengthUnit",
                       "ofType": null
                     }
                   }
@@ -8814,41 +9140,13 @@
                 {
                   "defaultValue": null,
                   "description": null,
-                  "name": "workId",
+                  "name": "contributionId",
                   "type": {
                     "kind": "NON_NULL",
                     "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "Uuid",
-                      "ofType": null
-                    }
-                  }
-                },
-                {
-                  "defaultValue": null,
-                  "description": null,
-                  "name": "contributorId",
-                  "type": {
-                    "kind": "NON_NULL",
-                    "name": null,
-                    "ofType": {
-                      "kind": "SCALAR",
-                      "name": "Uuid",
-                      "ofType": null
-                    }
-                  }
-                },
-                {
-                  "defaultValue": null,
-                  "description": null,
-                  "name": "contributionType",
-                  "type": {
-                    "kind": "NON_NULL",
-                    "name": null,
-                    "ofType": {
-                      "kind": "ENUM",
-                      "name": "ContributionType",
                       "ofType": null
                     }
                   }
@@ -8935,21 +9233,7 @@
                 {
                   "defaultValue": null,
                   "description": null,
-                  "name": "seriesId",
-                  "type": {
-                    "kind": "NON_NULL",
-                    "name": null,
-                    "ofType": {
-                      "kind": "SCALAR",
-                      "name": "Uuid",
-                      "ofType": null
-                    }
-                  }
-                },
-                {
-                  "defaultValue": null,
-                  "description": null,
-                  "name": "workId",
+                  "name": "issueId",
                   "type": {
                     "kind": "NON_NULL",
                     "name": null,
@@ -9185,6 +9469,22 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
+              "name": "issueId",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Uuid",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
               "name": "workId",
               "type": {
                 "kind": "NON_NULL",
@@ -9239,7 +9539,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -9255,7 +9555,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -9304,6 +9604,20 @@
           "enumValues": null,
           "fields": null,
           "inputFields": [
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "contributionId",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Uuid",
+                  "ofType": null
+                }
+              }
+            },
             {
               "defaultValue": null,
               "description": null,
@@ -9414,6 +9728,20 @@
                 "ofType": {
                   "kind": "SCALAR",
                   "name": "String",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "contributionOrdinal",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Int",
                   "ofType": null
                 }
               }
@@ -9643,16 +9971,6 @@
           "possibleTypes": null
         },
         {
-          "description": "NaiveDateTime",
-          "enumValues": null,
-          "fields": null,
-          "inputFields": null,
-          "interfaces": null,
-          "kind": "SCALAR",
-          "name": "NaiveDateTime",
-          "possibleTypes": null
-        },
-        {
           "description": null,
           "enumValues": [
             {
@@ -9799,6 +10117,20 @@
                   "ofType": null
                 }
               }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "contributionOrdinal",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Int",
+                  "ofType": null
+                }
+              }
             }
           ],
           "interfaces": null,
@@ -9937,6 +10269,55 @@
           "possibleTypes": null
         },
         {
+          "description": "Field and order to use when sorting languages list",
+          "enumValues": null,
+          "fields": null,
+          "inputFields": [
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "field",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "ENUM",
+                  "name": "LanguageField",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "direction",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "ENUM",
+                  "name": "Direction",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "interfaces": null,
+          "kind": "INPUT_OBJECT",
+          "name": "LanguageOrderBy",
+          "possibleTypes": null
+        },
+        {
+          "description": "13-digit International Standard Book Number, with its parts separated by hyphens",
+          "enumValues": null,
+          "fields": null,
+          "inputFields": null,
+          "interfaces": null,
+          "kind": "SCALAR",
+          "name": "Isbn",
+          "possibleTypes": null
+        },
+        {
           "description": null,
           "enumValues": [
             {
@@ -9984,6 +10365,45 @@
           "possibleTypes": null
         },
         {
+          "description": "Field and order to use when sorting imprints list",
+          "enumValues": null,
+          "fields": null,
+          "inputFields": [
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "field",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "ENUM",
+                  "name": "ImprintField",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "direction",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "ENUM",
+                  "name": "Direction",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "interfaces": null,
+          "kind": "INPUT_OBJECT",
+          "name": "ImprintOrderBy",
+          "possibleTypes": null
+        },
+        {
           "description": "Field to use when sorting publishers list",
           "enumValues": [
             {
@@ -10028,143 +10448,6 @@
           "interfaces": null,
           "kind": "ENUM",
           "name": "PublisherField",
-          "possibleTypes": null
-        },
-        {
-          "description": "Field to use when sorting series list",
-          "enumValues": [
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "SERIES_ID"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "SERIES_TYPE"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "SERIES_NAME"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "ISSNPRINT"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "ISSNDIGITAL"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "SERIES_URL"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "CREATED_AT"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "UPDATED_AT"
-            }
-          ],
-          "fields": null,
-          "inputFields": null,
-          "interfaces": null,
-          "kind": "ENUM",
-          "name": "SeriesField",
-          "possibleTypes": null
-        },
-        {
-          "description": "Field and order to use when sorting imprints list",
-          "enumValues": null,
-          "fields": null,
-          "inputFields": [
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "field",
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "ENUM",
-                  "name": "ImprintField",
-                  "ofType": null
-                }
-              }
-            },
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "direction",
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "ENUM",
-                  "name": "Direction",
-                  "ofType": null
-                }
-              }
-            }
-          ],
-          "interfaces": null,
-          "kind": "INPUT_OBJECT",
-          "name": "ImprintOrderBy",
-          "possibleTypes": null
-        },
-        {
-          "description": "Field and order to use when sorting languages list",
-          "enumValues": null,
-          "fields": null,
-          "inputFields": [
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "field",
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "ENUM",
-                  "name": "LanguageField",
-                  "ofType": null
-                }
-              }
-            },
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "direction",
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "ENUM",
-                  "name": "Direction",
-                  "ofType": null
-                }
-              }
-            }
-          ],
-          "interfaces": null,
-          "kind": "INPUT_OBJECT",
-          "name": "LanguageOrderBy",
           "possibleTypes": null
         },
         {
@@ -10231,6 +10514,22 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
+              "name": "publisherId",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Uuid",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
               "name": "imprintName",
               "type": {
                 "kind": "NON_NULL",
@@ -10265,7 +10564,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -10281,7 +10580,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -10303,9 +10602,70 @@
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": "100",
+                  "description": "The number of items to return",
+                  "name": "limit",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "0",
+                  "description": "The number of items to skip",
+                  "name": "offset",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "\"\"",
+                  "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page",
+                  "name": "filter",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "String",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "{field: \"FULL_TITLE\", direction: \"ASC\"}",
+                  "description": "The order in which to sort the results",
+                  "name": "order",
+                  "type": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "WorkOrderBy",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific type to filter by",
+                  "name": "workType",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "WorkType",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific status to filter by",
+                  "name": "workStatus",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "WorkStatus",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
-              "description": null,
+              "description": "Get works linked to this imprint",
               "isDeprecated": false,
               "name": "works",
               "type": {
@@ -10378,6 +10738,44 @@
                     "name": "WorkOrderBy",
                     "ofType": null
                   }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific type to filter by",
+                  "name": "workType",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "WorkType",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific status to filter by",
+                  "name": "workStatus",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "WorkStatus",
+                    "ofType": null
+                  }
                 }
               ],
               "deprecationReason": null,
@@ -10436,12 +10834,81 @@
             {
               "args": [
                 {
+                  "defaultValue": null,
+                  "description": null,
+                  "name": "doi",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "Doi",
+                      "ofType": null
+                    }
+                  }
+                }
+              ],
+              "deprecationReason": null,
+              "description": "Query a single work using its DOI",
+              "isDeprecated": false,
+              "name": "workByDoi",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "OBJECT",
+                  "name": "Work",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "args": [
+                {
                   "defaultValue": "\"\"",
                   "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page",
                   "name": "filter",
                   "type": {
                     "kind": "SCALAR",
                     "name": "String",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific type to filter by",
+                  "name": "workType",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "WorkType",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific status to filter by",
+                  "name": "workStatus",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "WorkStatus",
                     "ofType": null
                   }
                 }
@@ -10499,6 +10966,34 @@
                   "type": {
                     "kind": "INPUT_OBJECT",
                     "name": "PublicationOrderBy",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific type to filter by",
+                  "name": "publicationType",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "PublicationType",
                     "ofType": null
                   }
                 }
@@ -10567,6 +11062,34 @@
                     "name": "String",
                     "ofType": null
                   }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific type to filter by",
+                  "name": "publicationType",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "PublicationType",
+                    "ofType": null
+                  }
                 }
               ],
               "deprecationReason": null,
@@ -10624,6 +11147,24 @@
                     "name": "PublisherOrderBy",
                     "ofType": null
                   }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
+                  }
                 }
               ],
               "deprecationReason": null,
@@ -10666,7 +11207,7 @@
                 }
               ],
               "deprecationReason": null,
-              "description": "Query a publisher using its id",
+              "description": "Query a single publisher using its id",
               "isDeprecated": false,
               "name": "publisher",
               "type": {
@@ -10689,6 +11230,24 @@
                     "kind": "SCALAR",
                     "name": "String",
                     "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
                   }
                 }
               ],
@@ -10747,6 +11306,24 @@
                     "name": "ImprintOrderBy",
                     "ofType": null
                   }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
+                  }
                 }
               ],
               "deprecationReason": null,
@@ -10803,7 +11380,36 @@
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": "\"\"",
+                  "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url",
+                  "name": "filter",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "String",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
+                  }
+                }
+              ],
               "deprecationReason": null,
               "description": "Get the total number of imprints",
               "isDeprecated": false,
@@ -10972,6 +11578,34 @@
                     "name": "ContributionOrderBy",
                     "ofType": null
                   }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific type to filter by",
+                  "name": "contributionType",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "ContributionType",
+                    "ofType": null
+                  }
                 }
               ],
               "deprecationReason": null,
@@ -11001,48 +11635,20 @@
                 {
                   "defaultValue": null,
                   "description": null,
-                  "name": "workId",
+                  "name": "contributionId",
                   "type": {
                     "kind": "NON_NULL",
                     "name": null,
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "Uuid",
-                      "ofType": null
-                    }
-                  }
-                },
-                {
-                  "defaultValue": null,
-                  "description": null,
-                  "name": "contributorId",
-                  "type": {
-                    "kind": "NON_NULL",
-                    "name": null,
-                    "ofType": {
-                      "kind": "SCALAR",
-                      "name": "Uuid",
-                      "ofType": null
-                    }
-                  }
-                },
-                {
-                  "defaultValue": null,
-                  "description": null,
-                  "name": "contributionType",
-                  "type": {
-                    "kind": "NON_NULL",
-                    "name": null,
-                    "ofType": {
-                      "kind": "ENUM",
-                      "name": "ContributionType",
                       "ofType": null
                     }
                   }
                 }
               ],
               "deprecationReason": null,
-              "description": "Query a single contribution using its identifiers",
+              "description": "Query a single contribution using its id",
               "isDeprecated": false,
               "name": "contribution",
               "type": {
@@ -11056,7 +11662,18 @@
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": null,
+                  "description": null,
+                  "name": "contributionType",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "ContributionType",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
               "description": "Get the total number of contributions",
               "isDeprecated": false,
@@ -11110,6 +11727,34 @@
                   "type": {
                     "kind": "INPUT_OBJECT",
                     "name": "SeriesOrderBy",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific type to filter by",
+                  "name": "seriesType",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "SeriesType",
                     "ofType": null
                   }
                 }
@@ -11178,6 +11823,34 @@
                     "name": "String",
                     "ofType": null
                   }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific type to filter by",
+                  "name": "seriesType",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "SeriesType",
+                    "ofType": null
+                  }
                 }
               ],
               "deprecationReason": null,
@@ -11225,6 +11898,24 @@
                     "name": "IssueOrderBy",
                     "ofType": null
                   }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
+                  }
                 }
               ],
               "deprecationReason": null,
@@ -11254,21 +11945,7 @@
                 {
                   "defaultValue": null,
                   "description": null,
-                  "name": "seriesId",
-                  "type": {
-                    "kind": "NON_NULL",
-                    "name": null,
-                    "ofType": {
-                      "kind": "SCALAR",
-                      "name": "Uuid",
-                      "ofType": null
-                    }
-                  }
-                },
-                {
-                  "defaultValue": null,
-                  "description": null,
-                  "name": "workId",
+                  "name": "issueId",
                   "type": {
                     "kind": "NON_NULL",
                     "name": null,
@@ -11281,7 +11958,7 @@
                 }
               ],
               "deprecationReason": null,
-              "description": "Query a single issue using its identifiers",
+              "description": "Query a single issue using its id",
               "isDeprecated": false,
               "name": "issue",
               "type": {
@@ -11341,6 +12018,44 @@
                     "name": "LanguageOrderBy",
                     "ofType": null
                   }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific language to filter by",
+                  "name": "languageCode",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "LanguageCode",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific relation to filter by",
+                  "name": "languageRelation",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "LanguageRelation",
+                    "ofType": null
+                  }
                 }
               ],
               "deprecationReason": null,
@@ -11397,7 +12112,28 @@
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": null,
+                  "description": null,
+                  "name": "languageCode",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "LanguageCode",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": null,
+                  "name": "languageRelation",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "LanguageRelation",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
               "description": "Get the total number of languages associated to works",
               "isDeprecated": false,
@@ -11441,6 +12177,34 @@
                   "type": {
                     "kind": "INPUT_OBJECT",
                     "name": "PriceOrderBy",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific currency to filter by",
+                  "name": "currencyCode",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "CurrencyCode",
                     "ofType": null
                   }
                 }
@@ -11499,7 +12263,18 @@
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": null,
+                  "description": null,
+                  "name": "currencyCode",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "CurrencyCode",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
               "description": "Get the total number of prices associated to works",
               "isDeprecated": false,
@@ -11537,12 +12312,50 @@
                   }
                 },
                 {
+                  "defaultValue": "\"\"",
+                  "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code",
+                  "name": "filter",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "String",
+                    "ofType": null
+                  }
+                },
+                {
                   "defaultValue": "{field: \"SUBJECT_TYPE\", direction: \"ASC\"}",
                   "description": "The order in which to sort the results",
                   "name": "order",
                   "type": {
                     "kind": "INPUT_OBJECT",
                     "name": "SubjectOrderBy",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific type to filter by",
+                  "name": "subjectType",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "SubjectType",
                     "ofType": null
                   }
                 }
@@ -11601,7 +12414,32 @@
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": null,
+                  "description": null,
+                  "name": "filter",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "String",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": null,
+                  "name": "subjectType",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "SubjectType",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
               "description": "Get the total number of subjects associated to works",
               "isDeprecated": false,
@@ -11713,7 +12551,18 @@
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": "\"\"",
+                  "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on funderName and funderDoi",
+                  "name": "filter",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "String",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
               "description": "Get the total number of funders",
               "isDeprecated": false,
@@ -11758,6 +12607,24 @@
                     "kind": "INPUT_OBJECT",
                     "name": "FundingOrderBy",
                     "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "[]",
+                  "description": "If set, only shows results connected to publishers with these IDs",
+                  "name": "publishers",
+                  "type": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "Uuid",
+                        "ofType": null
+                      }
+                    }
                   }
                 }
               ],
@@ -11845,6 +12712,65 @@
           "interfaces": null,
           "kind": "SCALAR",
           "name": "Boolean",
+          "possibleTypes": null
+        },
+        {
+          "description": "Field to use when sorting series list",
+          "enumValues": [
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "SERIES_ID"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "SERIES_TYPE"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "SERIES_NAME"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "ISSN_PRINT"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "ISSN_DIGITAL"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "SERIES_URL"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "CREATED_AT"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "UPDATED_AT"
+            }
+          ],
+          "fields": null,
+          "inputFields": null,
+          "interfaces": null,
+          "kind": "ENUM",
+          "name": "SeriesField",
           "possibleTypes": null
         },
         {
@@ -12273,12 +13199,28 @@
             {
               "args": [],
               "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "imprintId",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Uuid",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": null,
               "description": "Digital Object Identifier of the work as full URL. It must use the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.11647/obp.0001)",
               "isDeprecated": false,
               "name": "doi",
               "type": {
                 "kind": "SCALAR",
-                "name": "String",
+                "name": "Doi",
                 "ofType": null
               }
             },
@@ -12307,9 +13249,20 @@
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": "\"MM\"",
+                  "description": "Unit of measurement in which to represent the width (mm, cm or in)",
+                  "name": "units",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "LengthUnit",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
-              "description": null,
+              "description": "Width of the physical Work (in mm, cm or in)",
               "isDeprecated": false,
               "name": "width",
               "type": {
@@ -12319,9 +13272,20 @@
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": "\"MM\"",
+                  "description": "Unit of measurement in which to represent the height (mm, cm or in)",
+                  "name": "units",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "LengthUnit",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
-              "description": null,
+              "description": "Height of the physical Work (in mm, cm or in)",
               "isDeprecated": false,
               "name": "height",
               "type": {
@@ -12549,7 +13513,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -12565,7 +13529,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "NaiveDateTime",
+                  "name": "Timestamp",
                   "ofType": null
                 }
               }
@@ -12587,9 +13551,50 @@
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": "100",
+                  "description": "The number of items to return",
+                  "name": "limit",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "0",
+                  "description": "The number of items to skip",
+                  "name": "offset",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "{field: \"CONTRIBUTION_TYPE\", direction: \"ASC\"}",
+                  "description": "The order in which to sort the results",
+                  "name": "order",
+                  "type": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "ContributionOrderBy",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific type to filter by",
+                  "name": "contributionType",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "ContributionType",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
-              "description": null,
+              "description": "Get contributions linked to this work",
               "isDeprecated": false,
               "name": "contributions",
               "type": {
@@ -12611,9 +13616,60 @@
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": "100",
+                  "description": "The number of items to return",
+                  "name": "limit",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "0",
+                  "description": "The number of items to skip",
+                  "name": "offset",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "{field: \"LANGUAGE_CODE\", direction: \"ASC\"}",
+                  "description": "The order in which to sort the results",
+                  "name": "order",
+                  "type": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "LanguageOrderBy",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific language to filter by",
+                  "name": "languageCode",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "LanguageCode",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific relation to filter by",
+                  "name": "languageRelation",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "LanguageRelation",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
-              "description": null,
+              "description": "Get languages linked to this work",
               "isDeprecated": false,
               "name": "languages",
               "type": {
@@ -12663,6 +13719,16 @@
                   "type": {
                     "kind": "SCALAR",
                     "name": "String",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "{field: \"PUBLICATION_TYPE\", direction: \"ASC\"}",
+                  "description": "The order in which to sort the results",
+                  "name": "order",
+                  "type": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "PublicationOrderBy",
                     "ofType": null
                   }
                 },
@@ -12730,6 +13796,26 @@
                     "name": "String",
                     "ofType": null
                   }
+                },
+                {
+                  "defaultValue": "{field: \"SUBJECT_TYPE\", direction: \"ASC\"}",
+                  "description": "The order in which to sort the results",
+                  "name": "order",
+                  "type": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "SubjectOrderBy",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": "A specific type to filter by",
+                  "name": "subjectType",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "SubjectType",
+                    "ofType": null
+                  }
                 }
               ],
               "deprecationReason": null,
@@ -12755,9 +13841,40 @@
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": "100",
+                  "description": "The number of items to return",
+                  "name": "limit",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "0",
+                  "description": "The number of items to skip",
+                  "name": "offset",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "{field: \"PROGRAM\", direction: \"ASC\"}",
+                  "description": "The order in which to sort the results",
+                  "name": "order",
+                  "type": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "FundingOrderBy",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
-              "description": null,
+              "description": "Get fundings linked to this work",
               "isDeprecated": false,
               "name": "fundings",
               "type": {
@@ -12779,9 +13896,40 @@
               }
             },
             {
-              "args": [],
+              "args": [
+                {
+                  "defaultValue": "100",
+                  "description": "The number of items to return",
+                  "name": "limit",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "0",
+                  "description": "The number of items to skip",
+                  "name": "offset",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Int",
+                    "ofType": null
+                  }
+                },
+                {
+                  "defaultValue": "{field: \"ISSUE_ORDINAL\", direction: \"ASC\"}",
+                  "description": "The order in which to sort the results",
+                  "name": "order",
+                  "type": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "IssueOrderBy",
+                    "ofType": null
+                  }
+                }
+              ],
               "deprecationReason": null,
-              "description": null,
+              "description": "Get issues linked to this work",
               "isDeprecated": false,
               "name": "issues",
               "type": {
@@ -12807,6 +13955,16 @@
           "interfaces": [],
           "kind": "OBJECT",
           "name": "Work",
+          "possibleTypes": null
+        },
+        {
+          "description": "ORCID (Open Researcher and Contributor ID) identifier. Expressed as `^https:\\/\\/orcid\\.org\\/0000-000(1-[5-9]|2-[0-9]|3-[0-4])\\d{3}-\\d{3}[\\dX]$`",
+          "enumValues": null,
+          "fields": null,
+          "inputFields": null,
+          "interfaces": null,
+          "kind": "SCALAR",
+          "name": "Orcid",
           "possibleTypes": null
         },
         {
@@ -12901,7 +14059,7 @@
               "name": "funderDoi",
               "type": {
                 "kind": "SCALAR",
-                "name": "String",
+                "name": "Doi",
                 "ofType": null
               }
             }
@@ -12950,7 +14108,7 @@
               "name": "isbn",
               "type": {
                 "kind": "SCALAR",
-                "name": "String",
+                "name": "Isbn",
                 "ofType": null
               }
             },

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::contribution::model::ContributionWithWork;
+use thoth_api::model::contribution::ContributionWithWork;
 use uuid::Uuid;
 
 use crate::graphql_query_builder;

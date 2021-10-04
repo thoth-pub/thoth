@@ -1,8 +1,8 @@
 use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
-use thoth_api::imprint::model::ImprintWithPublisher;
-use thoth_api::series::model::SeriesType;
-use thoth_api::series::model::SeriesWithImprint;
+use thoth_api::model::imprint::ImprintWithPublisher;
+use thoth_api::model::series::SeriesType;
+use thoth_api::model::series::SeriesWithImprint;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;

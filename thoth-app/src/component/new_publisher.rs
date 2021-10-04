@@ -1,4 +1,4 @@
-use thoth_api::publisher::model::Publisher;
+use thoth_api::model::publisher::Publisher;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;

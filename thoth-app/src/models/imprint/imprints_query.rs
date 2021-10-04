@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::imprint::model::ImprintOrderBy;
-use thoth_api::imprint::model::ImprintWithPublisher;
+use thoth_api::model::imprint::ImprintOrderBy;
+use thoth_api::model::imprint::ImprintWithPublisher;
 
 const IMPRINTS_QUERY: &str = "
     query ImprintsQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: ImprintOrderBy) {

@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
-use thoth_api::publication::model::Publication;
-use thoth_api::publication::model::PublicationType;
-use thoth_api::publication::model::PublicationWithRelations;
+use thoth_api::model::publication::Publication;
+use thoth_api::model::publication::PublicationType;
+use thoth_api::model::publication::PublicationWithRelations;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;

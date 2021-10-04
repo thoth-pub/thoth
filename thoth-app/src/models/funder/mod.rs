@@ -1,4 +1,4 @@
-use thoth_api::funder::model::Funder;
+use thoth_api::model::funder::Funder;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;

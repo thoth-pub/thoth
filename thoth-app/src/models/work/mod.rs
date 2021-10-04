@@ -2,11 +2,11 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::str::FromStr;
 use std::string::ParseError;
+use thoth_api::model::work::Work;
+use thoth_api::model::work::WorkStatus;
+use thoth_api::model::work::WorkType;
+use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::LengthUnit;
-use thoth_api::work::model::Work;
-use thoth_api::work::model::WorkStatus;
-use thoth_api::work::model::WorkType;
-use thoth_api::work::model::WorkWithRelations;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -118,6 +118,8 @@ impl MetadataTable for WorkWithRelations {
 pub trait DisplayWork {
     fn onix_projectmuse_endpoint(&self) -> String;
     fn onix_oapen_endpoint(&self) -> String;
+    fn onix_jstor_endpoint(&self) -> String;
+    fn onix_ebsco_host_endpoint(&self) -> String;
     fn csv_endpoint(&self) -> String;
     fn kbart_endpoint(&self) -> String;
     fn cover_alt_text(&self) -> String;
@@ -137,6 +139,20 @@ impl DisplayWork for WorkWithRelations {
     fn onix_oapen_endpoint(&self) -> String {
         format!(
             "{}/specifications/onix_3.0::oapen/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
+    fn onix_jstor_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/onix_3.0::jstor/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
+    fn onix_ebsco_host_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/onix_2.1::ebsco_host/work/{}",
             THOTH_EXPORT_API, &self.work_id
         )
     }
@@ -355,6 +371,18 @@ impl DisplayWork for WorkWithRelations {
                                                 class="dropdown-item"
                                             >
                                             {"ONIX (OAPEN)"}
+                                            </a>
+                                            <a
+                                                href={self.onix_jstor_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"ONIX (JSTOR)"}
+                                            </a>
+                                            <a
+                                                href={self.onix_ebsco_host_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"ONIX (EBSCO Host)"}
                                             </a>
                                             <a
                                                 href={self.csv_endpoint()}
