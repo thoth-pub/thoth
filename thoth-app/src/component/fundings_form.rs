@@ -35,6 +35,8 @@ use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_FUNDINGS;
 use crate::string::REMOVE_BUTTON;
 
+use super::ToOption;
+
 pub struct FundingsFormComponent {
     props: Props,
     data: FundingsFormData,
@@ -259,41 +261,23 @@ impl Component for FundingsFormComponent {
                 self.link.send_message(Msg::GetFunders);
                 false
             }
-            Msg::ChangeProgram(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_funding.program.neq_assign(value)
-            }
-            Msg::ChangeProjectName(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_funding.project_name.neq_assign(value)
-            }
-            Msg::ChangeProjectShortname(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_funding.project_shortname.neq_assign(value)
-            }
-            Msg::ChangeGrant(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_funding.grant_number.neq_assign(value)
-            }
-            Msg::ChangeJurisdiction(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_funding.jurisdiction.neq_assign(value)
-            }
+            Msg::ChangeProgram(val) => self.new_funding.program.neq_assign(val.to_opt_string()),
+            Msg::ChangeProjectName(val) => self
+                .new_funding
+                .project_name
+                .neq_assign(val.to_opt_string()),
+            Msg::ChangeProjectShortname(val) => self
+                .new_funding
+                .project_shortname
+                .neq_assign(val.to_opt_string()),
+            Msg::ChangeGrant(val) => self
+                .new_funding
+                .grant_number
+                .neq_assign(val.to_opt_string()),
+            Msg::ChangeJurisdiction(val) => self
+                .new_funding
+                .jurisdiction
+                .neq_assign(val.to_opt_string()),
             Msg::DoNothing => false, // callbacks need to return a message
         }
     }

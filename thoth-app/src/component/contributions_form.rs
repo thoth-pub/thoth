@@ -45,6 +45,8 @@ use crate::string::NO;
 use crate::string::REMOVE_BUTTON;
 use crate::string::YES;
 
+use super::ToOption;
+
 pub struct ContributionsFormComponent {
     props: Props,
     data: ContributionsFormData,
@@ -311,29 +313,20 @@ impl Component for ContributionsFormComponent {
                 self.link.send_message(Msg::GetContributors);
                 false
             }
-            Msg::ChangeFirstName(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_contribution.first_name.neq_assign(value)
-            }
+            Msg::ChangeFirstName(val) => self
+                .new_contribution
+                .first_name
+                .neq_assign(val.to_opt_string()),
             Msg::ChangeLastName(val) => self.new_contribution.last_name.neq_assign(val),
             Msg::ChangeFullName(val) => self.new_contribution.full_name.neq_assign(val),
-            Msg::ChangeInstitution(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_contribution.institution.neq_assign(value)
-            }
-            Msg::ChangeBiography(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_contribution.biography.neq_assign(value)
-            }
+            Msg::ChangeInstitution(val) => self
+                .new_contribution
+                .institution
+                .neq_assign(val.to_opt_string()),
+            Msg::ChangeBiography(val) => self
+                .new_contribution
+                .biography
+                .neq_assign(val.to_opt_string()),
             Msg::ChangeContributiontype(val) => {
                 self.new_contribution.contribution_type.neq_assign(val)
             }
