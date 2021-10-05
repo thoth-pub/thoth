@@ -48,6 +48,8 @@ use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+use super::ToOption;
+
 pub struct ContributorComponent {
     contributor: Contributor,
     // Track the user-entered ORCID string, which may not be validly formatted
@@ -287,13 +289,10 @@ impl Component for ContributorComponent {
                     .send_message(Msg::SetContributorDeleteState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangeFirstName(value) => {
-                let first_name = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.contributor.first_name.neq_assign(first_name)
-            }
+            Msg::ChangeFirstName(value) => self
+                .contributor
+                .first_name
+                .neq_assign(value.to_opt_string()),
             Msg::ChangeLastName(last_name) => self
                 .contributor
                 .last_name
@@ -323,13 +322,7 @@ impl Component for ContributorComponent {
                     false
                 }
             }
-            Msg::ChangeWebsite(value) => {
-                let website = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.contributor.website.neq_assign(website)
-            }
+            Msg::ChangeWebsite(value) => self.contributor.website.neq_assign(value.to_opt_string()),
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));

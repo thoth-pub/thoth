@@ -57,6 +57,8 @@ use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+use super::ToOption;
+
 pub struct NewWorkComponent {
     work: WorkWithRelations,
     // Track the user-entered DOI string, which may not be validly formatted
@@ -351,11 +353,7 @@ impl Component for NewWorkComponent {
                 }
             }
             Msg::ChangeSubtitle(value) => {
-                let subtitle = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                if self.work.subtitle.neq_assign(subtitle) {
+                if self.work.subtitle.neq_assign(value.to_opt_string()) {
                     self.work.full_title = self.work.compile_fulltitle();
                     true
                 } else {
@@ -364,13 +362,7 @@ impl Component for NewWorkComponent {
             }
             Msg::ChangeWorkType(work_type) => self.work.work_type.neq_assign(work_type),
             Msg::ChangeWorkStatus(work_status) => self.work.work_status.neq_assign(work_status),
-            Msg::ChangeReference(value) => {
-                let reference = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.reference.neq_assign(reference)
-            }
+            Msg::ChangeReference(value) => self.work.reference.neq_assign(value.to_opt_string()),
             Msg::ChangeImprint(imprint_id) => self.imprint_id.neq_assign(imprint_id),
             Msg::ChangeEdition(edition) => {
                 let edition: i32 = edition.parse().unwrap_or(1);
@@ -397,160 +389,43 @@ impl Component for NewWorkComponent {
                     false
                 }
             }
-            Msg::ChangeDate(value) => {
-                let date = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.publication_date.neq_assign(date)
-            }
-            Msg::ChangePlace(value) => {
-                let place = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.place.neq_assign(place)
-            }
-            Msg::ChangeWidth(value) => {
-                let count: f64 = value.parse().unwrap_or(0.0);
-                let width = match count == 0.0 {
-                    true => None,
-                    false => Some(count),
-                };
-                self.work.width.neq_assign(width)
-            }
-            Msg::ChangeHeight(value) => {
-                let count: f64 = value.parse().unwrap_or(0.0);
-                let height = match count == 0.0 {
-                    true => None,
-                    false => Some(count),
-                };
-                self.work.height.neq_assign(height)
-            }
+            Msg::ChangeDate(value) => self.work.publication_date.neq_assign(value.to_opt_string()),
+            Msg::ChangePlace(value) => self.work.place.neq_assign(value.to_opt_string()),
+            Msg::ChangeWidth(value) => self.work.width.neq_assign(value.to_opt_float()),
+            Msg::ChangeHeight(value) => self.work.height.neq_assign(value.to_opt_float()),
             Msg::ChangeLengthUnit(length_unit) => {
                 self.props.update_units_selection.emit(length_unit);
                 false
             }
-            Msg::ChangePageCount(value) => {
-                let count: i32 = value.parse().unwrap_or(0);
-                let page_count = match count == 0 {
-                    true => None,
-                    false => Some(count),
-                };
-                self.work.page_count.neq_assign(page_count)
-            }
+            Msg::ChangePageCount(value) => self.work.page_count.neq_assign(value.to_opt_int()),
             Msg::ChangePageBreakdown(value) => {
-                let breakdown = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.page_breakdown.neq_assign(breakdown)
+                self.work.page_breakdown.neq_assign(value.to_opt_string())
             }
-            Msg::ChangeImageCount(value) => {
-                let count: i32 = value.parse().unwrap_or(0);
-                let image_count = match count == 0 {
-                    true => None,
-                    false => Some(count),
-                };
-                self.work.image_count.neq_assign(image_count)
-            }
-            Msg::ChangeTableCount(value) => {
-                let count: i32 = value.parse().unwrap_or(0);
-                let table_count = match count == 0 {
-                    true => None,
-                    false => Some(count),
-                };
-                self.work.table_count.neq_assign(table_count)
-            }
-            Msg::ChangeAudioCount(value) => {
-                let count: i32 = value.parse().unwrap_or(0);
-                let audio_count = match count == 0 {
-                    true => None,
-                    false => Some(count),
-                };
-                self.work.audio_count.neq_assign(audio_count)
-            }
-            Msg::ChangeVideoCount(value) => {
-                let count: i32 = value.parse().unwrap_or(0);
-                let video_count = match count == 0 {
-                    true => None,
-                    false => Some(count),
-                };
-                self.work.video_count.neq_assign(video_count)
-            }
-            Msg::ChangeLicense(value) => {
-                let license = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.license.neq_assign(license)
-            }
+            Msg::ChangeImageCount(value) => self.work.image_count.neq_assign(value.to_opt_int()),
+            Msg::ChangeTableCount(value) => self.work.table_count.neq_assign(value.to_opt_int()),
+            Msg::ChangeAudioCount(value) => self.work.audio_count.neq_assign(value.to_opt_int()),
+            Msg::ChangeVideoCount(value) => self.work.video_count.neq_assign(value.to_opt_int()),
+            Msg::ChangeLicense(value) => self.work.license.neq_assign(value.to_opt_string()),
             Msg::ChangeCopyright(copyright) => self
                 .work
                 .copyright_holder
                 .neq_assign(copyright.trim().to_owned()),
             Msg::ChangeLandingPage(value) => {
-                let landing_page = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.landing_page.neq_assign(landing_page)
+                self.work.landing_page.neq_assign(value.to_opt_string())
             }
-            Msg::ChangeLccn(value) => {
-                let lccn = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.lccn.neq_assign(lccn)
-            }
-            Msg::ChangeOclc(value) => {
-                let oclc = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.oclc.neq_assign(oclc)
-            }
+            Msg::ChangeLccn(value) => self.work.lccn.neq_assign(value.to_opt_string()),
+            Msg::ChangeOclc(value) => self.work.oclc.neq_assign(value.to_opt_string()),
             Msg::ChangeShortAbstract(value) => {
-                let short_abstract = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.short_abstract.neq_assign(short_abstract)
+                self.work.short_abstract.neq_assign(value.to_opt_string())
             }
             Msg::ChangeLongAbstract(value) => {
-                let long_abstract = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.long_abstract.neq_assign(long_abstract)
+                self.work.long_abstract.neq_assign(value.to_opt_string())
             }
-            Msg::ChangeNote(value) => {
-                let note = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.general_note.neq_assign(note)
-            }
-            Msg::ChangeToc(value) => {
-                let toc = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.toc.neq_assign(toc)
-            }
-            Msg::ChangeCoverUrl(value) => {
-                let cover_url = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.cover_url.neq_assign(cover_url)
-            }
+            Msg::ChangeNote(value) => self.work.general_note.neq_assign(value.to_opt_string()),
+            Msg::ChangeToc(value) => self.work.toc.neq_assign(value.to_opt_string()),
+            Msg::ChangeCoverUrl(value) => self.work.cover_url.neq_assign(value.to_opt_string()),
             Msg::ChangeCoverCaption(value) => {
-                let cover_caption = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.work.cover_caption.neq_assign(cover_caption)
+                self.work.cover_caption.neq_assign(value.to_opt_string())
             }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
