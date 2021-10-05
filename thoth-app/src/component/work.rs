@@ -448,7 +448,13 @@ impl Component for WorkComponent {
                     false
                 }
             }
-            Msg::ChangeDate(date) => self.work.publication_date.neq_assign(Some(date)),
+            Msg::ChangeDate(value) => {
+                let date = match value.trim().is_empty() {
+                    true => None,
+                    false => Some(value.trim().to_owned()),
+                };
+                self.work.publication_date.neq_assign(date)
+            }
             Msg::ChangePlace(value) => {
                 let place = match value.trim().is_empty() {
                     true => None,
