@@ -226,7 +226,10 @@ impl Component for SubjectsFormComponent {
                 false
             }
             Msg::ChangeSubjectType(val) => self.new_subject.subject_type.neq_assign(val),
-            Msg::ChangeCode(code) => self.new_subject.subject_code.neq_assign(code),
+            Msg::ChangeCode(code) => self
+                .new_subject
+                .subject_code
+                .neq_assign(code.trim().to_owned()),
             Msg::ChangeOrdinal(ordinal) => {
                 let ordinal = ordinal.parse::<i32>().unwrap_or(0);
                 self.new_subject.subject_ordinal.neq_assign(ordinal);

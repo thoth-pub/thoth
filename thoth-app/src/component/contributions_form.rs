@@ -317,8 +317,14 @@ impl Component for ContributionsFormComponent {
                 .new_contribution
                 .first_name
                 .neq_assign(val.to_opt_string()),
-            Msg::ChangeLastName(val) => self.new_contribution.last_name.neq_assign(val),
-            Msg::ChangeFullName(val) => self.new_contribution.full_name.neq_assign(val),
+            Msg::ChangeLastName(val) => self
+                .new_contribution
+                .last_name
+                .neq_assign(val.trim().to_owned()),
+            Msg::ChangeFullName(val) => self
+                .new_contribution
+                .full_name
+                .neq_assign(val.trim().to_owned()),
             Msg::ChangeInstitution(val) => self
                 .new_contribution
                 .institution
