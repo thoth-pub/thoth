@@ -302,11 +302,13 @@ impl Component for SubjectsFormComponent {
                                     label = "Subject Code"
                                     value=self.new_subject.subject_code.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeCode(e.value))
+                                    required = true
                                 />
                                 <FormNumberInput
                                     label = "Subject Ordinal"
                                     value=self.new_subject.subject_ordinal
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
+                                    required = true
                                 />
                             </form>
                         </section>

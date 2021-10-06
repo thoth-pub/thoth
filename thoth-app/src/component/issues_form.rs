@@ -375,6 +375,7 @@ impl Component for IssuesFormComponent {
                                     label="Issue Ordinal"
                                     value=self.new_issue.issue_ordinal
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
+                                    required = true
                                 />
                             </form>
                         </section>

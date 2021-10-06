@@ -397,6 +397,7 @@ impl Component for ContributorComponent {
                                 label = "Family Name"
                                 value=self.contributor.last_name.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
+                                required = true
                             />
                             <FormTextInput
                                 label = "Full Name"

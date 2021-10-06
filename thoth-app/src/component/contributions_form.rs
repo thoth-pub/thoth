@@ -428,11 +428,13 @@ impl Component for ContributionsFormComponent {
                                     label="Contributor's Family Name"
                                     value=self.new_contribution.last_name.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
+                                    required = true
                                 />
                                 <FormTextInput
                                     label="Contributor's Full Name"
                                     value=self.new_contribution.full_name.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
+                                    required = true
                                 />
                                 <FormContributionTypeSelect
                                     label = "Contribution Type"
@@ -474,6 +476,7 @@ impl Component for ContributionsFormComponent {
                                     label = "Contribution Ordinal"
                                     value=self.new_contribution.contribution_ordinal
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
+                                    required = true
                                 />
                             </form>
                         </section>
