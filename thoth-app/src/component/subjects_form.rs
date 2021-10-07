@@ -63,7 +63,6 @@ pub enum Msg {
     ChangeSubjectType(SubjectType),
     ChangeCode(String),
     ChangeOrdinal(String),
-    DoNothing,
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -235,7 +234,6 @@ impl Component for SubjectsFormComponent {
                 self.new_subject.subject_ordinal.neq_assign(ordinal);
                 false // otherwise we re-render the component and reset the value
             }
-            Msg::DoNothing => false, // callbacks need to return a message
         }
     }
 
@@ -278,9 +276,9 @@ impl Component for SubjectsFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="subjects-form" onsubmit=self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
-                                Msg::DoNothing
+                                Msg::CreateSubject
                             })
                             >
                                 <FormSubjectTypeSelect
@@ -315,10 +313,8 @@ impl Component for SubjectsFormComponent {
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick=self.link.callback(|e: MouseEvent| {
-                                    e.prevent_default();
-                                    Msg::CreateSubject
-                                })
+                                type="submit"
+                                form="subjects-form"
                             >
                                 { "Add Subject" }
                             </button>

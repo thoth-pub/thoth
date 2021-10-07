@@ -78,7 +78,6 @@ pub enum Msg {
     ChangeIsbn(String),
     ChangeUrl(String),
     ChangeRoute(AppRoute),
-    DoNothing,
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -295,7 +294,6 @@ impl Component for PublicationsFormComponent {
                 self.router.send(RouteRequest::ChangeRoute(route));
                 false
             }
-            Msg::DoNothing => false, // callbacks need to return a message
         }
     }
 
@@ -338,9 +336,9 @@ impl Component for PublicationsFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="publications-form" onsubmit=self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
-                                Msg::DoNothing
+                                Msg::CreatePublication
                             })
                             >
                                 <FormPublicationTypeSelect
@@ -374,10 +372,8 @@ impl Component for PublicationsFormComponent {
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick=self.link.callback(|e: MouseEvent| {
-                                    e.prevent_default();
-                                    Msg::CreatePublication
-                                })
+                                type="submit"
+                                form="publications-form"
                             >
                                 { "Add Publication" }
                             </button>

@@ -61,7 +61,6 @@ pub enum Msg {
     DeletePrice(Uuid),
     ChangeCurrencyCode(CurrencyCode),
     ChangeUnitPrice(String),
-    DoNothing,
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -228,7 +227,6 @@ impl Component for PricesFormComponent {
                 let unit_price: f64 = val.parse().unwrap_or(0.00);
                 self.new_price.unit_price.neq_assign(unit_price)
             }
-            Msg::DoNothing => false, // callbacks need to return a message
         }
     }
 
@@ -271,9 +269,9 @@ impl Component for PricesFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="prices-form" onsubmit=self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
-                                Msg::DoNothing
+                                Msg::CreatePrice
                             })
                             >
                                 <FormCurrencyCodeSelect
@@ -303,10 +301,8 @@ impl Component for PricesFormComponent {
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick=self.link.callback(|e: MouseEvent| {
-                                    e.prevent_default();
-                                    Msg::CreatePrice
-                                })
+                                type="submit"
+                                form="prices-form"
                             >
                                 { "Add Price" }
                             </button>

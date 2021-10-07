@@ -71,7 +71,6 @@ pub enum Msg {
     ChangeProjectShortname(String),
     ChangeGrant(String),
     ChangeJurisdiction(String),
-    DoNothing,
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -278,7 +277,6 @@ impl Component for FundingsFormComponent {
                 .new_funding
                 .jurisdiction
                 .neq_assign(val.to_opt_string()),
-            Msg::DoNothing => false, // callbacks need to return a message
         }
     }
 
@@ -346,9 +344,9 @@ impl Component for FundingsFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="fundings-form" onsubmit=self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
-                                Msg::DoNothing
+                                Msg::CreateFunding
                             })
                             >
                                 <div class="field">
@@ -388,10 +386,8 @@ impl Component for FundingsFormComponent {
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick=self.link.callback(|e: MouseEvent| {
-                                    e.prevent_default();
-                                    Msg::CreateFunding
-                                })
+                                type="submit"
+                                form="fundings-form"
                             >
                                 { "Add Funding" }
                             </button>
