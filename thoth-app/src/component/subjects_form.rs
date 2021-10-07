@@ -307,6 +307,7 @@ impl Component for SubjectsFormComponent {
                                     value=self.new_subject.subject_ordinal
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
                                     required = true
+                                    min = "1".to_string()
                                 />
                             </form>
                         </section>
