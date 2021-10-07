@@ -528,6 +528,7 @@ impl Component for NewWorkComponent {
                         value=self.work.edition
                         oninput=self.link.callback(|e: InputData| Msg::ChangeEdition(e.value))
                         required = true
+                        min = "1".to_string()
                     />
                     <FormDateInput
                         label = "Publication Date"

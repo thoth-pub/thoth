@@ -167,8 +167,8 @@ pub struct PureNumberInput {
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
-    #[prop_or_default]
-    pub min: Option<String>,
+    #[prop_or("0".to_string())]
+    pub min: String,
 }
 
 #[derive(Clone, PartialEq, Properties)]
