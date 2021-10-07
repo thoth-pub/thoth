@@ -370,7 +370,7 @@ impl DisplayWork for WorkWithRelations {
                                                 href={self.onix_oapen_endpoint()}
                                                 class="dropdown-item"
                                             >
-                                            {"ONIX (OAPEN)"}
+                                            {"ONIX (OAPEN/DOAB)"}
                                             </a>
                                             <a
                                                 href={self.onix_jstor_endpoint()}
