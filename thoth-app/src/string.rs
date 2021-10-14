@@ -30,6 +30,7 @@ strings! {
     EMPTY_CONTRIBUTIONS => "This work does not have any contributions. Search contributors above to add its contributions.",
     EMPTY_ISSUES => "This work is not part of a series. Search above to add a new series issue.",
     EMPTY_LANGUAGES => "This work does not have any languages. Search above to add a new language.",
+    EMPTY_LOCATIONS => "This publication does not have any location information. Click above to add locations.",
     EMPTY_PUBLICATIONS => "This work does not have any publications. Click above to add associated publications",
     EMPTY_SUBJECTS => "This work does not have any subjects. Click above to add associated subjects",
     EMPTY_FUNDINGS => "This work does not have any funding. Click above to add associated funding",

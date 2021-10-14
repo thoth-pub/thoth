@@ -364,6 +364,7 @@ pub mod imprint;
 pub mod imprints;
 pub mod issues_form;
 pub mod languages_form;
+pub mod locations_form;
 pub mod login;
 pub mod menu;
 pub mod navbar;

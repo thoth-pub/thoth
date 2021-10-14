@@ -1,4 +1,5 @@
 use thoth_api::account::model::AccountDetails;
+use thoth_api::model::location::Location;
 use thoth_api::model::price::Price;
 use thoth_api::model::publication::PublicationWithRelations;
 use uuid::Uuid;
@@ -19,6 +20,7 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::delete_dialogue::ConfirmDeleteComponent;
+use crate::component::locations_form::LocationsFormComponent;
 use crate::component::prices_form::PricesFormComponent;
 use crate::component::utils::Loader;
 use crate::models::publication::delete_publication_mutation::DeletePublicationRequest;
@@ -49,6 +51,7 @@ pub enum Msg {
     GetPublication,
     SetPublicationDeleteState(PushActionDeletePublication),
     DeletePublication,
+    UpdateLocations(Option<Vec<Location>>),
     UpdatePrices(Option<Vec<Price>>),
     ChangeRoute(AppRoute),
 }
@@ -190,6 +193,7 @@ impl Component for PublicationComponent {
                     .send_message(Msg::SetPublicationDeleteState(FetchAction::Fetching));
                 false
             }
+            Msg::UpdateLocations(locations) => self.publication.locations.neq_assign(locations),
             Msg::UpdatePrices(prices) => self.publication.prices.neq_assign(prices),
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
@@ -259,9 +263,15 @@ impl Component for PublicationComponent {
 
                         <article class="message is-info">
                             <div class="message-body">
-                                { "Prices below are saved automatically upon change." }
+                                { "Relations below are saved automatically upon change." }
                             </div>
                         </article>
+
+                        <LocationsFormComponent
+                            locations=self.publication.locations.clone()
+                            publication_id=self.publication.publication_id
+                            update_locations=self.link.callback(Msg::UpdateLocations)
+                        />
 
                         <PricesFormComponent
                             prices=self.publication.prices.clone()

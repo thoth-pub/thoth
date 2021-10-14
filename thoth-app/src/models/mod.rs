@@ -144,6 +144,7 @@ pub mod funding;
 pub mod imprint;
 pub mod issue;
 pub mod language;
+pub mod location;
 pub mod price;
 pub mod publication;
 pub mod publisher;

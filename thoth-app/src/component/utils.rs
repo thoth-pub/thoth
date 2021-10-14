@@ -2,6 +2,7 @@ use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::imprint::ImprintWithPublisher;
 use thoth_api::model::language::LanguageCode;
 use thoth_api::model::language::LanguageRelation;
+use thoth_api::model::location::LocationPlatform;
 use thoth_api::model::price::CurrencyCode;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::publisher::Publisher;
@@ -25,6 +26,7 @@ use yewtil::PureComponent;
 use crate::models::contribution::ContributionTypeValues;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
+use crate::models::location::LocationPlatformValues;
 use crate::models::price::CurrencyCodeValues;
 use crate::models::publication::PublicationTypeValues;
 use crate::models::series::SeriesTypeValues;
@@ -53,6 +55,7 @@ pub type FormSubjectTypeSelect = Pure<PureSubjectTypeSelect>;
 pub type FormLanguageCodeSelect = Pure<PureLanguageCodeSelect>;
 pub type FormLanguageRelationSelect = Pure<PureLanguageRelationSelect>;
 pub type FormCurrencyCodeSelect = Pure<PureCurrencyCodeSelect>;
+pub type FormLocationPlatformSelect = Pure<PureLocationPlatformSelect>;
 pub type FormLengthUnitSelect = Pure<PureLengthUnitSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
@@ -250,6 +253,16 @@ pub struct PureCurrencyCodeSelect {
     pub label: String,
     pub data: Vec<CurrencyCodeValues>,
     pub value: CurrencyCode,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureLocationPlatformSelect {
+    pub label: String,
+    pub data: Vec<LocationPlatformValues>,
+    pub value: LocationPlatform,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -642,6 +655,26 @@ impl PureComponent for PureCurrencyCodeSelect {
     }
 }
 
+impl PureComponent for PureLocationPlatformSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                    >
+                        { for self.data.iter().map(|l| self.render_locationplatform(l)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
 impl PureComponent for PureLengthUnitSelect {
     fn render(&self) -> VNode {
         html! {
@@ -863,6 +896,22 @@ impl PureCurrencyCodeSelect {
         } else {
             html! {
                 <option value={c.name.to_string()}>{&c.name}</option>
+            }
+        }
+    }
+}
+
+impl PureLocationPlatformSelect {
+    fn render_locationplatform(&self, l: &LocationPlatformValues) -> VNode {
+        if l.name == self.value {
+            html! {
+                <option value={l.name.to_string()} selected=true>
+                    {&l.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={l.name.to_string()}>{&l.name}</option>
             }
         }
     }

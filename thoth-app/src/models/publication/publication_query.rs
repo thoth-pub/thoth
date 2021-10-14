@@ -20,6 +20,16 @@ pub const PUBLICATION_QUERY: &str = "
                 createdAt
                 updatedAt
             }
+            locations {
+                locationId
+                publicationId
+                landingPage
+                fullTextUrl
+                locationPlatform
+                canonical
+                createdAt
+                updatedAt
+            }
             work {
                 workId
                 workType

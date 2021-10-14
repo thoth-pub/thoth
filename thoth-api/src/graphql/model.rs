@@ -14,6 +14,7 @@ use crate::model::funding::*;
 use crate::model::imprint::*;
 use crate::model::issue::*;
 use crate::model::language::*;
+use crate::model::location::*;
 use crate::model::price::*;
 use crate::model::publication::*;
 use crate::model::publisher::*;
@@ -68,6 +69,13 @@ pub struct IssueOrderBy {
 #[graphql(description = "Field and order to use when sorting languages list")]
 pub struct LanguageOrderBy {
     pub field: LanguageField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting locations list")]
+pub struct LocationOrderBy {
+    pub field: LocationField,
     pub direction: Direction,
 }
 
@@ -708,6 +716,63 @@ impl QueryRoot {
     }
 
     #[graphql(
+        description = "Query the full list of locations",
+        arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    LocationOrderBy {
+                        field: LocationField::LocationPlatform,
+                        direction: Direction::Asc,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
+            location_platform(description = "A specific platform to filter by"),
+        )
+    )]
+    fn locations(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: LocationOrderBy,
+        publishers: Vec<Uuid>,
+        location_platform: Option<LocationPlatform>,
+    ) -> FieldResult<Vec<Location>> {
+        Location::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            publishers,
+            None,
+            None,
+            location_platform,
+            None,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Query a single location using its id")]
+    fn location(context: &Context, location_id: Uuid) -> FieldResult<Location> {
+        Location::from_id(&context.db, &location_id).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get the total number of locations associated to works")]
+    fn location_count(
+        context: &Context,
+        location_platform: Option<LocationPlatform>,
+    ) -> FieldResult<i32> {
+        Location::count(&context.db, None, vec![], location_platform, None).map_err(|e| e.into())
+    }
+
+    #[graphql(
         description = "Query the full list of prices",
         arguments(
             limit(default = 100, description = "The number of items to return"),
@@ -1037,6 +1102,18 @@ impl MutationRoot {
         Funding::create(&context.db, &data).map_err(|e| e.into())
     }
 
+    fn create_location(context: &Context, data: NewLocation) -> FieldResult<Location> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_publication_id(
+                &context.db,
+                data.publication_id,
+            )?)?;
+
+        Location::create(&context.db, &data).map_err(|e| e.into())
+    }
+
     fn create_price(context: &Context, data: NewPrice) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
@@ -1241,6 +1318,28 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
+    fn update_location(context: &Context, data: PatchLocation) -> FieldResult<Location> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let location = Location::from_id(&context.db, &data.location_id).unwrap();
+        context
+            .account_access
+            .can_edit(location.publisher_id(&context.db)?)?;
+
+        if !(data.publication_id == location.publication_id) {
+            context
+                .account_access
+                .can_edit(publisher_id_from_publication_id(
+                    &context.db,
+                    data.publication_id,
+                )?)?;
+        }
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        location
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
     fn update_price(context: &Context, data: PatchPrice) -> FieldResult<Price> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let price = Price::from_id(&context.db, &data.price_id).unwrap();
@@ -1386,6 +1485,16 @@ impl MutationRoot {
             .can_edit(funding.publisher_id(&context.db)?)?;
 
         funding.delete(&context.db).map_err(|e| e.into())
+    }
+
+    fn delete_location(context: &Context, location_id: Uuid) -> FieldResult<Location> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let location = Location::from_id(&context.db, &location_id).unwrap();
+        context
+            .account_access
+            .can_edit(location.publisher_id(&context.db)?)?;
+
+        location.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_price(context: &Context, price_id: Uuid) -> FieldResult<Price> {
@@ -1893,6 +2002,46 @@ impl Publication {
         .map_err(|e| e.into())
     }
 
+    #[graphql(
+        description = "Get locations linked to this publication",
+        arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    LocationOrderBy {
+                        field: LocationField::LocationPlatform,
+                        direction: Direction::Asc,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            location_platform(description = "A specific platform to filter by"),
+        )
+    )]
+    pub fn locations(
+        &self,
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: LocationOrderBy,
+        location_platform: Option<LocationPlatform>,
+    ) -> FieldResult<Vec<Location>> {
+        Location::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            vec![],
+            Some(self.publication_id),
+            None,
+            location_platform,
+            None,
+        )
+        .map_err(|e| e.into())
+    }
+
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
@@ -2337,6 +2486,45 @@ impl Language {
 
     pub fn work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
+    }
+}
+
+#[juniper::object(Context = Context, description = "A location, such as a web shop or distribution platform, where a publication can be acquired or viewed.")]
+impl Location {
+    pub fn location_id(&self) -> Uuid {
+        self.location_id
+    }
+
+    pub fn publication_id(&self) -> Uuid {
+        self.publication_id
+    }
+
+    pub fn landing_page(&self) -> &String {
+        &self.landing_page
+    }
+
+    pub fn full_text_url(&self) -> Option<&String> {
+        self.full_text_url.as_ref()
+    }
+
+    pub fn location_platform(&self) -> &LocationPlatform {
+        &self.location_platform
+    }
+
+    pub fn canonical(&self) -> bool {
+        self.canonical
+    }
+
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
+    }
+
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
+    }
+
+    pub fn publication(&self, context: &Context) -> FieldResult<Publication> {
+        Publication::from_id(&context.db, &self.publication_id).map_err(|e| e.into())
     }
 }
 

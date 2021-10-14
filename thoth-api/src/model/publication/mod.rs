@@ -4,6 +4,7 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
+use crate::model::location::Location;
 use crate::model::price::Price;
 use crate::model::work::WorkWithRelations;
 use crate::model::Isbn;
@@ -82,6 +83,7 @@ pub struct PublicationWithRelations {
     pub publication_url: Option<String>,
     pub updated_at: Timestamp,
     pub prices: Option<Vec<Price>>,
+    pub locations: Option<Vec<Location>>,
     pub work: WorkWithRelations,
 }
 
