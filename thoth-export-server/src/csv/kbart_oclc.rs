@@ -342,6 +342,7 @@ mod tests {
                     publication_url: Some("https://www.book.com/pdf".to_string()),
                     isbn: Some(Isbn::from_str("978-1-56619-909-4").unwrap()),
                     prices: vec![],
+                    locations: vec![],
                 },
                 WorkPublications {
                     publication_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000003").unwrap(),
@@ -349,6 +350,7 @@ mod tests {
                     publication_url: Some("https://www.book.com/hardback".to_string()),
                     isbn: Some(Isbn::from_str("978-1-4028-9462-6").unwrap()),
                     prices: vec![],
+                    locations: vec![],
                 },
                 WorkPublications {
                     publication_id: Uuid::from_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
@@ -356,6 +358,7 @@ mod tests {
                     publication_url: Some("https://www.book.com/paperback".to_string()),
                     isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
                     prices: vec![],
+                    locations: vec![],
                 },
                 WorkPublications {
                     publication_id: Uuid::from_str("00000000-0000-0000-EEEE-000000000005").unwrap(),
@@ -363,6 +366,7 @@ mod tests {
                     publication_url: Some("https://www.book.com/html".to_string()),
                     isbn: None,
                     prices: vec![],
+                    locations: vec![],
                 },
                 WorkPublications {
                     publication_id: Uuid::from_str("00000000-0000-0000-FFFF-000000000006").unwrap(),
@@ -370,6 +374,7 @@ mod tests {
                     publication_url: Some("https://www.book.com/xml".to_string()),
                     isbn: Some(Isbn::from_str("978-92-95055-02-5").unwrap()),
                     prices: vec![],
+                    locations: vec![],
                 },
             ],
             subjects: vec![],

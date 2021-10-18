@@ -58,13 +58,15 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
         let pdf_url = self
             .publications
             .iter()
-            .find(|p| p.publication_type.eq(&PublicationType::PDF))
-            .and_then(|p| p.publication_url.as_ref());
+            .find(|p| p.publication_type.eq(&PublicationType::PDF) && !p.locations.is_empty())
+            .and_then(|p| p.locations.iter().find(|l| l.canonical))
+            .and_then(|l| l.full_text_url.as_ref());
         let epub_url = self
             .publications
             .iter()
-            .find(|p| p.publication_type.eq(&PublicationType::EPUB))
-            .and_then(|p| p.publication_url.as_ref());
+            .find(|p| p.publication_type.eq(&PublicationType::EPUB) && !p.locations.is_empty())
+            .and_then(|p| p.locations.iter().find(|l| l.canonical))
+            .and_then(|l| l.full_text_url.as_ref());
         if pdf_url.is_some() || epub_url.is_some() {
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
@@ -636,11 +638,10 @@ mod tests {
     use thoth_api::model::Doi;
     use thoth_api::model::Isbn;
     use thoth_api::model::Orcid;
-    use thoth_client::WorkPublicationsPrices;
     use thoth_client::{
-        ContributionType, LanguageCode, LanguageRelation, PublicationType,
+        ContributionType, LanguageCode, LanguageRelation, LocationPlatform, PublicationType,
         WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssuesSeries,
-        WorkStatus, WorkType,
+        WorkPublicationsLocations, WorkPublicationsPrices, WorkStatus, WorkType,
     };
     use uuid::Uuid;
 
@@ -898,6 +899,12 @@ mod tests {
                     publication_url: Some("https://www.book.com/epub".to_string()),
                     isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
                     prices: vec![],
+                    locations: vec![WorkPublicationsLocations {
+                        landing_page: "https://www.book.com/epub_landing".to_string(),
+                        full_text_url: Some("https://www.book.com/epub_fulltext".to_string()),
+                        location_platform: LocationPlatform::OTHER,
+                        canonical: true,
+                    }],
                 },
                 WorkPublications {
                     publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
@@ -918,6 +925,12 @@ mod tests {
                             unit_price: 7.99,
                         },
                     ],
+                    locations: vec![WorkPublicationsLocations {
+                        landing_page: "https://www.book.com/pdf_landing".to_string(),
+                        full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
+                        location_platform: LocationPlatform::OTHER,
+                        canonical: true,
+                    }],
                 },
             ],
             subjects: vec![],
@@ -959,8 +972,12 @@ mod tests {
         assert!(output.contains(r#"    <WebsiteLink>https://www.book.com</WebsiteLink>"#));
         assert!(output.contains(r#"    <WebsiteRole>29</WebsiteRole>"#));
         assert!(output.contains(r#"    <WebsiteDescription>Publisher's website: download the title</WebsiteDescription>"#));
-        assert!(output.contains(r#"    <WebsiteLink>https://www.book.com/epub</WebsiteLink>"#));
-        assert!(output.contains(r#"    <WebsiteLink>https://www.book.com/pdf</WebsiteLink>"#));
+        assert!(
+            output.contains(r#"    <WebsiteLink>https://www.book.com/epub_fulltext</WebsiteLink>"#)
+        );
+        assert!(
+            output.contains(r#"    <WebsiteLink>https://www.book.com/pdf_fulltext</WebsiteLink>"#)
+        );
         assert!(output.contains(r#"  <Extent>"#));
         assert!(output.contains(r#"    <ExtentType>00</ExtentType>"#));
         assert!(output.contains(r#"    <ExtentValue>334</ExtentValue>"#));
@@ -1041,7 +1058,9 @@ mod tests {
         assert!(!output.contains(r#"    <WebsiteLink>https://www.book.com</WebsiteLink>"#));
         // PDF publication removed, hence no PDF URL,
         // no PDF RelatedProduct, and EpubType changes
-        assert!(!output.contains(r#"    <WebsiteLink>https://www.book.com/pdf</WebsiteLink>"#));
+        assert!(
+            !output.contains(r#"    <WebsiteLink>https://www.book.com/pdf_fulltext</WebsiteLink>"#)
+        );
         assert!(!output.contains(r#"      <IDValue>9781566199094</IDValue>"#));
         assert!(!output.contains(r#"  <EpubType>002</EpubType>"#));
         assert!(output.contains(r#"  <EpubType>029</EpubType>"#));
@@ -1077,8 +1096,8 @@ mod tests {
         // No PDF or EPUB price supplied, so default of 0.01 USD is used
         assert!(output.contains(r#"      <PriceAmount>0.01</PriceAmount>"#));
 
-        // Remove the remaining (EPUB) publication's URL: error
-        test_work.publications[0].publication_url = None;
+        // Remove the remaining (EPUB) publication's only location: error
+        test_work.publications[0].locations.clear();
         // Can't use helper function for this as it assumes Ok rather than Err
         let mut buffer = Vec::new();
         let mut writer = xml::writer::EmitterConfig::new()

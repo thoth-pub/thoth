@@ -76,6 +76,12 @@ fragment Work on Work {
             currencyCode
             unitPrice
         }
+        locations {
+            landingPage
+            fullTextUrl
+            locationPlatform
+            canonical
+        }
     }
     subjects {
         subjectCode
