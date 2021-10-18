@@ -205,7 +205,7 @@ impl QueryRoot {
             offset(default = 0, description = "The number of items to skip"),
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url"
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn"
             ),
             order(
                 default = PublicationOrderBy::default(),
@@ -252,7 +252,7 @@ impl QueryRoot {
         arguments(
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url",
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn",
             ),
             publishers(
                 default = vec![],
@@ -1772,7 +1772,7 @@ impl Work {
             offset(default = 0, description = "The number of items to skip"),
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url"
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn"
             ),
             order(
                 default = {
@@ -1948,10 +1948,6 @@ impl Publication {
 
     pub fn isbn(&self) -> Option<&Isbn> {
         self.isbn.as_ref()
-    }
-
-    pub fn publication_url(&self) -> Option<&String> {
-        self.publication_url.as_ref()
     }
 
     pub fn created_at(&self) -> Timestamp {

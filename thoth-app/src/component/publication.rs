@@ -250,13 +250,6 @@ impl Component for PublicationComponent {
                                     {&self.publication.isbn.as_ref().map(|s| s.to_string()).unwrap_or_else(|| "".to_string())}
                                 </div>
                             </div>
-
-                            <div class="field">
-                                <label class="label">{ "Publication URL" }</label>
-                                <div class="control is-expanded">
-                                    {&self.publication.publication_url.clone().unwrap_or_else(|| "".to_string())}
-                                </div>
-                            </div>
                         </form>
 
                         <hr/>

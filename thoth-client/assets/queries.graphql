@@ -70,7 +70,6 @@ fragment Work on Work {
     publications {
         publicationId
         publicationType
-        publicationUrl
         isbn
         prices {
             currencyCode

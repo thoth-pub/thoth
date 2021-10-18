@@ -37,8 +37,10 @@ CREATE TABLE location_history (
 INSERT INTO location(publication_id, landing_page)
     SELECT publication_id, publication_url FROM publication WHERE publication_url IS NOT NULL;
 
--- Only allow one publication of each type per work (existing data may breach this)
--- To check for records which breach this constraint:
--- `select * from publication a where (select count(*) from publication b where a.publication_type = b.publication_type and a.work_id = b.work_id) > 1 order by work_id, publication_type;`
 ALTER TABLE publication
-    ADD CONSTRAINT publication_publication_type_work_id_uniq UNIQUE (publication_type, work_id);
+    -- Only allow one publication of each type per work (existing data may breach this)
+    -- To check for records which breach this constraint:
+    -- `select * from publication a where (select count(*) from publication b where a.publication_type = b.publication_type and a.work_id = b.work_id) > 1 order by work_id, publication_type;`
+    ADD CONSTRAINT publication_publication_type_work_id_uniq UNIQUE (publication_type, work_id),
+    -- Remove publication_url column (all data should have been migrated to location table above)
+    DROP COLUMN publication_url;

@@ -22,7 +22,6 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormPublicationTypeSelect;
 use crate::component::utils::FormTextInputExtended;
-use crate::component::utils::FormUrlInput;
 use crate::models::publication::create_publication_mutation::CreatePublicationRequest;
 use crate::models::publication::create_publication_mutation::CreatePublicationRequestBody;
 use crate::models::publication::create_publication_mutation::PushActionCreatePublication;
@@ -74,7 +73,6 @@ pub enum Msg {
     DeletePublication(Uuid),
     ChangePublicationType(PublicationType),
     ChangeIsbn(String),
-    ChangeUrl(String),
     ChangeRoute(AppRoute),
     DoNothing,
 }
@@ -198,7 +196,6 @@ impl Component for PublicationsFormComponent {
                         work_id: self.props.work_id,
                         publication_type: self.new_publication.publication_type.clone(),
                         isbn: self.new_publication.isbn.clone(),
-                        publication_url: self.new_publication.publication_url.clone(),
                     },
                     ..Default::default()
                 };
@@ -284,13 +281,6 @@ impl Component for PublicationsFormComponent {
                     false
                 }
             }
-            Msg::ChangeUrl(value) => {
-                let url = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.new_publication.publication_url.neq_assign(url)
-            }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
@@ -365,11 +355,6 @@ impl Component for PublicationsFormComponent {
                                     tooltip=self.isbn_warning.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeIsbn(e.value))
                                 />
-                                <FormUrlInput
-                                    label = "URL"
-                                    value=self.new_publication.publication_url.clone().unwrap_or_else(|| "".to_string()).clone()
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeUrl(e.value))
-                                />
                             </form>
                         </section>
                         <footer class="modal-card-foot">
@@ -435,13 +420,6 @@ impl PublicationsFormComponent {
                         <label class="label">{ "ISBN" }</label>
                         <div class="control is-expanded">
                             {&p.isbn.as_ref().map(|s| s.to_string()).unwrap_or_else(|| "".to_string())}
-                        </div>
-                    </div>
-
-                    <div class="field" style="width: 8em;">
-                        <label class="label">{ "URL" }</label>
-                        <div class="control is-expanded">
-                            {&p.publication_url.clone().unwrap_or_else(|| "".to_string())}
                         </div>
                     </div>
 

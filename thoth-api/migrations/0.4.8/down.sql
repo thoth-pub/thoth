@@ -1,5 +1,6 @@
 ALTER TABLE publication
-    DROP CONSTRAINT publication_publication_type_work_id_uniq;
+    DROP CONSTRAINT publication_publication_type_work_id_uniq,
+    ADD COLUMN publication_url TEXT CHECK (publication_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)');
 
 -- Migrate location URLs back into publication table as far as possible before dropping location table:
 -- set the landing page of the canonical location (if any) as the main publication_url,

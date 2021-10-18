@@ -256,12 +256,6 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
-              "name": "PUBLICATION_URL"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
               "name": "CREATED_AT"
             },
             {
@@ -6235,18 +6229,6 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
-              "name": "publicationUrl",
-              "type": {
-                "kind": "SCALAR",
-                "name": "String",
-                "ofType": null
-              }
-            },
-            {
-              "args": [],
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
               "name": "createdAt",
               "type": {
                 "kind": "NON_NULL",
@@ -6796,16 +6778,6 @@
               "type": {
                 "kind": "SCALAR",
                 "name": "Isbn",
-                "ofType": null
-              }
-            },
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "publicationUrl",
-              "type": {
-                "kind": "SCALAR",
-                "name": "String",
                 "ofType": null
               }
             }
@@ -11416,7 +11388,7 @@
                 },
                 {
                   "defaultValue": "\"\"",
-                  "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url",
+                  "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn",
                   "name": "filter",
                   "type": {
                     "kind": "SCALAR",
@@ -11520,7 +11492,7 @@
               "args": [
                 {
                   "defaultValue": "\"\"",
-                  "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url",
+                  "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn",
                   "name": "filter",
                   "type": {
                     "kind": "SCALAR",
@@ -14422,7 +14394,7 @@
                 },
                 {
                   "defaultValue": "\"\"",
-                  "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url",
+                  "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn",
                   "name": "filter",
                   "type": {
                     "kind": "SCALAR",
@@ -14817,16 +14789,6 @@
               "type": {
                 "kind": "SCALAR",
                 "name": "Isbn",
-                "ofType": null
-              }
-            },
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "publicationUrl",
-              "type": {
-                "kind": "SCALAR",
-                "name": "String",
                 "ofType": null
               }
             }

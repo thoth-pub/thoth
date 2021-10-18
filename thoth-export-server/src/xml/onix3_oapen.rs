@@ -990,7 +990,6 @@ mod tests {
             publications: vec![WorkPublications {
                 publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
                 publication_type: PublicationType::PDF,
-                publication_url: Some("https://www.book.com/pdf".to_string()),
                 isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
                 prices: vec![],
                 locations: vec![WorkPublicationsLocations {

@@ -271,7 +271,6 @@ table! {
         publication_type -> Publication_type,
         work_id -> Uuid,
         isbn -> Nullable<Text>,
-        publication_url -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
