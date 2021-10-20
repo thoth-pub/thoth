@@ -67,7 +67,6 @@ pub enum Msg {
     ToggleSearchResultDisplay(bool),
     SearchSeries(String),
     ChangeOrdinal(String),
-    DoNothing,
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -271,7 +270,6 @@ impl Component for IssuesFormComponent {
                 self.new_issue.issue_ordinal.neq_assign(ordinal);
                 false // otherwise we re-render the component and reset the value
             }
-            Msg::DoNothing => false, // callbacks need to return a message
         }
     }
 
@@ -360,9 +358,9 @@ impl Component for IssuesFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="issues-form" onsubmit=self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
-                                Msg::DoNothing
+                                Msg::CreateIssue
                             })
                             >
                                 <div class="field">
@@ -375,16 +373,16 @@ impl Component for IssuesFormComponent {
                                     label="Issue Ordinal"
                                     value=self.new_issue.issue_ordinal
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
+                                    required = true
+                                    min = "1".to_string()
                                 />
                             </form>
                         </section>
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick=self.link.callback(|e: MouseEvent| {
-                                    e.prevent_default();
-                                    Msg::CreateIssue
-                                })
+                                type="submit"
+                                form="issues-form"
                             >
                                 { "Add Issue" }
                             </button>

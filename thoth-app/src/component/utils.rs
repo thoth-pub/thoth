@@ -74,6 +74,10 @@ pub struct PureInput {
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
+    #[prop_or_default]
+    pub step: Option<String>,
+    #[prop_or_default]
+    pub min: Option<String>,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -152,8 +156,8 @@ pub struct PureFloatInput {
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
-    #[prop_or("any".to_string())]
-    pub step: String,
+    #[prop_or_default]
+    pub step: Option<String>,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -166,6 +170,8 @@ pub struct PureNumberInput {
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
+    #[prop_or("0".to_string())]
+    pub min: String,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -331,6 +337,8 @@ impl PureComponent for PureInput {
                         oninput=self.oninput.clone()
                         onblur=self.onblur.clone()
                         required={ self.required }
+                        step={ self.step.clone() }
+                        min={ self.min.clone() }
                     />
                 </div>
             </div>
@@ -453,6 +461,7 @@ impl PureComponent for PureNumberInput {
                 oninput=self.oninput.clone()
                 onblur=self.onblur.clone()
                 required=self.required
+                min=self.min.clone()
             />
         }
     }
@@ -461,22 +470,16 @@ impl PureComponent for PureNumberInput {
 impl PureComponent for PureFloatInput {
     fn render(&self) -> VNode {
         html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <input
-                        class="input"
-                        type="number"
-                        placeholder=self.label.clone()
-                        value=self.value.unwrap_or(0.00).to_string().clone()
-                        oninput=self.oninput.clone()
-                        onblur=self.onblur.clone()
-                        required=self.required
-                        step=self.step.clone()
-                        min="0"
-                    />
-                </div>
-            </div>
+            <FormInput
+                label=self.label.clone()
+                value=self.value.unwrap_or(0.00).to_string()
+                input_type="number"
+                oninput=self.oninput.clone()
+                onblur=self.onblur.clone()
+                required=self.required
+                step=self.step.clone()
+                min="0".to_string()
+            />
         }
     }
 }

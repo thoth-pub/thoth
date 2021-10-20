@@ -45,6 +45,8 @@ use crate::string::NO;
 use crate::string::REMOVE_BUTTON;
 use crate::string::YES;
 
+use super::ToOption;
+
 pub struct ContributionsFormComponent {
     props: Props,
     data: ContributionsFormData,
@@ -86,7 +88,6 @@ pub enum Msg {
     ChangeContributiontype(ContributionType),
     ChangeMainContribution(bool),
     ChangeOrdinal(String),
-    DoNothing,
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -311,29 +312,26 @@ impl Component for ContributionsFormComponent {
                 self.link.send_message(Msg::GetContributors);
                 false
             }
-            Msg::ChangeFirstName(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_contribution.first_name.neq_assign(value)
-            }
-            Msg::ChangeLastName(val) => self.new_contribution.last_name.neq_assign(val),
-            Msg::ChangeFullName(val) => self.new_contribution.full_name.neq_assign(val),
-            Msg::ChangeInstitution(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_contribution.institution.neq_assign(value)
-            }
-            Msg::ChangeBiography(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_contribution.biography.neq_assign(value)
-            }
+            Msg::ChangeFirstName(val) => self
+                .new_contribution
+                .first_name
+                .neq_assign(val.to_opt_string()),
+            Msg::ChangeLastName(val) => self
+                .new_contribution
+                .last_name
+                .neq_assign(val.trim().to_owned()),
+            Msg::ChangeFullName(val) => self
+                .new_contribution
+                .full_name
+                .neq_assign(val.trim().to_owned()),
+            Msg::ChangeInstitution(val) => self
+                .new_contribution
+                .institution
+                .neq_assign(val.to_opt_string()),
+            Msg::ChangeBiography(val) => self
+                .new_contribution
+                .biography
+                .neq_assign(val.to_opt_string()),
             Msg::ChangeContributiontype(val) => {
                 self.new_contribution.contribution_type.neq_assign(val)
             }
@@ -347,7 +345,6 @@ impl Component for ContributionsFormComponent {
                     .neq_assign(ordinal);
                 false // otherwise we re-render the component and reset the value
             }
-            Msg::DoNothing => false, // callbacks need to return a message
         }
     }
 
@@ -415,9 +412,9 @@ impl Component for ContributionsFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="contributions-form" onsubmit=self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
-                                Msg::DoNothing
+                                Msg::CreateContribution
                             })
                             >
                                 <FormTextInput
@@ -429,11 +426,13 @@ impl Component for ContributionsFormComponent {
                                     label="Contributor's Family Name"
                                     value=self.new_contribution.last_name.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
+                                    required = true
                                 />
                                 <FormTextInput
                                     label="Contributor's Full Name"
                                     value=self.new_contribution.full_name.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
+                                    required = true
                                 />
                                 <FormContributionTypeSelect
                                     label = "Contribution Type"
@@ -475,16 +474,16 @@ impl Component for ContributionsFormComponent {
                                     label = "Contribution Ordinal"
                                     value=self.new_contribution.contribution_ordinal
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
+                                    required = true
+                                    min = "1".to_string()
                                 />
                             </form>
                         </section>
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick=self.link.callback(|e: MouseEvent| {
-                                    e.prevent_default();
-                                    Msg::CreateContribution
-                                })
+                                type="submit"
+                                form="contributions-form"
                             >
                                 { "Add Contribution" }
                             </button>

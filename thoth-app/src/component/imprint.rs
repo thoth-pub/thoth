@@ -47,6 +47,8 @@ use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+use super::ToOption;
+
 pub struct ImprintComponent {
     imprint: ImprintWithPublisher,
     fetch_imprint: FetchImprint,
@@ -304,11 +306,7 @@ impl Component for ImprintComponent {
                 .imprint_name
                 .neq_assign(imprint_name.trim().to_owned()),
             Msg::ChangeImprintUrl(value) => {
-                let imprint_url = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.imprint.imprint_url.neq_assign(imprint_url)
+                self.imprint.imprint_url.neq_assign(value.to_opt_string())
             }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);

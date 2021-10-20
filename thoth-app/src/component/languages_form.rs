@@ -73,7 +73,6 @@ pub enum Msg {
     ChangeLanguageCode(LanguageCode),
     ChangeLanguageRelation(LanguageRelation),
     ChangeMainLanguage(bool),
-    DoNothing,
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -262,7 +261,6 @@ impl Component for LanguagesFormComponent {
             Msg::ChangeLanguageRelation(val) => self.new_language.language_relation.neq_assign(val),
             Msg::ChangeLanguageCode(code) => self.new_language.language_code.neq_assign(code),
             Msg::ChangeMainLanguage(val) => self.new_language.main_language.neq_assign(val),
-            Msg::DoNothing => false, // callbacks need to return a message
         }
     }
 
@@ -305,9 +303,9 @@ impl Component for LanguagesFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="languages-form" onsubmit=self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
-                                Msg::DoNothing
+                                Msg::CreateLanguage
                             })
                             >
                                 <FormLanguageCodeSelect
@@ -358,10 +356,8 @@ impl Component for LanguagesFormComponent {
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick=self.link.callback(|e: MouseEvent| {
-                                    e.prevent_default();
-                                    Msg::CreateLanguage
-                                })
+                                type="submit"
+                                form="languages-form"
                             >
                                 { "Add Language" }
                             </button>

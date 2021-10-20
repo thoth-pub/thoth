@@ -34,6 +34,8 @@ use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+use super::ToOption;
+
 // Account for possibility of e.g. Chinese full names with only 2 characters.
 const MIN_FULLNAME_LEN: usize = 2;
 
@@ -173,13 +175,10 @@ impl Component for NewContributorComponent {
                     .send_message(Msg::SetContributorsFetchState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangeFirstName(value) => {
-                let first_name = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.contributor.first_name.neq_assign(first_name)
-            }
+            Msg::ChangeFirstName(value) => self
+                .contributor
+                .first_name
+                .neq_assign(value.to_opt_string()),
             Msg::ChangeLastName(last_name) => self
                 .contributor
                 .last_name
@@ -236,13 +235,7 @@ impl Component for NewContributorComponent {
                     false
                 }
             }
-            Msg::ChangeWebsite(value) => {
-                let website = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.contributor.website.neq_assign(website)
-            }
+            Msg::ChangeWebsite(value) => self.contributor.website.neq_assign(value.to_opt_string()),
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
