@@ -26,6 +26,8 @@ use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+use super::ToOption;
+
 pub struct NewPublisherComponent {
     publisher: Publisher,
     push_publisher: PushCreatePublisher,
@@ -116,22 +118,14 @@ impl Component for NewPublisherComponent {
                 .publisher
                 .publisher_name
                 .neq_assign(publisher_name.trim().to_owned()),
-            Msg::ChangePublisherShortname(value) => {
-                let publisher_shortname = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.publisher
-                    .publisher_shortname
-                    .neq_assign(publisher_shortname)
-            }
-            Msg::ChangePublisherUrl(value) => {
-                let publisher_url = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.publisher.publisher_url.neq_assign(publisher_url)
-            }
+            Msg::ChangePublisherShortname(value) => self
+                .publisher
+                .publisher_shortname
+                .neq_assign(value.to_opt_string()),
+            Msg::ChangePublisherUrl(value) => self
+                .publisher
+                .publisher_url
+                .neq_assign(value.to_opt_string()),
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));

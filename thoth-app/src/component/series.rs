@@ -53,6 +53,8 @@ use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+use super::ToOption;
+
 pub struct SeriesComponent {
     series: SeriesWithImprint,
     fetch_series: FetchSeries,
@@ -336,13 +338,7 @@ impl Component for SeriesComponent {
                 .series
                 .issn_digital
                 .neq_assign(issn_digital.trim().to_owned()),
-            Msg::ChangeSeriesUrl(value) => {
-                let series_url = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.series.series_url.neq_assign(series_url)
-            }
+            Msg::ChangeSeriesUrl(value) => self.series.series_url.neq_assign(value.to_opt_string()),
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
