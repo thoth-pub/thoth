@@ -172,6 +172,37 @@ impl DbInsert for NewPublicationHistory {
     db_insert!(publication_history::table);
 }
 
+impl NewPublication {
+    pub fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        publication_can_have_isbn(self.work_id, db)
+    }
+}
+
+impl PatchPublication {
+    pub fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        publication_can_have_isbn(self.work_id, db)
+    }
+}
+
+fn publication_can_have_isbn(work_id: Uuid, db: &crate::db::PgPool) -> ThothResult<()> {
+    use crate::model::work::WorkType;
+    use diesel::prelude::*;
+
+    let connection = db.get().unwrap();
+    let work_type = crate::schema::work::table
+        .select(crate::schema::work::work_type)
+        .filter(crate::schema::work::work_id.eq(work_id))
+        .first::<WorkType>(&connection)
+        .expect("Error loading work type for publication");
+    // If a publication's work is of type Book Chapter,
+    // it cannot have an ISBN.
+    if work_type == WorkType::BookChapter {
+        Err(ThothError::ChapterIsbnError)
+    } else {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

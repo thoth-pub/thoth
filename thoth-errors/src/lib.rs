@@ -53,6 +53,8 @@ pub enum ThothError {
     DoiEmptyError,
     #[fail(display = "Cannot parse ISBN: no value provided")]
     IsbnEmptyError,
+    #[fail(display = "Works of type Book Chapter cannot have ISBNs in their Publications.")]
+    ChapterIsbnError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]

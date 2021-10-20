@@ -1056,6 +1056,10 @@ impl MutationRoot {
             .account_access
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
+        if !data.isbn.is_none() {
+            data.can_have_isbn(&context.db)?;
+        }
+
         Publication::create(&context.db, &data).map_err(|e| e.into())
     }
 
@@ -1150,6 +1154,11 @@ impl MutationRoot {
                 .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
             work.can_update_imprint(&context.db)?;
         }
+
+        if data.work_type == WorkType::BookChapter {
+            work.can_be_chapter(&context.db)?;
+        }
+
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         work.update_with_units(&context.db, data, &account_id, units)
             .map_err(|e| e.into())
@@ -1227,6 +1236,11 @@ impl MutationRoot {
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
+
+        if !data.isbn.is_none() {
+            data.can_have_isbn(&context.db)?;
+        }
+
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         publication
             .update(&context.db, &data, &account_id)
