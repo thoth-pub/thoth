@@ -43,6 +43,8 @@ use crate::string::EMPTY_PUBLICATIONS;
 use crate::string::REMOVE_BUTTON;
 use crate::string::VIEW_BUTTON;
 
+use super::ToOption;
+
 pub struct PublicationsFormComponent {
     props: Props,
     data: PublicationsFormData,
@@ -76,7 +78,6 @@ pub enum Msg {
     ChangeIsbn(String),
     ChangeUrl(String),
     ChangeRoute(AppRoute),
-    DoNothing,
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -284,19 +285,15 @@ impl Component for PublicationsFormComponent {
                     false
                 }
             }
-            Msg::ChangeUrl(value) => {
-                let url = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.new_publication.publication_url.neq_assign(url)
-            }
+            Msg::ChangeUrl(value) => self
+                .new_publication
+                .publication_url
+                .neq_assign(value.to_opt_string()),
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
                 false
             }
-            Msg::DoNothing => false, // callbacks need to return a message
         }
     }
 
@@ -339,9 +336,9 @@ impl Component for PublicationsFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="publications-form" onsubmit=self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
-                                Msg::DoNothing
+                                Msg::CreatePublication
                             })
                             >
                                 <FormPublicationTypeSelect
@@ -375,10 +372,8 @@ impl Component for PublicationsFormComponent {
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick=self.link.callback(|e: MouseEvent| {
-                                    e.prevent_default();
-                                    Msg::CreatePublication
-                                })
+                                type="submit"
+                                form="publications-form"
                             >
                                 { "Add Publication" }
                             </button>
