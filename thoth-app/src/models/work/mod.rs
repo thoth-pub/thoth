@@ -364,25 +364,25 @@ impl DisplayWork for WorkWithRelations {
                                                 href={self.onix_projectmuse_endpoint()}
                                                 class="dropdown-item"
                                             >
-                                            {"ONIX (Project MUSE)"}
+                                            {"ONIX 3.0 (Project MUSE)"}
                                             </a>
                                             <a
                                                 href={self.onix_oapen_endpoint()}
                                                 class="dropdown-item"
                                             >
-                                            {"ONIX (OAPEN/DOAB)"}
+                                            {"ONIX 3.0 (OAPEN/DOAB)"}
                                             </a>
                                             <a
                                                 href={self.onix_jstor_endpoint()}
                                                 class="dropdown-item"
                                             >
-                                            {"ONIX (JSTOR)"}
+                                            {"ONIX 3.0 (JSTOR)"}
                                             </a>
                                             <a
                                                 href={self.onix_ebsco_host_endpoint()}
                                                 class="dropdown-item"
                                             >
-                                            {"ONIX (EBSCO Host)"}
+                                            {"ONIX 2.1 (EBSCO Host)"}
                                             </a>
                                             <a
                                                 href={self.csv_endpoint()}
