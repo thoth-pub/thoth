@@ -92,6 +92,7 @@ pub struct PureTextarea {
 
 // Variant of PureTextInput which supports tooltips,
 // prepended static buttons, or both together.
+// Also supports deactivating the input.
 #[derive(Clone, PartialEq, Properties)]
 pub struct PureTextInputExtended {
     pub label: String,
@@ -108,6 +109,8 @@ pub struct PureTextInputExtended {
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
+    #[prop_or(false)]
+    pub deactivated: bool,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -178,6 +181,8 @@ pub struct PureNumberInput {
 pub struct PureWorkTypeSelect {
     pub label: String,
     pub data: Vec<WorkTypeValues>,
+    #[prop_or_default]
+    pub deactivate: Vec<WorkType>,
     pub value: WorkType,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
@@ -399,6 +404,7 @@ impl PureComponent for PureTextInputExtended {
                         onfocus=self.onfocus.clone()
                         onblur=self.onblur.clone()
                         required={ self.required }
+                        disabled={ self.deactivated }
                     />
                 </div>
             </div>
@@ -492,7 +498,7 @@ impl PureComponent for PureWorkTypeSelect {
                 <div class="control is-expanded">
                     <div class="select is-fullwidth">
                     <select required=self.required onchange=&self.onchange>
-                        { for self.data.iter().map(|i| self.render_worktype(i)) }
+                        { for self.data.iter().map(|i| self.render_worktype(i, &self.deactivate)) }
                     </select>
                     </div>
                 </div>
@@ -761,8 +767,15 @@ impl PureComponent for PurePublisherSelect {
 }
 
 impl PureWorkTypeSelect {
-    fn render_worktype(&self, w: &WorkTypeValues) -> VNode {
-        if w.name == self.value {
+    fn render_worktype(&self, w: &WorkTypeValues, deactivate: &[WorkType]) -> VNode {
+        // It should not be possible for the selected option to require deactivation.
+        if deactivate.contains(&w.name) {
+            html! {
+                <option value={w.name.to_string()} disabled=true>
+                    {&w.name}
+                </option>
+            }
+        } else if w.name == self.value {
             html! {
                 <option value={w.name.to_string()} selected=true>
                     {&w.name}

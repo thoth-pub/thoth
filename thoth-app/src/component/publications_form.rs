@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use thoth_api::model::publication::Publication;
 use thoth_api::model::publication::PublicationType;
+use thoth_api::model::work::WorkType;
 use thoth_api::model::Isbn;
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -80,6 +81,7 @@ pub enum Msg {
 pub struct Props {
     pub publications: Option<Vec<Publication>>,
     pub work_id: Uuid,
+    pub work_type: WorkType,
     pub update_publications: Callback<Option<Vec<Publication>>>,
 }
 
@@ -302,6 +304,8 @@ impl Component for PublicationsFormComponent {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(false)
         });
+        // ISBNs cannot be added for publications whose work type is Book Chapter.
+        let isbn_deactivated = self.props.work_type == WorkType::BookChapter;
         html! {
             <nav class="panel">
                 <p class="panel-heading">
@@ -352,6 +356,7 @@ impl Component for PublicationsFormComponent {
                                     value=self.isbn.clone()
                                     tooltip=self.isbn_warning.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeIsbn(e.value))
+                                    deactivated=isbn_deactivated
                                 />
                             </form>
                         </section>
