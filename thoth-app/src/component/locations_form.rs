@@ -37,6 +37,8 @@ use crate::string::NO;
 use crate::string::REMOVE_BUTTON;
 use crate::string::YES;
 
+use super::ToOption;
+
 pub struct LocationsFormComponent {
     props: Props,
     data: LocationsFormData,
@@ -231,13 +233,10 @@ impl Component for LocationsFormComponent {
                 false
             }
             Msg::ChangeLandingPage(val) => self.new_location.landing_page.neq_assign(val),
-            Msg::ChangeFullTextUrl(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_location.full_text_url.neq_assign(value)
-            }
+            Msg::ChangeFullTextUrl(val) => self
+                .new_location
+                .full_text_url
+                .neq_assign(val.to_opt_string()),
             Msg::ChangeLocationPlatform(code) => {
                 self.new_location.location_platform.neq_assign(code)
             }

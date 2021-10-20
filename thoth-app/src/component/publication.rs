@@ -35,6 +35,7 @@ use crate::models::publication::publication_query::PublicationRequestBody;
 use crate::models::publication::publication_query::Variables;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
+use crate::string::RELATIONS_INFO;
 
 pub struct PublicationComponent {
     publication: PublicationWithRelations,
@@ -256,7 +257,7 @@ impl Component for PublicationComponent {
 
                         <article class="message is-info">
                             <div class="message-body">
-                                { "Relations below are saved automatically upon change." }
+                                { RELATIONS_INFO }
                             </div>
                         </article>
 

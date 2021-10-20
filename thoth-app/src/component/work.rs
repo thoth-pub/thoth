@@ -68,6 +68,7 @@ use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
+use crate::string::RELATIONS_INFO;
 use crate::string::SAVE_BUTTON;
 
 use super::ToOption;
@@ -811,7 +812,7 @@ impl Component for WorkComponent {
 
                         <article class="message is-info">
                             <div class="message-body">
-                                { "Relations below are saved automatically upon change." }
+                                { RELATIONS_INFO }
                             </div>
                         </article>
 
