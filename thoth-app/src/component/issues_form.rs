@@ -323,15 +323,14 @@ impl Component for IssuesFormComponent {
                                     for self.data.serieses.iter().map(|s| {
                                         let series = s.clone();
                                         // avoid listing series already present in issues list
-                                        if let Some(_index) = self.props.issues
+                                        if self.props.issues
                                             .as_ref()
                                             .unwrap()
                                             .iter()
-                                            .position(|ser| ser.series_id == series.series_id)
+                                            .any(|ser| ser.series_id == series.series_id)
+                                            // avoid listing series whose imprint doesn't match work
+                                            || series.imprint.imprint_id != self.props.imprint_id
                                         {
-                                            html! {}
-                                        // avoid listing series whose imprint doesn't match work
-                                        } else if series.imprint.imprint_id != self.props.imprint_id {
                                             html! {}
                                         } else {
                                             s.as_dropdown_item(
