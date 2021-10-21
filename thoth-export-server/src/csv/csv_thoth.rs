@@ -280,7 +280,7 @@ impl CsvCell<CsvThoth> for WorkPublicationsLocations {
     fn csv_cell(&self) -> String {
         format!(
             "(\"{}\", \"{}\", \"{:?}\", \"{}\")",
-            self.landing_page,
+            self.landing_page.clone().unwrap_or_else(|| "".to_string()),
             self.full_text_url.clone().unwrap_or_else(|| "".to_string()),
             self.location_platform,
             self.canonical,
@@ -464,13 +464,13 @@ mod tests {
                     ],
                     locations: vec![
                         WorkPublicationsLocations {
-                            landing_page: "https://www.book.com/paperback".to_string(),
+                            landing_page: Some("https://www.book.com/paperback".to_string()),
                             full_text_url: None,
                             location_platform: LocationPlatform::OTHER,
                             canonical: true,
                         },
                         WorkPublicationsLocations {
-                            landing_page: "https://www.jstor.com/paperback".to_string(),
+                            landing_page: Some("https://www.jstor.com/paperback".to_string()),
                             full_text_url: None,
                             location_platform: LocationPlatform::JSTOR,
                             canonical: false,
@@ -503,7 +503,7 @@ mod tests {
                     isbn: Some(Isbn::from_str("978-1-56619-909-4").unwrap()),
                     prices: vec![],
                     locations: vec![WorkPublicationsLocations {
-                        landing_page: "https://www.book.com/pdf_landing".to_string(),
+                        landing_page: Some("https://www.book.com/pdf_landing".to_string()),
                         full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
                         location_platform: LocationPlatform::OTHER,
                         canonical: true,
@@ -515,7 +515,7 @@ mod tests {
                     isbn: None,
                     prices: vec![],
                     locations: vec![WorkPublicationsLocations {
-                        landing_page: "https://www.book.com/html_landing".to_string(),
+                        landing_page: Some("https://www.book.com/html_landing".to_string()),
                         full_text_url: Some("https://www.book.com/html_fulltext".to_string()),
                         location_platform: LocationPlatform::OTHER,
                         canonical: true,
@@ -625,7 +625,7 @@ mod tests {
                 unit_price: 25.95,
             }],
             locations: vec![WorkPublicationsLocations {
-                landing_page: "https://www.book.com/paperback".to_string(),
+                landing_page: Some("https://www.book.com/paperback".to_string()),
                 full_text_url: None,
                 location_platform: LocationPlatform::PROJECT_MUSE,
                 canonical: true,
@@ -694,7 +694,7 @@ mod tests {
     #[test]
     fn test_csv_thoth_locations() {
         let mut location = WorkPublicationsLocations {
-            landing_page: "https://www.book.com/pdf_landing".to_string(),
+            landing_page: Some("https://www.book.com/pdf_landing".to_string()),
             full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
             location_platform: LocationPlatform::OTHER,
             canonical: true,

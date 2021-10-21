@@ -8,7 +8,7 @@ CREATE TYPE location_platform AS ENUM (
 CREATE TABLE location (
     location_id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     publication_id      UUID NOT NULL REFERENCES publication(publication_id) ON DELETE CASCADE,
-    landing_page        TEXT NOT NULL CHECK (landing_page ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'),
+    landing_page        TEXT CHECK (landing_page ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'),
     full_text_url       TEXT CHECK (full_text_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'),
     location_platform   location_platform NOT NULL DEFAULT 'Other',
     canonical           BOOLEAN NOT NULL DEFAULT False,

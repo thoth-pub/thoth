@@ -215,7 +215,7 @@ table! {
     location (location_id) {
         location_id -> Uuid,
         publication_id -> Uuid,
-        landing_page -> Text,
+        landing_page -> Nullable<Text>,
         full_text_url -> Nullable<Text>,
         location_platform -> Location_platform,
         canonical -> Bool,

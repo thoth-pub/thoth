@@ -729,7 +729,7 @@ mod tests {
                 isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
                 prices: vec![],
                 locations: vec![WorkPublicationsLocations {
-                    landing_page: "https://www.book.com/pdf_landing".to_string(),
+                    landing_page: Some("https://www.book.com/pdf_landing".to_string()),
                     full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
                     location_platform: LocationPlatform::OTHER,
                     canonical: true,

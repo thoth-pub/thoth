@@ -237,7 +237,7 @@ impl Component for LocationsFormComponent {
                     .send_message(Msg::SetLocationDeleteState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangeLandingPage(val) => self.new_location.landing_page.neq_assign(val),
+            Msg::ChangeLandingPage(val) => self.new_location.landing_page.neq_assign(val.to_opt_string()),
             Msg::ChangeFullTextUrl(val) => self
                 .new_location
                 .full_text_url
@@ -297,7 +297,6 @@ impl Component for LocationsFormComponent {
                                     label="Landing Page"
                                     value=self.new_location.landing_page.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeLandingPage(e.value))
-                                    required = true
                                 />
                                 <FormUrlInput
                                     label="Full Text URL"
@@ -397,7 +396,7 @@ impl LocationsFormComponent {
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "Landing Page" }</label>
                         <div class="control is-expanded">
-                            {&l.landing_page}
+                            {&l.landing_page.clone().unwrap_or_else(|| "".to_string())}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">

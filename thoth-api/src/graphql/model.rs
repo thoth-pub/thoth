@@ -2520,8 +2520,8 @@ impl Location {
         self.publication_id
     }
 
-    pub fn landing_page(&self) -> &String {
-        &self.landing_page
+    pub fn landing_page(&self) -> Option<&String> {
+        self.landing_page.as_ref()
     }
 
     pub fn full_text_url(&self) -> Option<&String> {

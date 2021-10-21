@@ -12,7 +12,6 @@ const DELETE_LOCATION_MUTATION: &str = "
         ){
             locationId
             publicationId
-            landingPage
             locationPlatform
             canonical
             createdAt

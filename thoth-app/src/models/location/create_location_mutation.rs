@@ -7,7 +7,7 @@ use uuid::Uuid;
 const CREATE_LOCATION_MUTATION: &str = "
     mutation CreateLocation(
         $publicationId: Uuid!,
-        $landingPage: String!,
+        $landingPage: String,
         $fullTextUrl: String,
         $locationPlatform: LocationPlatform!,
         $canonical: Boolean!
@@ -46,7 +46,7 @@ graphql_query_builder! {
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub publication_id: Uuid,
-    pub landing_page: String,
+    pub landing_page: Option<String>,
     pub full_text_url: Option<String>,
     pub location_platform: LocationPlatform,
     pub canonical: bool,

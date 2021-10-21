@@ -49,7 +49,7 @@ pub enum LocationField {
 pub struct Location {
     pub location_id: Uuid,
     pub publication_id: Uuid,
-    pub landing_page: String,
+    pub landing_page: Option<String>,
     pub full_text_url: Option<String>,
     pub location_platform: LocationPlatform,
     pub canonical: bool,
@@ -64,7 +64,7 @@ pub struct Location {
 )]
 pub struct NewLocation {
     pub publication_id: Uuid,
-    pub landing_page: String,
+    pub landing_page: Option<String>,
     pub full_text_url: Option<String>,
     pub location_platform: LocationPlatform,
     pub canonical: bool,
@@ -79,7 +79,7 @@ pub struct NewLocation {
 pub struct PatchLocation {
     pub location_id: Uuid,
     pub publication_id: Uuid,
-    pub landing_page: String,
+    pub landing_page: Option<String>,
     pub full_text_url: Option<String>,
     pub location_platform: LocationPlatform,
     pub canonical: bool,
