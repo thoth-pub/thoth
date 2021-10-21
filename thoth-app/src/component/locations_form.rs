@@ -84,7 +84,12 @@ impl Component for LocationsFormComponent {
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let data: LocationsFormData = Default::default();
         let show_add_form = false;
-        let new_location: Location = Default::default();
+        // The first location needs to be canonical = true (as it will be
+        // the only location); subsequent locations need to be canonical = false
+        let new_location = Location {
+            canonical: props.locations.as_ref().unwrap_or(&vec![]).is_empty(),
+            ..Default::default()
+        };
         let fetch_location_platforms = Default::default();
         let push_location = Default::default();
         let delete_location = Default::default();
@@ -372,6 +377,17 @@ impl LocationsFormComponent {
 
     fn render_location(&self, l: &Location) -> Html {
         let location_id = l.location_id;
+        let mut delete_callback = Some(
+            self.link
+                .callback(move |_| Msg::DeleteLocation(location_id)),
+        );
+        let mut delete_deactivated = false;
+        // If the location is canonical and other (non-canonical) locations exist, prevent it from
+        // being deleted by deactivating the delete button and unsetting its callback attribute
+        if l.canonical && self.props.locations.as_ref().unwrap_or(&vec![]).len() > 1 {
+            delete_callback = None;
+            delete_deactivated = true;
+        }
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -413,7 +429,8 @@ impl LocationsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteLocation(location_id))
+                                onclick=delete_callback
+                                disabled=delete_deactivated
                             >
                                 { REMOVE_BUTTON }
                             </a>

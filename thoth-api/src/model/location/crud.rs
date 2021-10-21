@@ -157,6 +157,31 @@ impl DbInsert for NewLocationHistory {
     db_insert!(location_history::table);
 }
 
+impl NewLocation {
+    pub fn can_be_non_canonical(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        use crate::schema::location::dsl;
+        use diesel::prelude::*;
+
+        let connection = db.get().unwrap();
+        let canonical_count = dsl::location
+            .filter(dsl::publication_id.eq(self.publication_id))
+            .filter(dsl::canonical)
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading locations for publication")
+            .to_string()
+            .parse::<i32>()
+            .unwrap();
+        // A location can only be non-canonical if another location
+        // marked as canonical exists for the same publication.
+        if canonical_count == 0 {
+            Err(ThothError::CanonicalLocationError)
+        } else {
+            Ok(())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

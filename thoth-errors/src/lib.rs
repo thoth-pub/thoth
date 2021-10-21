@@ -55,6 +55,8 @@ pub enum ThothError {
     IsbnEmptyError,
     #[fail(display = "Works of type Book Chapter cannot have ISBNs in their Publications.")]
     ChapterIsbnError,
+    #[fail(display = "Each Publication must have exactly one canonical Location.")]
+    CanonicalLocationError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]

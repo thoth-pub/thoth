@@ -11,7 +11,7 @@ CREATE TABLE location (
     landing_page        TEXT NOT NULL CHECK (landing_page ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'),
     full_text_url       TEXT CHECK (full_text_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'),
     location_platform   location_platform NOT NULL DEFAULT 'Other',
-    canonical           BOOLEAN NOT NULL DEFAULT True,
+    canonical           BOOLEAN NOT NULL DEFAULT False,
     created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -22,7 +22,7 @@ CREATE UNIQUE INDEX location_uniq_canonical_true_idx ON location(publication_id)
     WHERE canonical;
 
 -- Only allow one instance of each platform (except 'Other') per publication
-CREATE UNIQUE INDEX location_uniq_platform_idx ON location(publication_id,location_platform)
+CREATE UNIQUE INDEX location_uniq_platform_idx ON location(publication_id, location_platform)
     WHERE NOT location_platform = 'Other';
 
 CREATE TABLE location_history (
@@ -34,8 +34,10 @@ CREATE TABLE location_history (
 );
 
 -- Create location entries for every existing publication_url (assume all are landing pages)
-INSERT INTO location(publication_id, landing_page)
-    SELECT publication_id, publication_url FROM publication WHERE publication_url IS NOT NULL;
+-- If a publication has locations, exactly one of them must be canonical;
+-- this command will create at most one location per publication, so make them all canonical.
+INSERT INTO location(publication_id, landing_page, canonical)
+    SELECT publication_id, publication_url, True FROM publication WHERE publication_url IS NOT NULL;
 
 ALTER TABLE publication
     -- Only allow one publication of each type per work (existing data may breach this)

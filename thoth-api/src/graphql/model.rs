@@ -1115,6 +1115,10 @@ impl MutationRoot {
                 data.publication_id,
             )?)?;
 
+        if !data.canonical {
+            data.can_be_non_canonical(&context.db)?;
+        }
+
         Location::create(&context.db, &data).map_err(|e| e.into())
     }
 
@@ -1346,6 +1350,13 @@ impl MutationRoot {
                     &context.db,
                     data.publication_id,
                 )?)?;
+        }
+
+        if !(data.canonical == location.canonical) {
+            // Each publication must have exactly one canonical location.
+            // Updating an existing location would always violate this,
+            // as it should always result in either zero or two canonical locations.
+            return Err(ThothError::CanonicalLocationError.into());
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
