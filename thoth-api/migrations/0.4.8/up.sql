@@ -13,7 +13,9 @@ CREATE TABLE location (
     location_platform   location_platform NOT NULL DEFAULT 'Other',
     canonical           BOOLEAN NOT NULL DEFAULT False,
     created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Location must contain at least one of landing_page or full_text_url
+    CONSTRAINT location_url_check CHECK (landing_page IS NOT NULL OR full_text_url IS NOT NULL)
 );
 SELECT diesel_manage_updated_at('location');
 

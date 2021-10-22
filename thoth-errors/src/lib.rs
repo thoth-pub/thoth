@@ -57,6 +57,10 @@ pub enum ThothError {
     ChapterIsbnError,
     #[fail(display = "Each Publication must have exactly one canonical Location.")]
     CanonicalLocationError,
+    #[fail(
+        display = "Canonical Locations for digital Publications must have both a Landing Page and a Full Text URL."
+    )]
+    LocationUrlError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]

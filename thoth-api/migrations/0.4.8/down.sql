@@ -6,19 +6,31 @@ ALTER TABLE publication
 -- set the landing page of the canonical location (if any) as the main publication_url,
 -- then create duplicate publications to store all other location URLs (landing page/full text).
 UPDATE publication
-   SET publication_url = location.landing_page
-      FROM location
-      WHERE publication.publication_id = location.publication_id
-      AND location.canonical
-      AND location.full_text_url IS NULL;
+    SET publication_url = location.landing_page
+        FROM location
+        WHERE publication.publication_id = location.publication_id
+        AND location.canonical
+        AND location.landing_page IS NOT NULL;
+UPDATE publication
+    SET publication_url = location.full_text_url
+        FROM location
+        WHERE publication.publication_id = location.publication_id
+        AND location.canonical
+        AND location.full_text_url IS NOT NULL
+        AND location.landing_page IS NULL;
 INSERT INTO publication(publication_type, work_id, publication_url)
     SELECT publication.publication_type, publication.work_id, location.landing_page FROM publication, location
     WHERE publication.publication_id = location.publication_id
+    AND location.landing_page IS NOT NULL
     AND NOT location.canonical;
 INSERT INTO publication(publication_type, work_id, publication_url)
     SELECT publication.publication_type, publication.work_id, location.full_text_url FROM publication, location
     WHERE publication.publication_id = location.publication_id
-    AND location.full_text_url IS NOT NULL;
+    AND location.full_text_url IS NOT NULL
+    AND (
+        NOT location.canonical
+        OR (location.canonical AND location.landing_page IS NOT NULL)
+    );
 
 DROP TABLE location_history;
 DROP TRIGGER set_updated_at ON location;

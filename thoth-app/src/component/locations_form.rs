@@ -237,7 +237,10 @@ impl Component for LocationsFormComponent {
                     .send_message(Msg::SetLocationDeleteState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangeLandingPage(val) => self.new_location.landing_page.neq_assign(val.to_opt_string()),
+            Msg::ChangeLandingPage(val) => self
+                .new_location
+                .landing_page
+                .neq_assign(val.to_opt_string()),
             Msg::ChangeFullTextUrl(val) => self
                 .new_location
                 .full_text_url

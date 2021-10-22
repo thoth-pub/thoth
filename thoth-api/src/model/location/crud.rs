@@ -180,6 +180,59 @@ impl NewLocation {
             Ok(())
         }
     }
+
+    pub fn canonical_record_complete(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        location_canonical_record_complete(
+            self.publication_id,
+            &self.landing_page,
+            &self.full_text_url,
+            db,
+        )
+    }
+}
+
+impl PatchLocation {
+    pub fn canonical_record_complete(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        location_canonical_record_complete(
+            self.publication_id,
+            &self.landing_page,
+            &self.full_text_url,
+            db,
+        )
+    }
+}
+
+fn location_canonical_record_complete(
+    publication_id: Uuid,
+    landing_page: &Option<String>,
+    full_text_url: &Option<String>,
+    db: &crate::db::PgPool,
+) -> ThothResult<()> {
+    // If a canonical location has both the possible URLs, it is always complete.
+    if landing_page.is_some() && full_text_url.is_some() {
+        Ok(())
+    } else {
+        use crate::model::publication::PublicationType;
+        use diesel::prelude::*;
+
+        let connection = db.get().unwrap();
+        let publication_type = crate::schema::publication::table
+            .select(crate::schema::publication::publication_type)
+            .filter(crate::schema::publication::publication_id.eq(publication_id))
+            .first::<PublicationType>(&connection)
+            .expect("Error loading publication type for location");
+        // If a canonical location's publication is of a digital type,
+        // it must have both the possible URLs to count as complete.
+        if publication_type != PublicationType::Hardback
+            && publication_type != PublicationType::Paperback
+        {
+            Err(ThothError::LocationUrlError)
+        } else {
+            // For non-digital types, at least one URL must be present,
+            // but exceptions to this will be caught at the database level.
+            Ok(())
+        }
+    }
 }
 
 #[cfg(test)]
