@@ -3,8 +3,9 @@ ALTER TABLE publication
     ADD COLUMN publication_url TEXT CHECK (publication_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)');
 
 -- Migrate location URLs back into publication table as far as possible before dropping location table:
--- set the landing page of the canonical location (if any) as the main publication_url,
+-- set the landing_page or full_text_url of the canonical location as the main publication_url,
 -- then create duplicate publications to store all other location URLs (landing page/full text).
+-- Note this will create multiple identical publications if the same URL is re-used across location fields.
 UPDATE publication
     SET publication_url = location.landing_page
         FROM location

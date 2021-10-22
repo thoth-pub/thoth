@@ -1,7 +1,14 @@
 CREATE TYPE location_platform AS ENUM (
     'Project MUSE',
     'OAPEN',
+    'DOAB',
     'JSTOR',
+    'EBSCO Host',
+    'OCLC KB',
+    'ProQuest KB',
+    'ProQuest ExLibris',
+    'EBSCO KB',
+    'JISC KB',
     'Other'
 );
 

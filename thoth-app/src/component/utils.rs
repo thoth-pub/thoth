@@ -181,6 +181,7 @@ pub struct PureNumberInput {
 pub struct PureWorkTypeSelect {
     pub label: String,
     pub data: Vec<WorkTypeValues>,
+    // Subset of `data` list which should be deactivated, if any
     #[prop_or_default]
     pub deactivate: Vec<WorkType>,
     pub value: WorkType,
@@ -768,23 +769,12 @@ impl PureComponent for PurePublisherSelect {
 
 impl PureWorkTypeSelect {
     fn render_worktype(&self, w: &WorkTypeValues, deactivate: &[WorkType]) -> VNode {
-        // It should not be possible for the selected option to require deactivation.
-        if deactivate.contains(&w.name) {
-            html! {
-                <option value={w.name.to_string()} disabled=true>
-                    {&w.name}
-                </option>
-            }
-        } else if w.name == self.value {
-            html! {
-                <option value={w.name.to_string()} selected=true>
-                    {&w.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={w.name.to_string()}>{&w.name}</option>
-            }
+        let deactivated = deactivate.contains(&w.name);
+        let selected = w.name == self.value;
+        html! {
+            <option value={w.name.to_string()} selected={selected} disabled={deactivated}>
+                {&w.name}
+            </option>
         }
     }
 }

@@ -20,9 +20,30 @@ pub enum LocationPlatform {
     #[cfg_attr(feature = "backend", db_rename = "OAPEN")]
     #[strum(serialize = "OAPEN")]
     Oapen,
+    #[cfg_attr(feature = "backend", db_rename = "DOAB")]
+    #[strum(serialize = "DOAB")]
+    Doab,
     #[cfg_attr(feature = "backend", db_rename = "JSTOR")]
     #[strum(serialize = "JSTOR")]
     Jstor,
+    #[cfg_attr(feature = "backend", db_rename = "EBSCO Host")]
+    #[strum(serialize = "EBSCO Host")]
+    EbscoHost,
+    #[cfg_attr(feature = "backend", db_rename = "OCLC KB")]
+    #[strum(serialize = "OCLC KB")]
+    OclcKb,
+    #[cfg_attr(feature = "backend", db_rename = "ProQuest KB")]
+    #[strum(serialize = "ProQuest KB")]
+    ProquestKb,
+    #[cfg_attr(feature = "backend", db_rename = "ProQuest ExLibris")]
+    #[strum(serialize = "ProQuest ExLibris")]
+    ProquestExlibris,
+    #[cfg_attr(feature = "backend", db_rename = "EBSCO KB")]
+    #[strum(serialize = "EBSCO KB")]
+    EbscoKb,
+    #[cfg_attr(feature = "backend", db_rename = "JISC KB")]
+    #[strum(serialize = "JISC KB")]
+    JiscKb,
     #[cfg_attr(feature = "backend", db_rename = "Other")]
     Other,
 }
@@ -121,7 +142,17 @@ fn test_locationplatform_default() {
 fn test_locationplatform_display() {
     assert_eq!(format!("{}", LocationPlatform::ProjectMuse), "Project MUSE");
     assert_eq!(format!("{}", LocationPlatform::Oapen), "OAPEN");
+    assert_eq!(format!("{}", LocationPlatform::Doab), "DOAB");
     assert_eq!(format!("{}", LocationPlatform::Jstor), "JSTOR");
+    assert_eq!(format!("{}", LocationPlatform::EbscoHost), "EBSCO Host");
+    assert_eq!(format!("{}", LocationPlatform::OclcKb), "OCLC KB");
+    assert_eq!(format!("{}", LocationPlatform::ProquestKb), "ProQuest KB");
+    assert_eq!(
+        format!("{}", LocationPlatform::ProquestExlibris),
+        "ProQuest ExLibris"
+    );
+    assert_eq!(format!("{}", LocationPlatform::EbscoKb), "EBSCO KB");
+    assert_eq!(format!("{}", LocationPlatform::JiscKb), "JISC KB");
     assert_eq!(format!("{}", LocationPlatform::Other), "Other");
 }
 
@@ -137,8 +168,36 @@ fn test_locationplatform_fromstr() {
         LocationPlatform::Oapen
     );
     assert_eq!(
+        LocationPlatform::from_str("DOAB").unwrap(),
+        LocationPlatform::Doab
+    );
+    assert_eq!(
         LocationPlatform::from_str("JSTOR").unwrap(),
         LocationPlatform::Jstor
+    );
+    assert_eq!(
+        LocationPlatform::from_str("EBSCO Host").unwrap(),
+        LocationPlatform::EbscoHost
+    );
+    assert_eq!(
+        LocationPlatform::from_str("OCLC KB").unwrap(),
+        LocationPlatform::OclcKb
+    );
+    assert_eq!(
+        LocationPlatform::from_str("ProQuest KB").unwrap(),
+        LocationPlatform::ProquestKb
+    );
+    assert_eq!(
+        LocationPlatform::from_str("ProQuest ExLibris").unwrap(),
+        LocationPlatform::ProquestExlibris
+    );
+    assert_eq!(
+        LocationPlatform::from_str("EBSCO KB").unwrap(),
+        LocationPlatform::EbscoKb
+    );
+    assert_eq!(
+        LocationPlatform::from_str("JISC KB").unwrap(),
+        LocationPlatform::JiscKb
     );
     assert_eq!(
         LocationPlatform::from_str("Other").unwrap(),
