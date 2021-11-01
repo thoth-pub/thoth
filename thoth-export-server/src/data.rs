@@ -269,7 +269,9 @@ mod tests {
             let specification_id = s.id;
             let format_id = format_id_from_url(s.format);
             let format = find_format(format_id).unwrap();
-            assert!(format.specifications.iter()
+            assert!(format
+                .specifications
+                .iter()
                 .find(|specification| specification_id_from_url(specification) == specification_id)
                 .cloned()
                 .ok_or(ThothError::EntityNotFound)
