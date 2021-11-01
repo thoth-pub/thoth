@@ -263,6 +263,20 @@ mod tests {
     }
 
     #[test]
+    fn test_all_specifications_listed_in_formats() {
+        for s in ALL_SPECIFICATIONS.iter() {
+            let specification_id = s.id;
+            let format_id = format_id_from_url(s.format);
+            let format = find_format(format_id).unwrap();
+            assert!(format.specifications.iter()
+                .find(|specification| specification_id_from_url(specification) == specification_id)
+                .cloned()
+                .ok_or(ThothError::EntityNotFound)
+                .is_ok())
+        }
+    }
+
+    #[test]
     fn test_platform_specifications_in_all_specifications() {
         for p in ALL_PLATFORMS.iter() {
             for s in &p.accepts {
