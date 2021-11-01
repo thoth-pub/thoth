@@ -160,6 +160,7 @@ lazy_static! {
                     "/specifications/onix_3.0::project_muse"
                 ),
                 concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.0::oapen"),
+                concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.0::jstor"),
             ],
         },
         Format {
