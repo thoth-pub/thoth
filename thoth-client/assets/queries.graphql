@@ -88,9 +88,9 @@ fragment Work on Work {
         projectShortname
         grantNumber
         jurisdiction
-        funder {
-            funderName
-            funderDoi
+        institution {
+            institutionName
+            institutionDoi
         }
     }
 }

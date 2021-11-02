@@ -1,9 +1,10 @@
 use super::{
-    Funder, FunderField, FunderHistory, FunderOrderBy, NewFunder, NewFunderHistory, PatchFunder,
+    Institution, InstitutionField, InstitutionHistory, InstitutionOrderBy, NewInstitution,
+    NewInstitutionHistory, PatchInstitution,
 };
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
-use crate::schema::{funder, funder_history};
+use crate::schema::{institution, institution_history};
 use crate::{crud_methods, db_insert};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
@@ -11,15 +12,15 @@ use diesel::{
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
-impl Crud for Funder {
-    type NewEntity = NewFunder;
-    type PatchEntity = PatchFunder;
-    type OrderByEntity = FunderOrderBy;
+impl Crud for Institution {
+    type NewEntity = NewInstitution;
+    type PatchEntity = PatchInstitution;
+    type OrderByEntity = InstitutionOrderBy;
     type FilterParameter1 = ();
     type FilterParameter2 = ();
 
     fn pk(&self) -> Uuid {
-        self.funder_id
+        self.institution_id
     }
 
     fn all(
@@ -33,44 +34,44 @@ impl Crud for Funder {
         _: Option<Uuid>,
         _: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
-    ) -> ThothResult<Vec<Funder>> {
-        use crate::schema::funder::dsl::*;
+    ) -> ThothResult<Vec<Institution>> {
+        use crate::schema::institution::dsl::*;
         let connection = db.get().unwrap();
-        let mut query = funder.into_boxed();
+        let mut query = institution.into_boxed();
 
         match order.field {
-            FunderField::FunderId => match order.direction {
-                Direction::Asc => query = query.order(funder_id.asc()),
-                Direction::Desc => query = query.order(funder_id.desc()),
+            InstitutionField::InstitutionId => match order.direction {
+                Direction::Asc => query = query.order(institution_id.asc()),
+                Direction::Desc => query = query.order(institution_id.desc()),
             },
-            FunderField::FunderName => match order.direction {
-                Direction::Asc => query = query.order(funder_name.asc()),
-                Direction::Desc => query = query.order(funder_name.desc()),
+            InstitutionField::InstitutionName => match order.direction {
+                Direction::Asc => query = query.order(institution_name.asc()),
+                Direction::Desc => query = query.order(institution_name.desc()),
             },
-            FunderField::FunderDoi => match order.direction {
-                Direction::Asc => query = query.order(funder_doi.asc()),
-                Direction::Desc => query = query.order(funder_doi.desc()),
+            InstitutionField::InstitutionDoi => match order.direction {
+                Direction::Asc => query = query.order(institution_doi.asc()),
+                Direction::Desc => query = query.order(institution_doi.desc()),
             },
-            FunderField::CreatedAt => match order.direction {
+            InstitutionField::CreatedAt => match order.direction {
                 Direction::Asc => query = query.order(created_at.asc()),
                 Direction::Desc => query = query.order(created_at.desc()),
             },
-            FunderField::UpdatedAt => match order.direction {
+            InstitutionField::UpdatedAt => match order.direction {
                 Direction::Asc => query = query.order(updated_at.asc()),
                 Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
         if let Some(filter) = filter {
             query = query.filter(
-                funder_name
+                institution_name
                     .ilike(format!("%{}%", filter))
-                    .or(funder_doi.ilike(format!("%{}%", filter))),
+                    .or(institution_doi.ilike(format!("%{}%", filter))),
             );
         }
         match query
             .limit(limit.into())
             .offset(offset.into())
-            .load::<Funder>(&connection)
+            .load::<Institution>(&connection)
         {
             Ok(t) => Ok(t),
             Err(e) => Err(ThothError::from(e)),
@@ -84,14 +85,14 @@ impl Crud for Funder {
         _: Option<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
-        use crate::schema::funder::dsl::*;
+        use crate::schema::institution::dsl::*;
         let connection = db.get().unwrap();
-        let mut query = funder.into_boxed();
+        let mut query = institution.into_boxed();
         if let Some(filter) = filter {
             query = query.filter(
-                funder_name
+                institution_name
                     .ilike(format!("%{}%", filter))
-                    .or(funder_doi.ilike(format!("%{}%", filter))),
+                    .or(institution_doi.ilike(format!("%{}%", filter))),
             );
         }
 
@@ -107,29 +108,29 @@ impl Crud for Funder {
 
     fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
         Err(ThothError::InternalError(
-            "Method publisher_id() is not supported for Funder objects".to_string(),
+            "Method publisher_id() is not supported for Institution objects".to_string(),
         ))
     }
 
-    crud_methods!(funder::table, funder::dsl::funder);
+    crud_methods!(institution::table, institution::dsl::institution);
 }
 
-impl HistoryEntry for Funder {
-    type NewHistoryEntity = NewFunderHistory;
+impl HistoryEntry for Institution {
+    type NewHistoryEntity = NewInstitutionHistory;
 
     fn new_history_entry(&self, account_id: &Uuid) -> Self::NewHistoryEntity {
         Self::NewHistoryEntity {
-            funder_id: self.funder_id,
+            institution_id: self.institution_id,
             account_id: *account_id,
             data: serde_json::Value::String(serde_json::to_string(&self).unwrap()),
         }
     }
 }
 
-impl DbInsert for NewFunderHistory {
-    type MainEntity = FunderHistory;
+impl DbInsert for NewInstitutionHistory {
+    type MainEntity = InstitutionHistory;
 
-    db_insert!(funder_history::table);
+    db_insert!(institution_history::table);
 }
 
 #[cfg(test)]
@@ -137,21 +138,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_funder_pk() {
-        let funder: Funder = Default::default();
-        assert_eq!(funder.pk(), funder.funder_id);
+    fn test_institution_pk() {
+        let institution: Institution = Default::default();
+        assert_eq!(institution.pk(), institution.institution_id);
     }
 
     #[test]
-    fn test_new_funder_history_from_funder() {
-        let funder: Funder = Default::default();
+    fn test_new_institution_history_from_institution() {
+        let institution: Institution = Default::default();
         let account_id: Uuid = Default::default();
-        let new_funder_history = funder.new_history_entry(&account_id);
-        assert_eq!(new_funder_history.funder_id, funder.funder_id);
-        assert_eq!(new_funder_history.account_id, account_id);
+        let new_institution_history = institution.new_history_entry(&account_id);
         assert_eq!(
-            new_funder_history.data,
-            serde_json::Value::String(serde_json::to_string(&funder).unwrap())
+            new_institution_history.institution_id,
+            institution.institution_id
+        );
+        assert_eq!(new_institution_history.account_id, account_id);
+        assert_eq!(
+            new_institution_history.data,
+            serde_json::Value::String(serde_json::to_string(&institution).unwrap())
         );
     }
 }

@@ -80,10 +80,10 @@ table! {
 table! {
     use diesel::sql_types::*;
 
-    funder (funder_id) {
-        funder_id -> Uuid,
-        funder_name -> Text,
-        funder_doi -> Nullable<Text>,
+    institution (institution_id) {
+        institution_id -> Uuid,
+        institution_name -> Text,
+        institution_doi -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
@@ -92,9 +92,9 @@ table! {
 table! {
     use diesel::sql_types::*;
 
-    funder_history (funder_history_id) {
-        funder_history_id -> Uuid,
-        funder_id -> Uuid,
+    institution_history (institution_history_id) {
+        institution_history_id -> Uuid,
+        institution_id -> Uuid,
         account_id -> Uuid,
         data -> Jsonb,
         timestamp -> Timestamptz,
@@ -107,7 +107,7 @@ table! {
     funding (funding_id) {
         funding_id -> Uuid,
         work_id -> Uuid,
-        funder_id -> Uuid,
+        institution_id -> Uuid,
         program -> Nullable<Text>,
         project_name -> Nullable<Text>,
         project_shortname -> Nullable<Text>,
@@ -414,9 +414,9 @@ joinable!(contribution_history -> account (account_id));
 joinable!(contribution_history -> contribution (contribution_id));
 joinable!(contributor_history -> account (account_id));
 joinable!(contributor_history -> contributor (contributor_id));
-joinable!(funder_history -> account (account_id));
-joinable!(funder_history -> funder (funder_id));
-joinable!(funding -> funder (funder_id));
+joinable!(institution_history -> account (account_id));
+joinable!(institution_history -> institution (institution_id));
+joinable!(funding -> institution (institution_id));
 joinable!(funding -> work (work_id));
 joinable!(funding_history -> account (account_id));
 joinable!(funding_history -> funding (funding_id));
@@ -456,8 +456,8 @@ allow_tables_to_appear_in_same_query!(
     contribution_history,
     contributor,
     contributor_history,
-    funder,
-    funder_history,
+    institution,
+    institution_history,
     funding,
     funding_history,
     imprint,

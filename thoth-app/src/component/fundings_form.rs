@@ -1,5 +1,5 @@
-use thoth_api::model::funder::Funder;
-use thoth_api::model::funding::FundingWithFunder;
+use thoth_api::model::funding::FundingWithInstitution;
+use thoth_api::model::institution::Institution;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -15,11 +15,6 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormTextInput;
-use crate::models::funder::funders_query::FetchActionFunders;
-use crate::models::funder::funders_query::FetchFunders;
-use crate::models::funder::funders_query::FundersRequest;
-use crate::models::funder::funders_query::FundersRequestBody;
-use crate::models::funder::funders_query::Variables;
 use crate::models::funding::create_funding_mutation::CreateFundingRequest;
 use crate::models::funding::create_funding_mutation::CreateFundingRequestBody;
 use crate::models::funding::create_funding_mutation::PushActionCreateFunding;
@@ -30,6 +25,11 @@ use crate::models::funding::delete_funding_mutation::DeleteFundingRequestBody;
 use crate::models::funding::delete_funding_mutation::PushActionDeleteFunding;
 use crate::models::funding::delete_funding_mutation::PushDeleteFunding;
 use crate::models::funding::delete_funding_mutation::Variables as DeleteVariables;
+use crate::models::institution::institutions_query::FetchActionInstitutions;
+use crate::models::institution::institutions_query::FetchInstitutions;
+use crate::models::institution::institutions_query::InstitutionsRequest;
+use crate::models::institution::institutions_query::InstitutionsRequestBody;
+use crate::models::institution::institutions_query::Variables;
 use crate::models::Dropdown;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_FUNDINGS;
@@ -40,10 +40,10 @@ use super::ToOption;
 pub struct FundingsFormComponent {
     props: Props,
     data: FundingsFormData,
-    new_funding: FundingWithFunder,
+    new_funding: FundingWithInstitution,
     show_add_form: bool,
     show_results: bool,
-    fetch_funders: FetchFunders,
+    fetch_institutions: FetchInstitutions,
     push_funding: PushCreateFunding,
     delete_funding: PushDeleteFunding,
     link: ComponentLink<Self>,
@@ -52,20 +52,20 @@ pub struct FundingsFormComponent {
 
 #[derive(Default)]
 struct FundingsFormData {
-    funders: Vec<Funder>,
+    institutions: Vec<Institution>,
 }
 
 pub enum Msg {
     ToggleAddFormDisplay(bool),
-    SetFundersFetchState(FetchActionFunders),
-    GetFunders,
+    SetInstitutionsFetchState(FetchActionInstitutions),
+    GetInstitutions,
     ToggleSearchResultDisplay(bool),
-    SearchFunder(String),
+    SearchInstitution(String),
     SetFundingPushState(PushActionCreateFunding),
     CreateFunding,
     SetFundingDeleteState(PushActionDeleteFunding),
     DeleteFunding(Uuid),
-    AddFunding(Funder),
+    AddFunding(Institution),
     ChangeProgram(String),
     ChangeProjectName(String),
     ChangeProjectShortname(String),
@@ -75,9 +75,9 @@ pub enum Msg {
 
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
-    pub fundings: Option<Vec<FundingWithFunder>>,
+    pub fundings: Option<Vec<FundingWithInstitution>>,
     pub work_id: Uuid,
-    pub update_fundings: Callback<Option<Vec<FundingWithFunder>>>,
+    pub update_fundings: Callback<Option<Vec<FundingWithInstitution>>>,
 }
 
 impl Component for FundingsFormComponent {
@@ -86,15 +86,15 @@ impl Component for FundingsFormComponent {
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let data: FundingsFormData = Default::default();
-        let new_funding: FundingWithFunder = Default::default();
+        let new_funding: FundingWithInstitution = Default::default();
         let show_add_form = false;
         let show_results = false;
-        let fetch_funders = Default::default();
+        let fetch_institutions = Default::default();
         let push_funding = Default::default();
         let delete_funding = Default::default();
         let notification_bus = NotificationBus::dispatcher();
 
-        link.send_message(Msg::GetFunders);
+        link.send_message(Msg::GetInstitutions);
 
         FundingsFormComponent {
             props,
@@ -102,7 +102,7 @@ impl Component for FundingsFormComponent {
             new_funding,
             show_add_form,
             show_results,
-            fetch_funders,
+            fetch_institutions,
             push_funding,
             delete_funding,
             link,
@@ -116,21 +116,23 @@ impl Component for FundingsFormComponent {
                 self.show_add_form = value;
                 true
             }
-            Msg::SetFundersFetchState(fetch_state) => {
-                self.fetch_funders.apply(fetch_state);
-                self.data.funders = match self.fetch_funders.clone().state() {
+            Msg::SetInstitutionsFetchState(fetch_state) => {
+                self.fetch_institutions.apply(fetch_state);
+                self.data.institutions = match self.fetch_institutions.clone().state() {
                     FetchState::NotFetching(_) => vec![],
                     FetchState::Fetching(_) => vec![],
-                    FetchState::Fetched(body) => body.data.funders,
+                    FetchState::Fetched(body) => body.data.institutions,
                     FetchState::Failed(_, _err) => vec![],
                 };
                 true
             }
-            Msg::GetFunders => {
+            Msg::GetInstitutions => {
+                self.link.send_future(
+                    self.fetch_institutions
+                        .fetch(Msg::SetInstitutionsFetchState),
+                );
                 self.link
-                    .send_future(self.fetch_funders.fetch(Msg::SetFundersFetchState));
-                self.link
-                    .send_message(Msg::SetFundersFetchState(FetchAction::Fetching));
+                    .send_message(Msg::SetInstitutionsFetchState(FetchAction::Fetching));
                 false
             }
             Msg::SetFundingPushState(fetch_state) => {
@@ -141,7 +143,7 @@ impl Component for FundingsFormComponent {
                     FetchState::Fetched(body) => match &body.data.create_funding {
                         Some(i) => {
                             let funding = i.clone();
-                            let mut fundings: Vec<FundingWithFunder> =
+                            let mut fundings: Vec<FundingWithInstitution> =
                                 self.props.fundings.clone().unwrap_or_default();
                             fundings.push(funding);
                             self.props.update_fundings.emit(Some(fundings));
@@ -171,7 +173,7 @@ impl Component for FundingsFormComponent {
                 let body = CreateFundingRequestBody {
                     variables: CreateVariables {
                         work_id: self.props.work_id,
-                        funder_id: self.new_funding.funder_id,
+                        institution_id: self.new_funding.institution_id,
                         program: self.new_funding.program.clone(),
                         project_name: self.new_funding.project_name.clone(),
                         project_shortname: self.new_funding.project_shortname.clone(),
@@ -195,7 +197,7 @@ impl Component for FundingsFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_funding {
                         Some(funding) => {
-                            let to_keep: Vec<FundingWithFunder> = self
+                            let to_keep: Vec<FundingWithInstitution> = self
                                 .props
                                 .fundings
                                 .clone()
@@ -236,9 +238,9 @@ impl Component for FundingsFormComponent {
                     .send_message(Msg::SetFundingDeleteState(FetchAction::Fetching));
                 false
             }
-            Msg::AddFunding(funder) => {
-                self.new_funding.funder_id = funder.funder_id;
-                self.new_funding.funder = funder;
+            Msg::AddFunding(institution) => {
+                self.new_funding.institution_id = institution.institution_id;
+                self.new_funding.institution = institution;
                 self.link.send_message(Msg::ToggleAddFormDisplay(true));
                 true
             }
@@ -246,8 +248,8 @@ impl Component for FundingsFormComponent {
                 self.show_results = value;
                 true
             }
-            Msg::SearchFunder(value) => {
-                let body = FundersRequestBody {
+            Msg::SearchInstitution(value) => {
+                let body = InstitutionsRequestBody {
                     variables: Variables {
                         filter: Some(value),
                         limit: Some(9999),
@@ -255,9 +257,9 @@ impl Component for FundingsFormComponent {
                     },
                     ..Default::default()
                 };
-                let request = FundersRequest { body };
-                self.fetch_funders = Fetch::new(request);
-                self.link.send_message(Msg::GetFunders);
+                let request = InstitutionsRequest { body };
+                self.fetch_institutions = Fetch::new(request);
+                self.link.send_message(Msg::GetInstitutions);
                 false
             }
             Msg::ChangeProgram(val) => self.new_funding.program.neq_assign(val.to_opt_string()),
@@ -303,10 +305,10 @@ impl Component for FundingsFormComponent {
                                     <input
                                         class="input"
                                         type="search"
-                                        placeholder="Search Funder"
+                                        placeholder="Search Institution"
                                         aria-haspopup="true"
-                                        aria-controls="funders-menu"
-                                        oninput=self.link.callback(|e: InputData| Msg::SearchFunder(e.value))
+                                        aria-controls="institutions-menu"
+                                        oninput=self.link.callback(|e: InputData| Msg::SearchInstitution(e.value))
                                         onfocus=self.link.callback(|_| Msg::ToggleSearchResultDisplay(true))
                                         onblur=self.link.callback(|_| Msg::ToggleSearchResultDisplay(false))
                                     />
@@ -316,14 +318,14 @@ impl Component for FundingsFormComponent {
                                 </p>
                             </div>
                         </div>
-                        <div class="dropdown-menu" id="funders-menu" role="menu">
+                        <div class="dropdown-menu" id="institutions-menu" role="menu">
                             <div class="dropdown-content">
                                 {
-                                    for self.data.funders.iter().map(|f| {
-                                        let funder = f.clone();
+                                    for self.data.institutions.iter().map(|f| {
+                                        let institution = f.clone();
                                         f.as_dropdown_item(
                                             self.link.callback(move |_| {
-                                                Msg::AddFunding(funder.clone())
+                                                Msg::AddFunding(institution.clone())
                                             })
                                         )
                                     })
@@ -350,9 +352,9 @@ impl Component for FundingsFormComponent {
                             })
                             >
                                 <div class="field">
-                                    <label class="label">{ "Funder" }</label>
+                                    <label class="label">{ "Institution" }</label>
                                     <div class="control is-expanded">
-                                        {&self.new_funding.funder.funder_name}
+                                        {&self.new_funding.institution.institution_name}
                                     </div>
                                 </div>
                                 <FormTextInput
@@ -431,7 +433,7 @@ impl FundingsFormComponent {
         }
     }
 
-    fn render_funding(&self, f: &FundingWithFunder) -> Html {
+    fn render_funding(&self, f: &FundingWithInstitution) -> Html {
         let funding_id = f.funding_id;
         html! {
             <div class="panel-block field is-horizontal">
@@ -440,9 +442,9 @@ impl FundingsFormComponent {
                 </span>
                 <div class="field-body">
                     <div class="field" style="width: 8em;">
-                        <label class="label">{ "Funder" }</label>
+                        <label class="label">{ "Institution" }</label>
                         <div class="control is-expanded">
-                            {&f.funder.funder_name}
+                            {&f.institution.institution_name}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">

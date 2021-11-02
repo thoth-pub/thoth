@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::contribution::Contribution;
-use thoth_api::model::funding::FundingWithFunder;
+use thoth_api::model::funding::FundingWithInstitution;
 use thoth_api::model::imprint::ImprintWithPublisher;
 use thoth_api::model::issue::IssueWithSeries;
 use thoth_api::model::language::Language;
@@ -135,7 +135,7 @@ pub enum Msg {
     ChangeCoverUrl(String),
     ChangeCoverCaption(String),
     UpdateContributions(Option<Vec<Contribution>>),
-    UpdateFundings(Option<Vec<FundingWithFunder>>),
+    UpdateFundings(Option<Vec<FundingWithInstitution>>),
     UpdatePublications(Option<Vec<Publication>>),
     UpdateLanguages(Option<Vec<Language>>),
     UpdateSubjects(Option<Vec<Subject>>),

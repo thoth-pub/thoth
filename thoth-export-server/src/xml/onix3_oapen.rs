@@ -583,7 +583,7 @@ impl XmlElementBlock<Onix3Oapen> for WorkFundings {
                 w.write(XmlEvent::Characters("16")).map_err(|e| e.into())
             })?;
             write_element_block("PublisherName", w, |w| {
-                w.write(XmlEvent::Characters(&self.funder.funder_name))
+                w.write(XmlEvent::Characters(&self.institution.institution_name))
                     .map_err(|e| e.into())
             })?;
             let mut identifiers: HashMap<String, String> = HashMap::new();
@@ -813,9 +813,9 @@ mod tests {
             project_shortname: None,
             grant_number: Some("Number of grant".to_string()),
             jurisdiction: None,
-            funder: thoth_client::WorkFundingsFunder {
-                funder_name: "Name of funder".to_string(),
-                funder_doi: None,
+            institution: thoth_client::WorkFundingsInstitution {
+                institution_name: "Name of institution".to_string(),
+                institution_doi: None,
             },
         };
 
@@ -823,7 +823,7 @@ mod tests {
         let output = generate_test_output(&test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
-        assert!(output.contains(r#"  <PublisherName>Name of funder</PublisherName>"#));
+        assert!(output.contains(r#"  <PublisherName>Name of institution</PublisherName>"#));
         assert!(output.contains(r#"  <Funding>"#));
         assert!(output.contains(r#"    <FundingIdentifier>"#));
         assert!(output.contains(r#"      <FundingIDType>01</FundingIDType>"#));
@@ -836,12 +836,12 @@ mod tests {
 
         // Change all possible values to test that output is updated
 
-        test_funding.funder.funder_name = "Different funder".to_string();
+        test_funding.institution.institution_name = "Different institution".to_string();
         test_funding.program = None;
         let output = generate_test_output(&test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
-        assert!(output.contains(r#"  <PublisherName>Different funder</PublisherName>"#));
+        assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
         assert!(output.contains(r#"  <Funding>"#));
         assert!(output.contains(r#"    <FundingIdentifier>"#));
         assert!(output.contains(r#"      <FundingIDType>01</FundingIDType>"#));
@@ -857,7 +857,7 @@ mod tests {
         let output = generate_test_output(&test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
-        assert!(output.contains(r#"  <PublisherName>Different funder</PublisherName>"#));
+        assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
         assert!(output.contains(r#"  <Funding>"#));
         assert!(output.contains(r#"    <FundingIdentifier>"#));
         assert!(output.contains(r#"      <FundingIDType>01</FundingIDType>"#));
@@ -874,7 +874,7 @@ mod tests {
         let output = generate_test_output(&test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
-        assert!(output.contains(r#"  <PublisherName>Different funder</PublisherName>"#));
+        assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
         // No program, project or grant supplied, so Funding block is omitted completely
         assert!(!output.contains(r#"  <Funding>"#));
         assert!(!output.contains(r#"    <FundingIdentifier>"#));

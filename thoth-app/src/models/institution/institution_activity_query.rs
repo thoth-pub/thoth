@@ -5,9 +5,9 @@ use uuid::Uuid;
 
 use crate::graphql_query_builder;
 
-pub const FUNDER_ACTIVITY_QUERY: &str = "
-    query FunderActivityQuery($funderId: Uuid!) {
-        funder(funderId: $funderId) {
+pub const INSTITUTION_ACTIVITY_QUERY: &str = "
+    query InstitutionActivityQuery($institutionId: Uuid!) {
+        institution(institutionId: $institutionId) {
             fundings {
                 work {
                     workId
@@ -36,29 +36,29 @@ pub const FUNDER_ACTIVITY_QUERY: &str = "
 ";
 
 graphql_query_builder! {
-    FunderActivityRequest,
-    FunderActivityRequestBody,
+    InstitutionActivityRequest,
+    InstitutionActivityRequestBody,
     Variables,
-    FUNDER_ACTIVITY_QUERY,
-    FunderActivityResponseBody,
-    FunderActivityResponseData,
-    FetchFunderActivity,
-    FetchActionFunderActivity
+    INSTITUTION_ACTIVITY_QUERY,
+    InstitutionActivityResponseBody,
+    InstitutionActivityResponseData,
+    FetchInstitutionActivity,
+    FetchActionInstitutionActivity
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
-    pub funder_id: Option<Uuid>,
+    pub institution_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-pub struct FunderActivityResponseData {
-    pub funder: Option<FunderActivity>,
+pub struct InstitutionActivityResponseData {
+    pub institution: Option<InstitutionActivity>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct FunderActivity {
+pub struct InstitutionActivity {
     pub fundings: Option<Vec<FundingWithWork>>,
 }

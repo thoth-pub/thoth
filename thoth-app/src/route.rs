@@ -30,12 +30,12 @@ pub enum AdminRoute {
     Publisher(Uuid),
     #[to = "/publisher"]
     NewPublisher,
-    #[to = "/funders"]
-    Funders,
-    #[to = "/funder/{id}"]
-    Funder(Uuid),
-    #[to = "/funder"]
-    NewFunder,
+    #[to = "/institutions"]
+    Institutions,
+    #[to = "/institution/{id}"]
+    Institution(Uuid),
+    #[to = "/institution"]
+    NewInstitution,
     #[to = "/imprints"]
     Imprints,
     #[to = "/imprint/{id}"]

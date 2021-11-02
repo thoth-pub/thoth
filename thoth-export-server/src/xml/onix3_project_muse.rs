@@ -784,9 +784,9 @@ mod tests {
                 project_shortname: None,
                 grant_number: Some("Number of grant".to_string()),
                 jurisdiction: None,
-                funder: thoth_client::WorkFundingsFunder {
-                    funder_name: "Name of funder".to_string(),
-                    funder_doi: None,
+                institution: thoth_client::WorkFundingsInstitution {
+                    institution_name: "Name of institution".to_string(),
+                    institution_doi: None,
                 },
             }],
         };
@@ -895,7 +895,7 @@ mod tests {
         assert!(!output.contains(r#"      <AudienceCodeType>01</AudienceCodeType>"#));
         assert!(!output.contains(r#"      <AudienceCodeValue>06</AudienceCodeValue>"#));
         assert!(!output.contains(r#"      <PublishingRole>16</PublishingRole>"#));
-        assert!(!output.contains(r#"      <PublisherName>Name of funder</PublisherName>"#));
+        assert!(!output.contains(r#"      <PublisherName>Name of institution</PublisherName>"#));
         assert!(!output.contains(r#"      <Funding>"#));
         assert!(!output.contains(r#"        <FundingIdentifier>"#));
         assert!(!output.contains(r#"          <FundingIDType>01</FundingIDType>"#));
