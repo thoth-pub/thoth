@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 pub const DOI_DOMAIN: &str = "https://doi.org/";
 pub const ORCID_DOMAIN: &str = "https://orcid.org/";
+pub const ROR_DOMAIN: &str = "https://ror.org/";
 
 #[cfg_attr(
     feature = "backend",
@@ -59,6 +60,16 @@ pub struct Orcid(String);
 #[cfg_attr(
     feature = "backend",
     derive(DieselNewType, juniper::GraphQLScalarValue),
+    graphql(
+        description = r#"ROR (Research Organization Registry) identifier. Expressed as `^https:\/\/ror\.org\/0[a-hjkmnp-z0-9]{6}\d{2}$`"#
+    )
+)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Ror(String);
+
+#[cfg_attr(
+    feature = "backend",
+    derive(DieselNewType, juniper::GraphQLScalarValue),
     graphql(description = "RFC 3339 combined date and time in UTC time zone")
 )]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -88,6 +99,12 @@ impl Default for Orcid {
     }
 }
 
+impl Default for Ror {
+    fn default() -> Ror {
+        Ror(Default::default())
+    }
+}
+
 impl Default for Timestamp {
     fn default() -> Timestamp {
         Timestamp(TimeZone::timestamp(&Utc, 0, 0))
@@ -109,6 +126,12 @@ impl fmt::Display for Isbn {
 impl fmt::Display for Orcid {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", &self.0.replace(ORCID_DOMAIN, ""))
+    }
+}
+
+impl fmt::Display for Ror {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", &self.0.replace(ROR_DOMAIN, ""))
     }
 }
 
@@ -201,6 +224,40 @@ impl FromStr for Orcid {
             }
         } else {
             Err(ThothError::OrcidParseError(input.to_string()))
+        }
+    }
+}
+
+impl FromStr for Ror {
+    type Err = ThothError;
+
+    fn from_str(input: &str) -> ThothResult<Ror> {
+        use lazy_static::lazy_static;
+        use regex::Regex;
+        lazy_static! {
+            static ref RE: Regex = Regex::new(
+            // ^    = beginning of string
+            // (?:) = non-capturing group
+            // i    = case-insensitive flag
+            // $    = end of string
+            // Matches strings of format "[[[http[s]://]|[https://www.]]ror.org/]0XXXXXXNN"
+            // and captures the 7-character/2-digit-checksum identifier segment
+            // Corresponds to database constraints although regex syntax differs slightly
+            r#"^(?i:(?:https?://|https://www\.)?ror\.org/)?(0[a-hjkmnp-z0-9]{6}\d{2}$)"#).unwrap();
+        }
+        if input.is_empty() {
+            Err(ThothError::RorEmptyError)
+        } else if let Some(matches) = RE.captures(input) {
+            // The 0th capture always corresponds to the entire match
+            if let Some(identifier) = matches.get(1) {
+                let standardised = format!("{}{}", ROR_DOMAIN, identifier.as_str());
+                let ror: Ror = Ror(standardised);
+                Ok(ror)
+            } else {
+                Err(ThothError::RorParseError(input.to_string()))
+            }
+        } else {
+            Err(ThothError::RorParseError(input.to_string()))
         }
     }
 }
@@ -478,6 +535,12 @@ fn test_orcid_default() {
 }
 
 #[test]
+fn test_ror_default() {
+    let ror: Ror = Default::default();
+    assert_eq!(ror, Ror("".to_string()));
+}
+
+#[test]
 fn test_timestamp_default() {
     let stamp: Timestamp = Default::default();
     assert_eq!(stamp, Timestamp(TimeZone::timestamp(&Utc, 0, 0)));
@@ -499,6 +562,12 @@ fn test_isbn_display() {
 fn test_orcid_display() {
     let orcid = Orcid("https://orcid.org/0000-0002-1234-5678".to_string());
     assert_eq!(format!("{}", orcid), "0000-0002-1234-5678");
+}
+
+#[test]
+fn test_ror_display() {
+    let ror = Ror("https://ror.org/0abcdef12".to_string());
+    assert_eq!(format!("{}", ror), "0abcdef12");
 }
 
 #[test]
@@ -651,6 +720,45 @@ fn test_orcid_fromstr() {
     assert!(Orcid::from_str("//orcid.org/0000-0002-1234-5678").is_err());
     assert!(Orcid::from_str("https://orcid-org/0000-0002-1234-5678").is_err());
     assert!(Orcid::from_str("0000-0002-1234-5678https://orcid.org/").is_err());
+}
+
+#[test]
+fn test_ror_fromstr() {
+    let standardised = Ror("https://ror.org/0abcdef12".to_string());
+    assert_eq!(
+        Ror::from_str("https://ror.org/0abcdef12").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Ror::from_str("http://ror.org/0abcdef12").unwrap(),
+        standardised
+    );
+    assert_eq!(Ror::from_str("ror.org/0abcdef12").unwrap(), standardised);
+    assert_eq!(Ror::from_str("0abcdef12").unwrap(), standardised);
+    assert_eq!(
+        Ror::from_str("HTTPS://ROR.ORG/0abcdef12").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Ror::from_str("Https://Ror.org/0abcdef12").unwrap(),
+        standardised
+    );
+    assert_eq!(
+        Ror::from_str("https://www.ror.org/0abcdef12").unwrap(),
+        standardised
+    );
+    // Testing shows that while leading http://ror and https://www.ror
+    // resolve successfully, leading www.ror and http://www.ror do not.
+    assert!(Ror::from_str("http://www.ror.org/0abcdef12").is_err());
+    assert!(Ror::from_str("www.ror.org/0abcdef12").is_err());
+    assert!(Ror::from_str("htts://ror.org/0abcdef12").is_err());
+    assert!(Ror::from_str("https://0abcdef12").is_err());
+    assert!(Ror::from_str("https://test.org/0abcdef12").is_err());
+    assert!(Ror::from_str("http://test.org/0abcdef12").is_err());
+    assert!(Ror::from_str("test.org/0abcdef12").is_err());
+    assert!(Ror::from_str("//ror.org/0abcdef12").is_err());
+    assert!(Ror::from_str("https://ror-org/0abcdef12").is_err());
+    assert!(Ror::from_str("0abcdef12https://ror.org/").is_err());
 }
 
 #[test]

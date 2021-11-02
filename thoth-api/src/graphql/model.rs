@@ -26,6 +26,7 @@ use crate::model::Doi;
 use crate::model::Isbn;
 use crate::model::LengthUnit;
 use crate::model::Orcid;
+use crate::model::Ror;
 use crate::model::Timestamp;
 use thoth_errors::{ThothError, ThothResult};
 
@@ -2406,7 +2407,7 @@ impl Subject {
     }
 }
 
-#[juniper::object(Context = Context, description = "An organisation that provides the money to pay for the publication of a work.")]
+#[juniper::object(Context = Context, description = "An organisation with which contributors may be affiliated or by which works may be funded.")]
 impl Institution {
     pub fn institution_id(&self) -> &Uuid {
         &self.institution_id
@@ -2416,8 +2417,18 @@ impl Institution {
         &self.institution_name
     }
 
+    #[graphql(
+        description = "Digital Object Identifier of the organisation as full URL. It must use the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.13039/100014013)"
+    )]
     pub fn institution_doi(&self) -> Option<&Doi> {
         self.institution_doi.as_ref()
+    }
+
+    #[graphql(
+        description = "Research Organisation Registry identifier of the organisation as full URL. It must use the HTTPS scheme and the ror.org domain (e.g. https://ror.org/051z6e826)"
+    )]
+    pub fn ror(&self) -> Option<&Ror> {
+        self.ror.as_ref()
     }
 
     pub fn created_at(&self) -> Timestamp {

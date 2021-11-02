@@ -9,6 +9,7 @@ pub const INSTITUTIONS_QUERY: &str = "
             institutionId
             institutionName
             institutionDoi
+            ror
             createdAt
             updatedAt
         }

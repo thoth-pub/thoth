@@ -86,6 +86,7 @@ table! {
         institution_doi -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+        ror -> Nullable<Text>,
     }
 }
 

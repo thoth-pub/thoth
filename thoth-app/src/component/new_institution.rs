@@ -1,5 +1,5 @@
 use thoth_api::model::institution::Institution;
-use thoth_api::model::{Doi, DOI_DOMAIN};
+use thoth_api::model::{Doi, Ror, DOI_DOMAIN, ROR_DOMAIN};
 use thoth_errors::ThothError;
 use yew::html;
 use yew::prelude::*;
@@ -33,6 +33,9 @@ pub struct NewInstitutionComponent {
     // Track the user-entered DOI string, which may not be validly formatted
     institution_doi: String,
     institution_doi_warning: String,
+    // Track the user-entered ROR string, which may not be validly formatted
+    ror: String,
+    ror_warning: String,
     push_institution: PushCreateInstitution,
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
@@ -44,6 +47,7 @@ pub enum Msg {
     CreateInstitution,
     ChangeInstitutionName(String),
     ChangeInstitutionDoi(String),
+    ChangeRor(String),
     ChangeRoute(AppRoute),
 }
 
@@ -57,12 +61,16 @@ impl Component for NewInstitutionComponent {
         let institution: Institution = Default::default();
         let institution_doi = Default::default();
         let institution_doi_warning = Default::default();
+        let ror = Default::default();
+        let ror_warning = Default::default();
         let router = RouteAgentDispatcher::new();
 
         NewInstitutionComponent {
             institution,
             institution_doi,
             institution_doi_warning,
+            ror,
+            ror_warning,
             push_institution,
             link,
             router,
@@ -112,10 +120,19 @@ impl Component for NewInstitutionComponent {
                 } else if let Ok(result) = self.institution_doi.parse::<Doi>() {
                     self.institution.institution_doi.neq_assign(Some(result));
                 }
+                // Only update the ROR value with the current user-entered string
+                // if it is validly formatted - otherwise keep the database version.
+                // If no ROR was provided, no format check is required.
+                if self.ror.is_empty() {
+                    self.institution.ror.neq_assign(None);
+                } else if let Ok(result) = self.ror.parse::<Ror>() {
+                    self.institution.ror.neq_assign(Some(result));
+                }
                 let body = CreateInstitutionRequestBody {
                     variables: Variables {
                         institution_name: self.institution.institution_name.clone(),
                         institution_doi: self.institution.institution_doi.clone(),
+                        ror: self.institution.ror.clone(),
                     },
                     ..Default::default()
                 };
@@ -146,6 +163,27 @@ impl Component for NewInstitutionComponent {
                             }
                         }
                         Ok(value) => self.institution_doi = value.to_string(),
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeRor(value) => {
+                if self.ror.neq_assign(value.trim().to_owned()) {
+                    // If ROR is not correctly formatted, display a warning.
+                    // Don't update self.institution.ror yet, as user may later
+                    // overwrite a new valid value with an invalid one.
+                    self.ror_warning.clear();
+                    match self.ror.parse::<Ror>() {
+                        Err(e) => {
+                            match e {
+                                // If no ROR was provided, no warning is required.
+                                ThothError::RorEmptyError => {}
+                                _ => self.ror_warning = e.to_string(),
+                            }
+                        }
+                        Ok(value) => self.ror = value.to_string(),
                     }
                     true
                 } else {
@@ -193,6 +231,13 @@ impl Component for NewInstitutionComponent {
                         value=self.institution_doi.clone()
                         tooltip=self.institution_doi_warning.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeInstitutionDoi(e.value))
+                    />
+                    <FormTextInputExtended
+                        label = "ROR ID"
+                        statictext = ROR_DOMAIN
+                        value=self.ror.clone()
+                        tooltip=self.ror_warning.clone()
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeRor(e.value))
                     />
 
                     <div class="field">

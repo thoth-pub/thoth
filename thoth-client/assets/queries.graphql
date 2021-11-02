@@ -91,6 +91,7 @@ fragment Work on Work {
         institution {
             institutionName
             institutionDoi
+            ror
         }
     }
 }

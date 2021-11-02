@@ -816,6 +816,7 @@ mod tests {
             institution: thoth_client::WorkFundingsInstitution {
                 institution_name: "Name of institution".to_string(),
                 institution_doi: None,
+                ror: None,
             },
         };
 

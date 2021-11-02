@@ -47,12 +47,19 @@ pub enum ThothError {
         _0
     )]
     IsbnParseError(String),
+    #[fail(
+        display = "{} is not a validly formatted ROR ID and will not be saved",
+        _0
+    )]
+    RorParseError(String),
     #[fail(display = "Cannot parse ORCID: no value provided")]
     OrcidEmptyError,
     #[fail(display = "Cannot parse DOI: no value provided")]
     DoiEmptyError,
     #[fail(display = "Cannot parse ISBN: no value provided")]
     IsbnEmptyError,
+    #[fail(display = "Cannot parse ROR ID: no value provided")]
+    RorEmptyError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]

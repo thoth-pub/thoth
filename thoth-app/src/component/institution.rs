@@ -1,6 +1,6 @@
 use thoth_api::model::funding::FundingWithWork;
 use thoth_api::model::institution::Institution;
-use thoth_api::model::{Doi, DOI_DOMAIN};
+use thoth_api::model::{Doi, Ror, DOI_DOMAIN, ROR_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
@@ -52,6 +52,9 @@ pub struct InstitutionComponent {
     // Track the user-entered DOI string, which may not be validly formatted
     institution_doi: String,
     institution_doi_warning: String,
+    // Track the user-entered ROR string, which may not be validly formatted
+    ror: String,
+    ror_warning: String,
     fetch_institution: FetchInstitution,
     push_institution: PushUpdateInstitution,
     delete_institution: PushDeleteInstitution,
@@ -72,6 +75,7 @@ pub enum Msg {
     DeleteInstitution,
     ChangeInstitutionName(String),
     ChangeInstitutionDoi(String),
+    ChangeRor(String),
     ChangeRoute(AppRoute),
 }
 
@@ -99,6 +103,8 @@ impl Component for InstitutionComponent {
         let institution: Institution = Default::default();
         let institution_doi = Default::default();
         let institution_doi_warning = Default::default();
+        let ror = Default::default();
+        let ror_warning = Default::default();
         let router = RouteAgentDispatcher::new();
         let mut _institution_activity_checker =
             InstitutionActivityChecker::bridge(link.callback(Msg::GetInstitutionActivity));
@@ -113,6 +119,8 @@ impl Component for InstitutionComponent {
             institution,
             institution_doi,
             institution_doi_warning,
+            ror,
+            ror_warning,
             fetch_institution,
             push_institution,
             delete_institution,
@@ -155,6 +163,8 @@ impl Component for InstitutionComponent {
                             .clone()
                             .unwrap_or_default()
                             .to_string();
+                        // Initialise user-entered ROR variable to match ROR in database
+                        self.ror = self.institution.ror.clone().unwrap_or_default().to_string();
                         true
                     }
                     FetchState::Failed(_, _err) => false,
@@ -182,6 +192,9 @@ impl Component for InstitutionComponent {
                                 .unwrap_or_default()
                                 .to_string();
                             self.institution_doi_warning.clear();
+                            // Save was successful: update user-entered ROR variable to match ROR in database
+                            self.ror = self.institution.ror.clone().unwrap_or_default().to_string();
+                            self.ror_warning.clear();
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!("Saved {}", f.institution_name),
                                 NotificationStatus::Success,
@@ -214,11 +227,20 @@ impl Component for InstitutionComponent {
                 } else if let Ok(result) = self.institution_doi.parse::<Doi>() {
                     self.institution.institution_doi.neq_assign(Some(result));
                 }
+                // Only update the ROR value with the current user-entered string
+                // if it is validly formatted - otherwise keep the database version.
+                // If no ROR was provided, no format check is required.
+                if self.ror.is_empty() {
+                    self.institution.ror.neq_assign(None);
+                } else if let Ok(result) = self.ror.parse::<Ror>() {
+                    self.institution.ror.neq_assign(Some(result));
+                }
                 let body = UpdateInstitutionRequestBody {
                     variables: UpdateVariables {
                         institution_id: self.institution.institution_id,
                         institution_name: self.institution.institution_name.clone(),
                         institution_doi: self.institution.institution_doi.clone(),
+                        ror: self.institution.ror.clone(),
                     },
                     ..Default::default()
                 };
@@ -305,6 +327,27 @@ impl Component for InstitutionComponent {
                     false
                 }
             }
+            Msg::ChangeRor(value) => {
+                if self.ror.neq_assign(value.trim().to_owned()) {
+                    // If ROR is not correctly formatted, display a warning.
+                    // Don't update self.institution.ror yet, as user may later
+                    // overwrite a new valid value with an invalid one.
+                    self.ror_warning.clear();
+                    match self.ror.parse::<Ror>() {
+                        Err(e) => {
+                            match e {
+                                // If no ROR was provided, no warning is required.
+                                ThothError::RorEmptyError => {}
+                                _ => self.ror_warning = e.to_string(),
+                            }
+                        }
+                        Ok(value) => self.ror = value.to_string(),
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
@@ -382,6 +425,13 @@ impl Component for InstitutionComponent {
                                 value=self.institution_doi.clone()
                                 tooltip=self.institution_doi_warning.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeInstitutionDoi(e.value))
+                            />
+                            <FormTextInputExtended
+                                label = "ROR ID"
+                                statictext = ROR_DOMAIN
+                                value=self.ror.clone()
+                                tooltip=self.ror_warning.clone()
+                                oninput=self.link.callback(|e: InputData| Msg::ChangeRor(e.value))
                             />
 
                             <div class="field">

@@ -23,6 +23,7 @@ pagination_component! {
         InstitutionField::InstitutionId.to_string(),
         InstitutionField::InstitutionName.to_string(),
         InstitutionField::InstitutionDoi.to_string(),
+        InstitutionField::Ror.to_string(),
         InstitutionField::UpdatedAt.to_string(),
     ],
     InstitutionOrderBy,

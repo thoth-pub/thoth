@@ -55,6 +55,7 @@ struct FundingsFormData {
     institutions: Vec<Institution>,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum Msg {
     ToggleAddFormDisplay(bool),
     SetInstitutionsFetchState(FetchActionInstitutions),

@@ -2,18 +2,21 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::model::institution::Institution;
 use thoth_api::model::Doi;
+use thoth_api::model::Ror;
 use uuid::Uuid;
 
 const UPDATE_INSTITUTION_MUTATION: &str = "
     mutation UpdateInstitution(
         $institutionId: Uuid!,
         $institutionName: String!,
-        $institutionDoi: Doi
+        $institutionDoi: Doi,
+        $ror: Ror
     ) {
         updateInstitution(data: {
             institutionId: $institutionId
             institutionName: $institutionName
             institutionDoi: $institutionDoi
+            ror: $ror
         }){
             institutionId
             institutionName
@@ -40,6 +43,7 @@ pub struct Variables {
     pub institution_id: Uuid,
     pub institution_name: String,
     pub institution_doi: Option<Doi>,
+    pub ror: Option<Ror>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

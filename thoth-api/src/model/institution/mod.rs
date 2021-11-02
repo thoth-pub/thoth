@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
 use crate::model::Doi;
+use crate::model::Ror;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::institution;
@@ -27,6 +28,8 @@ pub enum InstitutionField {
     InstitutionName,
     #[strum(serialize = "DOI")]
     InstitutionDoi,
+    #[strum(serialize = "ROR ID")]
+    Ror,
     CreatedAt,
     UpdatedAt,
 }
@@ -40,6 +43,7 @@ pub struct Institution {
     pub institution_doi: Option<Doi>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+    pub ror: Option<Ror>,
 }
 
 #[cfg_attr(
@@ -50,6 +54,7 @@ pub struct Institution {
 pub struct NewInstitution {
     pub institution_name: String,
     pub institution_doi: Option<Doi>,
+    pub ror: Option<Ror>,
 }
 
 #[cfg_attr(
@@ -62,6 +67,7 @@ pub struct PatchInstitution {
     pub institution_id: Uuid,
     pub institution_name: String,
     pub institution_doi: Option<Doi>,
+    pub ror: Option<Ror>,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]

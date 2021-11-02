@@ -29,6 +29,11 @@ impl MetadataTable for Institution {
             .as_ref()
             .map(|s| s.to_string())
             .unwrap_or_else(|| "".to_string());
+        let ror = self
+            .ror
+            .as_ref()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "".to_string());
         html! {
             <tr
                 class="row"
@@ -37,6 +42,7 @@ impl MetadataTable for Institution {
                 <td>{&self.institution_id}</td>
                 <td>{&self.institution_name}</td>
                 <td>{institution_doi}</td>
+                <td>{ror}</td>
                 <td>{&self.updated_at}</td>
             </tr>
         }
