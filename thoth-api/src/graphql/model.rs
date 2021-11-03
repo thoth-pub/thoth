@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
 use crate::db::PgPool;
+use crate::model::affiliation::*;
 use crate::model::contribution::*;
 use crate::model::contributor::*;
 use crate::model::funding::*;
@@ -940,6 +941,58 @@ impl QueryRoot {
     fn funding_count(context: &Context) -> FieldResult<i32> {
         Funding::count(&context.db, None, vec![], None, None).map_err(|e| e.into())
     }
+
+    #[graphql(
+        description = "Query the full list of affiliations",
+        arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    AffiliationOrderBy {
+                        field: AffiliationField::AffiliationOrdinal,
+                        direction: Direction::Asc,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
+        )
+    )]
+    fn affiliations(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: AffiliationOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> FieldResult<Vec<Affiliation>> {
+        Affiliation::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            publishers,
+            None,
+            None,
+            None,
+            None,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Query a single affiliation using its id")]
+    fn affiliation(context: &Context, affiliation_id: Uuid) -> FieldResult<Affiliation> {
+        Affiliation::from_id(&context.db, &affiliation_id).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get the total number of affiliations")]
+    fn affiliation_count(context: &Context) -> FieldResult<i32> {
+        Affiliation::count(&context.db, None, vec![], None, None).map_err(|e| e.into())
+    }
 }
 
 pub struct MutationRoot;
@@ -1059,6 +1112,18 @@ impl MutationRoot {
         check_subject(&data.subject_type, &data.subject_code)?;
 
         Subject::create(&context.db, &data).map_err(|e| e.into())
+    }
+
+    fn create_affiliation(context: &Context, data: NewAffiliation) -> FieldResult<Affiliation> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_contribution_id(
+                &context.db,
+                data.contribution_id,
+            )?)?;
+
+        Affiliation::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn update_work(context: &Context, data: PatchWork, units: LengthUnit) -> FieldResult<Work> {
@@ -1285,6 +1350,28 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
+    fn update_affiliation(context: &Context, data: PatchAffiliation) -> FieldResult<Affiliation> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let affiliation = Affiliation::from_id(&context.db, &data.affiliation_id).unwrap();
+        context
+            .account_access
+            .can_edit(affiliation.publisher_id(&context.db)?)?;
+
+        if !(data.contribution_id == affiliation.contribution_id) {
+            context
+                .account_access
+                .can_edit(publisher_id_from_contribution_id(
+                    &context.db,
+                    data.contribution_id,
+                )?)?;
+        }
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        affiliation
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
     fn delete_work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let work = Work::from_id(&context.db, &work_id).unwrap();
@@ -1407,6 +1494,16 @@ impl MutationRoot {
             .can_edit(subject.publisher_id(&context.db)?)?;
 
         subject.delete(&context.db).map_err(|e| e.into())
+    }
+
+    fn delete_affiliation(context: &Context, affiliation_id: Uuid) -> FieldResult<Affiliation> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let affiliation = Affiliation::from_id(&context.db, &affiliation_id).unwrap();
+        context
+            .account_access
+            .can_edit(affiliation.publisher_id(&context.db)?)?;
+
+        affiliation.delete(&context.db).map_err(|e| e.into())
     }
 }
 
@@ -2188,6 +2285,44 @@ impl Contribution {
     pub fn contributor(&self, context: &Context) -> FieldResult<Contributor> {
         Contributor::from_id(&context.db, &self.contributor_id).map_err(|e| e.into())
     }
+
+    #[graphql(
+        description = "Get affiliations linked to this contribution",
+        arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    AffiliationOrderBy {
+                        field: AffiliationField::AffiliationOrdinal,
+                        direction: Direction::Asc,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+        )
+    )]
+    pub fn affiliations(
+        &self,
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: AffiliationOrderBy,
+    ) -> FieldResult<Vec<Affiliation>> {
+        Affiliation::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            vec![],
+            None,
+            Some(self.contribution_id),
+            None,
+            None,
+        )
+        .map_err(|e| e.into())
+    }
 }
 
 #[juniper::object(Context = Context, description = "A periodical of publications about a particular subject.")]
@@ -2476,6 +2611,44 @@ impl Institution {
         )
         .map_err(|e| e.into())
     }
+
+    #[graphql(
+        description = "Get affiliations linked to this institution",
+        arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    AffiliationOrderBy {
+                        field: AffiliationField::AffiliationOrdinal,
+                        direction: Direction::Asc,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+        )
+    )]
+    pub fn affiliations(
+        &self,
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: AffiliationOrderBy,
+    ) -> FieldResult<Vec<Affiliation>> {
+        Affiliation::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            vec![],
+            Some(self.institution_id),
+            None,
+            None,
+            None,
+        )
+        .map_err(|e| e.into())
+    }
 }
 
 #[juniper::object(Context = Context, description = "A grant awarded to the publication of a work by an institution.")]
@@ -2529,6 +2702,45 @@ impl Funding {
     }
 }
 
+#[juniper::object(Context = Context, description = "An association between a person and an institution for a specific contribution.")]
+impl Affiliation {
+    pub fn affiliation_id(&self) -> Uuid {
+        self.affiliation_id
+    }
+
+    pub fn contribution_id(&self) -> Uuid {
+        self.contribution_id
+    }
+
+    pub fn institution_id(&self) -> Uuid {
+        self.institution_id
+    }
+
+    pub fn affiliation_ordinal(&self) -> &i32 {
+        &self.affiliation_ordinal
+    }
+
+    pub fn position(&self) -> Option<&String> {
+        self.position.as_ref()
+    }
+
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
+    }
+
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
+    }
+
+    pub fn institution(&self, context: &Context) -> FieldResult<Institution> {
+        Institution::from_id(&context.db, &self.institution_id).map_err(|e| e.into())
+    }
+
+    pub fn contribution(&self, context: &Context) -> FieldResult<Contribution> {
+        Contribution::from_id(&context.db, &self.contribution_id).map_err(|e| e.into())
+    }
+}
+
 pub type Schema = RootNode<'static, QueryRoot, MutationRoot>;
 
 pub fn create_schema() -> Schema {
@@ -2548,4 +2760,11 @@ fn publisher_id_from_publication_id(
     publication_id: Uuid,
 ) -> ThothResult<Uuid> {
     Publication::from_id(db, &publication_id)?.publisher_id(db)
+}
+
+fn publisher_id_from_contribution_id(
+    db: &crate::db::PgPool,
+    contribution_id: Uuid,
+) -> ThothResult<Uuid> {
+    Contribution::from_id(db, &contribution_id)?.publisher_id(db)
 }

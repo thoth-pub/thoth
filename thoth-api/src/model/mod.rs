@@ -837,6 +837,7 @@ fn test_convert_units_from_to() {
     );
 }
 
+pub mod affiliation;
 pub mod contribution;
 pub mod contributor;
 pub mod funding;

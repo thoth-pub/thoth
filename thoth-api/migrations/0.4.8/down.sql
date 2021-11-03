@@ -13,3 +13,5 @@ ALTER TABLE institution
 ALTER TABLE institution RENAME TO funder;
 
 ALTER TABLE funding RENAME COLUMN institution_id TO funder_id;
+DROP TABLE affiliation_history;
+DROP TABLE affiliation;

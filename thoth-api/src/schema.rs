@@ -19,6 +19,32 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+
+    affiliation (affiliation_id) {
+        affiliation_id -> Uuid,
+        contribution_id -> Uuid,
+        institution_id -> Uuid,
+        affiliation_ordinal -> Int4,
+        position -> Nullable<Text>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    affiliation_history (affiliation_history_id) {
+        affiliation_history_id -> Uuid,
+        affiliation_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use crate::model::contribution::Contribution_type;
 
     contribution (contribution_id) {
@@ -409,6 +435,10 @@ table! {
     }
 }
 
+joinable!(affiliation -> contribution (contribution_id));
+joinable!(affiliation -> institution (institution_id));
+joinable!(affiliation_history -> account (account_id));
+joinable!(affiliation_history -> affiliation (affiliation_id));
 joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
 joinable!(contribution_history -> account (account_id));
@@ -453,6 +483,8 @@ joinable!(work_history -> work (work_id));
 
 allow_tables_to_appear_in_same_query!(
     account,
+    affiliation,
+    affiliation_history,
     contribution,
     contribution_history,
     contributor,
