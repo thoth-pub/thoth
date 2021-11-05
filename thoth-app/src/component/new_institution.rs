@@ -1,3 +1,5 @@
+use std::str::FromStr;
+use thoth_api::model::institution::CountryCode;
 use thoth_api::model::institution::Institution;
 use thoth_api::model::{Doi, Ror, DOI_DOMAIN, ROR_DOMAIN};
 use thoth_errors::ThothError;
@@ -17,19 +19,24 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::component::utils::FormCountryCodeSelect;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormTextInputExtended;
+use crate::models::institution::country_codes_query::FetchActionCountryCodes;
+use crate::models::institution::country_codes_query::FetchCountryCodes;
 use crate::models::institution::create_institution_mutation::CreateInstitutionRequest;
 use crate::models::institution::create_institution_mutation::CreateInstitutionRequestBody;
 use crate::models::institution::create_institution_mutation::PushActionCreateInstitution;
 use crate::models::institution::create_institution_mutation::PushCreateInstitution;
 use crate::models::institution::create_institution_mutation::Variables;
+use crate::models::institution::CountryCodeValues;
 use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 pub struct NewInstitutionComponent {
     institution: Institution,
+    fetch_country_codes: FetchCountryCodes,
     // Track the user-entered DOI string, which may not be validly formatted
     institution_doi: String,
     institution_doi_warning: String,
@@ -37,17 +44,26 @@ pub struct NewInstitutionComponent {
     ror: String,
     ror_warning: String,
     push_institution: PushCreateInstitution,
+    data: InstitutionFormData,
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
+#[derive(Default)]
+struct InstitutionFormData {
+    country_codes: Vec<CountryCodeValues>,
+}
+
 pub enum Msg {
+    SetCountryCodesFetchState(FetchActionCountryCodes),
+    GetCountryCodes,
     SetInstitutionPushState(PushActionCreateInstitution),
     CreateInstitution,
     ChangeInstitutionName(String),
     ChangeInstitutionDoi(String),
     ChangeRor(String),
+    ChangeCountryCode(CountryCode),
     ChangeRoute(AppRoute),
 }
 
@@ -57,21 +73,27 @@ impl Component for NewInstitutionComponent {
 
     fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let push_institution = Default::default();
+        let data: InstitutionFormData = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let institution: Institution = Default::default();
+        let fetch_country_codes = Default::default();
         let institution_doi = Default::default();
         let institution_doi_warning = Default::default();
         let ror = Default::default();
         let ror_warning = Default::default();
         let router = RouteAgentDispatcher::new();
 
+        link.send_message(Msg::GetCountryCodes);
+
         NewInstitutionComponent {
             institution,
+            fetch_country_codes,
             institution_doi,
             institution_doi_warning,
             ror,
             ror_warning,
             push_institution,
+            data,
             link,
             router,
             notification_bus,
@@ -80,6 +102,25 @@ impl Component for NewInstitutionComponent {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
+            Msg::SetCountryCodesFetchState(fetch_state) => {
+                self.fetch_country_codes.apply(fetch_state);
+                self.data.country_codes = match self.fetch_country_codes.as_ref().state() {
+                    FetchState::NotFetching(_) => vec![],
+                    FetchState::Fetching(_) => vec![],
+                    FetchState::Fetched(body) => body.data.country_codes.enum_values.clone(),
+                    FetchState::Failed(_, _err) => vec![],
+                };
+                true
+            }
+            Msg::GetCountryCodes => {
+                self.link.send_future(
+                    self.fetch_country_codes
+                        .fetch(Msg::SetCountryCodesFetchState),
+                );
+                self.link
+                    .send_message(Msg::SetCountryCodesFetchState(FetchAction::Fetching));
+                false
+            }
             Msg::SetInstitutionPushState(fetch_state) => {
                 self.push_institution.apply(fetch_state);
                 match self.push_institution.as_ref().state() {
@@ -133,6 +174,7 @@ impl Component for NewInstitutionComponent {
                         institution_name: self.institution.institution_name.clone(),
                         institution_doi: self.institution.institution_doi.clone(),
                         ror: self.institution.ror.clone(),
+                        country_code: self.institution.country_code.clone(),
                     },
                     ..Default::default()
                 };
@@ -190,6 +232,7 @@ impl Component for NewInstitutionComponent {
                     false
                 }
             }
+            Msg::ChangeCountryCode(code) => self.institution.country_code.neq_assign(Some(code)),
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
@@ -238,6 +281,20 @@ impl Component for NewInstitutionComponent {
                         value=self.ror.clone()
                         tooltip=self.ror_warning.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeRor(e.value))
+                    />
+                    <FormCountryCodeSelect
+                        label = "Country"
+                        value=self.institution.country_code.clone().unwrap_or_default()
+                        data=self.data.country_codes.clone()
+                        onchange=self.link.callback(|event| match event {
+                            ChangeData::Select(elem) => {
+                                let value = elem.value();
+                                Msg::ChangeCountryCode(
+                                    CountryCode::from_str(&value).unwrap()
+                                )
+                            }
+                            _ => unreachable!(),
+                        })
                     />
 
                     <div class="field">

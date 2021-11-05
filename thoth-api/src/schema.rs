@@ -105,6 +105,7 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use crate::model::institution::Country_code;
 
     institution (institution_id) {
         institution_id -> Uuid,
@@ -113,6 +114,7 @@ table! {
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
         ror -> Nullable<Text>,
+        country_code -> Nullable<Country_code>,
     }
 }
 

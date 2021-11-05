@@ -56,6 +56,10 @@ impl Crud for Institution {
                 Direction::Asc => query = query.order(ror.asc()),
                 Direction::Desc => query = query.order(ror.desc()),
             },
+            InstitutionField::CountryCode => match order.direction {
+                Direction::Asc => query = query.order(country_code.asc()),
+                Direction::Desc => query = query.order(country_code.desc()),
+            },
             InstitutionField::CreatedAt => match order.direction {
                 Direction::Asc => query = query.order(created_at.asc()),
                 Direction::Desc => query = query.order(created_at.desc()),

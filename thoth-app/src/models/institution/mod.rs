@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+use thoth_api::model::institution::CountryCode;
 use thoth_api::model::institution::Institution;
 use yew::html;
 use yew::prelude::Html;
@@ -7,6 +9,18 @@ use yew::MouseEvent;
 use super::{CreateRoute, Dropdown, EditRoute, MetadataTable};
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CountryCodeDefinition {
+    pub enum_values: Vec<CountryCodeValues>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CountryCodeValues {
+    pub name: CountryCode,
+}
 
 impl Dropdown for Institution {}
 
@@ -34,6 +48,11 @@ impl MetadataTable for Institution {
             .as_ref()
             .map(|s| s.to_string())
             .unwrap_or_else(|| "".to_string());
+        let country_code = self
+            .country_code
+            .as_ref()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "".to_string());
         html! {
             <tr
                 class="row"
@@ -43,12 +62,14 @@ impl MetadataTable for Institution {
                 <td>{&self.institution_name}</td>
                 <td>{institution_doi}</td>
                 <td>{ror}</td>
+                <td>{country_code}</td>
                 <td>{&self.updated_at}</td>
             </tr>
         }
     }
 }
 
+pub mod country_codes_query;
 pub mod create_institution_mutation;
 pub mod delete_institution_mutation;
 pub mod institution_activity_query;

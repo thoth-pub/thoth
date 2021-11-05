@@ -10,6 +10,7 @@ pub const INSTITUTION_QUERY: &str = "
             institutionName
             institutionDoi
             ror
+            countryCode
             createdAt
             updatedAt
         }

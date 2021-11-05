@@ -2559,6 +2559,10 @@ impl Institution {
         self.institution_doi.as_ref()
     }
 
+    pub fn country_code(&self) -> Option<&CountryCode> {
+        self.country_code.as_ref()
+    }
+
     #[graphql(
         description = "Research Organisation Registry identifier of the organisation as full URL. It must use the HTTPS scheme and the ror.org domain (e.g. https://ror.org/051z6e826)"
     )]

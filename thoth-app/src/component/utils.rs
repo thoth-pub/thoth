@@ -1,5 +1,6 @@
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::imprint::ImprintWithPublisher;
+use thoth_api::model::institution::CountryCode;
 use thoth_api::model::language::LanguageCode;
 use thoth_api::model::language::LanguageRelation;
 use thoth_api::model::price::CurrencyCode;
@@ -23,6 +24,7 @@ use yewtil::Pure;
 use yewtil::PureComponent;
 
 use crate::models::contribution::ContributionTypeValues;
+use crate::models::institution::CountryCodeValues;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
 use crate::models::price::CurrencyCodeValues;
@@ -53,6 +55,7 @@ pub type FormSubjectTypeSelect = Pure<PureSubjectTypeSelect>;
 pub type FormLanguageCodeSelect = Pure<PureLanguageCodeSelect>;
 pub type FormLanguageRelationSelect = Pure<PureLanguageRelationSelect>;
 pub type FormCurrencyCodeSelect = Pure<PureCurrencyCodeSelect>;
+pub type FormCountryCodeSelect = Pure<PureCountryCodeSelect>;
 pub type FormLengthUnitSelect = Pure<PureLengthUnitSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
@@ -256,6 +259,16 @@ pub struct PureCurrencyCodeSelect {
     pub label: String,
     pub data: Vec<CurrencyCodeValues>,
     pub value: CurrencyCode,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureCountryCodeSelect {
+    pub label: String,
+    pub data: Vec<CountryCodeValues>,
+    pub value: CountryCode,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -645,6 +658,26 @@ impl PureComponent for PureCurrencyCodeSelect {
     }
 }
 
+impl PureComponent for PureCountryCodeSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                    >
+                        { for self.data.iter().map(|c| self.render_countrycode(c)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
 impl PureComponent for PureLengthUnitSelect {
     fn render(&self) -> VNode {
         html! {
@@ -857,6 +890,22 @@ impl PureLanguageRelationSelect {
 
 impl PureCurrencyCodeSelect {
     fn render_currencycode(&self, c: &CurrencyCodeValues) -> VNode {
+        if c.name == self.value {
+            html! {
+                <option value={c.name.to_string()} selected=true>
+                    {&c.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={c.name.to_string()}>{&c.name}</option>
+            }
+        }
+    }
+}
+
+impl PureCountryCodeSelect {
+    fn render_countrycode(&self, c: &CountryCodeValues) -> VNode {
         if c.name == self.value {
             html! {
                 <option value={c.name.to_string()} selected=true>
