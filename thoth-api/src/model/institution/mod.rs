@@ -617,12 +617,6 @@ impl Default for InstitutionField {
     }
 }
 
-impl Default for CountryCode {
-    fn default() -> CountryCode {
-        CountryCode::Gbr
-    }
-}
-
 impl fmt::Display for Institution {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(doi) = &self.institution_doi {

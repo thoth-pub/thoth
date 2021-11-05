@@ -268,7 +268,7 @@ pub struct PureCurrencyCodeSelect {
 pub struct PureCountryCodeSelect {
     pub label: String,
     pub data: Vec<CountryCodeValues>,
-    pub value: CountryCode,
+    pub value: Option<CountryCode>,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -669,6 +669,7 @@ impl PureComponent for PureCountryCodeSelect {
                         required=self.required
                         onchange=&self.onchange
                     >
+                        <option value="">{"Select Country"}</option>
                         { for self.data.iter().map(|c| self.render_countrycode(c)) }
                     </select>
                     </div>
@@ -906,7 +907,7 @@ impl PureCurrencyCodeSelect {
 
 impl PureCountryCodeSelect {
     fn render_countrycode(&self, c: &CountryCodeValues) -> VNode {
-        if c.name == self.value {
+        if Some(c.name.clone()) == self.value {
             html! {
                 <option value={c.name.to_string()} selected=true>
                     {&c.name}

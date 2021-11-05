@@ -63,7 +63,7 @@ pub enum Msg {
     ChangeInstitutionName(String),
     ChangeInstitutionDoi(String),
     ChangeRor(String),
-    ChangeCountryCode(CountryCode),
+    ChangeCountryCode(String),
     ChangeRoute(AppRoute),
 }
 
@@ -232,7 +232,10 @@ impl Component for NewInstitutionComponent {
                     false
                 }
             }
-            Msg::ChangeCountryCode(code) => self.institution.country_code.neq_assign(Some(code)),
+            Msg::ChangeCountryCode(value) => self
+                .institution
+                .country_code
+                .neq_assign(CountryCode::from_str(&value).ok()),
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
@@ -284,14 +287,11 @@ impl Component for NewInstitutionComponent {
                     />
                     <FormCountryCodeSelect
                         label = "Country"
-                        value=self.institution.country_code.clone().unwrap_or_default()
+                        value=self.institution.country_code.clone()
                         data=self.data.country_codes.clone()
                         onchange=self.link.callback(|event| match event {
                             ChangeData::Select(elem) => {
-                                let value = elem.value();
-                                Msg::ChangeCountryCode(
-                                    CountryCode::from_str(&value).unwrap()
-                                )
+                                Msg::ChangeCountryCode(elem.value())
                             }
                             _ => unreachable!(),
                         })
