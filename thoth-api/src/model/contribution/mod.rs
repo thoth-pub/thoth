@@ -3,6 +3,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
+use crate::model::affiliation::AffiliationWithInstitution;
 use crate::model::work::WorkWithRelations;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -71,6 +72,12 @@ pub struct Contribution {
     pub last_name: String,
     pub full_name: String,
     pub contribution_ordinal: i32,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ContributionWithAffiliations {
+    pub affiliations: Option<Vec<AffiliationWithInstitution>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

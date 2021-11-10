@@ -34,6 +34,7 @@ strings! {
     EMPTY_SUBJECTS => "This work does not have any subjects. Click above to add associated subjects",
     EMPTY_FUNDINGS => "This work does not have any funding. Click above to add associated funding",
     EMPTY_PRICES => "This publication does not have any pricing information. Click above to add prices.",
+    EMPTY_AFFILIATIONS => "This contribution does not have any affiliations. Search institutions above to add an affiliation.",
     SEARCH_INSTITUTIONS => "Search by name or DOI",
     SEARCH_WORKS => "Search by title, DOI, internal reference, abstract or landing page",
     SEARCH_SERIESES => "Search by series name, ISSN or URL",

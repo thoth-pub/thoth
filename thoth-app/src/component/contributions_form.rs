@@ -16,6 +16,7 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::component::affiliations_form::AffiliationsFormComponent;
 use crate::component::utils::FormBooleanSelect;
 use crate::component::utils::FormContributionTypeSelect;
 use crate::component::utils::FormNumberInput;
@@ -589,6 +590,9 @@ impl ContributionsFormComponent {
                         </div>
                     </div>
                 </div>
+                <AffiliationsFormComponent
+                    contribution_id=c.contribution_id
+                />
             </div>
         }
     }

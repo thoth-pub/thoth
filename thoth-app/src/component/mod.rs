@@ -381,6 +381,7 @@ impl ToOption for String {
 }
 
 pub mod admin;
+pub mod affiliations_form;
 pub mod catalogue;
 pub mod contributions_form;
 pub mod contributor;

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
+use crate::model::institution::Institution;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::affiliation;
@@ -24,7 +25,7 @@ pub enum AffiliationField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Affiliation {
     pub affiliation_id: Uuid,
@@ -34,6 +35,17 @@ pub struct Affiliation {
     pub position: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AffiliationWithInstitution {
+    pub affiliation_id: Uuid,
+    pub contribution_id: Uuid,
+    pub institution_id: Uuid,
+    pub affiliation_ordinal: i32,
+    pub position: Option<String>,
+    pub institution: Institution,
 }
 
 #[cfg_attr(
@@ -92,16 +104,15 @@ pub struct AffiliationOrderBy {
     pub direction: Direction,
 }
 
-impl Default for Affiliation {
-    fn default() -> Affiliation {
-        Affiliation {
+impl Default for AffiliationWithInstitution {
+    fn default() -> AffiliationWithInstitution {
+        AffiliationWithInstitution {
             affiliation_id: Default::default(),
             institution_id: Default::default(),
             contribution_id: Default::default(),
             affiliation_ordinal: 1,
             position: Default::default(),
-            created_at: Default::default(),
-            updated_at: Default::default(),
+            institution: Default::default(),
         }
     }
 }
