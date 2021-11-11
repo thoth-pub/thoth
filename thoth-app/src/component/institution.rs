@@ -1,8 +1,7 @@
 use std::str::FromStr;
-use thoth_api::model::affiliation::AffiliationWithContribution;
-use thoth_api::model::funding::FundingWithWork;
 use thoth_api::model::institution::CountryCode;
 use thoth_api::model::institution::Institution;
+use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::{Doi, Ror, DOI_DOMAIN, ROR_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -71,8 +70,8 @@ pub struct InstitutionComponent {
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     _institution_activity_checker: Box<dyn Bridge<InstitutionActivityChecker>>,
-    funding_activity: Vec<FundingWithWork>,
-    affiliation_activity: Vec<AffiliationWithContribution>,
+    funded_works: Vec<WorkWithRelations>,
+    affiliated_works: Vec<WorkWithRelations>,
 }
 
 #[derive(Default)]
@@ -128,8 +127,8 @@ impl Component for InstitutionComponent {
         let router = RouteAgentDispatcher::new();
         let mut _institution_activity_checker =
             InstitutionActivityChecker::bridge(link.callback(Msg::GetInstitutionActivity));
-        let funding_activity = Default::default();
-        let affiliation_activity = Default::default();
+        let funded_works = Default::default();
+        let affiliated_works = Default::default();
 
         link.send_message(Msg::GetInstitution);
         link.send_message(Msg::GetCountryCodes);
@@ -152,8 +151,8 @@ impl Component for InstitutionComponent {
             router,
             notification_bus,
             _institution_activity_checker,
-            funding_activity,
-            affiliation_activity,
+            funded_works,
+            affiliated_works,
         }
     }
 
@@ -183,19 +182,20 @@ impl Component for InstitutionComponent {
                 if let Some(institution) = response.institution {
                     if let Some(fundings) = institution.fundings {
                         if !fundings.is_empty() {
-                            self.funding_activity = fundings;
-                            self.funding_activity.sort_by_key(|f| f.work.work_id);
-                            self.funding_activity.dedup_by_key(|f| f.work.work_id);
+                            self.funded_works = fundings.iter().map(|f| f.work.clone()).collect();
+                            self.funded_works.sort_by_key(|f| f.work_id);
+                            self.funded_works.dedup_by_key(|f| f.work_id);
                             should_render = true;
                         }
                     }
                     if let Some(affiliations) = institution.affiliations {
                         if !affiliations.is_empty() {
-                            self.affiliation_activity = affiliations;
-                            self.affiliation_activity
-                                .sort_by_key(|a| a.contribution.work.work_id);
-                            self.affiliation_activity
-                                .dedup_by_key(|a| a.contribution.work.work_id);
+                            self.affiliated_works = affiliations
+                                .iter()
+                                .map(|a| a.contribution.work.clone())
+                                .collect();
+                            self.affiliated_works.sort_by_key(|a| a.work_id);
+                            self.affiliated_works.dedup_by_key(|a| a.work_id);
                             should_render = true;
                         }
                     }
@@ -448,55 +448,9 @@ impl Component for InstitutionComponent {
                             </div>
                         </nav>
 
-                        { if !self.funding_activity.is_empty() {
-                            html! {
-                                <div class="notification is-link">
-                                    {
-                                        for self.funding_activity.iter().map(|funding| {
-                                            html! {
-                                                <p>
-                                                    { "Funded: " }
-                                                    <RouterAnchor<AppRoute>
-                                                        route=funding.work.edit_route()
-                                                    >
-                                                        { &funding.work.title }
-                                                    </  RouterAnchor<AppRoute>>
-                                                    { format!(", from: {}", funding.work.imprint.publisher.publisher_name) }
-                                                </p>
-                                            }
-                                        })
-                                    }
-                                </div>
-                                }
-                            } else {
-                                html! {}
-                            }
-                        }
+                        { self.render_associated_works(&self.funded_works, "Funded: ") }
 
-                        { if !self.affiliation_activity.is_empty() {
-                            html! {
-                                <div class="notification is-link">
-                                    {
-                                        for self.affiliation_activity.iter().map(|affiliation| {
-                                            html! {
-                                                <p>
-                                                    { "Member(s) contributed to: " }
-                                                    <RouterAnchor<AppRoute>
-                                                        route=affiliation.contribution.work.edit_route()
-                                                    >
-                                                        { &affiliation.contribution.work.title }
-                                                    </  RouterAnchor<AppRoute>>
-                                                    { format!(", from: {}", affiliation.contribution.work.imprint.publisher.publisher_name) }
-                                                </p>
-                                            }
-                                        })
-                                    }
-                                </div>
-                                }
-                            } else {
-                                html! {}
-                            }
-                        }
+                        { self.render_associated_works(&self.affiliated_works, "Member(s) contributed to: ") }
 
                         <form onsubmit=callback>
                             <FormTextInput
@@ -543,6 +497,36 @@ impl Component for InstitutionComponent {
                 }
             }
             FetchState::Failed(_, err) => html! {&err},
+        }
+    }
+}
+
+impl InstitutionComponent {
+    fn render_associated_works(&self, w: &[WorkWithRelations], explanatory_text: &str) -> Html {
+        {
+            if !w.is_empty() {
+                html! {
+                <div class="notification is-link">
+                    {
+                        for w.iter().map(|work| {
+                            html! {
+                                <p>
+                                    { explanatory_text }
+                                    <RouterAnchor<AppRoute>
+                                        route=work.edit_route()
+                                    >
+                                        { &work.title }
+                                    </  RouterAnchor<AppRoute>>
+                                    { format!(", from: {}", work.imprint.publisher.publisher_name) }
+                                </p>
+                            }
+                        })
+                    }
+                </div>
+                }
+            } else {
+                html! {}
+            }
         }
     }
 }
