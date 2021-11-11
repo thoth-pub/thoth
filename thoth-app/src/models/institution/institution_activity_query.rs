@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use thoth_api::model::affiliation::AffiliationWithContribution;
 use thoth_api::model::funding::FundingWithWork;
 use uuid::Uuid;
 
@@ -27,6 +28,31 @@ pub const INSTITUTION_ACTIVITY_QUERY: &str = "
                             publisherName
                             createdAt
                             updatedAt
+                        }
+                    }
+                }
+            }
+            affiliations {
+                contribution {
+                    work {
+                        workId
+                        workType
+                        workStatus
+                        fullTitle
+                        title
+                        edition
+                        copyrightHolder
+                        updatedAt
+                        imprint {
+                            imprintId
+                            imprintName
+                            updatedAt
+                            publisher {
+                                publisherId
+                                publisherName
+                                createdAt
+                                updatedAt
+                            }
                         }
                     }
                 }
@@ -61,4 +87,5 @@ pub struct InstitutionActivityResponseData {
 #[serde(rename_all = "camelCase")]
 pub struct InstitutionActivity {
     pub fundings: Option<Vec<FundingWithWork>>,
+    pub affiliations: Option<Vec<AffiliationWithContribution>>,
 }

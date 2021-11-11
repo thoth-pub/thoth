@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
+use crate::model::contribution::ContributionWithWork;
 use crate::model::institution::Institution;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -46,6 +47,12 @@ pub struct AffiliationWithInstitution {
     pub affiliation_ordinal: i32,
     pub position: Option<String>,
     pub institution: Institution,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AffiliationWithContribution {
+    pub contribution: ContributionWithWork,
 }
 
 #[cfg_attr(

@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::model::affiliation::AffiliationWithContribution;
 use thoth_api::model::funding::FundingWithWork;
 use thoth_api::model::institution::CountryCode;
 use thoth_api::model::institution::Institution;
@@ -70,7 +71,8 @@ pub struct InstitutionComponent {
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     _institution_activity_checker: Box<dyn Bridge<InstitutionActivityChecker>>,
-    institution_activity: Vec<FundingWithWork>,
+    funding_activity: Vec<FundingWithWork>,
+    affiliation_activity: Vec<AffiliationWithContribution>,
 }
 
 #[derive(Default)]
@@ -126,7 +128,8 @@ impl Component for InstitutionComponent {
         let router = RouteAgentDispatcher::new();
         let mut _institution_activity_checker =
             InstitutionActivityChecker::bridge(link.callback(Msg::GetInstitutionActivity));
-        let institution_activity = Default::default();
+        let funding_activity = Default::default();
+        let affiliation_activity = Default::default();
 
         link.send_message(Msg::GetInstitution);
         link.send_message(Msg::GetCountryCodes);
@@ -149,7 +152,8 @@ impl Component for InstitutionComponent {
             router,
             notification_bus,
             _institution_activity_checker,
-            institution_activity,
+            funding_activity,
+            affiliation_activity,
         }
     }
 
@@ -179,7 +183,19 @@ impl Component for InstitutionComponent {
                 if let Some(institution) = response.institution {
                     if let Some(fundings) = institution.fundings {
                         if !fundings.is_empty() {
-                            self.institution_activity = fundings;
+                            self.funding_activity = fundings;
+                            self.funding_activity.sort_by_key(|f| f.work.work_id);
+                            self.funding_activity.dedup_by_key(|f| f.work.work_id);
+                            should_render = true;
+                        }
+                    }
+                    if let Some(affiliations) = institution.affiliations {
+                        if !affiliations.is_empty() {
+                            self.affiliation_activity = affiliations;
+                            self.affiliation_activity
+                                .sort_by_key(|a| a.contribution.work.work_id);
+                            self.affiliation_activity
+                                .dedup_by_key(|a| a.contribution.work.work_id);
                             should_render = true;
                         }
                     }
@@ -432,11 +448,11 @@ impl Component for InstitutionComponent {
                             </div>
                         </nav>
 
-                        { if !self.institution_activity.is_empty() {
+                        { if !self.funding_activity.is_empty() {
                             html! {
                                 <div class="notification is-link">
                                     {
-                                        for self.institution_activity.iter().map(|funding| {
+                                        for self.funding_activity.iter().map(|funding| {
                                             html! {
                                                 <p>
                                                     { "Funded: " }
@@ -446,6 +462,31 @@ impl Component for InstitutionComponent {
                                                         { &funding.work.title }
                                                     </  RouterAnchor<AppRoute>>
                                                     { format!(", from: {}", funding.work.imprint.publisher.publisher_name) }
+                                                </p>
+                                            }
+                                        })
+                                    }
+                                </div>
+                                }
+                            } else {
+                                html! {}
+                            }
+                        }
+
+                        { if !self.affiliation_activity.is_empty() {
+                            html! {
+                                <div class="notification is-link">
+                                    {
+                                        for self.affiliation_activity.iter().map(|affiliation| {
+                                            html! {
+                                                <p>
+                                                    { "Member(s) contributed to: " }
+                                                    <RouterAnchor<AppRoute>
+                                                        route=affiliation.contribution.work.edit_route()
+                                                    >
+                                                        { &affiliation.contribution.work.title }
+                                                    </  RouterAnchor<AppRoute>>
+                                                    { format!(", from: {}", affiliation.contribution.work.imprint.publisher.publisher_name) }
                                                 </p>
                                             }
                                         })
