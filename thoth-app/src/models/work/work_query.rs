@@ -50,7 +50,6 @@ pub const WORK_QUERY: &str = "
                 contributionType
                 mainContribution
                 biography
-                institution
                 createdAt
                 updatedAt
                 lastName

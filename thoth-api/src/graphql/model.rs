@@ -2250,10 +2250,6 @@ impl Contribution {
         self.biography.as_ref()
     }
 
-    pub fn institution(&self) -> Option<&String> {
-        self.institution.as_ref()
-    }
-
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }

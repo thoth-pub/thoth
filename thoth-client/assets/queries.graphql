@@ -56,10 +56,16 @@ fragment Work on Work {
         fullName
         mainContribution
         biography
-        institution
         contributionOrdinal
         contributor {
             orcid
+        }
+        affiliations {
+            position
+            affiliationOrdinal
+            institution {
+                institutionName
+            }
         }
     }
     languages {

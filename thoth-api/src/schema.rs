@@ -54,7 +54,6 @@ table! {
         contribution_type -> Contribution_type,
         main_contribution -> Bool,
         biography -> Nullable<Text>,
-        institution -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
         first_name -> Nullable<Text>,

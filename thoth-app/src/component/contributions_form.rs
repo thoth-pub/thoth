@@ -84,7 +84,6 @@ pub enum Msg {
     ChangeFirstName(String),
     ChangeLastName(String),
     ChangeFullName(String),
-    ChangeInstitution(String),
     ChangeBiography(String),
     ChangeContributiontype(ContributionType),
     ChangeMainContribution(bool),
@@ -218,7 +217,6 @@ impl Component for ContributionsFormComponent {
                         contribution_type: self.new_contribution.contribution_type,
                         main_contribution: self.new_contribution.main_contribution,
                         biography: self.new_contribution.biography.clone(),
-                        institution: self.new_contribution.institution.clone(),
                         first_name: self.new_contribution.first_name.clone(),
                         last_name: self.new_contribution.last_name.clone(),
                         full_name: self.new_contribution.full_name.clone(),
@@ -325,10 +323,6 @@ impl Component for ContributionsFormComponent {
                 .new_contribution
                 .full_name
                 .neq_assign(val.trim().to_owned()),
-            Msg::ChangeInstitution(val) => self
-                .new_contribution
-                .institution
-                .neq_assign(val.to_opt_string()),
             Msg::ChangeBiography(val) => self
                 .new_contribution
                 .biography
@@ -449,11 +443,6 @@ impl Component for ContributionsFormComponent {
                                     required = true
                                 />
                                 <FormTextInput
-                                    label="Institution"
-                                    value=self.new_contribution.institution.clone().unwrap_or_else(|| "".to_string())
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeInstitution(e.value))
-                                />
-                                <FormTextInput
                                     label="Biography"
                                     value=self.new_contribution.biography.clone().unwrap_or_else(|| "".to_string())
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeBiography(e.value))
@@ -546,12 +535,6 @@ impl ContributionsFormComponent {
                         <label class="label">{ "Contribution Type" }</label>
                         <div class="control is-expanded">
                             {&c.contribution_type}
-                        </div>
-                    </div>
-                    <div class="field" style="width: 8em;">
-                        <label class="label">{ "Institution" }</label>
-                        <div class="control is-expanded">
-                            {&c.institution.clone().unwrap_or_else(|| "".to_string())}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">

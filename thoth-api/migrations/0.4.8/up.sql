@@ -286,3 +286,19 @@ CREATE TABLE affiliation_history (
     data                     JSONB NOT NULL,
     timestamp                TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Create institution entries for every existing contribution institution
+-- (unless an institution with that name already exists).
+INSERT INTO institution(institution_name)
+    SELECT DISTINCT institution FROM contribution
+        WHERE institution IS NOT NULL
+        AND NOT EXISTS (SELECT * FROM institution WHERE institution_name = contribution.institution);
+
+-- Create an affiliation linking the appropriate institution to each relevant contribution.
+-- (Each contribution will have a maximum of one institution, so all entries can have ordinal 1.)
+INSERT INTO affiliation(contribution_id, institution_id, affiliation_ordinal)
+    SELECT contribution.contribution_id, institution.institution_id, 1 FROM contribution, institution
+        WHERE contribution.institution = institution.institution_name;
+
+ALTER TABLE contribution
+    DROP COLUMN institution;

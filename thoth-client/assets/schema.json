@@ -5341,12 +5341,6 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
-              "name": "INSTITUTION"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
               "name": "CREATED_AT"
             },
             {
@@ -5839,18 +5833,6 @@
               "description": null,
               "isDeprecated": false,
               "name": "biography",
-              "type": {
-                "kind": "SCALAR",
-                "name": "String",
-                "ofType": null
-              }
-            },
-            {
-              "args": [],
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "institution",
               "type": {
                 "kind": "SCALAR",
                 "name": "String",
@@ -10095,16 +10077,6 @@
             {
               "defaultValue": null,
               "description": null,
-              "name": "institution",
-              "type": {
-                "kind": "SCALAR",
-                "name": "String",
-                "ofType": null
-              }
-            },
-            {
-              "defaultValue": null,
-              "description": null,
               "name": "firstName",
               "type": {
                 "kind": "SCALAR",
@@ -10425,16 +10397,6 @@
               "defaultValue": null,
               "description": null,
               "name": "biography",
-              "type": {
-                "kind": "SCALAR",
-                "name": "String",
-                "ofType": null
-              }
-            },
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "institution",
               "type": {
                 "kind": "SCALAR",
                 "name": "String",
