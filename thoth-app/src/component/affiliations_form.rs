@@ -38,7 +38,6 @@ use crate::models::institution::institutions_query::InstitutionsRequestBody;
 use crate::models::institution::institutions_query::Variables as SearchVariables;
 use crate::models::Dropdown;
 use crate::string::CANCEL_BUTTON;
-use crate::string::EMPTY_AFFILIATIONS;
 use crate::string::REMOVE_BUTTON;
 
 use super::ToOption;
@@ -324,47 +323,7 @@ impl Component for AffiliationsFormComponent {
             Msg::ToggleAddFormDisplay(false)
         });
         html! {
-            <nav class="panel">
-                <p class="panel-heading">
-                    { "Affiliations" }
-                </p>
-                <div class="panel-block">
-                    <div class=self.search_dropdown_status() style="width: 100%">
-                        <div class="dropdown-trigger" style="width: 100%">
-                            <div class="field">
-                                <p class="control is-expanded has-icons-left">
-                                    <input
-                                        class="input"
-                                        type="search"
-                                        placeholder="Search Institution"
-                                        aria-haspopup="true"
-                                        aria-controls="institutions-menu"
-                                        oninput=self.link.callback(|e: InputData| Msg::SearchInstitution(e.value))
-                                        onfocus=self.link.callback(|_| Msg::ToggleSearchResultDisplay(true))
-                                        onblur=self.link.callback(|_| Msg::ToggleSearchResultDisplay(false))
-                                    />
-                                    <span class="icon is-left">
-                                        <i class="fas fa-search" aria-hidden="true"></i>
-                                    </span>
-                                </p>
-                            </div>
-                        </div>
-                        <div class="dropdown-menu" id="institutions-menu" role="menu">
-                            <div class="dropdown-content">
-                                {
-                                    for self.data.institutions.iter().map(|i| {
-                                        let institution = i.clone();
-                                        i.as_dropdown_item(
-                                            self.link.callback(move |_| {
-                                                Msg::AddAffiliation(institution.clone())
-                                            })
-                                        )
-                                    })
-                                }
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div class="field">
                 <div class=self.add_form_status()>
                     <div class="modal-background" onclick=&close_modal></div>
                     <div class="modal-card">
@@ -419,18 +378,64 @@ impl Component for AffiliationsFormComponent {
                         </footer>
                     </div>
                 </div>
-                {
-                    if !affiliations.is_empty() {
-                        html!{{for affiliations.iter().map(|a| self.render_affiliation(a))}}
-                    } else {
-                        html! {
-                            <div class="notification is-warning is-light">
-                                { EMPTY_AFFILIATIONS }
+                <table class="table is-fullwidth is-narrow">
+                    <thead>
+                        <tr>
+                            <th class="th">
+                                { "Institution" }
+                            </th>
+                            <th class="th">
+                                { "Position" }
+                            </th>
+                            <th class="th">
+                                { "Affiliation Ordinal" }
+                            </th>
+                            // Empty column for "Remove" buttons
+                            <th class="th"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {for affiliations.iter().map(|a| self.render_affiliation(a))}
+                        <tr class="row">
+                            <div class=self.search_dropdown_status() style="width: 100%">
+                                <div class="dropdown-trigger" style="width: 100%">
+                                    <div class="field">
+                                        <p class="control is-expanded has-icons-left">
+                                            <input
+                                                class="input"
+                                                type="search"
+                                                placeholder="Search Institution"
+                                                aria-haspopup="true"
+                                                aria-controls="institutions-menu"
+                                                oninput=self.link.callback(|e: InputData| Msg::SearchInstitution(e.value))
+                                                onfocus=self.link.callback(|_| Msg::ToggleSearchResultDisplay(true))
+                                                onblur=self.link.callback(|_| Msg::ToggleSearchResultDisplay(false))
+                                            />
+                                            <span class="icon is-left">
+                                                <i class="fas fa-search" aria-hidden="true"></i>
+                                            </span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="dropdown-menu" id="institutions-menu" role="menu">
+                                    <div class="dropdown-content">
+                                        {
+                                            for self.data.institutions.iter().map(|i| {
+                                                let institution = i.clone();
+                                                i.as_dropdown_item(
+                                                    self.link.callback(move |_| {
+                                                        Msg::AddAffiliation(institution.clone())
+                                                    })
+                                                )
+                                            })
+                                        }
+                                    </div>
+                                </div>
                             </div>
-                        }
-                    }
-                }
-            </nav>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         }
     }
 }
@@ -453,47 +458,19 @@ impl AffiliationsFormComponent {
     fn render_affiliation(&self, a: &AffiliationWithInstitution) -> Html {
         let affiliation_id = a.affiliation_id;
         html! {
-            <div class="panel-block field is-horizontal">
-                <span class="panel-icon">
-                    <i class="fas fa-address-card" aria-hidden="true"></i>
-                </span>
-                <div class="field-body">
-                    <div class="field" style="width: 8em;">
-                        <label class="label">{ "Institution" }</label>
-                        <div class="control is-expanded">
-                            {&a.institution.institution_name}
-                        </div>
-                    </div>
-                </div>
-                <div class="field-body">
-                    <div class="field" style="width: 8em;">
-                        <label class="label">{ "Position" }</label>
-                        <div class="control is-expanded">
-                            {&a.position.clone().unwrap_or_else(|| "".to_string())}
-                        </div>
-                    </div>
-                </div>
-                <div class="field-body">
-                    <div class="field" style="width: 8em;">
-                        <label class="label">{ "Affiliation Ordinal" }</label>
-                        <div class="control is-expanded">
-                            {&a.affiliation_ordinal.clone()}
-                        </div>
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label class="label"></label>
-                    <div class="control is-expanded">
-                        <a
-                            class="button is-danger"
-                            onclick=self.link.callback(move |_| Msg::DeleteAffiliation(affiliation_id))
-                        >
-                            { REMOVE_BUTTON }
-                        </a>
-                    </div>
-                </div>
-            </div>
+            <tr class="row">
+                <td>{&a.institution.institution_name}</td>
+                <td>{&a.position.clone().unwrap_or_else(|| "".to_string())}</td>
+                <td>{&a.affiliation_ordinal.clone()}</td>
+                <td>
+                    <a
+                        class="button is-danger is-small"
+                        onclick=self.link.callback(move |_| Msg::DeleteAffiliation(affiliation_id))
+                    >
+                        { REMOVE_BUTTON }
+                    </a>
+                </td>
+            </tr>
         }
     }
 }
