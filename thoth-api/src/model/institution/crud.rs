@@ -73,6 +73,7 @@ impl Crud for Institution {
             query = query.filter(
                 institution_name
                     .ilike(format!("%{}%", filter))
+                    .or(ror.ilike(format!("%{}%", filter)))
                     .or(institution_doi.ilike(format!("%{}%", filter))),
             );
         }
@@ -100,6 +101,7 @@ impl Crud for Institution {
             query = query.filter(
                 institution_name
                     .ilike(format!("%{}%", filter))
+                    .or(ror.ilike(format!("%{}%", filter)))
                     .or(institution_doi.ilike(format!("%{}%", filter))),
             );
         }

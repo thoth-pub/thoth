@@ -619,7 +619,9 @@ impl Default for InstitutionField {
 
 impl fmt::Display for Institution {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(doi) = &self.institution_doi {
+        if let Some(ror) = &self.ror {
+            write!(f, "{} - {}", &self.institution_name, ror)
+        } else if let Some(doi) = &self.institution_doi {
             write!(f, "{} - {}", &self.institution_name, doi)
         } else {
             write!(f, "{}", &self.institution_name)
@@ -641,6 +643,7 @@ fn test_institutionfield_display() {
         "Institution"
     );
     assert_eq!(format!("{}", InstitutionField::InstitutionDoi), "DOI");
+    assert_eq!(format!("{}", InstitutionField::Ror), "ROR ID");
     assert_eq!(format!("{}", InstitutionField::CountryCode), "Country");
     assert_eq!(format!("{}", InstitutionField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", InstitutionField::UpdatedAt), "UpdatedAt");
@@ -660,6 +663,10 @@ fn test_institutionfield_fromstr() {
     assert_eq!(
         InstitutionField::from_str("DOI").unwrap(),
         InstitutionField::InstitutionDoi
+    );
+    assert_eq!(
+        InstitutionField::from_str("ROR ID").unwrap(),
+        InstitutionField::Ror
     );
     assert_eq!(
         InstitutionField::from_str("Country").unwrap(),
@@ -1525,6 +1532,9 @@ fn test_countrycode_fromstr() {
     assert_eq!(CountryCode::from_str("Yemen").unwrap(), CountryCode::Yem);
     assert_eq!(CountryCode::from_str("Zambia").unwrap(), CountryCode::Zmb);
     assert_eq!(CountryCode::from_str("Zimbabwe").unwrap(), CountryCode::Zwe);
+    assert!(CountryCode::from_str("Narnia").is_err());
+    assert!(CountryCode::from_str("Mesopotamia").is_err());
+    assert!(CountryCode::from_str("Czechoslovakia").is_err());
 }
 
 #[cfg(feature = "backend")]

@@ -788,6 +788,7 @@ mod tests {
                     institution_name: "Name of institution".to_string(),
                     institution_doi: None,
                     ror: None,
+                    country_code: None,
                 },
             }],
         };

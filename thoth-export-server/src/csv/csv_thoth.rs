@@ -75,7 +75,7 @@ struct CsvThothRow {
     #[serde(rename = "keywords [keyword]")]
     keywords: String,
     #[serde(
-        rename = "funding [(institution, institution_doi, ror, program, project, grant, jurisdiction)]"
+        rename = "funding [(institution, institution_doi, ror, country, program, project, grant, jurisdiction)]"
     )]
     funding: String,
 }
@@ -324,7 +324,7 @@ impl CsvCell<CsvThoth> for WorkSubjects {
 impl CsvCell<CsvThoth> for WorkFundings {
     fn csv_cell(&self) -> String {
         format!(
-            "(\"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\")",
+            "(\"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\")",
             self.institution.institution_name,
             self.institution
                 .institution_doi
@@ -334,7 +334,12 @@ impl CsvCell<CsvThoth> for WorkFundings {
             self.institution
                 .ror
                 .as_ref()
-                .map(|d| d.to_string())
+                .map(|r| r.to_string())
+                .unwrap_or_else(|| "".to_string()),
+            self.institution
+                .country_code
+                .as_ref()
+                .map(|c| format!("{:?}", c))
                 .unwrap_or_else(|| "".to_string()),
             self.program.clone().unwrap_or_else(|| "".to_string()),
             self.project_name.clone().unwrap_or_else(|| "".to_string()),
@@ -356,10 +361,11 @@ mod tests {
     use thoth_api::model::Orcid;
     use thoth_api::model::Ror;
     use thoth_client::{
-        ContributionType, CurrencyCode, LanguageCode, LanguageRelation, PublicationType,
-        SeriesType, WorkContributionsAffiliations, WorkContributionsAffiliationsInstitution,
-        WorkContributionsContributor, WorkFundingsInstitution, WorkImprint, WorkImprintPublisher,
-        WorkIssuesSeries, WorkStatus, WorkType,
+        ContributionType, CountryCode, CurrencyCode, LanguageCode, LanguageRelation,
+        PublicationType, SeriesType, WorkContributionsAffiliations,
+        WorkContributionsAffiliationsInstitution, WorkContributionsContributor,
+        WorkFundingsInstitution, WorkImprint, WorkImprintPublisher, WorkIssuesSeries, WorkStatus,
+        WorkType,
     };
     use uuid::Uuid;
 
@@ -578,13 +584,14 @@ mod tests {
                     institution_name: "Name of institution".to_string(),
                     institution_doi: Some(Doi::from_str("https://doi.org/10.00001/INSTITUTION.0001").unwrap()),
                     ror: Some(Ror::from_str("https://ror.org/0aaaaaa00").unwrap()),
+                    country_code: Some(CountryCode::MDA),
                 },
             }],
         };
     }
 
-    const TEST_RESULT: &str = r#""publisher","imprint","work_type","work_status","title","subtitle","edition","doi","publication_date","publication_place","license","copyright_holder","landing_page","width (mm)","width (cm)","width (in)","height (mm)","height (cm)","height (in)","page_count","page_breakdown","image_count","table_count","audio_count","video_count","lccn","oclc","short_abstract","long_abstract","general_note","toc","cover_url","cover_caption","contributions [(type, first_name, last_name, full_name, orcid, [(position, ordinal, institution)])]","publications [(type, isbn, url, [(ISO_4217_currency, price)])]","series [(type, name, issn_print, issn_digital, url, issue)]","languages [(relation, ISO_639-3/B_language, is_main)]","BIC [code]","THEMA [code]","BISAC [code]","LCC [code]","custom_categories [category]","keywords [keyword]","funding [(institution, institution_doi, ror, program, project, grant, jurisdiction)]"
-"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","10.00001/BOOK.0001","1999-12-31","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","156.0","15.6","6.14","234.0","23.4","9.21","334","x+334","15","20","25","30","123456789","987654321","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","This is a general note","1. Chapter 1","https://www.book.com/cover","This is a cover caption","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", ""0000-0002-0000-0001"", [(""Manager"", ""1"", ""University of Life"")]),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", """", )]","[(""PAPERBACK"", ""978-3-16-148410-0"", ""https://www.book.com/paperback"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")]),(""HARDBACK"", ""978-1-4028-9462-6"", ""https://www.book.com/hardback"", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")]),(""PDF"", ""978-1-56619-909-4"", ""https://www.book.com/pdf"", ),(""HTML"", """", ""https://www.book.com/html"", ),(""XML"", ""978-92-95055-02-5"", ""https://www.book.com/xml"", )]","[(""JOURNAL"", ""Name of series"", ""1234-5678"", ""8765-4321"", ""https://www.series.com"", ""1"")]","[(""ORIGINAL"", ""SPA"", ""true"")]","[""AAA"",""AAB""]","[""JWA""]","[""AAA000000"",""AAA000001""]","[""JA85""]","[""Category1""]","[""keyword1"",""keyword2""]","[(""Name of institution"", ""10.00001/INSTITUTION.0001"", ""0aaaaaa00"", ""Name of program"", ""Name of project"", ""Number of grant"", ""Funding jurisdiction"")]"
+    const TEST_RESULT: &str = r#""publisher","imprint","work_type","work_status","title","subtitle","edition","doi","publication_date","publication_place","license","copyright_holder","landing_page","width (mm)","width (cm)","width (in)","height (mm)","height (cm)","height (in)","page_count","page_breakdown","image_count","table_count","audio_count","video_count","lccn","oclc","short_abstract","long_abstract","general_note","toc","cover_url","cover_caption","contributions [(type, first_name, last_name, full_name, orcid, [(position, ordinal, institution)])]","publications [(type, isbn, url, [(ISO_4217_currency, price)])]","series [(type, name, issn_print, issn_digital, url, issue)]","languages [(relation, ISO_639-3/B_language, is_main)]","BIC [code]","THEMA [code]","BISAC [code]","LCC [code]","custom_categories [category]","keywords [keyword]","funding [(institution, institution_doi, ror, country, program, project, grant, jurisdiction)]"
+"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","10.00001/BOOK.0001","1999-12-31","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","156.0","15.6","6.14","234.0","23.4","9.21","334","x+334","15","20","25","30","123456789","987654321","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","This is a general note","1. Chapter 1","https://www.book.com/cover","This is a cover caption","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", ""0000-0002-0000-0001"", [(""Manager"", ""1"", ""University of Life"")]),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", """", )]","[(""PAPERBACK"", ""978-3-16-148410-0"", ""https://www.book.com/paperback"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")]),(""HARDBACK"", ""978-1-4028-9462-6"", ""https://www.book.com/hardback"", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")]),(""PDF"", ""978-1-56619-909-4"", ""https://www.book.com/pdf"", ),(""HTML"", """", ""https://www.book.com/html"", ),(""XML"", ""978-92-95055-02-5"", ""https://www.book.com/xml"", )]","[(""JOURNAL"", ""Name of series"", ""1234-5678"", ""8765-4321"", ""https://www.series.com"", ""1"")]","[(""ORIGINAL"", ""SPA"", ""true"")]","[""AAA"",""AAB""]","[""JWA""]","[""AAA000000"",""AAA000001""]","[""JA85""]","[""Category1""]","[""keyword1"",""keyword2""]","[(""Name of institution"", ""10.00001/INSTITUTION.0001"", ""0aaaaaa00"", ""MDA"", ""Name of program"", ""Name of project"", ""Number of grant"", ""Funding jurisdiction"")]"
 "#;
 
     #[test]
@@ -768,19 +775,21 @@ mod tests {
                     Doi::from_str("https://doi.org/10.00001/INSTITUTION.0001").unwrap(),
                 ),
                 ror: Some(Ror::from_str("https://ror.org/0aaaaaa00").unwrap()),
+                country_code: Some(CountryCode::MDA),
             },
         };
         assert_eq!(CsvCell::<CsvThoth>::csv_cell(&funding),
-            r#"("Name of institution", "10.00001/INSTITUTION.0001", "0aaaaaa00", "Name of program", "Name of project", "Number of grant", "Funding jurisdiction")"#.to_string());
+            r#"("Name of institution", "10.00001/INSTITUTION.0001", "0aaaaaa00", "MDA", "Name of program", "Name of project", "Number of grant", "Funding jurisdiction")"#.to_string());
         funding.institution.institution_doi = None;
         funding.institution.ror = None;
+        funding.institution.country_code = None;
         funding.program = None;
         funding.project_name = None;
         funding.grant_number = None;
         funding.jurisdiction = None;
         assert_eq!(
             CsvCell::<CsvThoth>::csv_cell(&funding),
-            r#"("Name of institution", "", "", "", "", "", "")"#.to_string()
+            r#"("Name of institution", "", "", "", "", "", "", "")"#.to_string()
         );
     }
 }

@@ -279,6 +279,9 @@ CREATE TABLE affiliation (
 );
 SELECT diesel_manage_updated_at('affiliation');
 
+-- UNIQ index on affiliation_ordinal and contribution_id
+CREATE UNIQUE INDEX affiliation_uniq_ord_in_contribution_idx ON affiliation(contribution_id, affiliation_ordinal);
+
 CREATE TABLE affiliation_history (
     affiliation_history_id   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     affiliation_id           UUID NOT NULL REFERENCES affiliation(affiliation_id) ON DELETE CASCADE,

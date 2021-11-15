@@ -245,10 +245,7 @@ impl Component for ContributionsFormComponent {
                                 .clone()
                                 .unwrap_or_default()
                                 .into_iter()
-                                .filter(|c| {
-                                    c.contributor_id != contribution.contributor_id
-                                        || c.contribution_type != contribution.contribution_type
-                                })
+                                .filter(|c| c.contribution_id != contribution.contribution_id)
                                 .collect();
                             self.props.update_contributions.emit(Some(to_keep));
                             true

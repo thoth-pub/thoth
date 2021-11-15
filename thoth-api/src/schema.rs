@@ -104,33 +104,6 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::model::institution::Country_code;
-
-    institution (institution_id) {
-        institution_id -> Uuid,
-        institution_name -> Text,
-        institution_doi -> Nullable<Text>,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
-        ror -> Nullable<Text>,
-        country_code -> Nullable<Country_code>,
-    }
-}
-
-table! {
-    use diesel::sql_types::*;
-
-    institution_history (institution_history_id) {
-        institution_history_id -> Uuid,
-        institution_id -> Uuid,
-        account_id -> Uuid,
-        data -> Jsonb,
-        timestamp -> Timestamptz,
-    }
-}
-
-table! {
-    use diesel::sql_types::*;
 
     funding (funding_id) {
         funding_id -> Uuid,
@@ -177,6 +150,33 @@ table! {
     imprint_history (imprint_history_id) {
         imprint_history_id -> Uuid,
         imprint_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+use diesel::sql_types::*;
+    use crate::model::institution::Country_code;
+
+    institution (institution_id) {
+        institution_id -> Uuid,
+        institution_name -> Text,
+        institution_doi -> Nullable<Text>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+        ror -> Nullable<Text>,
+        country_code -> Nullable<Country_code>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    institution_history (institution_history_id) {
+        institution_history_id -> Uuid,
+        institution_id -> Uuid,
         account_id -> Uuid,
         data -> Jsonb,
         timestamp -> Timestamptz,
@@ -446,8 +446,6 @@ joinable!(contribution_history -> account (account_id));
 joinable!(contribution_history -> contribution (contribution_id));
 joinable!(contributor_history -> account (account_id));
 joinable!(contributor_history -> contributor (contributor_id));
-joinable!(institution_history -> account (account_id));
-joinable!(institution_history -> institution (institution_id));
 joinable!(funding -> institution (institution_id));
 joinable!(funding -> work (work_id));
 joinable!(funding_history -> account (account_id));
@@ -455,6 +453,8 @@ joinable!(funding_history -> funding (funding_id));
 joinable!(imprint -> publisher (publisher_id));
 joinable!(imprint_history -> account (account_id));
 joinable!(imprint_history -> imprint (imprint_id));
+joinable!(institution_history -> account (account_id));
+joinable!(institution_history -> institution (institution_id));
 joinable!(issue -> series (series_id));
 joinable!(issue -> work (work_id));
 joinable!(issue_history -> account (account_id));
@@ -490,12 +490,12 @@ allow_tables_to_appear_in_same_query!(
     contribution_history,
     contributor,
     contributor_history,
-    institution,
-    institution_history,
     funding,
     funding_history,
     imprint,
     imprint_history,
+    institution,
+    institution_history,
     issue,
     issue_history,
     language,
