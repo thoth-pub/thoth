@@ -517,7 +517,7 @@ impl ContributionsFormComponent {
     fn render_contribution(&self, c: &Contribution) -> Html {
         let contribution_id = c.contribution_id;
         html! {
-            <div class="panel-block field is-horizontal">
+            <div class="panel-block field is-horizontal is-flex-wrap-wrap">
                 <span class="panel-icon">
                     <i class="fas fa-user" aria-hidden="true"></i>
                 </span>
