@@ -21,6 +21,7 @@ const CREATE_INSTITUTION_MUTATION: &str = "
             institutionId
             institutionName
             ror
+            countryCode
             createdAt
             updatedAt
         }

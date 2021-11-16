@@ -127,12 +127,12 @@ impl Component for NewInstitutionComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.create_institution {
-                        Some(f) => {
+                        Some(i) => {
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Saved {}", f.institution_name),
+                                format!("Saved {}", i.institution_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(f.edit_route()));
+                            self.link.send_message(Msg::ChangeRoute(i.edit_route()));
                             true
                         }
                         None => {

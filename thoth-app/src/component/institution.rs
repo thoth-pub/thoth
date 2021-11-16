@@ -239,7 +239,7 @@ impl Component for InstitutionComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.update_institution {
-                        Some(f) => {
+                        Some(i) => {
                             // Save was successful: update user-entered DOI variable to match DOI in database
                             self.institution_doi = self
                                 .institution
@@ -252,7 +252,7 @@ impl Component for InstitutionComponent {
                             self.ror = self.institution.ror.clone().unwrap_or_default().to_string();
                             self.ror_warning.clear();
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Saved {}", f.institution_name),
+                                format!("Saved {}", i.institution_name),
                                 NotificationStatus::Success,
                             )));
                             true
@@ -315,9 +315,9 @@ impl Component for InstitutionComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_institution {
-                        Some(f) => {
+                        Some(i) => {
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Deleted {}", f.institution_name),
+                                format!("Deleted {}", i.institution_name),
                                 NotificationStatus::Success,
                             )));
                             self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
