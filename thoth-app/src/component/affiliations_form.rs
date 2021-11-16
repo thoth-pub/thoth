@@ -89,14 +89,7 @@ impl Component for AffiliationsFormComponent {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let body = AffiliationsRequestBody {
-            variables: Variables {
-                contribution_id: props.contribution_id,
-            },
-            ..Default::default()
-        };
-        let request = AffiliationsRequest { body };
-        let fetch_affiliations = Fetch::new(request);
+        let fetch_affiliations = Default::default();
         let data: AffiliationsFormData = Default::default();
         let new_affiliation: AffiliationWithInstitution = Default::default();
         let show_add_form = false;
@@ -143,6 +136,15 @@ impl Component for AffiliationsFormComponent {
                 true
             }
             Msg::GetAffiliations => {
+                let body = AffiliationsRequestBody {
+                    variables: Variables {
+                        contribution_id: self.props.contribution_id,
+                    },
+                    ..Default::default()
+                };
+                let request = AffiliationsRequest { body };
+                self.fetch_affiliations = Fetch::new(request);
+
                 self.link.send_future(
                     self.fetch_affiliations
                         .fetch(Msg::SetAffiliationsFetchState),
@@ -309,8 +311,12 @@ impl Component for AffiliationsFormComponent {
     }
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        log::info!("change");
-        self.props.neq_assign(props)
+        if self.props.neq_assign(props) {
+            self.link.send_message(Msg::GetAffiliations);
+            true
+        } else {
+            false
+        }
     }
 
     fn view(&self) -> Html {
