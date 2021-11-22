@@ -79,11 +79,8 @@ impl Crud for Subject {
                 Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
         }
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(dsl::work_id.eq(pid));
