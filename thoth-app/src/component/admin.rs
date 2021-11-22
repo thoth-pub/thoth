@@ -14,6 +14,8 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::component::books::BooksComponent;
+use crate::component::chapters::ChaptersComponent;
 use crate::component::contributor::ContributorComponent;
 use crate::component::contributors::ContributorsComponent;
 use crate::component::dashboard::DashboardComponent;
@@ -169,6 +171,8 @@ impl Component for AdminComponent {
                                 AdminRoute::Admin => html!{<DashboardComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Dashboard => html!{<DashboardComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Works => html!{<WorksComponent current_user = self.props.current_user.clone().unwrap() />},
+                                AdminRoute::Books => html!{<BooksComponent current_user = self.props.current_user.clone().unwrap() />},
+                                AdminRoute::Chapters => html!{<ChaptersComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Work(id) => html!{<WorkComponent work_id = *id current_user = self.props.current_user.clone().unwrap() units_selection = self.units_selection.clone() update_units_selection = self.link.callback(Msg::UpdateLengthUnit) />},
                                 AdminRoute::NewWork => html!{<NewWorkComponent current_user = self.props.current_user.clone().unwrap() units_selection = self.units_selection.clone() update_units_selection = self.link.callback(Msg::UpdateLengthUnit) />},
                                 AdminRoute::Publishers => html!{<PublishersComponent current_user = self.props.current_user.clone().unwrap() />},

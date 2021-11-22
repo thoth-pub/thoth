@@ -4,6 +4,8 @@ use serde::Serialize;
 const STATS_QUERY: &str = "
     query StatsQuery($publishers: [Uuid!]) {
         workCount(publishers: $publishers)
+        bookCount(publishers: $publishers)
+        chapterCount(publishers: $publishers)
         publisherCount(publishers: $publishers)
         imprintCount(publishers: $publishers)
         seriesCount(publishers: $publishers)
@@ -32,6 +34,8 @@ pub struct Variables {
 #[serde(rename_all = "camelCase")]
 pub struct StatsResponseData {
     pub work_count: i32,
+    pub book_count: i32,
+    pub chapter_count: i32,
     pub publisher_count: i32,
     pub imprint_count: i32,
     pub series_count: i32,

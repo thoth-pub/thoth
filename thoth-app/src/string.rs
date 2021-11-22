@@ -20,6 +20,8 @@ strings! {
     PREVIOUS_PAGE_BUTTON => "Previous",
     PAGINATION_COUNT_FUNDERS => "Displaying funders",
     PAGINATION_COUNT_WORKS => "Displaying works",
+    PAGINATION_COUNT_BOOKS => "Displaying books",
+    PAGINATION_COUNT_CHAPTERS => "Displaying chapters",
     PAGINATION_COUNT_SERIESES => "Displaying series",
     PAGINATION_COUNT_PUBLISHERS => "Displaying publishers",
     PAGINATION_COUNT_IMPRINTS => "Displaying imprints",

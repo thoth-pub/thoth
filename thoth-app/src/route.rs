@@ -20,6 +20,10 @@ pub enum AdminRoute {
     Dashboard,
     #[to = "/works"]
     Works,
+    #[to = "/books"]
+    Books,
+    #[to = "/chapters"]
+    Chapters,
     #[to = "/work/{id}"]
     Work(Uuid),
     #[to = "/work"]

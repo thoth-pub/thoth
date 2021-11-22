@@ -137,6 +137,8 @@ pub trait MetadataTable {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html;
 }
 
+pub mod book;
+pub mod chapter;
 pub mod contribution;
 pub mod contributor;
 pub mod funder;
