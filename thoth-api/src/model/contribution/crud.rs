@@ -7,6 +7,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{contribution, contribution_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -31,7 +32,7 @@ impl Crud for Contribution {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         parent_id_2: Option<Uuid>,
-        contribution_type: Option<Self::FilterParameter1>,
+        contribution_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Contribution>> {
         use crate::schema::contribution::dsl;
@@ -121,8 +122,8 @@ impl Crud for Contribution {
         if let Some(pid) = parent_id_2 {
             query = query.filter(dsl::contributor_id.eq(pid));
         }
-        if let Some(cont_type) = contribution_type {
-            query = query.filter(dsl::contribution_type.eq(cont_type));
+        if !contribution_types.is_empty() {
+            query = query.filter(dsl::contribution_type.eq(any(contribution_types)));
         }
         match query
             .limit(limit.into())
@@ -138,14 +139,14 @@ impl Crud for Contribution {
         db: &crate::db::PgPool,
         _: Option<String>,
         _: Vec<Uuid>,
-        contribution_type: Option<Self::FilterParameter1>,
+        contribution_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::contribution::dsl;
         let connection = db.get().unwrap();
         let mut query = dsl::contribution.into_boxed();
-        if let Some(cont_type) = contribution_type {
-            query = query.filter(dsl::contribution_type.eq(cont_type));
+        if !contribution_types.is_empty() {
+            query = query.filter(dsl::contribution_type.eq(any(contribution_types)));
         }
 
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does

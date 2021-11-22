@@ -6,6 +6,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{subject, subject_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -30,7 +31,7 @@ impl Crud for Subject {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
-        subject_type: Option<Self::FilterParameter1>,
+        subject_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Subject>> {
         use crate::schema::subject::dsl;
@@ -87,8 +88,8 @@ impl Crud for Subject {
         if let Some(pid) = parent_id_1 {
             query = query.filter(dsl::work_id.eq(pid));
         }
-        if let Some(sub_type) = subject_type {
-            query = query.filter(dsl::subject_type.eq(sub_type));
+        if !subject_types.is_empty() {
+            query = query.filter(dsl::subject_type.eq(any(subject_types)));
         }
         if let Some(filter) = filter {
             query = query.filter(dsl::subject_code.ilike(format!("%{}%", filter)));
@@ -108,14 +109,14 @@ impl Crud for Subject {
         db: &crate::db::PgPool,
         filter: Option<String>,
         _: Vec<Uuid>,
-        subject_type: Option<Self::FilterParameter1>,
+        subject_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::subject::dsl;
         let connection = db.get().unwrap();
         let mut query = dsl::subject.into_boxed();
-        if let Some(sub_type) = subject_type {
-            query = query.filter(dsl::subject_type.eq(sub_type));
+        if !subject_types.is_empty() {
+            query = query.filter(dsl::subject_type.eq(any(subject_types)));
         }
         if let Some(filter) = filter {
             query = query.filter(dsl::subject_code.ilike(format!("%{}%", filter)));

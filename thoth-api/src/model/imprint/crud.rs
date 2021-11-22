@@ -32,7 +32,7 @@ impl Crud for Imprint {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
-        _: Option<Self::FilterParameter1>,
+        _: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Imprint>> {
         use crate::schema::imprint::dsl::*;
@@ -91,7 +91,7 @@ impl Crud for Imprint {
         db: &crate::db::PgPool,
         filter: Option<String>,
         publishers: Vec<Uuid>,
-        _: Option<Self::FilterParameter1>,
+        _: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::imprint::dsl::*;

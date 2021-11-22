@@ -4,6 +4,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{price, price_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -28,7 +29,7 @@ impl Crud for Price {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
-        currency_code: Option<Self::FilterParameter1>,
+        currency_codes: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Price>> {
         use crate::schema::price::dsl;
@@ -83,8 +84,8 @@ impl Crud for Price {
         if let Some(pid) = parent_id_1 {
             query = query.filter(dsl::publication_id.eq(pid));
         }
-        if let Some(curr_code) = currency_code {
-            query = query.filter(dsl::currency_code.eq(curr_code));
+        if !currency_codes.is_empty() {
+            query = query.filter(dsl::currency_code.eq(any(currency_codes)));
         }
         match query
             .limit(limit.into())
@@ -100,14 +101,14 @@ impl Crud for Price {
         db: &crate::db::PgPool,
         _: Option<String>,
         _: Vec<Uuid>,
-        currency_code: Option<Self::FilterParameter1>,
+        currency_codes: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::price::dsl;
         let connection = db.get().unwrap();
         let mut query = dsl::price.into_boxed();
-        if let Some(curr_code) = currency_code {
-            query = query.filter(dsl::currency_code.eq(curr_code));
+        if !currency_codes.is_empty() {
+            query = query.filter(dsl::currency_code.eq(any(currency_codes)));
         }
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this

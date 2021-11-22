@@ -6,6 +6,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -32,7 +33,7 @@ impl Crud for Publication {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
-        publication_type: Option<Self::FilterParameter1>,
+        publication_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Publication>> {
         use crate::schema::publication::dsl;
@@ -89,8 +90,8 @@ impl Crud for Publication {
         if let Some(pid) = parent_id_1 {
             query = query.filter(dsl::work_id.eq(pid));
         }
-        if let Some(pub_type) = publication_type {
-            query = query.filter(dsl::publication_type.eq(pub_type));
+        if !publication_types.is_empty() {
+            query = query.filter(dsl::publication_type.eq(any(publication_types)));
         }
         if let Some(filter) = filter {
             // ISBN and URL fields are both nullable, so searching with an empty filter could fail
@@ -116,7 +117,7 @@ impl Crud for Publication {
         db: &crate::db::PgPool,
         filter: Option<String>,
         publishers: Vec<Uuid>,
-        publication_type: Option<Self::FilterParameter1>,
+        publication_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::publication::dsl;
@@ -139,8 +140,8 @@ impl Crud for Publication {
         for pub_id in publishers {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
-        if let Some(pub_type) = publication_type {
-            query = query.filter(dsl::publication_type.eq(pub_type));
+        if !publication_types.is_empty() {
+            query = query.filter(dsl::publication_type.eq(any(publication_types)));
         }
         if let Some(filter) = filter {
             // ISBN and URL fields are both nullable, so searching with an empty filter could fail

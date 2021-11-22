@@ -6,6 +6,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{series, series_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -32,7 +33,7 @@ impl Crud for Series {
         publishers: Vec<Uuid>,
         _: Option<Uuid>,
         _: Option<Uuid>,
-        series_type: Option<Self::FilterParameter1>,
+        series_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Series>> {
         use crate::schema::series::dsl;
@@ -92,8 +93,8 @@ impl Crud for Series {
         for pub_id in publishers {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
-        if let Some(ser_type) = series_type {
-            query = query.filter(dsl::series_type.eq(ser_type));
+        if !series_types.is_empty() {
+            query = query.filter(dsl::series_type.eq(any(series_types)));
         }
         if let Some(filter) = filter {
             query = query.filter(
@@ -118,7 +119,7 @@ impl Crud for Series {
         db: &crate::db::PgPool,
         filter: Option<String>,
         publishers: Vec<Uuid>,
-        series_type: Option<Self::FilterParameter1>,
+        series_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::series::dsl;
@@ -143,8 +144,8 @@ impl Crud for Series {
         for pub_id in publishers {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
-        if let Some(ser_type) = series_type {
-            query = query.filter(dsl::series_type.eq(ser_type));
+        if !series_types.is_empty() {
+            query = query.filter(dsl::series_type.eq(any(series_types)));
         }
         if let Some(filter) = filter {
             query = query.filter(

@@ -119,7 +119,10 @@ impl QueryRoot {
             default = vec![],
             description = "If set, only shows results connected to publishers with these IDs",
         ),
-        work_type(description = "A specific type to filter by"),
+        work_types(
+            default = vec![],
+            description = "Specific types to filter by",
+        ),
         work_status(description = "A specific status to filter by"),
     )
   )]
@@ -130,7 +133,7 @@ impl QueryRoot {
         filter: String,
         order: WorkOrderBy,
         publishers: Vec<Uuid>,
-        work_type: Option<WorkType>,
+        work_types: Vec<WorkType>,
         work_status: Option<WorkStatus>,
     ) -> FieldResult<Vec<Work>> {
         Work::all(
@@ -142,7 +145,7 @@ impl QueryRoot {
             publishers,
             None,
             None,
-            work_type,
+            work_types,
             work_status,
         )
         .map_err(|e| e.into())
@@ -169,7 +172,10 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            work_type(description = "A specific type to filter by"),
+            work_types(
+                default = vec![],
+                description = "Specific types to filter by",
+            ),
             work_status(description = "A specific status to filter by"),
         )
     )]
@@ -177,14 +183,184 @@ impl QueryRoot {
         context: &Context,
         filter: String,
         publishers: Vec<Uuid>,
-        work_type: Option<WorkType>,
+        work_types: Vec<WorkType>,
         work_status: Option<WorkStatus>,
     ) -> FieldResult<i32> {
         Work::count(
             &context.db,
             Some(filter),
             publishers,
-            work_type,
+            work_types,
+            work_status,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(
+        description="Query the full list of books (a subset of the full list of works)",
+        arguments(
+            limit(
+                default = 100,
+                description = "The number of items to return"
+            ),
+            offset(
+                default = 0,
+                description = "The number of items to skip"
+            ),
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
+            ),
+            order(
+                default = WorkOrderBy::default(),
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
+            work_status(description = "A specific status to filter by"),
+        )
+    )]
+    fn books(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+        order: WorkOrderBy,
+        publishers: Vec<Uuid>,
+        work_status: Option<WorkStatus>,
+    ) -> FieldResult<Vec<Work>> {
+        Work::all(
+            &context.db,
+            limit,
+            offset,
+            Some(filter),
+            order,
+            publishers,
+            None,
+            None,
+            vec![
+                WorkType::Monograph,
+                WorkType::EditedBook,
+                WorkType::Textbook,
+                WorkType::JournalIssue,
+            ],
+            work_status,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(
+        description = "Get the total number of books (a subset of the total number of works)",
+        arguments(
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
+            work_status(description = "A specific status to filter by"),
+        )
+    )]
+    fn book_count(
+        context: &Context,
+        filter: String,
+        publishers: Vec<Uuid>,
+        work_status: Option<WorkStatus>,
+    ) -> FieldResult<i32> {
+        Work::count(
+            &context.db,
+            Some(filter),
+            publishers,
+            vec![
+                WorkType::Monograph,
+                WorkType::EditedBook,
+                WorkType::Textbook,
+                WorkType::JournalIssue,
+            ],
+            work_status,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(
+        description="Query the full list of chapters (a subset of the full list of works)",
+        arguments(
+            limit(
+                default = 100,
+                description = "The number of items to return"
+            ),
+            offset(
+                default = 0,
+                description = "The number of items to skip"
+            ),
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
+            ),
+            order(
+                default = WorkOrderBy::default(),
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
+            work_status(description = "A specific status to filter by"),
+        )
+    )]
+    fn chapters(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        filter: String,
+        order: WorkOrderBy,
+        publishers: Vec<Uuid>,
+        work_status: Option<WorkStatus>,
+    ) -> FieldResult<Vec<Work>> {
+        Work::all(
+            &context.db,
+            limit,
+            offset,
+            Some(filter),
+            order,
+            publishers,
+            None,
+            None,
+            vec![WorkType::BookChapter],
+            work_status,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(
+        description = "Get the total number of chapters (a subset of the total number of works)",
+        arguments(
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
+            work_status(description = "A specific status to filter by"),
+        )
+    )]
+    fn chapter_count(
+        context: &Context,
+        filter: String,
+        publishers: Vec<Uuid>,
+        work_status: Option<WorkStatus>,
+    ) -> FieldResult<i32> {
+        Work::count(
+            &context.db,
+            Some(filter),
+            publishers,
+            vec![WorkType::BookChapter],
             work_status,
         )
         .map_err(|e| e.into())
@@ -207,7 +383,10 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            publication_type(description = "A specific type to filter by"),
+            publication_types(
+                default = vec![],
+                description = "Specific types to filter by",
+            ),
         )
     )]
     fn publications(
@@ -217,7 +396,7 @@ impl QueryRoot {
         filter: String,
         order: PublicationOrderBy,
         publishers: Vec<Uuid>,
-        publication_type: Option<PublicationType>,
+        publication_types: Vec<PublicationType>,
     ) -> FieldResult<Vec<Publication>> {
         Publication::all(
             &context.db,
@@ -228,7 +407,7 @@ impl QueryRoot {
             publishers,
             None,
             None,
-            publication_type,
+            publication_types,
             None,
         )
         .map_err(|e| e.into())
@@ -250,20 +429,23 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            publication_type(description = "A specific type to filter by"),
+            publication_types(
+                default = vec![],
+                description = "Specific types to filter by",
+            ),
         )
     )]
     fn publication_count(
         context: &Context,
         filter: String,
         publishers: Vec<Uuid>,
-        publication_type: Option<PublicationType>,
+        publication_types: Vec<PublicationType>,
     ) -> FieldResult<i32> {
         Publication::count(
             &context.db,
             Some(filter),
             publishers,
-            publication_type,
+            publication_types,
             None,
         )
         .map_err(|e| e.into())
@@ -312,7 +494,7 @@ impl QueryRoot {
             publishers,
             None,
             None,
-            None,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -341,7 +523,7 @@ impl QueryRoot {
         filter: String,
         publishers: Vec<Uuid>,
     ) -> FieldResult<i32> {
-        Publisher::count(&context.db, Some(filter), publishers, None, None).map_err(|e| e.into())
+        Publisher::count(&context.db, Some(filter), publishers, vec![], None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -380,7 +562,7 @@ impl QueryRoot {
             publishers,
             None,
             None,
-            None,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -405,7 +587,7 @@ impl QueryRoot {
         )
     )]
     fn imprint_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> FieldResult<i32> {
-        Imprint::count(&context.db, Some(filter), publishers, None, None).map_err(|e| e.into())
+        Imprint::count(&context.db, Some(filter), publishers, vec![], None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -439,7 +621,7 @@ impl QueryRoot {
             vec![],
             None,
             None,
-            None,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -460,7 +642,7 @@ impl QueryRoot {
         )
     )]
     fn contributor_count(context: &Context, filter: String) -> FieldResult<i32> {
-        Contributor::count(&context.db, Some(filter), vec![], None, None).map_err(|e| e.into())
+        Contributor::count(&context.db, Some(filter), vec![], vec![], None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -481,7 +663,10 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            contribution_type(description = "A specific type to filter by"),
+            contribution_types(
+                default = vec![],
+                description = "Specific types to filter by",
+            ),
         )
     )]
     fn contributions(
@@ -490,7 +675,7 @@ impl QueryRoot {
         offset: i32,
         order: ContributionOrderBy,
         publishers: Vec<Uuid>,
-        contribution_type: Option<ContributionType>,
+        contribution_types: Vec<ContributionType>,
     ) -> FieldResult<Vec<Contribution>> {
         Contribution::all(
             &context.db,
@@ -501,7 +686,7 @@ impl QueryRoot {
             publishers,
             None,
             None,
-            contribution_type,
+            contribution_types,
             None,
         )
         .map_err(|e| e.into())
@@ -512,12 +697,19 @@ impl QueryRoot {
         Contribution::from_id(&context.db, &contribution_id).map_err(|e| e.into())
     }
 
-    #[graphql(description = "Get the total number of contributions")]
+    #[graphql(description = "Get the total number of contributions",
+        arguments(
+            contribution_types(
+                default = vec![],
+                description = "Specific types to filter by",
+            ),
+        )
+    )]
     fn contribution_count(
         context: &Context,
-        contribution_type: Option<ContributionType>,
+        contribution_types: Vec<ContributionType>,
     ) -> FieldResult<i32> {
-        Contribution::count(&context.db, None, vec![], contribution_type, None)
+        Contribution::count(&context.db, None, vec![], contribution_types, None)
             .map_err(|e| e.into())
     }
 
@@ -538,7 +730,10 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            series_type(description = "A specific type to filter by"),
+            series_types(
+                default = vec![],
+                description = "Specific types to filter by",
+            ),
         ),
     )]
     fn serieses(
@@ -548,7 +743,7 @@ impl QueryRoot {
         filter: String,
         order: SeriesOrderBy,
         publishers: Vec<Uuid>,
-        series_type: Option<SeriesType>,
+        series_types: Vec<SeriesType>,
     ) -> FieldResult<Vec<Series>> {
         Series::all(
             &context.db,
@@ -559,7 +754,7 @@ impl QueryRoot {
             publishers,
             None,
             None,
-            series_type,
+            series_types,
             None,
         )
         .map_err(|e| e.into())
@@ -581,16 +776,19 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            series_type(description = "A specific type to filter by"),
+            series_types(
+                default = vec![],
+                description = "Specific types to filter by",
+            ),
         )
     )]
     fn series_count(
         context: &Context,
         filter: String,
         publishers: Vec<Uuid>,
-        series_type: Option<SeriesType>,
+        series_types: Vec<SeriesType>,
     ) -> FieldResult<i32> {
-        Series::count(&context.db, Some(filter), publishers, series_type, None)
+        Series::count(&context.db, Some(filter), publishers, series_types, None)
             .map_err(|e| e.into())
     }
 
@@ -630,7 +828,7 @@ impl QueryRoot {
             publishers,
             None,
             None,
-            None,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -643,7 +841,7 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of issues")]
     fn issue_count(context: &Context) -> FieldResult<i32> {
-        Issue::count(&context.db, None, vec![], None, None).map_err(|e| e.into())
+        Issue::count(&context.db, None, vec![], vec![], None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -664,7 +862,10 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            language_code(description = "A specific language to filter by"),
+            language_codes(
+                default = vec![],
+                description = "Specific languages to filter by",
+            ),
             language_relation(description = "A specific relation to filter by"),
         )
     )]
@@ -674,7 +875,7 @@ impl QueryRoot {
         offset: i32,
         order: LanguageOrderBy,
         publishers: Vec<Uuid>,
-        language_code: Option<LanguageCode>,
+        language_codes: Vec<LanguageCode>,
         language_relation: Option<LanguageRelation>,
     ) -> FieldResult<Vec<Language>> {
         Language::all(
@@ -686,7 +887,7 @@ impl QueryRoot {
             publishers,
             None,
             None,
-            language_code,
+            language_codes,
             language_relation,
         )
         .map_err(|e| e.into())
@@ -697,13 +898,22 @@ impl QueryRoot {
         Language::from_id(&context.db, &language_id).map_err(|e| e.into())
     }
 
-    #[graphql(description = "Get the total number of languages associated to works")]
+    #[graphql(
+        description = "Get the total number of languages associated to works",
+        arguments(
+            language_codes(
+                default = vec![],
+                description = "Specific languages to filter by",
+            ),
+            language_relation(description = "A specific relation to filter by"),
+        )
+    )]
     fn language_count(
         context: &Context,
-        language_code: Option<LanguageCode>,
+        language_codes: Vec<LanguageCode>,
         language_relation: Option<LanguageRelation>,
     ) -> FieldResult<i32> {
-        Language::count(&context.db, None, vec![], language_code, language_relation)
+        Language::count(&context.db, None, vec![], language_codes, language_relation)
             .map_err(|e| e.into())
     }
 
@@ -725,7 +935,10 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            currency_code(description = "A specific currency to filter by"),
+            currency_codes(
+                default = vec![],
+                description = "Specific currencies to filter by",
+            ),
         )
     )]
     fn prices(
@@ -734,7 +947,7 @@ impl QueryRoot {
         offset: i32,
         order: PriceOrderBy,
         publishers: Vec<Uuid>,
-        currency_code: Option<CurrencyCode>,
+        currency_codes: Vec<CurrencyCode>,
     ) -> FieldResult<Vec<Price>> {
         Price::all(
             &context.db,
@@ -745,7 +958,7 @@ impl QueryRoot {
             publishers,
             None,
             None,
-            currency_code,
+            currency_codes,
             None,
         )
         .map_err(|e| e.into())
@@ -756,9 +969,17 @@ impl QueryRoot {
         Price::from_id(&context.db, &price_id).map_err(|e| e.into())
     }
 
-    #[graphql(description = "Get the total number of prices associated to works")]
-    fn price_count(context: &Context, currency_code: Option<CurrencyCode>) -> FieldResult<i32> {
-        Price::count(&context.db, None, vec![], currency_code, None).map_err(|e| e.into())
+    #[graphql(
+        description = "Get the total number of prices associated to works",
+        arguments(
+            currency_codes(
+                default = vec![],
+                description = "Specific currencies to filter by",
+            ),
+        )
+    )]
+    fn price_count(context: &Context, currency_codes: Vec<CurrencyCode>) -> FieldResult<i32> {
+        Price::count(&context.db, None, vec![], currency_codes, None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -783,7 +1004,10 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            subject_type(description = "A specific type to filter by"),
+            subject_types(
+                default = vec![],
+                description = "Specific types to filter by",
+            ),
         )
     )]
     fn subjects(
@@ -793,7 +1017,7 @@ impl QueryRoot {
         filter: String,
         order: SubjectOrderBy,
         publishers: Vec<Uuid>,
-        subject_type: Option<SubjectType>,
+        subject_types: Vec<SubjectType>,
     ) -> FieldResult<Vec<Subject>> {
         Subject::all(
             &context.db,
@@ -804,7 +1028,7 @@ impl QueryRoot {
             publishers,
             None,
             None,
-            subject_type,
+            subject_types,
             None,
         )
         .map_err(|e| e.into())
@@ -822,15 +1046,18 @@ impl QueryRoot {
                 default = "".to_string(),
                 description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code",
             ),
-            subject_type(description = "A specific type to filter by"),
+            subject_types(
+                default = vec![],
+                description = "Specific types to filter by",
+            ),
         )
     )]
     fn subject_count(
         context: &Context,
         filter: String,
-        subject_type: Option<SubjectType>,
+        subject_types: Vec<SubjectType>,
     ) -> FieldResult<i32> {
-        Subject::count(&context.db, Some(filter), vec![], subject_type, None).map_err(|e| e.into())
+        Subject::count(&context.db, Some(filter), vec![], subject_types, None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -864,7 +1091,7 @@ impl QueryRoot {
             vec![],
             None,
             None,
-            None,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -885,7 +1112,7 @@ impl QueryRoot {
         )
     )]
     fn funder_count(context: &Context, filter: String) -> FieldResult<i32> {
-        Funder::count(&context.db, Some(filter), vec![], None, None).map_err(|e| e.into())
+        Funder::count(&context.db, Some(filter), vec![], vec![], None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -924,7 +1151,7 @@ impl QueryRoot {
             publishers,
             None,
             None,
-            None,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -937,7 +1164,7 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of funding instances associated to works")]
     fn funding_count(context: &Context) -> FieldResult<i32> {
-        Funding::count(&context.db, None, vec![], None, None).map_err(|e| e.into())
+        Funding::count(&context.db, None, vec![], vec![], None).map_err(|e| e.into())
     }
 }
 
@@ -1588,7 +1815,10 @@ impl Work {
                 },
                 description = "The order in which to sort the results",
             ),
-            contribution_type(description = "A specific type to filter by"),
+            contribution_types(
+                default = vec![],
+                description = "Specific types to filter by",
+            ),
         )
     )]
     pub fn contributions(
@@ -1597,7 +1827,7 @@ impl Work {
         limit: i32,
         offset: i32,
         order: ContributionOrderBy,
-        contribution_type: Option<ContributionType>,
+        contribution_types: Vec<ContributionType>,
     ) -> FieldResult<Vec<Contribution>> {
         Contribution::all(
             &context.db,
@@ -1608,7 +1838,7 @@ impl Work {
             vec![],
             Some(self.work_id),
             None,
-            contribution_type,
+            contribution_types,
             None,
         )
         .map_err(|e| e.into())
@@ -1628,7 +1858,10 @@ impl Work {
                 },
                 description = "The order in which to sort the results",
             ),
-            language_code(description = "A specific language to filter by"),
+            language_codes(
+                default = vec![],
+                description = "Specific languages to filter by",
+            ),
             language_relation(description = "A specific relation to filter by"),
         )
     )]
@@ -1638,7 +1871,7 @@ impl Work {
         limit: i32,
         offset: i32,
         order: LanguageOrderBy,
-        language_code: Option<LanguageCode>,
+        language_codes: Vec<LanguageCode>,
         language_relation: Option<LanguageRelation>,
     ) -> FieldResult<Vec<Language>> {
         Language::all(
@@ -1650,7 +1883,7 @@ impl Work {
             vec![],
             Some(self.work_id),
             None,
-            language_code,
+            language_codes,
             language_relation,
         )
         .map_err(|e| e.into())
@@ -1674,7 +1907,10 @@ impl Work {
                 },
                 description = "The order in which to sort the results",
             ),
-            publication_type(description = "A specific type to filter by"),
+            publication_types(
+                default = vec![],
+                description = "Specific types to filter by",
+            ),
         )
     )]
     pub fn publications(
@@ -1684,7 +1920,7 @@ impl Work {
         offset: i32,
         filter: String,
         order: PublicationOrderBy,
-        publication_type: Option<PublicationType>,
+        publication_types: Vec<PublicationType>,
     ) -> FieldResult<Vec<Publication>> {
         Publication::all(
             &context.db,
@@ -1695,7 +1931,7 @@ impl Work {
             vec![],
             Some(self.work_id),
             None,
-            publication_type,
+            publication_types,
             None,
         )
         .map_err(|e| e.into())
@@ -1719,7 +1955,10 @@ impl Work {
                 },
                 description = "The order in which to sort the results",
             ),
-            subject_type(description = "A specific type to filter by"),
+            subject_types(
+                default = vec![],
+                description = "Specific types to filter by",
+            ),
         )
     )]
     pub fn subjects(
@@ -1729,7 +1968,7 @@ impl Work {
         offset: i32,
         filter: String,
         order: SubjectOrderBy,
-        subject_type: Option<SubjectType>,
+        subject_types: Vec<SubjectType>,
     ) -> FieldResult<Vec<Subject>> {
         Subject::all(
             &context.db,
@@ -1740,7 +1979,7 @@ impl Work {
             vec![],
             Some(self.work_id),
             None,
-            subject_type,
+            subject_types,
             None,
         )
         .map_err(|e| e.into())
@@ -1778,7 +2017,7 @@ impl Work {
             vec![],
             Some(self.work_id),
             None,
-            None,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -1816,7 +2055,7 @@ impl Work {
             vec![],
             Some(self.work_id),
             None,
-            None,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -1867,7 +2106,10 @@ impl Publication {
                 },
                 description = "The order in which to sort the results",
             ),
-            currency_code(description = "A specific currency to filter by"),
+            currency_codes(
+                default = vec![],
+                description = "Specific currencies to filter by",
+            ),
         )
     )]
     pub fn prices(
@@ -1876,7 +2118,7 @@ impl Publication {
         limit: i32,
         offset: i32,
         order: PriceOrderBy,
-        currency_code: Option<CurrencyCode>,
+        currency_codes: Vec<CurrencyCode>,
     ) -> FieldResult<Vec<Price>> {
         Price::all(
             &context.db,
@@ -1887,7 +2129,7 @@ impl Publication {
             vec![],
             Some(self.publication_id),
             None,
-            currency_code,
+            currency_codes,
             None,
         )
         .map_err(|e| e.into())
@@ -1961,7 +2203,7 @@ impl Publisher {
             vec![],
             Some(self.publisher_id),
             None,
-            None,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -2022,7 +2264,10 @@ impl Imprint {
             },
             description = "The order in which to sort the results",
         ),
-        work_type(description = "A specific type to filter by"),
+        work_types(
+            default = vec![],
+            description = "Specific types to filter by",
+        ),
         work_status(description = "A specific status to filter by"),
     )
   )]
@@ -2032,7 +2277,7 @@ impl Imprint {
         offset: i32,
         filter: String,
         order: WorkOrderBy,
-        work_type: Option<WorkType>,
+        work_types: Vec<WorkType>,
         work_status: Option<WorkStatus>,
     ) -> FieldResult<Vec<Work>> {
         Work::all(
@@ -2044,7 +2289,7 @@ impl Imprint {
             vec![],
             Some(self.imprint_id),
             None,
-            work_type,
+            work_types,
             work_status,
         )
         .map_err(|e| e.into())
@@ -2099,7 +2344,10 @@ impl Contributor {
                 },
                 description = "The order in which to sort the results",
             ),
-            contribution_type(description = "A specific type to filter by"),
+            contribution_types(
+                default = vec![],
+                description = "Specific types to filter by",
+            ),
         )
     )]
     pub fn contributions(
@@ -2108,7 +2356,7 @@ impl Contributor {
         limit: i32,
         offset: i32,
         order: ContributionOrderBy,
-        contribution_type: Option<ContributionType>,
+        contribution_types: Vec<ContributionType>,
     ) -> FieldResult<Vec<Contribution>> {
         Contribution::all(
             &context.db,
@@ -2119,7 +2367,7 @@ impl Contributor {
             vec![],
             None,
             Some(self.contributor_id),
-            contribution_type,
+            contribution_types,
             None,
         )
         .map_err(|e| e.into())
@@ -2263,7 +2511,7 @@ impl Series {
             vec![],
             None,
             Some(self.series_id),
-            None,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -2460,7 +2708,7 @@ impl Funder {
             vec![],
             None,
             Some(self.funder_id),
-            None,
+            vec![],
             None,
         )
         .map_err(|e| e.into())

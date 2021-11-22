@@ -28,7 +28,7 @@ impl Crud for Issue {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         parent_id_2: Option<Uuid>,
-        _: Option<Self::FilterParameter1>,
+        _: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Issue>> {
         use crate::schema::issue::dsl::*;
@@ -97,7 +97,7 @@ impl Crud for Issue {
         db: &crate::db::PgPool,
         _: Option<String>,
         _: Vec<Uuid>,
-        _: Option<Self::FilterParameter1>,
+        _: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::issue::dsl::*;

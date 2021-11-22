@@ -7,6 +7,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{language, language_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -31,7 +32,7 @@ impl Crud for Language {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
-        language_code: Option<Self::FilterParameter1>,
+        language_codes: Vec<Self::FilterParameter1>,
         language_relation: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Language>> {
         use crate::schema::language::dsl;
@@ -88,8 +89,8 @@ impl Crud for Language {
         if let Some(pid) = parent_id_1 {
             query = query.filter(dsl::work_id.eq(pid));
         }
-        if let Some(lang_code) = language_code {
-            query = query.filter(dsl::language_code.eq(lang_code));
+        if !language_codes.is_empty() {
+            query = query.filter(dsl::language_code.eq(any(language_codes)));
         }
         if let Some(lang_relation) = language_relation {
             query = query.filter(dsl::language_relation.eq(lang_relation));
@@ -108,14 +109,14 @@ impl Crud for Language {
         db: &crate::db::PgPool,
         _: Option<String>,
         _: Vec<Uuid>,
-        language_code: Option<Self::FilterParameter1>,
+        language_codes: Vec<Self::FilterParameter1>,
         language_relation: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::language::dsl;
         let connection = db.get().unwrap();
         let mut query = dsl::language.into_boxed();
-        if let Some(lang_code) = language_code {
-            query = query.filter(dsl::language_code.eq(lang_code));
+        if !language_codes.is_empty() {
+            query = query.filter(dsl::language_code.eq(any(language_codes)));
         }
         if let Some(lang_relation) = language_relation {
             query = query.filter(dsl::language_relation.eq(lang_relation));

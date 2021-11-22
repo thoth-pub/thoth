@@ -6,6 +6,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Convert, Crud, DbInsert, Doi, HistoryEntry, LengthUnit};
 use crate::schema::{work, work_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -136,7 +137,7 @@ impl Crud for Work {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
-        work_type: Option<Self::FilterParameter1>,
+        work_types: Vec<Self::FilterParameter1>,
         work_status: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Work>> {
         use crate::schema::work::dsl;
@@ -319,8 +320,8 @@ impl Crud for Work {
         if let Some(pid) = parent_id_1 {
             query = query.filter(dsl::imprint_id.eq(pid));
         }
-        if let Some(wk_type) = work_type {
-            query = query.filter(dsl::work_type.eq(wk_type));
+        if !work_types.is_empty() {
+            query = query.filter(dsl::work_type.eq(any(work_types)));
         }
         if let Some(wk_status) = work_status {
             query = query.filter(dsl::work_status.eq(wk_status));
@@ -350,7 +351,7 @@ impl Crud for Work {
         db: &crate::db::PgPool,
         filter: Option<String>,
         publishers: Vec<Uuid>,
-        work_type: Option<Self::FilterParameter1>,
+        work_types: Vec<Self::FilterParameter1>,
         work_status: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::work::dsl;
@@ -399,8 +400,8 @@ impl Crud for Work {
         for pub_id in publishers {
             query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
         }
-        if let Some(wk_type) = work_type {
-            query = query.filter(dsl::work_type.eq(wk_type));
+        if !work_types.is_empty() {
+            query = query.filter(dsl::work_type.eq(any(work_types)));
         }
         if let Some(wk_status) = work_status {
             query = query.filter(dsl::work_status.eq(wk_status));

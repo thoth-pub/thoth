@@ -247,7 +247,7 @@ where
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         parent_id_2: Option<Uuid>,
-        filter_param_1: Option<Self::FilterParameter1>,
+        filter_param_1: Vec<Self::FilterParameter1>,
         filter_param_2: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Self>>;
 
@@ -256,7 +256,7 @@ where
         db: &crate::db::PgPool,
         filter: Option<String>,
         publishers: Vec<Uuid>,
-        filter_param_1: Option<Self::FilterParameter1>,
+        filter_param_1: Vec<Self::FilterParameter1>,
         filter_param_2: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32>;
 

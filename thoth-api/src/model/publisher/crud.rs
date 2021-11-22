@@ -32,7 +32,7 @@ impl Crud for Publisher {
         publishers: Vec<Uuid>,
         _: Option<Uuid>,
         _: Option<Uuid>,
-        _: Option<Self::FilterParameter1>,
+        _: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Publisher>> {
         use crate::schema::publisher::dsl::*;
@@ -92,7 +92,7 @@ impl Crud for Publisher {
         db: &crate::db::PgPool,
         filter: Option<String>,
         publishers: Vec<Uuid>,
-        _: Option<Self::FilterParameter1>,
+        _: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::publisher::dsl::*;

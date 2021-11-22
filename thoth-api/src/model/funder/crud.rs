@@ -31,7 +31,7 @@ impl Crud for Funder {
         _: Vec<Uuid>,
         _: Option<Uuid>,
         _: Option<Uuid>,
-        _: Option<Self::FilterParameter1>,
+        _: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Funder>> {
         use crate::schema::funder::dsl::*;
@@ -81,7 +81,7 @@ impl Crud for Funder {
         db: &crate::db::PgPool,
         filter: Option<String>,
         _: Vec<Uuid>,
-        _: Option<Self::FilterParameter1>,
+        _: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::funder::dsl::*;
