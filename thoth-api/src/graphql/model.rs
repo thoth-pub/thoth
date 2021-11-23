@@ -158,7 +158,7 @@ impl QueryRoot {
 
     #[graphql(description = "Query a single work using its DOI")]
     fn work_by_doi(context: &Context, doi: Doi) -> FieldResult<Work> {
-        Work::from_doi(&context.db, doi).map_err(|e| e.into())
+        Work::from_doi(&context.db, doi, vec![]).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -251,6 +251,21 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
+    #[graphql(description = "Query a single book using its DOI")]
+    fn book_by_doi(context: &Context, doi: Doi) -> FieldResult<Work> {
+        Work::from_doi(
+            &context.db,
+            doi,
+            vec![
+                WorkType::Monograph,
+                WorkType::EditedBook,
+                WorkType::Textbook,
+                WorkType::JournalIssue,
+            ],
+        )
+        .map_err(|e| e.into())
+    }
+
     #[graphql(
         description = "Get the total number of books (a subset of the total number of works)",
         arguments(
@@ -334,6 +349,11 @@ impl QueryRoot {
             work_status,
         )
         .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Query a single chapter using its DOI")]
+    fn chapter_by_doi(context: &Context, doi: Doi) -> FieldResult<Work> {
+        Work::from_doi(&context.db, doi, vec![WorkType::BookChapter]).map_err(|e| e.into())
     }
 
     #[graphql(

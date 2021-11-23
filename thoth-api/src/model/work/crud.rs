@@ -14,16 +14,24 @@ use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 impl Work {
-    pub fn from_doi(db: &crate::db::PgPool, doi: Doi) -> ThothResult<Self> {
+    pub fn from_doi(
+        db: &crate::db::PgPool,
+        doi: Doi,
+        work_types: Vec<WorkType>,
+    ) -> ThothResult<Self> {
+        use crate::schema::work::dsl;
         use diesel::sql_types::Nullable;
         use diesel::sql_types::Text;
         let connection = db.get().unwrap();
         // Allow case-insensitive searching (DOIs in database may have mixed casing)
         sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
-        crate::schema::work::dsl::work
-            .filter(lower(crate::schema::work::dsl::doi).eq(doi.to_lowercase_string()))
-            .get_result::<Work>(&connection)
-            .map_err(|e| e.into())
+        let mut query = dsl::work
+            .filter(lower(dsl::doi).eq(doi.to_lowercase_string()))
+            .into_boxed();
+        if !work_types.is_empty() {
+            query = query.filter(dsl::work_type.eq(any(work_types)));
+        }
+        query.get_result::<Work>(&connection).map_err(|e| e.into())
     }
 
     pub fn can_update_imprint(&self, db: &crate::db::PgPool) -> ThothResult<()> {
