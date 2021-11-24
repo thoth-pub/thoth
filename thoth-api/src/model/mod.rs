@@ -742,3 +742,4 @@ pub mod publisher;
 pub mod series;
 pub mod subject;
 pub mod work;
+pub mod work_relation;
