@@ -2865,6 +2865,37 @@ impl Funding {
     }
 }
 
+#[juniper::object(Context = Context, description = "A relationship between two works, e.g. a book and one of its chapters, or an original and its translation.")]
+impl WorkRelation {
+    pub fn work_relation_id(&self) -> &Uuid {
+        &self.work_relation_id
+    }
+
+    pub fn relator_work_id(&self) -> &Uuid {
+        &self.relator_work_id
+    }
+
+    pub fn related_work_id(&self) -> &Uuid {
+        &self.related_work_id
+    }
+
+    pub fn relation_type(&self) -> &RelationType {
+        &self.relation_type
+    }
+
+    pub fn relation_ordinal(&self) -> &i32 {
+        &self.relation_ordinal
+    }
+
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
+    }
+
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
+    }
+}
+
 pub type Schema = RootNode<'static, QueryRoot, MutationRoot>;
 
 pub fn create_schema() -> Schema {
