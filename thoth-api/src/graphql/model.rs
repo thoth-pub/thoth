@@ -20,6 +20,7 @@ use crate::model::publisher::*;
 use crate::model::series::*;
 use crate::model::subject::*;
 use crate::model::work::*;
+use crate::model::work_relation::*;
 use crate::model::Convert;
 use crate::model::Crud;
 use crate::model::Doi;
@@ -1307,6 +1308,16 @@ impl MutationRoot {
         Subject::create(&context.db, &data).map_err(|e| e.into())
     }
 
+    fn create_work_relation(context: &Context, data: NewWorkRelation) -> FieldResult<WorkRelation> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context.account_access.can_edit(publisher_id_from_work_id(
+            &context.db,
+            data.relator_work_id,
+        )?)?;
+
+        WorkRelation::create(&context.db, &data).map_err(|e| e.into())
+    }
+
     fn update_work(context: &Context, data: PatchWork, units: LengthUnit) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let work = Work::from_id(&context.db, &data.work_id).unwrap();
@@ -1531,6 +1542,29 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
+    fn update_work_relation(
+        context: &Context,
+        data: PatchWorkRelation,
+    ) -> FieldResult<WorkRelation> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let work_relation = WorkRelation::from_id(&context.db, &data.work_relation_id).unwrap();
+        context
+            .account_access
+            .can_edit(work_relation.publisher_id(&context.db)?)?;
+
+        if !(data.relator_work_id == work_relation.relator_work_id) {
+            context.account_access.can_edit(publisher_id_from_work_id(
+                &context.db,
+                data.relator_work_id,
+            )?)?;
+        }
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        work_relation
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
     fn delete_work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let work = Work::from_id(&context.db, &work_id).unwrap();
@@ -1653,6 +1687,19 @@ impl MutationRoot {
             .can_edit(subject.publisher_id(&context.db)?)?;
 
         subject.delete(&context.db).map_err(|e| e.into())
+    }
+
+    fn delete_work_relation(
+        context: &Context,
+        work_relation_id: Uuid,
+    ) -> FieldResult<WorkRelation> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let work_relation = WorkRelation::from_id(&context.db, &work_relation_id).unwrap();
+        context
+            .account_access
+            .can_edit(work_relation.publisher_id(&context.db)?)?;
+
+        work_relation.delete(&context.db).map_err(|e| e.into())
     }
 }
 
@@ -2067,6 +2114,38 @@ impl Work {
         order: IssueOrderBy,
     ) -> FieldResult<Vec<Issue>> {
         Issue::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            vec![],
+            Some(self.work_id),
+            None,
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
+    }
+    #[graphql(
+        description = "Get other works related to this work",
+        arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = WorkRelationOrderBy::default(),
+                description = "The order in which to sort the results",
+            ),
+        )
+    )]
+    pub fn relations(
+        &self,
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: WorkRelationOrderBy,
+    ) -> FieldResult<Vec<WorkRelation>> {
+        WorkRelation::all(
             &context.db,
             limit,
             offset,
