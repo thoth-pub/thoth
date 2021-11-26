@@ -2136,6 +2136,10 @@ impl Work {
                 default = WorkRelationOrderBy::default(),
                 description = "The order in which to sort the results",
             ),
+            relation_types(
+                default = vec![],
+                description = "Specific types to filter by",
+            ),
         )
     )]
     pub fn relations(
@@ -2144,6 +2148,7 @@ impl Work {
         limit: i32,
         offset: i32,
         order: WorkRelationOrderBy,
+        relation_types: Vec<RelationType>,
     ) -> FieldResult<Vec<WorkRelation>> {
         WorkRelation::all(
             &context.db,
@@ -2154,7 +2159,7 @@ impl Work {
             vec![],
             Some(self.work_id),
             None,
-            vec![],
+            relation_types,
             None,
         )
         .map_err(|e| e.into())

@@ -1,6 +1,6 @@
 use super::{
-    NewWorkRelation, NewWorkRelationHistory, PatchWorkRelation, WorkRelation, WorkRelationField,
-    WorkRelationHistory, WorkRelationOrderBy,
+    NewWorkRelation, NewWorkRelationHistory, PatchWorkRelation, RelationType, WorkRelation,
+    WorkRelationField, WorkRelationHistory, WorkRelationOrderBy,
 };
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
@@ -15,7 +15,7 @@ impl Crud for WorkRelation {
     type NewEntity = NewWorkRelation;
     type PatchEntity = PatchWorkRelation;
     type OrderByEntity = WorkRelationOrderBy;
-    type FilterParameter1 = ();
+    type FilterParameter1 = RelationType;
     type FilterParameter2 = ();
 
     fn pk(&self) -> Uuid {
@@ -31,7 +31,7 @@ impl Crud for WorkRelation {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
-        _: Vec<Self::FilterParameter1>,
+        relation_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<WorkRelation>> {
         use crate::schema::work_relation::dsl::*;
@@ -85,6 +85,9 @@ impl Crud for WorkRelation {
         if let Some(pid) = parent_id_1 {
             query = query.filter(relator_work_id.eq(pid));
         }
+        if !relation_types.is_empty() {
+            query = query.filter(relation_type.eq(any(relation_types)));
+        }
         match query
             .limit(limit.into())
             .offset(offset.into())
@@ -99,17 +102,21 @@ impl Crud for WorkRelation {
         db: &crate::db::PgPool,
         _: Option<String>,
         _: Vec<Uuid>,
-        _: Vec<Self::FilterParameter1>,
+        relation_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::work_relation::dsl::*;
         let connection = db.get().unwrap();
+        let mut query = work_relation.into_boxed();
+        if !relation_types.is_empty() {
+            query = query.filter(relation_type.eq(any(relation_types)));
+        }
 
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match work_relation.count().get_result::<i64>(&connection) {
+        match query.count().get_result::<i64>(&connection) {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
             Err(e) => Err(ThothError::from(e)),
         }

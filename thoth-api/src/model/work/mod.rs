@@ -1,5 +1,6 @@
 use chrono::naive::NaiveDate;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
@@ -12,6 +13,7 @@ use crate::model::issue::IssueWithSeries;
 use crate::model::language::Language;
 use crate::model::publication::Publication;
 use crate::model::subject::Subject;
+use crate::model::work_relation::WorkRelation;
 use crate::model::Doi;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -194,6 +196,7 @@ pub struct WorkWithRelations {
     pub subjects: Option<Vec<Subject>>,
     pub issues: Option<Vec<IssueWithSeries>>,
     pub imprint: ImprintWithPublisher,
+    pub relations: Option<Vec<WorkRelation>>,
 }
 
 #[cfg_attr(
@@ -388,6 +391,7 @@ impl Default for WorkWithRelations {
             subjects: Default::default(),
             issues: Default::default(),
             imprint: Default::default(),
+            relations: Default::default(),
         }
     }
 }
