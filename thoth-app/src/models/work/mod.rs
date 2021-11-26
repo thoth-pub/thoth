@@ -12,7 +12,7 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use super::{CreateRoute, EditRoute, ListString, MetadataTable};
+use super::{CreateRoute, Dropdown, EditRoute, ListString, MetadataTable};
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::THOTH_EXPORT_API;
@@ -64,6 +64,8 @@ pub struct WorkTypeValues {
 pub struct WorkStatusValues {
     pub name: WorkStatus,
 }
+
+impl Dropdown for WorkWithRelations {}
 
 impl EditRoute for Work {
     fn edit_route(&self) -> AppRoute {

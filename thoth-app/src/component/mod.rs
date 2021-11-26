@@ -413,6 +413,7 @@ pub mod publications;
 pub mod publications_form;
 pub mod publisher;
 pub mod publishers;
+pub mod related_works_form;
 pub mod root;
 pub mod series;
 pub mod serieses;

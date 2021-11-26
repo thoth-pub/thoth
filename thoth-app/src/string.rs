@@ -29,6 +29,7 @@ strings! {
     PAGINATION_COUNT_PUBLICATIONS => "Displaying publications",
     AUTHENTICATION_ERROR => "Authentication failed",
     RESPONSE_ERROR => "Failed to obtain a valid response from the server.",
+    EMPTY_RELATIONS => "This work does not have any related works. Search works above to add a new relation.",
     EMPTY_CONTRIBUTIONS => "This work does not have any contributions. Search contributors above to add its contributions.",
     EMPTY_ISSUES => "This work is not part of a series. Search above to add a new series issue.",
     EMPTY_LANGUAGES => "This work does not have any languages. Search above to add a new language.",

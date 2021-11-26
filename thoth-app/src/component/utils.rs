@@ -9,6 +9,7 @@ use thoth_api::model::series::SeriesType;
 use thoth_api::model::subject::SubjectType;
 use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
+use thoth_api::model::work_relation::RelationType;
 use thoth_api::model::LengthUnit;
 use uuid::Uuid;
 use yew::html;
@@ -32,6 +33,7 @@ use crate::models::subject::SubjectTypeValues;
 use crate::models::work::LengthUnitValues;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
+use crate::models::work_relation::RelationTypeValues;
 use crate::string::NO;
 use crate::string::RELOAD_BUTTON;
 use crate::string::YES;
@@ -53,6 +55,7 @@ pub type FormSubjectTypeSelect = Pure<PureSubjectTypeSelect>;
 pub type FormLanguageCodeSelect = Pure<PureLanguageCodeSelect>;
 pub type FormLanguageRelationSelect = Pure<PureLanguageRelationSelect>;
 pub type FormCurrencyCodeSelect = Pure<PureCurrencyCodeSelect>;
+pub type FormRelationTypeSelect = Pure<PureRelationTypeSelect>;
 pub type FormLengthUnitSelect = Pure<PureLengthUnitSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
@@ -256,6 +259,16 @@ pub struct PureCurrencyCodeSelect {
     pub label: String,
     pub data: Vec<CurrencyCodeValues>,
     pub value: CurrencyCode,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureRelationTypeSelect {
+    pub label: String,
+    pub data: Vec<RelationTypeValues>,
+    pub value: RelationType,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -645,6 +658,26 @@ impl PureComponent for PureCurrencyCodeSelect {
     }
 }
 
+impl PureComponent for PureRelationTypeSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                    >
+                        { for self.data.iter().map(|r| self.render_relationtype(r)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
 impl PureComponent for PureLengthUnitSelect {
     fn render(&self) -> VNode {
         html! {
@@ -866,6 +899,22 @@ impl PureCurrencyCodeSelect {
         } else {
             html! {
                 <option value={c.name.to_string()}>{&c.name}</option>
+            }
+        }
+    }
+}
+
+impl PureRelationTypeSelect {
+    fn render_relationtype(&self, r: &RelationTypeValues) -> VNode {
+        if r.name == self.value {
+            html! {
+                <option value={r.name.to_string()} selected=true>
+                    {&r.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={r.name.to_string()}>{&r.name}</option>
             }
         }
     }

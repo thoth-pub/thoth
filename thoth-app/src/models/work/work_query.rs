@@ -43,6 +43,15 @@ pub const WORK_QUERY: &str = "
             coverUrl
             coverCaption
             updatedAt
+            relations {
+                workRelationId
+                relatorWorkId
+                relatedWorkId
+                relationType
+                relationOrdinal
+                createdAt
+                updatedAt
+            }
             contributions {
                 contributionId
                 workId

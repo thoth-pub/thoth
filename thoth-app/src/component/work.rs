@@ -10,6 +10,7 @@ use thoth_api::model::subject::Subject;
 use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
+use thoth_api::model::work_relation::WorkRelation;
 use thoth_api::model::{Doi, LengthUnit, DOI_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -35,6 +36,7 @@ use crate::component::fundings_form::FundingsFormComponent;
 use crate::component::issues_form::IssuesFormComponent;
 use crate::component::languages_form::LanguagesFormComponent;
 use crate::component::publications_form::PublicationsFormComponent;
+use crate::component::related_works_form::RelatedWorksFormComponent;
 use crate::component::subjects_form::SubjectsFormComponent;
 use crate::component::utils::FormDateInput;
 use crate::component::utils::FormFloatInput;
@@ -134,6 +136,7 @@ pub enum Msg {
     ChangeToc(String),
     ChangeCoverUrl(String),
     ChangeCoverCaption(String),
+    UpdateRelatedWorks(Option<Vec<WorkRelation>>),
     UpdateContributions(Option<Vec<Contribution>>),
     UpdateFundings(Option<Vec<FundingWithFunder>>),
     UpdatePublications(Option<Vec<Publication>>),
@@ -481,6 +484,7 @@ impl Component for WorkComponent {
             Msg::ChangeCoverCaption(value) => {
                 self.work.cover_caption.neq_assign(value.to_opt_string())
             }
+            Msg::UpdateRelatedWorks(related_works) => self.work.relations.neq_assign(related_works),
             Msg::UpdateContributions(contributions) => {
                 self.work.contributions.neq_assign(contributions)
             }
@@ -795,6 +799,11 @@ impl Component for WorkComponent {
                             </div>
                         </article>
 
+                        <RelatedWorksFormComponent
+                            relations=self.work.relations.clone()
+                            work_id=self.work.work_id
+                            update_relations=self.link.callback(Msg::UpdateRelatedWorks)
+                        />
                         <ContributionsFormComponent
                             contributions=self.work.contributions.clone()
                             work_id=self.work.work_id

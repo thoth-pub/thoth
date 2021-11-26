@@ -396,6 +396,12 @@ impl Default for WorkWithRelations {
     }
 }
 
+impl fmt::Display for WorkWithRelations {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", &self.compile_fulltitle())
+    }
+}
+
 #[test]
 fn test_worktype_default() {
     let worktype: WorkType = Default::default();

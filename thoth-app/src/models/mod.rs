@@ -153,3 +153,4 @@ pub mod series;
 pub mod stats;
 pub mod subject;
 pub mod work;
+pub mod work_relation;
