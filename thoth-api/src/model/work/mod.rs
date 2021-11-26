@@ -13,7 +13,7 @@ use crate::model::issue::IssueWithSeries;
 use crate::model::language::Language;
 use crate::model::publication::Publication;
 use crate::model::subject::Subject;
-use crate::model::work_relation::WorkRelation;
+use crate::model::work_relation::WorkRelationWithRelatedWork;
 use crate::model::Doi;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -196,7 +196,7 @@ pub struct WorkWithRelations {
     pub subjects: Option<Vec<Subject>>,
     pub issues: Option<Vec<IssueWithSeries>>,
     pub imprint: ImprintWithPublisher,
-    pub relations: Option<Vec<WorkRelation>>,
+    pub relations: Option<Vec<WorkRelationWithRelatedWork>>,
 }
 
 #[cfg_attr(

@@ -51,6 +51,18 @@ pub const WORK_QUERY: &str = "
                 relationOrdinal
                 createdAt
                 updatedAt
+                relatedWork {
+                    workId
+                    workType
+                    workStatus
+                    fullTitle
+                    title
+                    edition
+                    imprintId
+                    copyrightHolder
+                    createdAt
+                    updatedAt
+                }
             }
             contributions {
                 contributionId

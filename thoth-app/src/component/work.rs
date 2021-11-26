@@ -10,7 +10,7 @@ use thoth_api::model::subject::Subject;
 use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
-use thoth_api::model::work_relation::WorkRelation;
+use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
 use thoth_api::model::{Doi, LengthUnit, DOI_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -136,7 +136,7 @@ pub enum Msg {
     ChangeToc(String),
     ChangeCoverUrl(String),
     ChangeCoverCaption(String),
-    UpdateRelatedWorks(Option<Vec<WorkRelation>>),
+    UpdateRelatedWorks(Option<Vec<WorkRelationWithRelatedWork>>),
     UpdateContributions(Option<Vec<Contribution>>),
     UpdateFundings(Option<Vec<FundingWithFunder>>),
     UpdatePublications(Option<Vec<Publication>>),

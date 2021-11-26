@@ -2899,6 +2899,10 @@ impl WorkRelation {
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
+
+    pub fn related_work(&self, context: &Context) -> FieldResult<Work> {
+        Work::from_id(&context.db, &self.related_work_id).map_err(|e| e.into())
+    }
 }
 
 pub type Schema = RootNode<'static, QueryRoot, MutationRoot>;

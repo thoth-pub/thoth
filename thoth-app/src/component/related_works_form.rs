@@ -1,11 +1,14 @@
 use std::str::FromStr;
 use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::work_relation::RelationType;
-use thoth_api::model::work_relation::WorkRelation;
+use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew::ComponentLink;
+use yew_router::agent::RouteAgentDispatcher;
+use yew_router::agent::RouteRequest;
+use yew_router::route::Route;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -37,14 +40,17 @@ use crate::models::work_relation::relation_types_query::FetchActionRelationTypes
 use crate::models::work_relation::relation_types_query::FetchRelationTypes;
 use crate::models::work_relation::RelationTypeValues;
 use crate::models::Dropdown;
+use crate::models::EditRoute;
+use crate::route::AppRoute;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_RELATIONS;
 use crate::string::REMOVE_BUTTON;
+use crate::string::VIEW_BUTTON;
 
 pub struct RelatedWorksFormComponent {
     props: Props,
     data: RelatedWorksFormData,
-    new_relation: WorkRelation,
+    new_relation: WorkRelationWithRelatedWork,
     show_add_form: bool,
     show_results: bool,
     fetch_works: FetchWorks,
@@ -53,6 +59,7 @@ pub struct RelatedWorksFormComponent {
     delete_relation: PushDeleteWorkRelation,
     link: ComponentLink<Self>,
     notification_bus: NotificationDispatcher,
+    router: RouteAgentDispatcher<()>,
 }
 
 #[derive(Default)]
@@ -77,13 +84,14 @@ pub enum Msg {
     AddRelation(WorkWithRelations),
     ChangeRelationtype(RelationType),
     ChangeOrdinal(String),
+    ChangeRoute(AppRoute),
 }
 
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
-    pub relations: Option<Vec<WorkRelation>>,
+    pub relations: Option<Vec<WorkRelationWithRelatedWork>>,
     pub work_id: Uuid,
-    pub update_relations: Callback<Option<Vec<WorkRelation>>>,
+    pub update_relations: Callback<Option<Vec<WorkRelationWithRelatedWork>>>,
 }
 
 impl Component for RelatedWorksFormComponent {
@@ -92,7 +100,7 @@ impl Component for RelatedWorksFormComponent {
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let data: RelatedWorksFormData = Default::default();
-        let new_relation: WorkRelation = Default::default();
+        let new_relation: WorkRelationWithRelatedWork = Default::default();
         let show_add_form = false;
         let show_results = false;
         let fetch_works = Default::default();
@@ -100,6 +108,7 @@ impl Component for RelatedWorksFormComponent {
         let push_relation = Default::default();
         let delete_relation = Default::default();
         let notification_bus = NotificationBus::dispatcher();
+        let router = RouteAgentDispatcher::new();
 
         link.send_message(Msg::GetWorks);
         link.send_message(Msg::GetRelationTypes);
@@ -116,6 +125,7 @@ impl Component for RelatedWorksFormComponent {
             delete_relation,
             link,
             notification_bus,
+            router,
         }
     }
 
@@ -169,7 +179,7 @@ impl Component for RelatedWorksFormComponent {
                     FetchState::Fetched(body) => match &body.data.create_work_relation {
                         Some(r) => {
                             let relation = r.clone();
-                            let mut relations: Vec<WorkRelation> =
+                            let mut relations: Vec<WorkRelationWithRelatedWork> =
                                 self.props.relations.clone().unwrap_or_default();
                             relations.push(relation);
                             self.props.update_relations.emit(Some(relations));
@@ -220,7 +230,7 @@ impl Component for RelatedWorksFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_work_relation {
                         Some(relation) => {
-                            let to_keep: Vec<WorkRelation> = self
+                            let to_keep: Vec<WorkRelationWithRelatedWork> = self
                                 .props
                                 .relations
                                 .clone()
@@ -289,6 +299,11 @@ impl Component for RelatedWorksFormComponent {
                 let ordinal = ordinal.parse::<i32>().unwrap_or(0);
                 self.new_relation.relation_ordinal.neq_assign(ordinal);
                 false // otherwise we re-render the component and reset the value
+            }
+            Msg::ChangeRoute(r) => {
+                let route = Route::from(r);
+                self.router.send(RouteRequest::ChangeRoute(route));
+                false
             }
         }
     }
@@ -432,8 +447,9 @@ impl RelatedWorksFormComponent {
         }
     }
 
-    fn render_relation(&self, r: &WorkRelation) -> Html {
+    fn render_relation(&self, r: &WorkRelationWithRelatedWork) -> Html {
         let relation_id = r.work_relation_id;
+        let route = r.related_work.edit_route();
         html! {
             <div class="panel-block field is-horizontal">
                 <span class="panel-icon">
@@ -443,7 +459,7 @@ impl RelatedWorksFormComponent {
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "Work" }</label>
                         <div class="control is-expanded">
-                            {&r.related_work_id}
+                            {&r.related_work.full_title}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">
@@ -459,9 +475,16 @@ impl RelatedWorksFormComponent {
                         </div>
                     </div>
 
-                    <div class="field">
-                        <label class="label"></label>
-                        <div class="control is-expanded">
+                    <div class="field is-grouped is-grouped-right">
+                        <div class="control">
+                            <a
+                                class="button is-info"
+                                onclick=self.link.callback(move |_| Msg::ChangeRoute(route.clone()))
+                            >
+                                { VIEW_BUTTON }
+                            </a>
+                        </div>
+                        <div class="control">
                             <a
                                 class="button is-danger"
                                 onclick=self.link.callback(move |_| Msg::DeleteWorkRelation(relation_id))

@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::model::work_relation::RelationType;
-use thoth_api::model::work_relation::WorkRelation;
+use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
 use uuid::Uuid;
 
 const CREATE_WORK_RELATION_MUTATION: &str = "
@@ -24,6 +24,18 @@ const CREATE_WORK_RELATION_MUTATION: &str = "
             relationOrdinal
             createdAt
             updatedAt
+            relatedWork {
+                workId
+                workType
+                workStatus
+                fullTitle
+                title
+                edition
+                imprintId
+                copyrightHolder
+                createdAt
+                updatedAt
+            }
         }
     }
 ";
@@ -51,5 +63,5 @@ pub struct Variables {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateWorkRelationResponseData {
-    pub create_work_relation: Option<WorkRelation>,
+    pub create_work_relation: Option<WorkRelationWithRelatedWork>,
 }
