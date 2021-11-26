@@ -1,4 +1,5 @@
 use thoth_api::account::model::AccountDetails;
+use thoth_api::model::location::Location;
 use thoth_api::model::price::Price;
 use thoth_api::model::publication::PublicationWithRelations;
 use uuid::Uuid;
@@ -19,6 +20,7 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::delete_dialogue::ConfirmDeleteComponent;
+use crate::component::locations_form::LocationsFormComponent;
 use crate::component::prices_form::PricesFormComponent;
 use crate::component::utils::Loader;
 use crate::models::publication::delete_publication_mutation::DeletePublicationRequest;
@@ -33,6 +35,7 @@ use crate::models::publication::publication_query::PublicationRequestBody;
 use crate::models::publication::publication_query::Variables;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
+use crate::string::RELATIONS_INFO;
 
 pub struct PublicationComponent {
     publication: PublicationWithRelations,
@@ -49,6 +52,7 @@ pub enum Msg {
     GetPublication,
     SetPublicationDeleteState(PushActionDeletePublication),
     DeletePublication,
+    UpdateLocations(Option<Vec<Location>>),
     UpdatePrices(Option<Vec<Price>>),
     ChangeRoute(AppRoute),
 }
@@ -190,6 +194,7 @@ impl Component for PublicationComponent {
                     .send_message(Msg::SetPublicationDeleteState(FetchAction::Fetching));
                 false
             }
+            Msg::UpdateLocations(locations) => self.publication.locations.neq_assign(locations),
             Msg::UpdatePrices(prices) => self.publication.prices.neq_assign(prices),
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
@@ -246,22 +251,21 @@ impl Component for PublicationComponent {
                                     {&self.publication.isbn.as_ref().map(|s| s.to_string()).unwrap_or_else(|| "".to_string())}
                                 </div>
                             </div>
-
-                            <div class="field">
-                                <label class="label">{ "Publication URL" }</label>
-                                <div class="control is-expanded">
-                                    {&self.publication.publication_url.clone().unwrap_or_else(|| "".to_string())}
-                                </div>
-                            </div>
                         </form>
 
                         <hr/>
 
                         <article class="message is-info">
                             <div class="message-body">
-                                { "Prices below are saved automatically upon change." }
+                                { RELATIONS_INFO }
                             </div>
                         </article>
+
+                        <LocationsFormComponent
+                            locations=self.publication.locations.clone()
+                            publication_id=self.publication.publication_id
+                            update_locations=self.link.callback(Msg::UpdateLocations)
+                        />
 
                         <PricesFormComponent
                             prices=self.publication.prices.clone()

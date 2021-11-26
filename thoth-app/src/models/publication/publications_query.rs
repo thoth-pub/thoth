@@ -10,7 +10,6 @@ pub const PUBLICATIONS_QUERY: &str = "
             publicationType
             workId
             isbn
-            publicationUrl
             updatedAt
             work {
                 workId

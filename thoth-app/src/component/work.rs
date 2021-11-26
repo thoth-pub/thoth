@@ -68,6 +68,7 @@ use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
+use crate::string::RELATIONS_INFO;
 use crate::string::SAVE_BUTTON;
 
 use super::ToOption;
@@ -79,6 +80,8 @@ pub struct WorkComponent {
     doi_warning: String,
     // Track imprint stored in database, as distinct from imprint selected in dropdown
     imprint_id: Uuid,
+    // Track work_type stored in database, as distinct from work_type selected in dropdown
+    work_type: WorkType,
     data: WorkFormData,
     fetch_work: FetchWork,
     push_work: PushUpdateWork,
@@ -164,6 +167,7 @@ impl Component for WorkComponent {
         let doi = Default::default();
         let doi_warning = Default::default();
         let imprint_id = work.imprint.imprint_id;
+        let work_type = work.work_type.clone();
         let data: WorkFormData = Default::default();
         let router = RouteAgentDispatcher::new();
 
@@ -174,6 +178,7 @@ impl Component for WorkComponent {
             doi,
             doi_warning,
             imprint_id,
+            work_type,
             data,
             fetch_work,
             push_work,
@@ -200,6 +205,7 @@ impl Component for WorkComponent {
                         // Initialise user-entered DOI variable to match DOI in database
                         self.doi = self.work.doi.clone().unwrap_or_default().to_string();
                         self.imprint_id = self.work.imprint.imprint_id;
+                        self.work_type = self.work.work_type.clone();
                         self.data.imprints = body.data.imprints.to_owned();
                         self.data.length_units = body.data.length_units.enum_values.to_owned();
                         self.data.work_types = body.data.work_types.enum_values.to_owned();
@@ -251,6 +257,7 @@ impl Component for WorkComponent {
                             self.doi = self.work.doi.clone().unwrap_or_default().to_string();
                             self.doi_warning.clear();
                             self.imprint_id = self.work.imprint.imprint_id;
+                            self.work_type = self.work.work_type.clone();
                             if self.props.units_selection == LengthUnit::In {
                                 // User-entered dimensions may have been rounded on save due to
                                 // conversion to mm - update display with database values
@@ -527,6 +534,19 @@ impl Component for WorkComponent {
                     true => self.data.imprints.clone(),
                     false => vec![self.work.imprint.clone()],
                 };
+                // FormWorkTypeSelect: while the work has any publications with ISBNs,
+                // the work type cannot be changed to Book Chapter.
+                let deactivated_types = match self
+                    .work
+                    .publications
+                    .as_ref()
+                    .unwrap_or(&vec![])
+                    .iter()
+                    .any(|p| p.isbn.is_some())
+                {
+                    true => vec![WorkType::BookChapter],
+                    false => vec![],
+                };
                 // Restrict the number of decimal places the user can enter for width/height values
                 // based on currently selected units.
                 let step = match self.props.units_selection {
@@ -559,6 +579,7 @@ impl Component for WorkComponent {
                                         label = "Work Type"
                                         value=self.work.work_type.clone()
                                         data=self.data.work_types.clone()
+                                        deactivate=deactivated_types.clone()
                                         onchange=self.link.callback(|event| match event {
                                             ChangeData::Select(elem) => {
                                                 let value = elem.value();
@@ -791,7 +812,7 @@ impl Component for WorkComponent {
 
                         <article class="message is-info">
                             <div class="message-body">
-                                { "Relations below are saved automatically upon change." }
+                                { RELATIONS_INFO }
                             </div>
                         </article>
 
@@ -803,6 +824,7 @@ impl Component for WorkComponent {
                         <PublicationsFormComponent
                             publications=self.work.publications.clone()
                             work_id=self.work.work_id
+                            work_type=self.work_type.clone()
                             update_publications=self.link.callback(Msg::UpdatePublications)
                         />
                         <LanguagesFormComponent

@@ -6,9 +6,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
 use crate::{crud_methods, db_insert};
-use diesel::{
-    BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
-};
+use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
@@ -44,7 +42,6 @@ impl Crud for Publication {
                 dsl::publication_type,
                 dsl::work_id,
                 dsl::isbn,
-                dsl::publication_url,
                 dsl::created_at,
                 dsl::updated_at,
             ))
@@ -66,10 +63,6 @@ impl Crud for Publication {
             PublicationField::Isbn => match order.direction {
                 Direction::Asc => query = query.order(dsl::isbn.asc()),
                 Direction::Desc => query = query.order(dsl::isbn.desc()),
-            },
-            PublicationField::PublicationUrl => match order.direction {
-                Direction::Asc => query = query.order(dsl::publication_url.asc()),
-                Direction::Desc => query = query.order(dsl::publication_url.desc()),
             },
             PublicationField::CreatedAt => match order.direction {
                 Direction::Asc => query = query.order(dsl::created_at.asc()),
@@ -93,13 +86,9 @@ impl Crud for Publication {
             query = query.filter(dsl::publication_type.eq(pub_type));
         }
         if let Some(filter) = filter {
-            // ISBN and URL fields are both nullable, so searching with an empty filter could fail
+            // ISBN field is nullable, so searching with an empty filter could fail
             if !filter.is_empty() {
-                query = query.filter(
-                    dsl::isbn
-                        .ilike(format!("%{}%", filter))
-                        .or(dsl::publication_url.ilike(format!("%{}%", filter))),
-                );
+                query = query.filter(dsl::isbn.ilike(format!("%{}%", filter)));
             }
         }
         match query
@@ -128,7 +117,6 @@ impl Crud for Publication {
                 dsl::publication_type,
                 dsl::work_id,
                 dsl::isbn,
-                dsl::publication_url,
                 dsl::created_at,
                 dsl::updated_at,
             ))
@@ -143,13 +131,9 @@ impl Crud for Publication {
             query = query.filter(dsl::publication_type.eq(pub_type));
         }
         if let Some(filter) = filter {
-            // ISBN and URL fields are both nullable, so searching with an empty filter could fail
+            // ISBN field is nullable, so searching with an empty filter could fail
             if !filter.is_empty() {
-                query = query.filter(
-                    dsl::isbn
-                        .ilike(format!("%{}%", filter))
-                        .or(dsl::publication_url.ilike(format!("%{}%", filter))),
-                );
+                query = query.filter(dsl::isbn.ilike(format!("%{}%", filter)));
             }
         }
 
@@ -186,6 +170,37 @@ impl DbInsert for NewPublicationHistory {
     type MainEntity = PublicationHistory;
 
     db_insert!(publication_history::table);
+}
+
+impl NewPublication {
+    pub fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        publication_can_have_isbn(self.work_id, db)
+    }
+}
+
+impl PatchPublication {
+    pub fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        publication_can_have_isbn(self.work_id, db)
+    }
+}
+
+fn publication_can_have_isbn(work_id: Uuid, db: &crate::db::PgPool) -> ThothResult<()> {
+    use crate::model::work::WorkType;
+    use diesel::prelude::*;
+
+    let connection = db.get().unwrap();
+    let work_type = crate::schema::work::table
+        .select(crate::schema::work::work_type)
+        .filter(crate::schema::work::work_id.eq(work_id))
+        .first::<WorkType>(&connection)
+        .expect("Error loading work type for publication");
+    // If a publication's work is of type Book Chapter,
+    // it cannot have an ISBN.
+    if work_type == WorkType::BookChapter {
+        Err(ThothError::ChapterIsbnError)
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
