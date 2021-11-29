@@ -189,7 +189,7 @@ impl Component for SubjectsFormComponent {
                                 .clone()
                                 .unwrap_or_default()
                                 .into_iter()
-                                .filter(|p| p.subject_id != subject.subject_id)
+                                .filter(|s| s.subject_id != subject.subject_id)
                                 .collect();
                             self.props.update_subjects.emit(Some(to_keep));
                             true

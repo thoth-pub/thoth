@@ -26,7 +26,6 @@ pagination_component! {
         "Publisher".to_string(),
         PublicationField::PublicationType.to_string(),
         PublicationField::Isbn.to_string(),
-        PublicationField::PublicationUrl.to_string(),
         PublicationField::UpdatedAt.to_string(),
     ],
     PublicationOrderBy,

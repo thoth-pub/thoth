@@ -39,7 +39,7 @@ impl Crud for Funding {
             .select((
                 funding_id,
                 work_id,
-                funder_id,
+                institution_id,
                 program,
                 project_name,
                 project_shortname,
@@ -59,9 +59,9 @@ impl Crud for Funding {
                 Direction::Asc => query = query.order(work_id.asc()),
                 Direction::Desc => query = query.order(work_id.desc()),
             },
-            FundingField::FunderId => match order.direction {
-                Direction::Asc => query = query.order(funder_id.asc()),
-                Direction::Desc => query = query.order(funder_id.desc()),
+            FundingField::InstitutionId => match order.direction {
+                Direction::Asc => query = query.order(institution_id.asc()),
+                Direction::Desc => query = query.order(institution_id.desc()),
             },
             FundingField::Program => match order.direction {
                 Direction::Asc => query = query.order(program.asc()),
@@ -99,7 +99,7 @@ impl Crud for Funding {
             query = query.filter(work_id.eq(pid));
         }
         if let Some(pid) = parent_id_2 {
-            query = query.filter(funder_id.eq(pid));
+            query = query.filter(institution_id.eq(pid));
         }
         match query
             .limit(limit.into())

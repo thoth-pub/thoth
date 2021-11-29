@@ -47,12 +47,27 @@ pub enum ThothError {
         _0
     )]
     IsbnParseError(String),
+    #[fail(
+        display = "{} is not a validly formatted ROR ID and will not be saved",
+        _0
+    )]
+    RorParseError(String),
     #[fail(display = "Cannot parse ORCID: no value provided")]
     OrcidEmptyError,
     #[fail(display = "Cannot parse DOI: no value provided")]
     DoiEmptyError,
     #[fail(display = "Cannot parse ISBN: no value provided")]
     IsbnEmptyError,
+    #[fail(display = "Cannot parse ROR ID: no value provided")]
+    RorEmptyError,
+    #[fail(display = "Works of type Book Chapter cannot have ISBNs in their Publications.")]
+    ChapterIsbnError,
+    #[fail(display = "Each Publication must have exactly one canonical Location.")]
+    CanonicalLocationError,
+    #[fail(
+        display = "Canonical Locations for digital Publications must have both a Landing Page and a Full Text URL."
+    )]
+    LocationUrlError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]

@@ -1,7 +1,9 @@
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::imprint::ImprintWithPublisher;
+use thoth_api::model::institution::CountryCode;
 use thoth_api::model::language::LanguageCode;
 use thoth_api::model::language::LanguageRelation;
+use thoth_api::model::location::LocationPlatform;
 use thoth_api::model::price::CurrencyCode;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::publisher::Publisher;
@@ -24,8 +26,10 @@ use yewtil::Pure;
 use yewtil::PureComponent;
 
 use crate::models::contribution::ContributionTypeValues;
+use crate::models::institution::CountryCodeValues;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
+use crate::models::location::LocationPlatformValues;
 use crate::models::price::CurrencyCodeValues;
 use crate::models::publication::PublicationTypeValues;
 use crate::models::series::SeriesTypeValues;
@@ -55,6 +59,8 @@ pub type FormSubjectTypeSelect = Pure<PureSubjectTypeSelect>;
 pub type FormLanguageCodeSelect = Pure<PureLanguageCodeSelect>;
 pub type FormLanguageRelationSelect = Pure<PureLanguageRelationSelect>;
 pub type FormCurrencyCodeSelect = Pure<PureCurrencyCodeSelect>;
+pub type FormLocationPlatformSelect = Pure<PureLocationPlatformSelect>;
+pub type FormCountryCodeSelect = Pure<PureCountryCodeSelect>;
 pub type FormRelationTypeSelect = Pure<PureRelationTypeSelect>;
 pub type FormLengthUnitSelect = Pure<PureLengthUnitSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
@@ -92,6 +98,7 @@ pub struct PureTextarea {
 
 // Variant of PureTextInput which supports tooltips,
 // prepended static buttons, or both together.
+// Also supports deactivating the input.
 #[derive(Clone, PartialEq, Properties)]
 pub struct PureTextInputExtended {
     pub label: String,
@@ -108,6 +115,8 @@ pub struct PureTextInputExtended {
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
+    #[prop_or(false)]
+    pub deactivated: bool,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -178,6 +187,9 @@ pub struct PureNumberInput {
 pub struct PureWorkTypeSelect {
     pub label: String,
     pub data: Vec<WorkTypeValues>,
+    // Subset of `data` list which should be deactivated, if any
+    #[prop_or_default]
+    pub deactivate: Vec<WorkType>,
     pub value: WorkType,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
@@ -259,6 +271,26 @@ pub struct PureCurrencyCodeSelect {
     pub label: String,
     pub data: Vec<CurrencyCodeValues>,
     pub value: CurrencyCode,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureLocationPlatformSelect {
+    pub label: String,
+    pub data: Vec<LocationPlatformValues>,
+    pub value: LocationPlatform,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureCountryCodeSelect {
+    pub label: String,
+    pub data: Vec<CountryCodeValues>,
+    pub value: Option<CountryCode>,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -399,6 +431,7 @@ impl PureComponent for PureTextInputExtended {
                         onfocus=self.onfocus.clone()
                         onblur=self.onblur.clone()
                         required={ self.required }
+                        disabled={ self.deactivated }
                     />
                 </div>
             </div>
@@ -492,7 +525,7 @@ impl PureComponent for PureWorkTypeSelect {
                 <div class="control is-expanded">
                     <div class="select is-fullwidth">
                     <select required=self.required onchange=&self.onchange>
-                        { for self.data.iter().map(|i| self.render_worktype(i)) }
+                        { for self.data.iter().map(|i| self.render_worktype(i, &self.deactivate)) }
                     </select>
                     </div>
                 </div>
@@ -658,6 +691,47 @@ impl PureComponent for PureCurrencyCodeSelect {
     }
 }
 
+impl PureComponent for PureLocationPlatformSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                    >
+                        { for self.data.iter().map(|l| self.render_locationplatform(l)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+impl PureComponent for PureCountryCodeSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                    >
+                        <option value="">{"Select Country"}</option>
+                        { for self.data.iter().map(|c| self.render_countrycode(c)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
 impl PureComponent for PureRelationTypeSelect {
     fn render(&self) -> VNode {
         html! {
@@ -761,17 +835,13 @@ impl PureComponent for PurePublisherSelect {
 }
 
 impl PureWorkTypeSelect {
-    fn render_worktype(&self, w: &WorkTypeValues) -> VNode {
-        if w.name == self.value {
-            html! {
-                <option value={w.name.to_string()} selected=true>
-                    {&w.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={w.name.to_string()}>{&w.name}</option>
-            }
+    fn render_worktype(&self, w: &WorkTypeValues, deactivate: &[WorkType]) -> VNode {
+        let deactivated = deactivate.contains(&w.name);
+        let selected = w.name == self.value;
+        html! {
+            <option value={w.name.to_string()} selected={selected} disabled={deactivated}>
+                {&w.name}
+            </option>
         }
     }
 }
@@ -891,6 +961,38 @@ impl PureLanguageRelationSelect {
 impl PureCurrencyCodeSelect {
     fn render_currencycode(&self, c: &CurrencyCodeValues) -> VNode {
         if c.name == self.value {
+            html! {
+                <option value={c.name.to_string()} selected=true>
+                    {&c.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={c.name.to_string()}>{&c.name}</option>
+            }
+        }
+    }
+}
+
+impl PureLocationPlatformSelect {
+    fn render_locationplatform(&self, l: &LocationPlatformValues) -> VNode {
+        if l.name == self.value {
+            html! {
+                <option value={l.name.to_string()} selected=true>
+                    {&l.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={l.name.to_string()}>{&l.name}</option>
+            }
+        }
+    }
+}
+
+impl PureCountryCodeSelect {
+    fn render_countrycode(&self, c: &CountryCodeValues) -> VNode {
+        if Some(c.name.clone()) == self.value {
             html! {
                 <option value={c.name.to_string()} selected=true>
                     {&c.name}

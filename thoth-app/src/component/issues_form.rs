@@ -205,7 +205,7 @@ impl Component for IssuesFormComponent {
                                 .clone()
                                 .unwrap_or_default()
                                 .into_iter()
-                                .filter(|i| i.series_id != issue.series_id)
+                                .filter(|i| i.issue_id != issue.issue_id)
                                 .collect();
                             self.props.update_issues.emit(Some(to_keep));
                             true

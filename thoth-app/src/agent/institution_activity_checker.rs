@@ -11,38 +11,38 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request as NotificationRequest;
-use crate::models::funder::funder_activity_query::FetchActionFunderActivity;
-use crate::models::funder::funder_activity_query::FetchFunderActivity;
-use crate::models::funder::funder_activity_query::FunderActivityRequest;
-use crate::models::funder::funder_activity_query::FunderActivityRequestBody;
-use crate::models::funder::funder_activity_query::FunderActivityResponseData;
-use crate::models::funder::funder_activity_query::Variables;
+use crate::models::institution::institution_activity_query::FetchActionInstitutionActivity;
+use crate::models::institution::institution_activity_query::FetchInstitutionActivity;
+use crate::models::institution::institution_activity_query::InstitutionActivityRequest;
+use crate::models::institution::institution_activity_query::InstitutionActivityRequestBody;
+use crate::models::institution::institution_activity_query::InstitutionActivityResponseData;
+use crate::models::institution::institution_activity_query::Variables;
 
 pub enum Msg {
-    SetFunderActivityFetchState(FetchActionFunderActivity),
+    SetInstitutionActivityFetchState(FetchActionInstitutionActivity),
 }
 
 pub enum Request {
-    RetrieveFunderActivity(Uuid),
+    RetrieveInstitutionActivity(Uuid),
 }
 
-pub struct FunderActivityChecker {
-    agent_link: AgentLink<FunderActivityChecker>,
-    fetch_funder_activity: FetchFunderActivity,
+pub struct InstitutionActivityChecker {
+    agent_link: AgentLink<InstitutionActivityChecker>,
+    fetch_institution_activity: FetchInstitutionActivity,
     subscribers: HashSet<HandlerId>,
     notification_bus: NotificationDispatcher,
 }
 
-impl Agent for FunderActivityChecker {
+impl Agent for InstitutionActivityChecker {
     type Input = Request;
     type Message = Msg;
-    type Output = FunderActivityResponseData;
+    type Output = InstitutionActivityResponseData;
     type Reach = Context<Self>;
 
     fn create(link: AgentLink<Self>) -> Self {
         Self {
             agent_link: link,
-            fetch_funder_activity: Default::default(),
+            fetch_institution_activity: Default::default(),
             subscribers: HashSet::new(),
             notification_bus: NotificationBus::dispatcher(),
         }
@@ -50,9 +50,9 @@ impl Agent for FunderActivityChecker {
 
     fn update(&mut self, msg: Self::Message) {
         match msg {
-            Msg::SetFunderActivityFetchState(fetch_state) => {
-                self.fetch_funder_activity.apply(fetch_state);
-                match self.fetch_funder_activity.as_ref().state() {
+            Msg::SetInstitutionActivityFetchState(fetch_state) => {
+                self.fetch_institution_activity.apply(fetch_state);
+                match self.fetch_institution_activity.as_ref().state() {
                     FetchState::NotFetching(_) => (),
                     FetchState::Fetching(_) => (),
                     FetchState::Fetched(body) => {
@@ -75,21 +75,21 @@ impl Agent for FunderActivityChecker {
 
     fn handle_input(&mut self, msg: Self::Input, _: HandlerId) {
         match msg {
-            Request::RetrieveFunderActivity(funder_id) => {
-                let body = FunderActivityRequestBody {
+            Request::RetrieveInstitutionActivity(institution_id) => {
+                let body = InstitutionActivityRequestBody {
                     variables: Variables {
-                        funder_id: Some(funder_id),
+                        institution_id: Some(institution_id),
                     },
                     ..Default::default()
                 };
-                let request = FunderActivityRequest { body };
-                self.fetch_funder_activity = Fetch::new(request);
+                let request = InstitutionActivityRequest { body };
+                self.fetch_institution_activity = Fetch::new(request);
                 self.agent_link.send_future(
-                    self.fetch_funder_activity
-                        .fetch(Msg::SetFunderActivityFetchState),
+                    self.fetch_institution_activity
+                        .fetch(Msg::SetInstitutionActivityFetchState),
                 );
                 self.agent_link
-                    .send_message(Msg::SetFunderActivityFetchState(FetchAction::Fetching));
+                    .send_message(Msg::SetInstitutionActivityFetchState(FetchAction::Fetching));
             }
         }
     }

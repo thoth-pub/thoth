@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
 use crate::model::contribution::Contribution;
-use crate::model::funding::FundingWithFunder;
+use crate::model::funding::FundingWithInstitution;
 use crate::model::imprint::ImprintWithPublisher;
 use crate::model::issue::IssueWithSeries;
 use crate::model::language::Language;
@@ -192,7 +192,7 @@ pub struct WorkWithRelations {
     pub contributions: Option<Vec<Contribution>>,
     pub publications: Option<Vec<Publication>>,
     pub languages: Option<Vec<Language>>,
-    pub fundings: Option<Vec<FundingWithFunder>>,
+    pub fundings: Option<Vec<FundingWithInstitution>>,
     pub subjects: Option<Vec<Subject>>,
     pub issues: Option<Vec<IssueWithSeries>>,
     pub imprint: ImprintWithPublisher,

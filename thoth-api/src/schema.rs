@@ -19,6 +19,32 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+
+    affiliation (affiliation_id) {
+        affiliation_id -> Uuid,
+        contribution_id -> Uuid,
+        institution_id -> Uuid,
+        affiliation_ordinal -> Int4,
+        position -> Nullable<Text>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    affiliation_history (affiliation_history_id) {
+        affiliation_history_id -> Uuid,
+        affiliation_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use crate::model::contribution::Contribution_type;
 
     contribution (contribution_id) {
@@ -28,7 +54,6 @@ table! {
         contribution_type -> Contribution_type,
         main_contribution -> Bool,
         biography -> Nullable<Text>,
-        institution -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
         first_name -> Nullable<Text>,
@@ -80,34 +105,10 @@ table! {
 table! {
     use diesel::sql_types::*;
 
-    funder (funder_id) {
-        funder_id -> Uuid,
-        funder_name -> Text,
-        funder_doi -> Nullable<Text>,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
-    }
-}
-
-table! {
-    use diesel::sql_types::*;
-
-    funder_history (funder_history_id) {
-        funder_history_id -> Uuid,
-        funder_id -> Uuid,
-        account_id -> Uuid,
-        data -> Jsonb,
-        timestamp -> Timestamptz,
-    }
-}
-
-table! {
-    use diesel::sql_types::*;
-
     funding (funding_id) {
         funding_id -> Uuid,
         work_id -> Uuid,
-        funder_id -> Uuid,
+        institution_id -> Uuid,
         program -> Nullable<Text>,
         project_name -> Nullable<Text>,
         project_shortname -> Nullable<Text>,
@@ -149,6 +150,33 @@ table! {
     imprint_history (imprint_history_id) {
         imprint_history_id -> Uuid,
         imprint_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+use diesel::sql_types::*;
+    use crate::model::institution::Country_code;
+
+    institution (institution_id) {
+        institution_id -> Uuid,
+        institution_name -> Text,
+        institution_doi -> Nullable<Text>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+        ror -> Nullable<Text>,
+        country_code -> Nullable<Country_code>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    institution_history (institution_history_id) {
+        institution_history_id -> Uuid,
+        institution_id -> Uuid,
         account_id -> Uuid,
         data -> Jsonb,
         timestamp -> Timestamptz,
@@ -210,6 +238,34 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use crate::model::location::Location_platform;
+
+    location (location_id) {
+        location_id -> Uuid,
+        publication_id -> Uuid,
+        landing_page -> Nullable<Text>,
+        full_text_url -> Nullable<Text>,
+        location_platform -> Location_platform,
+        canonical -> Bool,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    location_history (location_history_id) {
+        location_history_id -> Uuid,
+        location_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use crate::model::price::Currency_code;
 
     price (price_id) {
@@ -243,7 +299,6 @@ table! {
         publication_type -> Publication_type,
         work_id -> Uuid,
         isbn -> Nullable<Text>,
-        publication_url -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
@@ -435,21 +490,25 @@ table! {
     }
 }
 
+joinable!(affiliation -> contribution (contribution_id));
+joinable!(affiliation -> institution (institution_id));
+joinable!(affiliation_history -> account (account_id));
+joinable!(affiliation_history -> affiliation (affiliation_id));
 joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
 joinable!(contribution_history -> account (account_id));
 joinable!(contribution_history -> contribution (contribution_id));
 joinable!(contributor_history -> account (account_id));
 joinable!(contributor_history -> contributor (contributor_id));
-joinable!(funder_history -> account (account_id));
-joinable!(funder_history -> funder (funder_id));
-joinable!(funding -> funder (funder_id));
+joinable!(funding -> institution (institution_id));
 joinable!(funding -> work (work_id));
 joinable!(funding_history -> account (account_id));
 joinable!(funding_history -> funding (funding_id));
 joinable!(imprint -> publisher (publisher_id));
 joinable!(imprint_history -> account (account_id));
 joinable!(imprint_history -> imprint (imprint_id));
+joinable!(institution_history -> account (account_id));
+joinable!(institution_history -> institution (institution_id));
 joinable!(issue -> series (series_id));
 joinable!(issue -> work (work_id));
 joinable!(issue_history -> account (account_id));
@@ -457,6 +516,9 @@ joinable!(issue_history -> issue (issue_id));
 joinable!(language -> work (work_id));
 joinable!(language_history -> account (account_id));
 joinable!(language_history -> language (language_id));
+joinable!(location -> publication (publication_id));
+joinable!(location_history -> account (account_id));
+joinable!(location_history -> location (location_id));
 joinable!(price -> publication (publication_id));
 joinable!(price_history -> account (account_id));
 joinable!(price_history -> price (price_id));
@@ -482,20 +544,24 @@ joinable!(work_relation_history -> work_relation (work_relation_id));
 
 allow_tables_to_appear_in_same_query!(
     account,
+    affiliation,
+    affiliation_history,
     contribution,
     contribution_history,
     contributor,
     contributor_history,
-    funder,
-    funder_history,
     funding,
     funding_history,
     imprint,
     imprint_history,
+    institution,
+    institution_history,
     issue,
     issue_history,
     language,
     language_history,
+    location,
+    location_history,
     price,
     price_history,
     publication,

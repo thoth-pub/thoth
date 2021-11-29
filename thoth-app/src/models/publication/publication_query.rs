@@ -10,13 +10,22 @@ pub const PUBLICATION_QUERY: &str = "
             publicationType
             workId
             isbn
-            publicationUrl
             updatedAt
             prices {
                 priceId
                 publicationId
                 currencyCode
                 unitPrice
+                createdAt
+                updatedAt
+            }
+            locations {
+                locationId
+                publicationId
+                landingPage
+                fullTextUrl
+                locationPlatform
+                canonical
                 createdAt
                 updatedAt
             }

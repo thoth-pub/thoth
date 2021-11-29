@@ -9,7 +9,7 @@
   "start_url": "/?homescreen=1",
   "background_color": "#ffffff",
   "theme_color": "#ffdd57",
-  "version": "0.4.7",
+  "version": "0.6.0",
   "icons": [
       {
         "src": "\/android-icon-36x36.png",

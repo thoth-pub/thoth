@@ -381,6 +381,7 @@ impl ToOption for String {
 }
 
 pub mod admin;
+pub mod affiliations_form;
 pub mod books;
 pub mod catalogue;
 pub mod chapters;
@@ -389,20 +390,21 @@ pub mod contributor;
 pub mod contributors;
 pub mod dashboard;
 pub mod delete_dialogue;
-pub mod funder;
-pub mod funders;
 pub mod fundings_form;
 pub mod hero;
 pub mod imprint;
 pub mod imprints;
+pub mod institution;
+pub mod institutions;
 pub mod issues_form;
 pub mod languages_form;
+pub mod locations_form;
 pub mod login;
 pub mod menu;
 pub mod navbar;
 pub mod new_contributor;
-pub mod new_funder;
 pub mod new_imprint;
+pub mod new_institution;
 pub mod new_publisher;
 pub mod new_series;
 pub mod new_work;

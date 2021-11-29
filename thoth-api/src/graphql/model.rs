@@ -7,13 +7,15 @@ use uuid::Uuid;
 use crate::account::model::AccountAccess;
 use crate::account::model::DecodedToken;
 use crate::db::PgPool;
+use crate::model::affiliation::*;
 use crate::model::contribution::*;
 use crate::model::contributor::*;
-use crate::model::funder::*;
 use crate::model::funding::*;
 use crate::model::imprint::*;
+use crate::model::institution::*;
 use crate::model::issue::*;
 use crate::model::language::*;
+use crate::model::location::*;
 use crate::model::price::*;
 use crate::model::publication::*;
 use crate::model::publisher::*;
@@ -27,6 +29,7 @@ use crate::model::Doi;
 use crate::model::Isbn;
 use crate::model::LengthUnit;
 use crate::model::Orcid;
+use crate::model::Ror;
 use crate::model::Timestamp;
 use thoth_errors::{ThothError, ThothResult};
 
@@ -69,6 +72,13 @@ pub struct IssueOrderBy {
 #[graphql(description = "Field and order to use when sorting languages list")]
 pub struct LanguageOrderBy {
     pub field: LanguageField,
+    pub direction: Direction,
+}
+
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(description = "Field and order to use when sorting locations list")]
+pub struct LocationOrderBy {
+    pub field: LocationField,
     pub direction: Direction,
 }
 
@@ -394,7 +404,7 @@ impl QueryRoot {
             offset(default = 0, description = "The number of items to skip"),
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url"
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn"
             ),
             order(
                 default = PublicationOrderBy::default(),
@@ -444,7 +454,7 @@ impl QueryRoot {
         arguments(
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url",
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn",
             ),
             publishers(
                 default = vec![],
@@ -939,6 +949,66 @@ impl QueryRoot {
     }
 
     #[graphql(
+        description = "Query the full list of locations",
+        arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    LocationOrderBy {
+                        field: LocationField::LocationPlatform,
+                        direction: Direction::Asc,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
+            location_platform(
+                default = vec![],
+                description = "Specific platforms to filter by"
+            ),
+        )
+    )]
+    fn locations(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: LocationOrderBy,
+        publishers: Vec<Uuid>,
+        location_platforms: Vec<LocationPlatform>,
+    ) -> FieldResult<Vec<Location>> {
+        Location::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            publishers,
+            None,
+            None,
+            location_platforms,
+            None,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Query a single location using its id")]
+    fn location(context: &Context, location_id: Uuid) -> FieldResult<Location> {
+        Location::from_id(&context.db, &location_id).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get the total number of locations associated to works")]
+    fn location_count(
+        context: &Context,
+        location_platforms: Vec<LocationPlatform>,
+    ) -> FieldResult<i32> {
+        Location::count(&context.db, None, vec![], location_platforms, None).map_err(|e| e.into())
+    }
+
+    #[graphql(
         description = "Query the full list of prices",
         arguments(
             limit(default = 100, description = "The number of items to return"),
@@ -1082,28 +1152,28 @@ impl QueryRoot {
     }
 
     #[graphql(
-        description = "Query the full list of funders",
+        description = "Query the full list of institutions",
         arguments(
             limit(default = 100, description = "The number of items to return"),
             offset(default = 0, description = "The number of items to skip"),
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on funderName and funderDoi",
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on institution_name, ror and institution_doi",
             ),
             order(
-                default = FunderOrderBy::default(),
+                default = InstitutionOrderBy::default(),
                 description = "The order in which to sort the results",
             ),
         )
     )]
-    fn funders(
+    fn institutions(
         context: &Context,
         limit: i32,
         offset: i32,
         filter: String,
-        order: FunderOrderBy,
-    ) -> FieldResult<Vec<Funder>> {
-        Funder::all(
+        order: InstitutionOrderBy,
+    ) -> FieldResult<Vec<Institution>> {
+        Institution::all(
             &context.db,
             limit,
             offset,
@@ -1118,22 +1188,22 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(description = "Query a single funder using its id")]
-    fn funder(context: &Context, funder_id: Uuid) -> FieldResult<Funder> {
-        Funder::from_id(&context.db, &funder_id).map_err(|e| e.into())
+    #[graphql(description = "Query a single institution using its id")]
+    fn institution(context: &Context, institution_id: Uuid) -> FieldResult<Institution> {
+        Institution::from_id(&context.db, &institution_id).map_err(|e| e.into())
     }
 
     #[graphql(
-        description = "Get the total number of funders",
+        description = "Get the total number of institutions",
         arguments(
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on funderName and funderDoi",
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on institution_name, ror and institution_doi",
             ),
         )
     )]
-    fn funder_count(context: &Context, filter: String) -> FieldResult<i32> {
-        Funder::count(&context.db, Some(filter), vec![], vec![], None).map_err(|e| e.into())
+    fn institution_count(context: &Context, filter: String) -> FieldResult<i32> {
+        Institution::count(&context.db, Some(filter), vec![], vec![], None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1187,6 +1257,58 @@ impl QueryRoot {
     fn funding_count(context: &Context) -> FieldResult<i32> {
         Funding::count(&context.db, None, vec![], vec![], None).map_err(|e| e.into())
     }
+
+    #[graphql(
+        description = "Query the full list of affiliations",
+        arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    AffiliationOrderBy {
+                        field: AffiliationField::AffiliationOrdinal,
+                        direction: Direction::Asc,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
+        )
+    )]
+    fn affiliations(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: AffiliationOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> FieldResult<Vec<Affiliation>> {
+        Affiliation::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            publishers,
+            None,
+            None,
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Query a single affiliation using its id")]
+    fn affiliation(context: &Context, affiliation_id: Uuid) -> FieldResult<Affiliation> {
+        Affiliation::from_id(&context.db, &affiliation_id).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get the total number of affiliations")]
+    fn affiliation_count(context: &Context) -> FieldResult<i32> {
+        Affiliation::count(&context.db, None, vec![], vec![], None).map_err(|e| e.into())
+    }
 }
 
 pub struct MutationRoot;
@@ -1239,6 +1361,10 @@ impl MutationRoot {
             .account_access
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
+        if !data.isbn.is_none() {
+            data.can_have_isbn(&context.db)?;
+        }
+
         Publication::create(&context.db, &data).map_err(|e| e.into())
     }
 
@@ -1271,9 +1397,9 @@ impl MutationRoot {
         Language::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_funder(context: &Context, data: NewFunder) -> FieldResult<Funder> {
+    fn create_institution(context: &Context, data: NewInstitution) -> FieldResult<Institution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        Funder::create(&context.db, &data).map_err(|e| e.into())
+        Institution::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_funding(context: &Context, data: NewFunding) -> FieldResult<Funding> {
@@ -1283,6 +1409,24 @@ impl MutationRoot {
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
         Funding::create(&context.db, &data).map_err(|e| e.into())
+    }
+
+    fn create_location(context: &Context, data: NewLocation) -> FieldResult<Location> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_publication_id(
+                &context.db,
+                data.publication_id,
+            )?)?;
+
+        if data.canonical {
+            data.canonical_record_complete(&context.db)?;
+        } else {
+            data.can_be_non_canonical(&context.db)?;
+        }
+
+        Location::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_price(context: &Context, data: NewPrice) -> FieldResult<Price> {
@@ -1308,6 +1452,18 @@ impl MutationRoot {
         Subject::create(&context.db, &data).map_err(|e| e.into())
     }
 
+    fn create_affiliation(context: &Context, data: NewAffiliation) -> FieldResult<Affiliation> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_contribution_id(
+                &context.db,
+                data.contribution_id,
+            )?)?;
+
+        Affiliation::create(&context.db, &data).map_err(|e| e.into())
+    }
+
     fn create_work_relation(context: &Context, data: NewWorkRelation) -> FieldResult<WorkRelation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context.account_access.can_edit(publisher_id_from_work_id(
@@ -1331,6 +1487,11 @@ impl MutationRoot {
                 .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
             work.can_update_imprint(&context.db)?;
         }
+
+        if data.work_type == WorkType::BookChapter {
+            work.can_be_chapter(&context.db)?;
+        }
+
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         work.update_with_units(&context.db, data, &account_id, units)
             .map_err(|e| e.into())
@@ -1408,6 +1569,11 @@ impl MutationRoot {
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
+
+        if !data.isbn.is_none() {
+            data.can_have_isbn(&context.db)?;
+        }
+
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         publication
             .update(&context.db, &data, &account_id)
@@ -1471,10 +1637,10 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_funder(context: &Context, data: PatchFunder) -> FieldResult<Funder> {
+    fn update_institution(context: &Context, data: PatchInstitution) -> FieldResult<Institution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        Funder::from_id(&context.db, &data.funder_id)
+        Institution::from_id(&context.db, &data.institution_id)
             .unwrap()
             .update(&context.db, &data, &account_id)
             .map_err(|e| e.into())
@@ -1495,6 +1661,39 @@ impl MutationRoot {
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         funding
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
+    fn update_location(context: &Context, data: PatchLocation) -> FieldResult<Location> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let location = Location::from_id(&context.db, &data.location_id).unwrap();
+        context
+            .account_access
+            .can_edit(location.publisher_id(&context.db)?)?;
+
+        if !(data.publication_id == location.publication_id) {
+            context
+                .account_access
+                .can_edit(publisher_id_from_publication_id(
+                    &context.db,
+                    data.publication_id,
+                )?)?;
+        }
+
+        if !(data.canonical == location.canonical) {
+            // Each publication must have exactly one canonical location.
+            // Updating an existing location would always violate this,
+            // as it should always result in either zero or two canonical locations.
+            return Err(ThothError::CanonicalLocationError.into());
+        }
+
+        if data.canonical {
+            data.canonical_record_complete(&context.db)?;
+        }
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        location
             .update(&context.db, &data, &account_id)
             .map_err(|e| e.into())
     }
@@ -1538,6 +1737,28 @@ impl MutationRoot {
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         subject
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
+    fn update_affiliation(context: &Context, data: PatchAffiliation) -> FieldResult<Affiliation> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let affiliation = Affiliation::from_id(&context.db, &data.affiliation_id).unwrap();
+        context
+            .account_access
+            .can_edit(affiliation.publisher_id(&context.db)?)?;
+
+        if !(data.contribution_id == affiliation.contribution_id) {
+            context
+                .account_access
+                .can_edit(publisher_id_from_contribution_id(
+                    &context.db,
+                    data.contribution_id,
+                )?)?;
+        }
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        affiliation
             .update(&context.db, &data, &account_id)
             .map_err(|e| e.into())
     }
@@ -1651,9 +1872,9 @@ impl MutationRoot {
         language.delete(&context.db).map_err(|e| e.into())
     }
 
-    fn delete_funder(context: &Context, funder_id: Uuid) -> FieldResult<Funder> {
+    fn delete_institution(context: &Context, institution_id: Uuid) -> FieldResult<Institution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        Funder::from_id(&context.db, &funder_id)
+        Institution::from_id(&context.db, &institution_id)
             .unwrap()
             .delete(&context.db)
             .map_err(|e| e.into())
@@ -1667,6 +1888,16 @@ impl MutationRoot {
             .can_edit(funding.publisher_id(&context.db)?)?;
 
         funding.delete(&context.db).map_err(|e| e.into())
+    }
+
+    fn delete_location(context: &Context, location_id: Uuid) -> FieldResult<Location> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let location = Location::from_id(&context.db, &location_id).unwrap();
+        context
+            .account_access
+            .can_edit(location.publisher_id(&context.db)?)?;
+
+        location.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_price(context: &Context, price_id: Uuid) -> FieldResult<Price> {
@@ -1687,6 +1918,16 @@ impl MutationRoot {
             .can_edit(subject.publisher_id(&context.db)?)?;
 
         subject.delete(&context.db).map_err(|e| e.into())
+    }
+
+    fn delete_affiliation(context: &Context, affiliation_id: Uuid) -> FieldResult<Affiliation> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let affiliation = Affiliation::from_id(&context.db, &affiliation_id).unwrap();
+        context
+            .account_access
+            .can_edit(affiliation.publisher_id(&context.db)?)?;
+
+        affiliation.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_work_relation(
@@ -1963,7 +2204,7 @@ impl Work {
             offset(default = 0, description = "The number of items to skip"),
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn and publication_url"
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn"
             ),
             order(
                 default = {
@@ -2184,10 +2425,6 @@ impl Publication {
         self.isbn.as_ref()
     }
 
-    pub fn publication_url(&self) -> Option<&String> {
-        self.publication_url.as_ref()
-    }
-
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
@@ -2234,6 +2471,46 @@ impl Publication {
             Some(self.publication_id),
             None,
             currency_codes,
+            None,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(
+        description = "Get locations linked to this publication",
+        arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    LocationOrderBy {
+                        field: LocationField::LocationPlatform,
+                        direction: Direction::Asc,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            location_platform(description = "A specific platform to filter by"),
+        )
+    )]
+    pub fn locations(
+        &self,
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: LocationOrderBy,
+        location_platforms: Vec<LocationPlatform>,
+    ) -> FieldResult<Vec<Location>> {
+        Location::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            vec![],
+            Some(self.publication_id),
+            None,
+            location_platforms,
             None,
         )
         .map_err(|e| e.into())
@@ -2504,10 +2781,6 @@ impl Contribution {
         self.biography.as_ref()
     }
 
-    pub fn institution(&self) -> Option<&String> {
-        self.institution.as_ref()
-    }
-
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
@@ -2538,6 +2811,44 @@ impl Contribution {
 
     pub fn contributor(&self, context: &Context) -> FieldResult<Contributor> {
         Contributor::from_id(&context.db, &self.contributor_id).map_err(|e| e.into())
+    }
+
+    #[graphql(
+        description = "Get affiliations linked to this contribution",
+        arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    AffiliationOrderBy {
+                        field: AffiliationField::AffiliationOrdinal,
+                        direction: Direction::Asc,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+        )
+    )]
+    pub fn affiliations(
+        &self,
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: AffiliationOrderBy,
+    ) -> FieldResult<Vec<Affiliation>> {
+        Affiliation::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            vec![],
+            None,
+            Some(self.contribution_id),
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
     }
 }
 
@@ -2692,6 +3003,45 @@ impl Language {
     }
 }
 
+#[juniper::object(Context = Context, description = "A location, such as a web shop or distribution platform, where a publication can be acquired or viewed.")]
+impl Location {
+    pub fn location_id(&self) -> Uuid {
+        self.location_id
+    }
+
+    pub fn publication_id(&self) -> Uuid {
+        self.publication_id
+    }
+
+    pub fn landing_page(&self) -> Option<&String> {
+        self.landing_page.as_ref()
+    }
+
+    pub fn full_text_url(&self) -> Option<&String> {
+        self.full_text_url.as_ref()
+    }
+
+    pub fn location_platform(&self) -> &LocationPlatform {
+        &self.location_platform
+    }
+
+    pub fn canonical(&self) -> bool {
+        self.canonical
+    }
+
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
+    }
+
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
+    }
+
+    pub fn publication(&self, context: &Context) -> FieldResult<Publication> {
+        Publication::from_id(&context.db, &self.publication_id).map_err(|e| e.into())
+    }
+}
+
 #[juniper::object(Context = Context, description = "The amount of money, in any currency, that a publication costs.")]
 impl Price {
     pub fn price_id(&self) -> Uuid {
@@ -2758,18 +3108,32 @@ impl Subject {
     }
 }
 
-#[juniper::object(Context = Context, description = "An organisation that provides the money to pay for the publication of a work.")]
-impl Funder {
-    pub fn funder_id(&self) -> &Uuid {
-        &self.funder_id
+#[juniper::object(Context = Context, description = "An organisation with which contributors may be affiliated or by which works may be funded.")]
+impl Institution {
+    pub fn institution_id(&self) -> &Uuid {
+        &self.institution_id
     }
 
-    pub fn funder_name(&self) -> &String {
-        &self.funder_name
+    pub fn institution_name(&self) -> &String {
+        &self.institution_name
     }
 
-    pub fn funder_doi(&self) -> Option<&Doi> {
-        self.funder_doi.as_ref()
+    #[graphql(
+        description = "Digital Object Identifier of the organisation as full URL. It must use the HTTPS scheme and the doi.org domain (e.g. https://doi.org/10.13039/100014013)"
+    )]
+    pub fn institution_doi(&self) -> Option<&Doi> {
+        self.institution_doi.as_ref()
+    }
+
+    pub fn country_code(&self) -> Option<&CountryCode> {
+        self.country_code.as_ref()
+    }
+
+    #[graphql(
+        description = "Research Organisation Registry identifier of the organisation as full URL. It must use the HTTPS scheme and the ror.org domain (e.g. https://ror.org/051z6e826)"
+    )]
+    pub fn ror(&self) -> Option<&Ror> {
+        self.ror.as_ref()
     }
 
     pub fn created_at(&self) -> Timestamp {
@@ -2781,7 +3145,7 @@ impl Funder {
     }
 
     #[graphql(
-        description = "Get fundings linked to this funder",
+        description = "Get fundings linked to this institution",
         arguments(
             limit(default = 100, description = "The number of items to return"),
             offset(default = 0, description = "The number of items to skip"),
@@ -2811,7 +3175,45 @@ impl Funder {
             order,
             vec![],
             None,
-            Some(self.funder_id),
+            Some(self.institution_id),
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(
+        description = "Get affiliations linked to this institution",
+        arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    AffiliationOrderBy {
+                        field: AffiliationField::AffiliationOrdinal,
+                        direction: Direction::Asc,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+        )
+    )]
+    pub fn affiliations(
+        &self,
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: AffiliationOrderBy,
+    ) -> FieldResult<Vec<Affiliation>> {
+        Affiliation::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            vec![],
+            Some(self.institution_id),
+            None,
             vec![],
             None,
         )
@@ -2819,7 +3221,7 @@ impl Funder {
     }
 }
 
-#[juniper::object(Context = Context, description = "A grant awarded to the publication of a work by a funder.")]
+#[juniper::object(Context = Context, description = "A grant awarded to the publication of a work by an institution.")]
 impl Funding {
     pub fn funding_id(&self) -> &Uuid {
         &self.funding_id
@@ -2829,8 +3231,8 @@ impl Funding {
         &self.work_id
     }
 
-    pub fn funder_id(&self) -> &Uuid {
-        &self.funder_id
+    pub fn institution_id(&self) -> &Uuid {
+        &self.institution_id
     }
 
     pub fn program(&self) -> Option<&String> {
@@ -2865,8 +3267,47 @@ impl Funding {
         Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
 
-    pub fn funder(&self, context: &Context) -> FieldResult<Funder> {
-        Funder::from_id(&context.db, &self.funder_id).map_err(|e| e.into())
+    pub fn institution(&self, context: &Context) -> FieldResult<Institution> {
+        Institution::from_id(&context.db, &self.institution_id).map_err(|e| e.into())
+    }
+}
+
+#[juniper::object(Context = Context, description = "An association between a person and an institution for a specific contribution.")]
+impl Affiliation {
+    pub fn affiliation_id(&self) -> Uuid {
+        self.affiliation_id
+    }
+
+    pub fn contribution_id(&self) -> Uuid {
+        self.contribution_id
+    }
+
+    pub fn institution_id(&self) -> Uuid {
+        self.institution_id
+    }
+
+    pub fn affiliation_ordinal(&self) -> &i32 {
+        &self.affiliation_ordinal
+    }
+
+    pub fn position(&self) -> Option<&String> {
+        self.position.as_ref()
+    }
+
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
+    }
+
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
+    }
+
+    pub fn institution(&self, context: &Context) -> FieldResult<Institution> {
+        Institution::from_id(&context.db, &self.institution_id).map_err(|e| e.into())
+    }
+
+    pub fn contribution(&self, context: &Context) -> FieldResult<Contribution> {
+        Contribution::from_id(&context.db, &self.contribution_id).map_err(|e| e.into())
     }
 }
 
@@ -2924,4 +3365,11 @@ fn publisher_id_from_publication_id(
     publication_id: Uuid,
 ) -> ThothResult<Uuid> {
     Publication::from_id(db, &publication_id)?.publisher_id(db)
+}
+
+fn publisher_id_from_contribution_id(
+    db: &crate::db::PgPool,
+    contribution_id: Uuid,
+) -> ThothResult<Uuid> {
+    Contribution::from_id(db, &contribution_id)?.publisher_id(db)
 }

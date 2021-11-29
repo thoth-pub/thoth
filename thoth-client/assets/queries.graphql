@@ -56,10 +56,16 @@ fragment Work on Work {
         fullName
         mainContribution
         biography
-        institution
         contributionOrdinal
         contributor {
             orcid
+        }
+        affiliations {
+            position
+            affiliationOrdinal
+            institution {
+                institutionName
+            }
         }
     }
     languages {
@@ -70,11 +76,16 @@ fragment Work on Work {
     publications {
         publicationId
         publicationType
-        publicationUrl
         isbn
         prices {
             currencyCode
             unitPrice
+        }
+        locations {
+            landingPage
+            fullTextUrl
+            locationPlatform
+            canonical
         }
     }
     subjects {
@@ -88,9 +99,11 @@ fragment Work on Work {
         projectShortname
         grantNumber
         jurisdiction
-        funder {
-            funderName
-            funderDoi
+        institution {
+            institutionName
+            institutionDoi
+            ror
+            countryCode
         }
     }
 }

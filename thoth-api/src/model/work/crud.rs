@@ -58,6 +58,27 @@ impl Work {
         }
     }
 
+    pub fn can_be_chapter(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        use crate::schema::publication::dsl;
+        let connection = db.get().unwrap();
+        let isbn_count = dsl::publication
+            .filter(dsl::work_id.eq(self.work_id))
+            .filter(dsl::isbn.is_not_null())
+            .count()
+            .get_result::<i64>(&connection)
+            .expect("Error loading publication ISBNs for work")
+            .to_string()
+            .parse::<i32>()
+            .unwrap();
+        // If a work has any publications with ISBNs,
+        // its type cannot be changed to Book Chapter.
+        if isbn_count == 0 {
+            Ok(())
+        } else {
+            Err(ThothError::ChapterIsbnError)
+        }
+    }
+
     pub fn update_with_units(
         &self,
         db: &crate::db::PgPool,

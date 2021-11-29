@@ -132,10 +132,10 @@ impl Component for MenuComponent {
                     </li>
                     <li>
                         <RouterAnchor<AppRoute>
-                            classes={self.is_active(AdminRoute::Funders)}
-                            route=AppRoute::Admin(AdminRoute::Funders)
+                            classes={self.is_active(AdminRoute::Institutions)}
+                            route=AppRoute::Admin(AdminRoute::Institutions)
                         >
-                            {"Funders"}
+                            {"Institutions"}
                         </  RouterAnchor<AppRoute>>
                     </li>
                 </ul>

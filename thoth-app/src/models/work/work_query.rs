@@ -71,7 +71,6 @@ pub const WORK_QUERY: &str = "
                 contributionType
                 mainContribution
                 biography
-                institution
                 createdAt
                 updatedAt
                 lastName
@@ -83,7 +82,6 @@ pub const WORK_QUERY: &str = "
                 publicationType
                 workId
                 isbn
-                publicationUrl
                 createdAt
                 updatedAt
             }
@@ -99,15 +97,15 @@ pub const WORK_QUERY: &str = "
             fundings {
                 fundingId
                 workId
-                funderId
+                institutionId
                 program
                 projectName
                 projectShortname
                 grantNumber
                 jurisdiction
-                funder {
-                    funderId
-                    funderName
+                institution {
+                    institutionId
+                    institutionName
                     createdAt
                     updatedAt
                 }

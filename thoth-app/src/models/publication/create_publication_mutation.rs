@@ -10,19 +10,16 @@ const CREATE_PUBLICATION_MUTATION: &str = "
         $publicationType: PublicationType!,
         $workId: Uuid!,
         $isbn: Isbn,
-        $publicationUrl: String,
     ) {
         createPublication(data: {
             publicationType: $publicationType
             workId: $workId
             isbn: $isbn
-            publicationUrl: $publicationUrl
         }){
             publicationId
             publicationType
             workId
             isbn
-            publicationUrl
             createdAt
             updatedAt
         }
@@ -46,7 +43,6 @@ pub struct Variables {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
-    pub publication_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
