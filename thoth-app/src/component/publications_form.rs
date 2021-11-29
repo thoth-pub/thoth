@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use thoth_api::model::publication::Publication;
 use thoth_api::model::publication::PublicationType;
+use thoth_api::model::work::WorkType;
 use thoth_api::model::Isbn;
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -22,7 +23,6 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormPublicationTypeSelect;
 use crate::component::utils::FormTextInputExtended;
-use crate::component::utils::FormUrlInput;
 use crate::models::publication::create_publication_mutation::CreatePublicationRequest;
 use crate::models::publication::create_publication_mutation::CreatePublicationRequestBody;
 use crate::models::publication::create_publication_mutation::PushActionCreatePublication;
@@ -42,8 +42,6 @@ use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_PUBLICATIONS;
 use crate::string::REMOVE_BUTTON;
 use crate::string::VIEW_BUTTON;
-
-use super::ToOption;
 
 pub struct PublicationsFormComponent {
     props: Props,
@@ -76,7 +74,6 @@ pub enum Msg {
     DeletePublication(Uuid),
     ChangePublicationType(PublicationType),
     ChangeIsbn(String),
-    ChangeUrl(String),
     ChangeRoute(AppRoute),
 }
 
@@ -84,6 +81,7 @@ pub enum Msg {
 pub struct Props {
     pub publications: Option<Vec<Publication>>,
     pub work_id: Uuid,
+    pub work_type: WorkType,
     pub update_publications: Callback<Option<Vec<Publication>>>,
 }
 
@@ -199,7 +197,6 @@ impl Component for PublicationsFormComponent {
                         work_id: self.props.work_id,
                         publication_type: self.new_publication.publication_type.clone(),
                         isbn: self.new_publication.isbn.clone(),
-                        publication_url: self.new_publication.publication_url.clone(),
                     },
                     ..Default::default()
                 };
@@ -285,10 +282,6 @@ impl Component for PublicationsFormComponent {
                     false
                 }
             }
-            Msg::ChangeUrl(value) => self
-                .new_publication
-                .publication_url
-                .neq_assign(value.to_opt_string()),
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
@@ -311,6 +304,8 @@ impl Component for PublicationsFormComponent {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(false)
         });
+        // ISBNs cannot be added for publications whose work type is Book Chapter.
+        let isbn_deactivated = self.props.work_type == WorkType::BookChapter;
         html! {
             <nav class="panel">
                 <p class="panel-heading">
@@ -361,11 +356,7 @@ impl Component for PublicationsFormComponent {
                                     value=self.isbn.clone()
                                     tooltip=self.isbn_warning.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeIsbn(e.value))
-                                />
-                                <FormUrlInput
-                                    label = "URL"
-                                    value=self.new_publication.publication_url.clone().unwrap_or_else(|| "".to_string()).clone()
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeUrl(e.value))
+                                    deactivated=isbn_deactivated
                                 />
                             </form>
                         </section>
@@ -430,13 +421,6 @@ impl PublicationsFormComponent {
                         <label class="label">{ "ISBN" }</label>
                         <div class="control is-expanded">
                             {&p.isbn.as_ref().map(|s| s.to_string()).unwrap_or_else(|| "".to_string())}
-                        </div>
-                    </div>
-
-                    <div class="field" style="width: 8em;">
-                        <label class="label">{ "URL" }</label>
-                        <div class="control is-expanded">
-                            {&p.publication_url.clone().unwrap_or_else(|| "".to_string())}
                         </div>
                     </div>
 

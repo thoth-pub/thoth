@@ -76,11 +76,16 @@ fragment Work on Work {
     publications {
         publicationId
         publicationType
-        publicationUrl
         isbn
         prices {
             currencyCode
             unitPrice
+        }
+        locations {
+            landingPage
+            fullTextUrl
+            locationPlatform
+            canonical
         }
     }
     subjects {

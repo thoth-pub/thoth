@@ -845,6 +845,7 @@ pub mod imprint;
 pub mod institution;
 pub mod issue;
 pub mod language;
+pub mod location;
 pub mod price;
 pub mod publication;
 pub mod publisher;

@@ -4,6 +4,7 @@ use strum::EnumString;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
+use crate::model::location::Location;
 use crate::model::price::Price;
 use crate::model::work::WorkWithRelations;
 use crate::model::Isbn;
@@ -53,8 +54,6 @@ pub enum PublicationField {
     WorkId,
     #[strum(serialize = "ISBN")]
     Isbn,
-    #[strum(serialize = "URL")]
-    PublicationUrl,
     CreatedAt,
     UpdatedAt,
 }
@@ -67,7 +66,6 @@ pub struct Publication {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
-    pub publication_url: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
 }
@@ -79,9 +77,9 @@ pub struct PublicationWithRelations {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
-    pub publication_url: Option<String>,
     pub updated_at: Timestamp,
     pub prices: Option<Vec<Price>>,
+    pub locations: Option<Vec<Location>>,
     pub work: WorkWithRelations,
 }
 
@@ -94,7 +92,6 @@ pub struct NewPublication {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
-    pub publication_url: Option<String>,
 }
 
 #[cfg_attr(
@@ -108,7 +105,6 @@ pub struct PatchPublication {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
-    pub publication_url: Option<String>,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -183,7 +179,6 @@ fn test_publicationfield_display() {
     assert_eq!(format!("{}", PublicationField::PublicationType), "Type");
     assert_eq!(format!("{}", PublicationField::WorkId), "WorkID");
     assert_eq!(format!("{}", PublicationField::Isbn), "ISBN");
-    assert_eq!(format!("{}", PublicationField::PublicationUrl), "URL");
     assert_eq!(format!("{}", PublicationField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", PublicationField::UpdatedAt), "UpdatedAt");
 }
@@ -242,10 +237,6 @@ fn test_publicationfield_fromstr() {
     assert_eq!(
         PublicationField::from_str("ISBN").unwrap(),
         PublicationField::Isbn
-    );
-    assert_eq!(
-        PublicationField::from_str("URL").unwrap(),
-        PublicationField::PublicationUrl
     );
     assert_eq!(
         PublicationField::from_str("CreatedAt").unwrap(),

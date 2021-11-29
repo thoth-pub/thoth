@@ -238,6 +238,34 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use crate::model::location::Location_platform;
+
+    location (location_id) {
+        location_id -> Uuid,
+        publication_id -> Uuid,
+        landing_page -> Nullable<Text>,
+        full_text_url -> Nullable<Text>,
+        location_platform -> Location_platform,
+        canonical -> Bool,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    location_history (location_history_id) {
+        location_history_id -> Uuid,
+        location_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use crate::model::price::Currency_code;
 
     price (price_id) {
@@ -271,7 +299,6 @@ table! {
         publication_type -> Publication_type,
         work_id -> Uuid,
         isbn -> Nullable<Text>,
-        publication_url -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
@@ -462,6 +489,9 @@ joinable!(issue_history -> issue (issue_id));
 joinable!(language -> work (work_id));
 joinable!(language_history -> account (account_id));
 joinable!(language_history -> language (language_id));
+joinable!(location -> publication (publication_id));
+joinable!(location_history -> account (account_id));
+joinable!(location_history -> location (location_id));
 joinable!(price -> publication (publication_id));
 joinable!(price_history -> account (account_id));
 joinable!(price_history -> price (price_id));
@@ -500,6 +530,8 @@ allow_tables_to_appear_in_same_query!(
     issue_history,
     language,
     language_history,
+    location,
+    location_history,
     price,
     price_history,
     publication,

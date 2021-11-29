@@ -60,6 +60,14 @@ pub enum ThothError {
     IsbnEmptyError,
     #[fail(display = "Cannot parse ROR ID: no value provided")]
     RorEmptyError,
+    #[fail(display = "Works of type Book Chapter cannot have ISBNs in their Publications.")]
+    ChapterIsbnError,
+    #[fail(display = "Each Publication must have exactly one canonical Location.")]
+    CanonicalLocationError,
+    #[fail(
+        display = "Canonical Locations for digital Publications must have both a Landing Page and a Full Text URL."
+    )]
+    LocationUrlError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
