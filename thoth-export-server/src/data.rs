@@ -11,13 +11,19 @@ lazy_static! {
             id: "onix_3.0::project_muse",
             name: "Project MUSE ONIX 3.0",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_3.0"),
-            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/project_muse"),],
+            accepted_by: vec![
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/project_muse"),
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/jstor"),
+            ],
         },
         Specification {
             id: "onix_3.0::oapen",
             name: "OAPEN ONIX 3.0",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_3.0"),
-            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/oapen"),],
+            accepted_by: vec![
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/oapen"),
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/doab"),
+            ],
         },
         Specification {
             id: "onix_3.0::jstor",
@@ -76,12 +82,23 @@ lazy_static! {
             ),],
         },
         Platform {
-            id: "jstor",
-            name: "JSTOR",
+            id: "doab",
+            name: "DOAB",
             accepts: vec![concat!(
                 env!("THOTH_EXPORT_API"),
-                "/specifications/onix_3.0::jstor"
+                "/specifications/onix_3.0::oapen"
             ),],
+        },
+        Platform {
+            id: "jstor",
+            name: "JSTOR",
+            accepts: vec![
+                concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.0::jstor"),
+                concat!(
+                    env!("THOTH_EXPORT_API"),
+                    "/specifications/onix_3.0::project_muse"
+                ),
+            ],
         },
         Platform {
             id: "ebsco_host",
@@ -143,6 +160,7 @@ lazy_static! {
                     "/specifications/onix_3.0::project_muse"
                 ),
                 concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.0::oapen"),
+                concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.0::jstor"),
             ],
         },
         Format {
@@ -242,6 +260,22 @@ mod tests {
         for s in ALL_SPECIFICATIONS.iter() {
             let format_id = format_id_from_url(s.format);
             assert!(s.id.starts_with(&format_id));
+        }
+    }
+
+    #[test]
+    fn test_all_specifications_listed_in_formats() {
+        for s in ALL_SPECIFICATIONS.iter() {
+            let specification_id = s.id;
+            let format_id = format_id_from_url(s.format);
+            let format = find_format(format_id).unwrap();
+            assert!(format
+                .specifications
+                .iter()
+                .find(|specification| specification_id_from_url(specification) == specification_id)
+                .cloned()
+                .ok_or(ThothError::EntityNotFound)
+                .is_ok())
         }
     }
 

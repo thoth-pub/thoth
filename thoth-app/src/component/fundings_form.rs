@@ -35,6 +35,8 @@ use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_FUNDINGS;
 use crate::string::REMOVE_BUTTON;
 
+use super::ToOption;
+
 pub struct FundingsFormComponent {
     props: Props,
     data: FundingsFormData,
@@ -69,7 +71,6 @@ pub enum Msg {
     ChangeProjectShortname(String),
     ChangeGrant(String),
     ChangeJurisdiction(String),
-    DoNothing,
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -259,42 +260,23 @@ impl Component for FundingsFormComponent {
                 self.link.send_message(Msg::GetFunders);
                 false
             }
-            Msg::ChangeProgram(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_funding.program.neq_assign(value)
-            }
-            Msg::ChangeProjectName(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_funding.project_name.neq_assign(value)
-            }
-            Msg::ChangeProjectShortname(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_funding.project_shortname.neq_assign(value)
-            }
-            Msg::ChangeGrant(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_funding.grant_number.neq_assign(value)
-            }
-            Msg::ChangeJurisdiction(val) => {
-                let value = match val.is_empty() {
-                    true => None,
-                    false => Some(val),
-                };
-                self.new_funding.jurisdiction.neq_assign(value)
-            }
-            Msg::DoNothing => false, // callbacks need to return a message
+            Msg::ChangeProgram(val) => self.new_funding.program.neq_assign(val.to_opt_string()),
+            Msg::ChangeProjectName(val) => self
+                .new_funding
+                .project_name
+                .neq_assign(val.to_opt_string()),
+            Msg::ChangeProjectShortname(val) => self
+                .new_funding
+                .project_shortname
+                .neq_assign(val.to_opt_string()),
+            Msg::ChangeGrant(val) => self
+                .new_funding
+                .grant_number
+                .neq_assign(val.to_opt_string()),
+            Msg::ChangeJurisdiction(val) => self
+                .new_funding
+                .jurisdiction
+                .neq_assign(val.to_opt_string()),
         }
     }
 
@@ -362,9 +344,9 @@ impl Component for FundingsFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="fundings-form" onsubmit=self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
-                                Msg::DoNothing
+                                Msg::CreateFunding
                             })
                             >
                                 <div class="field">
@@ -404,10 +386,8 @@ impl Component for FundingsFormComponent {
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick=self.link.callback(|e: MouseEvent| {
-                                    e.prevent_default();
-                                    Msg::CreateFunding
-                                })
+                                type="submit"
+                                form="fundings-form"
                             >
                                 { "Add Funding" }
                             </button>

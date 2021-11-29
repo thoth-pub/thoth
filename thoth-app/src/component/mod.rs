@@ -349,6 +349,37 @@ macro_rules! pagination_component {
     };
 }
 
+pub trait ToOption {
+    fn to_opt_string(self) -> Option<String>;
+    fn to_opt_float(self) -> Option<f64>;
+    fn to_opt_int(self) -> Option<i32>;
+}
+
+impl ToOption for String {
+    fn to_opt_string(self) -> Option<String> {
+        match self.trim().is_empty() {
+            true => None,
+            false => Some(self.trim().to_owned()),
+        }
+    }
+
+    fn to_opt_float(self) -> Option<f64> {
+        let value = self.parse().unwrap_or(0.0);
+        match value == 0.0 {
+            true => None,
+            false => Some(value),
+        }
+    }
+
+    fn to_opt_int(self) -> Option<i32> {
+        let value = self.parse().unwrap_or(0);
+        match value == 0 {
+            true => None,
+            false => Some(value),
+        }
+    }
+}
+
 pub mod admin;
 pub mod catalogue;
 pub mod contributions_form;
@@ -364,6 +395,7 @@ pub mod imprint;
 pub mod imprints;
 pub mod issues_form;
 pub mod languages_form;
+pub mod locations_form;
 pub mod login;
 pub mod menu;
 pub mod navbar;

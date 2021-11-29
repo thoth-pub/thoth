@@ -67,7 +67,6 @@ pub enum Msg {
     ToggleSearchResultDisplay(bool),
     SearchSeries(String),
     ChangeOrdinal(String),
-    DoNothing,
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -271,7 +270,6 @@ impl Component for IssuesFormComponent {
                 self.new_issue.issue_ordinal.neq_assign(ordinal);
                 false // otherwise we re-render the component and reset the value
             }
-            Msg::DoNothing => false, // callbacks need to return a message
         }
     }
 
@@ -325,15 +323,14 @@ impl Component for IssuesFormComponent {
                                     for self.data.serieses.iter().map(|s| {
                                         let series = s.clone();
                                         // avoid listing series already present in issues list
-                                        if let Some(_index) = self.props.issues
+                                        if self.props.issues
                                             .as_ref()
                                             .unwrap()
                                             .iter()
-                                            .position(|ser| ser.series_id == series.series_id)
+                                            .any(|ser| ser.series_id == series.series_id)
+                                            // avoid listing series whose imprint doesn't match work
+                                            || series.imprint.imprint_id != self.props.imprint_id
                                         {
-                                            html! {}
-                                        // avoid listing series whose imprint doesn't match work
-                                        } else if series.imprint.imprint_id != self.props.imprint_id {
                                             html! {}
                                         } else {
                                             s.as_dropdown_item(
@@ -360,9 +357,9 @@ impl Component for IssuesFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="issues-form" onsubmit=self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
-                                Msg::DoNothing
+                                Msg::CreateIssue
                             })
                             >
                                 <div class="field">
@@ -375,16 +372,16 @@ impl Component for IssuesFormComponent {
                                     label="Issue Ordinal"
                                     value=self.new_issue.issue_ordinal
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
+                                    required = true
+                                    min = "1".to_string()
                                 />
                             </form>
                         </section>
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick=self.link.callback(|e: MouseEvent| {
-                                    e.prevent_default();
-                                    Msg::CreateIssue
-                                })
+                                type="submit"
+                                form="issues-form"
                             >
                                 { "Add Issue" }
                             </button>

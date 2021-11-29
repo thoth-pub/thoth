@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::io::Write;
 use thoth_client::{
     SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages,
-    WorkPublications, WorkPublicationsPrices, WorkSubjects,
+    WorkPublications, WorkPublicationsLocations, WorkPublicationsPrices, WorkSubjects,
 };
 use thoth_errors::ThothResult;
 
@@ -56,7 +56,9 @@ struct CsvThothRow {
         rename = "contributions [(type, first_name, last_name, full_name, institution, orcid)]"
     )]
     contributions: String,
-    #[serde(rename = "publications [(type, isbn, url, [(ISO_4217_currency, price)])]")]
+    #[serde(
+        rename = "publications [(type, isbn, [(ISO_4217_currency, price)], [(landing_page, full_text, platform, is_canonical)])]"
+    )]
     publications: String,
     #[serde(rename = "series [(type, name, issn_print, issn_digital, url, issue)]")]
     series: String,
@@ -226,14 +228,11 @@ impl CsvCell<CsvThoth> for Vec<String> {
 impl CsvCell<CsvThoth> for WorkPublications {
     fn csv_cell(&self) -> String {
         format!(
-            "(\"{:?}\", \"{}\", \"{}\", {})",
+            "(\"{:?}\", \"{}\", {}, {})",
             self.publication_type,
             self.isbn
                 .as_ref()
                 .map(|i| i.to_string())
-                .unwrap_or_else(|| "".to_string()),
-            self.publication_url
-                .clone()
                 .unwrap_or_else(|| "".to_string()),
             CsvCell::<CsvThoth>::csv_cell(
                 &self
@@ -241,7 +240,14 @@ impl CsvCell<CsvThoth> for WorkPublications {
                     .iter()
                     .map(|p| CsvCell::<CsvThoth>::csv_cell(p))
                     .collect::<Vec<String>>(),
-            )
+            ),
+            CsvCell::<CsvThoth>::csv_cell(
+                &self
+                    .locations
+                    .iter()
+                    .map(|l| CsvCell::<CsvThoth>::csv_cell(l))
+                    .collect::<Vec<String>>(),
+            ),
         )
     }
 }
@@ -267,6 +273,18 @@ impl CsvCell<CsvThoth> for WorkContributions {
 impl CsvCell<CsvThoth> for WorkPublicationsPrices {
     fn csv_cell(&self) -> String {
         format!("(\"{:?}\", \"{}\")", self.currency_code, self.unit_price,)
+    }
+}
+
+impl CsvCell<CsvThoth> for WorkPublicationsLocations {
+    fn csv_cell(&self) -> String {
+        format!(
+            "(\"{}\", \"{}\", \"{:?}\", \"{}\")",
+            self.landing_page.clone().unwrap_or_else(|| "".to_string()),
+            self.full_text_url.clone().unwrap_or_else(|| "".to_string()),
+            self.location_platform,
+            self.canonical,
+        )
     }
 }
 
@@ -331,8 +349,10 @@ mod tests {
     use thoth_api::model::Isbn;
     use thoth_api::model::Orcid;
     use thoth_client::{
-        ContributionType, CurrencyCode, LanguageCode, LanguageRelation, PublicationType,
-        WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkStatus, WorkType,
+        ContributionType, CurrencyCode, LanguageCode, LanguageRelation, LocationPlatform,
+        PublicationType, SeriesType, WorkContributionsContributor, WorkFundingsFunder, WorkImprint,
+        WorkImprintPublisher, WorkIssuesSeries, WorkPublicationsLocations, WorkPublicationsPrices,
+        WorkStatus, WorkType,
     };
     use uuid::Uuid;
 
@@ -346,12 +366,12 @@ mod tests {
             work_type: WorkType::MONOGRAPH,
             edition: 1,
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
-            publication_date: None,
+            publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
             license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: "Author 1; Author 2".to_string(),
             short_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.".to_string()),
             long_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string()),
-            general_note: None,
+            general_note: Some("This is a general note".to_string()),
             place: Some("León, Spain".to_string()),
             width_mm: Some(156.0),
             width_cm: Some(15.6),
@@ -362,15 +382,15 @@ mod tests {
             page_count: Some(334),
             page_breakdown: Some("x+334".to_string()),
             image_count: Some(15),
-            table_count: None,
-            audio_count: None,
-            video_count: None,
+            table_count: Some(20),
+            audio_count: Some(25),
+            video_count: Some(30),
             landing_page: Some("https://www.book.com".to_string()),
-            toc: None,
-            lccn: None,
-            oclc: None,
+            toc: Some("1. Chapter 1".to_string()),
+            lccn: Some("123456789".to_string()),
+            oclc: Some("987654321".to_string()),
             cover_url: Some("https://www.book.com/cover".to_string()),
-            cover_caption: None,
+            cover_caption: Some("This is a cover caption".to_string()),
             imprint: WorkImprint {
                 imprint_name: "OA Editions Imprint".to_string(),
                 publisher: WorkImprintPublisher {
@@ -378,7 +398,16 @@ mod tests {
                     publisher_url: None,
                 },
             },
-            issues: vec![],
+            issues: vec![WorkIssues {
+                issue_ordinal: 1,
+                series: WorkIssuesSeries {
+                    series_type: SeriesType::JOURNAL,
+                    series_name: "Name of series".to_string(),
+                    issn_print: "1234-5678".to_string(),
+                    issn_digital: "8765-4321".to_string(),
+                    series_url: Some("https://www.series.com".to_string()),
+                },
+            }],
             contributions: vec![
                 WorkContributions {
                     contribution_type: ContributionType::AUTHOR,
@@ -418,7 +447,6 @@ mod tests {
                 WorkPublications {
                     publication_id: Uuid::from_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     publication_type: PublicationType::PAPERBACK,
-                    publication_url: Some("https://www.book.com/paperback".to_string()),
                     isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
                     prices: vec![
                         WorkPublicationsPrices {
@@ -434,11 +462,24 @@ mod tests {
                             unit_price: 31.95,
                         },
                     ],
+                    locations: vec![
+                        WorkPublicationsLocations {
+                            landing_page: Some("https://www.book.com/paperback".to_string()),
+                            full_text_url: None,
+                            location_platform: LocationPlatform::OTHER,
+                            canonical: true,
+                        },
+                        WorkPublicationsLocations {
+                            landing_page: Some("https://www.jstor.com/paperback".to_string()),
+                            full_text_url: None,
+                            location_platform: LocationPlatform::JSTOR,
+                            canonical: false,
+                        },
+                    ],
                 },
                 WorkPublications {
                     publication_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000003").unwrap(),
                     publication_type: PublicationType::HARDBACK,
-                    publication_url: Some("https://www.book.com/hardback".to_string()),
                     isbn: Some(Isbn::from_str("978-1-4028-9462-6").unwrap()),
                     prices: vec![
                         WorkPublicationsPrices {
@@ -454,27 +495,38 @@ mod tests {
                             unit_price: 40.95,
                         },
                     ],
+                    locations: vec![],
                 },
                 WorkPublications {
                     publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
                     publication_type: PublicationType::PDF,
-                    publication_url: Some("https://www.book.com/pdf".to_string()),
                     isbn: Some(Isbn::from_str("978-1-56619-909-4").unwrap()),
                     prices: vec![],
+                    locations: vec![WorkPublicationsLocations {
+                        landing_page: Some("https://www.book.com/pdf_landing".to_string()),
+                        full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
+                        location_platform: LocationPlatform::OTHER,
+                        canonical: true,
+                    }],
                 },
                 WorkPublications {
                     publication_id: Uuid::from_str("00000000-0000-0000-EEEE-000000000005").unwrap(),
                     publication_type: PublicationType::HTML,
-                    publication_url: Some("https://www.book.com/html".to_string()),
                     isbn: None,
                     prices: vec![],
+                    locations: vec![WorkPublicationsLocations {
+                        landing_page: Some("https://www.book.com/html_landing".to_string()),
+                        full_text_url: Some("https://www.book.com/html_fulltext".to_string()),
+                        location_platform: LocationPlatform::OTHER,
+                        canonical: true,
+                    }],
                 },
                 WorkPublications {
                     publication_id: Uuid::from_str("00000000-0000-0000-FFFF-000000000006").unwrap(),
                     publication_type: PublicationType::XML,
-                    publication_url: Some("https://www.book.com/xml".to_string()),
                     isbn: Some(Isbn::from_str("978-92-95055-02-5").unwrap()),
                     prices: vec![],
+                    locations: vec![],
                 },
             ],
             subjects: vec![
@@ -513,13 +565,33 @@ mod tests {
                     subject_type: SubjectType::KEYWORD,
                     subject_ordinal: 1,
                 },
+                WorkSubjects {
+                    subject_code: "JA85".to_string(),
+                    subject_type: SubjectType::LCC,
+                    subject_ordinal: 1,
+                },
+                WorkSubjects {
+                    subject_code: "JWA".to_string(),
+                    subject_type: SubjectType::THEMA,
+                    subject_ordinal: 1,
+                },
             ],
-            fundings: vec![],
+            fundings: vec![WorkFundings {
+                program: Some("Name of program".to_string()),
+                project_name: Some("Name of project".to_string()),
+                project_shortname: None,
+                grant_number: Some("Number of grant".to_string()),
+                jurisdiction: Some("Funding jurisdiction".to_string()),
+                funder: WorkFundingsFunder {
+                    funder_name: "Name of funder".to_string(),
+                    funder_doi: Some(Doi::from_str("https://doi.org/10.00001/FUNDER.0001").unwrap()),
+                },
+            }],
         };
     }
 
-    const TEST_RESULT: &str = r#""publisher","imprint","work_type","work_status","title","subtitle","edition","doi","publication_date","publication_place","license","copyright_holder","landing_page","width (mm)","width (cm)","width (in)","height (mm)","height (cm)","height (in)","page_count","page_breakdown","image_count","table_count","audio_count","video_count","lccn","oclc","short_abstract","long_abstract","general_note","toc","cover_url","cover_caption","contributions [(type, first_name, last_name, full_name, institution, orcid)]","publications [(type, isbn, url, [(ISO_4217_currency, price)])]","series [(type, name, issn_print, issn_digital, url, issue)]","languages [(relation, ISO_639-3/B_language, is_main)]","BIC [code]","THEMA [code]","BISAC [code]","LCC [code]","custom_categories [category]","keywords [keyword]","funding [(funder, funder_doi, program, project, grant, jurisdiction)]"
-"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","10.00001/BOOK.0001","","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","156.0","15.6","6.14","234.0","23.4","9.21","334","x+334","15","","","","","","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","","","https://www.book.com/cover","","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", """", ""0000-0002-0000-0001""),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", """", """")]","[(""PAPERBACK"", ""978-3-16-148410-0"", ""https://www.book.com/paperback"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")]),(""HARDBACK"", ""978-1-4028-9462-6"", ""https://www.book.com/hardback"", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")]),(""PDF"", ""978-1-56619-909-4"", ""https://www.book.com/pdf"", ),(""HTML"", """", ""https://www.book.com/html"", ),(""XML"", ""978-92-95055-02-5"", ""https://www.book.com/xml"", )]","","[(""ORIGINAL"", ""SPA"", ""true"")]","[""AAA"",""AAB""]","","[""AAA000000"",""AAA000001""]","","[""Category1""]","[""keyword1"",""keyword2""]",""
+    const TEST_RESULT: &str = r#""publisher","imprint","work_type","work_status","title","subtitle","edition","doi","publication_date","publication_place","license","copyright_holder","landing_page","width (mm)","width (cm)","width (in)","height (mm)","height (cm)","height (in)","page_count","page_breakdown","image_count","table_count","audio_count","video_count","lccn","oclc","short_abstract","long_abstract","general_note","toc","cover_url","cover_caption","contributions [(type, first_name, last_name, full_name, institution, orcid)]","publications [(type, isbn, [(ISO_4217_currency, price)], [(landing_page, full_text, platform, is_canonical)])]","series [(type, name, issn_print, issn_digital, url, issue)]","languages [(relation, ISO_639-3/B_language, is_main)]","BIC [code]","THEMA [code]","BISAC [code]","LCC [code]","custom_categories [category]","keywords [keyword]","funding [(funder, funder_doi, program, project, grant, jurisdiction)]"
+"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","10.00001/BOOK.0001","1999-12-31","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","156.0","15.6","6.14","234.0","23.4","9.21","334","x+334","15","20","25","30","123456789","987654321","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","This is a general note","1. Chapter 1","https://www.book.com/cover","This is a cover caption","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", """", ""0000-0002-0000-0001""),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", """", """")]","[(""PAPERBACK"", ""978-3-16-148410-0"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")], [(""https://www.book.com/paperback"", """", ""OTHER"", ""true""),(""https://www.jstor.com/paperback"", """", ""JSTOR"", ""false"")]),(""HARDBACK"", ""978-1-4028-9462-6"", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")], ),(""PDF"", ""978-1-56619-909-4"", , [(""https://www.book.com/pdf_landing"", ""https://www.book.com/pdf_fulltext"", ""OTHER"", ""true"")]),(""HTML"", """", , [(""https://www.book.com/html_landing"", ""https://www.book.com/html_fulltext"", ""OTHER"", ""true"")]),(""XML"", ""978-92-95055-02-5"", , )]","[(""JOURNAL"", ""Name of series"", ""1234-5678"", ""8765-4321"", ""https://www.series.com"", ""1"")]","[(""ORIGINAL"", ""SPA"", ""true"")]","[""AAA"",""AAB""]","[""JWA""]","[""AAA000000"",""AAA000001""]","[""JA85""]","[""Category1""]","[""keyword1"",""keyword2""]","[(""Name of funder"", ""10.00001/FUNDER.0001"", ""Name of program"", ""Name of project"", ""Number of grant"", ""Funding jurisdiction"")]"
 "#;
 
     #[test]
@@ -527,5 +599,198 @@ mod tests {
         let to_test = CsvThoth.generate(&[TEST_WORK.clone()], QuoteStyle::Always, DELIMITER_COMMA);
 
         assert_eq!(to_test, Ok(TEST_RESULT.to_string()))
+    }
+
+    #[test]
+    fn test_csv_thoth_cell() {
+        assert_eq!(CsvCell::<CsvThoth>::csv_cell(&vec![]), "".to_string());
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&vec!["String1".to_string()]),
+            "[String1]".to_string()
+        );
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&vec!["String1".to_string(), "String2".to_string()]),
+            "[String1,String2]".to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_publications() {
+        let mut publication = WorkPublications {
+            publication_id: Uuid::from_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
+            publication_type: PublicationType::PAPERBACK,
+            isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+            prices: vec![WorkPublicationsPrices {
+                currency_code: CurrencyCode::EUR,
+                unit_price: 25.95,
+            }],
+            locations: vec![WorkPublicationsLocations {
+                landing_page: Some("https://www.book.com/paperback".to_string()),
+                full_text_url: None,
+                location_platform: LocationPlatform::PROJECT_MUSE,
+                canonical: true,
+            }],
+        };
+        assert_eq!(CsvCell::<CsvThoth>::csv_cell(&publication),
+            r#"("PAPERBACK", "978-3-16-148410-0", [("EUR", "25.95")], [("https://www.book.com/paperback", "", "PROJECT_MUSE", "true")])"#.to_string());
+        publication.publication_type = PublicationType::HARDBACK;
+        publication.isbn = None;
+        publication.prices.clear();
+        publication.locations.clear();
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&publication),
+            r#"("HARDBACK", "", , )"#.to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_contributions() {
+        let mut contribution = WorkContributions {
+            contribution_type: ContributionType::AUTHOR,
+            first_name: Some("Author".to_string()),
+            last_name: "1".to_string(),
+            full_name: "Author 1".to_string(),
+            main_contribution: true,
+            biography: None,
+            institution: Some("University of Life".to_string()),
+            contribution_ordinal: 1,
+            contributor: WorkContributionsContributor {
+                orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
+            },
+        };
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&contribution),
+            r#"("AUTHOR", "Author", "1", "Author 1", "University of Life", "0000-0002-0000-0001")"#
+                .to_string()
+        );
+        contribution.contribution_type = ContributionType::TRANSLATOR;
+        contribution.first_name = None;
+        contribution.institution = None;
+        contribution.contributor.orcid = None;
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&contribution),
+            r#"("TRANSLATOR", "", "1", "Author 1", "", "")"#.to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_prices() {
+        let mut price = WorkPublicationsPrices {
+            currency_code: CurrencyCode::GBP,
+            unit_price: 22.95,
+        };
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&price),
+            r#"("GBP", "22.95")"#.to_string()
+        );
+        price.currency_code = CurrencyCode::USD;
+        price.unit_price = 31.95;
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&price),
+            r#"("USD", "31.95")"#.to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_locations() {
+        let mut location = WorkPublicationsLocations {
+            landing_page: Some("https://www.book.com/pdf_landing".to_string()),
+            full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
+            location_platform: LocationPlatform::OTHER,
+            canonical: true,
+        };
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&location),
+            r#"("https://www.book.com/pdf_landing", "https://www.book.com/pdf_fulltext", "OTHER", "true")"#.to_string()
+        );
+        location.full_text_url = None;
+        location.location_platform = LocationPlatform::JSTOR;
+        location.canonical = false;
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&location),
+            r#"("https://www.book.com/pdf_landing", "", "JSTOR", "false")"#.to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_issues() {
+        let mut issue = WorkIssues {
+            issue_ordinal: 1,
+            series: WorkIssuesSeries {
+                series_type: SeriesType::JOURNAL,
+                series_name: "Name of series".to_string(),
+                issn_print: "1234-5678".to_string(),
+                issn_digital: "8765-4321".to_string(),
+                series_url: Some("https://www.series.com".to_string()),
+            },
+        };
+        assert_eq!(CsvCell::<CsvThoth>::csv_cell(&issue),
+            r#"("JOURNAL", "Name of series", "1234-5678", "8765-4321", "https://www.series.com", "1")"#.to_string());
+        issue.issue_ordinal = 2;
+        issue.series.series_type = SeriesType::BOOK_SERIES;
+        issue.series.series_url = None;
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&issue),
+            r#"("BOOK_SERIES", "Name of series", "1234-5678", "8765-4321", "", "2")"#.to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_languages() {
+        let mut language = WorkLanguages {
+            language_code: LanguageCode::SPA,
+            language_relation: LanguageRelation::TRANSLATED_FROM,
+            main_language: true,
+        };
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&language),
+            r#"("TRANSLATED_FROM", "SPA", "true")"#.to_string()
+        );
+        language.language_code = LanguageCode::WEL;
+        language.language_relation = LanguageRelation::TRANSLATED_INTO;
+        language.main_language = false;
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&language),
+            r#"("TRANSLATED_INTO", "WEL", "false")"#.to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_subjects() {
+        let subject = WorkSubjects {
+            subject_code: "AAB".to_string(),
+            subject_type: SubjectType::BIC,
+            subject_ordinal: 2,
+        };
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&subject),
+            r#""AAB""#.to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_fundings() {
+        let mut funding = WorkFundings {
+            program: Some("Name of program".to_string()),
+            project_name: Some("Name of project".to_string()),
+            project_shortname: None,
+            grant_number: Some("Number of grant".to_string()),
+            jurisdiction: Some("Funding jurisdiction".to_string()),
+            funder: WorkFundingsFunder {
+                funder_name: "Name of funder".to_string(),
+                funder_doi: Some(Doi::from_str("https://doi.org/10.00001/FUNDER.0001").unwrap()),
+            },
+        };
+        assert_eq!(CsvCell::<CsvThoth>::csv_cell(&funding),
+            r#"("Name of funder", "10.00001/FUNDER.0001", "Name of program", "Name of project", "Number of grant", "Funding jurisdiction")"#.to_string());
+        funding.funder.funder_doi = None;
+        funding.program = None;
+        funding.project_name = None;
+        funding.grant_number = None;
+        funding.jurisdiction = None;
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&funding),
+            r#"("Name of funder", "", "", "", "", "")"#.to_string()
+        );
     }
 }

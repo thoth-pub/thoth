@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use thoth_api::model::publication::Publication;
 use thoth_api::model::publication::PublicationType;
+use thoth_api::model::work::WorkType;
 use thoth_api::model::Isbn;
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -22,7 +23,6 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormPublicationTypeSelect;
 use crate::component::utils::FormTextInputExtended;
-use crate::component::utils::FormUrlInput;
 use crate::models::publication::create_publication_mutation::CreatePublicationRequest;
 use crate::models::publication::create_publication_mutation::CreatePublicationRequestBody;
 use crate::models::publication::create_publication_mutation::PushActionCreatePublication;
@@ -74,15 +74,14 @@ pub enum Msg {
     DeletePublication(Uuid),
     ChangePublicationType(PublicationType),
     ChangeIsbn(String),
-    ChangeUrl(String),
     ChangeRoute(AppRoute),
-    DoNothing,
 }
 
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub publications: Option<Vec<Publication>>,
     pub work_id: Uuid,
+    pub work_type: WorkType,
     pub update_publications: Callback<Option<Vec<Publication>>>,
 }
 
@@ -198,7 +197,6 @@ impl Component for PublicationsFormComponent {
                         work_id: self.props.work_id,
                         publication_type: self.new_publication.publication_type.clone(),
                         isbn: self.new_publication.isbn.clone(),
-                        publication_url: self.new_publication.publication_url.clone(),
                     },
                     ..Default::default()
                 };
@@ -284,19 +282,11 @@ impl Component for PublicationsFormComponent {
                     false
                 }
             }
-            Msg::ChangeUrl(value) => {
-                let url = match value.trim().is_empty() {
-                    true => None,
-                    false => Some(value.trim().to_owned()),
-                };
-                self.new_publication.publication_url.neq_assign(url)
-            }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
                 false
             }
-            Msg::DoNothing => false, // callbacks need to return a message
         }
     }
 
@@ -314,6 +304,8 @@ impl Component for PublicationsFormComponent {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(false)
         });
+        // ISBNs cannot be added for publications whose work type is Book Chapter.
+        let isbn_deactivated = self.props.work_type == WorkType::BookChapter;
         html! {
             <nav class="panel">
                 <p class="panel-heading">
@@ -339,9 +331,9 @@ impl Component for PublicationsFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="publications-form" onsubmit=self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
-                                Msg::DoNothing
+                                Msg::CreatePublication
                             })
                             >
                                 <FormPublicationTypeSelect
@@ -364,21 +356,15 @@ impl Component for PublicationsFormComponent {
                                     value=self.isbn.clone()
                                     tooltip=self.isbn_warning.clone()
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeIsbn(e.value))
-                                />
-                                <FormUrlInput
-                                    label = "URL"
-                                    value=self.new_publication.publication_url.clone().unwrap_or_else(|| "".to_string()).clone()
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeUrl(e.value))
+                                    deactivated=isbn_deactivated
                                 />
                             </form>
                         </section>
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick=self.link.callback(|e: MouseEvent| {
-                                    e.prevent_default();
-                                    Msg::CreatePublication
-                                })
+                                type="submit"
+                                form="publications-form"
                             >
                                 { "Add Publication" }
                             </button>
@@ -435,13 +421,6 @@ impl PublicationsFormComponent {
                         <label class="label">{ "ISBN" }</label>
                         <div class="control is-expanded">
                             {&p.isbn.as_ref().map(|s| s.to_string()).unwrap_or_else(|| "".to_string())}
-                        </div>
-                    </div>
-
-                    <div class="field" style="width: 8em;">
-                        <label class="label">{ "URL" }</label>
-                        <div class="control is-expanded">
-                            {&p.publication_url.clone().unwrap_or_else(|| "".to_string())}
                         </div>
                     </div>
 

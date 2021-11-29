@@ -3,7 +3,7 @@ use serde::Serialize;
 
 use super::CurrencyCodeDefinition;
 
-const LANGUAGE_CODES_QUERY: &str = "
+const CURRENCY_CODES_QUERY: &str = "
     {
         currency_codes: __type(name: \"CurrencyCode\") {
             enumValues {
@@ -17,7 +17,7 @@ graphql_query_builder! {
     CurrencyCodesRequest,
     CurrencyCodesRequestBody,
     Variables,
-    LANGUAGE_CODES_QUERY,
+    CURRENCY_CODES_QUERY,
     CurrencyCodesResponseBody,
     CurrencyCodesResponseData,
     FetchCurrencyCodes,

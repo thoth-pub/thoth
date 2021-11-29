@@ -137,12 +137,11 @@ impl DecodedToken {
 
 impl AccountAccess {
     pub fn can_edit(&self, publisher_id: Uuid) -> ThothResult<()> {
-        if self.is_superuser {
-            Ok(())
-        } else if let Some(_found) = &self
-            .linked_publishers
-            .iter()
-            .position(|publisher| publisher.publisher_id == publisher_id)
+        if self.is_superuser
+            || self
+                .linked_publishers
+                .iter()
+                .any(|publisher| publisher.publisher_id == publisher_id)
         {
             Ok(())
         } else {

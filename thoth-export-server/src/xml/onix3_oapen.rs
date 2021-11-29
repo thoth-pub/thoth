@@ -64,8 +64,9 @@ impl XmlElementBlock<Onix3Oapen> for Work {
         if let Some(pdf_url) = self
             .publications
             .iter()
-            .find(|p| p.publication_type.eq(&PublicationType::PDF))
-            .and_then(|p| p.publication_url.as_ref())
+            .find(|p| p.publication_type.eq(&PublicationType::PDF) && !p.locations.is_empty())
+            .and_then(|p| p.locations.iter().find(|l| l.canonical))
+            .and_then(|l| l.full_text_url.as_ref())
         {
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
@@ -654,9 +655,9 @@ mod tests {
     use thoth_api::model::Isbn;
     use thoth_api::model::Orcid;
     use thoth_client::{
-        ContributionType, LanguageCode, LanguageRelation, PublicationType,
+        ContributionType, LanguageCode, LanguageRelation, LocationPlatform, PublicationType,
         WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssuesSeries,
-        WorkStatus, WorkType,
+        WorkPublicationsLocations, WorkStatus, WorkType,
     };
     use uuid::Uuid;
 
@@ -989,9 +990,14 @@ mod tests {
             publications: vec![WorkPublications {
                 publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
                 publication_type: PublicationType::PDF,
-                publication_url: Some("https://www.book.com/pdf".to_string()),
                 isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
                 prices: vec![],
+                locations: vec![WorkPublicationsLocations {
+                    landing_page: Some("https://www.book.com/pdf_landing".to_string()),
+                    full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
+                    location_platform: LocationPlatform::OTHER,
+                    canonical: true,
+                }],
             }],
             subjects: vec![],
             fundings: vec![],
@@ -1086,7 +1092,8 @@ mod tests {
         assert!(output.contains(r#"        <SupplierName>OA Editions</SupplierName>"#));
         assert!(output.contains(r#"          <WebsiteRole>29</WebsiteRole>"#));
         assert!(output.contains(r#"          <WebsiteDescription>Publisher's website: download the title</WebsiteDescription>"#));
-        assert!(output.contains(r#"          <WebsiteLink>https://www.book.com/pdf</WebsiteLink>"#));
+        assert!(output
+            .contains(r#"          <WebsiteLink>https://www.book.com/pdf_fulltext</WebsiteLink>"#));
 
         // Remove some values to test non-output of optional blocks
         test_work.doi = None;

@@ -49,10 +49,6 @@ impl MetadataTable for PublicationWithRelations {
             .as_ref()
             .map(|s| s.to_string())
             .unwrap_or_else(|| "".to_string());
-        let publication_url = &self
-            .publication_url
-            .clone()
-            .unwrap_or_else(|| "".to_string());
         html! {
             <tr
                 class="row"
@@ -64,7 +60,6 @@ impl MetadataTable for PublicationWithRelations {
                 <td>{&self.work.publisher()}</td>
                 <td>{&self.publication_type}</td>
                 <td>{isbn}</td>
-                <td>{publication_url}</td>
                 <td>{&self.updated_at}</td>
             </tr>
         }
