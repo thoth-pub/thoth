@@ -1,4 +1,4 @@
-ARG RUST_IMAGE=rust:1.51.0
+ARG RUST_IMAGE=rust:1.56.0
 ARG MUSL_IMAGE=ekidd/rust-musl-builder:1.51.0
 
 FROM ${RUST_IMAGE} as wasm
@@ -16,7 +16,7 @@ RUN npm install -g npm@6.14.8
 RUN npm install -g n@6.7.0
 RUN n 12.19.0
 RUN npm install -g rollup@2.28.2
-RUN cargo install wasm-pack
+RUN cargo install wasm-pack --version 0.9.1
 
 # Get source
 COPY . .
