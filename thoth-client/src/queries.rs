@@ -5,6 +5,7 @@ use graphql_client::GraphQLQuery;
 use thoth_api::model::Doi;
 use thoth_api::model::Isbn;
 use thoth_api::model::Orcid;
+use thoth_api::model::Ror;
 use uuid::Uuid;
 
 #[derive(GraphQLQuery)]

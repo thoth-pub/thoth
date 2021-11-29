@@ -45,7 +45,6 @@ impl Crud for Contribution {
                 dsl::contribution_type,
                 dsl::main_contribution,
                 dsl::biography,
-                dsl::institution,
                 dsl::created_at,
                 dsl::updated_at,
                 dsl::first_name,
@@ -79,10 +78,6 @@ impl Crud for Contribution {
             ContributionField::Biography => match order.direction {
                 Direction::Asc => query = query.order(dsl::biography.asc()),
                 Direction::Desc => query = query.order(dsl::biography.desc()),
-            },
-            ContributionField::Institution => match order.direction {
-                Direction::Asc => query = query.order(dsl::institution.asc()),
-                Direction::Desc => query = query.order(dsl::institution.desc()),
             },
             ContributionField::CreatedAt => match order.direction {
                 Direction::Asc => query = query.order(dsl::created_at.asc()),

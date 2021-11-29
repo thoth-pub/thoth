@@ -11,7 +11,6 @@ const CREATE_CONTRIBUTION_MUTATION: &str = "
         $contributionType: ContributionType!,
         $mainContribution: Boolean!,
         $biography: String,
-        $institution: String,
         $firstName: String,
         $lastName: String!,
         $fullName: String!,
@@ -23,7 +22,6 @@ const CREATE_CONTRIBUTION_MUTATION: &str = "
             contributionType: $contributionType
             mainContribution: $mainContribution
             biography: $biography
-            institution: $institution
             firstName: $firstName
             lastName: $lastName
             fullName: $fullName
@@ -35,7 +33,6 @@ const CREATE_CONTRIBUTION_MUTATION: &str = "
             contributionType
             mainContribution
             biography
-            institution
             createdAt
             updatedAt
             firstName
@@ -65,7 +62,6 @@ pub struct Variables {
     pub contribution_type: ContributionType,
     pub main_contribution: bool,
     pub biography: Option<String>,
-    pub institution: Option<String>,
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,

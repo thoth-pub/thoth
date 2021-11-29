@@ -303,13 +303,13 @@ mod tests {
                     full_name: "Author First".to_string(),
                     main_contribution: true,
                     biography: None,
-                    institution: None,
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(
                             Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap(),
                         ),
                     },
+                    affiliations: vec![],
                 },
                 WorkContributions {
                     contribution_type: ContributionType::AUTHOR,
@@ -318,9 +318,9 @@ mod tests {
                     full_name: "Author Second".to_string(),
                     main_contribution: true,
                     biography: None,
-                    institution: None,
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor { orcid: None },
+                    affiliations: vec![],
                 },
                 WorkContributions {
                     contribution_type: ContributionType::EDITOR,
@@ -329,9 +329,9 @@ mod tests {
                     full_name: "Editor FirstEd".to_string(),
                     main_contribution: true,
                     biography: None,
-                    institution: None,
                     contribution_ordinal: 3,
                     contributor: WorkContributionsContributor { orcid: None },
+                    affiliations: vec![],
                 },
             ],
             languages: vec![],

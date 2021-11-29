@@ -17,14 +17,14 @@ use crate::agent::notification_bus::Request;
 use crate::component::contributor::ContributorComponent;
 use crate::component::contributors::ContributorsComponent;
 use crate::component::dashboard::DashboardComponent;
-use crate::component::funder::FunderComponent;
-use crate::component::funders::FundersComponent;
 use crate::component::imprint::ImprintComponent;
 use crate::component::imprints::ImprintsComponent;
+use crate::component::institution::InstitutionComponent;
+use crate::component::institutions::InstitutionsComponent;
 use crate::component::menu::MenuComponent;
 use crate::component::new_contributor::NewContributorComponent;
-use crate::component::new_funder::NewFunderComponent;
 use crate::component::new_imprint::NewImprintComponent;
+use crate::component::new_institution::NewInstitutionComponent;
 use crate::component::new_publisher::NewPublisherComponent;
 use crate::component::new_series::NewSeriesComponent;
 use crate::component::new_work::NewWorkComponent;
@@ -177,9 +177,9 @@ impl Component for AdminComponent {
                                 AdminRoute::Imprints => html!{<ImprintsComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Imprint(id) => html!{<ImprintComponent imprint_id= *id current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::NewImprint => html!{<NewImprintComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Funders => html!{<FundersComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Funder(id) => html!{<FunderComponent funder_id = *id />},
-                                AdminRoute::NewFunder => html!{<NewFunderComponent/>},
+                                AdminRoute::Institutions => html!{<InstitutionsComponent current_user = self.props.current_user.clone().unwrap() />},
+                                AdminRoute::Institution(id) => html!{<InstitutionComponent institution_id = *id />},
+                                AdminRoute::NewInstitution => html!{<NewInstitutionComponent/>},
                                 AdminRoute::Publications => html!{<PublicationsComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Publication(id) => html!{<PublicationComponent publication_id= *id current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::NewPublication => {
