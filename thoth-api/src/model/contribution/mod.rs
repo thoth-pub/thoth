@@ -3,6 +3,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
+use crate::model::affiliation::AffiliationWithInstitution;
 use crate::model::work::WorkWithRelations;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -45,7 +46,6 @@ pub enum ContributionField {
     ContributionType,
     MainContribution,
     Biography,
-    Institution,
     CreatedAt,
     UpdatedAt,
     FirstName,
@@ -64,13 +64,18 @@ pub struct Contribution {
     pub contribution_type: ContributionType,
     pub main_contribution: bool,
     pub biography: Option<String>,
-    pub institution: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
     pub contribution_ordinal: i32,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ContributionWithAffiliations {
+    pub affiliations: Option<Vec<AffiliationWithInstitution>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -90,7 +95,6 @@ pub struct NewContribution {
     pub contribution_type: ContributionType,
     pub main_contribution: bool,
     pub biography: Option<String>,
-    pub institution: Option<String>,
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
@@ -110,7 +114,6 @@ pub struct PatchContribution {
     pub contribution_type: ContributionType,
     pub main_contribution: bool,
     pub biography: Option<String>,
-    pub institution: Option<String>,
     pub first_name: Option<String>,
     pub last_name: String,
     pub full_name: String,
@@ -152,7 +155,6 @@ impl Default for Contribution {
             contribution_type: Default::default(),
             main_contribution: Default::default(),
             biography: Default::default(),
-            institution: Default::default(),
             created_at: Default::default(),
             updated_at: Default::default(),
             first_name: Default::default(),

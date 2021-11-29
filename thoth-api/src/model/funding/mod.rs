@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::model::funder::Funder;
+use crate::model::institution::Institution;
 use crate::model::work::WorkWithRelations;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -15,7 +15,7 @@ use crate::schema::funding_history;
     graphql(description = "Field to use when sorting fundings list")
 )]
 pub enum FundingField {
-    FunderId,
+    InstitutionId,
     WorkId,
     FundingId,
     Program,
@@ -33,7 +33,7 @@ pub enum FundingField {
 pub struct Funding {
     pub funding_id: Uuid,
     pub work_id: Uuid,
-    pub funder_id: Uuid,
+    pub institution_id: Uuid,
     pub program: Option<String>,
     pub project_name: Option<String>,
     pub project_shortname: Option<String>,
@@ -45,16 +45,16 @@ pub struct Funding {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct FundingWithFunder {
+pub struct FundingWithInstitution {
     pub funding_id: Uuid,
     pub work_id: Uuid,
-    pub funder_id: Uuid,
+    pub institution_id: Uuid,
     pub program: Option<String>,
     pub project_name: Option<String>,
     pub project_shortname: Option<String>,
     pub grant_number: Option<String>,
     pub jurisdiction: Option<String>,
-    pub funder: Funder,
+    pub institution: Institution,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -70,7 +70,7 @@ pub struct FundingWithWork {
 )]
 pub struct NewFunding {
     pub work_id: Uuid,
-    pub funder_id: Uuid,
+    pub institution_id: Uuid,
     pub program: Option<String>,
     pub project_name: Option<String>,
     pub project_shortname: Option<String>,
@@ -87,7 +87,7 @@ pub struct NewFunding {
 pub struct PatchFunding {
     pub funding_id: Uuid,
     pub work_id: Uuid,
-    pub funder_id: Uuid,
+    pub institution_id: Uuid,
     pub program: Option<String>,
     pub project_name: Option<String>,
     pub project_shortname: Option<String>,

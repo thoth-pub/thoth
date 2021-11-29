@@ -1,5 +1,6 @@
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::imprint::ImprintWithPublisher;
+use thoth_api::model::institution::CountryCode;
 use thoth_api::model::language::LanguageCode;
 use thoth_api::model::language::LanguageRelation;
 use thoth_api::model::location::LocationPlatform;
@@ -24,6 +25,7 @@ use yewtil::Pure;
 use yewtil::PureComponent;
 
 use crate::models::contribution::ContributionTypeValues;
+use crate::models::institution::CountryCodeValues;
 use crate::models::language::LanguageCodeValues;
 use crate::models::language::LanguageRelationValues;
 use crate::models::location::LocationPlatformValues;
@@ -56,6 +58,7 @@ pub type FormLanguageCodeSelect = Pure<PureLanguageCodeSelect>;
 pub type FormLanguageRelationSelect = Pure<PureLanguageRelationSelect>;
 pub type FormCurrencyCodeSelect = Pure<PureCurrencyCodeSelect>;
 pub type FormLocationPlatformSelect = Pure<PureLocationPlatformSelect>;
+pub type FormCountryCodeSelect = Pure<PureCountryCodeSelect>;
 pub type FormLengthUnitSelect = Pure<PureLengthUnitSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
@@ -275,6 +278,16 @@ pub struct PureLocationPlatformSelect {
     pub label: String,
     pub data: Vec<LocationPlatformValues>,
     pub value: LocationPlatform,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureCountryCodeSelect {
+    pub label: String,
+    pub data: Vec<CountryCodeValues>,
+    pub value: Option<CountryCode>,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -676,7 +689,29 @@ impl PureComponent for PureLocationPlatformSelect {
                         required=self.required
                         onchange=&self.onchange
                     >
+                        <option value="">{"Select Country"}</option>
                         { for self.data.iter().map(|l| self.render_locationplatform(l)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+impl PureComponent for PureCountryCodeSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                    >
+                        <option value="">{"Select Country"}</option>
+                        { for self.data.iter().map(|c| self.render_countrycode(c)) }
                     </select>
                     </div>
                 </div>
@@ -918,6 +953,22 @@ impl PureLocationPlatformSelect {
         } else {
             html! {
                 <option value={l.name.to_string()}>{&l.name}</option>
+            }
+        }
+    }
+}
+
+impl PureCountryCodeSelect {
+    fn render_countrycode(&self, c: &CountryCodeValues) -> VNode {
+        if Some(c.name.clone()) == self.value {
+            html! {
+                <option value={c.name.to_string()} selected=true>
+                    {&c.name}
+                </option>
+            }
+        } else {
+            html! {
+                <option value={c.name.to_string()}>{&c.name}</option>
             }
         }
     }

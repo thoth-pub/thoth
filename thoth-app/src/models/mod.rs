@@ -137,11 +137,12 @@ pub trait MetadataTable {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html;
 }
 
+pub mod affiliation;
 pub mod contribution;
 pub mod contributor;
-pub mod funder;
 pub mod funding;
 pub mod imprint;
+pub mod institution;
 pub mod issue;
 pub mod language;
 pub mod location;

@@ -223,7 +223,7 @@ impl Component for LanguagesFormComponent {
                                 .clone()
                                 .unwrap_or_default()
                                 .into_iter()
-                                .filter(|p| p.language_id != language.language_id)
+                                .filter(|l| l.language_id != language.language_id)
                                 .collect();
                             self.props.update_languages.emit(Some(to_keep));
                             true

@@ -12,7 +12,7 @@ const DELETE_FUNDING_MUTATION: &str = "
         ){
             fundingId
             workId
-            funderId
+            institutionId
             createdAt
             updatedAt
         }
