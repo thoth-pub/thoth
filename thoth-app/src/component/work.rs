@@ -823,6 +823,7 @@ impl Component for WorkComponent {
                         <RelatedWorksFormComponent
                             relations=self.work.relations.clone()
                             work_id=self.work.work_id
+                            current_user=self.props.current_user.clone()
                             update_relations=self.link.callback(Msg::UpdateRelatedWorks)
                         />
                         <ContributionsFormComponent

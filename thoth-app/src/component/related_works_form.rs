@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::account::model::AccountDetails;
 use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::work_relation::RelationType;
 use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
@@ -91,6 +92,7 @@ pub enum Msg {
 pub struct Props {
     pub relations: Option<Vec<WorkRelationWithRelatedWork>>,
     pub work_id: Uuid,
+    pub current_user: AccountDetails,
     pub update_relations: Callback<Option<Vec<WorkRelationWithRelatedWork>>>,
 }
 
@@ -103,7 +105,15 @@ impl Component for RelatedWorksFormComponent {
         let new_relation: WorkRelationWithRelatedWork = Default::default();
         let show_add_form = false;
         let show_results = false;
-        let fetch_works = Default::default();
+        let body = WorksRequestBody {
+            variables: Variables {
+                publishers: props.current_user.resource_access.restricted_to(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let request = WorksRequest { body };
+        let fetch_works = Fetch::new(request);
         let fetch_relation_types = Default::default();
         let push_relation = Default::default();
         let delete_relation = Default::default();
@@ -285,6 +295,7 @@ impl Component for RelatedWorksFormComponent {
                     variables: Variables {
                         filter: Some(value),
                         limit: Some(9999),
+                        publishers: self.props.current_user.resource_access.restricted_to(),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -349,11 +360,16 @@ impl Component for RelatedWorksFormComponent {
                                 {
                                     for self.data.works.iter().map(|w| {
                                         let work = w.clone();
-                                        w.as_dropdown_item(
-                                            self.link.callback(move |_| {
-                                                Msg::AddRelation(work.clone())
-                                            })
-                                        )
+                                        // avoid listing current work
+                                        if self.props.work_id == work.work_id {
+                                            html! {}
+                                        } else {
+                                            w.as_dropdown_item(
+                                                self.link.callback(move |_| {
+                                                    Msg::AddRelation(work.clone())
+                                                })
+                                            )
+                                        }
                                     })
                                 }
                             </div>
