@@ -47,6 +47,7 @@ pub struct PublicationComponent {
     props: Props,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum Msg {
     SetPublicationFetchState(FetchActionPublication),
     GetPublication,
