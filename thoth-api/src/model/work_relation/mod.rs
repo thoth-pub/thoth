@@ -132,6 +132,21 @@ pub struct WorkRelationOrderBy {
     pub direction: Direction,
 }
 
+impl RelationType {
+    fn convert_to_inverse(&self) -> RelationType {
+        match self {
+            RelationType::Replaces => RelationType::IsReplacedBy,
+            RelationType::HasTranslation => RelationType::IsTranslationOf,
+            RelationType::HasPart => RelationType::IsPartOf,
+            RelationType::HasChild => RelationType::IsChildOf,
+            RelationType::IsReplacedBy => RelationType::Replaces,
+            RelationType::IsTranslationOf => RelationType::HasTranslation,
+            RelationType::IsPartOf => RelationType::HasPart,
+            RelationType::IsChildOf => RelationType::HasChild,
+        }
+    }
+}
+
 impl Default for RelationType {
     fn default() -> RelationType {
         RelationType::HasChild

@@ -2,12 +2,12 @@ use super::{
     NewWorkRelation, NewWorkRelationHistory, PatchWorkRelation, RelationType, WorkRelation,
     WorkRelationField, WorkRelationHistory, WorkRelationOrderBy,
 };
+use crate::db_insert;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{work_relation, work_relation_history};
-use crate::{crud_methods, db_insert};
-use diesel::dsl::any;
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::dsl::{any, max};
+use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
@@ -126,7 +126,132 @@ impl Crud for WorkRelation {
         crate::model::work::Work::from_id(db, &self.relator_work_id)?.publisher_id(db)
     }
 
-    crud_methods!(work_relation::table, work_relation::dsl::work_relation);
+    // `crud_methods!` cannot be used for create(), update() or delete()
+    // as we need to execute multiple statements in the same transaction.
+    // This function recreates the `crud_methods!` from_id() logic.
+    fn from_id(db: &crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
+        let connection = db.get().unwrap();
+        match work_relation::table
+            .find(entity_id)
+            .get_result::<Self>(&connection)
+        {
+            Ok(t) => Ok(t),
+            Err(e) => Err(ThothError::from(e)),
+        }
+    }
+
+    fn create(db: &crate::db::PgPool, data: &NewWorkRelation) -> ThothResult<Self> {
+        // For each Relator - Relationship - Related record we create, we must also
+        // create the corresponding Related - InverseRelationship - Relator record.
+        // Execute all statements within the same transaction,
+        // because if one fails, all need to be reverted.
+        let connection = db.get().unwrap();
+        connection.transaction(|| {
+            // We need to determine an appropriate relation_ordinal for the inverse record.
+            // Find the current highest ordinal for the relevant work and type.
+            // This will return `None` if no records with this work and type already exist.
+            let max_inverse_ordinal =
+                work_relation::table
+                    .select(max(work_relation::relation_ordinal))
+                    .filter(work_relation::relator_work_id.eq(data.related_work_id).and(
+                        work_relation::relation_type.eq(data.relation_type.convert_to_inverse()),
+                    ))
+                    .get_result::<Option<i32>>(&connection)
+                    .expect("Error loading work relation ordinal values");
+            let inverse_data = NewWorkRelation {
+                relator_work_id: data.related_work_id,
+                related_work_id: data.relator_work_id,
+                relation_type: data.relation_type.convert_to_inverse(),
+                // Set the ordinal based on the current highest ordinal for this work and type
+                // (defaulting to 1 if none exists).
+                relation_ordinal: max_inverse_ordinal.unwrap_or_default() + 1,
+            };
+            diesel::insert_into(work_relation::table)
+                .values(&inverse_data)
+                .execute(&connection)?;
+            match diesel::insert_into(work_relation::table)
+                .values(data)
+                .get_result::<Self>(&connection)
+            {
+                Ok(t) => Ok(t),
+                Err(e) => Err(ThothError::from(e)),
+            }
+        })
+    }
+
+    fn update(
+        &self,
+        db: &crate::db::PgPool,
+        data: &PatchWorkRelation,
+        account_id: &Uuid,
+    ) -> ThothResult<Self> {
+        // For each Relator - Relationship - Related record we update, we must also
+        // update the corresponding Related - InverseRelationship - Relator record.
+        // Execute all statements within the same transaction,
+        // because if one fails, all need to be reverted.
+        let connection = db.get().unwrap();
+        connection.transaction(|| {
+            // Find the corresponding record. This relies on records being
+            // unique across relator work, related work, and relation type.
+            let inverse_work_relation = work_relation::table
+                .filter(work_relation::relator_work_id.eq(data.related_work_id).and(
+                    work_relation::related_work_id.eq(data.relator_work_id).and(
+                        work_relation::relation_type.eq(data.relation_type.convert_to_inverse()),
+                    ),
+                ))
+                .first::<WorkRelation>(&connection)
+                .expect("Error loading inverse work relation");
+            let inverse_data = PatchWorkRelation {
+                work_relation_id: inverse_work_relation.work_relation_id,
+                relator_work_id: data.related_work_id,
+                related_work_id: data.relator_work_id,
+                relation_type: data.relation_type.convert_to_inverse(),
+                relation_ordinal: inverse_work_relation.relation_ordinal,
+            };
+            diesel::update(work_relation::table.find(inverse_work_relation.work_relation_id))
+                .set(inverse_data)
+                .execute(&connection)?;
+            match diesel::update(work_relation::table.find(&self.pk()))
+                .set(data)
+                .get_result::<Self>(&connection)
+            {
+                // On success, create a new history table entry.
+                // Only record the original update, not the automatic inverse update.
+                Ok(t) => match self.new_history_entry(account_id).insert(&connection) {
+                    Ok(_) => Ok(t),
+                    Err(e) => Err(e),
+                },
+                Err(e) => Err(ThothError::from(e)),
+            }
+        })
+    }
+
+    fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self> {
+        // For each Relator - Relationship - Related record we delete, we must also
+        // delete the corresponding Related - InverseRelationship - Relator record.
+        // Execute all statements within the same transaction,
+        // because if one fails, all need to be reverted.
+        let connection = db.get().unwrap();
+        connection.transaction(|| {
+            // Find the corresponding record ID. This relies on records being
+            // unique across relator work, related work, and relation type.
+            let inverse_work_relation_id = work_relation::table
+                .select(work_relation::work_relation_id)
+                .filter(work_relation::relator_work_id.eq(self.related_work_id).and(
+                    work_relation::related_work_id.eq(self.relator_work_id).and(
+                        work_relation::relation_type.eq(self.relation_type.convert_to_inverse()),
+                    ),
+                ))
+                .first::<Uuid>(&connection)
+                .expect("Error loading inverse work relation");
+            diesel::delete(work_relation::table.find(inverse_work_relation_id))
+                .execute(&connection)?;
+            match diesel::delete(work_relation::table.find(self.pk())).execute(&connection) {
+                Ok(_) => Ok(self),
+                Err(e) => Err(ThothError::from(e)),
+            }
+        })
+    }
 }
 
 impl HistoryEntry for WorkRelation {
