@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
   - [#292](https://github.com/thoth-pub/thoth/issues/292) - Cannot unset publication date: error when trying to clear a previously set publication date
   - [#295](https://github.com/thoth-pub/thoth/issues/295) - various subforms failing to trim strings before saving (including on mandatory fields which are checked for emptiness)
-  - Duplicated logic for handling optional field values, simplifying the code and reducing the likelihood of further bugs such as
+  - Factored out duplicated logic for handling optional field values, simplifying the code and reducing the likelihood of further bugs such as [#295](https://github.com/thoth-pub/thoth/issues/295) being introduced
   - Minor issue where some required fields were not marked as "required" (so empty values would be sent to the API and raise an error)
   - Issue with subforms where clicking save button bypassed field requirements (so instead of displaying a warning message such as "Please enter a number", invalid values would be sent to the API and raise an error)
   - [#310](https://github.com/thoth-pub/thoth/issues/310) - Add jstor specification to formats

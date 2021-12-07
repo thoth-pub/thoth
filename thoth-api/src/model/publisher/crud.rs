@@ -6,6 +6,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publisher, publisher_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -65,11 +66,8 @@ impl Crud for Publisher {
                 Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(publisher_id.eq(any(publishers)));
         }
         if let Some(filter) = filter {
             query = query.filter(
@@ -98,11 +96,8 @@ impl Crud for Publisher {
         use crate::schema::publisher::dsl::*;
         let connection = db.get().unwrap();
         let mut query = publisher.into_boxed();
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(publisher_id.eq(any(publishers)));
         }
         if let Some(filter) = filter {
             query = query.filter(

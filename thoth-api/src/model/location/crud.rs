@@ -1,8 +1,7 @@
 use super::{
-    Location, LocationField, LocationHistory, LocationPlatform, NewLocation, NewLocationHistory,
-    PatchLocation,
+    Location, LocationField, LocationHistory, LocationOrderBy, LocationPlatform, NewLocation,
+    NewLocationHistory, PatchLocation,
 };
-use crate::graphql::model::LocationOrderBy;
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{location, location_history};
@@ -35,67 +34,67 @@ impl Crud for Location {
         location_platforms: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Location>> {
-        use crate::schema::location::dsl;
+        use crate::schema::location::dsl::*;
         let connection = db.get().unwrap();
         let mut query =
-            dsl::location
+            location
                 .inner_join(crate::schema::publication::table.inner_join(
                     crate::schema::work::table.inner_join(crate::schema::imprint::table),
                 ))
                 .select((
-                    dsl::location_id,
-                    dsl::publication_id,
-                    dsl::landing_page,
-                    dsl::full_text_url,
-                    dsl::location_platform,
-                    dsl::canonical,
-                    dsl::created_at,
-                    dsl::updated_at,
+                    location_id,
+                    publication_id,
+                    landing_page,
+                    full_text_url,
+                    location_platform,
+                    canonical,
+                    created_at,
+                    updated_at,
                 ))
                 .into_boxed();
 
         match order.field {
             LocationField::LocationId => match order.direction {
-                Direction::Asc => query = query.order(dsl::location_id.asc()),
-                Direction::Desc => query = query.order(dsl::location_id.desc()),
+                Direction::Asc => query = query.order(location_id.asc()),
+                Direction::Desc => query = query.order(location_id.desc()),
             },
             LocationField::PublicationId => match order.direction {
-                Direction::Asc => query = query.order(dsl::publication_id.asc()),
-                Direction::Desc => query = query.order(dsl::publication_id.desc()),
+                Direction::Asc => query = query.order(publication_id.asc()),
+                Direction::Desc => query = query.order(publication_id.desc()),
             },
             LocationField::LandingPage => match order.direction {
-                Direction::Asc => query = query.order(dsl::landing_page.asc()),
-                Direction::Desc => query = query.order(dsl::landing_page.desc()),
+                Direction::Asc => query = query.order(landing_page.asc()),
+                Direction::Desc => query = query.order(landing_page.desc()),
             },
             LocationField::FullTextUrl => match order.direction {
-                Direction::Asc => query = query.order(dsl::full_text_url.asc()),
-                Direction::Desc => query = query.order(dsl::full_text_url.desc()),
+                Direction::Asc => query = query.order(full_text_url.asc()),
+                Direction::Desc => query = query.order(full_text_url.desc()),
             },
             LocationField::LocationPlatform => match order.direction {
-                Direction::Asc => query = query.order(dsl::location_platform.asc()),
-                Direction::Desc => query = query.order(dsl::location_platform.desc()),
+                Direction::Asc => query = query.order(location_platform.asc()),
+                Direction::Desc => query = query.order(location_platform.desc()),
             },
             LocationField::Canonical => match order.direction {
-                Direction::Asc => query = query.order(dsl::canonical.asc()),
-                Direction::Desc => query = query.order(dsl::canonical.desc()),
+                Direction::Asc => query = query.order(canonical.asc()),
+                Direction::Desc => query = query.order(canonical.desc()),
             },
             LocationField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::created_at.asc()),
-                Direction::Desc => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             LocationField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::updated_at.asc()),
-                Direction::Desc => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }
         if let Some(pid) = parent_id_1 {
-            query = query.filter(dsl::publication_id.eq(pid));
+            query = query.filter(publication_id.eq(pid));
         }
         if !location_platforms.is_empty() {
-            query = query.filter(dsl::location_platform.eq(any(location_platforms)));
+            query = query.filter(location_platform.eq(any(location_platforms)));
         }
         match query
             .limit(limit.into())
@@ -114,11 +113,11 @@ impl Crud for Location {
         location_platforms: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
-        use crate::schema::location::dsl;
+        use crate::schema::location::dsl::*;
         let connection = db.get().unwrap();
-        let mut query = dsl::location.into_boxed();
+        let mut query = location.into_boxed();
         if !location_platforms.is_empty() {
-            query = query.filter(dsl::location_platform.eq(any(location_platforms)));
+            query = query.filter(location_platform.eq(any(location_platforms)));
         }
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
@@ -157,13 +156,13 @@ impl DbInsert for NewLocationHistory {
 
 impl NewLocation {
     pub fn can_be_non_canonical(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        use crate::schema::location::dsl;
+        use crate::schema::location::dsl::*;
         use diesel::prelude::*;
 
         let connection = db.get().unwrap();
-        let canonical_count = dsl::location
-            .filter(dsl::publication_id.eq(self.publication_id))
-            .filter(dsl::canonical)
+        let canonical_count = location
+            .filter(publication_id.eq(self.publication_id))
+            .filter(canonical)
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading locations for publication")

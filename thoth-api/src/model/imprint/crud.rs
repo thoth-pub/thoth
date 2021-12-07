@@ -95,11 +95,8 @@ impl Crud for Imprint {
         use crate::schema::imprint::dsl::*;
         let connection = db.get().unwrap();
         let mut query = imprint.into_boxed();
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(publisher_id.eq(any(publishers)));
         }
         if let Some(filter) = filter {
             query = query.filter(

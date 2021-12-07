@@ -35,14 +35,14 @@ impl Work {
     }
 
     pub fn can_update_imprint(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        use crate::schema::issue::dsl;
+        use crate::schema::issue::dsl::*;
         let connection = db.get().unwrap();
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        let issue_count = dsl::issue
-            .filter(dsl::work_id.eq(self.work_id))
+        let issue_count = issue
+            .filter(work_id.eq(self.work_id))
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading issue count for work")
@@ -59,11 +59,11 @@ impl Work {
     }
 
     pub fn can_be_chapter(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        use crate::schema::publication::dsl;
+        use crate::schema::publication::dsl::*;
         let connection = db.get().unwrap();
-        let isbn_count = dsl::publication
-            .filter(dsl::work_id.eq(self.work_id))
-            .filter(dsl::isbn.is_not_null())
+        let isbn_count = publication
+            .filter(work_id.eq(self.work_id))
+            .filter(isbn.is_not_null())
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading publication ISBNs for work")

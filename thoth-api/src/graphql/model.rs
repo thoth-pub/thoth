@@ -76,13 +76,6 @@ pub struct LanguageOrderBy {
 }
 
 #[derive(juniper::GraphQLInputObject)]
-#[graphql(description = "Field and order to use when sorting locations list")]
-pub struct LocationOrderBy {
-    pub field: LocationField,
-    pub direction: Direction,
-}
-
-#[derive(juniper::GraphQLInputObject)]
 #[graphql(description = "Field and order to use when sorting prices list")]
 pub struct PriceOrderBy {
     pub field: PriceField,
@@ -2490,7 +2483,10 @@ impl Publication {
                 },
                 description = "The order in which to sort the results",
             ),
-            location_platform(description = "A specific platform to filter by"),
+            location_platforms(
+                default = vec![],
+                description = "Specific platforms to filter by",
+            ),
         )
     )]
     pub fn locations(
