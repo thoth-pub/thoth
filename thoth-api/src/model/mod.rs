@@ -34,7 +34,7 @@ pub enum LengthUnit {
         description = r#"Digital Object Identifier. Expressed as `^https:\/\/doi\.org\/10\.\d{4,9}\/[-._\;\(\)\/:a-zA-Z0-9]+$`"#
     )
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Doi(String);
 
 #[cfg_attr(
@@ -44,7 +44,7 @@ pub struct Doi(String);
         description = "13-digit International Standard Book Number, with its parts separated by hyphens"
     )
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Isbn(String);
 
 #[cfg_attr(
@@ -54,7 +54,7 @@ pub struct Isbn(String);
         description = r#"ORCID (Open Researcher and Contributor ID) identifier. Expressed as `^https:\/\/orcid\.org\/0000-000(1-[5-9]|2-[0-9]|3-[0-4])\d{3}-\d{3}[\dX]$`"#
     )
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Orcid(String);
 
 #[cfg_attr(
@@ -64,7 +64,7 @@ pub struct Orcid(String);
         description = r#"ROR (Research Organization Registry) identifier. Expressed as `^https:\/\/ror\.org\/0[a-hjkmnp-z0-9]{6}\d{2}$`"#
     )
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Ror(String);
 
 #[cfg_attr(
@@ -78,30 +78,6 @@ pub struct Timestamp(DateTime<Utc>);
 impl Default for LengthUnit {
     fn default() -> LengthUnit {
         LengthUnit::Mm
-    }
-}
-
-impl Default for Doi {
-    fn default() -> Doi {
-        Doi(Default::default())
-    }
-}
-
-impl Default for Isbn {
-    fn default() -> Isbn {
-        Isbn(Default::default())
-    }
-}
-
-impl Default for Orcid {
-    fn default() -> Orcid {
-        Orcid(Default::default())
-    }
-}
-
-impl Default for Ror {
-    fn default() -> Ror {
-        Ror(Default::default())
     }
 }
 

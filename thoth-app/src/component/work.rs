@@ -102,6 +102,7 @@ struct WorkFormData {
     length_units: Vec<LengthUnitValues>,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum Msg {
     SetWorkFetchState(FetchActionWork),
     GetWork,
