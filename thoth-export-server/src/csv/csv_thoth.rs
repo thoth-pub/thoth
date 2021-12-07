@@ -141,77 +141,77 @@ impl From<Work> for CsvThothRow {
                 &work
                     .contributions
                     .iter()
-                    .map(|c| CsvCell::<CsvThoth>::csv_cell(c))
+                    .map(CsvCell::<CsvThoth>::csv_cell)
                     .collect::<Vec<String>>(),
             ),
             publications: CsvCell::<CsvThoth>::csv_cell(
                 &work
                     .publications
                     .iter()
-                    .map(|p| CsvCell::<CsvThoth>::csv_cell(p))
+                    .map(CsvCell::<CsvThoth>::csv_cell)
                     .collect::<Vec<String>>(),
             ),
             series: CsvCell::<CsvThoth>::csv_cell(
                 &work
                     .issues
                     .iter()
-                    .map(|i| CsvCell::<CsvThoth>::csv_cell(i))
+                    .map(CsvCell::<CsvThoth>::csv_cell)
                     .collect::<Vec<String>>(),
             ),
             languages: CsvCell::<CsvThoth>::csv_cell(
                 &work
                     .languages
                     .iter()
-                    .map(|l| CsvCell::<CsvThoth>::csv_cell(l))
+                    .map(CsvCell::<CsvThoth>::csv_cell)
                     .collect::<Vec<String>>(),
             ),
             bic: CsvCell::<CsvThoth>::csv_cell(
                 &subjects
                     .iter()
                     .filter(|s| s.subject_type.eq(&SubjectType::BIC))
-                    .map(|s| CsvCell::<CsvThoth>::csv_cell(s))
+                    .map(CsvCell::<CsvThoth>::csv_cell)
                     .collect::<Vec<String>>(),
             ),
             thema: CsvCell::<CsvThoth>::csv_cell(
                 &subjects
                     .iter()
                     .filter(|s| s.subject_type.eq(&SubjectType::THEMA))
-                    .map(|s| CsvCell::<CsvThoth>::csv_cell(s))
+                    .map(CsvCell::<CsvThoth>::csv_cell)
                     .collect::<Vec<String>>(),
             ),
             bisac: CsvCell::<CsvThoth>::csv_cell(
                 &subjects
                     .iter()
                     .filter(|s| s.subject_type.eq(&SubjectType::BISAC))
-                    .map(|s| CsvCell::<CsvThoth>::csv_cell(s))
+                    .map(CsvCell::<CsvThoth>::csv_cell)
                     .collect::<Vec<String>>(),
             ),
             lcc: CsvCell::<CsvThoth>::csv_cell(
                 &subjects
                     .iter()
                     .filter(|s| s.subject_type.eq(&SubjectType::LCC))
-                    .map(|s| CsvCell::<CsvThoth>::csv_cell(s))
+                    .map(CsvCell::<CsvThoth>::csv_cell)
                     .collect::<Vec<String>>(),
             ),
             custom: CsvCell::<CsvThoth>::csv_cell(
                 &subjects
                     .iter()
                     .filter(|s| s.subject_type.eq(&SubjectType::CUSTOM))
-                    .map(|s| CsvCell::<CsvThoth>::csv_cell(s))
+                    .map(CsvCell::<CsvThoth>::csv_cell)
                     .collect::<Vec<String>>(),
             ),
             keywords: CsvCell::<CsvThoth>::csv_cell(
                 &subjects
                     .iter()
                     .filter(|s| s.subject_type.eq(&SubjectType::KEYWORD))
-                    .map(|s| CsvCell::<CsvThoth>::csv_cell(s))
+                    .map(CsvCell::<CsvThoth>::csv_cell)
                     .collect::<Vec<String>>(),
             ),
             funding: CsvCell::<CsvThoth>::csv_cell(
                 &work
                     .fundings
                     .iter()
-                    .map(|f| CsvCell::<CsvThoth>::csv_cell(f))
+                    .map(CsvCell::<CsvThoth>::csv_cell)
                     .collect::<Vec<String>>(),
             ),
         }
@@ -241,14 +241,14 @@ impl CsvCell<CsvThoth> for WorkPublications {
                 &self
                     .prices
                     .iter()
-                    .map(|p| CsvCell::<CsvThoth>::csv_cell(p))
+                    .map(CsvCell::<CsvThoth>::csv_cell)
                     .collect::<Vec<String>>(),
             ),
             CsvCell::<CsvThoth>::csv_cell(
                 &self
                     .locations
                     .iter()
-                    .map(|l| CsvCell::<CsvThoth>::csv_cell(l))
+                    .map(CsvCell::<CsvThoth>::csv_cell)
                     .collect::<Vec<String>>(),
             ),
         )
@@ -272,7 +272,7 @@ impl CsvCell<CsvThoth> for WorkContributions {
                 &self
                     .affiliations
                     .iter()
-                    .map(|p| CsvCell::<CsvThoth>::csv_cell(p))
+                    .map(CsvCell::<CsvThoth>::csv_cell)
                     .collect::<Vec<String>>(),
             )
         )
