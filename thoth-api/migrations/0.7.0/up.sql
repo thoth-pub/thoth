@@ -18,7 +18,19 @@ CREATE TABLE work_relation (
     created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT work_relation_ids_check CHECK (relator_work_id != related_work_id),
-    CONSTRAINT work_relation_ordinal_type_uniq UNIQUE (relation_ordinal, relator_work_id, relation_type)
+    CONSTRAINT work_relation_ordinal_type_uniq UNIQUE (relation_ordinal, relator_work_id, relation_type),
+    -- Two works cannot have more than one relationship.
+    CONSTRAINT work_relation_relator_related_uniq UNIQUE (relator_work_id, related_work_id),
+    -- Two records must exist for each relationship, one representing the 'active' relation_type
+    -- (e.g. 'has-child'), and one representing the 'passive' type (e.g. 'is-child-of').
+    -- Ensure that each relator/related record has a corresponding related/relator record
+    -- (note we cannot verify that the relation_types themselves form a matching pair).
+    CONSTRAINT work_relation_active_passive_pair
+        FOREIGN KEY (relator_work_id, related_work_id)
+        REFERENCES work_relation (related_work_id, relator_work_id)
+        -- Allow transaction to complete before enforcing constraint
+        -- (so that pairs of records can be created/updated in tandem)
+        DEFERRABLE INITIALLY DEFERRED
 );
 SELECT diesel_manage_updated_at('work_relation');
 

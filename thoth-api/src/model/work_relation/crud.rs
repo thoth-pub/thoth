@@ -122,8 +122,10 @@ impl Crud for WorkRelation {
         }
     }
 
-    fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        crate::model::work::Work::from_id(db, &self.relator_work_id)?.publisher_id(db)
+    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        Err(ThothError::InternalError(
+            "Method publisher_id() is not supported for Work Relation objects".to_string(),
+        ))
     }
 
     // `crud_methods!` cannot be used for create(), update() or delete()
@@ -163,7 +165,8 @@ impl Crud for WorkRelation {
                 related_work_id: data.relator_work_id,
                 relation_type: data.relation_type.convert_to_inverse(),
                 // Set the ordinal based on the current highest ordinal for this work and type
-                // (defaulting to 1 if none exists).
+                // (defaulting to 1 if none exists). Note that user-entered ordinal sequences
+                // may contain 'holes' and this will not fill them.
                 relation_ordinal: max_inverse_ordinal.unwrap_or_default() + 1,
             };
             diesel::insert_into(work_relation::table)
@@ -191,16 +194,22 @@ impl Crud for WorkRelation {
         // because if one fails, all need to be reverted.
         let connection = db.get().unwrap();
         connection.transaction(|| {
-            // Find the corresponding record. This relies on records being
-            // unique across relator work, related work, and relation type.
+            // Find the corresponding record from its relator/related IDs.
             let inverse_work_relation = work_relation::table
-                .filter(work_relation::relator_work_id.eq(self.related_work_id).and(
-                    work_relation::related_work_id.eq(self.relator_work_id).and(
-                        work_relation::relation_type.eq(self.relation_type.convert_to_inverse()),
-                    ),
-                ))
+                .filter(
+                    work_relation::relator_work_id
+                        .eq(self.related_work_id)
+                        .and(work_relation::related_work_id.eq(self.relator_work_id)),
+                )
                 .first::<WorkRelation>(&connection)
                 .expect("Error loading inverse work relation");
+            // The corresponding record should have the inverse relation_type,
+            // but this cannot be enforced by the database. Test for data integrity.
+            if !(inverse_work_relation.relation_type == self.relation_type.convert_to_inverse()) {
+                return Err(ThothError::InternalError(
+                    "Found mismatched relation types for paired Work Relation objects".to_string(),
+                ));
+            }
             let inverse_data = PatchWorkRelation {
                 work_relation_id: inverse_work_relation.work_relation_id,
                 relator_work_id: data.related_work_id,
@@ -233,18 +242,23 @@ impl Crud for WorkRelation {
         // because if one fails, all need to be reverted.
         let connection = db.get().unwrap();
         connection.transaction(|| {
-            // Find the corresponding record ID. This relies on records being
-            // unique across relator work, related work, and relation type.
-            let inverse_work_relation_id = work_relation::table
-                .select(work_relation::work_relation_id)
-                .filter(work_relation::relator_work_id.eq(self.related_work_id).and(
-                    work_relation::related_work_id.eq(self.relator_work_id).and(
-                        work_relation::relation_type.eq(self.relation_type.convert_to_inverse()),
-                    ),
-                ))
-                .first::<Uuid>(&connection)
+            // Find the corresponding record from its relator/related IDs.
+            let inverse_work_relation = work_relation::table
+                .filter(
+                    work_relation::relator_work_id
+                        .eq(self.related_work_id)
+                        .and(work_relation::related_work_id.eq(self.relator_work_id)),
+                )
+                .first::<WorkRelation>(&connection)
                 .expect("Error loading inverse work relation");
-            diesel::delete(work_relation::table.find(inverse_work_relation_id))
+            // The corresponding record should have the inverse relation_type,
+            // but this cannot be enforced by the database. Test for data integrity.
+            if !(inverse_work_relation.relation_type == self.relation_type.convert_to_inverse()) {
+                return Err(ThothError::InternalError(
+                    "Found mismatched relation types for paired Work Relation objects".to_string(),
+                ));
+            }
+            diesel::delete(work_relation::table.find(inverse_work_relation.work_relation_id))
                 .execute(&connection)?;
             match diesel::delete(work_relation::table.find(self.pk())).execute(&connection) {
                 Ok(_) => Ok(self),

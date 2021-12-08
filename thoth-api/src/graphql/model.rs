@@ -1459,9 +1459,15 @@ impl MutationRoot {
 
     fn create_work_relation(context: &Context, data: NewWorkRelation) -> FieldResult<WorkRelation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        // Work relations may link works from different publishers.
+        // User must have permissions for all relevant publishers.
         context.account_access.can_edit(publisher_id_from_work_id(
             &context.db,
             data.relator_work_id,
+        )?)?;
+        context.account_access.can_edit(publisher_id_from_work_id(
+            &context.db,
+            data.related_work_id,
         )?)?;
 
         WorkRelation::create(&context.db, &data).map_err(|e| e.into())
@@ -1762,14 +1768,27 @@ impl MutationRoot {
     ) -> FieldResult<WorkRelation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let work_relation = WorkRelation::from_id(&context.db, &data.work_relation_id).unwrap();
-        context
-            .account_access
-            .can_edit(work_relation.publisher_id(&context.db)?)?;
+        // Work relations may link works from different publishers.
+        // User must have permissions for all relevant publishers.
+        context.account_access.can_edit(publisher_id_from_work_id(
+            &context.db,
+            work_relation.relator_work_id,
+        )?)?;
+        context.account_access.can_edit(publisher_id_from_work_id(
+            &context.db,
+            work_relation.related_work_id,
+        )?)?;
 
         if !(data.relator_work_id == work_relation.relator_work_id) {
             context.account_access.can_edit(publisher_id_from_work_id(
                 &context.db,
                 data.relator_work_id,
+            )?)?;
+        }
+        if !(data.related_work_id == work_relation.related_work_id) {
+            context.account_access.can_edit(publisher_id_from_work_id(
+                &context.db,
+                data.related_work_id,
             )?)?;
         }
 
@@ -1929,9 +1948,16 @@ impl MutationRoot {
     ) -> FieldResult<WorkRelation> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let work_relation = WorkRelation::from_id(&context.db, &work_relation_id).unwrap();
-        context
-            .account_access
-            .can_edit(work_relation.publisher_id(&context.db)?)?;
+        // Work relations may link works from different publishers.
+        // User must have permissions for all relevant publishers.
+        context.account_access.can_edit(publisher_id_from_work_id(
+            &context.db,
+            work_relation.relator_work_id,
+        )?)?;
+        context.account_access.can_edit(publisher_id_from_work_id(
+            &context.db,
+            work_relation.related_work_id,
+        )?)?;
 
         work_relation.delete(&context.db).map_err(|e| e.into())
     }
