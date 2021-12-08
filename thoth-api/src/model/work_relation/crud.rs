@@ -194,9 +194,9 @@ impl Crud for WorkRelation {
             // Find the corresponding record. This relies on records being
             // unique across relator work, related work, and relation type.
             let inverse_work_relation = work_relation::table
-                .filter(work_relation::relator_work_id.eq(data.related_work_id).and(
-                    work_relation::related_work_id.eq(data.relator_work_id).and(
-                        work_relation::relation_type.eq(data.relation_type.convert_to_inverse()),
+                .filter(work_relation::relator_work_id.eq(self.related_work_id).and(
+                    work_relation::related_work_id.eq(self.relator_work_id).and(
+                        work_relation::relation_type.eq(self.relation_type.convert_to_inverse()),
                     ),
                 ))
                 .first::<WorkRelation>(&connection)
