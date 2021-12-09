@@ -11,7 +11,6 @@ pub const CHAPTERS_QUERY: &str = "
             workStatus
             fullTitle
             title
-            edition
             copyrightHolder
             landingPage
             doi

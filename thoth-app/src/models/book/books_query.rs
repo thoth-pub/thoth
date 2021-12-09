@@ -11,7 +11,6 @@ pub const BOOKS_QUERY: &str = "
             workStatus
             fullTitle
             title
-            edition
             copyrightHolder
             landingPage
             doi

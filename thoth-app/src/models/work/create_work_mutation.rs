@@ -16,7 +16,7 @@ const CREATE_WORK_MUTATION: &str = "
         $title: String!,
         $subtitle: String,
         $reference: String,
-        $edition: Int!,
+        $edition: Int,
         $imprintId: Uuid!,
         $doi: Doi,
         $publicationDate: NaiveDate,
@@ -79,7 +79,6 @@ const CREATE_WORK_MUTATION: &str = "
             workStatus
             fullTitle
             title
-            edition
             imprintId
             copyrightHolder
             createdAt
@@ -108,7 +107,7 @@ pub struct Variables {
     pub title: String,
     pub subtitle: Option<String>,
     pub reference: Option<String>,
-    pub edition: i32,
+    pub edition: Option<i32>,
     pub doi: Option<Doi>,
     pub publication_date: Option<String>,
     pub place: Option<String>,

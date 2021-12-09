@@ -422,7 +422,7 @@ table! {
         title -> Text,
         subtitle -> Nullable<Text>,
         reference -> Nullable<Text>,
-        edition -> Int4,
+        edition -> Nullable<Int4>,
         imprint_id -> Uuid,
         doi -> Nullable<Text>,
         publication_date -> Nullable<Date>,

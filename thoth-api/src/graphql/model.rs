@@ -1997,8 +1997,8 @@ impl Work {
         self.reference.as_ref()
     }
 
-    pub fn edition(&self) -> &i32 {
-        &self.edition
+    pub fn edition(&self) -> Option<&i32> {
+        self.edition.as_ref()
     }
 
     pub fn imprint_id(&self) -> Uuid {

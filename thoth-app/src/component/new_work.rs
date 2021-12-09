@@ -364,10 +364,7 @@ impl Component for NewWorkComponent {
             Msg::ChangeWorkStatus(work_status) => self.work.work_status.neq_assign(work_status),
             Msg::ChangeReference(value) => self.work.reference.neq_assign(value.to_opt_string()),
             Msg::ChangeImprint(imprint_id) => self.imprint_id.neq_assign(imprint_id),
-            Msg::ChangeEdition(edition) => {
-                let edition: i32 = edition.parse().unwrap_or(1);
-                self.work.edition.neq_assign(edition)
-            }
+            Msg::ChangeEdition(edition) => self.work.edition.neq_assign(edition.to_opt_int()),
             Msg::ChangeDoi(value) => {
                 if self.doi.neq_assign(value.trim().to_owned()) {
                     // If DOI is not correctly formatted, display a warning.
@@ -528,7 +525,6 @@ impl Component for NewWorkComponent {
                         value=self.work.edition
                         oninput=self.link.callback(|e: InputData| Msg::ChangeEdition(e.value))
                         required = true
-                        min = "1".to_string()
                     />
                     <FormDateInput
                         label = "Publication Date"

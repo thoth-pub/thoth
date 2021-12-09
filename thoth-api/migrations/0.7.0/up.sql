@@ -41,3 +41,29 @@ CREATE TABLE work_relation_history (
     data                     JSONB NOT NULL,
     timestamp                TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE work
+    -- Restrict the original edition-not-null constraint to non-chapter work types.
+    ALTER COLUMN edition DROP NOT NULL,
+    ADD CONSTRAINT work_non_chapter_has_edition CHECK
+        (edition IS NOT NULL OR work_type = 'book-chapter');
+
+-- If any chapter records exist, clear any values from existing fields
+-- which are about to be newly constrained to null for chapters.
+UPDATE work
+    SET edition = NULL, width = NULL, height = NULL, toc = NULL, lccn = NULL, oclc = NULL
+    WHERE work_type = 'book-chapter';
+
+ALTER TABLE work
+    ADD CONSTRAINT work_chapter_no_edition CHECK
+        (edition IS NULL OR work_type <> 'book-chapter'),
+    ADD CONSTRAINT work_chapter_no_width CHECK
+        (width IS NULL OR work_type <> 'book-chapter'),
+    ADD CONSTRAINT work_chapter_no_height CHECK
+        (height IS NULL OR work_type <> 'book-chapter'),
+    ADD CONSTRAINT work_chapter_no_toc CHECK
+        (toc IS NULL OR work_type <> 'book-chapter'),
+    ADD CONSTRAINT work_chapter_no_lccn CHECK
+        (lccn IS NULL OR work_type <> 'book-chapter'),
+    ADD CONSTRAINT work_chapter_no_oclc CHECK
+        (oclc IS NULL OR work_type <> 'book-chapter');

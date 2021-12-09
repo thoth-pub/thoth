@@ -426,10 +426,7 @@ impl Component for WorkComponent {
                     false
                 }
             }
-            Msg::ChangeEdition(edition) => {
-                let edition: i32 = edition.parse().unwrap_or(1);
-                self.work.edition.neq_assign(edition)
-            }
+            Msg::ChangeEdition(edition) => self.work.edition.neq_assign(edition.to_opt_int()),
             Msg::ChangeDoi(value) => {
                 if self.doi.neq_assign(value.trim().to_owned()) {
                     // If DOI is not correctly formatted, display a warning.
@@ -638,7 +635,6 @@ impl Component for WorkComponent {
                                 value=self.work.edition
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeEdition(e.value))
                                 required = true
-                                min = "1".to_string()
                             />
                             <FormDateInput
                                 label = "Publication Date"
