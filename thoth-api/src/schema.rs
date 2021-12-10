@@ -448,6 +448,9 @@ table! {
         cover_caption -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+        first_page -> Nullable<Text>,
+        last_page -> Nullable<Text>,
+        page_interval -> Nullable<Text>,
     }
 }
 

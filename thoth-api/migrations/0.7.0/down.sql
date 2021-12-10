@@ -4,6 +4,12 @@ DROP TABLE work_relation;
 DROP TYPE IF EXISTS relation_type;
 
 ALTER TABLE work
+    DROP CONSTRAINT work_non_chapter_no_first_page,
+    DROP CONSTRAINT work_non_chapter_no_last_page,
+    DROP CONSTRAINT work_non_chapter_no_page_interval,
+    DROP COLUMN first_page,
+    DROP COLUMN last_page,
+    DROP COLUMN page_interval,
     DROP CONSTRAINT work_non_chapter_has_edition,
     DROP CONSTRAINT work_chapter_no_edition,
     DROP CONSTRAINT work_chapter_no_width,

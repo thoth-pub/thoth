@@ -125,6 +125,8 @@ pub enum Msg {
     ChangeLengthUnit(LengthUnit),
     ChangePageCount(String),
     ChangePageBreakdown(String),
+    ChangeFirstPage(String),
+    ChangeLastPage(String),
     ChangeImageCount(String),
     ChangeTableCount(String),
     ChangeAudioCount(String),
@@ -309,6 +311,10 @@ impl Component for WorkComponent {
                     self.work.toc = None;
                     self.work.lccn = None;
                     self.work.oclc = None;
+                } else {
+                    self.work.first_page = None;
+                    self.work.last_page = None;
+                    self.work.page_interval = None;
                 }
                 let body = UpdateWorkRequestBody {
                     variables: UpdateVariables {
@@ -344,6 +350,9 @@ impl Component for WorkComponent {
                         cover_url: self.work.cover_url.clone(),
                         cover_caption: self.work.cover_caption.clone(),
                         units: self.props.units_selection.clone(),
+                        first_page: self.work.first_page.clone(),
+                        last_page: self.work.last_page.clone(),
+                        page_interval: self.work.page_interval.clone(),
                     },
                     ..Default::default()
                 };
@@ -472,6 +481,22 @@ impl Component for WorkComponent {
             Msg::ChangePageCount(value) => self.work.page_count.neq_assign(value.to_opt_int()),
             Msg::ChangePageBreakdown(value) => {
                 self.work.page_breakdown.neq_assign(value.to_opt_string())
+            }
+            Msg::ChangeFirstPage(value) => {
+                if self.work.first_page.neq_assign(value.to_opt_string()) {
+                    self.work.page_interval = self.work.compile_page_interval();
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeLastPage(value) => {
+                if self.work.last_page.neq_assign(value.to_opt_string()) {
+                    self.work.page_interval = self.work.compile_page_interval();
+                    true
+                } else {
+                    false
+                }
             }
             Msg::ChangeImageCount(value) => self.work.image_count.neq_assign(value.to_opt_int()),
             Msg::ChangeTableCount(value) => self.work.table_count.neq_assign(value.to_opt_int()),
@@ -710,11 +735,6 @@ impl Component for WorkComponent {
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeOclc(e.value))
                                         deactivated = is_chapter
                                     />
-                                    <FormTextInput
-                                        label = "Internal Reference"
-                                        oninput=self.link.callback(|e: InputData| Msg::ChangeReference(e.value))
-                                        value=self.work.reference.clone()
-                                    />
                                 </div>
                             </div>
                             <div class="field is-horizontal">
@@ -746,6 +766,15 @@ impl Component for WorkComponent {
                                         })
                                         required = true
                                     />
+                                    <FormTextInput
+                                        label = "Internal Reference"
+                                        oninput=self.link.callback(|e: InputData| Msg::ChangeReference(e.value))
+                                        value=self.work.reference.clone()
+                                    />
+                                </div>
+                            </div>
+                            <div class="field is-horizontal">
+                                <div class="field-body">
                                     <FormNumberInput
                                         label = "Page Count"
                                         value=self.work.page_count
@@ -755,6 +784,18 @@ impl Component for WorkComponent {
                                         label = "Page Breakdown"
                                         value=self.work.page_breakdown.clone()
                                         oninput=self.link.callback(|e: InputData| Msg::ChangePageBreakdown(e.value))
+                                    />
+                                    <FormTextInput
+                                        label = "First Page"
+                                        value=self.work.first_page.clone()
+                                        oninput=self.link.callback(|e: InputData| Msg::ChangeFirstPage(e.value))
+                                        deactivated = !is_chapter
+                                    />
+                                    <FormTextInput
+                                        label = "Last Page"
+                                        value=self.work.last_page.clone()
+                                        oninput=self.link.callback(|e: InputData| Msg::ChangeLastPage(e.value))
+                                        deactivated = !is_chapter
                                     />
                                 </div>
                             </div>

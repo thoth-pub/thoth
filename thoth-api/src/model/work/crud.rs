@@ -207,6 +207,9 @@ impl Crud for Work {
                 dsl::cover_caption,
                 dsl::created_at,
                 dsl::updated_at,
+                dsl::first_page,
+                dsl::last_page,
+                dsl::page_interval,
             ))
             .into_boxed();
 
@@ -268,6 +271,18 @@ impl Crud for Work {
                 Direction::Desc => query = query.order(dsl::page_count.desc()),
             },
             WorkField::PageBreakdown => match order.direction {
+                Direction::Asc => query = query.order(dsl::page_breakdown.asc()),
+                Direction::Desc => query = query.order(dsl::page_breakdown.desc()),
+            },
+            WorkField::FirstPage => match order.direction {
+                Direction::Asc => query = query.order(dsl::first_page.asc()),
+                Direction::Desc => query = query.order(dsl::first_page.desc()),
+            },
+            WorkField::LastPage => match order.direction {
+                Direction::Asc => query = query.order(dsl::last_page.asc()),
+                Direction::Desc => query = query.order(dsl::last_page.desc()),
+            },
+            WorkField::PageInterval => match order.direction {
                 Direction::Asc => query = query.order(dsl::page_breakdown.asc()),
                 Direction::Desc => query = query.order(dsl::page_breakdown.desc()),
             },
@@ -418,6 +433,9 @@ impl Crud for Work {
                 dsl::cover_caption,
                 dsl::created_at,
                 dsl::updated_at,
+                dsl::first_page,
+                dsl::last_page,
+                dsl::page_interval,
             ))
             .into_boxed();
         if !publishers.is_empty() {

@@ -40,7 +40,10 @@ const UPDATE_WORK_MUTATION: &str = "
         $generalNote: String,
         $toc: String,
         $coverUrl: String,
-        $coverCaption: String
+        $coverCaption: String,
+        $firstPage: String,
+        $lastPage: String,
+        $pageInterval: String
     ) {
         updateWork(units: $units,
             data: {
@@ -75,6 +78,9 @@ const UPDATE_WORK_MUTATION: &str = "
             toc: $toc
             coverUrl: $coverUrl
             coverCaption: $coverCaption
+            firstPage: $firstPage
+            lastPage: $lastPage
+            pageInterval: $pageInterval
         }){
             workId
             workType
@@ -137,6 +143,9 @@ pub struct Variables {
     pub cover_caption: Option<String>,
     pub imprint_id: Uuid,
     pub units: LengthUnit,
+    pub first_page: Option<String>,
+    pub last_page: Option<String>,
+    pub page_interval: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

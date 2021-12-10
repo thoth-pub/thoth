@@ -66,4 +66,14 @@ ALTER TABLE work
     ADD CONSTRAINT work_chapter_no_lccn CHECK
         (lccn IS NULL OR work_type <> 'book-chapter'),
     ADD CONSTRAINT work_chapter_no_oclc CHECK
-        (oclc IS NULL OR work_type <> 'book-chapter');
+        (oclc IS NULL OR work_type <> 'book-chapter'),
+    -- Create new chapter-only columns.
+    ADD COLUMN first_page TEXT CHECK (octet_length(first_page) >= 1),
+    ADD COLUMN last_page TEXT CHECK (octet_length(last_page) >= 1),
+    ADD COLUMN page_interval TEXT CHECK (octet_length(page_interval) >= 1),
+    ADD CONSTRAINT work_non_chapter_no_first_page CHECK
+        (first_page IS NULL OR work_type = 'book-chapter'),
+    ADD CONSTRAINT work_non_chapter_no_last_page CHECK
+        (last_page IS NULL OR work_type = 'book-chapter'),
+    ADD CONSTRAINT work_non_chapter_no_page_interval CHECK
+        (page_interval IS NULL OR work_type = 'book-chapter');

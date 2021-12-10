@@ -43,6 +43,9 @@ pub const WORK_QUERY: &str = "
             coverUrl
             coverCaption
             updatedAt
+            firstPage
+            lastPage
+            pageInterval
             relations {
                 workRelationId
                 relatorWorkId

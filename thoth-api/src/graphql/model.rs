@@ -2124,6 +2124,18 @@ impl Work {
         self.updated_at.clone()
     }
 
+    pub fn first_page(&self) -> Option<&String> {
+        self.first_page.as_ref()
+    }
+
+    pub fn last_page(&self) -> Option<&String> {
+        self.last_page.as_ref()
+    }
+
+    pub fn page_interval(&self) -> Option<&String> {
+        self.page_interval.as_ref()
+    }
+
     pub fn imprint(&self, context: &Context) -> FieldResult<Imprint> {
         Imprint::from_id(&context.db, &self.imprint_id).map_err(|e| e.into())
     }

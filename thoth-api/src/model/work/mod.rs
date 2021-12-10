@@ -114,6 +114,9 @@ pub enum WorkField {
     CoverCaption,
     CreatedAt,
     UpdatedAt,
+    FirstPage,
+    LastPage,
+    PageInterval,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -153,6 +156,9 @@ pub struct Work {
     pub cover_caption: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+    pub first_page: Option<String>,
+    pub last_page: Option<String>,
+    pub page_interval: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -189,6 +195,9 @@ pub struct WorkWithRelations {
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
     pub updated_at: Timestamp,
+    pub first_page: Option<String>,
+    pub last_page: Option<String>,
+    pub page_interval: Option<String>,
     pub contributions: Option<Vec<Contribution>>,
     pub publications: Option<Vec<Publication>>,
     pub languages: Option<Vec<Language>>,
@@ -235,6 +244,9 @@ pub struct NewWork {
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
+    pub first_page: Option<String>,
+    pub last_page: Option<String>,
+    pub page_interval: Option<String>,
 }
 
 #[cfg_attr(
@@ -275,6 +287,9 @@ pub struct PatchWork {
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
+    pub first_page: Option<String>,
+    pub last_page: Option<String>,
+    pub page_interval: Option<String>,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -320,6 +335,14 @@ impl WorkWithRelations {
             format!("{}: {}", self.title, subtitle)
         } else {
             self.title.to_string()
+        }
+    }
+
+    pub fn compile_page_interval(&self) -> Option<String> {
+        if let (Some(first), Some(last)) = (&self.first_page.clone(), &self.last_page.clone()) {
+            Some(format!("{}-{}", first, last))
+        } else {
+            None
         }
     }
 
@@ -384,6 +407,9 @@ impl Default for WorkWithRelations {
             cover_url: Default::default(),
             cover_caption: Default::default(),
             updated_at: Default::default(),
+            first_page: Default::default(),
+            last_page: Default::default(),
+            page_interval: Default::default(),
             contributions: Default::default(),
             publications: Default::default(),
             languages: Default::default(),
@@ -475,6 +501,9 @@ fn test_workfield_display() {
     assert_eq!(format!("{}", WorkField::Height), "Height");
     assert_eq!(format!("{}", WorkField::PageCount), "PageCount");
     assert_eq!(format!("{}", WorkField::PageBreakdown), "PageBreakdown");
+    assert_eq!(format!("{}", WorkField::FirstPage), "FirstPage");
+    assert_eq!(format!("{}", WorkField::LastPage), "LastPage");
+    assert_eq!(format!("{}", WorkField::PageInterval), "PageInterval");
     assert_eq!(format!("{}", WorkField::ImageCount), "ImageCount");
     assert_eq!(format!("{}", WorkField::TableCount), "TableCount");
     assert_eq!(format!("{}", WorkField::AudioCount), "AudioCount");
@@ -612,6 +641,18 @@ fn test_workfield_fromstr() {
     assert_eq!(
         WorkField::from_str("PageBreakdown").unwrap(),
         WorkField::PageBreakdown
+    );
+    assert_eq!(
+        WorkField::from_str("FirstPage").unwrap(),
+        WorkField::FirstPage
+    );
+    assert_eq!(
+        WorkField::from_str("LastPage").unwrap(),
+        WorkField::LastPage
+    );
+    assert_eq!(
+        WorkField::from_str("PageInterval").unwrap(),
+        WorkField::PageInterval
     );
     assert_eq!(
         WorkField::from_str("ImageCount").unwrap(),
