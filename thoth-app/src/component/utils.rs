@@ -387,11 +387,10 @@ impl PureComponent for PureTextarea {
                     <textarea
                         class="textarea"
                         placeholder=self.label.clone()
+                        value={ self.value.clone().unwrap_or_else(|| "".to_string()) }
                         oninput=self.oninput.clone()
                         required={ self.required }
-                    >
-                        {&self.value.clone().unwrap_or_else(|| "".to_string())}
-                    </textarea>
+                    />
                 </div>
             </div>
         }
