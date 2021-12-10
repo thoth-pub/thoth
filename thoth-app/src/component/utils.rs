@@ -84,6 +84,8 @@ pub struct PureInput {
     pub step: Option<String>,
     #[prop_or_default]
     pub min: Option<String>,
+    #[prop_or(false)]
+    pub deactivated: bool,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -94,6 +96,8 @@ pub struct PureTextarea {
     pub oninput: Callback<InputData>,
     #[prop_or(false)]
     pub required: bool,
+    #[prop_or(false)]
+    pub deactivated: bool,
 }
 
 // Variant of PureTextInput which supports tooltips,
@@ -129,6 +133,8 @@ pub struct PureTextInput {
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
+    #[prop_or(false)]
+    pub deactivated: bool,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -167,6 +173,8 @@ pub struct PureFloatInput {
     pub required: bool,
     #[prop_or_default]
     pub step: Option<String>,
+    #[prop_or(false)]
+    pub deactivated: bool,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -181,6 +189,8 @@ pub struct PureNumberInput {
     pub required: bool,
     #[prop_or("0".to_string())]
     pub min: String,
+    #[prop_or(false)]
+    pub deactivated: bool,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -371,6 +381,7 @@ impl PureComponent for PureInput {
                         required={ self.required }
                         step={ self.step.clone() }
                         min={ self.min.clone() }
+                        disabled={ self.deactivated }
                     />
                 </div>
             </div>
@@ -390,6 +401,7 @@ impl PureComponent for PureTextarea {
                         value={ self.value.clone().unwrap_or_else(|| "".to_string()) }
                         oninput=self.oninput.clone()
                         required={ self.required }
+                        disabled={ self.deactivated }
                     />
                 </div>
             </div>
@@ -448,6 +460,7 @@ impl PureComponent for PureTextInput {
                 oninput=self.oninput.clone()
                 onblur=self.onblur.clone()
                 required=self.required
+                deactivated=self.deactivated
             />
         }
     }
@@ -494,6 +507,7 @@ impl PureComponent for PureNumberInput {
                 onblur=self.onblur.clone()
                 required=self.required
                 min=self.min.clone()
+                deactivated=self.deactivated
             />
         }
     }
@@ -511,6 +525,7 @@ impl PureComponent for PureFloatInput {
                 required=self.required
                 step=self.step.clone()
                 min="0".to_string()
+                deactivated=self.deactivated
             />
         }
     }

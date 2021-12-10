@@ -300,6 +300,16 @@ impl Component for WorkComponent {
                 } else if let Ok(result) = self.doi.parse::<Doi>() {
                     self.work.doi.neq_assign(Some(result));
                 }
+                // Clear any fields which are not applicable to the currently selected work type.
+                // (Do not clear them before the save point as the user may change the type again.)
+                if self.work.work_type == WorkType::BookChapter {
+                    self.work.edition = None;
+                    self.work.width = None;
+                    self.work.height = None;
+                    self.work.toc = None;
+                    self.work.lccn = None;
+                    self.work.oclc = None;
+                }
                 let body = UpdateWorkRequestBody {
                     variables: UpdateVariables {
                         work_id: self.work.work_id,
@@ -556,6 +566,9 @@ impl Component for WorkComponent {
                     LengthUnit::Cm => "0.1".to_string(),
                     LengthUnit::In => "0.01".to_string(),
                 };
+                // Grey out chapter-specific or "book"-specific fields
+                // based on currently selected work type.
+                let is_chapter = self.work.work_type == WorkType::BookChapter;
                 html! {
                     <>
                         <nav class="level">
@@ -635,6 +648,8 @@ impl Component for WorkComponent {
                                 value=self.work.edition
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeEdition(e.value))
                                 required = true
+                                min = "1".to_string()
+                                deactivated = is_chapter
                             />
                             <FormDateInput
                                 label = "Publication Date"
@@ -687,11 +702,13 @@ impl Component for WorkComponent {
                                         label = "LCCN"
                                         value=self.work.lccn.clone()
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeLccn(e.value))
+                                        deactivated = is_chapter
                                     />
                                     <FormTextInput
                                         label = "OCLC Number"
                                         value=self.work.oclc.clone()
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeOclc(e.value))
+                                        deactivated = is_chapter
                                     />
                                     <FormTextInput
                                         label = "Internal Reference"
@@ -707,12 +724,14 @@ impl Component for WorkComponent {
                                         value=self.work.width
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
                                         step=step.clone()
+                                        deactivated = is_chapter
                                     />
                                     <FormFloatInput
                                         label = "Height"
                                         value=self.work.height
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
                                         step=step.clone()
+                                        deactivated = is_chapter
                                     />
                                     <FormLengthUnitSelect
                                         label = "Units"
@@ -798,6 +817,7 @@ impl Component for WorkComponent {
                                 label = "Table of Content"
                                 value=self.work.toc.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeToc(e.value))
+                                deactivated = is_chapter
                             />
 
                             <div class="field">
