@@ -547,10 +547,12 @@ impl Component for WorkComponent {
         let updated_permissions =
             self.props.current_user.resource_access != props.current_user.resource_access;
         let updated_units = self.props.units_selection != props.units_selection;
+        let updated_work = self.props.work_id != props.work_id;
         self.props = props;
-        if updated_permissions || updated_units {
+        if updated_permissions || updated_units || updated_work {
             // Required in order to retrieve updated list of imprints for dropdown
             // and/or Width/Height values in the newly-selected units
+            // and/or full work if we have navigated direct from another Work page.
             self.link.send_message(Msg::GetWork);
         }
         false
