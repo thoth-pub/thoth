@@ -55,6 +55,50 @@ cd thoth
 cp .env.example .env  # Edit the credentials in .env
 ```
 
+#### Creating Postgres DB and User
+
+```
+psql
+psql -U postgres
+CREATE ROLE thoth SUPERUSER LOGIN PASSWORD 'thoth';
+CREATE DATABASE thoth WITH OWNER thoth; 
+```
+
+Exit the psql command line with:
+
+```\q```
+
+An example of a .env file:
+
+```
+THOTH_GRAPHQL_API=http://localhost:8000
+# THOTH_EXPORT_API is used at compile time, must be a public facing URL
+THOTH_EXPORT_API=http://localhost:8181
+# Authentication cookie domain
+THOTH_DOMAIN=localhost
+# Full postgres URL (With the role and db we created in the orevious step, it will look like this)
+DATABASE_URL=postgres://thoth:thoth@localhost/thoth
+# Authentication cookie secret key (can be any string really)
+SECRET_KEY=we_like_s%_books_255
+# Logging level
+RUST_LOG=info
+```
+Proceed to install **Wasm**
+```
+cargo install wasm-pack
+```
+Install **rollup**:
+
+```
+sudo npm install --global rollup
+```
+
+Export the ENV variables, **THOTH_GRAPHQL_API** and **THOTH_EXPORT_API**:
+```
+export THOTH_GRAPHQL_API=http://localhost:8000
+export THOTH_EXPORT_API=http://localhost:8181
+```
+
 #### API
 
 ```sh
