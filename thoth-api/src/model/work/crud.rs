@@ -399,44 +399,6 @@ impl Crud for Work {
         let connection = db.get().unwrap();
         let mut query = dsl::work
             .inner_join(crate::schema::imprint::table)
-            .select((
-                dsl::work_id,
-                dsl::work_type,
-                dsl::work_status,
-                dsl::full_title,
-                dsl::title,
-                dsl::subtitle,
-                dsl::reference,
-                dsl::edition,
-                dsl::imprint_id,
-                dsl::doi,
-                dsl::publication_date,
-                dsl::place,
-                dsl::width,
-                dsl::height,
-                dsl::page_count,
-                dsl::page_breakdown,
-                dsl::image_count,
-                dsl::table_count,
-                dsl::audio_count,
-                dsl::video_count,
-                dsl::license,
-                dsl::copyright_holder,
-                dsl::landing_page,
-                dsl::lccn,
-                dsl::oclc,
-                dsl::short_abstract,
-                dsl::long_abstract,
-                dsl::general_note,
-                dsl::toc,
-                dsl::cover_url,
-                dsl::cover_caption,
-                dsl::created_at,
-                dsl::updated_at,
-                dsl::first_page,
-                dsl::last_page,
-                dsl::page_interval,
-            ))
             .into_boxed();
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));

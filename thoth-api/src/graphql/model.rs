@@ -1997,6 +1997,7 @@ impl Work {
         self.reference.as_ref()
     }
 
+    #[graphql(description = "Edition number of the work (not applicable to chapters)")]
     pub fn edition(&self) -> Option<&i32> {
         self.edition.as_ref()
     }
@@ -2021,7 +2022,7 @@ impl Work {
     }
 
     #[graphql(
-        description = "Width of the physical Work (in mm, cm or in)",
+        description = "Width of the physical Work (in mm, cm or in) (not applicable to chapters)",
         arguments(
             units(
                 default = LengthUnit::default(),
@@ -2035,7 +2036,7 @@ impl Work {
     }
 
     #[graphql(
-        description = "Height of the physical Work (in mm, cm or in)",
+        description = "Height of the physical Work (in mm, cm or in) (not applicable to chapters)",
         arguments(
             units(
                 default = LengthUnit::default(),
@@ -2084,10 +2085,16 @@ impl Work {
         self.landing_page.as_ref()
     }
 
+    #[graphql(
+        description = "Library of Congress Control Number of the work (not applicable to chapters)"
+    )]
     pub fn lccn(&self) -> Option<&String> {
         self.lccn.as_ref()
     }
 
+    #[graphql(
+        description = "OCLC (WorldCat) Control Number of the work (not applicable to chapters)"
+    )]
     pub fn oclc(&self) -> Option<&String> {
         self.oclc.as_ref()
     }
@@ -2104,6 +2111,7 @@ impl Work {
         self.general_note.as_ref()
     }
 
+    #[graphql(description = "Table of contents of the work (not applicable to chapters)")]
     pub fn toc(&self) -> Option<&String> {
         self.toc.as_ref()
     }
@@ -2124,14 +2132,19 @@ impl Work {
         self.updated_at.clone()
     }
 
+    #[graphql(description = "Page number on which the work begins (only applicable to chapters)")]
     pub fn first_page(&self) -> Option<&String> {
         self.first_page.as_ref()
     }
 
+    #[graphql(description = "Page number on which the work ends (only applicable to chapters)")]
     pub fn last_page(&self) -> Option<&String> {
         self.last_page.as_ref()
     }
 
+    #[graphql(
+        description = "Concatenation of first page and last page with dash (only applicable to chapters)"
+    )]
     pub fn page_interval(&self) -> Option<&String> {
         self.page_interval.as_ref()
     }

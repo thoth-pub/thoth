@@ -105,7 +105,7 @@ impl Component for DashboardComponent {
                                         </  RouterAnchor<AppRoute>>
                                     </div>
                                 </article>
-                                <article class="tile is-child notification is-link">
+                                <article class="tile is-child notification is-info">
                                     <div class="content">
                                         <p class="title">
                                             {format!("{} Books", body.data.book_count)}
@@ -117,7 +117,7 @@ impl Component for DashboardComponent {
                                         </  RouterAnchor<AppRoute>>
                                     </div>
                                 </article>
-                                <article class="tile is-child notification is-warning">
+                                <article class="tile is-child notification is-danger">
                                     <div class="content">
                                         <p class="title">
                                             {format!("{} Chapters", body.data.chapter_count)}
@@ -133,7 +133,7 @@ impl Component for DashboardComponent {
                         </div>
                         <div class="tile">
                             <div class="tile is-parent is-vertical">
-                                <article class="tile is-child notification is-info">
+                                <article class="tile is-child notification is-link">
                                     <div class="content">
                                         <p class="title">
                                             {format!("{} Publications", body.data.publication_count)}
@@ -145,7 +145,7 @@ impl Component for DashboardComponent {
                                         </  RouterAnchor<AppRoute>>
                                     </div>
                                 </article>
-                                <article class="tile is-child notification is-danger">
+                                <article class="tile is-child notification is-warning">
                                     <div class="content">
                                         <p class="title">
                                             {format!("{} Contributors", body.data.contributor_count)}
@@ -157,7 +157,7 @@ impl Component for DashboardComponent {
                                         </  RouterAnchor<AppRoute>>
                                     </div>
                                 </article>
-                                <article class="tile is-child notification is-success">
+                                <article class="tile is-child notification is-info">
                                     <div class="content">
                                         <p class="title">
                                             {format!("{} Publishers", body.data.publisher_count)}
@@ -173,7 +173,7 @@ impl Component for DashboardComponent {
                         </div>
                         <div class="tile">
                             <div class="tile is-parent is-vertical">
-                                <article class="tile is-child notification is-primary">
+                                <article class="tile is-child notification is-danger">
                                     <div class="content">
                                         <p class="title">
                                             {format!("{} Series", body.data.series_count)}
@@ -185,13 +185,25 @@ impl Component for DashboardComponent {
                                         </  RouterAnchor<AppRoute>>
                                     </div>
                                 </article>
-                                <article class="tile is-child notification is-link">
+                                <article class="tile is-child notification is-success">
                                     <div class="content">
                                         <p class="title">
                                             {format!("{} Imprints", body.data.imprint_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
                                             route=AppRoute::Admin(AdminRoute::Imprints)
+                                        >
+                                            {"See all"}
+                                        </  RouterAnchor<AppRoute>>
+                                    </div>
+                                </article>
+                                <article class="tile is-child notification is-warning">
+                                    <div class="content">
+                                        <p class="title">
+                                            {format!("{} Institutions", body.data.institution_count)}
+                                        </p>
+                                        <RouterAnchor<AppRoute>
+                                            route=AppRoute::Admin(AdminRoute::Institutions)
                                         >
                                             {"See all"}
                                         </  RouterAnchor<AppRoute>>

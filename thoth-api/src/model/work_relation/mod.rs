@@ -132,6 +132,7 @@ pub struct WorkRelationOrderBy {
     pub direction: Direction,
 }
 
+#[cfg(feature = "backend")]
 impl RelationType {
     fn convert_to_inverse(&self) -> RelationType {
         match self {

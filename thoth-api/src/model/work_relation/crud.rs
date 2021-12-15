@@ -28,7 +28,7 @@ impl Crud for WorkRelation {
         offset: i32,
         _: Option<String>,
         order: Self::OrderByEntity,
-        publishers: Vec<Uuid>,
+        _: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
         relation_types: Vec<Self::FilterParameter1>,
@@ -37,7 +37,6 @@ impl Crud for WorkRelation {
         use crate::schema::work_relation::dsl::*;
         let connection = db.get().unwrap();
         let mut query = work_relation
-            .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select((
                 work_relation_id,
                 relator_work_id,
@@ -78,9 +77,6 @@ impl Crud for WorkRelation {
                 Direction::Asc => query = query.order(updated_at.asc()),
                 Direction::Desc => query = query.order(updated_at.desc()),
             },
-        }
-        if !publishers.is_empty() {
-            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(relator_work_id.eq(pid));

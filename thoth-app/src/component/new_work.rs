@@ -54,6 +54,7 @@ use crate::models::work::LengthUnitValues;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
 use crate::models::EditRoute;
+use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
@@ -137,6 +138,7 @@ pub struct Props {
     pub current_user: AccountDetails,
     pub units_selection: LengthUnit,
     pub update_units_selection: Callback<LengthUnit>,
+    pub previous_route: AdminRoute,
 }
 
 impl Component for NewWorkComponent {
@@ -147,7 +149,17 @@ impl Component for NewWorkComponent {
         let push_work = Default::default();
         let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
-        let work: WorkWithRelations = Default::default();
+        let work = WorkWithRelations {
+            work_type: match props.previous_route {
+                AdminRoute::Chapters => WorkType::BookChapter,
+                _ => Default::default(),
+            },
+            edition: match props.previous_route {
+                AdminRoute::Chapters => Default::default(),
+                _ => Some(1),
+            },
+            ..Default::default()
+        };
         let doi = Default::default();
         let doi_warning = Default::default();
         let imprint_id: Uuid = Default::default();

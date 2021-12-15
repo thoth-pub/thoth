@@ -360,8 +360,14 @@ impl Component for RelatedWorksFormComponent {
                                 {
                                     for self.data.works.iter().map(|w| {
                                         let work = w.clone();
-                                        // avoid listing current work
-                                        if self.props.work_id == work.work_id {
+                                        // avoid listing works where a relation already exists
+                                        if self.props.relations
+                                            .as_ref()
+                                            .unwrap()
+                                            .iter()
+                                            .any(|r| r.related_work_id == work.work_id)
+                                            // avoid listing current work
+                                            || self.props.work_id == work.work_id {
                                             html! {}
                                         } else {
                                             w.as_dropdown_item(

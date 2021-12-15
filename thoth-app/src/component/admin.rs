@@ -51,6 +51,7 @@ pub struct AdminComponent {
     router: RouteAgentDispatcher<()>,
     link: ComponentLink<Self>,
     units_selection: LengthUnit,
+    previous_route: AdminRoute,
 }
 
 pub enum Msg {
@@ -73,6 +74,7 @@ impl Component for AdminComponent {
             link.send_message(Msg::RedirectToLogin);
         }
         let mut units_selection: LengthUnit = Default::default();
+        let previous_route = props.route.clone();
         let mut storage_service = StorageService::new(Area::Local).expect(STORAGE_ERROR);
         if let Ok(units_string) = storage_service.restore(UNITS_KEY) {
             if let Ok(units) = units_string.parse::<LengthUnit>() {
@@ -92,6 +94,7 @@ impl Component for AdminComponent {
             router: RouteAgentDispatcher::new(),
             link,
             units_selection,
+            previous_route,
         }
     }
 
@@ -136,6 +139,7 @@ impl Component for AdminComponent {
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         if self.props != props {
+            self.previous_route.neq_assign(self.props.route.clone());
             self.props = props;
             if self.props.current_user.is_none() {
                 self.link.send_message(Msg::RedirectToLogin);
@@ -174,7 +178,7 @@ impl Component for AdminComponent {
                                 AdminRoute::Books => html!{<BooksComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Chapters => html!{<ChaptersComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Work(id) => html!{<WorkComponent work_id = *id current_user = self.props.current_user.clone().unwrap() units_selection = self.units_selection.clone() update_units_selection = self.link.callback(Msg::UpdateLengthUnit) />},
-                                AdminRoute::NewWork => html!{<NewWorkComponent current_user = self.props.current_user.clone().unwrap() units_selection = self.units_selection.clone() update_units_selection = self.link.callback(Msg::UpdateLengthUnit) />},
+                                AdminRoute::NewWork => html!{<NewWorkComponent current_user = self.props.current_user.clone().unwrap() units_selection = self.units_selection.clone() update_units_selection = self.link.callback(Msg::UpdateLengthUnit) previous_route = self.previous_route.clone() />},
                                 AdminRoute::Publishers => html!{<PublishersComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id = *id current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::NewPublisher => html!{<NewPublisherComponent/>},

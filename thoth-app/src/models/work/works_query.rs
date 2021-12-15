@@ -3,9 +3,13 @@ use serde::Serialize;
 use thoth_api::model::work::WorkOrderBy;
 use thoth_api::model::work::WorkWithRelations;
 
-pub const WORKS_QUERY: &str = "
+pub const WORKS_QUERY_HEADER: &str = "
     query WorksQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: WorkOrderBy) {
-        works(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers, order: $order) {
+        works(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers, order: $order) {";
+
+// The same object and attributes are retrieved across Works, Books and Chapters queries.
+// Pull this section out so it can be reused and consistently updated.
+pub const WORKS_QUERY_BODY: &str = "
             workId
             workType
             workStatus
@@ -44,7 +48,9 @@ pub const WORKS_QUERY: &str = "
                     updatedAt
                 }
             }
-        }
+        }";
+
+pub const WORKS_QUERY_FOOTER: &str = "
         workCount(filter: $filter, publishers: $publishers)
     }
 ";
@@ -53,7 +59,7 @@ graphql_query_builder! {
     WorksRequest,
     WorksRequestBody,
     Variables,
-    WORKS_QUERY,
+    format!("{}{}{}", WORKS_QUERY_HEADER, WORKS_QUERY_BODY, WORKS_QUERY_FOOTER),
     WorksResponseBody,
     WorksResponseData,
     FetchWorks,

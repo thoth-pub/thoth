@@ -3,48 +3,13 @@ use serde::Serialize;
 use thoth_api::model::work::WorkOrderBy;
 use thoth_api::model::work::WorkWithRelations;
 
-pub const BOOKS_QUERY: &str = "
+use crate::models::work::works_query::WORKS_QUERY_BODY;
+
+pub const BOOKS_QUERY_HEADER: &str = "
     query BooksQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: WorkOrderBy) {
-        books(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers, order: $order) {
-            workId
-            workType
-            workStatus
-            fullTitle
-            title
-            copyrightHolder
-            landingPage
-            doi
-            coverUrl
-            license
-            place
-            publicationDate
-            updatedAt
-            contributions {
-                contributionId
-                workId
-                contributorId
-                contributionType
-                mainContribution
-                createdAt
-                updatedAt
-                lastName
-                fullName
-                contributionOrdinal
-            }
-            imprint {
-                imprintId
-                imprintName
-                updatedAt
-                publisher {
-                    publisherId
-                    publisherName
-                    publisherShortname
-                    publisherUrl
-                    createdAt
-                    updatedAt
-                }
-            }
-        }
+        books(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers, order: $order) {";
+
+pub const BOOKS_QUERY_FOOTER: &str = "
         bookCount(filter: $filter, publishers: $publishers)
     }
 ";
@@ -53,7 +18,7 @@ graphql_query_builder! {
     BooksRequest,
     BooksRequestBody,
     Variables,
-    BOOKS_QUERY,
+    format!("{}{}{}", BOOKS_QUERY_HEADER, WORKS_QUERY_BODY, BOOKS_QUERY_FOOTER),
     BooksResponseBody,
     BooksResponseData,
     FetchBooks,

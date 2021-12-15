@@ -3,48 +3,13 @@ use serde::Serialize;
 use thoth_api::model::work::WorkOrderBy;
 use thoth_api::model::work::WorkWithRelations;
 
-pub const CHAPTERS_QUERY: &str = "
+use crate::models::work::works_query::WORKS_QUERY_BODY;
+
+pub const CHAPTERS_QUERY_HEADER: &str = "
     query ChaptersQuery($limit: Int, $offset: Int, $filter: String, $publishers: [Uuid!], $order: WorkOrderBy) {
-        chapters(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers, order: $order) {
-            workId
-            workType
-            workStatus
-            fullTitle
-            title
-            copyrightHolder
-            landingPage
-            doi
-            coverUrl
-            license
-            place
-            publicationDate
-            updatedAt
-            contributions {
-                contributionId
-                workId
-                contributorId
-                contributionType
-                mainContribution
-                createdAt
-                updatedAt
-                lastName
-                fullName
-                contributionOrdinal
-            }
-            imprint {
-                imprintId
-                imprintName
-                updatedAt
-                publisher {
-                    publisherId
-                    publisherName
-                    publisherShortname
-                    publisherUrl
-                    createdAt
-                    updatedAt
-                }
-            }
-        }
+        chapters(limit: $limit, offset: $offset, filter: $filter, publishers: $publishers, order: $order) {";
+
+pub const CHAPTERS_QUERY_FOOTER: &str = "
         chapterCount(filter: $filter, publishers: $publishers)
     }
 ";
@@ -53,7 +18,7 @@ graphql_query_builder! {
     ChaptersRequest,
     ChaptersRequestBody,
     Variables,
-    CHAPTERS_QUERY,
+    format!("{}{}{}", CHAPTERS_QUERY_HEADER, WORKS_QUERY_BODY, CHAPTERS_QUERY_FOOTER),
     ChaptersResponseBody,
     ChaptersResponseData,
     FetchChapters,

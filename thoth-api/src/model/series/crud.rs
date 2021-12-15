@@ -123,17 +123,6 @@ impl Crud for Series {
         let connection = db.get().unwrap();
         let mut query = series
             .inner_join(crate::schema::imprint::table)
-            .select((
-                series_id,
-                series_type,
-                series_name,
-                issn_print,
-                issn_digital,
-                series_url,
-                imprint_id,
-                created_at,
-                updated_at,
-            ))
             .into_boxed();
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));

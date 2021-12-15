@@ -110,14 +110,6 @@ impl Crud for Publication {
         let connection = db.get().unwrap();
         let mut query = publication
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
-            .select((
-                publication_id,
-                publication_type,
-                work_id,
-                isbn,
-                created_at,
-                updated_at,
-            ))
             .into_boxed();
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));

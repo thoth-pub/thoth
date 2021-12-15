@@ -11,6 +11,7 @@ const STATS_QUERY: &str = "
         seriesCount(publishers: $publishers)
         contributorCount
         publicationCount(publishers: $publishers)
+        institutionCount
     }
 ";
 
@@ -41,4 +42,5 @@ pub struct StatsResponseData {
     pub series_count: i32,
     pub contributor_count: i32,
     pub publication_count: i32,
+    pub institution_count: i32,
 }

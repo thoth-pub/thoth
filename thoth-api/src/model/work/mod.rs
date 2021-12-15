@@ -161,7 +161,7 @@ pub struct Work {
     pub page_interval: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkWithRelations {
     pub work_id: Uuid,
@@ -373,58 +373,13 @@ impl Default for WorkField {
     }
 }
 
-impl Default for WorkWithRelations {
-    fn default() -> WorkWithRelations {
-        WorkWithRelations {
-            work_id: Default::default(),
-            work_type: Default::default(),
-            work_status: Default::default(),
-            full_title: Default::default(),
-            title: Default::default(),
-            subtitle: Default::default(),
-            reference: Default::default(),
-            edition: Some(1),
-            doi: Default::default(),
-            publication_date: Default::default(),
-            place: Default::default(),
-            width: Default::default(),
-            height: Default::default(),
-            page_count: Default::default(),
-            page_breakdown: Default::default(),
-            image_count: Default::default(),
-            table_count: Default::default(),
-            audio_count: Default::default(),
-            video_count: Default::default(),
-            license: Default::default(),
-            copyright_holder: Default::default(),
-            landing_page: Default::default(),
-            lccn: Default::default(),
-            oclc: Default::default(),
-            short_abstract: Default::default(),
-            long_abstract: Default::default(),
-            general_note: Default::default(),
-            toc: Default::default(),
-            cover_url: Default::default(),
-            cover_caption: Default::default(),
-            updated_at: Default::default(),
-            first_page: Default::default(),
-            last_page: Default::default(),
-            page_interval: Default::default(),
-            contributions: Default::default(),
-            publications: Default::default(),
-            languages: Default::default(),
-            fundings: Default::default(),
-            subjects: Default::default(),
-            issues: Default::default(),
-            imprint: Default::default(),
-            relations: Default::default(),
-        }
-    }
-}
-
 impl fmt::Display for WorkWithRelations {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", &self.compile_fulltitle())
+        if let Some(doi) = &self.doi {
+            write!(f, "{} - {}", &self.full_title, doi)
+        } else {
+            write!(f, "{}", self.full_title)
+        }
     }
 }
 
