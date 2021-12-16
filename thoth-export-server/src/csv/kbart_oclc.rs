@@ -260,6 +260,9 @@ mod tests {
             height_in: Some(9.21),
             page_count: Some(334),
             page_breakdown: Some("x+334".to_string()),
+            first_page: None,
+            last_page: None,
+            page_interval: None,
             image_count: Some(15),
             table_count: None,
             audio_count: None,
@@ -378,6 +381,7 @@ mod tests {
             ],
             subjects: vec![],
             fundings: vec![],
+            relations: vec![],
         };
         let mut test_result = TestResult {
             headers: "publication_title\tprint_identifier\tonline_identifier\tdate_first_issue_online\tnum_first_vol_online\tnum_first_issue_online\tdate_last_issue_online\tnum_last_vol_online\tnum_last_issue_online\ttitle_url\tfirst_author\ttitle_id\tembargo_info\tcoverage_depth\tnotes\tpublisher_name\tpublication_type\tdate_monograph_published_print\tdate_monograph_published_online\tmonograph_volume\tmonograph_edition\tfirst_editor\tparent_publication_title_id\tpreceding_publication_title_id\taccess_type\n".to_string(),

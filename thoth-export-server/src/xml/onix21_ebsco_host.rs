@@ -877,6 +877,9 @@ mod tests {
             height_in: None,
             page_count: Some(334),
             page_breakdown: None,
+            first_page: None,
+            last_page: None,
+            page_interval: None,
             image_count: None,
             table_count: None,
             audio_count: None,
@@ -938,6 +941,7 @@ mod tests {
             ],
             subjects: vec![],
             fundings: vec![],
+            relations: vec![],
         };
 
         // Test standard output
