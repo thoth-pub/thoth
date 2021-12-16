@@ -156,7 +156,7 @@ impl TryFrom<Work> for KbartOclcRow {
                 // Note that it is possible for a work to belong to more than one series.
                 // Only one series can be listed in KBART, so we select the first one found (if any).
                 monograph_volume: work.issues.first().map(|i| i.issue_ordinal),
-                monograph_edition: Some(work.edition),
+                monograph_edition: work.edition,
                 first_editor,
                 // This should match the series' `title_id` if also provided in the KBART.
                 parent_publication_title_id: work
@@ -237,7 +237,7 @@ mod tests {
             title: "Book Title".to_string(),
             subtitle: Some("Separate Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
-            edition: 1,
+            edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
             license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),

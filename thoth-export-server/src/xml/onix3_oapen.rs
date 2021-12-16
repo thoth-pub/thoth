@@ -952,7 +952,7 @@ mod tests {
             title: "Book Title".to_string(),
             subtitle: Some("Book Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
-            edition: 1,
+            edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
