@@ -48,7 +48,11 @@ impl CsvSpecification for KbartOclc {
             1 => CsvRow::<KbartOclc>::csv_row(works.first().unwrap(), w),
             _ => {
                 for work in works.iter() {
-                    CsvRow::<KbartOclc>::csv_row(work, w).ok();
+                    // Do not include Chapters in full publisher metadata record
+                    // (assumes that a publisher will always have more than one work)
+                    if !(work.work_type == WorkType::BOOK_CHAPTER) {
+                        CsvRow::<KbartOclc>::csv_row(work, w).ok();
+                    }
                 }
                 Ok(())
             }

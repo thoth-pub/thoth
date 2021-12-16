@@ -4,6 +4,7 @@ use std::io::Write;
 use thoth_client::{
     ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType, Work,
     WorkContributions, WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkSubjects,
+    WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -40,7 +41,11 @@ impl XmlSpecification for Onix21EbscoHost {
                 1 => XmlElementBlock::<Onix21EbscoHost>::xml_element(works.first().unwrap(), w),
                 _ => {
                     for work in works.iter() {
-                        XmlElementBlock::<Onix21EbscoHost>::xml_element(work, w).ok();
+                        // Do not include Chapters in full publisher metadata record
+                        // (assumes that a publisher will always have more than one work)
+                        if !(work.work_type == WorkType::BOOK_CHAPTER) {
+                            XmlElementBlock::<Onix21EbscoHost>::xml_element(work, w).ok();
+                        }
                     }
                     Ok(())
                 }

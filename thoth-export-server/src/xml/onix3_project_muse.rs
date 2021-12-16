@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
     ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
-    WorkLanguages, WorkPublications, WorkStatus,
+    WorkLanguages, WorkPublications, WorkStatus, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -47,7 +47,11 @@ impl XmlSpecification for Onix3ProjectMuse {
                 1 => XmlElementBlock::<Onix3ProjectMuse>::xml_element(works.first().unwrap(), w),
                 _ => {
                     for work in works.iter() {
-                        XmlElementBlock::<Onix3ProjectMuse>::xml_element(work, w).ok();
+                        // Do not include Chapters in full publisher metadata record
+                        // (assumes that a publisher will always have more than one work)
+                        if !(work.work_type == WorkType::BOOK_CHAPTER) {
+                            XmlElementBlock::<Onix3ProjectMuse>::xml_element(work, w).ok();
+                        }
                     }
                     Ok(())
                 }
