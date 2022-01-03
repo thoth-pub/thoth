@@ -862,144 +862,90 @@ impl PureWorkTypeSelect {
 
 impl PureWorkStatusSelect {
     fn render_workstatus(&self, w: &WorkStatusValues) -> VNode {
-        if w.name == self.value {
-            html! {
-                <option value={w.name.to_string()} selected=true>
-                    {&w.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={w.name.to_string()}>{&w.name}</option>
-            }
+        html! {
+            <option value={w.name.to_string()} selected={w.name == self.value}>
+                {&w.name}
+            </option>
         }
     }
 }
 
 impl PureContributionTypeSelect {
     fn render_contributiontype(&self, c: &ContributionTypeValues) -> VNode {
-        if c.name == self.value {
-            html! {
-                <option value={c.name.to_string()} selected=true>
-                    {&c.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={c.name.to_string()}>{&c.name}</option>
-            }
+        html! {
+            <option value={c.name.to_string()} selected={c.name == self.value}>
+                {&c.name}
+            </option>
         }
     }
 }
 
 impl PurePublicationTypeSelect {
     fn render_publicationtype(&self, p: &PublicationTypeValues) -> VNode {
-        if p.name == self.value {
-            html! {
-                <option value={p.name.to_string()} selected=true>
-                    {&p.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={p.name.to_string()}>{&p.name}</option>
-            }
+        html! {
+            <option value={p.name.to_string()} selected={p.name == self.value}>
+                {&p.name}
+            </option>
         }
     }
 }
 
 impl PureSubjectTypeSelect {
     fn render_subjecttype(&self, s: &SubjectTypeValues) -> VNode {
-        if s.name == self.value {
-            html! {
-                <option value={s.name.to_string()} selected=true>
-                    {&s.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={s.name.to_string()}>{&s.name}</option>
-            }
+        html! {
+            <option value={s.name.to_string()} selected={s.name == self.value}>
+                {&s.name}
+            </option>
         }
     }
 }
 
 impl PureSeriesTypeSelect {
     fn render_seriestype(&self, s: &SeriesTypeValues) -> VNode {
-        if s.name == self.value {
-            html! {
-                <option value={s.name.to_string()} selected=true>
-                    {&s.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={s.name.to_string()}>{&s.name}</option>
-            }
+        html! {
+            <option value={s.name.to_string()} selected={s.name == self.value}>
+                {&s.name}
+            </option>
         }
     }
 }
 
 impl PureLanguageCodeSelect {
     fn render_languagecode(&self, l: &LanguageCodeValues) -> VNode {
-        if l.name == self.value {
-            html! {
-                <option value={l.name.to_string()} selected=true>
-                    {&l.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={l.name.to_string()}>{&l.name}</option>
-            }
+        html! {
+            <option value={l.name.to_string()} selected={l.name == self.value}>
+                {&l.name}
+            </option>
         }
     }
 }
 
 impl PureLanguageRelationSelect {
     fn render_languagerelation(&self, l: &LanguageRelationValues) -> VNode {
-        if l.name == self.value {
-            html! {
-                <option value={l.name.to_string()} selected=true>
-                    {&l.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={l.name.to_string()}>{&l.name}</option>
-            }
+        html! {
+            <option value={l.name.to_string()} selected={l.name == self.value}>
+                {&l.name}
+            </option>
         }
     }
 }
 
 impl PureCurrencyCodeSelect {
     fn render_currencycode(&self, c: &CurrencyCodeValues) -> VNode {
-        if c.name == self.value {
-            html! {
-                <option value={c.name.to_string()} selected=true>
-                    {&c.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={c.name.to_string()}>{&c.name}</option>
-            }
+        html! {
+            <option value={c.name.to_string()} selected={c.name == self.value}>
+                {&c.name}
+            </option>
         }
     }
 }
 
 impl PureLocationPlatformSelect {
     fn render_locationplatform(&self, l: &LocationPlatformValues) -> VNode {
-        if l.name == self.value {
-            html! {
-                <option value={l.name.to_string()} selected=true>
-                    {&l.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={l.name.to_string()}>{&l.name}</option>
-            }
+        html! {
+            <option value={l.name.to_string()} selected={l.name == self.value}>
+                {&l.name}
+            </option>
         }
     }
 }
@@ -1022,32 +968,20 @@ impl PureCountryCodeSelect {
 
 impl PureRelationTypeSelect {
     fn render_relationtype(&self, r: &RelationTypeValues) -> VNode {
-        if r.name == self.value {
-            html! {
-                <option value={r.name.to_string()} selected=true>
-                    {&r.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={r.name.to_string()}>{&r.name}</option>
-            }
+        html! {
+            <option value={r.name.to_string()} selected={r.name == self.value}>
+                {&r.name}
+            </option>
         }
     }
 }
 
 impl PureLengthUnitSelect {
     fn render_lengthunit(&self, u: &LengthUnitValues) -> VNode {
-        if u.name == self.value {
-            html! {
-                <option value={u.name.to_string()} selected=true>
-                    {&u.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={u.name.to_string()}>{&u.name}</option>
-            }
+        html! {
+            <option value={u.name.to_string()} selected={u.name == self.value}>
+                {&u.name}
+            </option>
         }
     }
 }
@@ -1055,16 +989,10 @@ impl PureLengthUnitSelect {
 impl PureImprintSelect {
     fn render_imprint(&self, i: &ImprintWithPublisher) -> VNode {
         let value = &self.value.unwrap_or_default();
-        if &i.imprint_id == value {
-            html! {
-                <option value={i.imprint_id.to_string()} selected=true>
-                    {&i.imprint_name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={i.imprint_id.to_string()}>{&i.imprint_name}</option>
-            }
+        html! {
+            <option value={i.imprint_id.to_string()} selected={&i.imprint_id == value}>
+                {&i.imprint_name}
+            </option>
         }
     }
 }
@@ -1072,16 +1000,10 @@ impl PureImprintSelect {
 impl PurePublisherSelect {
     fn render_publisher(&self, p: &Publisher) -> VNode {
         let value = &self.value.unwrap_or_default();
-        if &p.publisher_id == value {
-            html! {
-                <option value={p.publisher_id.to_string()} selected=true>
-                    {&p.publisher_name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={p.publisher_id.to_string()}>{&p.publisher_name}</option>
-            }
+        html! {
+            <option value={p.publisher_id.to_string()} selected={&p.publisher_id == value}>
+                {&p.publisher_name}
+            </option>
         }
     }
 }
