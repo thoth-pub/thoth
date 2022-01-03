@@ -543,21 +543,6 @@ impl XmlElementBlock<Onix21EbscoHost> for WorkContributions {
             })?;
             XmlElement::<Onix21EbscoHost>::xml_element(&self.contribution_type, w)?;
 
-            if let Some(orcid) = &self.contributor.orcid {
-                write_element_block("PersonNameIdentifier", w, |w| {
-                    // 01 Proprietary
-                    write_element_block("PersonNameIDType", w, |w| {
-                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                    })?;
-                    write_element_block("IDTypeName", w, |w| {
-                        w.write(XmlEvent::Characters("ORCID")).map_err(|e| e.into())
-                    })?;
-                    write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(&orcid.to_string()))
-                            .map_err(|e| e.into())
-                    })
-                })?;
-            }
             if let Some(first_name) = &self.first_name {
                 write_element_block("NamesBeforeKey", w, |w| {
                     w.write(XmlEvent::Characters(first_name))
@@ -571,6 +556,21 @@ impl XmlElementBlock<Onix21EbscoHost> for WorkContributions {
                 write_element_block("PersonName", w, |w| {
                     w.write(XmlEvent::Characters(&self.full_name))
                         .map_err(|e| e.into())
+                })?;
+            }
+            if let Some(orcid) = &self.contributor.orcid {
+                write_element_block("PersonNameIdentifier", w, |w| {
+                    // 01 Proprietary
+                    write_element_block("PersonNameIDType", w, |w| {
+                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDTypeName", w, |w| {
+                        w.write(XmlEvent::Characters("ORCID")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(&orcid.to_string()))
+                            .map_err(|e| e.into())
+                    })
                 })?;
             }
             Ok(())
