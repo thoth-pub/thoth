@@ -373,7 +373,7 @@ impl Default for WorkField {
     }
 }
 
-impl fmt::Display for WorkWithRelations {
+impl fmt::Display for Work {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(doi) = &self.doi {
             write!(f, "{} - {}", &self.full_title, doi)

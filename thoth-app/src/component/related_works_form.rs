@@ -1,6 +1,6 @@
 use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
-use thoth_api::model::work::WorkWithRelations;
+use thoth_api::model::work::Work;
 use thoth_api::model::work_relation::RelationType;
 use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
 use uuid::Uuid;
@@ -22,11 +22,11 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormRelationTypeSelect;
-use crate::models::work::works_query::FetchActionWorks;
-use crate::models::work::works_query::FetchWorks;
-use crate::models::work::works_query::Variables;
-use crate::models::work::works_query::WorksRequest;
-use crate::models::work::works_query::WorksRequestBody;
+use crate::models::work::slim_works_query::FetchActionSlimWorks;
+use crate::models::work::slim_works_query::FetchSlimWorks;
+use crate::models::work::slim_works_query::SlimWorksRequest;
+use crate::models::work::slim_works_query::SlimWorksRequestBody;
+use crate::models::work::slim_works_query::Variables;
 use crate::models::work_relation::create_work_relation_mutation::CreateWorkRelationRequest;
 use crate::models::work_relation::create_work_relation_mutation::CreateWorkRelationRequestBody;
 use crate::models::work_relation::create_work_relation_mutation::PushActionCreateWorkRelation;
@@ -54,7 +54,7 @@ pub struct RelatedWorksFormComponent {
     new_relation: WorkRelationWithRelatedWork,
     show_add_form: bool,
     show_results: bool,
-    fetch_works: FetchWorks,
+    fetch_works: FetchSlimWorks,
     fetch_relation_types: FetchRelationTypes,
     push_relation: PushCreateWorkRelation,
     delete_relation: PushDeleteWorkRelation,
@@ -65,14 +65,14 @@ pub struct RelatedWorksFormComponent {
 
 #[derive(Default)]
 struct RelatedWorksFormData {
-    works: Vec<WorkWithRelations>,
+    works: Vec<Work>,
     relation_types: Vec<RelationTypeValues>,
 }
 
 #[allow(clippy::large_enum_variant)]
 pub enum Msg {
     ToggleAddFormDisplay(bool),
-    SetWorksFetchState(FetchActionWorks),
+    SetWorksFetchState(FetchActionSlimWorks),
     GetWorks,
     SetRelationTypesFetchState(FetchActionRelationTypes),
     GetRelationTypes,
@@ -82,7 +82,7 @@ pub enum Msg {
     CreateWorkRelation,
     SetRelationDeleteState(PushActionDeleteWorkRelation),
     DeleteWorkRelation(Uuid),
-    AddRelation(WorkWithRelations),
+    AddRelation(Work),
     ChangeRelationtype(RelationType),
     ChangeOrdinal(String),
     ChangeRoute(AppRoute),
@@ -105,14 +105,14 @@ impl Component for RelatedWorksFormComponent {
         let new_relation: WorkRelationWithRelatedWork = Default::default();
         let show_add_form = false;
         let show_results = false;
-        let body = WorksRequestBody {
+        let body = SlimWorksRequestBody {
             variables: Variables {
                 publishers: props.current_user.resource_access.restricted_to(),
                 ..Default::default()
             },
             ..Default::default()
         };
-        let request = WorksRequest { body };
+        let request = SlimWorksRequest { body };
         let fetch_works = Fetch::new(request);
         let fetch_relation_types = Default::default();
         let push_relation = Default::default();
@@ -291,7 +291,7 @@ impl Component for RelatedWorksFormComponent {
                 true
             }
             Msg::SearchWork(value) => {
-                let body = WorksRequestBody {
+                let body = SlimWorksRequestBody {
                     variables: Variables {
                         filter: Some(value),
                         limit: Some(9999),
@@ -300,7 +300,7 @@ impl Component for RelatedWorksFormComponent {
                     },
                     ..Default::default()
                 };
-                let request = WorksRequest { body };
+                let request = SlimWorksRequest { body };
                 self.fetch_works = Fetch::new(request);
                 self.link.send_message(Msg::GetWorks);
                 false
