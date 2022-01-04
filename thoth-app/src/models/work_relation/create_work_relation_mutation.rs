@@ -30,7 +30,6 @@ const CREATE_WORK_RELATION_MUTATION: &str = "
                 workStatus
                 fullTitle
                 title
-                edition
                 imprintId
                 copyrightHolder
                 createdAt

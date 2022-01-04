@@ -283,6 +283,7 @@ impl Component for RelatedWorksFormComponent {
             }
             Msg::AddRelation(work) => {
                 self.new_relation.related_work_id = work.work_id;
+                self.new_relation.related_work = work;
                 self.link.send_message(Msg::ToggleAddFormDisplay(true));
                 true
             }
@@ -412,6 +413,12 @@ impl Component for RelatedWorksFormComponent {
                                     data=self.data.relation_types.clone()
                                     required = true
                                 />
+                                <div class="field">
+                                    <label class="label">{ "Work" }</label>
+                                    <div class="control is-expanded">
+                                        {&self.new_relation.related_work.full_title}
+                                    </div>
+                                </div>
                                 <FormNumberInput
                                     label = "Relation Ordinal"
                                     value=self.new_relation.relation_ordinal
@@ -479,15 +486,15 @@ impl RelatedWorksFormComponent {
                 </span>
                 <div class="field-body">
                     <div class="field" style="width: 8em;">
-                        <label class="label">{ "Work" }</label>
-                        <div class="control is-expanded">
-                            {&r.related_work.full_title}
-                        </div>
-                    </div>
-                    <div class="field" style="width: 8em;">
                         <label class="label">{ "Relation Type" }</label>
                         <div class="control is-expanded">
                             {&r.relation_type}
+                        </div>
+                    </div>
+                    <div class="field" style="width: 8em;">
+                        <label class="label">{ "Work" }</label>
+                        <div class="control is-expanded">
+                            {&r.related_work.full_title}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">

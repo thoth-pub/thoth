@@ -60,7 +60,6 @@ pub const WORK_QUERY: &str = "
                     workStatus
                     fullTitle
                     title
-                    edition
                     imprintId
                     copyrightHolder
                     createdAt

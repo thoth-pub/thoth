@@ -42,7 +42,7 @@ impl CsvSpecification for KbartOclc {
     fn handle_event<W: Write>(w: &mut Writer<W>, works: &[Work]) -> ThothResult<()> {
         match works.len() {
             0 => Err(ThothError::IncompleteMetadataRecord(
-                "onix_3.0::project_muse".to_string(),
+                "kbart::oclc".to_string(),
                 "Not enough data".to_string(),
             )),
             1 => CsvRow::<KbartOclc>::csv_row(works.first().unwrap(), w),

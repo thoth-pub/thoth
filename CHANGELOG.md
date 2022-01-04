@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+  - [#28](https://github.com/thoth-pub/thoth/issues/28) - Implement chapter structure
+  - GraphQL queries: support filtering on multiple enum variants (e.g. work types, language codes)
+  - Dashboard: display Institution stats
+
+### Fixed
+  - Issues form: typing filter string in series search box has no effect on which series are displayed
 
 ## [[0.6.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.6.1) - 2021-12-13
 ### Changed
