@@ -388,6 +388,7 @@ pub mod contributor;
 pub mod contributors;
 pub mod dashboard;
 pub mod delete_dialogue;
+pub mod figshare;
 pub mod fundings_form;
 pub mod hero;
 pub mod imprint;

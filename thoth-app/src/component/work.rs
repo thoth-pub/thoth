@@ -31,6 +31,7 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::contributions_form::ContributionsFormComponent;
 use crate::component::delete_dialogue::ConfirmDeleteComponent;
+use crate::component::figshare::FigshareComponent;
 use crate::component::fundings_form::FundingsFormComponent;
 use crate::component::issues_form::IssuesFormComponent;
 use crate::component::languages_form::LanguagesFormComponent;
@@ -557,6 +558,10 @@ impl Component for WorkComponent {
                 };
                 html! {
                     <>
+                        <FigshareComponent
+                            work=self.work.clone()
+                        />
+
                         <nav class="level">
                             <div class="level-left">
                                 <p class="subtitle is-5">
