@@ -1,3 +1,4 @@
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use thoth_api::model::subject::SubjectType;
 use thoth_api::model::work::WorkType;
@@ -103,23 +104,29 @@ pub struct FigshareResponseBody {
     pub warnings: Vec<String>,
 }
 
-impl FetchRequest for FigArticleUpdateRequest {
-    type RequestBody = FigArticleCreate;
-    type ResponseBody = FigshareResponseBody;
+// Implement Yewtil's example template for reducing HTTP request boilerplate
+// (see documentation for FetchRequest)
+pub trait SlimFetchRequest {
+    type RequestBody: Serialize;
+    type ResponseBody: DeserializeOwned;
+    fn path(&self) -> String;
+    fn method(&self) -> MethodBody<Self::RequestBody>;
+}
+
+#[derive(Default)]
+pub struct FetchWrapper<T>(T);
+
+impl<T: SlimFetchRequest> FetchRequest for FetchWrapper<T> {
+    type RequestBody = T::RequestBody;
+    type ResponseBody = T::ResponseBody;
     type Format = Json;
 
-    // Endpoint for updating existing article.
     fn url(&self) -> String {
-        format!(
-            "{}/account/articles/{}",
-            FIGSHARE_API_ROOT,
-            TEST_ARTICLE_ID.unwrap()
-        )
+        format!("{}{}", FIGSHARE_API_ROOT, self.0.path())
     }
 
-    // Updates use HTTP method PUT.
     fn method(&self) -> MethodBody<Self::RequestBody> {
-        MethodBody::Put(&self.body)
+        self.0.method()
     }
 
     // Write requests require authentication information and a JSON body containing the data to be written.
@@ -137,7 +144,20 @@ impl FetchRequest for FigArticleUpdateRequest {
     }
 }
 
-pub type PushFigshareRequest = Fetch<FigArticleUpdateRequest, FigshareResponseBody>;
+impl SlimFetchRequest for FigArticleUpdateRequest {
+    type RequestBody = FigArticleCreate;
+    type ResponseBody = FigshareResponseBody;
+    fn path(&self) -> String {
+        // Endpoint for updating existing article.
+        format!("/account/articles/{}", TEST_ARTICLE_ID.unwrap())
+    }
+    fn method(&self) -> MethodBody<Self::RequestBody> {
+        // Updates use HTTP method PUT.
+        MethodBody::Put(&self.body)
+    }
+}
+
+pub type PushFigshareRequest = Fetch<FetchWrapper<FigArticleUpdateRequest>, FigshareResponseBody>;
 pub type PushActionFigshareRequest = FetchAction<FigshareResponseBody>;
 
 // Basic interface: triggers conversion of Thoth Work data into Figshare Article format
@@ -251,7 +271,7 @@ impl Component for FigshareComponent {
                     // If empty, will submit "" and clear any previous value.
                     resource_doi: self.props.work.doi.clone().unwrap_or_default().to_string(),
                 };
-                let request = FigArticleUpdateRequest { body };
+                let request = FetchWrapper(FigArticleUpdateRequest { body });
                 self.push_figshare = Fetch::new(request);
                 self.link
                     .send_future(self.push_figshare.fetch(Msg::SetFigsharePushState));
