@@ -15,7 +15,6 @@ const DELETE_WORK_MUTATION: &str = "
             workStatus
             fullTitle
             title
-            edition
             imprintId
             copyrightHolder
             createdAt

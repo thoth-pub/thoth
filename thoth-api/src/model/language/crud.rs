@@ -7,6 +7,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{language, language_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -31,7 +32,7 @@ impl Crud for Language {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
-        language_code: Option<Self::FilterParameter1>,
+        language_codes: Vec<Self::FilterParameter1>,
         language_relation: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Language>> {
         use crate::schema::language::dsl;
@@ -79,17 +80,14 @@ impl Crud for Language {
                 Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
         }
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(dsl::work_id.eq(pid));
         }
-        if let Some(lang_code) = language_code {
-            query = query.filter(dsl::language_code.eq(lang_code));
+        if !language_codes.is_empty() {
+            query = query.filter(dsl::language_code.eq(any(language_codes)));
         }
         if let Some(lang_relation) = language_relation {
             query = query.filter(dsl::language_relation.eq(lang_relation));
@@ -108,14 +106,14 @@ impl Crud for Language {
         db: &crate::db::PgPool,
         _: Option<String>,
         _: Vec<Uuid>,
-        language_code: Option<Self::FilterParameter1>,
+        language_codes: Vec<Self::FilterParameter1>,
         language_relation: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::language::dsl;
         let connection = db.get().unwrap();
         let mut query = dsl::language.into_boxed();
-        if let Some(lang_code) = language_code {
-            query = query.filter(dsl::language_code.eq(lang_code));
+        if !language_codes.is_empty() {
+            query = query.filter(dsl::language_code.eq(any(language_codes)));
         }
         if let Some(lang_relation) = language_relation {
             query = query.filter(dsl::language_relation.eq(lang_relation));

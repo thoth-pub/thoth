@@ -10,6 +10,7 @@ use thoth_api::model::subject::Subject;
 use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
+use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
 use thoth_api::model::{Doi, LengthUnit, DOI_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
@@ -35,6 +36,7 @@ use crate::component::fundings_form::FundingsFormComponent;
 use crate::component::issues_form::IssuesFormComponent;
 use crate::component::languages_form::LanguagesFormComponent;
 use crate::component::publications_form::PublicationsFormComponent;
+use crate::component::related_works_form::RelatedWorksFormComponent;
 use crate::component::subjects_form::SubjectsFormComponent;
 use crate::component::utils::FormDateInput;
 use crate::component::utils::FormFloatInput;
@@ -123,6 +125,8 @@ pub enum Msg {
     ChangeLengthUnit(LengthUnit),
     ChangePageCount(String),
     ChangePageBreakdown(String),
+    ChangeFirstPage(String),
+    ChangeLastPage(String),
     ChangeImageCount(String),
     ChangeTableCount(String),
     ChangeAudioCount(String),
@@ -138,6 +142,7 @@ pub enum Msg {
     ChangeToc(String),
     ChangeCoverUrl(String),
     ChangeCoverCaption(String),
+    UpdateRelatedWorks(Option<Vec<WorkRelationWithRelatedWork>>),
     UpdateContributions(Option<Vec<Contribution>>),
     UpdateFundings(Option<Vec<FundingWithInstitution>>),
     UpdatePublications(Option<Vec<Publication>>),
@@ -297,6 +302,20 @@ impl Component for WorkComponent {
                 } else if let Ok(result) = self.doi.parse::<Doi>() {
                     self.work.doi.neq_assign(Some(result));
                 }
+                // Clear any fields which are not applicable to the currently selected work type.
+                // (Do not clear them before the save point as the user may change the type again.)
+                if self.work.work_type == WorkType::BookChapter {
+                    self.work.edition = None;
+                    self.work.width = None;
+                    self.work.height = None;
+                    self.work.toc = None;
+                    self.work.lccn = None;
+                    self.work.oclc = None;
+                } else {
+                    self.work.first_page = None;
+                    self.work.last_page = None;
+                    self.work.page_interval = None;
+                }
                 let body = UpdateWorkRequestBody {
                     variables: UpdateVariables {
                         work_id: self.work.work_id,
@@ -331,6 +350,9 @@ impl Component for WorkComponent {
                         cover_url: self.work.cover_url.clone(),
                         cover_caption: self.work.cover_caption.clone(),
                         units: self.props.units_selection.clone(),
+                        first_page: self.work.first_page.clone(),
+                        last_page: self.work.last_page.clone(),
+                        page_interval: self.work.page_interval.clone(),
                     },
                     ..Default::default()
                 };
@@ -423,10 +445,7 @@ impl Component for WorkComponent {
                     false
                 }
             }
-            Msg::ChangeEdition(edition) => {
-                let edition: i32 = edition.parse().unwrap_or(1);
-                self.work.edition.neq_assign(edition)
-            }
+            Msg::ChangeEdition(edition) => self.work.edition.neq_assign(edition.to_opt_int()),
             Msg::ChangeDoi(value) => {
                 if self.doi.neq_assign(value.trim().to_owned()) {
                     // If DOI is not correctly formatted, display a warning.
@@ -463,6 +482,22 @@ impl Component for WorkComponent {
             Msg::ChangePageBreakdown(value) => {
                 self.work.page_breakdown.neq_assign(value.to_opt_string())
             }
+            Msg::ChangeFirstPage(value) => {
+                if self.work.first_page.neq_assign(value.to_opt_string()) {
+                    self.work.page_interval = self.work.compile_page_interval();
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeLastPage(value) => {
+                if self.work.last_page.neq_assign(value.to_opt_string()) {
+                    self.work.page_interval = self.work.compile_page_interval();
+                    true
+                } else {
+                    false
+                }
+            }
             Msg::ChangeImageCount(value) => self.work.image_count.neq_assign(value.to_opt_int()),
             Msg::ChangeTableCount(value) => self.work.table_count.neq_assign(value.to_opt_int()),
             Msg::ChangeAudioCount(value) => self.work.audio_count.neq_assign(value.to_opt_int()),
@@ -489,6 +524,7 @@ impl Component for WorkComponent {
             Msg::ChangeCoverCaption(value) => {
                 self.work.cover_caption.neq_assign(value.to_opt_string())
             }
+            Msg::UpdateRelatedWorks(related_works) => self.work.relations.neq_assign(related_works),
             Msg::UpdateContributions(contributions) => {
                 self.work.contributions.neq_assign(contributions)
             }
@@ -511,10 +547,12 @@ impl Component for WorkComponent {
         let updated_permissions =
             self.props.current_user.resource_access != props.current_user.resource_access;
         let updated_units = self.props.units_selection != props.units_selection;
+        let updated_work = self.props.work_id != props.work_id;
         self.props = props;
-        if updated_permissions || updated_units {
+        if updated_permissions || updated_units || updated_work {
             // Required in order to retrieve updated list of imprints for dropdown
             // and/or Width/Height values in the newly-selected units
+            // and/or full work if we have navigated direct from another Work page.
             self.link.send_message(Msg::GetWork);
         }
         false
@@ -555,6 +593,9 @@ impl Component for WorkComponent {
                     LengthUnit::Cm => "0.1".to_string(),
                     LengthUnit::In => "0.01".to_string(),
                 };
+                // Grey out chapter-specific or "book"-specific fields
+                // based on currently selected work type.
+                let is_chapter = self.work.work_type == WorkType::BookChapter;
                 html! {
                     <>
                         <nav class="level">
@@ -635,6 +676,7 @@ impl Component for WorkComponent {
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeEdition(e.value))
                                 required = true
                                 min = "1".to_string()
+                                deactivated = is_chapter
                             />
                             <FormDateInput
                                 label = "Publication Date"
@@ -687,16 +729,13 @@ impl Component for WorkComponent {
                                         label = "LCCN"
                                         value=self.work.lccn.clone()
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeLccn(e.value))
+                                        deactivated = is_chapter
                                     />
                                     <FormTextInput
                                         label = "OCLC Number"
                                         value=self.work.oclc.clone()
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeOclc(e.value))
-                                    />
-                                    <FormTextInput
-                                        label = "Internal Reference"
-                                        oninput=self.link.callback(|e: InputData| Msg::ChangeReference(e.value))
-                                        value=self.work.reference.clone()
+                                        deactivated = is_chapter
                                     />
                                 </div>
                             </div>
@@ -707,12 +746,14 @@ impl Component for WorkComponent {
                                         value=self.work.width
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
                                         step=step.clone()
+                                        deactivated = is_chapter
                                     />
                                     <FormFloatInput
                                         label = "Height"
                                         value=self.work.height
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
                                         step=step.clone()
+                                        deactivated = is_chapter
                                     />
                                     <FormLengthUnitSelect
                                         label = "Units"
@@ -727,6 +768,15 @@ impl Component for WorkComponent {
                                         })
                                         required = true
                                     />
+                                    <FormTextInput
+                                        label = "Internal Reference"
+                                        oninput=self.link.callback(|e: InputData| Msg::ChangeReference(e.value))
+                                        value=self.work.reference.clone()
+                                    />
+                                </div>
+                            </div>
+                            <div class="field is-horizontal">
+                                <div class="field-body">
                                     <FormNumberInput
                                         label = "Page Count"
                                         value=self.work.page_count
@@ -736,6 +786,18 @@ impl Component for WorkComponent {
                                         label = "Page Breakdown"
                                         value=self.work.page_breakdown.clone()
                                         oninput=self.link.callback(|e: InputData| Msg::ChangePageBreakdown(e.value))
+                                    />
+                                    <FormTextInput
+                                        label = "First Page"
+                                        value=self.work.first_page.clone()
+                                        oninput=self.link.callback(|e: InputData| Msg::ChangeFirstPage(e.value))
+                                        deactivated = !is_chapter
+                                    />
+                                    <FormTextInput
+                                        label = "Last Page"
+                                        value=self.work.last_page.clone()
+                                        oninput=self.link.callback(|e: InputData| Msg::ChangeLastPage(e.value))
+                                        deactivated = !is_chapter
                                     />
                                 </div>
                             </div>
@@ -798,6 +860,7 @@ impl Component for WorkComponent {
                                 label = "Table of Content"
                                 value=self.work.toc.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeToc(e.value))
+                                deactivated = is_chapter
                             />
 
                             <div class="field">
@@ -817,6 +880,12 @@ impl Component for WorkComponent {
                             </div>
                         </article>
 
+                        <RelatedWorksFormComponent
+                            relations=self.work.relations.clone()
+                            work_id=self.work.work_id
+                            current_user=self.props.current_user.clone()
+                            update_relations=self.link.callback(Msg::UpdateRelatedWorks)
+                        />
                         <ContributionsFormComponent
                             contributions=self.work.contributions.clone()
                             work_id=self.work.work_id

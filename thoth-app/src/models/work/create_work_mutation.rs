@@ -16,7 +16,7 @@ const CREATE_WORK_MUTATION: &str = "
         $title: String!,
         $subtitle: String,
         $reference: String,
-        $edition: Int!,
+        $edition: Int,
         $imprintId: Uuid!,
         $doi: Doi,
         $publicationDate: NaiveDate,
@@ -39,7 +39,10 @@ const CREATE_WORK_MUTATION: &str = "
         $generalNote: String,
         $toc: String,
         $coverUrl: String,
-        $coverCaption: String
+        $coverCaption: String,
+        $firstPage: String,
+        $lastPage: String,
+        $pageInterval: String
     ) {
         createWork(units: $units,
             data: {
@@ -73,13 +76,15 @@ const CREATE_WORK_MUTATION: &str = "
             toc: $toc
             coverUrl: $coverUrl
             coverCaption: $coverCaption
+            firstPage: $firstPage
+            lastPage: $lastPage
+            pageInterval: $pageInterval
         }){
             workId
             workType
             workStatus
             fullTitle
             title
-            edition
             imprintId
             copyrightHolder
             createdAt
@@ -108,7 +113,7 @@ pub struct Variables {
     pub title: String,
     pub subtitle: Option<String>,
     pub reference: Option<String>,
-    pub edition: i32,
+    pub edition: Option<i32>,
     pub doi: Option<Doi>,
     pub publication_date: Option<String>,
     pub place: Option<String>,
@@ -133,6 +138,9 @@ pub struct Variables {
     pub cover_caption: Option<String>,
     pub imprint_id: Uuid,
     pub units: LengthUnit,
+    pub first_page: Option<String>,
+    pub last_page: Option<String>,
+    pub page_interval: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

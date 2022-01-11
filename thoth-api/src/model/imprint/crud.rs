@@ -6,6 +6,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{imprint, imprint_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -32,7 +33,7 @@ impl Crud for Imprint {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
-        _: Option<Self::FilterParameter1>,
+        _: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Imprint>> {
         use crate::schema::imprint::dsl::*;
@@ -61,11 +62,8 @@ impl Crud for Imprint {
                 Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(publisher_id.eq(any(publishers)));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(publisher_id.eq(pid));
@@ -91,17 +89,14 @@ impl Crud for Imprint {
         db: &crate::db::PgPool,
         filter: Option<String>,
         publishers: Vec<Uuid>,
-        _: Option<Self::FilterParameter1>,
+        _: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::imprint::dsl::*;
         let connection = db.get().unwrap();
         let mut query = imprint.into_boxed();
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(publisher_id.eq(any(publishers)));
         }
         if let Some(filter) = filter {
             query = query.filter(

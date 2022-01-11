@@ -422,7 +422,7 @@ table! {
         title -> Text,
         subtitle -> Nullable<Text>,
         reference -> Nullable<Text>,
-        edition -> Int4,
+        edition -> Nullable<Int4>,
         imprint_id -> Uuid,
         doi -> Nullable<Text>,
         publication_date -> Nullable<Date>,
@@ -448,6 +448,9 @@ table! {
         cover_caption -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+        first_page -> Nullable<Text>,
+        last_page -> Nullable<Text>,
+        page_interval -> Nullable<Text>,
     }
 }
 
@@ -457,6 +460,33 @@ table! {
     work_history (work_history_id) {
         work_history_id -> Uuid,
         work_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use crate::model::work_relation::Relation_type;
+
+    work_relation (work_relation_id) {
+        work_relation_id -> Uuid,
+        relator_work_id -> Uuid,
+        related_work_id -> Uuid,
+        relation_type -> Relation_type,
+        relation_ordinal -> Int4,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    work_relation_history (work_relation_history_id) {
+        work_relation_history_id -> Uuid,
+        work_relation_id -> Uuid,
         account_id -> Uuid,
         data -> Jsonb,
         timestamp -> Timestamptz,
@@ -511,6 +541,9 @@ joinable!(subject_history -> subject (subject_id));
 joinable!(work -> imprint (imprint_id));
 joinable!(work_history -> account (account_id));
 joinable!(work_history -> work (work_id));
+joinable!(work_relation -> work (relator_work_id));
+joinable!(work_relation_history -> account (account_id));
+joinable!(work_relation_history -> work_relation (work_relation_id));
 
 allow_tables_to_appear_in_same_query!(
     account,
@@ -545,4 +578,6 @@ allow_tables_to_appear_in_same_query!(
     subject_history,
     work,
     work_history,
+    work_relation,
+    work_relation_history,
 );

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
     ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
-    WorkLanguages, WorkPublications, WorkStatus,
+    WorkLanguages, WorkPublications, WorkStatus, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -47,7 +47,11 @@ impl XmlSpecification for Onix3ProjectMuse {
                 1 => XmlElementBlock::<Onix3ProjectMuse>::xml_element(works.first().unwrap(), w),
                 _ => {
                     for work in works.iter() {
-                        XmlElementBlock::<Onix3ProjectMuse>::xml_element(work, w).ok();
+                        // Do not include Chapters in full publisher metadata record
+                        // (assumes that a publisher will always have more than one work)
+                        if !(work.work_type == WorkType::BOOK_CHAPTER) {
+                            XmlElementBlock::<Onix3ProjectMuse>::xml_element(work, w).ok();
+                        }
                     }
                     Ok(())
                 }
@@ -694,7 +698,7 @@ mod tests {
             title: "Book Title".to_string(),
             subtitle: Some("Book Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
-            edition: 1,
+            edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
@@ -711,6 +715,9 @@ mod tests {
             height_in: None,
             page_count: Some(334),
             page_breakdown: None,
+            first_page: None,
+            last_page: None,
+            page_interval: None,
             image_count: None,
             table_count: None,
             audio_count: None,
@@ -797,6 +804,7 @@ mod tests {
                     country_code: None,
                 },
             }],
+            relations: vec![],
         };
 
         // Test standard output

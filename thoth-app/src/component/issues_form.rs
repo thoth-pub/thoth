@@ -87,7 +87,15 @@ impl Component for IssuesFormComponent {
         let new_issue: IssueWithSeries = Default::default();
         let show_add_form = false;
         let show_results = false;
-        let fetch_serieses = Default::default();
+        let body = SeriesesRequestBody {
+            variables: Variables {
+                publishers: props.current_user.resource_access.restricted_to(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let request = SeriesesRequest { body };
+        let fetch_serieses = Fetch::new(request);
         let push_issue = Default::default();
         let delete_issue = Default::default();
         let notification_bus = NotificationBus::dispatcher();
@@ -125,16 +133,6 @@ impl Component for IssuesFormComponent {
                 true
             }
             Msg::GetSerieses => {
-                let body = SeriesesRequestBody {
-                    variables: Variables {
-                        publishers: self.props.current_user.resource_access.restricted_to(),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                };
-                let request = SeriesesRequest { body };
-                self.fetch_serieses = Fetch::new(request);
-
                 self.link
                     .send_future(self.fetch_serieses.fetch(Msg::SetSeriesesFetchState));
                 self.link
