@@ -6,6 +6,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -30,65 +31,62 @@ impl Crud for Publication {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
-        publication_type: Option<Self::FilterParameter1>,
+        publication_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Publication>> {
-        use crate::schema::publication::dsl;
+        use crate::schema::publication::dsl::*;
         let connection = db.get().unwrap();
-        let mut query = dsl::publication
+        let mut query = publication
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select((
-                dsl::publication_id,
-                dsl::publication_type,
-                dsl::work_id,
-                dsl::isbn,
-                dsl::created_at,
-                dsl::updated_at,
+                publication_id,
+                publication_type,
+                work_id,
+                isbn,
+                created_at,
+                updated_at,
             ))
             .into_boxed();
 
         match order.field {
             PublicationField::PublicationId => match order.direction {
-                Direction::Asc => query = query.order(dsl::publication_id.asc()),
-                Direction::Desc => query = query.order(dsl::publication_id.desc()),
+                Direction::Asc => query = query.order(publication_id.asc()),
+                Direction::Desc => query = query.order(publication_id.desc()),
             },
             PublicationField::PublicationType => match order.direction {
-                Direction::Asc => query = query.order(dsl::publication_type.asc()),
-                Direction::Desc => query = query.order(dsl::publication_type.desc()),
+                Direction::Asc => query = query.order(publication_type.asc()),
+                Direction::Desc => query = query.order(publication_type.desc()),
             },
             PublicationField::WorkId => match order.direction {
-                Direction::Asc => query = query.order(dsl::work_id.asc()),
-                Direction::Desc => query = query.order(dsl::work_id.desc()),
+                Direction::Asc => query = query.order(work_id.asc()),
+                Direction::Desc => query = query.order(work_id.desc()),
             },
             PublicationField::Isbn => match order.direction {
-                Direction::Asc => query = query.order(dsl::isbn.asc()),
-                Direction::Desc => query = query.order(dsl::isbn.desc()),
+                Direction::Asc => query = query.order(isbn.asc()),
+                Direction::Desc => query = query.order(isbn.desc()),
             },
             PublicationField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::created_at.asc()),
-                Direction::Desc => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             PublicationField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::updated_at.asc()),
-                Direction::Desc => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }
         if let Some(pid) = parent_id_1 {
-            query = query.filter(dsl::work_id.eq(pid));
+            query = query.filter(work_id.eq(pid));
         }
-        if let Some(pub_type) = publication_type {
-            query = query.filter(dsl::publication_type.eq(pub_type));
+        if !publication_types.is_empty() {
+            query = query.filter(publication_type.eq(any(publication_types)));
         }
         if let Some(filter) = filter {
             // ISBN field is nullable, so searching with an empty filter could fail
             if !filter.is_empty() {
-                query = query.filter(dsl::isbn.ilike(format!("%{}%", filter)));
+                query = query.filter(isbn.ilike(format!("%{}%", filter)));
             }
         }
         match query
@@ -105,35 +103,24 @@ impl Crud for Publication {
         db: &crate::db::PgPool,
         filter: Option<String>,
         publishers: Vec<Uuid>,
-        publication_type: Option<Self::FilterParameter1>,
+        publication_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
-        use crate::schema::publication::dsl;
+        use crate::schema::publication::dsl::*;
         let connection = db.get().unwrap();
-        let mut query = dsl::publication
+        let mut query = publication
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
-            .select((
-                dsl::publication_id,
-                dsl::publication_type,
-                dsl::work_id,
-                dsl::isbn,
-                dsl::created_at,
-                dsl::updated_at,
-            ))
             .into_boxed();
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }
-        if let Some(pub_type) = publication_type {
-            query = query.filter(dsl::publication_type.eq(pub_type));
+        if !publication_types.is_empty() {
+            query = query.filter(publication_type.eq(any(publication_types)));
         }
         if let Some(filter) = filter {
             // ISBN field is nullable, so searching with an empty filter could fail
             if !filter.is_empty() {
-                query = query.filter(dsl::isbn.ilike(format!("%{}%", filter)));
+                query = query.filter(isbn.ilike(format!("%{}%", filter)));
             }
         }
 

@@ -138,6 +138,8 @@ pub trait MetadataTable {
 }
 
 pub mod affiliation;
+pub mod book;
+pub mod chapter;
 pub mod contribution;
 pub mod contributor;
 pub mod funding;
@@ -153,3 +155,4 @@ pub mod series;
 pub mod stats;
 pub mod subject;
 pub mod work;
+pub mod work_relation;

@@ -4,7 +4,7 @@ use std::io::Write;
 use thoth_client::{
     SubjectType, Work, WorkContributions, WorkContributionsAffiliations, WorkFundings, WorkIssues,
     WorkLanguages, WorkPublications, WorkPublicationsLocations, WorkPublicationsPrices,
-    WorkSubjects,
+    WorkRelations, WorkSubjects,
 };
 use thoth_errors::ThothResult;
 
@@ -20,7 +20,7 @@ struct CsvThothRow {
     work_status: String,
     title: String,
     subtitle: Option<String>,
-    edition: i64,
+    edition: Option<i64>,
     doi: Option<String>,
     publication_date: Option<String>,
     publication_place: Option<String>,
@@ -41,6 +41,9 @@ struct CsvThothRow {
     height_in: Option<f64>,
     page_count: Option<i64>,
     page_breakdown: Option<String>,
+    first_page: Option<String>,
+    last_page: Option<String>,
+    page_interval: Option<String>,
     image_count: Option<i64>,
     table_count: Option<i64>,
     audio_count: Option<i64>,
@@ -81,6 +84,8 @@ struct CsvThothRow {
         rename = "funding [(institution, institution_doi, ror, country, program, project, grant, jurisdiction)]"
     )]
     funding: String,
+    #[serde(rename = "relations [(related_work, relation_type, ordinal)]")]
+    relations: String,
 }
 
 impl CsvSpecification for CsvThoth {
@@ -125,6 +130,9 @@ impl From<Work> for CsvThothRow {
             height_in: work.height_in,
             page_count: work.page_count,
             page_breakdown: work.page_breakdown,
+            first_page: work.first_page,
+            last_page: work.last_page,
+            page_interval: work.page_interval,
             image_count: work.image_count,
             table_count: work.table_count,
             audio_count: work.audio_count,
@@ -210,6 +218,13 @@ impl From<Work> for CsvThothRow {
             funding: CsvCell::<CsvThoth>::csv_cell(
                 &work
                     .fundings
+                    .iter()
+                    .map(CsvCell::<CsvThoth>::csv_cell)
+                    .collect::<Vec<String>>(),
+            ),
+            relations: CsvCell::<CsvThoth>::csv_cell(
+                &work
+                    .relations
                     .iter()
                     .map(CsvCell::<CsvThoth>::csv_cell)
                     .collect::<Vec<String>>(),
@@ -368,6 +383,15 @@ impl CsvCell<CsvThoth> for WorkFundings {
     }
 }
 
+impl CsvCell<CsvThoth> for WorkRelations {
+    fn csv_cell(&self) -> String {
+        format!(
+            "(\"{}\", \"{:?}\", \"{}\")",
+            self.related_work.full_title, self.relation_type, self.relation_ordinal,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -381,10 +405,11 @@ mod tests {
     use thoth_api::model::Ror;
     use thoth_client::{
         ContributionType, CountryCode, CurrencyCode, LanguageCode, LanguageRelation,
-        LocationPlatform, PublicationType, SeriesType, WorkContributionsAffiliations,
+        LocationPlatform, PublicationType, RelationType, SeriesType, WorkContributionsAffiliations,
         WorkContributionsAffiliationsInstitution, WorkContributionsContributor,
         WorkFundingsInstitution, WorkImprint, WorkImprintPublisher, WorkIssuesSeries,
-        WorkPublicationsLocations, WorkPublicationsPrices, WorkStatus, WorkType,
+        WorkPublicationsLocations, WorkPublicationsPrices, WorkRelationsRelatedWork, WorkStatus,
+        WorkType,
     };
     use uuid::Uuid;
 
@@ -396,7 +421,7 @@ mod tests {
             title: "Book Title".to_string(),
             subtitle: Some("Book Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
-            edition: 1,
+            edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
             license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),
@@ -413,6 +438,9 @@ mod tests {
             height_in: Some(9.21),
             page_count: Some(334),
             page_breakdown: Some("x+334".to_string()),
+            first_page: None,
+            last_page: None,
+            page_interval: None,
             image_count: Some(15),
             table_count: Some(20),
             audio_count: Some(25),
@@ -629,11 +657,18 @@ mod tests {
                     country_code: Some(CountryCode::MDA),
                 },
             }],
+            relations: vec![WorkRelations {
+                relation_type: RelationType::HAS_CHILD,
+                relation_ordinal: 1,
+                related_work: WorkRelationsRelatedWork {
+                    full_title: "Related work title".to_string(),
+                },
+            }]
         };
     }
 
-    const TEST_RESULT: &str = r#""publisher","imprint","work_type","work_status","title","subtitle","edition","doi","publication_date","publication_place","license","copyright_holder","landing_page","width (mm)","width (cm)","width (in)","height (mm)","height (cm)","height (in)","page_count","page_breakdown","image_count","table_count","audio_count","video_count","lccn","oclc","short_abstract","long_abstract","general_note","toc","cover_url","cover_caption","contributions [(type, first_name, last_name, full_name, orcid, [(position, ordinal, institution)])]","publications [(type, isbn, [(ISO_4217_currency, price)], [(landing_page, full_text, platform, is_canonical)])]","series [(type, name, issn_print, issn_digital, url, issue)]","languages [(relation, ISO_639-3/B_language, is_main)]","BIC [code]","THEMA [code]","BISAC [code]","LCC [code]","custom_categories [category]","keywords [keyword]","funding [(institution, institution_doi, ror, country, program, project, grant, jurisdiction)]"
-"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","10.00001/BOOK.0001","1999-12-31","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","156.0","15.6","6.14","234.0","23.4","9.21","334","x+334","15","20","25","30","123456789","987654321","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","This is a general note","1. Chapter 1","https://www.book.com/cover","This is a cover caption","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", ""0000-0002-0000-0001"", [(""Manager"", ""1"", ""University of Life"")]),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", """", )]","[(""PAPERBACK"", ""978-3-16-148410-0"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")], [(""https://www.book.com/paperback"", """", ""OTHER"", ""true""),(""https://www.jstor.com/paperback"", """", ""JSTOR"", ""false"")]),(""HARDBACK"", ""978-1-4028-9462-6"", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")], ),(""PDF"", ""978-1-56619-909-4"", , [(""https://www.book.com/pdf_landing"", ""https://www.book.com/pdf_fulltext"", ""OTHER"", ""true"")]),(""HTML"", """", , [(""https://www.book.com/html_landing"", ""https://www.book.com/html_fulltext"", ""OTHER"", ""true"")]),(""XML"", ""978-92-95055-02-5"", , )]","[(""JOURNAL"", ""Name of series"", ""1234-5678"", ""8765-4321"", ""https://www.series.com"", ""1"")]","[(""ORIGINAL"", ""SPA"", ""true"")]","[""AAA"",""AAB""]","[""JWA""]","[""AAA000000"",""AAA000001""]","[""JA85""]","[""Category1""]","[""keyword1"",""keyword2""]","[(""Name of institution"", ""10.00001/INSTITUTION.0001"", ""0aaaaaa00"", ""MDA"", ""Name of program"", ""Name of project"", ""Number of grant"", ""Funding jurisdiction"")]"
+    const TEST_RESULT: &str = r#""publisher","imprint","work_type","work_status","title","subtitle","edition","doi","publication_date","publication_place","license","copyright_holder","landing_page","width (mm)","width (cm)","width (in)","height (mm)","height (cm)","height (in)","page_count","page_breakdown","first_page","last_page","page_interval","image_count","table_count","audio_count","video_count","lccn","oclc","short_abstract","long_abstract","general_note","toc","cover_url","cover_caption","contributions [(type, first_name, last_name, full_name, orcid, [(position, ordinal, institution)])]","publications [(type, isbn, [(ISO_4217_currency, price)], [(landing_page, full_text, platform, is_canonical)])]","series [(type, name, issn_print, issn_digital, url, issue)]","languages [(relation, ISO_639-3/B_language, is_main)]","BIC [code]","THEMA [code]","BISAC [code]","LCC [code]","custom_categories [category]","keywords [keyword]","funding [(institution, institution_doi, ror, country, program, project, grant, jurisdiction)]","relations [(related_work, relation_type, ordinal)]"
+"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","10.00001/BOOK.0001","1999-12-31","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","156.0","15.6","6.14","234.0","23.4","9.21","334","x+334","","","","15","20","25","30","123456789","987654321","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","This is a general note","1. Chapter 1","https://www.book.com/cover","This is a cover caption","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", ""0000-0002-0000-0001"", [(""Manager"", ""1"", ""University of Life"")]),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", """", )]","[(""PAPERBACK"", ""978-3-16-148410-0"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")], [(""https://www.book.com/paperback"", """", ""OTHER"", ""true""),(""https://www.jstor.com/paperback"", """", ""JSTOR"", ""false"")]),(""HARDBACK"", ""978-1-4028-9462-6"", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")], ),(""PDF"", ""978-1-56619-909-4"", , [(""https://www.book.com/pdf_landing"", ""https://www.book.com/pdf_fulltext"", ""OTHER"", ""true"")]),(""HTML"", """", , [(""https://www.book.com/html_landing"", ""https://www.book.com/html_fulltext"", ""OTHER"", ""true"")]),(""XML"", ""978-92-95055-02-5"", , )]","[(""JOURNAL"", ""Name of series"", ""1234-5678"", ""8765-4321"", ""https://www.series.com"", ""1"")]","[(""ORIGINAL"", ""SPA"", ""true"")]","[""AAA"",""AAB""]","[""JWA""]","[""AAA000000"",""AAA000001""]","[""JA85""]","[""Category1""]","[""keyword1"",""keyword2""]","[(""Name of institution"", ""10.00001/INSTITUTION.0001"", ""0aaaaaa00"", ""MDA"", ""Name of program"", ""Name of project"", ""Number of grant"", ""Funding jurisdiction"")]","[(""Related work title"", ""HAS_CHILD"", ""1"")]"
 "#;
 
     #[test]
@@ -858,6 +893,28 @@ mod tests {
         assert_eq!(
             CsvCell::<CsvThoth>::csv_cell(&funding),
             r#"("Name of institution", "", "", "", "", "", "", "")"#.to_string()
+        );
+    }
+
+    #[test]
+    fn test_csv_thoth_relations() {
+        let mut relation = WorkRelations {
+            relation_type: RelationType::HAS_CHILD,
+            relation_ordinal: 1,
+            related_work: WorkRelationsRelatedWork {
+                full_title: "Related work title".to_string(),
+            },
+        };
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&relation),
+            r#"("Related work title", "HAS_CHILD", "1")"#.to_string()
+        );
+        relation.relation_type = RelationType::IS_TRANSLATION_OF;
+        relation.relation_ordinal = 2;
+        relation.related_work.full_title = "Different related work title".to_string();
+        assert_eq!(
+            CsvCell::<CsvThoth>::csv_cell(&relation),
+            r#"("Different related work title", "IS_TRANSLATION_OF", "2")"#.to_string()
         );
     }
 }

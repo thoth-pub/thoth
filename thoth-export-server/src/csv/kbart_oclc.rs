@@ -42,13 +42,17 @@ impl CsvSpecification for KbartOclc {
     fn handle_event<W: Write>(w: &mut Writer<W>, works: &[Work]) -> ThothResult<()> {
         match works.len() {
             0 => Err(ThothError::IncompleteMetadataRecord(
-                "onix_3.0::project_muse".to_string(),
+                "kbart::oclc".to_string(),
                 "Not enough data".to_string(),
             )),
             1 => CsvRow::<KbartOclc>::csv_row(works.first().unwrap(), w),
             _ => {
                 for work in works.iter() {
-                    CsvRow::<KbartOclc>::csv_row(work, w).ok();
+                    // Do not include Chapters in full publisher metadata record
+                    // (assumes that a publisher will always have more than one work)
+                    if !(work.work_type == WorkType::BOOK_CHAPTER) {
+                        CsvRow::<KbartOclc>::csv_row(work, w).ok();
+                    }
                 }
                 Ok(())
             }
@@ -156,7 +160,7 @@ impl TryFrom<Work> for KbartOclcRow {
                 // Note that it is possible for a work to belong to more than one series.
                 // Only one series can be listed in KBART, so we select the first one found (if any).
                 monograph_volume: work.issues.first().map(|i| i.issue_ordinal),
-                monograph_edition: Some(work.edition),
+                monograph_edition: work.edition,
                 first_editor,
                 // This should match the series' `title_id` if also provided in the KBART.
                 parent_publication_title_id: work
@@ -237,7 +241,7 @@ mod tests {
             title: "Book Title".to_string(),
             subtitle: Some("Separate Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
-            edition: 1,
+            edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
             license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),
@@ -256,6 +260,9 @@ mod tests {
             height_in: Some(9.21),
             page_count: Some(334),
             page_breakdown: Some("x+334".to_string()),
+            first_page: None,
+            last_page: None,
+            page_interval: None,
             image_count: Some(15),
             table_count: None,
             audio_count: None,
@@ -374,6 +381,7 @@ mod tests {
             ],
             subjects: vec![],
             fundings: vec![],
+            relations: vec![],
         };
         let mut test_result = TestResult {
             headers: "publication_title\tprint_identifier\tonline_identifier\tdate_first_issue_online\tnum_first_vol_online\tnum_first_issue_online\tdate_last_issue_online\tnum_last_vol_online\tnum_last_issue_online\ttitle_url\tfirst_author\ttitle_id\tembargo_info\tcoverage_depth\tnotes\tpublisher_name\tpublication_type\tdate_monograph_published_print\tdate_monograph_published_online\tmonograph_volume\tmonograph_edition\tfirst_editor\tparent_publication_title_id\tpreceding_publication_title_id\taccess_type\n".to_string(),

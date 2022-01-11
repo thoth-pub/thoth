@@ -6,6 +6,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{series, series_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -32,76 +33,73 @@ impl Crud for Series {
         publishers: Vec<Uuid>,
         _: Option<Uuid>,
         _: Option<Uuid>,
-        series_type: Option<Self::FilterParameter1>,
+        series_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Series>> {
-        use crate::schema::series::dsl;
+        use crate::schema::series::dsl::*;
         let connection = db.get().unwrap();
-        let mut query = dsl::series
+        let mut query = series
             .inner_join(crate::schema::imprint::table)
             .select((
-                dsl::series_id,
-                dsl::series_type,
-                dsl::series_name,
-                dsl::issn_print,
-                dsl::issn_digital,
-                dsl::series_url,
-                dsl::imprint_id,
-                dsl::created_at,
-                dsl::updated_at,
+                series_id,
+                series_type,
+                series_name,
+                issn_print,
+                issn_digital,
+                series_url,
+                imprint_id,
+                created_at,
+                updated_at,
             ))
             .into_boxed();
 
         match order.field {
             SeriesField::SeriesId => match order.direction {
-                Direction::Asc => query = query.order(dsl::series_id.asc()),
-                Direction::Desc => query = query.order(dsl::series_id.desc()),
+                Direction::Asc => query = query.order(series_id.asc()),
+                Direction::Desc => query = query.order(series_id.desc()),
             },
             SeriesField::SeriesType => match order.direction {
-                Direction::Asc => query = query.order(dsl::series_type.asc()),
-                Direction::Desc => query = query.order(dsl::series_type.desc()),
+                Direction::Asc => query = query.order(series_type.asc()),
+                Direction::Desc => query = query.order(series_type.desc()),
             },
             SeriesField::SeriesName => match order.direction {
-                Direction::Asc => query = query.order(dsl::series_name.asc()),
-                Direction::Desc => query = query.order(dsl::series_name.desc()),
+                Direction::Asc => query = query.order(series_name.asc()),
+                Direction::Desc => query = query.order(series_name.desc()),
             },
             SeriesField::IssnPrint => match order.direction {
-                Direction::Asc => query = query.order(dsl::issn_print.asc()),
-                Direction::Desc => query = query.order(dsl::issn_print.desc()),
+                Direction::Asc => query = query.order(issn_print.asc()),
+                Direction::Desc => query = query.order(issn_print.desc()),
             },
             SeriesField::IssnDigital => match order.direction {
-                Direction::Asc => query = query.order(dsl::issn_digital.asc()),
-                Direction::Desc => query = query.order(dsl::issn_digital.desc()),
+                Direction::Asc => query = query.order(issn_digital.asc()),
+                Direction::Desc => query = query.order(issn_digital.desc()),
             },
             SeriesField::SeriesUrl => match order.direction {
-                Direction::Asc => query = query.order(dsl::series_url.asc()),
-                Direction::Desc => query = query.order(dsl::series_url.desc()),
+                Direction::Asc => query = query.order(series_url.asc()),
+                Direction::Desc => query = query.order(series_url.desc()),
             },
             SeriesField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::created_at.asc()),
-                Direction::Desc => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             SeriesField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::updated_at.asc()),
-                Direction::Desc => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }
-        if let Some(ser_type) = series_type {
-            query = query.filter(dsl::series_type.eq(ser_type));
+        if !series_types.is_empty() {
+            query = query.filter(series_type.eq(any(series_types)));
         }
         if let Some(filter) = filter {
             query = query.filter(
-                dsl::series_name
+                series_name
                     .ilike(format!("%{}%", filter))
-                    .or(dsl::issn_print.ilike(format!("%{}%", filter)))
-                    .or(dsl::issn_digital.ilike(format!("%{}%", filter)))
-                    .or(dsl::series_url.ilike(format!("%{}%", filter))),
+                    .or(issn_print.ilike(format!("%{}%", filter)))
+                    .or(issn_digital.ilike(format!("%{}%", filter)))
+                    .or(series_url.ilike(format!("%{}%", filter))),
             );
         }
         match query
@@ -118,41 +116,27 @@ impl Crud for Series {
         db: &crate::db::PgPool,
         filter: Option<String>,
         publishers: Vec<Uuid>,
-        series_type: Option<Self::FilterParameter1>,
+        series_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
-        use crate::schema::series::dsl;
+        use crate::schema::series::dsl::*;
         let connection = db.get().unwrap();
-        let mut query = dsl::series
+        let mut query = series
             .inner_join(crate::schema::imprint::table)
-            .select((
-                dsl::series_id,
-                dsl::series_type,
-                dsl::series_name,
-                dsl::issn_print,
-                dsl::issn_digital,
-                dsl::series_url,
-                dsl::imprint_id,
-                dsl::created_at,
-                dsl::updated_at,
-            ))
             .into_boxed();
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }
-        if let Some(ser_type) = series_type {
-            query = query.filter(dsl::series_type.eq(ser_type));
+        if !series_types.is_empty() {
+            query = query.filter(series_type.eq(any(series_types)));
         }
         if let Some(filter) = filter {
             query = query.filter(
-                dsl::series_name
+                series_name
                     .ilike(format!("%{}%", filter))
-                    .or(dsl::issn_print.ilike(format!("%{}%", filter)))
-                    .or(dsl::issn_digital.ilike(format!("%{}%", filter)))
-                    .or(dsl::series_url.ilike(format!("%{}%", filter))),
+                    .or(issn_print.ilike(format!("%{}%", filter)))
+                    .or(issn_digital.ilike(format!("%{}%", filter)))
+                    .or(series_url.ilike(format!("%{}%", filter))),
             );
         }
 
