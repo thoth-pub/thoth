@@ -6,6 +6,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{subject, subject_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -30,71 +31,68 @@ impl Crud for Subject {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
-        subject_type: Option<Self::FilterParameter1>,
+        subject_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Subject>> {
-        use crate::schema::subject::dsl;
+        use crate::schema::subject::dsl::*;
         let connection = db.get().unwrap();
-        let mut query = dsl::subject
+        let mut query = subject
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select((
-                dsl::subject_id,
-                dsl::work_id,
-                dsl::subject_type,
-                dsl::subject_code,
-                dsl::subject_ordinal,
-                dsl::created_at,
-                dsl::updated_at,
+                subject_id,
+                work_id,
+                subject_type,
+                subject_code,
+                subject_ordinal,
+                created_at,
+                updated_at,
             ))
             .into_boxed();
 
         match order.field {
             SubjectField::SubjectId => match order.direction {
-                Direction::Asc => query = query.order(dsl::subject_id.asc()),
-                Direction::Desc => query = query.order(dsl::subject_id.desc()),
+                Direction::Asc => query = query.order(subject_id.asc()),
+                Direction::Desc => query = query.order(subject_id.desc()),
             },
             SubjectField::WorkId => match order.direction {
-                Direction::Asc => query = query.order(dsl::work_id.asc()),
-                Direction::Desc => query = query.order(dsl::work_id.desc()),
+                Direction::Asc => query = query.order(work_id.asc()),
+                Direction::Desc => query = query.order(work_id.desc()),
             },
             SubjectField::SubjectType => match order.direction {
-                Direction::Asc => query = query.order(dsl::subject_type.asc()),
-                Direction::Desc => query = query.order(dsl::subject_type.desc()),
+                Direction::Asc => query = query.order(subject_type.asc()),
+                Direction::Desc => query = query.order(subject_type.desc()),
             },
             SubjectField::SubjectCode => match order.direction {
-                Direction::Asc => query = query.order(dsl::subject_code.asc()),
-                Direction::Desc => query = query.order(dsl::subject_code.desc()),
+                Direction::Asc => query = query.order(subject_code.asc()),
+                Direction::Desc => query = query.order(subject_code.desc()),
             },
             SubjectField::SubjectOrdinal => match order.direction {
-                Direction::Asc => query = query.order(dsl::subject_ordinal.asc()),
-                Direction::Desc => query = query.order(dsl::subject_ordinal.desc()),
+                Direction::Asc => query = query.order(subject_ordinal.asc()),
+                Direction::Desc => query = query.order(subject_ordinal.desc()),
             },
             SubjectField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::created_at.asc()),
-                Direction::Desc => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             SubjectField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::updated_at.asc()),
-                Direction::Desc => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }
         if let Some(pid) = parent_id_1 {
-            query = query.filter(dsl::work_id.eq(pid));
+            query = query.filter(work_id.eq(pid));
         }
-        if let Some(sub_type) = subject_type {
-            query = query.filter(dsl::subject_type.eq(sub_type));
+        if !subject_types.is_empty() {
+            query = query.filter(subject_type.eq(any(subject_types)));
         }
         if let Some(filter) = filter {
-            query = query.filter(dsl::subject_code.ilike(format!("%{}%", filter)));
+            query = query.filter(subject_code.ilike(format!("%{}%", filter)));
         }
         match query
-            .then_order_by(dsl::subject_code.asc())
+            .then_order_by(subject_code.asc())
             .limit(limit.into())
             .offset(offset.into())
             .load::<Subject>(&connection)
@@ -108,17 +106,17 @@ impl Crud for Subject {
         db: &crate::db::PgPool,
         filter: Option<String>,
         _: Vec<Uuid>,
-        subject_type: Option<Self::FilterParameter1>,
+        subject_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
-        use crate::schema::subject::dsl;
+        use crate::schema::subject::dsl::*;
         let connection = db.get().unwrap();
-        let mut query = dsl::subject.into_boxed();
-        if let Some(sub_type) = subject_type {
-            query = query.filter(dsl::subject_type.eq(sub_type));
+        let mut query = subject.into_boxed();
+        if !subject_types.is_empty() {
+            query = query.filter(subject_type.eq(any(subject_types)));
         }
         if let Some(filter) = filter {
-            query = query.filter(dsl::subject_code.ilike(format!("%{}%", filter)));
+            query = query.filter(subject_code.ilike(format!("%{}%", filter)));
         }
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this

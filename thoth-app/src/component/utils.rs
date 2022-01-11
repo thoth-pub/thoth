@@ -11,6 +11,7 @@ use thoth_api::model::series::SeriesType;
 use thoth_api::model::subject::SubjectType;
 use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
+use thoth_api::model::work_relation::RelationType;
 use thoth_api::model::LengthUnit;
 use uuid::Uuid;
 use yew::html;
@@ -36,6 +37,7 @@ use crate::models::subject::SubjectTypeValues;
 use crate::models::work::LengthUnitValues;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
+use crate::models::work_relation::RelationTypeValues;
 use crate::string::NO;
 use crate::string::RELOAD_BUTTON;
 use crate::string::YES;
@@ -59,6 +61,7 @@ pub type FormLanguageRelationSelect = Pure<PureLanguageRelationSelect>;
 pub type FormCurrencyCodeSelect = Pure<PureCurrencyCodeSelect>;
 pub type FormLocationPlatformSelect = Pure<PureLocationPlatformSelect>;
 pub type FormCountryCodeSelect = Pure<PureCountryCodeSelect>;
+pub type FormRelationTypeSelect = Pure<PureRelationTypeSelect>;
 pub type FormLengthUnitSelect = Pure<PureLengthUnitSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
@@ -81,6 +84,8 @@ pub struct PureInput {
     pub step: Option<String>,
     #[prop_or_default]
     pub min: Option<String>,
+    #[prop_or(false)]
+    pub deactivated: bool,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -91,6 +96,8 @@ pub struct PureTextarea {
     pub oninput: Callback<InputData>,
     #[prop_or(false)]
     pub required: bool,
+    #[prop_or(false)]
+    pub deactivated: bool,
 }
 
 // Variant of PureTextInput which supports tooltips,
@@ -126,6 +133,8 @@ pub struct PureTextInput {
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
+    #[prop_or(false)]
+    pub deactivated: bool,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -164,6 +173,8 @@ pub struct PureFloatInput {
     pub required: bool,
     #[prop_or_default]
     pub step: Option<String>,
+    #[prop_or(false)]
+    pub deactivated: bool,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -178,6 +189,8 @@ pub struct PureNumberInput {
     pub required: bool,
     #[prop_or("0".to_string())]
     pub min: String,
+    #[prop_or(false)]
+    pub deactivated: bool,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -294,6 +307,16 @@ pub struct PureCountryCodeSelect {
 }
 
 #[derive(Clone, PartialEq, Properties)]
+pub struct PureRelationTypeSelect {
+    pub label: String,
+    pub data: Vec<RelationTypeValues>,
+    pub value: RelationType,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
 pub struct PureLengthUnitSelect {
     pub label: String,
     pub data: Vec<LengthUnitValues>,
@@ -358,6 +381,7 @@ impl PureComponent for PureInput {
                         required={ self.required }
                         step={ self.step.clone() }
                         min={ self.min.clone() }
+                        disabled={ self.deactivated }
                     />
                 </div>
             </div>
@@ -374,11 +398,11 @@ impl PureComponent for PureTextarea {
                     <textarea
                         class="textarea"
                         placeholder=self.label.clone()
+                        value={ self.value.clone().unwrap_or_else(|| "".to_string()) }
                         oninput=self.oninput.clone()
                         required={ self.required }
-                    >
-                        {&self.value.clone().unwrap_or_else(|| "".to_string())}
-                    </textarea>
+                        disabled={ self.deactivated }
+                    />
                 </div>
             </div>
         }
@@ -436,6 +460,7 @@ impl PureComponent for PureTextInput {
                 oninput=self.oninput.clone()
                 onblur=self.onblur.clone()
                 required=self.required
+                deactivated=self.deactivated
             />
         }
     }
@@ -482,6 +507,7 @@ impl PureComponent for PureNumberInput {
                 onblur=self.onblur.clone()
                 required=self.required
                 min=self.min.clone()
+                deactivated=self.deactivated
             />
         }
     }
@@ -499,6 +525,7 @@ impl PureComponent for PureFloatInput {
                 required=self.required
                 step=self.step.clone()
                 min="0".to_string()
+                deactivated=self.deactivated
             />
         }
     }
@@ -689,7 +716,6 @@ impl PureComponent for PureLocationPlatformSelect {
                         required=self.required
                         onchange=&self.onchange
                     >
-                        <option value="">{"Select Country"}</option>
                         { for self.data.iter().map(|l| self.render_locationplatform(l)) }
                     </select>
                     </div>
@@ -712,6 +738,26 @@ impl PureComponent for PureCountryCodeSelect {
                     >
                         <option value="">{"Select Country"}</option>
                         { for self.data.iter().map(|c| self.render_countrycode(c)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+impl PureComponent for PureRelationTypeSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select">
+                    <select
+                        required=self.required
+                        onchange=&self.onchange
+                    >
+                        { for self.data.iter().map(|r| self.render_relationtype(r)) }
                     </select>
                     </div>
                 </div>
@@ -816,144 +862,90 @@ impl PureWorkTypeSelect {
 
 impl PureWorkStatusSelect {
     fn render_workstatus(&self, w: &WorkStatusValues) -> VNode {
-        if w.name == self.value {
-            html! {
-                <option value={w.name.to_string()} selected=true>
-                    {&w.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={w.name.to_string()}>{&w.name}</option>
-            }
+        html! {
+            <option value={w.name.to_string()} selected={w.name == self.value}>
+                {&w.name}
+            </option>
         }
     }
 }
 
 impl PureContributionTypeSelect {
     fn render_contributiontype(&self, c: &ContributionTypeValues) -> VNode {
-        if c.name == self.value {
-            html! {
-                <option value={c.name.to_string()} selected=true>
-                    {&c.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={c.name.to_string()}>{&c.name}</option>
-            }
+        html! {
+            <option value={c.name.to_string()} selected={c.name == self.value}>
+                {&c.name}
+            </option>
         }
     }
 }
 
 impl PurePublicationTypeSelect {
     fn render_publicationtype(&self, p: &PublicationTypeValues) -> VNode {
-        if p.name == self.value {
-            html! {
-                <option value={p.name.to_string()} selected=true>
-                    {&p.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={p.name.to_string()}>{&p.name}</option>
-            }
+        html! {
+            <option value={p.name.to_string()} selected={p.name == self.value}>
+                {&p.name}
+            </option>
         }
     }
 }
 
 impl PureSubjectTypeSelect {
     fn render_subjecttype(&self, s: &SubjectTypeValues) -> VNode {
-        if s.name == self.value {
-            html! {
-                <option value={s.name.to_string()} selected=true>
-                    {&s.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={s.name.to_string()}>{&s.name}</option>
-            }
+        html! {
+            <option value={s.name.to_string()} selected={s.name == self.value}>
+                {&s.name}
+            </option>
         }
     }
 }
 
 impl PureSeriesTypeSelect {
     fn render_seriestype(&self, s: &SeriesTypeValues) -> VNode {
-        if s.name == self.value {
-            html! {
-                <option value={s.name.to_string()} selected=true>
-                    {&s.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={s.name.to_string()}>{&s.name}</option>
-            }
+        html! {
+            <option value={s.name.to_string()} selected={s.name == self.value}>
+                {&s.name}
+            </option>
         }
     }
 }
 
 impl PureLanguageCodeSelect {
     fn render_languagecode(&self, l: &LanguageCodeValues) -> VNode {
-        if l.name == self.value {
-            html! {
-                <option value={l.name.to_string()} selected=true>
-                    {&l.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={l.name.to_string()}>{&l.name}</option>
-            }
+        html! {
+            <option value={l.name.to_string()} selected={l.name == self.value}>
+                {&l.name}
+            </option>
         }
     }
 }
 
 impl PureLanguageRelationSelect {
     fn render_languagerelation(&self, l: &LanguageRelationValues) -> VNode {
-        if l.name == self.value {
-            html! {
-                <option value={l.name.to_string()} selected=true>
-                    {&l.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={l.name.to_string()}>{&l.name}</option>
-            }
+        html! {
+            <option value={l.name.to_string()} selected={l.name == self.value}>
+                {&l.name}
+            </option>
         }
     }
 }
 
 impl PureCurrencyCodeSelect {
     fn render_currencycode(&self, c: &CurrencyCodeValues) -> VNode {
-        if c.name == self.value {
-            html! {
-                <option value={c.name.to_string()} selected=true>
-                    {&c.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={c.name.to_string()}>{&c.name}</option>
-            }
+        html! {
+            <option value={c.name.to_string()} selected={c.name == self.value}>
+                {&c.name}
+            </option>
         }
     }
 }
 
 impl PureLocationPlatformSelect {
     fn render_locationplatform(&self, l: &LocationPlatformValues) -> VNode {
-        if l.name == self.value {
-            html! {
-                <option value={l.name.to_string()} selected=true>
-                    {&l.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={l.name.to_string()}>{&l.name}</option>
-            }
+        html! {
+            <option value={l.name.to_string()} selected={l.name == self.value}>
+                {&l.name}
+            </option>
         }
     }
 }
@@ -974,18 +966,22 @@ impl PureCountryCodeSelect {
     }
 }
 
+impl PureRelationTypeSelect {
+    fn render_relationtype(&self, r: &RelationTypeValues) -> VNode {
+        html! {
+            <option value={r.name.to_string()} selected={r.name == self.value}>
+                {&r.name}
+            </option>
+        }
+    }
+}
+
 impl PureLengthUnitSelect {
     fn render_lengthunit(&self, u: &LengthUnitValues) -> VNode {
-        if u.name == self.value {
-            html! {
-                <option value={u.name.to_string()} selected=true>
-                    {&u.name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={u.name.to_string()}>{&u.name}</option>
-            }
+        html! {
+            <option value={u.name.to_string()} selected={u.name == self.value}>
+                {&u.name}
+            </option>
         }
     }
 }
@@ -993,16 +989,10 @@ impl PureLengthUnitSelect {
 impl PureImprintSelect {
     fn render_imprint(&self, i: &ImprintWithPublisher) -> VNode {
         let value = &self.value.unwrap_or_default();
-        if &i.imprint_id == value {
-            html! {
-                <option value={i.imprint_id.to_string()} selected=true>
-                    {&i.imprint_name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={i.imprint_id.to_string()}>{&i.imprint_name}</option>
-            }
+        html! {
+            <option value={i.imprint_id.to_string()} selected={&i.imprint_id == value}>
+                {&i.imprint_name}
+            </option>
         }
     }
 }
@@ -1010,16 +1000,10 @@ impl PureImprintSelect {
 impl PurePublisherSelect {
     fn render_publisher(&self, p: &Publisher) -> VNode {
         let value = &self.value.unwrap_or_default();
-        if &p.publisher_id == value {
-            html! {
-                <option value={p.publisher_id.to_string()} selected=true>
-                    {&p.publisher_name}
-                </option>
-            }
-        } else {
-            html! {
-                <option value={p.publisher_id.to_string()}>{&p.publisher_name}</option>
-            }
+        html! {
+            <option value={p.publisher_id.to_string()} selected={&p.publisher_id == value}>
+                {&p.publisher_name}
+            </option>
         }
     }
 }

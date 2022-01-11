@@ -1,5 +1,6 @@
 use chrono::naive::NaiveDate;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
@@ -12,6 +13,7 @@ use crate::model::issue::IssueWithSeries;
 use crate::model::language::Language;
 use crate::model::publication::Publication;
 use crate::model::subject::Subject;
+use crate::model::work_relation::WorkRelationWithRelatedWork;
 use crate::model::Doi;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -112,6 +114,9 @@ pub enum WorkField {
     CoverCaption,
     CreatedAt,
     UpdatedAt,
+    FirstPage,
+    LastPage,
+    PageInterval,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -125,7 +130,7 @@ pub struct Work {
     pub title: String,
     pub subtitle: Option<String>,
     pub reference: Option<String>,
-    pub edition: i32,
+    pub edition: Option<i32>,
     pub imprint_id: Uuid,
     pub doi: Option<Doi>,
     pub publication_date: Option<NaiveDate>,
@@ -151,9 +156,12 @@ pub struct Work {
     pub cover_caption: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+    pub first_page: Option<String>,
+    pub last_page: Option<String>,
+    pub page_interval: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkWithRelations {
     pub work_id: Uuid,
@@ -163,7 +171,7 @@ pub struct WorkWithRelations {
     pub title: String,
     pub subtitle: Option<String>,
     pub reference: Option<String>,
-    pub edition: i32,
+    pub edition: Option<i32>,
     pub doi: Option<Doi>,
     pub publication_date: Option<String>,
     pub place: Option<String>,
@@ -187,6 +195,9 @@ pub struct WorkWithRelations {
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
     pub updated_at: Timestamp,
+    pub first_page: Option<String>,
+    pub last_page: Option<String>,
+    pub page_interval: Option<String>,
     pub contributions: Option<Vec<Contribution>>,
     pub publications: Option<Vec<Publication>>,
     pub languages: Option<Vec<Language>>,
@@ -194,6 +205,7 @@ pub struct WorkWithRelations {
     pub subjects: Option<Vec<Subject>>,
     pub issues: Option<Vec<IssueWithSeries>>,
     pub imprint: ImprintWithPublisher,
+    pub relations: Option<Vec<WorkRelationWithRelatedWork>>,
 }
 
 #[cfg_attr(
@@ -208,7 +220,7 @@ pub struct NewWork {
     pub title: String,
     pub subtitle: Option<String>,
     pub reference: Option<String>,
-    pub edition: i32,
+    pub edition: Option<i32>,
     pub imprint_id: Uuid,
     pub doi: Option<Doi>,
     pub publication_date: Option<NaiveDate>,
@@ -232,6 +244,9 @@ pub struct NewWork {
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
+    pub first_page: Option<String>,
+    pub last_page: Option<String>,
+    pub page_interval: Option<String>,
 }
 
 #[cfg_attr(
@@ -248,7 +263,7 @@ pub struct PatchWork {
     pub title: String,
     pub subtitle: Option<String>,
     pub reference: Option<String>,
-    pub edition: i32,
+    pub edition: Option<i32>,
     pub imprint_id: Uuid,
     pub doi: Option<Doi>,
     pub publication_date: Option<NaiveDate>,
@@ -272,6 +287,9 @@ pub struct PatchWork {
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
+    pub first_page: Option<String>,
+    pub last_page: Option<String>,
+    pub page_interval: Option<String>,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -320,6 +338,14 @@ impl WorkWithRelations {
         }
     }
 
+    pub fn compile_page_interval(&self) -> Option<String> {
+        if let (Some(first), Some(last)) = (&self.first_page.clone(), &self.last_page.clone()) {
+            Some(format!("{}-{}", first, last))
+        } else {
+            None
+        }
+    }
+
     pub fn publisher(&self) -> String {
         if let Some(short_name) = &self.imprint.publisher.publisher_shortname.clone() {
             short_name.to_string()
@@ -347,47 +373,12 @@ impl Default for WorkField {
     }
 }
 
-impl Default for WorkWithRelations {
-    fn default() -> WorkWithRelations {
-        WorkWithRelations {
-            work_id: Default::default(),
-            work_type: Default::default(),
-            work_status: Default::default(),
-            full_title: Default::default(),
-            title: Default::default(),
-            subtitle: Default::default(),
-            reference: Default::default(),
-            edition: 1,
-            doi: Default::default(),
-            publication_date: Default::default(),
-            place: Default::default(),
-            width: Default::default(),
-            height: Default::default(),
-            page_count: Default::default(),
-            page_breakdown: Default::default(),
-            image_count: Default::default(),
-            table_count: Default::default(),
-            audio_count: Default::default(),
-            video_count: Default::default(),
-            license: Default::default(),
-            copyright_holder: Default::default(),
-            landing_page: Default::default(),
-            lccn: Default::default(),
-            oclc: Default::default(),
-            short_abstract: Default::default(),
-            long_abstract: Default::default(),
-            general_note: Default::default(),
-            toc: Default::default(),
-            cover_url: Default::default(),
-            cover_caption: Default::default(),
-            updated_at: Default::default(),
-            contributions: Default::default(),
-            publications: Default::default(),
-            languages: Default::default(),
-            fundings: Default::default(),
-            subjects: Default::default(),
-            issues: Default::default(),
-            imprint: Default::default(),
+impl fmt::Display for Work {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(doi) = &self.doi {
+            write!(f, "{} - {}", &self.full_title, doi)
+        } else {
+            write!(f, "{}", self.full_title)
         }
     }
 }
@@ -465,6 +456,9 @@ fn test_workfield_display() {
     assert_eq!(format!("{}", WorkField::Height), "Height");
     assert_eq!(format!("{}", WorkField::PageCount), "PageCount");
     assert_eq!(format!("{}", WorkField::PageBreakdown), "PageBreakdown");
+    assert_eq!(format!("{}", WorkField::FirstPage), "FirstPage");
+    assert_eq!(format!("{}", WorkField::LastPage), "LastPage");
+    assert_eq!(format!("{}", WorkField::PageInterval), "PageInterval");
     assert_eq!(format!("{}", WorkField::ImageCount), "ImageCount");
     assert_eq!(format!("{}", WorkField::TableCount), "TableCount");
     assert_eq!(format!("{}", WorkField::AudioCount), "AudioCount");
@@ -602,6 +596,18 @@ fn test_workfield_fromstr() {
     assert_eq!(
         WorkField::from_str("PageBreakdown").unwrap(),
         WorkField::PageBreakdown
+    );
+    assert_eq!(
+        WorkField::from_str("FirstPage").unwrap(),
+        WorkField::FirstPage
+    );
+    assert_eq!(
+        WorkField::from_str("LastPage").unwrap(),
+        WorkField::LastPage
+    );
+    assert_eq!(
+        WorkField::from_str("PageInterval").unwrap(),
+        WorkField::PageInterval
     );
     assert_eq!(
         WorkField::from_str("ImageCount").unwrap(),

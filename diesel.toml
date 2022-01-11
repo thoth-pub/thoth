@@ -15,4 +15,5 @@ import_types = [
   "crate::model::price::Currency_code",
   "crate::model::subject::Subject_type"
   "crate::model::institution::Country_code"
+  "crate::model::work_relation::Relation_type"
 ]

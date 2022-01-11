@@ -12,7 +12,7 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use super::{CreateRoute, EditRoute, ListString, MetadataTable};
+use super::{CreateRoute, Dropdown, EditRoute, ListString, MetadataTable};
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::THOTH_EXPORT_API;
@@ -64,6 +64,8 @@ pub struct WorkTypeValues {
 pub struct WorkStatusValues {
     pub name: WorkStatus,
 }
+
+impl Dropdown for Work {}
 
 impl EditRoute for Work {
     fn edit_route(&self) -> AppRoute {
@@ -484,6 +486,7 @@ impl FromStr for License {
 pub mod create_work_mutation;
 pub mod delete_work_mutation;
 pub mod length_units_query;
+pub mod slim_works_query;
 pub mod update_work_mutation;
 pub mod work_query;
 pub mod work_statuses_query;

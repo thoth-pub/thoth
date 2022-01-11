@@ -3,6 +3,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
+use crate::graphql::utils::Direction;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::location;
@@ -124,6 +125,16 @@ pub struct NewLocationHistory {
     pub location_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
+}
+
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Field and order to use when sorting locations list")
+)]
+pub struct LocationOrderBy {
+    pub field: LocationField,
+    pub direction: Direction,
 }
 
 impl Default for LocationPlatform {

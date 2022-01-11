@@ -32,7 +32,7 @@ impl Crud for Institution {
         _: Vec<Uuid>,
         _: Option<Uuid>,
         _: Option<Uuid>,
-        _: Option<Self::FilterParameter1>,
+        _: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Institution>> {
         use crate::schema::institution::dsl::*;
@@ -91,7 +91,7 @@ impl Crud for Institution {
         db: &crate::db::PgPool,
         filter: Option<String>,
         _: Vec<Uuid>,
-        _: Option<Self::FilterParameter1>,
+        _: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::institution::dsl::*;
