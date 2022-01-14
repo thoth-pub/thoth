@@ -62,7 +62,7 @@ impl XmlSpecification for Onix3Oapen {
 
 impl XmlElementBlock<Onix3Oapen> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        let work_id = format!("urn:uuid:{}", self.work_id.to_string());
+        let work_id = format!("urn:uuid:{}", self.work_id);
         let (main_isbn, isbns) = get_publications_data(&self.publications);
         // We can only generate the document if there's a PDF
         if let Some(pdf_url) = self

@@ -56,7 +56,7 @@ impl XmlSpecification for Onix21EbscoHost {
 
 impl XmlElementBlock<Onix21EbscoHost> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        let work_id = format!("urn:uuid:{}", self.work_id.to_string());
+        let work_id = format!("urn:uuid:{}", self.work_id);
         let (main_isbn, isbns) = get_publications_data(&self.publications);
         // We only submit PDFs and EPUBs to EBSCO Host, so don't
         // generate ONIX for works which do not have either
