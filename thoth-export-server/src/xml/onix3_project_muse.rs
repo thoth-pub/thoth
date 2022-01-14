@@ -81,7 +81,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
             .and_then(|p| p.locations.iter().find(|l| l.canonical))
             .and_then(|l| l.full_text_url.as_ref())
         {
-            let work_id = format!("urn:uuid:{}", self.work_id.to_string());
+            let work_id = format!("urn:uuid:{}", self.work_id);
             let (main_isbn, isbns) = get_publications_data(&self.publications);
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
