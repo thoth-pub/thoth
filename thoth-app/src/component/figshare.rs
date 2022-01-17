@@ -1,3 +1,4 @@
+use md5::{Digest, Md5};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use thoth_api::model::subject::SubjectType;
@@ -516,9 +517,14 @@ impl Component for FigshareComponent {
             Msg::InitiateFigshareUpload => {
                 // POST to /articles/{article_id}/files
                 // JSON body: "md5", "name", "size"
+                // Calculate MD5 hash of file to be uploaded
+                let mut hasher = Md5::new();
+                // Hard-coded temporary test data
+                hasher.update(b"12345");
+                let hash = hasher.finalize();
+                let md5 = format!("{:x}", hash);
                 let body = FigFileCreator {
-                    // Hard-coded temporary test data
-                    md5: "b86da51377c5615dc2ead16ca8b933e0".to_string(),
+                    md5,
                     name: "name".to_string(),
                     size: 5,
                 };

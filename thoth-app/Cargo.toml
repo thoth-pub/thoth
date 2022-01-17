@@ -22,6 +22,7 @@ wasm-pack = "0.9.1"
 anyhow = "1.0.32"
 chrono = { version = "0.4", features = ["serde"] }
 log = "0.4.11"
+md-5 = "0.10.0"
 thiserror = "1.0.20"
 yew = "0.18.0"
 yew-router = "0.15.0"
