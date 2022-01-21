@@ -5,6 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+  - Removed redundant `to_string` calls to comply with [`rustc 1.58.0`](https://github.com/rust-lang/rust/releases/tag/1.58.0)
+
+## [[0.7.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.7.0) - 2022-01-11
+### Added
+  - [#28](https://github.com/thoth-pub/thoth/issues/28) - Implement chapter structure
+  - GraphQL queries: support filtering on multiple enum variants (e.g. work types, language codes)
+  - Dashboard: display Institution stats
+
+### Fixed
+  - Issues form: typing filter string in series search box has no effect on which series are displayed
 
 ## [[0.6.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.6.1) - 2021-12-13
 ### Changed
@@ -29,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
   - [#292](https://github.com/thoth-pub/thoth/issues/292) - Cannot unset publication date: error when trying to clear a previously set publication date
   - [#295](https://github.com/thoth-pub/thoth/issues/295) - various subforms failing to trim strings before saving (including on mandatory fields which are checked for emptiness)
-  - Duplicated logic for handling optional field values, simplifying the code and reducing the likelihood of further bugs such as
+  - Factored out duplicated logic for handling optional field values, simplifying the code and reducing the likelihood of further bugs such as [#295](https://github.com/thoth-pub/thoth/issues/295) being introduced
   - Minor issue where some required fields were not marked as "required" (so empty values would be sent to the API and raise an error)
   - Issue with subforms where clicking save button bypassed field requirements (so instead of displaying a warning message such as "Please enter a number", invalid values would be sent to the API and raise an error)
   - [#310](https://github.com/thoth-pub/thoth/issues/310) - Add jstor specification to formats

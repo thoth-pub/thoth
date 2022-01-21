@@ -4,6 +4,7 @@ use std::io::Write;
 use thoth_client::{
     ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType, Work,
     WorkContributions, WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkSubjects,
+    WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -40,7 +41,11 @@ impl XmlSpecification for Onix21EbscoHost {
                 1 => XmlElementBlock::<Onix21EbscoHost>::xml_element(works.first().unwrap(), w),
                 _ => {
                     for work in works.iter() {
-                        XmlElementBlock::<Onix21EbscoHost>::xml_element(work, w).ok();
+                        // Do not include Chapters in full publisher metadata record
+                        // (assumes that a publisher will always have more than one work)
+                        if !(work.work_type == WorkType::BOOK_CHAPTER) {
+                            XmlElementBlock::<Onix21EbscoHost>::xml_element(work, w).ok();
+                        }
                     }
                     Ok(())
                 }
@@ -51,7 +56,7 @@ impl XmlSpecification for Onix21EbscoHost {
 
 impl XmlElementBlock<Onix21EbscoHost> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        let work_id = format!("urn:uuid:{}", self.work_id.to_string());
+        let work_id = format!("urn:uuid:{}", self.work_id);
         let (main_isbn, isbns) = get_publications_data(&self.publications);
         // We only submit PDFs and EPUBs to EBSCO Host, so don't
         // generate ONIX for works which do not have either
@@ -855,7 +860,7 @@ mod tests {
             title: "Book Title".to_string(),
             subtitle: Some("Separate Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
-            edition: 1,
+            edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
@@ -872,6 +877,9 @@ mod tests {
             height_in: None,
             page_count: Some(334),
             page_breakdown: None,
+            first_page: None,
+            last_page: None,
+            page_interval: None,
             image_count: None,
             table_count: None,
             audio_count: None,
@@ -933,6 +941,7 @@ mod tests {
             ],
             subjects: vec![],
             fundings: vec![],
+            relations: vec![],
         };
 
         // Test standard output

@@ -7,6 +7,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{contribution, contribution_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -31,93 +32,90 @@ impl Crud for Contribution {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         parent_id_2: Option<Uuid>,
-        contribution_type: Option<Self::FilterParameter1>,
+        contribution_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Contribution>> {
-        use crate::schema::contribution::dsl;
+        use crate::schema::contribution::dsl::*;
         let connection = db.get().unwrap();
-        let mut query = dsl::contribution
+        let mut query = contribution
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select((
-                dsl::contribution_id,
-                dsl::work_id,
-                dsl::contributor_id,
-                dsl::contribution_type,
-                dsl::main_contribution,
-                dsl::biography,
-                dsl::created_at,
-                dsl::updated_at,
-                dsl::first_name,
-                dsl::last_name,
-                dsl::full_name,
-                dsl::contribution_ordinal,
+                contribution_id,
+                work_id,
+                contributor_id,
+                contribution_type,
+                main_contribution,
+                biography,
+                created_at,
+                updated_at,
+                first_name,
+                last_name,
+                full_name,
+                contribution_ordinal,
             ))
             .into_boxed();
 
         match order.field {
             ContributionField::ContributionId => match order.direction {
-                Direction::Asc => query = query.order(dsl::contribution_id.asc()),
-                Direction::Desc => query = query.order(dsl::contribution_id.desc()),
+                Direction::Asc => query = query.order(contribution_id.asc()),
+                Direction::Desc => query = query.order(contribution_id.desc()),
             },
             ContributionField::WorkId => match order.direction {
-                Direction::Asc => query = query.order(dsl::work_id.asc()),
-                Direction::Desc => query = query.order(dsl::work_id.desc()),
+                Direction::Asc => query = query.order(work_id.asc()),
+                Direction::Desc => query = query.order(work_id.desc()),
             },
             ContributionField::ContributorId => match order.direction {
-                Direction::Asc => query = query.order(dsl::contributor_id.asc()),
-                Direction::Desc => query = query.order(dsl::contributor_id.desc()),
+                Direction::Asc => query = query.order(contributor_id.asc()),
+                Direction::Desc => query = query.order(contributor_id.desc()),
             },
             ContributionField::ContributionType => match order.direction {
-                Direction::Asc => query = query.order(dsl::contribution_type.asc()),
-                Direction::Desc => query = query.order(dsl::contribution_type.desc()),
+                Direction::Asc => query = query.order(contribution_type.asc()),
+                Direction::Desc => query = query.order(contribution_type.desc()),
             },
             ContributionField::MainContribution => match order.direction {
-                Direction::Asc => query = query.order(dsl::main_contribution.asc()),
-                Direction::Desc => query = query.order(dsl::main_contribution.desc()),
+                Direction::Asc => query = query.order(main_contribution.asc()),
+                Direction::Desc => query = query.order(main_contribution.desc()),
             },
             ContributionField::Biography => match order.direction {
-                Direction::Asc => query = query.order(dsl::biography.asc()),
-                Direction::Desc => query = query.order(dsl::biography.desc()),
+                Direction::Asc => query = query.order(biography.asc()),
+                Direction::Desc => query = query.order(biography.desc()),
             },
             ContributionField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::created_at.asc()),
-                Direction::Desc => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             ContributionField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::updated_at.asc()),
-                Direction::Desc => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
             ContributionField::FirstName => match order.direction {
-                Direction::Asc => query = query.order(dsl::first_name.asc()),
-                Direction::Desc => query = query.order(dsl::first_name.desc()),
+                Direction::Asc => query = query.order(first_name.asc()),
+                Direction::Desc => query = query.order(first_name.desc()),
             },
             ContributionField::LastName => match order.direction {
-                Direction::Asc => query = query.order(dsl::last_name.asc()),
-                Direction::Desc => query = query.order(dsl::last_name.desc()),
+                Direction::Asc => query = query.order(last_name.asc()),
+                Direction::Desc => query = query.order(last_name.desc()),
             },
             ContributionField::FullName => match order.direction {
-                Direction::Asc => query = query.order(dsl::full_name.asc()),
-                Direction::Desc => query = query.order(dsl::full_name.desc()),
+                Direction::Asc => query = query.order(full_name.asc()),
+                Direction::Desc => query = query.order(full_name.desc()),
             },
             ContributionField::ContributionOrdinal => match order.direction {
-                Direction::Asc => query = query.order(dsl::contribution_ordinal.asc()),
-                Direction::Desc => query = query.order(dsl::contribution_ordinal.desc()),
+                Direction::Asc => query = query.order(contribution_ordinal.asc()),
+                Direction::Desc => query = query.order(contribution_ordinal.desc()),
             },
         }
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }
         if let Some(pid) = parent_id_1 {
-            query = query.filter(dsl::work_id.eq(pid));
+            query = query.filter(work_id.eq(pid));
         }
         if let Some(pid) = parent_id_2 {
-            query = query.filter(dsl::contributor_id.eq(pid));
+            query = query.filter(contributor_id.eq(pid));
         }
-        if let Some(cont_type) = contribution_type {
-            query = query.filter(dsl::contribution_type.eq(cont_type));
+        if !contribution_types.is_empty() {
+            query = query.filter(contribution_type.eq(any(contribution_types)));
         }
         match query
             .limit(limit.into())
@@ -133,14 +131,14 @@ impl Crud for Contribution {
         db: &crate::db::PgPool,
         _: Option<String>,
         _: Vec<Uuid>,
-        contribution_type: Option<Self::FilterParameter1>,
+        contribution_types: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
-        use crate::schema::contribution::dsl;
+        use crate::schema::contribution::dsl::*;
         let connection = db.get().unwrap();
-        let mut query = dsl::contribution.into_boxed();
-        if let Some(cont_type) = contribution_type {
-            query = query.filter(dsl::contribution_type.eq(cont_type));
+        let mut query = contribution.into_boxed();
+        if !contribution_types.is_empty() {
+            query = query.filter(contribution_type.eq(any(contribution_types)));
         }
 
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does

@@ -6,6 +6,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Convert, Crud, DbInsert, Doi, HistoryEntry, LengthUnit};
 use crate::schema::{work, work_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -13,27 +14,35 @@ use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 impl Work {
-    pub fn from_doi(db: &crate::db::PgPool, doi: Doi) -> ThothResult<Self> {
+    pub fn from_doi(
+        db: &crate::db::PgPool,
+        doi: Doi,
+        work_types: Vec<WorkType>,
+    ) -> ThothResult<Self> {
+        use crate::schema::work::dsl;
         use diesel::sql_types::Nullable;
         use diesel::sql_types::Text;
         let connection = db.get().unwrap();
         // Allow case-insensitive searching (DOIs in database may have mixed casing)
         sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
-        crate::schema::work::dsl::work
-            .filter(lower(crate::schema::work::dsl::doi).eq(doi.to_lowercase_string()))
-            .get_result::<Work>(&connection)
-            .map_err(|e| e.into())
+        let mut query = dsl::work
+            .filter(lower(dsl::doi).eq(doi.to_lowercase_string()))
+            .into_boxed();
+        if !work_types.is_empty() {
+            query = query.filter(dsl::work_type.eq(any(work_types)));
+        }
+        query.get_result::<Work>(&connection).map_err(|e| e.into())
     }
 
     pub fn can_update_imprint(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        use crate::schema::issue::dsl;
+        use crate::schema::issue::dsl::*;
         let connection = db.get().unwrap();
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        let issue_count = dsl::issue
-            .filter(dsl::work_id.eq(self.work_id))
+        let issue_count = issue
+            .filter(work_id.eq(self.work_id))
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading issue count for work")
@@ -50,11 +59,11 @@ impl Work {
     }
 
     pub fn can_be_chapter(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        use crate::schema::publication::dsl;
+        use crate::schema::publication::dsl::*;
         let connection = db.get().unwrap();
-        let isbn_count = dsl::publication
-            .filter(dsl::work_id.eq(self.work_id))
-            .filter(dsl::isbn.is_not_null())
+        let isbn_count = publication
+            .filter(work_id.eq(self.work_id))
+            .filter(isbn.is_not_null())
             .count()
             .get_result::<i64>(&connection)
             .expect("Error loading publication ISBNs for work")
@@ -157,7 +166,7 @@ impl Crud for Work {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
-        work_type: Option<Self::FilterParameter1>,
+        work_types: Vec<Self::FilterParameter1>,
         work_status: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Work>> {
         use crate::schema::work::dsl;
@@ -198,6 +207,9 @@ impl Crud for Work {
                 dsl::cover_caption,
                 dsl::created_at,
                 dsl::updated_at,
+                dsl::first_page,
+                dsl::last_page,
+                dsl::page_interval,
             ))
             .into_boxed();
 
@@ -259,6 +271,18 @@ impl Crud for Work {
                 Direction::Desc => query = query.order(dsl::page_count.desc()),
             },
             WorkField::PageBreakdown => match order.direction {
+                Direction::Asc => query = query.order(dsl::page_breakdown.asc()),
+                Direction::Desc => query = query.order(dsl::page_breakdown.desc()),
+            },
+            WorkField::FirstPage => match order.direction {
+                Direction::Asc => query = query.order(dsl::first_page.asc()),
+                Direction::Desc => query = query.order(dsl::first_page.desc()),
+            },
+            WorkField::LastPage => match order.direction {
+                Direction::Asc => query = query.order(dsl::last_page.asc()),
+                Direction::Desc => query = query.order(dsl::last_page.desc()),
+            },
+            WorkField::PageInterval => match order.direction {
                 Direction::Asc => query = query.order(dsl::page_breakdown.asc()),
                 Direction::Desc => query = query.order(dsl::page_breakdown.desc()),
             },
@@ -331,17 +355,14 @@ impl Crud for Work {
                 Direction::Desc => query = query.order(dsl::updated_at.desc()),
             },
         }
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(dsl::imprint_id.eq(pid));
         }
-        if let Some(wk_type) = work_type {
-            query = query.filter(dsl::work_type.eq(wk_type));
+        if !work_types.is_empty() {
+            query = query.filter(dsl::work_type.eq(any(work_types)));
         }
         if let Some(wk_status) = work_status {
             query = query.filter(dsl::work_status.eq(wk_status));
@@ -371,57 +392,19 @@ impl Crud for Work {
         db: &crate::db::PgPool,
         filter: Option<String>,
         publishers: Vec<Uuid>,
-        work_type: Option<Self::FilterParameter1>,
+        work_types: Vec<Self::FilterParameter1>,
         work_status: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::work::dsl;
         let connection = db.get().unwrap();
         let mut query = dsl::work
             .inner_join(crate::schema::imprint::table)
-            .select((
-                dsl::work_id,
-                dsl::work_type,
-                dsl::work_status,
-                dsl::full_title,
-                dsl::title,
-                dsl::subtitle,
-                dsl::reference,
-                dsl::edition,
-                dsl::imprint_id,
-                dsl::doi,
-                dsl::publication_date,
-                dsl::place,
-                dsl::width,
-                dsl::height,
-                dsl::page_count,
-                dsl::page_breakdown,
-                dsl::image_count,
-                dsl::table_count,
-                dsl::audio_count,
-                dsl::video_count,
-                dsl::license,
-                dsl::copyright_holder,
-                dsl::landing_page,
-                dsl::lccn,
-                dsl::oclc,
-                dsl::short_abstract,
-                dsl::long_abstract,
-                dsl::general_note,
-                dsl::toc,
-                dsl::cover_url,
-                dsl::cover_caption,
-                dsl::created_at,
-                dsl::updated_at,
-            ))
             .into_boxed();
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }
-        if let Some(wk_type) = work_type {
-            query = query.filter(dsl::work_type.eq(wk_type));
+        if !work_types.is_empty() {
+            query = query.filter(dsl::work_type.eq(any(work_types)));
         }
         if let Some(wk_status) = work_status {
             query = query.filter(dsl::work_status.eq(wk_status));

@@ -4,6 +4,7 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{price, price_history};
 use crate::{crud_methods, db_insert};
+use diesel::dsl::any;
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -28,63 +29,60 @@ impl Crud for Price {
         publishers: Vec<Uuid>,
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
-        currency_code: Option<Self::FilterParameter1>,
+        currency_codes: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Price>> {
-        use crate::schema::price::dsl;
+        use crate::schema::price::dsl::*;
         let connection = db.get().unwrap();
         let mut query =
-            dsl::price
+            price
                 .inner_join(crate::schema::publication::table.inner_join(
                     crate::schema::work::table.inner_join(crate::schema::imprint::table),
                 ))
                 .select((
-                    dsl::price_id,
-                    dsl::publication_id,
-                    dsl::currency_code,
-                    dsl::unit_price,
-                    dsl::created_at,
-                    dsl::updated_at,
+                    price_id,
+                    publication_id,
+                    currency_code,
+                    unit_price,
+                    created_at,
+                    updated_at,
                 ))
                 .into_boxed();
 
         match order.field {
             PriceField::PriceId => match order.direction {
-                Direction::Asc => query = query.order(dsl::price_id.asc()),
-                Direction::Desc => query = query.order(dsl::price_id.desc()),
+                Direction::Asc => query = query.order(price_id.asc()),
+                Direction::Desc => query = query.order(price_id.desc()),
             },
             PriceField::PublicationId => match order.direction {
-                Direction::Asc => query = query.order(dsl::publication_id.asc()),
-                Direction::Desc => query = query.order(dsl::publication_id.desc()),
+                Direction::Asc => query = query.order(publication_id.asc()),
+                Direction::Desc => query = query.order(publication_id.desc()),
             },
             PriceField::CurrencyCode => match order.direction {
-                Direction::Asc => query = query.order(dsl::currency_code.asc()),
-                Direction::Desc => query = query.order(dsl::currency_code.desc()),
+                Direction::Asc => query = query.order(currency_code.asc()),
+                Direction::Desc => query = query.order(currency_code.desc()),
             },
             PriceField::UnitPrice => match order.direction {
-                Direction::Asc => query = query.order(dsl::unit_price.asc()),
-                Direction::Desc => query = query.order(dsl::unit_price.desc()),
+                Direction::Asc => query = query.order(unit_price.asc()),
+                Direction::Desc => query = query.order(unit_price.desc()),
             },
             PriceField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::created_at.asc()),
-                Direction::Desc => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query = query.order(created_at.asc()),
+                Direction::Desc => query = query.order(created_at.desc()),
             },
             PriceField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::updated_at.asc()),
-                Direction::Desc => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query = query.order(updated_at.asc()),
+                Direction::Desc => query = query.order(updated_at.desc()),
             },
         }
-        // This loop must appear before any other filter statements, as it takes advantage of
-        // the behaviour of `or_filter` being equal to `filter` when no other filters are present yet.
-        // Result needs to be `WHERE (x = $1 [OR x = $2...]) AND ([...])` - note bracketing.
-        for pub_id in publishers {
-            query = query.or_filter(crate::schema::imprint::publisher_id.eq(pub_id));
+        if !publishers.is_empty() {
+            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }
         if let Some(pid) = parent_id_1 {
-            query = query.filter(dsl::publication_id.eq(pid));
+            query = query.filter(publication_id.eq(pid));
         }
-        if let Some(curr_code) = currency_code {
-            query = query.filter(dsl::currency_code.eq(curr_code));
+        if !currency_codes.is_empty() {
+            query = query.filter(currency_code.eq(any(currency_codes)));
         }
         match query
             .limit(limit.into())
@@ -100,14 +98,14 @@ impl Crud for Price {
         db: &crate::db::PgPool,
         _: Option<String>,
         _: Vec<Uuid>,
-        currency_code: Option<Self::FilterParameter1>,
+        currency_codes: Vec<Self::FilterParameter1>,
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
-        use crate::schema::price::dsl;
+        use crate::schema::price::dsl::*;
         let connection = db.get().unwrap();
-        let mut query = dsl::price.into_boxed();
-        if let Some(curr_code) = currency_code {
-            query = query.filter(dsl::currency_code.eq(curr_code));
+        let mut query = price.into_boxed();
+        if !currency_codes.is_empty() {
+            query = query.filter(currency_code.eq(any(currency_codes)));
         }
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this

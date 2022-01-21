@@ -22,6 +22,9 @@ fragment Work on Work {
     heightIn: height(units: IN)
     pageCount
     pageBreakdown
+    firstPage
+    lastPage
+    pageInterval
     imageCount
     tableCount
     audioCount
@@ -104,6 +107,13 @@ fragment Work on Work {
             institutionDoi
             ror
             countryCode
+        }
+    }
+    relations {
+        relationType
+        relationOrdinal
+        relatedWork {
+            fullTitle
         }
     }
 }

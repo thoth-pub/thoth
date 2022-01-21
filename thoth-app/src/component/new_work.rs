@@ -54,6 +54,7 @@ use crate::models::work::LengthUnitValues;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
 use crate::models::EditRoute;
+use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
@@ -113,6 +114,8 @@ pub enum Msg {
     ChangeLengthUnit(LengthUnit),
     ChangePageCount(String),
     ChangePageBreakdown(String),
+    ChangeFirstPage(String),
+    ChangeLastPage(String),
     ChangeImageCount(String),
     ChangeTableCount(String),
     ChangeAudioCount(String),
@@ -135,6 +138,7 @@ pub struct Props {
     pub current_user: AccountDetails,
     pub units_selection: LengthUnit,
     pub update_units_selection: Callback<LengthUnit>,
+    pub previous_route: AdminRoute,
 }
 
 impl Component for NewWorkComponent {
@@ -145,7 +149,17 @@ impl Component for NewWorkComponent {
         let push_work = Default::default();
         let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
-        let work: WorkWithRelations = Default::default();
+        let work = WorkWithRelations {
+            work_type: match props.previous_route {
+                AdminRoute::Chapters => WorkType::BookChapter,
+                _ => Default::default(),
+            },
+            edition: match props.previous_route {
+                AdminRoute::Chapters => Default::default(),
+                _ => Some(1),
+            },
+            ..Default::default()
+        };
         let doi = Default::default();
         let doi_warning = Default::default();
         let imprint_id: Uuid = Default::default();
@@ -300,6 +314,20 @@ impl Component for NewWorkComponent {
                 } else if let Ok(result) = self.doi.parse::<Doi>() {
                     self.work.doi.neq_assign(Some(result));
                 }
+                // Clear any fields which are not applicable to the currently selected work type.
+                // (Do not clear them before the save point as the user may change the type again.)
+                if self.work.work_type == WorkType::BookChapter {
+                    self.work.edition = None;
+                    self.work.width = None;
+                    self.work.height = None;
+                    self.work.toc = None;
+                    self.work.lccn = None;
+                    self.work.oclc = None;
+                } else {
+                    self.work.first_page = None;
+                    self.work.last_page = None;
+                    self.work.page_interval = None;
+                }
                 let body = CreateWorkRequestBody {
                     variables: Variables {
                         work_type: self.work.work_type.clone(),
@@ -333,6 +361,9 @@ impl Component for NewWorkComponent {
                         cover_caption: self.work.cover_caption.clone(),
                         imprint_id: self.imprint_id,
                         units: self.props.units_selection.clone(),
+                        first_page: self.work.first_page.clone(),
+                        last_page: self.work.last_page.clone(),
+                        page_interval: self.work.page_interval.clone(),
                     },
                     ..Default::default()
                 };
@@ -364,10 +395,7 @@ impl Component for NewWorkComponent {
             Msg::ChangeWorkStatus(work_status) => self.work.work_status.neq_assign(work_status),
             Msg::ChangeReference(value) => self.work.reference.neq_assign(value.to_opt_string()),
             Msg::ChangeImprint(imprint_id) => self.imprint_id.neq_assign(imprint_id),
-            Msg::ChangeEdition(edition) => {
-                let edition: i32 = edition.parse().unwrap_or(1);
-                self.work.edition.neq_assign(edition)
-            }
+            Msg::ChangeEdition(edition) => self.work.edition.neq_assign(edition.to_opt_int()),
             Msg::ChangeDoi(value) => {
                 if self.doi.neq_assign(value.trim().to_owned()) {
                     // If DOI is not correctly formatted, display a warning.
@@ -400,6 +428,22 @@ impl Component for NewWorkComponent {
             Msg::ChangePageCount(value) => self.work.page_count.neq_assign(value.to_opt_int()),
             Msg::ChangePageBreakdown(value) => {
                 self.work.page_breakdown.neq_assign(value.to_opt_string())
+            }
+            Msg::ChangeFirstPage(value) => {
+                if self.work.first_page.neq_assign(value.to_opt_string()) {
+                    self.work.page_interval = self.work.compile_page_interval();
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::ChangeLastPage(value) => {
+                if self.work.last_page.neq_assign(value.to_opt_string()) {
+                    self.work.page_interval = self.work.compile_page_interval();
+                    true
+                } else {
+                    false
+                }
             }
             Msg::ChangeImageCount(value) => self.work.image_count.neq_assign(value.to_opt_int()),
             Msg::ChangeTableCount(value) => self.work.table_count.neq_assign(value.to_opt_int()),
@@ -457,6 +501,9 @@ impl Component for NewWorkComponent {
             LengthUnit::Cm => "0.1".to_string(),
             LengthUnit::In => "0.01".to_string(),
         };
+        // Grey out chapter-specific or "book"-specific fields
+        // based on currently selected work type.
+        let is_chapter = self.work.work_type == WorkType::BookChapter;
         html! {
             <>
                 <nav class="level">
@@ -529,6 +576,7 @@ impl Component for NewWorkComponent {
                         oninput=self.link.callback(|e: InputData| Msg::ChangeEdition(e.value))
                         required = true
                         min = "1".to_string()
+                        deactivated = is_chapter
                     />
                     <FormDateInput
                         label = "Publication Date"
@@ -581,16 +629,13 @@ impl Component for NewWorkComponent {
                                 label = "LCCN"
                                 value=self.work.lccn.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeLccn(e.value))
+                                deactivated = is_chapter
                             />
                             <FormTextInput
                                 label = "OCLC Number"
                                 value=self.work.oclc.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeOclc(e.value))
-                            />
-                            <FormTextInput
-                                label = "Internal Reference"
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeReference(e.value))
-                                value=self.work.reference.clone()
+                                deactivated = is_chapter
                             />
                         </div>
                     </div>
@@ -601,12 +646,14 @@ impl Component for NewWorkComponent {
                                 value=self.work.width
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
                                 step=step.clone()
+                                deactivated = is_chapter
                             />
                             <FormFloatInput
                                 label = "Height"
                                 value=self.work.height
                                 oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
                                 step=step.clone()
+                                deactivated = is_chapter
                             />
                             <FormLengthUnitSelect
                                 label = "Units"
@@ -621,6 +668,15 @@ impl Component for NewWorkComponent {
                                 })
                                 required = true
                             />
+                            <FormTextInput
+                                label = "Internal Reference"
+                                oninput=self.link.callback(|e: InputData| Msg::ChangeReference(e.value))
+                                value=self.work.reference.clone()
+                            />
+                        </div>
+                    </div>
+                    <div class="field is-horizontal">
+                        <div class="field-body">
                             <FormNumberInput
                                 label = "Page Count"
                                 value=self.work.page_count
@@ -630,6 +686,18 @@ impl Component for NewWorkComponent {
                                 label = "Page Breakdown"
                                 value=self.work.page_breakdown.clone()
                                 oninput=self.link.callback(|e: InputData| Msg::ChangePageBreakdown(e.value))
+                            />
+                            <FormTextInput
+                                label = "First Page"
+                                value=self.work.first_page.clone()
+                                oninput=self.link.callback(|e: InputData| Msg::ChangeFirstPage(e.value))
+                                deactivated = !is_chapter
+                            />
+                            <FormTextInput
+                                label = "Last Page"
+                                value=self.work.last_page.clone()
+                                oninput=self.link.callback(|e: InputData| Msg::ChangeLastPage(e.value))
+                                deactivated = !is_chapter
                             />
                         </div>
                     </div>
@@ -692,6 +760,7 @@ impl Component for NewWorkComponent {
                         label = "Table of Content"
                         value=self.work.toc.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeToc(e.value))
+                        deactivated = is_chapter
                     />
 
                     <div class="field">
