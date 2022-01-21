@@ -172,6 +172,34 @@ impl SlimFetchRequest for FigArticleUpdateRequest {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct GetUploadFileRequest {
+    pub file_url: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct GetUploadFileResponse {
+    pub file_data: Vec<u8>,
+}
+
+// SlimFetchRequest is not wholly appropriate for this:
+// - it will automatically include the Figshare auth token
+// - it will expect the body as JSON, rather than plain bytes
+impl SlimFetchRequest for GetUploadFileRequest {
+    type RequestBody = ();
+    type ResponseBody = GetUploadFileResponse;
+    // Override default root + path URL with full URL.
+    fn full_url(&self) -> String {
+        self.file_url.clone()
+    }
+    fn path(&self) -> String {
+        "unimplemented".to_string()
+    }
+    fn method(&self) -> MethodBody<Self::RequestBody> {
+        MethodBody::Get
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct FigFileCreator {
     pub md5: String,
@@ -359,6 +387,8 @@ impl SlimFetchRequest for FigUploadResultRequest {
 
 pub type PushFigshareRequest = Fetch<FetchWrapper<FigArticleUpdateRequest>, FigshareResponseBody>;
 pub type PushActionFigshareRequest = FetchAction<FigshareResponseBody>;
+pub type UploadFileRequest = Fetch<FetchWrapper<GetUploadFileRequest>, GetUploadFileResponse>;
+pub type UploadActionFileRequest = FetchAction<GetUploadFileResponse>;
 pub type UploadGetIdRequest = Fetch<FetchWrapper<FigUploadGetIdRequest>, FigUploadGetIdResponse>;
 pub type UploadActionGetIdRequest = FetchAction<FigUploadGetIdResponse>;
 pub type UploadGetUrlRequest = Fetch<FetchWrapper<FigUploadGetUrlRequest>, FigUploadGetUrlResponse>;
@@ -378,6 +408,7 @@ pub struct FigshareComponent {
     props: Props,
     link: ComponentLink<Self>,
     push_figshare: PushFigshareRequest,
+    upload_get_file: UploadFileRequest,
     upload_get_id: UploadGetIdRequest,
     upload_get_url: UploadGetUrlRequest,
     upload_get_parts: UploadGetPartsRequest,
@@ -395,6 +426,7 @@ pub enum Msg {
     SetFigsharePushState(PushActionFigshareRequest),
     Submit,
     InitiateFigshareUpload,
+    GetUploadFileData(UploadActionFileRequest),
     GetFigshareFileId(UploadActionGetIdRequest),
     GetFigshareUploadUrl(UploadActionGetUrlRequest),
     GetFigshareUploadParts(UploadActionGetPartsRequest),
@@ -408,6 +440,7 @@ impl Component for FigshareComponent {
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let push_figshare = Default::default();
+        let upload_get_file = Default::default();
         let upload_get_id = Default::default();
         let upload_get_url = Default::default();
         let upload_get_parts = Default::default();
@@ -418,6 +451,7 @@ impl Component for FigshareComponent {
             props,
             link,
             push_figshare,
+            upload_get_file,
             upload_get_id,
             upload_get_url,
             upload_get_parts,
@@ -515,25 +549,48 @@ impl Component for FigshareComponent {
                 false
             }
             Msg::InitiateFigshareUpload => {
-                // POST to /articles/{article_id}/files
-                // JSON body: "md5", "name", "size"
-                // Calculate MD5 hash of file to be uploaded
-                let mut hasher = Md5::new();
-                // Hard-coded temporary test data
-                hasher.update(b"12345");
-                let hash = hasher.finalize();
-                let md5 = format!("{:x}", hash);
-                let body = FigFileCreator {
-                    md5,
-                    name: "name".to_string(),
-                    size: 5,
-                };
-                let request = FetchWrapper(FigUploadGetIdRequest { body });
-                self.upload_get_id = Fetch::new(request);
+                // GET from endpoint where file to be uploaded is found
+                // JSON body: none
+                // Hard-coded temporary test URL
+                let file_url =
+                    "https://books.openbookpublishers.com/10.11647/obp.0075.pdf".to_string();
+                let request = FetchWrapper(GetUploadFileRequest { file_url });
+                self.upload_get_file = Fetch::new(request);
                 self.link
-                    .send_future(self.upload_get_id.fetch(Msg::GetFigshareFileId));
+                    .send_future(self.upload_get_file.fetch(Msg::GetUploadFileData));
                 self.link
-                    .send_message(Msg::GetFigshareFileId(FetchAction::Fetching));
+                    .send_message(Msg::GetUploadFileData(FetchAction::Fetching));
+                false
+            }
+            Msg::GetUploadFileData(fetch_state) => {
+                self.upload_get_file.apply(fetch_state);
+                match self.upload_get_file.as_ref().state() {
+                    FetchState::Fetched(body) => {
+                        // POST to /articles/{article_id}/files
+                        // JSON body: "md5", "name", "size"
+                        let file_as_bytes = &body.file_data;
+                        // Calculate MD5 hash of file to be uploaded
+                        let mut hasher = Md5::new();
+                        hasher.update(file_as_bytes);
+                        let hash = hasher.finalize();
+                        let md5 = format!("{:x}", hash);
+                        let body = FigFileCreator {
+                            md5,
+                            name: "name".to_string(),
+                            size: 5,
+                        };
+                        let request = FetchWrapper(FigUploadGetIdRequest { body });
+                        self.upload_get_id = Fetch::new(request);
+                        self.link
+                            .send_future(self.upload_get_id.fetch(Msg::GetFigshareFileId));
+                        self.link
+                            .send_message(Msg::GetFigshareFileId(FetchAction::Fetching));
+                    }
+                    // TODO handle other responses
+                    FetchState::Fetching(_) => (),
+                    FetchState::NotFetching(_) => (),
+                    FetchState::Failed(_, _) => (),
+                }
                 false
             }
             Msg::GetFigshareFileId(fetch_state) => {
