@@ -2,9 +2,8 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType, Work,
-    WorkContributions, WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkSubjects,
-    WorkType,
+    ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
+    WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkSubjects, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -58,18 +57,26 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         let work_id = format!("urn:uuid:{}", self.work_id);
         let (main_isbn, isbns) = get_publications_data(&self.publications);
-        // We only submit PDFs and EPUBs to EBSCO Host, so don't
-        // generate ONIX for works which do not have either
+        // EBSCO Host can only accept PDFs and EPUBs, and can only
+        // process them as Open Access if they are zero-priced
         let pdf_url = self
             .publications
             .iter()
-            .find(|p| p.publication_type.eq(&PublicationType::PDF) && !p.locations.is_empty())
+            .find(|p| {
+                p.publication_type.eq(&PublicationType::PDF)
+                    && !p.locations.is_empty()
+                    && !p.prices.iter().any(|pr| pr.unit_price > 0.0)
+            })
             .and_then(|p| p.locations.iter().find(|l| l.canonical))
             .and_then(|l| l.full_text_url.as_ref());
         let epub_url = self
             .publications
             .iter()
-            .find(|p| p.publication_type.eq(&PublicationType::EPUB) && !p.locations.is_empty())
+            .find(|p| {
+                p.publication_type.eq(&PublicationType::EPUB)
+                    && !p.locations.is_empty()
+                    && !p.prices.iter().any(|pr| pr.unit_price > 0.0)
+            })
             .and_then(|p| p.locations.iter().find(|l| l.canonical))
             .and_then(|l| l.full_text_url.as_ref());
         if pdf_url.is_some() || epub_url.is_some() {
@@ -394,41 +401,14 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
                         w.write(XmlEvent::Characters("Open access"))
                             .map_err(|e| e.into())
                     })?;
-                    // Works are distributed to EBSCO Host as combined PDF/EPUB
-                    // "digital bundles" - PDF and EPUB may have different prices
-                    // so give the higher of the two. If both are free, EBSCO Host
-                    // request a price point of "0.01 USD" for Open Access titles.
-                    let pdf_price = self
-                        .publications
-                        .iter()
-                        .find(|p| p.publication_type.eq(&PublicationType::PDF))
-                        .and_then(|p| {
-                            p.prices
-                                .iter()
-                                .find(|pr| pr.currency_code.eq(&CurrencyCode::USD))
-                                .map(|pr| pr.unit_price)
-                        })
-                        .unwrap_or_default();
-                    let epub_price = self
-                        .publications
-                        .iter()
-                        .find(|p| p.publication_type.eq(&PublicationType::EPUB))
-                        .and_then(|p| {
-                            p.prices
-                                .iter()
-                                .find(|pr| pr.currency_code.eq(&CurrencyCode::USD))
-                                .map(|pr| pr.unit_price)
-                        })
-                        .unwrap_or_default();
-                    let bundle_price = pdf_price.max(epub_price.max(0.01));
+                    // EBSCO Host require the price point for Open Access titles to be listed as "0.01 USD".
                     write_element_block("Price", w, |w| {
                         // 02 RRP including tax
                         write_element_block("PriceTypeCode", w, |w| {
                             w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
                         })?;
                         write_element_block("PriceAmount", w, |w| {
-                            w.write(XmlEvent::Characters(&bundle_price.to_string()))
-                                .map_err(|e| e.into())
+                            w.write(XmlEvent::Characters("0.01")).map_err(|e| e.into())
                         })?;
                         write_element_block("CurrencyCode", w, |w| {
                             w.write(XmlEvent::Characters("USD")).map_err(|e| e.into())
@@ -439,7 +419,7 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
         } else {
             Err(ThothError::IncompleteMetadataRecord(
                 "onix_2.1::ebsco_host".to_string(),
-                "No PDF or EPUB URL".to_string(),
+                "No zero-priced PDF or EPUB URL".to_string(),
             ))
         }
     }
@@ -548,21 +528,6 @@ impl XmlElementBlock<Onix21EbscoHost> for WorkContributions {
             })?;
             XmlElement::<Onix21EbscoHost>::xml_element(&self.contribution_type, w)?;
 
-            if let Some(orcid) = &self.contributor.orcid {
-                write_element_block("PersonNameIdentifier", w, |w| {
-                    // 01 Proprietary
-                    write_element_block("PersonNameIDType", w, |w| {
-                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                    })?;
-                    write_element_block("IDTypeName", w, |w| {
-                        w.write(XmlEvent::Characters("ORCID")).map_err(|e| e.into())
-                    })?;
-                    write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(&orcid.to_string()))
-                            .map_err(|e| e.into())
-                    })
-                })?;
-            }
             if let Some(first_name) = &self.first_name {
                 write_element_block("NamesBeforeKey", w, |w| {
                     w.write(XmlEvent::Characters(first_name))
@@ -576,6 +541,21 @@ impl XmlElementBlock<Onix21EbscoHost> for WorkContributions {
                 write_element_block("PersonName", w, |w| {
                     w.write(XmlEvent::Characters(&self.full_name))
                         .map_err(|e| e.into())
+                })?;
+            }
+            if let Some(orcid) = &self.contributor.orcid {
+                write_element_block("PersonNameIdentifier", w, |w| {
+                    // 01 Proprietary
+                    write_element_block("PersonNameIDType", w, |w| {
+                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDTypeName", w, |w| {
+                        w.write(XmlEvent::Characters("ORCID")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(&orcid.to_string()))
+                            .map_err(|e| e.into())
+                    })
                 })?;
             }
             Ok(())
@@ -644,9 +624,9 @@ mod tests {
     use thoth_api::model::Isbn;
     use thoth_api::model::Orcid;
     use thoth_client::{
-        ContributionType, LanguageCode, LanguageRelation, LocationPlatform, PublicationType,
-        WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssuesSeries,
-        WorkPublicationsLocations, WorkPublicationsPrices, WorkStatus, WorkType,
+        ContributionType, CurrencyCode, LanguageCode, LanguageRelation, LocationPlatform,
+        PublicationType, WorkContributionsContributor, WorkImprint, WorkImprintPublisher,
+        WorkIssuesSeries, WorkPublicationsLocations, WorkPublicationsPrices, WorkStatus, WorkType,
     };
     use uuid::Uuid;
 
@@ -904,7 +884,7 @@ mod tests {
                 WorkPublications {
                     publication_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                     publication_type: PublicationType::EPUB,
-                    isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+                    isbn: Some(Isbn::from_str("978-92-95055-02-5").unwrap()),
                     prices: vec![],
                     locations: vec![WorkPublicationsLocations {
                         landing_page: Some("https://www.book.com/epub_landing".to_string()),
@@ -917,6 +897,21 @@ mod tests {
                     publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
                     publication_type: PublicationType::PDF,
                     isbn: Some(Isbn::from_str("978-1-56619-909-4").unwrap()),
+                    prices: vec![WorkPublicationsPrices {
+                        currency_code: CurrencyCode::USD,
+                        unit_price: 0.0,
+                    }],
+                    locations: vec![WorkPublicationsLocations {
+                        landing_page: Some("https://www.book.com/pdf_landing".to_string()),
+                        full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
+                        location_platform: LocationPlatform::OTHER,
+                        canonical: true,
+                    }],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    publication_type: PublicationType::PAPERBACK,
+                    isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
                     prices: vec![
                         WorkPublicationsPrices {
                             currency_code: CurrencyCode::EUR,
@@ -931,12 +926,7 @@ mod tests {
                             unit_price: 7.99,
                         },
                     ],
-                    locations: vec![WorkPublicationsLocations {
-                        landing_page: Some("https://www.book.com/pdf_landing".to_string()),
-                        full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
-                        location_platform: LocationPlatform::OTHER,
-                        canonical: true,
-                    }],
+                    locations: vec![],
                 },
             ],
             subjects: vec![],
@@ -1024,6 +1014,7 @@ mod tests {
         assert!(output.contains(r#"      <ProductIDType>15</ProductIDType>"#));
         assert!(output.contains(r#"      <IDValue>9783161484100</IDValue>"#));
         assert!(output.contains(r#"      <IDValue>9781566199094</IDValue>"#));
+        assert!(output.contains(r#"      <IDValue>9789295055025</IDValue>"#));
         assert!(output.contains(r#"  <SupplyDetail>"#));
         assert!(output.contains(r#"    <SupplierName>OA Editions</SupplierName>"#));
         assert!(output.contains(r#"    <SupplierRole>09</SupplierRole>"#));
@@ -1033,7 +1024,7 @@ mod tests {
             .contains(r#"    <AudienceRestrictionNote>Open access</AudienceRestrictionNote>"#));
         assert!(output.contains(r#"    <Price>"#));
         assert!(output.contains(r#"      <PriceTypeCode>02</PriceTypeCode>"#));
-        assert!(output.contains(r#"      <PriceAmount>7.99</PriceAmount>"#));
+        assert!(output.contains(r#"      <PriceAmount>0.01</PriceAmount>"#));
         assert!(output.contains(r#"      <CurrencyCode>USD</CurrencyCode>"#));
 
         // Remove some values to test non-output of optional blocks
@@ -1048,8 +1039,16 @@ mod tests {
         test_work.landing_page = None;
         test_work.cover_url = None;
         test_work.imprint.publisher.publisher_url = None;
-        test_work.publications.pop(); // Remove second (PDF) publication
+        // Remove third (paperback) publication
+        test_work.publications.pop();
+        // Give PDF publication a positive price point
+        test_work.publications[1].prices[0].unit_price = 7.99;
         let output = generate_test_output(&test_work);
+        // Paperback publication removed, so its ISBN no longer appears
+        // (either as the main ISBN or in RelatedProducts)
+        assert!(!output.contains(r#"    <IDValue>9783161484100</IDValue>"#));
+        // PDF ISBN is used as main ISBN instead
+        assert!(output.contains(r#"    <IDValue>9781566199094</IDValue>"#));
         // No DOI supplied
         assert!(!output.contains(r#"    <ProductIDType>06</ProductIDType>"#));
         assert!(!output.contains(r#"    <IDValue>10.00001/BOOK.0001</IDValue>"#));
@@ -1063,12 +1062,10 @@ mod tests {
             r#"    <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
         assert!(!output.contains(r#"    <WebsiteLink>https://www.book.com</WebsiteLink>"#));
-        // PDF publication removed, hence no PDF URL,
-        // no PDF RelatedProduct, and EpubType changes
+        // PDF publication price is now non-zero, hence no PDF URL, and EpubType changes
         assert!(
             !output.contains(r#"    <WebsiteLink>https://www.book.com/pdf_fulltext</WebsiteLink>"#)
         );
-        assert!(!output.contains(r#"      <IDValue>9781566199094</IDValue>"#));
         assert!(!output.contains(r#"  <EpubType>002</EpubType>"#));
         assert!(output.contains(r#"  <EpubType>029</EpubType>"#));
         // No page count supplied
@@ -1100,10 +1097,8 @@ mod tests {
         // No publication date supplied
         assert!(!output.contains(r#"  <PublicationDate>19991231</PublicationDate>"#));
         assert!(!output.contains(r#"  <CopyrightYear>1999</CopyrightYear>"#));
-        // No PDF or EPUB price supplied, so default of 0.01 USD is used
-        assert!(output.contains(r#"      <PriceAmount>0.01</PriceAmount>"#));
 
-        // Remove the remaining (EPUB) publication's only location: error
+        // Remove the EPUB publication's only location: error
         test_work.publications[0].locations.clear();
         // Can't use helper function for this as it assumes Ok rather than Err
         let mut buffer = Vec::new();
@@ -1121,7 +1116,7 @@ mod tests {
         let output = wrapped_output.unwrap_err().to_string();
         assert_eq!(
             output,
-            "Could not generate onix_2.1::ebsco_host: No PDF or EPUB URL".to_string()
+            "Could not generate onix_2.1::ebsco_host: No zero-priced PDF or EPUB URL".to_string()
         );
     }
 }
