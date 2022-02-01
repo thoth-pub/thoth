@@ -91,9 +91,8 @@ pub struct FigArticleCreate {
     pub defined_type: String,
     // Transformed into "tags" on creation - consider renaming
     pub keywords: Vec<String>,
-    // Figshare ID - TODO retrieve options from private licences endpoint,
-    // match option URL to licence URL stored in Thoth, submit corresponding ID.
-    // pub license: i32,
+    // Figshare ID - detailed list found at licences endpoint
+    pub license: i32,
     // (A subset of) optional fields:
     pub funding_list: Vec<FigFundingCreate>,
     pub timeline: FigTimelineUpdate,
@@ -226,6 +225,27 @@ impl SlimFetchRequest for FigArticleSearchRequest {
     }
     fn method(&self) -> MethodBody<Self::RequestBody> {
         MethodBody::Post(&self.body)
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct FigLicense {
+    pub value: i32,
+    pub name: String,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FigLicenseListRequest {}
+
+impl SlimFetchRequest for FigLicenseListRequest {
+    type RequestBody = ();
+    type ResponseBody = Vec<FigLicense>;
+    fn path(&self) -> String {
+        "/account/licenses".to_string()
+    }
+    fn method(&self) -> MethodBody<Self::RequestBody> {
+        MethodBody::Get
     }
 }
 
@@ -423,6 +443,8 @@ pub type PushActionFigshareRequest = FetchAction<FigshareResponseBody>;
 pub type FetchFigshareArticleRequest =
     Fetch<FetchWrapper<FigArticleSearchRequest>, Vec<FigArticleSearchResponse>>;
 pub type FetchActionFigshareArticleRequest = FetchAction<Vec<FigArticleSearchResponse>>;
+pub type FetchFigLicenseListRequest = Fetch<FetchWrapper<FigLicenseListRequest>, Vec<FigLicense>>;
+pub type FetchActionFigLicenseListRequest = FetchAction<Vec<FigLicense>>;
 pub type UploadGetIdRequest = Fetch<FetchWrapper<FigUploadGetIdRequest>, FigUploadGetIdResponse>;
 pub type UploadActionGetIdRequest = FetchAction<FigUploadGetIdResponse>;
 pub type UploadGetUrlRequest = Fetch<FetchWrapper<FigUploadGetUrlRequest>, FigUploadGetUrlResponse>;
@@ -444,6 +466,7 @@ pub struct FigshareComponent {
     push_create_figshare: PushCreateFigshareRequest,
     push_figshare: PushFigshareRequest,
     get_article_id: FetchFigshareArticleRequest,
+    get_license_list: FetchFigLicenseListRequest,
     upload_get_id: UploadGetIdRequest,
     upload_get_url: UploadGetUrlRequest,
     upload_get_parts: UploadGetPartsRequest,
@@ -451,6 +474,7 @@ pub struct FigshareComponent {
     upload_get_result: UploadResultRequest,
     file_location: String,
     article_id: i32,
+    license_list: Vec<FigLicense>,
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -464,6 +488,8 @@ pub enum Msg {
     Submit,
     SetFigshareArticleIdFetchState(FetchActionFigshareArticleRequest),
     GetFigshareArticleId,
+    SetFigshareLicenseListFetchState(FetchActionFigLicenseListRequest),
+    GetFigshareLicenseList,
     InitiateFigshareUpload,
     GetFigshareFileId(UploadActionGetIdRequest),
     GetFigshareUploadUrl(UploadActionGetUrlRequest),
@@ -480,6 +506,7 @@ impl Component for FigshareComponent {
         let push_figshare = Default::default();
         let push_create_figshare = Default::default();
         let get_article_id = Default::default();
+        let get_license_list = Default::default();
         let upload_get_id = Default::default();
         let upload_get_url = Default::default();
         let upload_get_parts = Default::default();
@@ -487,8 +514,12 @@ impl Component for FigshareComponent {
         let upload_get_result = Default::default();
         let file_location = Default::default();
         let article_id = Default::default();
+        let license_list = Default::default();
 
         link.send_message(Msg::GetFigshareArticleId);
+
+        // Obtain the current set of available licences from the Figshare API
+        link.send_message(Msg::GetFigshareLicenseList);
 
         FigshareComponent {
             props,
@@ -496,6 +527,7 @@ impl Component for FigshareComponent {
             push_figshare,
             push_create_figshare,
             get_article_id,
+            get_license_list,
             upload_get_id,
             upload_get_url,
             upload_get_parts,
@@ -503,6 +535,7 @@ impl Component for FigshareComponent {
             upload_get_result,
             file_location,
             article_id,
+            license_list,
         }
     }
 
@@ -575,6 +608,33 @@ impl Component for FigshareComponent {
                     .filter(|s| s.subject_type.eq(&SubjectType::Keyword))
                     .map(|s| s.subject_code.clone())
                     .collect();
+                // Find the Figshare licence object corresponding to the Thoth licence URL.
+                // Note URLs must match exactly, e.g. "http://[...]" will not match to "https://[...]".
+                // If multiple Figshare licence objects have the same URL, the lowest numbered will be used.
+                // If Thoth licence URL field is empty, use the special licence value "unknown".
+                // TODO: Create "unknown" private licence (cannot be done via Figshare API).
+                // This would need to be done individually for every institutional Figshare account.
+                let mut figshare_license = self.license_list.iter().find(|l| {
+                    l.url.eq(&self
+                        .props
+                        .work
+                        .license
+                        .clone()
+                        .unwrap_or_else(|| "unknown".to_string()))
+                });
+                if figshare_license.is_none() {
+                    // No appropriate Figshare licence object was found. This is probably because
+                    // the Thoth licence URL field was filled out but the value did not match any
+                    // existing Figshare licence. Use the special licence value "unknown".
+                    figshare_license = self
+                        .license_list
+                        .iter()
+                        .find(|l| l.url.eq(&"unknown".to_string()));
+                }
+                // If we still haven't found an appropriate Figshare licence object,
+                // we must submit a default value. Use 1 as this matches the Figshare
+                // default behaviour. Not ideal as it corresponds to CC-BY[-4.0].
+                let license = figshare_license.map_or(1, |l| l.value);
                 let fundings: Vec<String> = self
                     .props
                     .work
@@ -596,6 +656,7 @@ impl Component for FigshareComponent {
                     authors,
                     defined_type,
                     keywords,
+                    license,
                     funding_list,
                     timeline: FigTimelineUpdate {
                         publisher_publication: self.props.work.publication_date.clone(),
@@ -671,6 +732,33 @@ impl Component for FigshareComponent {
                 );
                 self.link
                     .send_message(Msg::SetFigshareArticleIdFetchState(FetchAction::Fetching));
+                false
+            }
+            Msg::SetFigshareLicenseListFetchState(fetch_state) => {
+                self.get_license_list.apply(fetch_state);
+                match self.get_license_list.as_ref().state() {
+                    FetchState::Fetched(body) => {
+                        // Store retrieved list locally for reference
+                        self.license_list = body.to_vec();
+                    }
+                    // TODO handle other responses
+                    FetchState::Fetching(_) => (),
+                    FetchState::NotFetching(_) => (),
+                    FetchState::Failed(_, _) => (),
+                }
+                false
+            }
+            Msg::GetFigshareLicenseList => {
+                // GET from /licenses
+                // JSON body: none
+                let request = FetchWrapper(FigLicenseListRequest {});
+                self.get_license_list = Fetch::new(request);
+                self.link.send_future(
+                    self.get_license_list
+                        .fetch(Msg::SetFigshareLicenseListFetchState),
+                );
+                self.link
+                    .send_message(Msg::SetFigshareLicenseListFetchState(FetchAction::Fetching));
                 false
             }
             Msg::InitiateFigshareUpload => {
