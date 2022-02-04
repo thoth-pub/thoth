@@ -64,7 +64,7 @@ struct CsvThothRow {
         rename = "publications [(type, isbn, [(ISO_4217_currency, price)], [(landing_page, full_text, platform, is_canonical)])]"
     )]
     publications: String,
-    #[serde(rename = "series [(type, name, issn_print, issn_digital, url, issue)]")]
+    #[serde(rename = "series [(type, name, issn_print, issn_digital, url, cfp_url, description, issue)]")]
     series: String,
     #[serde(rename = "languages [(relation, ISO_639-3/B_language, is_main)]")]
     languages: String,
@@ -326,13 +326,21 @@ impl CsvCell<CsvThoth> for WorkContributionsAffiliations {
 impl CsvCell<CsvThoth> for WorkIssues {
     fn csv_cell(&self) -> String {
         format!(
-            "(\"{:?}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\")",
+            "(\"{:?}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\")",
             self.series.series_type,
             self.series.series_name,
             self.series.issn_print,
             self.series.issn_digital,
             self.series
                 .series_url
+                .clone()
+                .unwrap_or_else(|| "".to_string()),
+            self.series
+                .series_cfp_url
+                .clone()
+                .unwrap_or_else(|| "".to_string()),
+            self.series
+                .series_description
                 .clone()
                 .unwrap_or_else(|| "".to_string()),
             self.issue_ordinal,
@@ -466,6 +474,8 @@ mod tests {
                     issn_print: "1234-5678".to_string(),
                     issn_digital: "8765-4321".to_string(),
                     series_url: Some("https://www.series.com".to_string()),
+                    series_description: Some("Description of series".to_string()),
+                    series_cfp_url: Some("https://www.series.com/cfp".to_string()),
                 },
             }],
             contributions: vec![
@@ -818,16 +828,20 @@ mod tests {
                 issn_print: "1234-5678".to_string(),
                 issn_digital: "8765-4321".to_string(),
                 series_url: Some("https://www.series.com".to_string()),
+                series_description: Some("Description of series".to_string()),
+                series_cfp_url: Some("https://www.series.com/cfp".to_string()),
             },
         };
         assert_eq!(CsvCell::<CsvThoth>::csv_cell(&issue),
-            r#"("JOURNAL", "Name of series", "1234-5678", "8765-4321", "https://www.series.com", "1")"#.to_string());
+            r#"("JOURNAL", "Name of series", "1234-5678", "8765-4321", "https://www.series.com", "https://www.series.com/cfp", "Description of series", "1")"#.to_string());
         issue.issue_ordinal = 2;
         issue.series.series_type = SeriesType::BOOK_SERIES;
         issue.series.series_url = None;
+        issue.series.series_description = Some("Different description".to_string());
+        issue.series.series_cfp_url = None;
         assert_eq!(
             CsvCell::<CsvThoth>::csv_cell(&issue),
-            r#"("BOOK_SERIES", "Name of series", "1234-5678", "8765-4321", "", "2")"#.to_string()
+            r#"("BOOK_SERIES", "Name of series", "1234-5678", "8765-4321", "", "", "Different description", "2")"#.to_string()
         );
     }
 
