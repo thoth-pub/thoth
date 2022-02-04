@@ -8,15 +8,15 @@ Our wiki also includes the [Thoth User Manual](../../wiki/Thoth-User-Manual).
 ## Asking quality questions
 > This section has been borrowed from Titus Wormer's [remarkjs support document](https://github.com/remarkjs/.github/blob/main/support.md)
 
-Questions can go to [GitHub discussions][chat].
+Questions can go to [GitHub discussions][https://github.com/remarkjs/remark/discussions].
 
 Help us help you!
 Spend time framing questions and add links and resources.
 Spending the extra time up front can help save everyone time in the long run.
 Here are some tips:
 
-*   [Talk to a duck][rubberduck]!
-*   Don’t fall for the [XY problem][xy]
+*   [Talk to a duck][https://rubberduckdebugging.com]!
+*   Don’t fall for the [XY problem][https://meta.stackexchange.com/questions/66377/what-is-the-xy-problem/66378#66378]
 *   Search to find out if a similar question has been asked
 *   Try to define what you need help with:
     *   Is there something in particular you want to do?
