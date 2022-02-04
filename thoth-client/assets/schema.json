@@ -7798,6 +7798,18 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
+              "name": "SERIES_DESCRIPTION"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "SERIES_CFP_URL"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
               "name": "CREATED_AT"
             },
             {
