@@ -2921,9 +2921,7 @@ impl Series {
         &self.issn_digital
     }
 
-    #[graphql(
-    description = "URL of the series' landing page"
-    )]
+    #[graphql(description = "URL of the series' landing page")]
     pub fn series_url(&self) -> Option<&String> {
         self.series_url.as_ref()
     }
@@ -2932,9 +2930,7 @@ impl Series {
         self.series_description.as_ref()
     }
 
-    #[graphql(
-    description = "URL of the series' call for proposals page"
-    )]
+    #[graphql(description = "URL of the series' call for proposals page")]
     pub fn series_cfp_url(&self) -> Option<&String> {
         self.series_cfp_url.as_ref()
     }

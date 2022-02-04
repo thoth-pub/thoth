@@ -190,7 +190,10 @@ fn test_seriesfield_display() {
     assert_eq!(format!("{}", SeriesField::IssnPrint), "ISSNPrint");
     assert_eq!(format!("{}", SeriesField::IssnDigital), "ISSNDigital");
     assert_eq!(format!("{}", SeriesField::SeriesUrl), "SeriesURL");
-    assert_eq!(format!("{}", SeriesField::SeriesDescription), "SeriesDescription");
+    assert_eq!(
+        format!("{}", SeriesField::SeriesDescription),
+        "SeriesDescription"
+    );
     assert_eq!(format!("{}", SeriesField::SeriesCfpUrl), "SeriesCFPURL");
     assert_eq!(format!("{}", SeriesField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", SeriesField::UpdatedAt), "UpdatedAt");

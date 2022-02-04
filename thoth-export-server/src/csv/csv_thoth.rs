@@ -64,7 +64,9 @@ struct CsvThothRow {
         rename = "publications [(type, isbn, [(ISO_4217_currency, price)], [(landing_page, full_text, platform, is_canonical)])]"
     )]
     publications: String,
-    #[serde(rename = "series [(type, name, issn_print, issn_digital, url, cfp_url, description, issue)]")]
+    #[serde(
+        rename = "series [(type, name, issn_print, issn_digital, url, cfp_url, description, issue)]"
+    )]
     series: String,
     #[serde(rename = "languages [(relation, ISO_639-3/B_language, is_main)]")]
     languages: String,

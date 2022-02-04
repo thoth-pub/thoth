@@ -344,8 +344,13 @@ impl Component for SeriesComponent {
                 .issn_digital
                 .neq_assign(issn_digital.trim().to_owned()),
             Msg::ChangeSeriesUrl(value) => self.series.series_url.neq_assign(value.to_opt_string()),
-            Msg::ChangeSeriesDescription(value) => self.series.series_description.neq_assign(value.to_opt_string()),
-            Msg::ChangeSeriesCfpUrl(value) => self.series.series_cfp_url.neq_assign(value.to_opt_string()),
+            Msg::ChangeSeriesDescription(value) => self
+                .series
+                .series_description
+                .neq_assign(value.to_opt_string()),
+            Msg::ChangeSeriesCfpUrl(value) => {
+                self.series.series_cfp_url.neq_assign(value.to_opt_string())
+            }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
