@@ -47,6 +47,8 @@ impl Crud for Series {
                 issn_print,
                 issn_digital,
                 series_url,
+                series_description,
+                series_cfp_url,
                 imprint_id,
                 created_at,
                 updated_at,
@@ -78,6 +80,14 @@ impl Crud for Series {
                 Direction::Asc => query = query.order(series_url.asc()),
                 Direction::Desc => query = query.order(series_url.desc()),
             },
+            SeriesField::SeriesDescription => match order.direction {
+                Direction::Asc => query = query.order(series_description.asc()),
+                Direction::Desc => query = query.order(series_description.desc()),
+            },
+            SeriesField::SeriesCfpUrl => match order.direction {
+                Direction::Asc => query = query.order(series_cfp_url.asc()),
+                Direction::Desc => query = query.order(series_cfp_url.desc()),
+            },
             SeriesField::CreatedAt => match order.direction {
                 Direction::Asc => query = query.order(created_at.asc()),
                 Direction::Desc => query = query.order(created_at.desc()),
@@ -99,7 +109,8 @@ impl Crud for Series {
                     .ilike(format!("%{}%", filter))
                     .or(issn_print.ilike(format!("%{}%", filter)))
                     .or(issn_digital.ilike(format!("%{}%", filter)))
-                    .or(series_url.ilike(format!("%{}%", filter))),
+                    .or(series_url.ilike(format!("%{}%", filter)))
+                    .or(series_description.ilike(format!("%{}%", filter))),
             );
         }
         match query
@@ -136,7 +147,8 @@ impl Crud for Series {
                     .ilike(format!("%{}%", filter))
                     .or(issn_print.ilike(format!("%{}%", filter)))
                     .or(issn_digital.ilike(format!("%{}%", filter)))
-                    .or(series_url.ilike(format!("%{}%", filter))),
+                    .or(series_url.ilike(format!("%{}%", filter)))
+                    .or(series_description.ilike(format!("%{}%", filter))),
             );
         }
 

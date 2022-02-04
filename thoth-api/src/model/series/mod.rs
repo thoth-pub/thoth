@@ -44,6 +44,9 @@ pub enum SeriesField {
     SeriesUrl,
     CreatedAt,
     UpdatedAt,
+    SeriesDescription,
+    #[strum(serialize = "SeriesCFPURL")]
+    SeriesCfpUrl,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -59,6 +62,8 @@ pub struct Series {
     pub imprint_id: Uuid,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+    pub series_description: Option<String>,
+    pub series_cfp_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -70,6 +75,8 @@ pub struct SeriesWithImprint {
     pub issn_print: String,
     pub issn_digital: String,
     pub series_url: Option<String>,
+    pub series_description: Option<String>,
+    pub series_cfp_url: Option<String>,
     pub updated_at: Timestamp,
     pub imprint: ImprintWithPublisher,
 }
@@ -85,6 +92,8 @@ pub struct NewSeries {
     pub issn_print: String,
     pub issn_digital: String,
     pub series_url: Option<String>,
+    pub series_description: Option<String>,
+    pub series_cfp_url: Option<String>,
     pub imprint_id: Uuid,
 }
 
@@ -101,6 +110,8 @@ pub struct PatchSeries {
     pub issn_print: String,
     pub issn_digital: String,
     pub series_url: Option<String>,
+    pub series_description: Option<String>,
+    pub series_cfp_url: Option<String>,
     pub imprint_id: Uuid,
 }
 
@@ -179,6 +190,8 @@ fn test_seriesfield_display() {
     assert_eq!(format!("{}", SeriesField::IssnPrint), "ISSNPrint");
     assert_eq!(format!("{}", SeriesField::IssnDigital), "ISSNDigital");
     assert_eq!(format!("{}", SeriesField::SeriesUrl), "SeriesURL");
+    assert_eq!(format!("{}", SeriesField::SeriesDescription), "SeriesDescription");
+    assert_eq!(format!("{}", SeriesField::SeriesCfpUrl), "SeriesCFPURL");
     assert_eq!(format!("{}", SeriesField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", SeriesField::UpdatedAt), "UpdatedAt");
 }
@@ -222,6 +235,14 @@ fn test_seriesfield_fromstr() {
     assert_eq!(
         SeriesField::from_str("SeriesURL").unwrap(),
         SeriesField::SeriesUrl
+    );
+    assert_eq!(
+        SeriesField::from_str("SeriesDescription").unwrap(),
+        SeriesField::SeriesDescription
+    );
+    assert_eq!(
+        SeriesField::from_str("SeriesCFPURL").unwrap(),
+        SeriesField::SeriesCfpUrl
     );
     assert_eq!(
         SeriesField::from_str("CreatedAt").unwrap(),
