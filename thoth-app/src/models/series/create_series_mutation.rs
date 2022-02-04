@@ -56,6 +56,8 @@ pub struct Variables {
     pub issn_print: String,
     pub issn_digital: String,
     pub series_url: Option<String>,
+    pub series_description: Option<String>,
+    pub series_cfp_url: Option<String>,
     pub imprint_id: Uuid,
 }
 
