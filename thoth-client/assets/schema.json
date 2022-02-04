@@ -3761,6 +3761,30 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
+              "name": "seriesDescription",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "seriesCfpUrl",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
               "name": "imprintId",
               "type": {
                 "kind": "NON_NULL",
@@ -17447,6 +17471,26 @@
               "defaultValue": null,
               "description": null,
               "name": "seriesUrl",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "seriesDescription",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "seriesCfpUrl",
               "type": {
                 "kind": "SCALAR",
                 "name": "String",
