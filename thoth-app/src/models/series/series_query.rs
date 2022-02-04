@@ -12,6 +12,8 @@ pub const SERIES_QUERY: &str = "
             issnPrint
             issnDigital
             seriesUrl
+            seriesDescription
+            seriesCfpUrl
             updatedAt
             imprint {
                 imprintId
