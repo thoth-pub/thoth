@@ -47,11 +47,11 @@ impl Crud for Series {
                 issn_print,
                 issn_digital,
                 series_url,
-                series_description,
-                series_cfp_url,
                 imprint_id,
                 created_at,
                 updated_at,
+                series_description,
+                series_cfp_url,
             ))
             .into_boxed();
 
