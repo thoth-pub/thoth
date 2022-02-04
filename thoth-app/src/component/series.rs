@@ -94,6 +94,8 @@ pub enum Msg {
     ChangeIssnPrint(String),
     ChangeIssnDigital(String),
     ChangeSeriesUrl(String),
+    ChangeSeriesDescription(String),
+    ChangeSeriesCfpUrl(String),
     ChangeRoute(AppRoute),
 }
 
