@@ -37,8 +37,10 @@ pub enum PublicationType {
     #[cfg_attr(feature = "backend", db_rename = "Mobi")]
     Mobi,
     #[cfg_attr(feature = "backend", db_rename = "AZW3")]
+    #[strum(serialize = "AZW3")]
     Azw3,
     #[cfg_attr(feature = "backend", db_rename = "DOCX")]
+    #[strum(serialize = "DOCX")]
     Docx,
     #[cfg_attr(feature = "backend", db_rename = "FictionBook")]
     FictionBook,
