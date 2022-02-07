@@ -202,26 +202,101 @@ impl SlimFetchRequest for FigArticleCreateRequest {
     }
 }
 
+// Can also be used to represent ProjectUpdate, as the objects are identical
+// (except ProjectCreate has a group_id parameter option, unused here)
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-pub struct FigArticleSearch {
+pub struct FigProjectCreate {
+    pub title: String,
+    pub description: String,
+    pub funding_list: Vec<FigFundingCreate>,
+    // pub custom_fields: FigCustomFields,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FigProjectUpdateRequest {
+    pub body: FigProjectCreate,
+    pub project_id: i32,
+}
+
+impl SlimFetchRequest for FigProjectUpdateRequest {
+    type RequestBody = FigProjectCreate;
+    // Body is empty on success, but may contain JSON ErrorMessage on failure.
+    type ResponseBody = ();
+    fn path(&self) -> String {
+        // Endpoint for updating existing project.
+        format!("/account/projects/{}", self.project_id)
+    }
+    fn method(&self) -> MethodBody<Self::RequestBody> {
+        // Updates use HTTP method PUT.
+        MethodBody::Put(&self.body)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FigProjectCreateRequest {
+    pub body: FigProjectCreate,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct FigCreateProjectResponse {
+    // Successful response contains project ID and full project URL
+    pub entity_id: i32,
+    pub location: String,
+}
+
+impl SlimFetchRequest for FigProjectCreateRequest {
+    type RequestBody = FigProjectCreate;
+    type ResponseBody = FigCreateProjectResponse;
+    fn path(&self) -> String {
+        // Endpoint for creating new project.
+        "/account/projects".to_string()
+    }
+    fn method(&self) -> MethodBody<Self::RequestBody> {
+        // Creates use HTTP method POST.
+        MethodBody::Post(&self.body)
+    }
+}
+
+// Figshare object CommonSearch is shared by ArticleSearch,
+// ProjectsSearch and CollectionSearch.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct FigCommonSearch {
     pub search_for: String,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct FigArticleSearchRequest {
-    pub body: FigArticleSearch,
+    pub body: FigCommonSearch,
 }
 
+// We are currently only using searches to find ID -
+// other parameters can be safely omitted.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-pub struct FigArticleSearchResponse {
+pub struct FigCommonSearchResponse {
     pub id: i32,
 }
 
 impl SlimFetchRequest for FigArticleSearchRequest {
-    type RequestBody = FigArticleSearch;
-    type ResponseBody = Vec<FigArticleSearchResponse>;
+    type RequestBody = FigCommonSearch;
+    type ResponseBody = Vec<FigCommonSearchResponse>;
     fn path(&self) -> String {
         "/account/articles/search".to_string()
+    }
+    fn method(&self) -> MethodBody<Self::RequestBody> {
+        MethodBody::Post(&self.body)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FigProjectSearchRequest {
+    pub body: FigCommonSearch,
+}
+
+impl SlimFetchRequest for FigProjectSearchRequest {
+    type RequestBody = FigCommonSearch;
+    type ResponseBody = Vec<FigCommonSearchResponse>;
+    fn path(&self) -> String {
+        "/account/projects/search".to_string()
     }
     fn method(&self) -> MethodBody<Self::RequestBody> {
         MethodBody::Post(&self.body)
@@ -441,8 +516,16 @@ pub type PushCreateActionFigshareRequest = FetchAction<FigArticleCreateResponse>
 pub type PushFigshareRequest = Fetch<FetchWrapper<FigArticleUpdateRequest>, FigshareResponseBody>;
 pub type PushActionFigshareRequest = FetchAction<FigshareResponseBody>;
 pub type FetchFigshareArticleRequest =
-    Fetch<FetchWrapper<FigArticleSearchRequest>, Vec<FigArticleSearchResponse>>;
-pub type FetchActionFigshareArticleRequest = FetchAction<Vec<FigArticleSearchResponse>>;
+    Fetch<FetchWrapper<FigArticleSearchRequest>, Vec<FigCommonSearchResponse>>;
+pub type FetchActionFigshareArticleRequest = FetchAction<Vec<FigCommonSearchResponse>>;
+pub type ProjectCreateRequest =
+    Fetch<FetchWrapper<FigProjectCreateRequest>, FigCreateProjectResponse>;
+pub type ProjectCreateActionRequest = FetchAction<FigCreateProjectResponse>;
+pub type ProjectUpdateRequest = Fetch<FetchWrapper<FigProjectUpdateRequest>, ()>;
+pub type ProjectUpdateActionRequest = FetchAction<()>;
+pub type FetchFigshareProjectRequest =
+    Fetch<FetchWrapper<FigProjectSearchRequest>, Vec<FigCommonSearchResponse>>;
+pub type FetchActionFigshareProjectRequest = FetchAction<Vec<FigCommonSearchResponse>>;
 pub type FetchFigLicenseListRequest = Fetch<FetchWrapper<FigLicenseListRequest>, Vec<FigLicense>>;
 pub type FetchActionFigLicenseListRequest = FetchAction<Vec<FigLicense>>;
 pub type UploadGetIdRequest = Fetch<FetchWrapper<FigUploadGetIdRequest>, FigUploadGetIdResponse>;
@@ -466,6 +549,9 @@ pub struct FigshareComponent {
     push_create_figshare: PushCreateFigshareRequest,
     push_figshare: PushFigshareRequest,
     get_article_id: FetchFigshareArticleRequest,
+    create_project: ProjectCreateRequest,
+    update_project: ProjectUpdateRequest,
+    get_project_id: FetchFigshareProjectRequest,
     get_license_list: FetchFigLicenseListRequest,
     upload_get_id: UploadGetIdRequest,
     upload_get_url: UploadGetUrlRequest,
@@ -474,6 +560,7 @@ pub struct FigshareComponent {
     upload_get_result: UploadResultRequest,
     file_location: String,
     article_id: i32,
+    project_id: i32,
     license_list: Vec<FigLicense>,
 }
 
@@ -485,9 +572,14 @@ pub struct Props {
 pub enum Msg {
     SetFigsharePushCreateState(PushCreateActionFigshareRequest),
     SetFigsharePushState(PushActionFigshareRequest),
-    Submit,
+    SubmitAsArticle,
     SetFigshareArticleIdFetchState(FetchActionFigshareArticleRequest),
     GetFigshareArticleId,
+    SetProjectCreateState(ProjectCreateActionRequest),
+    SetProjectUpdateState(ProjectUpdateActionRequest),
+    SubmitAsProject,
+    SetFigshareProjectIdFetchState(FetchActionFigshareProjectRequest),
+    GetFigshareProjectId,
     SetFigshareLicenseListFetchState(FetchActionFigLicenseListRequest),
     GetFigshareLicenseList,
     InitiateFigshareUpload,
@@ -506,6 +598,9 @@ impl Component for FigshareComponent {
         let push_figshare = Default::default();
         let push_create_figshare = Default::default();
         let get_article_id = Default::default();
+        let create_project = Default::default();
+        let update_project = Default::default();
+        let get_project_id = Default::default();
         let get_license_list = Default::default();
         let upload_get_id = Default::default();
         let upload_get_url = Default::default();
@@ -514,9 +609,12 @@ impl Component for FigshareComponent {
         let upload_get_result = Default::default();
         let file_location = Default::default();
         let article_id = Default::default();
+        let project_id = Default::default();
         let license_list = Default::default();
 
         link.send_message(Msg::GetFigshareArticleId);
+        // Duplicate for project
+        link.send_message(Msg::GetFigshareProjectId);
 
         // Obtain the current set of available licences from the Figshare API
         link.send_message(Msg::GetFigshareLicenseList);
@@ -527,6 +625,9 @@ impl Component for FigshareComponent {
             push_figshare,
             push_create_figshare,
             get_article_id,
+            create_project,
+            update_project,
+            get_project_id,
             get_license_list,
             upload_get_id,
             upload_get_url,
@@ -535,6 +636,7 @@ impl Component for FigshareComponent {
             upload_get_result,
             file_location,
             article_id,
+            project_id,
             license_list,
         }
     }
@@ -543,8 +645,10 @@ impl Component for FigshareComponent {
         let updated_work = props.work.work_id != self.props.work.work_id;
         self.props.neq_assign(props);
         if updated_work {
-            // Retrieve and store Figshare ID associated with new Work
+            // Retrieve and store Figshare article ID associated with new Work
             self.link.send_message(Msg::GetFigshareArticleId);
+            // Duplicate for project
+            self.link.send_message(Msg::GetFigshareProjectId);
         }
         // Appearance of component is currently static, so no need to re-render
         false
@@ -571,7 +675,7 @@ impl Component for FigshareComponent {
                 // TODO: process response received from Figshare
                 false
             }
-            Msg::Submit => {
+            Msg::SubmitAsArticle => {
                 let mut authors = vec![];
                 for contribution in self.props.work.contributions.clone().unwrap_or_default() {
                     let author = FigArticleCreateAuthor {
@@ -721,7 +825,7 @@ impl Component for FigshareComponent {
             Msg::GetFigshareArticleId => {
                 // POST to /articles/search
                 // JSON body: term to be searched (formatted Thoth Work ID)
-                let body = FigArticleSearch {
+                let body = FigCommonSearch {
                     search_for: format!("thoth-work-id:{}", self.props.work.work_id),
                 };
                 let request = FetchWrapper(FigArticleSearchRequest { body });
@@ -732,6 +836,130 @@ impl Component for FigshareComponent {
                 );
                 self.link
                     .send_message(Msg::SetFigshareArticleIdFetchState(FetchAction::Fetching));
+                false
+            }
+            Msg::SetProjectCreateState(fetch_state) => {
+                // Duplicated from SetFigsharePushCreateState.
+                self.create_project.apply(fetch_state);
+                match self.create_project.as_ref().state() {
+                    // On success, save off returned project ID
+                    FetchState::Fetched(body) => {
+                        self.project_id = body.entity_id;
+                    }
+                    // TODO handle other responses
+                    FetchState::Fetching(_) => (),
+                    FetchState::NotFetching(_) => (),
+                    FetchState::Failed(_, _) => (),
+                }
+                false
+            }
+            Msg::SetProjectUpdateState(fetch_state) => {
+                // Duplicated from SetFigsharePushState.
+                self.update_project.apply(fetch_state);
+                // TODO: process response received from Figshare
+                false
+            }
+            Msg::SubmitAsProject => {
+                // Duplicated from SubmitAsArticle but omitting non-Project fields
+                // (authors, defined_type, keywords, license, timeline, resource_doi).
+                // Extract metadata from Thoth record and convert to Figshare format.
+                // Note that the metadata is taken from the display version of the
+                // Thoth record, including any user changes not yet saved to database.
+                let fundings: Vec<String> = self
+                    .props
+                    .work
+                    .fundings
+                    .clone()
+                    .unwrap_or_default()
+                    .iter()
+                    // Unclear which attribute to use as "the funding name"; use grant number for now.
+                    // (Will omit fundings with no grant number.)
+                    .filter_map(|f| f.grant_number.clone())
+                    .collect();
+                let mut funding_list = vec![];
+                for funding in fundings {
+                    funding_list.push(FigFundingCreate { title: funding });
+                }
+                let body = FigProjectCreate {
+                    title: self.props.work.full_title.clone(),
+                    // Ideally we would include the Thoth Work ID in the Custom Fields
+                    // as for Articles, but test instance doesn't currently have
+                    // Custom Fields set up for Projects.
+                    description: format!("thoth-work-id:{}", self.props.work.work_id),
+                    // description: self.props.work.long_abstract.clone().unwrap_or_default(),
+                    funding_list,
+                    // custom_fields: FigCustomFields {
+                    //     thoth_work_id: format!("thoth-work-id:{}", self.props.work.work_id),
+                    // },
+                };
+                match self.project_id {
+                    // Create new project
+                    0 => {
+                        let request = FetchWrapper(FigProjectCreateRequest { body });
+                        self.create_project = Fetch::new(request);
+                        self.link
+                            .send_future(self.create_project.fetch(Msg::SetProjectCreateState));
+                        self.link
+                            .send_message(Msg::SetProjectCreateState(FetchAction::Fetching));
+                    }
+                    // Update existing project
+                    _ => {
+                        let request = FetchWrapper(FigProjectUpdateRequest {
+                            body,
+                            project_id: self.project_id,
+                        });
+                        self.update_project = Fetch::new(request);
+                        self.link
+                            .send_future(self.update_project.fetch(Msg::SetProjectUpdateState));
+                        self.link
+                            .send_message(Msg::SetProjectUpdateState(FetchAction::Fetching));
+                    }
+                }
+                false
+            }
+            Msg::SetFigshareProjectIdFetchState(fetch_state) => {
+                // Duplicated from SetFigshareArticleIdFetchState.
+                self.get_project_id.apply(fetch_state);
+                match self.get_project_id.as_ref().state() {
+                    FetchState::Fetched(body) => {
+                        match body.len() {
+                            // No matching projects found - we need to create one
+                            // (clear any existing project ID in case the search was
+                            // triggered by loading a different Work)
+                            0 => self.project_id = Default::default(),
+                            // Project already exists for this Thoth Work - we can update it
+                            1 => self.project_id = body[0].id,
+                            // TODO raise an error - multiple matching projects found
+                            // (Figshare representations of Thoth Works should be unique)
+                            // This could indicate that Works from independent Thoth instances
+                            // have coincidentally been assigned the same ID.
+                            _ => (),
+                        }
+                    }
+                    // TODO handle other responses
+                    FetchState::Fetching(_) => (),
+                    FetchState::NotFetching(_) => (),
+                    FetchState::Failed(_, _) => (),
+                }
+                false
+            }
+            Msg::GetFigshareProjectId => {
+                // Duplicated from GetFigshareArticleId - search logic is the same.
+                // POST to /projects/search
+                // JSON body: term to be searched (formatted Thoth Work ID)
+                // TODO first check that the custom field where we expect to find this value exists
+                // (note comment in SubmitAsProject - custom fields not currently set up for projects)
+                let body = FigCommonSearch {
+                    search_for: format!("thoth-work-id:{}", self.props.work.work_id),
+                };
+                let request = FetchWrapper(FigProjectSearchRequest { body });
+                self.get_project_id = Fetch::new(request);
+                self.link.send_future(
+                    self.get_project_id
+                        .fetch(Msg::SetFigshareProjectIdFetchState),
+                );
+                self.link
+                    .send_message(Msg::SetFigshareProjectIdFetchState(FetchAction::Fetching));
                 false
             }
             Msg::SetFigshareLicenseListFetchState(fetch_state) => {
@@ -918,8 +1146,11 @@ impl Component for FigshareComponent {
     fn view(&self) -> Html {
         html! {
             <>
-                <button onclick=self.link.callback(|_| Msg::Submit)>
-                    { "Submit to Figshare" }
+                <button onclick=self.link.callback(|_| Msg::SubmitAsArticle)>
+                    { "Submit to Figshare as an Article" }
+                </button>
+                <button onclick=self.link.callback(|_| Msg::SubmitAsProject)>
+                    { "Submit to Figshare as a Project" }
                 </button>
                 <button onclick=self.link.callback(|_| Msg::InitiateFigshareUpload)>
                     { "Upload test file" }
