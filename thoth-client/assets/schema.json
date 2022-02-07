@@ -20299,6 +20299,24 @@
               "description": null,
               "isDeprecated": false,
               "name": "MOBI"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "AZW3"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "DOCX"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "FICTION_BOOK"
             }
           ],
           "fields": null,
