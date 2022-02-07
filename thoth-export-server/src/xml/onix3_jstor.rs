@@ -726,6 +726,8 @@ mod tests {
                     issn_print: "1234-5678".to_string(),
                     issn_digital: "8765-4321".to_string(),
                     series_url: None,
+                    series_description: None,
+                    series_cfp_url: None,
                 },
             }],
             contributions: vec![],

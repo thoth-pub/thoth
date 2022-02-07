@@ -744,7 +744,7 @@ impl QueryRoot {
             offset(default = 0, description = "The number of items to skip"),
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital and series_url"
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital, series_url and series_description"
             ),
             order(
                 default = SeriesOrderBy::default(),
@@ -794,7 +794,7 @@ impl QueryRoot {
         arguments(
             filter(
                 default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital and series_url",
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital, series_url and series_description",
             ),
             publishers(
                 default = vec![],
@@ -2921,8 +2921,18 @@ impl Series {
         &self.issn_digital
     }
 
+    #[graphql(description = "URL of the series' landing page")]
     pub fn series_url(&self) -> Option<&String> {
         self.series_url.as_ref()
+    }
+
+    pub fn series_description(&self) -> Option<&String> {
+        self.series_description.as_ref()
+    }
+
+    #[graphql(description = "URL of the series' call for proposals page")]
+    pub fn series_cfp_url(&self) -> Option<&String> {
+        self.series_cfp_url.as_ref()
     }
 
     pub fn imprint_id(&self) -> Uuid {
