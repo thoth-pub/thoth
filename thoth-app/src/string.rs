@@ -40,7 +40,7 @@ strings! {
     EMPTY_PRICES => "This publication does not have any pricing information. Click above to add prices.",
     SEARCH_INSTITUTIONS => "Search by name, ROR ID or DOI",
     SEARCH_WORKS => "Search by title, DOI, internal reference, abstract or landing page",
-    SEARCH_SERIESES => "Search by series name, ISSN or URL",
+    SEARCH_SERIESES => "Search by series name, ISSN, URL or description",
     SEARCH_PUBLISHERS => "Search by publisher name or short name",
     SEARCH_IMPRINTS => "Search by imprint name or URL",
     SEARCH_CONTRIBUTORS => "Search by name or ORCID",
