@@ -5,5 +5,5 @@ ALTER TABLE series
     ADD COLUMN series_cfp_url TEXT CHECK (series_cfp_url ~* '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)');
 
 ALTER TYPE publication_type ADD VALUE IF NOT EXISTS 'AZW3';
-ALTER TYPE publication_type ADD VALUE IF NOT EXISTS 'DOCX',
+ALTER TYPE publication_type ADD VALUE IF NOT EXISTS 'DOCX';
 ALTER TYPE publication_type ADD VALUE IF NOT EXISTS 'FictionBook';
