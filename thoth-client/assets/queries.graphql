@@ -50,6 +50,8 @@ fragment Work on Work {
             issnPrint
             issnDigital
             seriesUrl
+            seriesDescription
+            seriesCfpUrl
         }
     }
     contributions {

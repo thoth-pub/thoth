@@ -12,6 +12,8 @@ const UPDATE_SERIES_MUTATION: &str = "
             $issnPrint: String!,
             $issnDigital: String!,
             $seriesUrl: String,
+            $seriesDescription: String,
+            $seriesCfpUrl: String,
             $imprintId: Uuid!
     ) {
         updateSeries(data: {
@@ -21,6 +23,8 @@ const UPDATE_SERIES_MUTATION: &str = "
             issnPrint: $issnPrint
             issnDigital: $issnDigital
             seriesUrl: $seriesUrl
+            seriesDescription: $seriesDescription
+            seriesCfpUrl: $seriesCfpUrl
             imprintId: $imprintId
         }){
             seriesId
@@ -55,6 +59,8 @@ pub struct Variables {
     pub issn_print: String,
     pub issn_digital: String,
     pub series_url: Option<String>,
+    pub series_description: Option<String>,
+    pub series_cfp_url: Option<String>,
     pub imprint_id: Uuid,
 }
 

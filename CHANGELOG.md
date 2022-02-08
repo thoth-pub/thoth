@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.7.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.7.2) - 2022-02-08
+### Changed
+  - [#339](https://github.com/thoth-pub/thoth/pull/339) - Update publication types to include AZW3, DOCX and FictionBook
+  - [#331](https://github.com/thoth-pub/thoth/pull/331) - Update series model to include description and CFP URL
+  - Allow triggering docker action manually
+
+### Added
+  - Add code of conduct and support document to repository
+
 ## [[0.7.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.7.1) - 2022-01-24
 ### Changed
   - Removed redundant `to_string` calls to comply with [`rustc 1.58.0`](https://github.com/rust-lang/rust/releases/tag/1.58.0)

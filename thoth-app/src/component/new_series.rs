@@ -23,6 +23,7 @@ use crate::agent::notification_bus::Request;
 use crate::component::utils::FormImprintSelect;
 use crate::component::utils::FormSeriesTypeSelect;
 use crate::component::utils::FormTextInput;
+use crate::component::utils::FormTextarea;
 use crate::component::utils::FormUrlInput;
 use crate::models::imprint::imprints_query::FetchActionImprints;
 use crate::models::imprint::imprints_query::FetchImprints;
@@ -74,6 +75,8 @@ pub enum Msg {
     ChangeIssnPrint(String),
     ChangeIssnDigital(String),
     ChangeSeriesUrl(String),
+    ChangeSeriesDescription(String),
+    ChangeSeriesCfpUrl(String),
     ChangeRoute(AppRoute),
 }
 #[derive(Clone, Properties)]
@@ -195,6 +198,8 @@ impl Component for NewSeriesComponent {
                         issn_print: self.series.issn_print.clone(),
                         issn_digital: self.series.issn_digital.clone(),
                         series_url: self.series.series_url.clone(),
+                        series_description: self.series.series_description.clone(),
+                        series_cfp_url: self.series.series_cfp_url.clone(),
                         imprint_id: self.series.imprint_id,
                     },
                     ..Default::default()
@@ -222,6 +227,13 @@ impl Component for NewSeriesComponent {
                 .issn_digital
                 .neq_assign(issn_digital.trim().to_owned()),
             Msg::ChangeSeriesUrl(value) => self.series.series_url.neq_assign(value.to_opt_string()),
+            Msg::ChangeSeriesDescription(value) => self
+                .series
+                .series_description
+                .neq_assign(value.to_opt_string()),
+            Msg::ChangeSeriesCfpUrl(value) => {
+                self.series.series_cfp_url.neq_assign(value.to_opt_string())
+            }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
@@ -305,6 +317,16 @@ impl Component for NewSeriesComponent {
                         label = "Series URL"
                         value=self.series.series_url.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesUrl(e.value))
+                    />
+                    <FormUrlInput
+                        label = "Series Call for Proposals URL"
+                        value=self.series.series_cfp_url.clone()
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesCfpUrl(e.value))
+                    />
+                    <FormTextarea
+                        label = "Series Description"
+                        value=self.series.series_description.clone()
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesDescription(e.value))
                     />
 
                     <div class="field">

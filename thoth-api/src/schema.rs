@@ -367,6 +367,8 @@ table! {
         imprint_id -> Uuid,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+        series_description -> Nullable<Text>,
+        series_cfp_url -> Nullable<Text>,
     }
 }
 
