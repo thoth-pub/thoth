@@ -36,6 +36,14 @@ pub enum PublicationType {
     Epub,
     #[cfg_attr(feature = "backend", db_rename = "Mobi")]
     Mobi,
+    #[cfg_attr(feature = "backend", db_rename = "AZW3")]
+    #[strum(serialize = "AZW3")]
+    Azw3,
+    #[cfg_attr(feature = "backend", db_rename = "DOCX")]
+    #[strum(serialize = "DOCX")]
+    Docx,
+    #[cfg_attr(feature = "backend", db_rename = "FictionBook")]
+    FictionBook,
 }
 
 #[cfg_attr(
@@ -171,6 +179,9 @@ fn test_publicationtype_display() {
     assert_eq!(format!("{}", PublicationType::Xml), "XML");
     assert_eq!(format!("{}", PublicationType::Epub), "Epub");
     assert_eq!(format!("{}", PublicationType::Mobi), "Mobi");
+    assert_eq!(format!("{}", PublicationType::Azw3), "AZW3");
+    assert_eq!(format!("{}", PublicationType::Docx), "DOCX");
+    assert_eq!(format!("{}", PublicationType::FictionBook), "FictionBook");
 }
 
 #[test]
@@ -214,9 +225,23 @@ fn test_publicationtype_fromstr() {
         PublicationType::from_str("Mobi").unwrap(),
         PublicationType::Mobi
     );
+    assert_eq!(
+        PublicationType::from_str("AZW3").unwrap(),
+        PublicationType::Azw3
+    );
+    assert_eq!(
+        PublicationType::from_str("DOCX").unwrap(),
+        PublicationType::Docx
+    );
+    assert_eq!(
+        PublicationType::from_str("FictionBook").unwrap(),
+        PublicationType::FictionBook
+    );
 
     assert!(PublicationType::from_str("PNG").is_err());
     assert!(PublicationType::from_str("Latex").is_err());
+    assert!(PublicationType::from_str("azw3").is_err());
+    assert!(PublicationType::from_str("Fiction Book").is_err());
 }
 
 #[test]
