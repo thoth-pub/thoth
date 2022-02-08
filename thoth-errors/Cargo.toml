@@ -1,6 +1,6 @@
 [package]
 name = "thoth-errors"
-version = "0.7.1"
+version = "0.7.2"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
