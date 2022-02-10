@@ -696,6 +696,9 @@ impl Component for FigshareComponent {
                 // Note that the metadata is taken from the display version of the
                 // Thoth record, including any user changes not yet saved to database.
                 let mut authors = vec![];
+                // TODO test Figshare-documented limitation of maximum 10 authors.
+                // Note that the same author may have contributed to a work in multiple roles
+                // (e.g. both Author and Editor). These will be ignored as duplicates by Figshare.
                 for contribution in self.props.work.contributions.clone().unwrap_or_default() {
                     let author = FigAuthorsCreatorItem {
                         name: contribution.full_name,
