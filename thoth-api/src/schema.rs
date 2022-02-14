@@ -301,6 +301,7 @@ table! {
         isbn -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+        weight -> Nullable<Float8>,
     }
 }
 

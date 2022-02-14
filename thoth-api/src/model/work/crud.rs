@@ -94,18 +94,18 @@ impl Work {
             let mut converted_data = data;
             converted_data.width = converted_data
                 .width
-                .map(|w| w.convert_units_from_to(&units, &LengthUnit::Mm));
+                .map(|w| w.convert_length_from_to(&units, &LengthUnit::Mm));
             converted_data.height = converted_data
                 .height
-                .map(|h| h.convert_units_from_to(&units, &LengthUnit::Mm));
+                .map(|h| h.convert_length_from_to(&units, &LengthUnit::Mm));
             let result = self.update(db, &converted_data, account_id);
             if let Ok(mut retrieved_data) = result {
                 retrieved_data.width = retrieved_data
                     .width
-                    .map(|w| w.convert_units_from_to(&LengthUnit::Mm, &units));
+                    .map(|w| w.convert_length_from_to(&LengthUnit::Mm, &units));
                 retrieved_data.height = retrieved_data
                     .height
-                    .map(|h| h.convert_units_from_to(&LengthUnit::Mm, &units));
+                    .map(|h| h.convert_length_from_to(&LengthUnit::Mm, &units));
                 Ok(retrieved_data)
             } else {
                 result
@@ -126,18 +126,18 @@ impl Work {
             let mut converted_data = data;
             converted_data.width = converted_data
                 .width
-                .map(|w| w.convert_units_from_to(&units, &LengthUnit::Mm));
+                .map(|w| w.convert_length_from_to(&units, &LengthUnit::Mm));
             converted_data.height = converted_data
                 .height
-                .map(|h| h.convert_units_from_to(&units, &LengthUnit::Mm));
+                .map(|h| h.convert_length_from_to(&units, &LengthUnit::Mm));
             let result = Self::create(db, &converted_data);
             if let Ok(mut retrieved_data) = result {
                 retrieved_data.width = retrieved_data
                     .width
-                    .map(|w| w.convert_units_from_to(&LengthUnit::Mm, &units));
+                    .map(|w| w.convert_length_from_to(&LengthUnit::Mm, &units));
                 retrieved_data.height = retrieved_data
                     .height
-                    .map(|h| h.convert_units_from_to(&LengthUnit::Mm, &units));
+                    .map(|h| h.convert_length_from_to(&LengthUnit::Mm, &units));
                 Ok(retrieved_data)
             } else {
                 result

@@ -31,6 +31,7 @@ use crate::model::LengthUnit;
 use crate::model::Orcid;
 use crate::model::Ror;
 use crate::model::Timestamp;
+use crate::model::WeightUnit;
 use thoth_errors::{ThothError, ThothResult};
 
 use super::utils::Direction;
@@ -1348,7 +1349,11 @@ impl MutationRoot {
         Contribution::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_publication(context: &Context, data: NewPublication) -> FieldResult<Publication> {
+    fn create_publication(
+        context: &Context,
+        data: NewPublication,
+        units: WeightUnit,
+    ) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
@@ -1358,7 +1363,7 @@ impl MutationRoot {
             data.can_have_isbn(&context.db)?;
         }
 
-        Publication::create(&context.db, &data).map_err(|e| e.into())
+        Publication::create_with_units(&context.db, data, units).map_err(|e| e.into())
     }
 
     fn create_series(context: &Context, data: NewSeries) -> FieldResult<Series> {
@@ -1556,7 +1561,11 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_publication(context: &Context, data: PatchPublication) -> FieldResult<Publication> {
+    fn update_publication(
+        context: &Context,
+        data: PatchPublication,
+        units: WeightUnit,
+    ) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let publication = Publication::from_id(&context.db, &data.publication_id).unwrap();
         context
@@ -1575,7 +1584,7 @@ impl MutationRoot {
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         publication
-            .update(&context.db, &data, &account_id)
+            .update_with_units(&context.db, data, &account_id, units)
             .map_err(|e| e.into())
     }
 
@@ -2032,7 +2041,7 @@ impl Work {
     )]
     pub fn width(&self, units: LengthUnit) -> Option<f64> {
         self.width
-            .map(|w| w.convert_units_from_to(&LengthUnit::Mm, &units))
+            .map(|w| w.convert_length_from_to(&LengthUnit::Mm, &units))
     }
 
     #[graphql(
@@ -2046,7 +2055,7 @@ impl Work {
     )]
     pub fn height(&self, units: LengthUnit) -> Option<f64> {
         self.height
-            .map(|h| h.convert_units_from_to(&LengthUnit::Mm, &units))
+            .map(|h| h.convert_length_from_to(&LengthUnit::Mm, &units))
     }
 
     pub fn page_count(&self) -> Option<&i32> {
@@ -2475,6 +2484,20 @@ impl Publication {
 
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
+    }
+
+    #[graphql(
+        description = "Weight of the physical Publication (in g or oz) (only applicable to Paperbacks and Hardbacks)",
+        arguments(
+            units(
+                default = WeightUnit::default(),
+                description = "Unit of measurement in which to represent the weight (grams or ounces)",
+            ),
+        )
+    )]
+    pub fn weight(&self, units: WeightUnit) -> Option<f64> {
+        self.weight
+            .map(|w| w.convert_weight_from_to(&WeightUnit::G, &units))
     }
 
     #[graphql(

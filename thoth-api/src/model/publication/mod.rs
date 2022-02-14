@@ -64,6 +64,7 @@ pub enum PublicationField {
     Isbn,
     CreatedAt,
     UpdatedAt,
+    Weight,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -76,6 +77,7 @@ pub struct Publication {
     pub isbn: Option<Isbn>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+    pub weight: Option<f64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -86,6 +88,7 @@ pub struct PublicationWithRelations {
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
     pub updated_at: Timestamp,
+    pub weight: Option<f64>,
     pub prices: Option<Vec<Price>>,
     pub locations: Option<Vec<Location>>,
     pub work: WorkWithRelations,
@@ -100,6 +103,7 @@ pub struct NewPublication {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
+    pub weight: Option<f64>,
 }
 
 #[cfg_attr(
@@ -113,6 +117,7 @@ pub struct PatchPublication {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
+    pub weight: Option<f64>,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -192,6 +197,7 @@ fn test_publicationfield_display() {
     assert_eq!(format!("{}", PublicationField::Isbn), "ISBN");
     assert_eq!(format!("{}", PublicationField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", PublicationField::UpdatedAt), "UpdatedAt");
+    assert_eq!(format!("{}", PublicationField::Weight), "Weight");
 }
 
 #[test]
@@ -270,6 +276,10 @@ fn test_publicationfield_fromstr() {
     assert_eq!(
         PublicationField::from_str("UpdatedAt").unwrap(),
         PublicationField::UpdatedAt
+    );
+    assert_eq!(
+        PublicationField::from_str("Weight").unwrap(),
+        PublicationField::Weight
     );
     assert!(PublicationField::from_str("PublicationID").is_err());
     assert!(PublicationField::from_str("Work Title").is_err());
