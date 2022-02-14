@@ -1,16 +1,18 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::model::publication::PublicationWithRelations;
+use thoth_api::model::WeightUnit;
 use uuid::Uuid;
 
 pub const PUBLICATION_QUERY: &str = "
-    query PublicationQuery($publicationId: Uuid!) {
+    query PublicationQuery($publicationId: Uuid!, $weightUnits: WeightUnit) {
         publication(publicationId: $publicationId) {
             publicationId
             publicationType
             workId
             isbn
             updatedAt
+            weight(units: $weightUnits)
             prices {
                 priceId
                 publicationId
@@ -69,6 +71,7 @@ graphql_query_builder! {
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub publication_id: Option<Uuid>,
+    pub weight_units: WeightUnit,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

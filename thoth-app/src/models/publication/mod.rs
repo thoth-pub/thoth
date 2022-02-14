@@ -3,6 +3,7 @@ use serde::Serialize;
 use thoth_api::model::publication::Publication;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::publication::PublicationWithRelations;
+use thoth_api::model::WeightUnit;
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -14,8 +15,20 @@ use crate::route::AppRoute;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct WeightUnitDefinition {
+    pub enum_values: Vec<WeightUnitValues>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct PublicationTypeDefinition {
     pub enum_values: Vec<PublicationTypeValues>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WeightUnitValues {
+    pub name: WeightUnit,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -77,3 +90,4 @@ pub mod delete_publication_mutation;
 pub mod publication_query;
 pub mod publication_types_query;
 pub mod publications_query;
+pub mod weight_units_query;

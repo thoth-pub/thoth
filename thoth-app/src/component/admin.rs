@@ -1,5 +1,5 @@
 use thoth_api::account::model::AccountDetails;
-use thoth_api::model::LengthUnit;
+use thoth_api::model::{LengthUnit, WeightUnit};
 use yew::html;
 use yew::prelude::*;
 use yew::services::storage::Area;
@@ -43,20 +43,23 @@ use crate::route::AppRoute;
 use crate::service::account::AccountService;
 use crate::string::PERMISSIONS_ERROR;
 use crate::string::STORAGE_ERROR;
-use crate::UNITS_KEY;
+use crate::LENGTH_UNITS_KEY;
+use crate::WEIGHT_UNITS_KEY;
 
 pub struct AdminComponent {
     props: Props,
     notification_bus: NotificationDispatcher,
     router: RouteAgentDispatcher<()>,
     link: ComponentLink<Self>,
-    units_selection: LengthUnit,
+    length_units_selection: LengthUnit,
+    weight_units_selection: WeightUnit,
     previous_route: AdminRoute,
 }
 
 pub enum Msg {
     RedirectToLogin,
     UpdateLengthUnit(LengthUnit),
+    UpdateWeightUnit(WeightUnit),
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -73,19 +76,33 @@ impl Component for AdminComponent {
         if !AccountService::new().is_loggedin() {
             link.send_message(Msg::RedirectToLogin);
         }
-        let mut units_selection: LengthUnit = Default::default();
+        let mut length_units_selection: LengthUnit = Default::default();
+        let mut weight_units_selection: WeightUnit = Default::default();
         let previous_route = props.route.clone();
         let mut storage_service = StorageService::new(Area::Local).expect(STORAGE_ERROR);
-        if let Ok(units_string) = storage_service.restore(UNITS_KEY) {
-            if let Ok(units) = units_string.parse::<LengthUnit>() {
-                units_selection = units;
+
+        if let Ok(length_units_string) = storage_service.restore(LENGTH_UNITS_KEY) {
+            if let Ok(length_units) = length_units_string.parse::<LengthUnit>() {
+                length_units_selection = length_units;
             } else {
-                // Couldn't parse stored units - overwrite them with default
-                storage_service.store(UNITS_KEY, Ok(units_selection.to_string()));
+                // Couldn't parse stored length units - overwrite them with default
+                storage_service.store(LENGTH_UNITS_KEY, Ok(length_units_selection.to_string()));
             }
         } else {
-            // No stored units found - store the default
-            storage_service.store(UNITS_KEY, Ok(units_selection.to_string()));
+            // No stored length units found - store the default
+            storage_service.store(LENGTH_UNITS_KEY, Ok(length_units_selection.to_string()));
+        }
+
+        if let Ok(weight_units_string) = storage_service.restore(WEIGHT_UNITS_KEY) {
+            if let Ok(weight_units) = weight_units_string.parse::<WeightUnit>() {
+                weight_units_selection = weight_units;
+            } else {
+                // Couldn't parse stored weight units - overwrite them with default
+                storage_service.store(WEIGHT_UNITS_KEY, Ok(weight_units_selection.to_string()));
+            }
+        } else {
+            // No stored weight units found - store the default
+            storage_service.store(WEIGHT_UNITS_KEY, Ok(weight_units_selection.to_string()));
         }
 
         AdminComponent {
@@ -93,7 +110,8 @@ impl Component for AdminComponent {
             notification_bus: NotificationBus::dispatcher(),
             router: RouteAgentDispatcher::new(),
             link,
-            units_selection,
+            length_units_selection,
+            weight_units_selection,
             previous_route,
         }
     }
@@ -125,10 +143,26 @@ impl Component for AdminComponent {
                 false
             }
             Msg::UpdateLengthUnit(length_unit) => {
-                if self.units_selection.neq_assign(length_unit) {
+                if self.length_units_selection.neq_assign(length_unit) {
                     StorageService::new(Area::Local)
                         .expect(STORAGE_ERROR)
-                        .store(UNITS_KEY, Ok(self.units_selection.to_string()));
+                        .store(
+                            LENGTH_UNITS_KEY,
+                            Ok(self.length_units_selection.to_string()),
+                        );
+                    true
+                } else {
+                    false
+                }
+            }
+            Msg::UpdateWeightUnit(weight_unit) => {
+                if self.weight_units_selection.neq_assign(weight_unit) {
+                    StorageService::new(Area::Local)
+                        .expect(STORAGE_ERROR)
+                        .store(
+                            WEIGHT_UNITS_KEY,
+                            Ok(self.weight_units_selection.to_string()),
+                        );
                     true
                 } else {
                     false
@@ -177,8 +211,24 @@ impl Component for AdminComponent {
                                 AdminRoute::Works => html!{<WorksComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Books => html!{<BooksComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Chapters => html!{<ChaptersComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Work(id) => html!{<WorkComponent work_id = *id current_user = self.props.current_user.clone().unwrap() units_selection = self.units_selection.clone() update_units_selection = self.link.callback(Msg::UpdateLengthUnit) />},
-                                AdminRoute::NewWork => html!{<NewWorkComponent current_user = self.props.current_user.clone().unwrap() units_selection = self.units_selection.clone() update_units_selection = self.link.callback(Msg::UpdateLengthUnit) previous_route = self.previous_route.clone() />},
+                                AdminRoute::Work(id) => html!{
+                                    <WorkComponent
+                                        work_id = *id
+                                        current_user = self.props.current_user.clone().unwrap()
+                                        length_units_selection = self.length_units_selection.clone()
+                                        update_length_units_selection = self.link.callback(Msg::UpdateLengthUnit)
+                                        weight_units_selection = self.weight_units_selection.clone()
+                                        update_weight_units_selection = self.link.callback(Msg::UpdateWeightUnit)
+                                    />
+                                },
+                                AdminRoute::NewWork => html!{
+                                    <NewWorkComponent
+                                        current_user = self.props.current_user.clone().unwrap()
+                                        length_units_selection = self.length_units_selection.clone()
+                                        update_length_units_selection = self.link.callback(Msg::UpdateLengthUnit)
+                                        previous_route = self.previous_route.clone()
+                                    />
+                                },
                                 AdminRoute::Publishers => html!{<PublishersComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id = *id current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::NewPublisher => html!{<NewPublisherComponent/>},
@@ -189,7 +239,14 @@ impl Component for AdminComponent {
                                 AdminRoute::Institution(id) => html!{<InstitutionComponent institution_id = *id />},
                                 AdminRoute::NewInstitution => html!{<NewInstitutionComponent/>},
                                 AdminRoute::Publications => html!{<PublicationsComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Publication(id) => html!{<PublicationComponent publication_id= *id current_user = self.props.current_user.clone().unwrap() />},
+                                AdminRoute::Publication(id) => html!{
+                                    <PublicationComponent
+                                        publication_id = *id
+                                        current_user = self.props.current_user.clone().unwrap()
+                                        weight_units_selection = self.weight_units_selection.clone()
+                                        update_weight_units_selection = self.link.callback(Msg::UpdateWeightUnit)
+                                    />
+                                },
                                 AdminRoute::NewPublication => {
                                     html!{
                                         <article class="message is-info">

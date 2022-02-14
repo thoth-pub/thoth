@@ -11,7 +11,7 @@ use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
-use thoth_api::model::{Doi, LengthUnit, DOI_DOMAIN};
+use thoth_api::model::{Doi, LengthUnit, WeightUnit, DOI_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
@@ -123,6 +123,7 @@ pub enum Msg {
     ChangeWidth(String),
     ChangeHeight(String),
     ChangeLengthUnit(LengthUnit),
+    ChangeWeightUnit(WeightUnit),
     ChangePageCount(String),
     ChangePageBreakdown(String),
     ChangeFirstPage(String),
@@ -156,8 +157,10 @@ pub enum Msg {
 pub struct Props {
     pub work_id: Uuid,
     pub current_user: AccountDetails,
-    pub units_selection: LengthUnit,
-    pub update_units_selection: Callback<LengthUnit>,
+    pub length_units_selection: LengthUnit,
+    pub update_length_units_selection: Callback<LengthUnit>,
+    pub weight_units_selection: WeightUnit,
+    pub update_weight_units_selection: Callback<WeightUnit>,
 }
 
 impl Component for WorkComponent {
@@ -239,7 +242,8 @@ impl Component for WorkComponent {
                     variables: Variables {
                         work_id: Some(self.props.work_id),
                         publishers: self.props.current_user.resource_access.restricted_to(),
-                        units: self.props.units_selection.clone(),
+                        length_units: self.props.length_units_selection.clone(),
+                        weight_units: self.props.weight_units_selection.clone(),
                     },
                     ..Default::default()
                 };
@@ -264,7 +268,7 @@ impl Component for WorkComponent {
                             self.doi_warning.clear();
                             self.imprint_id = self.work.imprint.imprint_id;
                             self.work_type = self.work.work_type.clone();
-                            if self.props.units_selection == LengthUnit::In {
+                            if self.props.length_units_selection == LengthUnit::In {
                                 // User-entered dimensions may have been rounded on save due to
                                 // conversion to mm - update display with database values
                                 self.work.width = w.width;
@@ -349,7 +353,7 @@ impl Component for WorkComponent {
                         toc: self.work.toc.clone(),
                         cover_url: self.work.cover_url.clone(),
                         cover_caption: self.work.cover_caption.clone(),
-                        units: self.props.units_selection.clone(),
+                        units: self.props.length_units_selection.clone(),
                         first_page: self.work.first_page.clone(),
                         last_page: self.work.last_page.clone(),
                         page_interval: self.work.page_interval.clone(),
@@ -472,7 +476,14 @@ impl Component for WorkComponent {
             Msg::ChangeWidth(value) => self.work.width.neq_assign(value.to_opt_float()),
             Msg::ChangeHeight(value) => self.work.height.neq_assign(value.to_opt_float()),
             Msg::ChangeLengthUnit(length_unit) => {
-                self.props.update_units_selection.emit(length_unit);
+                self.props.update_length_units_selection.emit(length_unit);
+                // Callback will prompt parent to update this component's props.
+                // This will trigger a re-render in change(), so not necessary
+                // to also re-render here.
+                false
+            }
+            Msg::ChangeWeightUnit(weight_unit) => {
+                self.props.update_weight_units_selection.emit(weight_unit);
                 // Callback will prompt parent to update this component's props.
                 // This will trigger a re-render in change(), so not necessary
                 // to also re-render here.
@@ -546,12 +557,14 @@ impl Component for WorkComponent {
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         let updated_permissions =
             self.props.current_user.resource_access != props.current_user.resource_access;
-        let updated_units = self.props.units_selection != props.units_selection;
+        let updated_units = self.props.length_units_selection != props.length_units_selection;
+        let updated_weight_units =
+            self.props.weight_units_selection != props.weight_units_selection;
         let updated_work = self.props.work_id != props.work_id;
         self.props = props;
-        if updated_permissions || updated_units || updated_work {
+        if updated_permissions || updated_units || updated_weight_units || updated_work {
             // Required in order to retrieve updated list of imprints for dropdown
-            // and/or Width/Height values in the newly-selected units
+            // and/or Width/Height/Publication Weight values in the newly-selected units
             // and/or full work if we have navigated direct from another Work page.
             self.link.send_message(Msg::GetWork);
         }
@@ -588,7 +601,7 @@ impl Component for WorkComponent {
                 };
                 // Restrict the number of decimal places the user can enter for width/height values
                 // based on currently selected units.
-                let step = match self.props.units_selection {
+                let step = match self.props.length_units_selection {
                     LengthUnit::Mm => "1".to_string(),
                     LengthUnit::Cm => "0.1".to_string(),
                     LengthUnit::In => "0.01".to_string(),
@@ -757,7 +770,7 @@ impl Component for WorkComponent {
                                     />
                                     <FormLengthUnitSelect
                                         label = "Units"
-                                        value=self.props.units_selection.clone()
+                                        value=self.props.length_units_selection.clone()
                                         data=self.data.length_units.clone()
                                         onchange=self.link.callback(|event| match event {
                                             ChangeData::Select(elem) => {
@@ -896,6 +909,8 @@ impl Component for WorkComponent {
                             work_id=self.work.work_id
                             work_type=self.work_type.clone()
                             update_publications=self.link.callback(Msg::UpdatePublications)
+                            weight_units_selection=self.props.weight_units_selection.clone()
+                            update_weight_units_selection=self.link.callback(Msg::ChangeWeightUnit)
                         />
                         <LanguagesFormComponent
                             languages=self.work.languages.clone()

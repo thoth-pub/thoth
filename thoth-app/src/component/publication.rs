@@ -1,7 +1,9 @@
+use std::str::FromStr;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::location::Location;
 use thoth_api::model::price::Price;
 use thoth_api::model::publication::PublicationWithRelations;
+use thoth_api::model::WeightUnit;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -22,6 +24,7 @@ use crate::agent::notification_bus::Request;
 use crate::component::delete_dialogue::ConfirmDeleteComponent;
 use crate::component::locations_form::LocationsFormComponent;
 use crate::component::prices_form::PricesFormComponent;
+use crate::component::utils::FormWeightUnitSelect;
 use crate::component::utils::Loader;
 use crate::models::publication::delete_publication_mutation::DeletePublicationRequest;
 use crate::models::publication::delete_publication_mutation::DeletePublicationRequestBody;
@@ -33,28 +36,41 @@ use crate::models::publication::publication_query::FetchPublication;
 use crate::models::publication::publication_query::PublicationRequest;
 use crate::models::publication::publication_query::PublicationRequestBody;
 use crate::models::publication::publication_query::Variables;
+use crate::models::publication::weight_units_query::FetchActionWeightUnits;
+use crate::models::publication::weight_units_query::FetchWeightUnits;
+use crate::models::publication::WeightUnitValues;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::RELATIONS_INFO;
 
 pub struct PublicationComponent {
     publication: PublicationWithRelations,
+    fetch_weight_units: FetchWeightUnits,
     fetch_publication: FetchPublication,
     delete_publication: PushDeletePublication,
     link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     props: Props,
+    data: PublicationData,
+}
+
+#[derive(Default)]
+struct PublicationData {
+    weight_units: Vec<WeightUnitValues>,
 }
 
 #[allow(clippy::large_enum_variant)]
 pub enum Msg {
+    SetWeightUnitsFetchState(FetchActionWeightUnits),
+    GetWeightUnits,
     SetPublicationFetchState(FetchActionPublication),
     GetPublication,
     SetPublicationDeleteState(PushActionDeletePublication),
     DeletePublication,
     UpdateLocations(Option<Vec<Location>>),
     UpdatePrices(Option<Vec<Price>>),
+    ChangeWeightUnit(WeightUnit),
     ChangeRoute(AppRoute),
 }
 
@@ -62,6 +78,8 @@ pub enum Msg {
 pub struct Props {
     pub publication_id: Uuid,
     pub current_user: AccountDetails,
+    pub weight_units_selection: WeightUnit,
+    pub update_weight_units_selection: Callback<WeightUnit>,
 }
 
 impl Component for PublicationComponent {
@@ -74,22 +92,43 @@ impl Component for PublicationComponent {
         let notification_bus = NotificationBus::dispatcher();
         let publication: PublicationWithRelations = Default::default();
         let router = RouteAgentDispatcher::new();
+        let data: PublicationData = Default::default();
 
         link.send_message(Msg::GetPublication);
+        link.send_message(Msg::GetWeightUnits);
 
         PublicationComponent {
             publication,
+            fetch_weight_units: Default::default(),
             fetch_publication,
             delete_publication,
             link,
             router,
             notification_bus,
             props,
+            data,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
+            Msg::SetWeightUnitsFetchState(fetch_state) => {
+                self.fetch_weight_units.apply(fetch_state);
+                self.data.weight_units = match self.fetch_weight_units.as_ref().state() {
+                    FetchState::NotFetching(_) => vec![],
+                    FetchState::Fetching(_) => vec![],
+                    FetchState::Fetched(body) => body.data.weight_units.enum_values.clone(),
+                    FetchState::Failed(_, _err) => vec![],
+                };
+                true
+            }
+            Msg::GetWeightUnits => {
+                self.link
+                    .send_future(self.fetch_weight_units.fetch(Msg::SetWeightUnitsFetchState));
+                self.link
+                    .send_message(Msg::SetWeightUnitsFetchState(FetchAction::Fetching));
+                false
+            }
             Msg::SetPublicationFetchState(fetch_state) => {
                 self.fetch_publication.apply(fetch_state);
                 match self.fetch_publication.as_ref().state() {
@@ -127,6 +166,7 @@ impl Component for PublicationComponent {
                 let body = PublicationRequestBody {
                     variables: Variables {
                         publication_id: Some(self.props.publication_id),
+                        weight_units: self.props.weight_units_selection.clone(),
                     },
                     ..Default::default()
                 };
@@ -197,6 +237,13 @@ impl Component for PublicationComponent {
             }
             Msg::UpdateLocations(locations) => self.publication.locations.neq_assign(locations),
             Msg::UpdatePrices(prices) => self.publication.prices.neq_assign(prices),
+            Msg::ChangeWeightUnit(weight_unit) => {
+                self.props.update_weight_units_selection.emit(weight_unit);
+                // Callback will prompt parent to update this component's props.
+                // This will trigger a re-render in change(), so not necessary
+                // to also re-render here.
+                false
+            }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
@@ -206,7 +253,13 @@ impl Component for PublicationComponent {
     }
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        let updated_weight_units =
+            self.props.weight_units_selection != props.weight_units_selection;
         self.props = props;
+        if updated_weight_units {
+            // Required in order to retrieve Weight value in the newly-selected units
+            self.link.send_message(Msg::GetPublication);
+        }
         true
     }
 
@@ -253,6 +306,27 @@ impl Component for PublicationComponent {
                                 </div>
                             </div>
                         </form>
+
+                        <div class="field" style="width: 8em;">
+                            <label class="label">{ "Weight" }</label>
+                            <div class="control is-expanded">
+                                {&self.publication.weight.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                            </div>
+                        </div>
+
+                        <FormWeightUnitSelect
+                            label = "Units"
+                            value=self.props.weight_units_selection.clone()
+                            data=self.data.weight_units.clone()
+                            onchange=self.link.callback(|event| match event {
+                                ChangeData::Select(elem) => {
+                                    let value = elem.value();
+                                    Msg::ChangeWeightUnit(WeightUnit::from_str(&value).unwrap())
+                                }
+                                _ => unreachable!(),
+                            })
+                            required = true
+                        />
 
                         <hr/>
 

@@ -2,7 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::model::imprint::ImprintWithPublisher;
 use thoth_api::model::work::WorkWithRelations;
-use thoth_api::model::LengthUnit;
+use thoth_api::model::{LengthUnit, WeightUnit};
 use uuid::Uuid;
 
 use super::LengthUnitDefinition;
@@ -10,7 +10,7 @@ use super::WorkStatusDefinition;
 use super::WorkTypeDefinition;
 
 pub const WORK_QUERY: &str = "
-    query WorkQuery($workId: Uuid!, $publishers: [Uuid!], $units: LengthUnit) {
+    query WorkQuery($workId: Uuid!, $publishers: [Uuid!], $lengthUnits: LengthUnit, $weightUnits: WeightUnit) {
         work(workId: $workId) {
             workId
             workType
@@ -23,8 +23,8 @@ pub const WORK_QUERY: &str = "
             doi
             publicationDate
             place
-            width(units: $units)
-            height(units: $units)
+            width(units: $lengthUnits)
+            height(units: $lengthUnits)
             pageCount
             pageBreakdown
             imageCount
@@ -86,6 +86,7 @@ pub const WORK_QUERY: &str = "
                 isbn
                 createdAt
                 updatedAt
+                weight(units: $weightUnits)
             }
             languages {
                 languageId
@@ -210,7 +211,8 @@ graphql_query_builder! {
 pub struct Variables {
     pub work_id: Option<Uuid>,
     pub publishers: Option<Vec<String>>,
-    pub units: LengthUnit,
+    pub length_units: LengthUnit,
+    pub weight_units: WeightUnit,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
