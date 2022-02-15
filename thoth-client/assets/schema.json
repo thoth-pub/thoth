@@ -3747,7 +3747,7 @@
             {
               "args": [],
               "deprecationReason": null,
-              "description": null,
+              "description": "URL of the series' landing page",
               "isDeprecated": false,
               "name": "seriesUrl",
               "type": {
@@ -3771,7 +3771,7 @@
             {
               "args": [],
               "deprecationReason": null,
-              "description": null,
+              "description": "URL of the series' call for proposals page",
               "isDeprecated": false,
               "name": "seriesCfpUrl",
               "type": {
@@ -3967,6 +3967,29 @@
           "interfaces": null,
           "kind": "INPUT_OBJECT",
           "name": "PatchImprint",
+          "possibleTypes": null
+        },
+        {
+          "description": "Unit of measurement for physical Work weight (grams or ounces)",
+          "enumValues": [
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "G"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "OZ"
+            }
+          ],
+          "fields": null,
+          "inputFields": null,
+          "interfaces": null,
+          "kind": "ENUM",
+          "name": "WeightUnit",
           "possibleTypes": null
         },
         {
@@ -4442,6 +4465,26 @@
             {
               "defaultValue": null,
               "description": null,
+              "name": "seriesDescription",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "seriesCfpUrl",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
               "name": "imprintId",
               "type": {
                 "kind": "NON_NULL",
@@ -4592,6 +4635,29 @@
                   "name": "Timestamp",
                   "ofType": null
                 }
+              }
+            },
+            {
+              "args": [
+                {
+                  "defaultValue": "\"G\"",
+                  "description": "Unit of measurement in which to represent the weight (grams or ounces)",
+                  "name": "units",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "WeightUnit",
+                    "ofType": null
+                  }
+                }
+              ],
+              "deprecationReason": null,
+              "description": "Weight of the physical Publication (in g or oz) (only applicable to Paperbacks and Hardbacks)",
+              "isDeprecated": false,
+              "name": "weight",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
               }
             },
             {
@@ -5644,6 +5710,20 @@
                       "ofType": null
                     }
                   }
+                },
+                {
+                  "defaultValue": null,
+                  "description": null,
+                  "name": "units",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "ENUM",
+                      "name": "WeightUnit",
+                      "ofType": null
+                    }
+                  }
                 }
               ],
               "deprecationReason": null,
@@ -6151,6 +6231,20 @@
                     "ofType": {
                       "kind": "INPUT_OBJECT",
                       "name": "PatchPublication",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "defaultValue": null,
+                  "description": null,
+                  "name": "units",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "ENUM",
+                      "name": "WeightUnit",
                       "ofType": null
                     }
                   }
@@ -7822,18 +7916,6 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
-              "name": "SERIES_DESCRIPTION"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "SERIES_CFP_URL"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
               "name": "CREATED_AT"
             },
             {
@@ -7841,6 +7923,18 @@
               "description": null,
               "isDeprecated": false,
               "name": "UPDATED_AT"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "SERIES_DESCRIPTION"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "SERIES_CFP_URL"
             }
           ],
           "fields": null,
@@ -9359,7 +9453,7 @@
                 },
                 {
                   "defaultValue": "\"\"",
-                  "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital and series_url",
+                  "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital, series_url and series_description",
                   "name": "filter",
                   "type": {
                     "kind": "SCALAR",
@@ -9471,7 +9565,7 @@
               "args": [
                 {
                   "defaultValue": "\"\"",
-                  "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital and series_url",
+                  "description": "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital, series_url and series_description",
                   "name": "filter",
                   "type": {
                     "kind": "SCALAR",
@@ -11957,6 +12051,16 @@
                 "name": "Isbn",
                 "ofType": null
               }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "weight",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
             }
           ],
           "interfaces": null,
@@ -13972,6 +14076,12 @@
               "description": null,
               "isDeprecated": false,
               "name": "UPDATED_AT"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "WEIGHT"
             }
           ],
           "fields": null,
@@ -15829,6 +15939,16 @@
               "type": {
                 "kind": "SCALAR",
                 "name": "Isbn",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "weight",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
                 "ofType": null
               }
             }
