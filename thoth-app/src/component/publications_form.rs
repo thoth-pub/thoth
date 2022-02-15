@@ -463,7 +463,24 @@ impl Component for PublicationsFormComponent {
                 </div>
                 {
                     if !publications.is_empty() {
-                        html!{{for publications.iter().map(|p| self.render_publication(p))}}
+                        html!{
+                            <>
+                                <FormWeightUnitSelect
+                                    label = "Weight units"
+                                    value=self.props.weight_units_selection.clone()
+                                    data=self.data.weight_units.clone()
+                                    onchange=self.link.callback(|event| match event {
+                                        ChangeData::Select(elem) => {
+                                            let value = elem.value();
+                                            Msg::ChangeWeightUnit(WeightUnit::from_str(&value).unwrap())
+                                        }
+                                        _ => unreachable!(),
+                                    })
+                                    required = true
+                                />
+                                {for publications.iter().map(|p| self.render_publication(p))}
+                            </>
+                        }
                     } else {
                         html! {
                             <div class="notification is-warning is-light">
@@ -515,19 +532,12 @@ impl PublicationsFormComponent {
                         </div>
                     </div>
 
-                    <FormWeightUnitSelect
-                        label = "Units"
-                        value=self.props.weight_units_selection.clone()
-                        data=self.data.weight_units.clone()
-                        onchange=self.link.callback(|event| match event {
-                            ChangeData::Select(elem) => {
-                                let value = elem.value();
-                                Msg::ChangeWeightUnit(WeightUnit::from_str(&value).unwrap())
-                            }
-                            _ => unreachable!(),
-                        })
-                        required = true
-                    />
+                    <div class="field" style="width: 8em;">
+                        <label class="label">{ "Units" }</label>
+                        <div class="control is-expanded">
+                            {&self.props.weight_units_selection}
+                        </div>
+                    </div>
 
                     <div class="field is-grouped is-grouped-right">
                         <div class="control">
