@@ -82,6 +82,8 @@ fragment Work on Work {
         publicationId
         publicationType
         isbn
+        weightG: weight(units: G)
+        weightOz: weight(units: OZ)
         prices {
             currencyCode
             unitPrice

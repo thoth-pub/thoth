@@ -887,6 +887,8 @@ mod tests {
                     publication_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                     publication_type: PublicationType::EPUB,
                     isbn: Some(Isbn::from_str("978-92-95055-02-5").unwrap()),
+                    weight_g: None,
+                    weight_oz: None,
                     prices: vec![],
                     locations: vec![WorkPublicationsLocations {
                         landing_page: Some("https://www.book.com/epub_landing".to_string()),
@@ -899,6 +901,8 @@ mod tests {
                     publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
                     publication_type: PublicationType::PDF,
                     isbn: Some(Isbn::from_str("978-1-56619-909-4").unwrap()),
+                    weight_g: None,
+                    weight_oz: None,
                     prices: vec![WorkPublicationsPrices {
                         currency_code: CurrencyCode::USD,
                         unit_price: 0.0,
@@ -914,6 +918,8 @@ mod tests {
                     publication_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                     publication_type: PublicationType::PAPERBACK,
                     isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+                    weight_g: None,
+                    weight_oz: None,
                     prices: vec![
                         WorkPublicationsPrices {
                             currency_code: CurrencyCode::EUR,

@@ -61,7 +61,7 @@ struct CsvThothRow {
     )]
     contributions: String,
     #[serde(
-        rename = "publications [(type, isbn, [(ISO_4217_currency, price)], [(landing_page, full_text, platform, is_canonical)])]"
+        rename = "publications [(type, isbn, weight (g), weight (oz), [(ISO_4217_currency, price)], [(landing_page, full_text, platform, is_canonical)])]"
     )]
     publications: String,
     #[serde(
@@ -248,11 +248,19 @@ impl CsvCell<CsvThoth> for Vec<String> {
 impl CsvCell<CsvThoth> for WorkPublications {
     fn csv_cell(&self) -> String {
         format!(
-            "(\"{:?}\", \"{}\", {}, {})",
+            "(\"{:?}\", \"{}\", \"{}\", \"{}\", {}, {})",
             self.publication_type,
             self.isbn
                 .as_ref()
                 .map(|i| i.to_string())
+                .unwrap_or_else(|| "".to_string()),
+            self.weight_g
+                .as_ref()
+                .map(|w| w.to_string())
+                .unwrap_or_else(|| "".to_string()),
+            self.weight_oz
+                .as_ref()
+                .map(|w| w.to_string())
                 .unwrap_or_else(|| "".to_string()),
             CsvCell::<CsvThoth>::csv_cell(
                 &self
@@ -527,6 +535,8 @@ mod tests {
                 WorkPublications {
                     publication_id: Uuid::from_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     publication_type: PublicationType::PAPERBACK,
+                    weight_g: Some(152.0),
+                    weight_oz: Some(5.3616),
                     isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
                     prices: vec![
                         WorkPublicationsPrices {
@@ -561,6 +571,8 @@ mod tests {
                     publication_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000003").unwrap(),
                     publication_type: PublicationType::HARDBACK,
                     isbn: Some(Isbn::from_str("978-1-4028-9462-6").unwrap()),
+                    weight_g: None,
+                    weight_oz: None,
                     prices: vec![
                         WorkPublicationsPrices {
                             currency_code: CurrencyCode::EUR,
@@ -581,6 +593,8 @@ mod tests {
                     publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
                     publication_type: PublicationType::PDF,
                     isbn: Some(Isbn::from_str("978-1-56619-909-4").unwrap()),
+                    weight_g: None,
+                    weight_oz: None,
                     prices: vec![],
                     locations: vec![WorkPublicationsLocations {
                         landing_page: Some("https://www.book.com/pdf_landing".to_string()),
@@ -593,6 +607,8 @@ mod tests {
                     publication_id: Uuid::from_str("00000000-0000-0000-EEEE-000000000005").unwrap(),
                     publication_type: PublicationType::HTML,
                     isbn: None,
+                    weight_g: None,
+                    weight_oz: None,
                     prices: vec![],
                     locations: vec![WorkPublicationsLocations {
                         landing_page: Some("https://www.book.com/html_landing".to_string()),
@@ -605,6 +621,8 @@ mod tests {
                     publication_id: Uuid::from_str("00000000-0000-0000-FFFF-000000000006").unwrap(),
                     publication_type: PublicationType::XML,
                     isbn: Some(Isbn::from_str("978-92-95055-02-5").unwrap()),
+                    weight_g: None,
+                    weight_oz: None,
                     prices: vec![],
                     locations: vec![],
                 },
@@ -679,8 +697,8 @@ mod tests {
         };
     }
 
-    const TEST_RESULT: &str = r#""publisher","imprint","work_type","work_status","title","subtitle","edition","doi","publication_date","publication_place","license","copyright_holder","landing_page","width (mm)","width (cm)","width (in)","height (mm)","height (cm)","height (in)","page_count","page_breakdown","first_page","last_page","page_interval","image_count","table_count","audio_count","video_count","lccn","oclc","short_abstract","long_abstract","general_note","toc","cover_url","cover_caption","contributions [(type, first_name, last_name, full_name, orcid, [(position, ordinal, institution)])]","publications [(type, isbn, [(ISO_4217_currency, price)], [(landing_page, full_text, platform, is_canonical)])]","series [(type, name, issn_print, issn_digital, url, cfp_url, description, issue)]","languages [(relation, ISO_639-3/B_language, is_main)]","BIC [code]","THEMA [code]","BISAC [code]","LCC [code]","custom_categories [category]","keywords [keyword]","funding [(institution, institution_doi, ror, country, program, project, grant, jurisdiction)]","relations [(related_work, relation_type, ordinal)]"
-"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","10.00001/BOOK.0001","1999-12-31","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","156.0","15.6","6.14","234.0","23.4","9.21","334","x+334","","","","15","20","25","30","123456789","987654321","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","This is a general note","1. Chapter 1","https://www.book.com/cover","This is a cover caption","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", ""0000-0002-0000-0001"", [(""Manager"", ""1"", ""University of Life"")]),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", """", )]","[(""PAPERBACK"", ""978-3-16-148410-0"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")], [(""https://www.book.com/paperback"", """", ""OTHER"", ""true""),(""https://www.jstor.com/paperback"", """", ""JSTOR"", ""false"")]),(""HARDBACK"", ""978-1-4028-9462-6"", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")], ),(""PDF"", ""978-1-56619-909-4"", , [(""https://www.book.com/pdf_landing"", ""https://www.book.com/pdf_fulltext"", ""OTHER"", ""true"")]),(""HTML"", """", , [(""https://www.book.com/html_landing"", ""https://www.book.com/html_fulltext"", ""OTHER"", ""true"")]),(""XML"", ""978-92-95055-02-5"", , )]","[(""JOURNAL"", ""Name of series"", ""1234-5678"", ""8765-4321"", ""https://www.series.com"", ""https://www.series.com/cfp"", ""Description of series"", ""1"")]","[(""ORIGINAL"", ""SPA"", ""true"")]","[""AAA"",""AAB""]","[""JWA""]","[""AAA000000"",""AAA000001""]","[""JA85""]","[""Category1""]","[""keyword1"",""keyword2""]","[(""Name of institution"", ""10.00001/INSTITUTION.0001"", ""0aaaaaa00"", ""MDA"", ""Name of program"", ""Name of project"", ""Number of grant"", ""Funding jurisdiction"")]","[(""Related work title"", ""HAS_CHILD"", ""1"")]"
+    const TEST_RESULT: &str = r#""publisher","imprint","work_type","work_status","title","subtitle","edition","doi","publication_date","publication_place","license","copyright_holder","landing_page","width (mm)","width (cm)","width (in)","height (mm)","height (cm)","height (in)","page_count","page_breakdown","first_page","last_page","page_interval","image_count","table_count","audio_count","video_count","lccn","oclc","short_abstract","long_abstract","general_note","toc","cover_url","cover_caption","contributions [(type, first_name, last_name, full_name, orcid, [(position, ordinal, institution)])]","publications [(type, isbn, weight (g), weight (oz), [(ISO_4217_currency, price)], [(landing_page, full_text, platform, is_canonical)])]","series [(type, name, issn_print, issn_digital, url, cfp_url, description, issue)]","languages [(relation, ISO_639-3/B_language, is_main)]","BIC [code]","THEMA [code]","BISAC [code]","LCC [code]","custom_categories [category]","keywords [keyword]","funding [(institution, institution_doi, ror, country, program, project, grant, jurisdiction)]","relations [(related_work, relation_type, ordinal)]"
+"OA Editions","OA Editions Imprint","MONOGRAPH","ACTIVE","Book Title","Book Subtitle","1","10.00001/BOOK.0001","1999-12-31","León, Spain","http://creativecommons.org/licenses/by/4.0/","Author 1; Author 2","https://www.book.com","156.0","15.6","6.14","234.0","23.4","9.21","334","x+334","","","","15","20","25","30","123456789","987654321","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.","Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.","This is a general note","1. Chapter 1","https://www.book.com/cover","This is a cover caption","[(""AUTHOR"", ""Author"", ""1"", ""Author 1"", ""0000-0002-0000-0001"", [(""Manager"", ""1"", ""University of Life"")]),(""AUTHOR"", ""Author"", ""2"", ""Author 2"", """", )]","[(""PAPERBACK"", ""978-3-16-148410-0"", ""152"", ""5.3616"", [(""EUR"", ""25.95""),(""GBP"", ""22.95""),(""USD"", ""31.95"")], [(""https://www.book.com/paperback"", """", ""OTHER"", ""true""),(""https://www.jstor.com/paperback"", """", ""JSTOR"", ""false"")]),(""HARDBACK"", ""978-1-4028-9462-6"", """", """", [(""EUR"", ""36.95""),(""GBP"", ""32.95""),(""USD"", ""40.95"")], ),(""PDF"", ""978-1-56619-909-4"", """", """", , [(""https://www.book.com/pdf_landing"", ""https://www.book.com/pdf_fulltext"", ""OTHER"", ""true"")]),(""HTML"", """", """", """", , [(""https://www.book.com/html_landing"", ""https://www.book.com/html_fulltext"", ""OTHER"", ""true"")]),(""XML"", ""978-92-95055-02-5"", """", """", , )]","[(""JOURNAL"", ""Name of series"", ""1234-5678"", ""8765-4321"", ""https://www.series.com"", ""https://www.series.com/cfp"", ""Description of series"", ""1"")]","[(""ORIGINAL"", ""SPA"", ""true"")]","[""AAA"",""AAB""]","[""JWA""]","[""AAA000000"",""AAA000001""]","[""JA85""]","[""Category1""]","[""keyword1"",""keyword2""]","[(""Name of institution"", ""10.00001/INSTITUTION.0001"", ""0aaaaaa00"", ""MDA"", ""Name of program"", ""Name of project"", ""Number of grant"", ""Funding jurisdiction"")]","[(""Related work title"", ""HAS_CHILD"", ""1"")]"
 "#;
 
     #[test]
@@ -709,6 +727,8 @@ mod tests {
             publication_id: Uuid::from_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
             publication_type: PublicationType::PAPERBACK,
             isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+            weight_g: Some(152.0),
+            weight_oz: Some(5.3616),
             prices: vec![WorkPublicationsPrices {
                 currency_code: CurrencyCode::EUR,
                 unit_price: 25.95,
@@ -721,14 +741,16 @@ mod tests {
             }],
         };
         assert_eq!(CsvCell::<CsvThoth>::csv_cell(&publication),
-            r#"("PAPERBACK", "978-3-16-148410-0", [("EUR", "25.95")], [("https://www.book.com/paperback", "", "PROJECT_MUSE", "true")])"#.to_string());
+            r#"("PAPERBACK", "978-3-16-148410-0", "152", "5.3616", [("EUR", "25.95")], [("https://www.book.com/paperback", "", "PROJECT_MUSE", "true")])"#.to_string());
         publication.publication_type = PublicationType::HARDBACK;
         publication.isbn = None;
+        publication.weight_g = None;
+        publication.weight_oz = None;
         publication.prices.clear();
         publication.locations.clear();
         assert_eq!(
             CsvCell::<CsvThoth>::csv_cell(&publication),
-            r#"("HARDBACK", "", , )"#.to_string()
+            r#"("HARDBACK", "", "", "", , )"#.to_string()
         );
     }
 
