@@ -5710,20 +5710,6 @@
                       "ofType": null
                     }
                   }
-                },
-                {
-                  "defaultValue": null,
-                  "description": null,
-                  "name": "units",
-                  "type": {
-                    "kind": "NON_NULL",
-                    "name": null,
-                    "ofType": {
-                      "kind": "ENUM",
-                      "name": "WeightUnit",
-                      "ofType": null
-                    }
-                  }
                 }
               ],
               "deprecationReason": null,
@@ -6231,20 +6217,6 @@
                     "ofType": {
                       "kind": "INPUT_OBJECT",
                       "name": "PatchPublication",
-                      "ofType": null
-                    }
-                  }
-                },
-                {
-                  "defaultValue": null,
-                  "description": null,
-                  "name": "units",
-                  "type": {
-                    "kind": "NON_NULL",
-                    "name": null,
-                    "ofType": {
-                      "kind": "ENUM",
-                      "name": "WeightUnit",
                       "ofType": null
                     }
                   }
@@ -12055,7 +12027,17 @@
             {
               "defaultValue": null,
               "description": null,
-              "name": "weight",
+              "name": "weightG",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "weightOz",
               "type": {
                 "kind": "SCALAR",
                 "name": "Float",
@@ -14081,7 +14063,13 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
-              "name": "WEIGHT"
+              "name": "WEIGHT_G"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "WEIGHT_OZ"
             }
           ],
           "fields": null,
@@ -15945,7 +15933,17 @@
             {
               "defaultValue": null,
               "description": null,
-              "name": "weight",
+              "name": "weightG",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "weightOz",
               "type": {
                 "kind": "SCALAR",
                 "name": "Float",
