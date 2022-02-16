@@ -3,7 +3,6 @@ use thoth_api::model::publication::Publication;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::Isbn;
-use thoth_api::model::WeightUnit;
 use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
@@ -25,7 +24,6 @@ use crate::agent::notification_bus::Request;
 use crate::component::utils::FormFloatInput;
 use crate::component::utils::FormPublicationTypeSelect;
 use crate::component::utils::FormTextInputExtended;
-use crate::component::utils::FormWeightUnitSelect;
 use crate::models::publication::create_publication_mutation::CreatePublicationRequest;
 use crate::models::publication::create_publication_mutation::CreatePublicationRequestBody;
 use crate::models::publication::create_publication_mutation::PushActionCreatePublication;
@@ -38,10 +36,7 @@ use crate::models::publication::delete_publication_mutation::PushDeletePublicati
 use crate::models::publication::delete_publication_mutation::Variables as DeleteVariables;
 use crate::models::publication::publication_types_query::FetchActionPublicationTypes;
 use crate::models::publication::publication_types_query::FetchPublicationTypes;
-use crate::models::publication::weight_units_query::FetchActionWeightUnits;
-use crate::models::publication::weight_units_query::FetchWeightUnits;
 use crate::models::publication::PublicationTypeValues;
-use crate::models::publication::WeightUnitValues;
 use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::CANCEL_BUTTON;
@@ -60,7 +55,6 @@ pub struct PublicationsFormComponent {
     isbn_warning: String,
     show_add_form: bool,
     fetch_publication_types: FetchPublicationTypes,
-    fetch_weight_units: FetchWeightUnits,
     push_publication: PushCreatePublication,
     delete_publication: PushDeletePublication,
     link: ComponentLink<Self>,
@@ -71,23 +65,20 @@ pub struct PublicationsFormComponent {
 #[derive(Default)]
 struct PublicationsFormData {
     publication_types: Vec<PublicationTypeValues>,
-    weight_units: Vec<WeightUnitValues>,
 }
 
 pub enum Msg {
     ToggleAddFormDisplay(bool),
     SetPublicationTypesFetchState(FetchActionPublicationTypes),
     GetPublicationTypes,
-    SetWeightUnitsFetchState(FetchActionWeightUnits),
-    GetWeightUnits,
     SetPublicationPushState(PushActionCreatePublication),
     CreatePublication,
     SetPublicationDeleteState(PushActionDeletePublication),
     DeletePublication(Uuid),
     ChangePublicationType(PublicationType),
     ChangeIsbn(String),
-    ChangeWeight(String),
-    ChangeWeightUnit(WeightUnit),
+    ChangeWeightG(String),
+    ChangeWeightOz(String),
     ChangeRoute(AppRoute),
 }
 
@@ -97,8 +88,6 @@ pub struct Props {
     pub work_id: Uuid,
     pub work_type: WorkType,
     pub update_publications: Callback<Option<Vec<Publication>>>,
-    pub weight_units_selection: WeightUnit,
-    pub update_weight_units_selection: Callback<WeightUnit>,
 }
 
 impl Component for PublicationsFormComponent {
@@ -117,7 +106,6 @@ impl Component for PublicationsFormComponent {
         let router = RouteAgentDispatcher::new();
 
         link.send_message(Msg::GetPublicationTypes);
-        link.send_message(Msg::GetWeightUnits);
 
         PublicationsFormComponent {
             props,
@@ -127,7 +115,6 @@ impl Component for PublicationsFormComponent {
             isbn_warning,
             show_add_form,
             fetch_publication_types: Default::default(),
-            fetch_weight_units: Default::default(),
             push_publication,
             delete_publication,
             link,
@@ -165,23 +152,6 @@ impl Component for PublicationsFormComponent {
                 );
                 self.link
                     .send_message(Msg::SetPublicationTypesFetchState(FetchAction::Fetching));
-                false
-            }
-            Msg::SetWeightUnitsFetchState(fetch_state) => {
-                self.fetch_weight_units.apply(fetch_state);
-                self.data.weight_units = match self.fetch_weight_units.as_ref().state() {
-                    FetchState::NotFetching(_) => vec![],
-                    FetchState::Fetching(_) => vec![],
-                    FetchState::Fetched(body) => body.data.weight_units.enum_values.clone(),
-                    FetchState::Failed(_, _err) => vec![],
-                };
-                true
-            }
-            Msg::GetWeightUnits => {
-                self.link
-                    .send_future(self.fetch_weight_units.fetch(Msg::SetWeightUnitsFetchState));
-                self.link
-                    .send_message(Msg::SetWeightUnitsFetchState(FetchAction::Fetching));
                 false
             }
             Msg::SetPublicationPushState(fetch_state) => {
@@ -232,15 +202,16 @@ impl Component for PublicationsFormComponent {
                 if self.new_publication.publication_type != PublicationType::Paperback
                     && self.new_publication.publication_type != PublicationType::Hardback
                 {
-                    self.new_publication.weight = None;
+                    self.new_publication.weight_g = None;
+                    self.new_publication.weight_oz = None;
                 }
                 let body = CreatePublicationRequestBody {
                     variables: Variables {
                         work_id: self.props.work_id,
                         publication_type: self.new_publication.publication_type.clone(),
                         isbn: self.new_publication.isbn.clone(),
-                        weight: self.new_publication.weight,
-                        units: self.props.weight_units_selection.clone(),
+                        weight_g: self.new_publication.weight_g,
+                        weight_oz: self.new_publication.weight_oz,
                     },
                     ..Default::default()
                 };
@@ -326,16 +297,14 @@ impl Component for PublicationsFormComponent {
                     false
                 }
             }
-            Msg::ChangeWeight(value) => {
-                self.new_publication.weight.neq_assign(value.to_opt_float())
-            }
-            Msg::ChangeWeightUnit(weight_unit) => {
-                self.props.update_weight_units_selection.emit(weight_unit);
-                // Callback will prompt parent to update this component's props.
-                // This will trigger a re-render in change(), so not necessary
-                // to also re-render here.
-                false
-            }
+            Msg::ChangeWeightG(value) => self
+                .new_publication
+                .weight_g
+                .neq_assign(value.to_opt_float()),
+            Msg::ChangeWeightOz(value) => self
+                .new_publication
+                .weight_oz
+                .neq_assign(value.to_opt_float()),
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
@@ -364,12 +333,6 @@ impl Component for PublicationsFormComponent {
         let weight_deactivated = self.new_publication.publication_type
             != PublicationType::Paperback
             && self.new_publication.publication_type != PublicationType::Hardback;
-        // Restrict the number of decimal places the user can enter for weight values
-        // based on currently selected units.
-        let step = match self.props.weight_units_selection {
-            WeightUnit::G => "1".to_string(),
-            WeightUnit::Oz => "0.0001".to_string(),
-        };
         html! {
             <nav class="panel">
                 <p class="panel-heading">
@@ -423,24 +386,18 @@ impl Component for PublicationsFormComponent {
                                     deactivated=isbn_deactivated
                                 />
                                 <FormFloatInput
-                                    label = "Weight"
-                                    value=self.new_publication.weight
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeWeight(e.value))
-                                    step=step.clone()
+                                    label = "Weight (g)"
+                                    value=self.new_publication.weight_g
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeWeightG(e.value))
+                                    step="1".to_string()
                                     deactivated=weight_deactivated
                                 />
-                                <FormWeightUnitSelect
-                                    label = "Units"
-                                    value=self.props.weight_units_selection.clone()
-                                    data=self.data.weight_units.clone()
-                                    onchange=self.link.callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            Msg::ChangeWeightUnit(WeightUnit::from_str(&value).unwrap())
-                                        }
-                                        _ => unreachable!(),
-                                    })
-                                    required = true
+                                <FormFloatInput
+                                    label = "Weight (oz)"
+                                    value=self.new_publication.weight_oz
+                                    oninput=self.link.callback(|e: InputData| Msg::ChangeWeightOz(e.value))
+                                    step="0.0001".to_string()
+                                    deactivated=weight_deactivated
                                 />
                             </form>
                         </section>
@@ -463,24 +420,7 @@ impl Component for PublicationsFormComponent {
                 </div>
                 {
                     if !publications.is_empty() {
-                        html!{
-                            <>
-                                <FormWeightUnitSelect
-                                    label = "Weight units"
-                                    value=self.props.weight_units_selection.clone()
-                                    data=self.data.weight_units.clone()
-                                    onchange=self.link.callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            Msg::ChangeWeightUnit(WeightUnit::from_str(&value).unwrap())
-                                        }
-                                        _ => unreachable!(),
-                                    })
-                                    required = true
-                                />
-                                {for publications.iter().map(|p| self.render_publication(p))}
-                            </>
-                        }
+                        html!{{for publications.iter().map(|p| self.render_publication(p))}}
                     } else {
                         html! {
                             <div class="notification is-warning is-light">
@@ -526,16 +466,16 @@ impl PublicationsFormComponent {
                     </div>
 
                     <div class="field" style="width: 8em;">
-                        <label class="label">{ "Weight" }</label>
+                        <label class="label">{ "Weight (g)" }</label>
                         <div class="control is-expanded">
-                            {&p.weight.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                            {&p.weight_g.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
                         </div>
                     </div>
 
                     <div class="field" style="width: 8em;">
-                        <label class="label">{ "Units" }</label>
+                        <label class="label">{ "Weight (oz)" }</label>
                         <div class="control is-expanded">
-                            {&self.props.weight_units_selection}
+                            {&p.weight_oz.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
                         </div>
                     </div>
 

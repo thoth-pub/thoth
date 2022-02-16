@@ -13,7 +13,6 @@ use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work_relation::RelationType;
 use thoth_api::model::LengthUnit;
-use thoth_api::model::WeightUnit;
 use uuid::Uuid;
 use yew::html;
 use yew::virtual_dom::VNode;
@@ -33,7 +32,6 @@ use crate::models::language::LanguageRelationValues;
 use crate::models::location::LocationPlatformValues;
 use crate::models::price::CurrencyCodeValues;
 use crate::models::publication::PublicationTypeValues;
-use crate::models::publication::WeightUnitValues;
 use crate::models::series::SeriesTypeValues;
 use crate::models::subject::SubjectTypeValues;
 use crate::models::work::LengthUnitValues;
@@ -65,7 +63,6 @@ pub type FormLocationPlatformSelect = Pure<PureLocationPlatformSelect>;
 pub type FormCountryCodeSelect = Pure<PureCountryCodeSelect>;
 pub type FormRelationTypeSelect = Pure<PureRelationTypeSelect>;
 pub type FormLengthUnitSelect = Pure<PureLengthUnitSelect>;
-pub type FormWeightUnitSelect = Pure<PureWeightUnitSelect>;
 pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
 pub type FormPublisherSelect = Pure<PurePublisherSelect>;
@@ -324,16 +321,6 @@ pub struct PureLengthUnitSelect {
     pub label: String,
     pub data: Vec<LengthUnitValues>,
     pub value: LengthUnit,
-    pub onchange: Callback<ChangeData>,
-    #[prop_or(false)]
-    pub required: bool,
-}
-
-#[derive(Clone, PartialEq, Properties)]
-pub struct PureWeightUnitSelect {
-    pub label: String,
-    pub data: Vec<WeightUnitValues>,
-    pub value: WeightUnit,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -799,26 +786,6 @@ impl PureComponent for PureLengthUnitSelect {
     }
 }
 
-impl PureComponent for PureWeightUnitSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select">
-                    <select
-                        required=self.required
-                        onchange=&self.onchange
-                    >
-                        { for self.data.iter().map(|u| self.render_weightunit(u)) }
-                    </select>
-                    </div>
-                </div>
-            </div>
-        }
-    }
-}
-
 impl PureComponent for PureBooleanSelect {
     fn render(&self) -> VNode {
         html! {
@@ -1011,16 +978,6 @@ impl PureRelationTypeSelect {
 
 impl PureLengthUnitSelect {
     fn render_lengthunit(&self, u: &LengthUnitValues) -> VNode {
-        html! {
-            <option value={u.name.to_string()} selected={u.name == self.value}>
-                {&u.name}
-            </option>
-        }
-    }
-}
-
-impl PureWeightUnitSelect {
-    fn render_weightunit(&self, u: &WeightUnitValues) -> VNode {
         html! {
             <option value={u.name.to_string()} selected={u.name == self.value}>
                 {&u.name}

@@ -3,69 +3,13 @@ use super::{
     PublicationHistory, PublicationOrderBy, PublicationType,
 };
 use crate::graphql::utils::Direction;
-use crate::model::{Convert, Crud, DbInsert, HistoryEntry, WeightUnit};
+use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
 use crate::{crud_methods, db_insert};
 use diesel::dsl::any;
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
-
-impl Publication {
-    pub fn update_with_units(
-        &self,
-        db: &crate::db::PgPool,
-        data: PatchPublication,
-        account_id: &Uuid,
-        units: WeightUnit,
-    ) -> ThothResult<Self> {
-        if units == WeightUnit::G {
-            // Data is already in units compatible with the database -
-            // no conversions required before/after updating
-            self.update(db, &data, account_id)
-        } else {
-            let mut converted_data = data;
-            converted_data.weight = converted_data
-                .weight
-                .map(|w| w.convert_weight_from_to(&units, &WeightUnit::G));
-            let result = self.update(db, &converted_data, account_id);
-            if let Ok(mut retrieved_data) = result {
-                retrieved_data.weight = retrieved_data
-                    .weight
-                    .map(|w| w.convert_weight_from_to(&WeightUnit::G, &units));
-                Ok(retrieved_data)
-            } else {
-                result
-            }
-        }
-    }
-
-    pub fn create_with_units(
-        db: &crate::db::PgPool,
-        data: NewPublication,
-        units: WeightUnit,
-    ) -> ThothResult<Self> {
-        if units == WeightUnit::G {
-            // Data is already in units compatible with the database -
-            // no conversions required before/after creating
-            Self::create(db, &data)
-        } else {
-            let mut converted_data = data;
-            converted_data.weight = converted_data
-                .weight
-                .map(|w| w.convert_weight_from_to(&units, &WeightUnit::G));
-            let result = Self::create(db, &converted_data);
-            if let Ok(mut retrieved_data) = result {
-                retrieved_data.weight = retrieved_data
-                    .weight
-                    .map(|w| w.convert_weight_from_to(&WeightUnit::G, &units));
-                Ok(retrieved_data)
-            } else {
-                result
-            }
-        }
-    }
-}
 
 impl Crud for Publication {
     type NewEntity = NewPublication;
@@ -101,7 +45,8 @@ impl Crud for Publication {
                 isbn,
                 created_at,
                 updated_at,
-                weight,
+                weight_g,
+                weight_oz,
             ))
             .into_boxed();
 
@@ -130,9 +75,13 @@ impl Crud for Publication {
                 Direction::Asc => query = query.order(updated_at.asc()),
                 Direction::Desc => query = query.order(updated_at.desc()),
             },
-            PublicationField::Weight => match order.direction {
-                Direction::Asc => query = query.order(weight.asc()),
-                Direction::Desc => query = query.order(weight.desc()),
+            PublicationField::WeightG => match order.direction {
+                Direction::Asc => query = query.order(weight_g.asc()),
+                Direction::Desc => query = query.order(weight_g.desc()),
+            },
+            PublicationField::WeightOz => match order.direction {
+                Direction::Asc => query = query.order(weight_oz.asc()),
+                Direction::Desc => query = query.order(weight_oz.desc()),
             },
         }
         if !publishers.is_empty() {

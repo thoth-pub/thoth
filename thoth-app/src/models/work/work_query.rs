@@ -2,7 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::model::imprint::ImprintWithPublisher;
 use thoth_api::model::work::WorkWithRelations;
-use thoth_api::model::{LengthUnit, WeightUnit};
+use thoth_api::model::LengthUnit;
 use uuid::Uuid;
 
 use super::LengthUnitDefinition;
@@ -10,7 +10,7 @@ use super::WorkStatusDefinition;
 use super::WorkTypeDefinition;
 
 pub const WORK_QUERY: &str = "
-    query WorkQuery($workId: Uuid!, $publishers: [Uuid!], $lengthUnits: LengthUnit, $weightUnits: WeightUnit) {
+    query WorkQuery($workId: Uuid!, $publishers: [Uuid!], $lengthUnits: LengthUnit) {
         work(workId: $workId) {
             workId
             workType
@@ -86,7 +86,8 @@ pub const WORK_QUERY: &str = "
                 isbn
                 createdAt
                 updatedAt
-                weight(units: $weightUnits)
+                weightG: weight(units: G)
+                weightOz: weight(units: OZ)
             }
             languages {
                 languageId
@@ -212,7 +213,6 @@ pub struct Variables {
     pub work_id: Option<Uuid>,
     pub publishers: Option<Vec<String>>,
     pub length_units: LengthUnit,
-    pub weight_units: WeightUnit,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

@@ -1349,11 +1349,7 @@ impl MutationRoot {
         Contribution::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn create_publication(
-        context: &Context,
-        data: NewPublication,
-        units: WeightUnit,
-    ) -> FieldResult<Publication> {
+    fn create_publication(context: &Context, data: NewPublication) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
@@ -1363,7 +1359,7 @@ impl MutationRoot {
             data.can_have_isbn(&context.db)?;
         }
 
-        Publication::create_with_units(&context.db, data, units).map_err(|e| e.into())
+        Publication::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_series(context: &Context, data: NewSeries) -> FieldResult<Series> {
@@ -1561,11 +1557,7 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
-    fn update_publication(
-        context: &Context,
-        data: PatchPublication,
-        units: WeightUnit,
-    ) -> FieldResult<Publication> {
+    fn update_publication(context: &Context, data: PatchPublication) -> FieldResult<Publication> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let publication = Publication::from_id(&context.db, &data.publication_id).unwrap();
         context
@@ -1584,7 +1576,7 @@ impl MutationRoot {
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         publication
-            .update_with_units(&context.db, data, &account_id, units)
+            .update(&context.db, &data, &account_id)
             .map_err(|e| e.into())
     }
 
@@ -2496,8 +2488,10 @@ impl Publication {
         )
     )]
     pub fn weight(&self, units: WeightUnit) -> Option<f64> {
-        self.weight
-            .map(|w| w.convert_weight_from_to(&WeightUnit::G, &units))
+        match units {
+            WeightUnit::G => self.weight_g,
+            WeightUnit::Oz => self.weight_oz,
+        }
     }
 
     #[graphql(

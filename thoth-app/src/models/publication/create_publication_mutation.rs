@@ -3,7 +3,6 @@ use serde::Serialize;
 use thoth_api::model::publication::Publication;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::Isbn;
-use thoth_api::model::WeightUnit;
 use uuid::Uuid;
 
 const CREATE_PUBLICATION_MUTATION: &str = "
@@ -11,23 +10,25 @@ const CREATE_PUBLICATION_MUTATION: &str = "
         $publicationType: PublicationType!,
         $workId: Uuid!,
         $isbn: Isbn,
-        $weight: Float,
-        $units: WeightUnit!
+        $weightG: Float,
+        $weightOz: Float,
     ) {
-        createPublication(units: $units,
+        createPublication(
             data: {
             publicationType: $publicationType
             workId: $workId
             isbn: $isbn
-            weight: $weight
+            weightG: $weightG
+            weightOz: $weightOz
         }){
             publicationId
             publicationType
             workId
             isbn
-            weight
             createdAt
             updatedAt
+            weightG: weight(units: G)
+            weightOz: weight(units: OZ)
         }
     }
 ";
@@ -49,8 +50,8 @@ pub struct Variables {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
-    pub weight: Option<f64>,
-    pub units: WeightUnit,
+    pub weight_g: Option<f64>,
+    pub weight_oz: Option<f64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

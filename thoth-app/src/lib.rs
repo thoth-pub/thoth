@@ -18,7 +18,6 @@ pub const THOTH_GRAPHQL_API: &str = env!("THOTH_GRAPHQL_API");
 pub const THOTH_EXPORT_API: &str = env!("THOTH_EXPORT_API");
 const SESSION_KEY: &str = "thoth.token";
 const LENGTH_UNITS_KEY: &str = "thoth.length_units";
-const WEIGHT_UNITS_KEY: &str = "thoth.weight_units";
 
 #[wasm_bindgen]
 pub fn run_app() -> Result<(), JsValue> {

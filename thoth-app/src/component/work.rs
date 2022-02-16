@@ -11,7 +11,7 @@ use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
-use thoth_api::model::{Doi, LengthUnit, WeightUnit, DOI_DOMAIN};
+use thoth_api::model::{Doi, LengthUnit, DOI_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
@@ -123,7 +123,6 @@ pub enum Msg {
     ChangeWidth(String),
     ChangeHeight(String),
     ChangeLengthUnit(LengthUnit),
-    ChangeWeightUnit(WeightUnit),
     ChangePageCount(String),
     ChangePageBreakdown(String),
     ChangeFirstPage(String),
@@ -159,8 +158,6 @@ pub struct Props {
     pub current_user: AccountDetails,
     pub length_units_selection: LengthUnit,
     pub update_length_units_selection: Callback<LengthUnit>,
-    pub weight_units_selection: WeightUnit,
-    pub update_weight_units_selection: Callback<WeightUnit>,
 }
 
 impl Component for WorkComponent {
@@ -243,7 +240,6 @@ impl Component for WorkComponent {
                         work_id: Some(self.props.work_id),
                         publishers: self.props.current_user.resource_access.restricted_to(),
                         length_units: self.props.length_units_selection.clone(),
-                        weight_units: self.props.weight_units_selection.clone(),
                     },
                     ..Default::default()
                 };
@@ -482,13 +478,6 @@ impl Component for WorkComponent {
                 // to also re-render here.
                 false
             }
-            Msg::ChangeWeightUnit(weight_unit) => {
-                self.props.update_weight_units_selection.emit(weight_unit);
-                // Callback will prompt parent to update this component's props.
-                // This will trigger a re-render in change(), so not necessary
-                // to also re-render here.
-                false
-            }
             Msg::ChangePageCount(value) => self.work.page_count.neq_assign(value.to_opt_int()),
             Msg::ChangePageBreakdown(value) => {
                 self.work.page_breakdown.neq_assign(value.to_opt_string())
@@ -558,13 +547,11 @@ impl Component for WorkComponent {
         let updated_permissions =
             self.props.current_user.resource_access != props.current_user.resource_access;
         let updated_units = self.props.length_units_selection != props.length_units_selection;
-        let updated_weight_units =
-            self.props.weight_units_selection != props.weight_units_selection;
         let updated_work = self.props.work_id != props.work_id;
         self.props = props;
-        if updated_permissions || updated_units || updated_weight_units || updated_work {
+        if updated_permissions || updated_units || updated_work {
             // Required in order to retrieve updated list of imprints for dropdown
-            // and/or Width/Height/Publication Weight values in the newly-selected units
+            // and/or Width/Height values in the newly-selected units
             // and/or full work if we have navigated direct from another Work page.
             self.link.send_message(Msg::GetWork);
         }
@@ -909,8 +896,6 @@ impl Component for WorkComponent {
                             work_id=self.work.work_id
                             work_type=self.work_type.clone()
                             update_publications=self.link.callback(Msg::UpdatePublications)
-                            weight_units_selection=self.props.weight_units_selection.clone()
-                            update_weight_units_selection=self.link.callback(Msg::ChangeWeightUnit)
                         />
                         <LanguagesFormComponent
                             languages=self.work.languages.clone()
