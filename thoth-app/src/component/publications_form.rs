@@ -209,9 +209,7 @@ impl Component for PublicationsFormComponent {
                 }
                 // Clear any fields which are not applicable to the currently selected publication type.
                 // (Do not clear them before the save point as the user may change the type again.)
-                if self.new_publication.publication_type != PublicationType::Paperback
-                    && self.new_publication.publication_type != PublicationType::Hardback
-                {
+                if self.new_publication.is_digital() {
                     self.new_publication.weight_g = None;
                     self.new_publication.weight_oz = None;
                 }
