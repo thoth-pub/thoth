@@ -136,8 +136,8 @@ pub enum Msg {
 #[derive(Clone, Properties)]
 pub struct Props {
     pub current_user: AccountDetails,
-    pub length_units_selection: LengthUnit,
-    pub update_length_units_selection: Callback<LengthUnit>,
+    pub units_selection: LengthUnit,
+    pub update_units_selection: Callback<LengthUnit>,
     pub previous_route: AdminRoute,
 }
 
@@ -360,7 +360,7 @@ impl Component for NewWorkComponent {
                         cover_url: self.work.cover_url.clone(),
                         cover_caption: self.work.cover_caption.clone(),
                         imprint_id: self.imprint_id,
-                        units: self.props.length_units_selection.clone(),
+                        units: self.props.units_selection.clone(),
                         first_page: self.work.first_page.clone(),
                         last_page: self.work.last_page.clone(),
                         page_interval: self.work.page_interval.clone(),
@@ -422,7 +422,7 @@ impl Component for NewWorkComponent {
             Msg::ChangeWidth(value) => self.work.width.neq_assign(value.to_opt_float()),
             Msg::ChangeHeight(value) => self.work.height.neq_assign(value.to_opt_float()),
             Msg::ChangeLengthUnit(length_unit) => {
-                self.props.update_length_units_selection.emit(length_unit);
+                self.props.update_units_selection.emit(length_unit);
                 false
             }
             Msg::ChangePageCount(value) => self.work.page_count.neq_assign(value.to_opt_int()),
@@ -496,7 +496,7 @@ impl Component for NewWorkComponent {
         });
         // Restrict the number of decimal places the user can enter for width/height values
         // based on currently selected units.
-        let step = match self.props.length_units_selection {
+        let step = match self.props.units_selection {
             LengthUnit::Mm => "1".to_string(),
             LengthUnit::Cm => "0.1".to_string(),
             LengthUnit::In => "0.01".to_string(),
@@ -657,7 +657,7 @@ impl Component for NewWorkComponent {
                             />
                             <FormLengthUnitSelect
                                 label = "Units"
-                                value=self.props.length_units_selection.clone()
+                                value=self.props.units_selection.clone()
                                 data=self.data.length_units.clone()
                                 onchange=self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {

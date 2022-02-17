@@ -43,14 +43,14 @@ use crate::route::AppRoute;
 use crate::service::account::AccountService;
 use crate::string::PERMISSIONS_ERROR;
 use crate::string::STORAGE_ERROR;
-use crate::LENGTH_UNITS_KEY;
+use crate::UNITS_KEY;
 
 pub struct AdminComponent {
     props: Props,
     notification_bus: NotificationDispatcher,
     router: RouteAgentDispatcher<()>,
     link: ComponentLink<Self>,
-    length_units_selection: LengthUnit,
+    units_selection: LengthUnit,
     previous_route: AdminRoute,
 }
 
@@ -73,20 +73,19 @@ impl Component for AdminComponent {
         if !AccountService::new().is_loggedin() {
             link.send_message(Msg::RedirectToLogin);
         }
-        let mut length_units_selection: LengthUnit = Default::default();
+        let mut units_selection: LengthUnit = Default::default();
         let previous_route = props.route.clone();
         let mut storage_service = StorageService::new(Area::Local).expect(STORAGE_ERROR);
-
-        if let Ok(length_units_string) = storage_service.restore(LENGTH_UNITS_KEY) {
-            if let Ok(length_units) = length_units_string.parse::<LengthUnit>() {
-                length_units_selection = length_units;
+        if let Ok(units_string) = storage_service.restore(UNITS_KEY) {
+            if let Ok(units) = units_string.parse::<LengthUnit>() {
+                units_selection = units;
             } else {
-                // Couldn't parse stored length units - overwrite them with default
-                storage_service.store(LENGTH_UNITS_KEY, Ok(length_units_selection.to_string()));
+                // Couldn't parse stored units - overwrite them with default
+                storage_service.store(UNITS_KEY, Ok(units_selection.to_string()));
             }
         } else {
-            // No stored length units found - store the default
-            storage_service.store(LENGTH_UNITS_KEY, Ok(length_units_selection.to_string()));
+            // No stored units found - store the default
+            storage_service.store(UNITS_KEY, Ok(units_selection.to_string()));
         }
 
         AdminComponent {
@@ -94,7 +93,7 @@ impl Component for AdminComponent {
             notification_bus: NotificationBus::dispatcher(),
             router: RouteAgentDispatcher::new(),
             link,
-            length_units_selection,
+            units_selection,
             previous_route,
         }
     }
@@ -126,13 +125,10 @@ impl Component for AdminComponent {
                 false
             }
             Msg::UpdateLengthUnit(length_unit) => {
-                if self.length_units_selection.neq_assign(length_unit) {
+                if self.units_selection.neq_assign(length_unit) {
                     StorageService::new(Area::Local)
                         .expect(STORAGE_ERROR)
-                        .store(
-                            LENGTH_UNITS_KEY,
-                            Ok(self.length_units_selection.to_string()),
-                        );
+                        .store(UNITS_KEY, Ok(self.units_selection.to_string()));
                     true
                 } else {
                     false
@@ -185,15 +181,15 @@ impl Component for AdminComponent {
                                     <WorkComponent
                                         work_id = *id
                                         current_user = self.props.current_user.clone().unwrap()
-                                        length_units_selection = self.length_units_selection.clone()
-                                        update_length_units_selection = self.link.callback(Msg::UpdateLengthUnit)
+                                        units_selection = self.units_selection.clone()
+                                        update_units_selection = self.link.callback(Msg::UpdateLengthUnit)
                                     />
                                 },
                                 AdminRoute::NewWork => html!{
                                     <NewWorkComponent
                                         current_user = self.props.current_user.clone().unwrap()
-                                        length_units_selection = self.length_units_selection.clone()
-                                        update_length_units_selection = self.link.callback(Msg::UpdateLengthUnit)
+                                        units_selection = self.units_selection.clone()
+                                        update_units_selection = self.link.callback(Msg::UpdateLengthUnit)
                                         previous_route = self.previous_route.clone()
                                     />
                                 },

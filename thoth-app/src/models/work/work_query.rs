@@ -10,7 +10,7 @@ use super::WorkStatusDefinition;
 use super::WorkTypeDefinition;
 
 pub const WORK_QUERY: &str = "
-    query WorkQuery($workId: Uuid!, $publishers: [Uuid!], $lengthUnits: LengthUnit) {
+    query WorkQuery($workId: Uuid!, $publishers: [Uuid!], $units: LengthUnit) {
         work(workId: $workId) {
             workId
             workType
@@ -23,8 +23,8 @@ pub const WORK_QUERY: &str = "
             doi
             publicationDate
             place
-            width(units: $lengthUnits)
-            height(units: $lengthUnits)
+            width(units: $units)
+            height(units: $units)
             pageCount
             pageBreakdown
             imageCount
@@ -212,7 +212,7 @@ graphql_query_builder! {
 pub struct Variables {
     pub work_id: Option<Uuid>,
     pub publishers: Option<Vec<String>>,
-    pub length_units: LengthUnit,
+    pub units: LengthUnit,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

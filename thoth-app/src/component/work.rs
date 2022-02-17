@@ -156,8 +156,8 @@ pub enum Msg {
 pub struct Props {
     pub work_id: Uuid,
     pub current_user: AccountDetails,
-    pub length_units_selection: LengthUnit,
-    pub update_length_units_selection: Callback<LengthUnit>,
+    pub units_selection: LengthUnit,
+    pub update_units_selection: Callback<LengthUnit>,
 }
 
 impl Component for WorkComponent {
@@ -239,7 +239,7 @@ impl Component for WorkComponent {
                     variables: Variables {
                         work_id: Some(self.props.work_id),
                         publishers: self.props.current_user.resource_access.restricted_to(),
-                        length_units: self.props.length_units_selection.clone(),
+                        units: self.props.units_selection.clone(),
                     },
                     ..Default::default()
                 };
@@ -264,7 +264,7 @@ impl Component for WorkComponent {
                             self.doi_warning.clear();
                             self.imprint_id = self.work.imprint.imprint_id;
                             self.work_type = self.work.work_type.clone();
-                            if self.props.length_units_selection == LengthUnit::In {
+                            if self.props.units_selection == LengthUnit::In {
                                 // User-entered dimensions may have been rounded on save due to
                                 // conversion to mm - update display with database values
                                 self.work.width = w.width;
@@ -349,7 +349,7 @@ impl Component for WorkComponent {
                         toc: self.work.toc.clone(),
                         cover_url: self.work.cover_url.clone(),
                         cover_caption: self.work.cover_caption.clone(),
-                        units: self.props.length_units_selection.clone(),
+                        units: self.props.units_selection.clone(),
                         first_page: self.work.first_page.clone(),
                         last_page: self.work.last_page.clone(),
                         page_interval: self.work.page_interval.clone(),
@@ -472,7 +472,7 @@ impl Component for WorkComponent {
             Msg::ChangeWidth(value) => self.work.width.neq_assign(value.to_opt_float()),
             Msg::ChangeHeight(value) => self.work.height.neq_assign(value.to_opt_float()),
             Msg::ChangeLengthUnit(length_unit) => {
-                self.props.update_length_units_selection.emit(length_unit);
+                self.props.update_units_selection.emit(length_unit);
                 // Callback will prompt parent to update this component's props.
                 // This will trigger a re-render in change(), so not necessary
                 // to also re-render here.
@@ -546,7 +546,7 @@ impl Component for WorkComponent {
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         let updated_permissions =
             self.props.current_user.resource_access != props.current_user.resource_access;
-        let updated_units = self.props.length_units_selection != props.length_units_selection;
+        let updated_units = self.props.units_selection != props.units_selection;
         let updated_work = self.props.work_id != props.work_id;
         self.props = props;
         if updated_permissions || updated_units || updated_work {
@@ -588,7 +588,7 @@ impl Component for WorkComponent {
                 };
                 // Restrict the number of decimal places the user can enter for width/height values
                 // based on currently selected units.
-                let step = match self.props.length_units_selection {
+                let step = match self.props.units_selection {
                     LengthUnit::Mm => "1".to_string(),
                     LengthUnit::Cm => "0.1".to_string(),
                     LengthUnit::In => "0.01".to_string(),
@@ -757,7 +757,7 @@ impl Component for WorkComponent {
                                     />
                                     <FormLengthUnitSelect
                                         label = "Units"
-                                        value=self.props.length_units_selection.clone()
+                                        value=self.props.units_selection.clone()
                                         data=self.data.length_units.clone()
                                         onchange=self.link.callback(|event| match event {
                                             ChangeData::Select(elem) => {
