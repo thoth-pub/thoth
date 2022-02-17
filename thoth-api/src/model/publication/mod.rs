@@ -156,6 +156,30 @@ pub struct PublicationOrderBy {
     pub direction: Direction,
 }
 
+impl Publication {
+    pub fn is_physical(&self) -> bool {
+        publication_type_is_physical(&self.publication_type)
+    }
+
+    pub fn is_digital(&self) -> bool {
+        !self.is_physical()
+    }
+}
+
+impl PublicationWithRelations {
+    pub fn is_physical(&self) -> bool {
+        publication_type_is_physical(&self.publication_type)
+    }
+
+    pub fn is_digital(&self) -> bool {
+        !self.is_physical()
+    }
+}
+
+fn publication_type_is_physical(pub_type: &PublicationType) -> bool {
+    pub_type == &PublicationType::Paperback || pub_type == &PublicationType::Hardback
+}
+
 impl Default for PublicationType {
     fn default() -> PublicationType {
         PublicationType::Paperback

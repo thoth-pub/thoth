@@ -68,6 +68,8 @@ pub enum ThothError {
         display = "Canonical Locations for digital Publications must have both a Landing Page and a Full Text URL."
     )]
     LocationUrlError,
+    #[fail(display = "When specifying Weight, both values (g and oz) must be supplied.")]
+    WeightEmptyError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]

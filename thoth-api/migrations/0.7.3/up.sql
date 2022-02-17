@@ -4,4 +4,8 @@ ALTER TABLE publication
     ADD CONSTRAINT publication_non_physical_no_weight_g CHECK
         (weight_g IS NULL OR publication_type = 'Paperback' OR publication_type = 'Hardback'),
     ADD CONSTRAINT publication_non_physical_no_weight_oz CHECK
-        (weight_oz IS NULL OR publication_type = 'Paperback' OR publication_type = 'Hardback');
+        (weight_oz IS NULL OR publication_type = 'Paperback' OR publication_type = 'Hardback'),
+    ADD CONSTRAINT publication_weight_g_not_missing CHECK
+        (weight_g IS NOT NULL OR weight_oz IS NULL),
+    ADD CONSTRAINT publication_weight_oz_not_missing CHECK
+        (weight_oz IS NOT NULL OR weight_g IS NULL);

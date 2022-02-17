@@ -308,46 +308,36 @@ impl Component for PublicationsFormComponent {
                 }
             }
             Msg::ChangeWeightG(value) => {
-                if self
+                let changed_value = self
                     .new_publication
                     .weight_g
-                    .neq_assign(value.to_opt_float())
-                {
-                    if self.convert_weights {
-                        // Automatically update paired weight field with default conversion.
-                        if let Some(weight_g) = self.new_publication.weight_g {
-                            self.new_publication.weight_oz = Some(
-                                weight_g.convert_weight_from_to(&WeightUnit::G, &WeightUnit::Oz),
-                            );
-                        } else {
-                            self.new_publication.weight_oz = None;
-                        }
+                    .neq_assign(value.to_opt_float());
+                if changed_value && self.convert_weights {
+                    let mut weight_oz = None;
+                    // Automatically update paired weight field with default conversion.
+                    if let Some(weight_g) = self.new_publication.weight_g {
+                        weight_oz =
+                            Some(weight_g.convert_weight_from_to(&WeightUnit::G, &WeightUnit::Oz));
                     }
-                    true
-                } else {
-                    false
+                    self.new_publication.weight_oz.neq_assign(weight_oz);
                 }
+                changed_value
             }
             Msg::ChangeWeightOz(value) => {
-                if self
+                let changed_value = self
                     .new_publication
                     .weight_oz
-                    .neq_assign(value.to_opt_float())
-                {
-                    if self.convert_weights {
-                        // Automatically update paired weight field with default conversion.
-                        if let Some(weight_oz) = self.new_publication.weight_oz {
-                            self.new_publication.weight_g = Some(
-                                weight_oz.convert_weight_from_to(&WeightUnit::Oz, &WeightUnit::G),
-                            );
-                        } else {
-                            self.new_publication.weight_g = None;
-                        }
+                    .neq_assign(value.to_opt_float());
+                if changed_value && self.convert_weights {
+                    let mut weight_g = None;
+                    // Automatically update paired weight field with default conversion.
+                    if let Some(weight_oz) = self.new_publication.weight_oz {
+                        weight_g =
+                            Some(weight_oz.convert_weight_from_to(&WeightUnit::Oz, &WeightUnit::G));
                     }
-                    true
-                } else {
-                    false
+                    self.new_publication.weight_g.neq_assign(weight_g);
                 }
+                changed_value
             }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
@@ -373,10 +363,6 @@ impl Component for PublicationsFormComponent {
         });
         // ISBNs cannot be added for publications whose work type is Book Chapter.
         let isbn_deactivated = self.props.work_type == WorkType::BookChapter;
-        // Weight can only be added for physical (Paperback/Hardback) publications.
-        let weight_deactivated = self.new_publication.publication_type
-            != PublicationType::Paperback
-            && self.new_publication.publication_type != PublicationType::Hardback;
         html! {
             <nav class="panel">
                 <p class="panel-heading">
@@ -429,36 +415,44 @@ impl Component for PublicationsFormComponent {
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeIsbn(e.value))
                                     deactivated=isbn_deactivated
                                 />
-                                <label class="checkbox">
-                                    <input
-                                        type="checkbox"
-                                        checked=self.convert_weights
-                                        disabled=weight_deactivated
-                                        onchange=self.link.callback(|event| match event {
-                                            ChangeData::Value(_) => Msg::ToggleWeightConversion,
-                                            _ => unreachable!(),
-                                        })
-                                    />
-                                    { "Automatically convert weight values" }
-                                </label>
-                                <div class="field is-horizontal">
-                                    <div class="field-body">
-                                        <FormFloatInput
-                                            label = "Weight (g)"
-                                            value=self.new_publication.weight_g
-                                            oninput=self.link.callback(|e: InputData| Msg::ChangeWeightG(e.value))
-                                            step="1".to_string()
-                                            deactivated=weight_deactivated
-                                        />
-                                        <FormFloatInput
-                                            label = "Weight (oz)"
-                                            value=self.new_publication.weight_oz
-                                            oninput=self.link.callback(|e: InputData| Msg::ChangeWeightOz(e.value))
-                                            step="0.0001".to_string()
-                                            deactivated=weight_deactivated
-                                        />
-                                    </div>
-                                </div>
+                                {
+                                    // Weight can only be added for physical (Paperback/Hardback) publications.
+                                    if self.new_publication.is_physical() {
+                                        html! {
+                                            <>
+                                                <label class="checkbox">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked=self.convert_weights
+                                                        onchange=self.link.callback(|event| match event {
+                                                            ChangeData::Value(_) => Msg::ToggleWeightConversion,
+                                                            _ => unreachable!(),
+                                                        })
+                                                    />
+                                                    { "Automatically convert weight values" }
+                                                </label>
+                                                <div class="field is-horizontal">
+                                                    <div class="field-body">
+                                                        <FormFloatInput
+                                                            label = "Weight (g)"
+                                                            value=self.new_publication.weight_g
+                                                            oninput=self.link.callback(|e: InputData| Msg::ChangeWeightG(e.value))
+                                                            step="1".to_string()
+                                                        />
+                                                        <FormFloatInput
+                                                            label = "Weight (oz)"
+                                                            value=self.new_publication.weight_oz
+                                                            oninput=self.link.callback(|e: InputData| Msg::ChangeWeightOz(e.value))
+                                                            step="0.0001".to_string()
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </>
+                                        }
+                                    } else {
+                                        html!{}
+                                    }
+                                }
                             </form>
                         </section>
                         <footer class="modal-card-foot">

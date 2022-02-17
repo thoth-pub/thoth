@@ -254,19 +254,30 @@ impl Component for PublicationComponent {
                             </div>
                         </form>
 
-                        <div class="field" style="width: 8em;">
-                            <label class="label">{ "Weight (g)" }</label>
-                            <div class="control is-expanded">
-                                {&self.publication.weight_g.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
-                            </div>
-                        </div>
+                        {
+                            // Weight is only applicable to physical (Paperback/Hardback) publications.
+                            if self.publication.is_physical() {
+                                html! {
+                                    <>
+                                        <div class="field" style="width: 8em;">
+                                            <label class="label">{ "Weight (g)" }</label>
+                                            <div class="control is-expanded">
+                                                {&self.publication.weight_g.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                            </div>
+                                        </div>
 
-                        <div class="field" style="width: 8em;">
-                            <label class="label">{ "Weight (oz)" }</label>
-                            <div class="control is-expanded">
-                                {&self.publication.weight_oz.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
-                            </div>
-                        </div>
+                                        <div class="field" style="width: 8em;">
+                                            <label class="label">{ "Weight (oz)" }</label>
+                                            <div class="control is-expanded">
+                                                {&self.publication.weight_oz.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                            </div>
+                                        </div>
+                                    </>
+                                }
+                            } else {
+                                html!{}
+                            }
+                        }
 
                         <hr/>
 

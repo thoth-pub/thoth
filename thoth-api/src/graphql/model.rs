@@ -1359,6 +1359,13 @@ impl MutationRoot {
             data.can_have_isbn(&context.db)?;
         }
 
+        if (data.weight_g.is_some() && data.weight_oz.is_none())
+            || (data.weight_oz.is_some() && data.weight_g.is_none())
+        {
+            // If one weight value is supplied, the other cannot be left empty.
+            return Err(ThothError::WeightEmptyError.into());
+        }
+
         Publication::create(&context.db, &data).map_err(|e| e.into())
     }
 
@@ -1572,6 +1579,13 @@ impl MutationRoot {
 
         if !data.isbn.is_none() {
             data.can_have_isbn(&context.db)?;
+        }
+
+        if (data.weight_g.is_some() && data.weight_oz.is_none())
+            || (data.weight_oz.is_some() && data.weight_g.is_none())
+        {
+            // If one weight value is supplied, the other cannot be left empty.
+            return Err(ThothError::WeightEmptyError.into());
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
