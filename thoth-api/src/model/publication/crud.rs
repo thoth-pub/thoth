@@ -174,7 +174,22 @@ where
     Self: PublicationProperties,
 {
     fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        publication_can_have_isbn(self.work_id(), db)
+        use crate::model::work::WorkType;
+        use diesel::prelude::*;
+
+        let connection = db.get().unwrap();
+        let work_type = crate::schema::work::table
+            .select(crate::schema::work::work_type)
+            .filter(crate::schema::work::work_id.eq(self.work_id()))
+            .first::<WorkType>(&connection)
+            .expect("Error loading work type for publication");
+        // If a publication's work is of type Book Chapter,
+        // it cannot have an ISBN.
+        if work_type == WorkType::BookChapter {
+            Err(ThothError::ChapterIsbnError)
+        } else {
+            Ok(())
+        }
     }
 
     fn validate(&self, db: &crate::db::PgPool) -> ThothResult<()> {
@@ -188,25 +203,6 @@ where
 impl PublicationValidation for NewPublication {}
 
 impl PublicationValidation for PatchPublication {}
-
-fn publication_can_have_isbn(work_id: &Uuid, db: &crate::db::PgPool) -> ThothResult<()> {
-    use crate::model::work::WorkType;
-    use diesel::prelude::*;
-
-    let connection = db.get().unwrap();
-    let work_type = crate::schema::work::table
-        .select(crate::schema::work::work_type)
-        .filter(crate::schema::work::work_id.eq(work_id))
-        .first::<WorkType>(&connection)
-        .expect("Error loading work type for publication");
-    // If a publication's work is of type Book Chapter,
-    // it cannot have an ISBN.
-    if work_type == WorkType::BookChapter {
-        Err(ThothError::ChapterIsbnError)
-    } else {
-        Ok(())
-    }
-}
 
 #[cfg(test)]
 mod tests {
