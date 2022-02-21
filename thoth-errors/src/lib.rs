@@ -70,6 +70,8 @@ pub enum ThothError {
     LocationUrlError,
     #[fail(display = "When specifying Weight, both values (g and oz) must be supplied.")]
     WeightEmptyError,
+    #[fail(display = "Weight is only applicable to physical (Paperback/Hardback) Publications.")]
+    WeightDigitalError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]

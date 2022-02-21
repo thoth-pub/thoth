@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use strum::EnumString;
+use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
@@ -168,6 +169,8 @@ impl PublicationType {
 
 pub trait PublicationProperties {
     fn publication_type(&self) -> &PublicationType;
+    fn weight_g(&self) -> Option<f64>;
+    fn weight_oz(&self) -> Option<f64>;
 
     fn is_physical(&self) -> bool {
         self.publication_type().is_physical()
@@ -176,17 +179,76 @@ pub trait PublicationProperties {
     fn is_digital(&self) -> bool {
         self.publication_type().is_digital()
     }
+
+    fn weight_error(&self) -> ThothResult<()> {
+        if self.is_digital() {
+            // Digital publications cannot have weight values.
+            if self.weight_g().is_some() || self.weight_oz().is_some() {
+                return Err(ThothError::WeightDigitalError);
+            }
+        } else if (self.weight_g().is_some() && self.weight_oz().is_none())
+            || (self.weight_oz().is_some() && self.weight_g().is_none())
+        {
+            // If one weight value is supplied, the other cannot be left empty.
+            return Err(ThothError::WeightEmptyError);
+        }
+        Ok(())
+    }
 }
 
 impl PublicationProperties for Publication {
     fn publication_type(&self) -> &PublicationType {
         &self.publication_type
     }
+
+    fn weight_g(&self) -> Option<f64> {
+        self.weight_g
+    }
+
+    fn weight_oz(&self) -> Option<f64> {
+        self.weight_oz
+    }
 }
 
 impl PublicationProperties for PublicationWithRelations {
     fn publication_type(&self) -> &PublicationType {
         &self.publication_type
+    }
+
+    fn weight_g(&self) -> Option<f64> {
+        self.weight_g
+    }
+
+    fn weight_oz(&self) -> Option<f64> {
+        self.weight_oz
+    }
+}
+
+impl PublicationProperties for NewPublication {
+    fn publication_type(&self) -> &PublicationType {
+        &self.publication_type
+    }
+
+    fn weight_g(&self) -> Option<f64> {
+        self.weight_g
+    }
+
+    fn weight_oz(&self) -> Option<f64> {
+        self.weight_oz
+    }
+}
+
+impl PublicationProperties for PatchPublication {
+    fn publication_type(&self) -> &PublicationType {
+        &self.publication_type
+    }
+
+    fn weight_g(&self) -> Option<f64> {
+        self.weight_g
+    }
+
+    fn weight_oz(&self) -> Option<f64> {
+        self.weight_oz
     }
 }
 
@@ -203,7 +265,7 @@ impl Default for PublicationField {
 }
 
 #[test]
-fn test_publicationproperties() {
+fn test_publicationproperties_type() {
     let mut publication: Publication = Default::default();
     for pub_type in [PublicationType::Paperback, PublicationType::Hardback] {
         publication.publication_type = pub_type;
@@ -228,6 +290,40 @@ fn test_publicationproperties() {
         assert!(!publication.is_physical());
         assert!(publication.is_digital());
     }
+}
+
+#[test]
+fn test_publicationproperties_weight() {
+    let mut publication: Publication = Publication {
+        publication_type: PublicationType::Pdf,
+        weight_g: Some(100.0),
+        ..Default::default()
+    };
+    assert_eq!(
+        publication.weight_error(),
+        Err(ThothError::WeightDigitalError)
+    );
+    publication.weight_g = None;
+    assert_eq!(publication.weight_error(), Ok(()));
+    publication.weight_oz = Some(3.5);
+    assert_eq!(
+        publication.weight_error(),
+        Err(ThothError::WeightDigitalError)
+    );
+    publication.publication_type = PublicationType::Paperback;
+    assert_eq!(
+        publication.weight_error(),
+        Err(ThothError::WeightEmptyError)
+    );
+    publication.weight_oz = None;
+    assert_eq!(publication.weight_error(), Ok(()));
+    publication.weight_g = Some(100.0);
+    assert_eq!(
+        publication.weight_error(),
+        Err(ThothError::WeightEmptyError)
+    );
+    publication.weight_oz = Some(3.5);
+    assert_eq!(publication.weight_error(), Ok(()));
 }
 
 #[test]
