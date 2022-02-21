@@ -173,7 +173,10 @@ pub trait PublicationValidation
 where
     Self: PublicationProperties,
 {
-    fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()>;
+    fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        publication_can_have_isbn(self.work_id(), db)
+    }
+
     fn validate(&self, db: &crate::db::PgPool) -> ThothResult<()> {
         if self.isbn().is_some() {
             self.can_have_isbn(db)?;
@@ -182,19 +185,11 @@ where
     }
 }
 
-impl PublicationValidation for NewPublication {
-    fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        publication_can_have_isbn(self.work_id, db)
-    }
-}
+impl PublicationValidation for NewPublication {}
 
-impl PublicationValidation for PatchPublication {
-    fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        publication_can_have_isbn(self.work_id, db)
-    }
-}
+impl PublicationValidation for PatchPublication {}
 
-fn publication_can_have_isbn(work_id: Uuid, db: &crate::db::PgPool) -> ThothResult<()> {
+fn publication_can_have_isbn(work_id: &Uuid, db: &crate::db::PgPool) -> ThothResult<()> {
     use crate::model::work::WorkType;
     use diesel::prelude::*;
 

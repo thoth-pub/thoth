@@ -169,9 +169,10 @@ impl PublicationType {
 
 pub trait PublicationProperties {
     fn publication_type(&self) -> &PublicationType;
-    fn weight_g(&self) -> Option<f64>;
-    fn weight_oz(&self) -> Option<f64>;
+    fn weight_g(&self) -> &Option<f64>;
+    fn weight_oz(&self) -> &Option<f64>;
     fn isbn(&self) -> &Option<Isbn>;
+    fn work_id(&self) -> &Uuid;
 
     fn is_physical(&self) -> bool {
         self.publication_type().is_physical()
@@ -202,16 +203,20 @@ impl PublicationProperties for Publication {
         &self.publication_type
     }
 
-    fn weight_g(&self) -> Option<f64> {
-        self.weight_g
+    fn weight_g(&self) -> &Option<f64> {
+        &self.weight_g
     }
 
-    fn weight_oz(&self) -> Option<f64> {
-        self.weight_oz
+    fn weight_oz(&self) -> &Option<f64> {
+        &self.weight_oz
     }
 
     fn isbn(&self) -> &Option<Isbn> {
         &self.isbn
+    }
+
+    fn work_id(&self) -> &Uuid {
+        &self.work_id
     }
 }
 
@@ -220,16 +225,20 @@ impl PublicationProperties for PublicationWithRelations {
         &self.publication_type
     }
 
-    fn weight_g(&self) -> Option<f64> {
-        self.weight_g
+    fn weight_g(&self) -> &Option<f64> {
+        &self.weight_g
     }
 
-    fn weight_oz(&self) -> Option<f64> {
-        self.weight_oz
+    fn weight_oz(&self) -> &Option<f64> {
+        &self.weight_oz
     }
 
     fn isbn(&self) -> &Option<Isbn> {
         &self.isbn
+    }
+
+    fn work_id(&self) -> &Uuid {
+        &self.work_id
     }
 }
 
@@ -238,16 +247,20 @@ impl PublicationProperties for NewPublication {
         &self.publication_type
     }
 
-    fn weight_g(&self) -> Option<f64> {
-        self.weight_g
+    fn weight_g(&self) -> &Option<f64> {
+        &self.weight_g
     }
 
-    fn weight_oz(&self) -> Option<f64> {
-        self.weight_oz
+    fn weight_oz(&self) -> &Option<f64> {
+        &self.weight_oz
     }
 
     fn isbn(&self) -> &Option<Isbn> {
         &self.isbn
+    }
+
+    fn work_id(&self) -> &Uuid {
+        &self.work_id
     }
 }
 
@@ -256,16 +269,20 @@ impl PublicationProperties for PatchPublication {
         &self.publication_type
     }
 
-    fn weight_g(&self) -> Option<f64> {
-        self.weight_g
+    fn weight_g(&self) -> &Option<f64> {
+        &self.weight_g
     }
 
-    fn weight_oz(&self) -> Option<f64> {
-        self.weight_oz
+    fn weight_oz(&self) -> &Option<f64> {
+        &self.weight_oz
     }
 
     fn isbn(&self) -> &Option<Isbn> {
         &self.isbn
+    }
+
+    fn work_id(&self) -> &Uuid {
+        &self.work_id
     }
 }
 
