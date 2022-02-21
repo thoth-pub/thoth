@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use strum::EnumString;
+use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
@@ -64,6 +65,8 @@ pub enum PublicationField {
     Isbn,
     CreatedAt,
     UpdatedAt,
+    WeightG,
+    WeightOz,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -76,6 +79,8 @@ pub struct Publication {
     pub isbn: Option<Isbn>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+    pub weight_g: Option<f64>,
+    pub weight_oz: Option<f64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -86,6 +91,8 @@ pub struct PublicationWithRelations {
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
     pub updated_at: Timestamp,
+    pub weight_g: Option<f64>,
+    pub weight_oz: Option<f64>,
     pub prices: Option<Vec<Price>>,
     pub locations: Option<Vec<Location>>,
     pub work: WorkWithRelations,
@@ -100,6 +107,8 @@ pub struct NewPublication {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
+    pub weight_g: Option<f64>,
+    pub weight_oz: Option<f64>,
 }
 
 #[cfg_attr(
@@ -113,6 +122,8 @@ pub struct PatchPublication {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
+    pub weight_g: Option<f64>,
+    pub weight_oz: Option<f64>,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -146,6 +157,135 @@ pub struct PublicationOrderBy {
     pub direction: Direction,
 }
 
+impl PublicationType {
+    fn is_physical(&self) -> bool {
+        matches!(self, PublicationType::Paperback | PublicationType::Hardback)
+    }
+
+    fn is_digital(&self) -> bool {
+        !self.is_physical()
+    }
+}
+
+pub trait PublicationProperties {
+    fn publication_type(&self) -> &PublicationType;
+    fn weight_g(&self) -> &Option<f64>;
+    fn weight_oz(&self) -> &Option<f64>;
+    fn isbn(&self) -> &Option<Isbn>;
+    fn work_id(&self) -> &Uuid;
+
+    fn is_physical(&self) -> bool {
+        self.publication_type().is_physical()
+    }
+
+    fn is_digital(&self) -> bool {
+        self.publication_type().is_digital()
+    }
+
+    fn weight_error(&self) -> ThothResult<()> {
+        if self.is_digital() {
+            // Digital publications cannot have weight values.
+            if self.weight_g().is_some() || self.weight_oz().is_some() {
+                return Err(ThothError::WeightDigitalError);
+            }
+        } else if (self.weight_g().is_some() && self.weight_oz().is_none())
+            || (self.weight_oz().is_some() && self.weight_g().is_none())
+        {
+            // If one weight value is supplied, the other cannot be left empty.
+            return Err(ThothError::WeightEmptyError);
+        }
+        Ok(())
+    }
+}
+
+impl PublicationProperties for Publication {
+    fn publication_type(&self) -> &PublicationType {
+        &self.publication_type
+    }
+
+    fn weight_g(&self) -> &Option<f64> {
+        &self.weight_g
+    }
+
+    fn weight_oz(&self) -> &Option<f64> {
+        &self.weight_oz
+    }
+
+    fn isbn(&self) -> &Option<Isbn> {
+        &self.isbn
+    }
+
+    fn work_id(&self) -> &Uuid {
+        &self.work_id
+    }
+}
+
+impl PublicationProperties for PublicationWithRelations {
+    fn publication_type(&self) -> &PublicationType {
+        &self.publication_type
+    }
+
+    fn weight_g(&self) -> &Option<f64> {
+        &self.weight_g
+    }
+
+    fn weight_oz(&self) -> &Option<f64> {
+        &self.weight_oz
+    }
+
+    fn isbn(&self) -> &Option<Isbn> {
+        &self.isbn
+    }
+
+    fn work_id(&self) -> &Uuid {
+        &self.work_id
+    }
+}
+
+impl PublicationProperties for NewPublication {
+    fn publication_type(&self) -> &PublicationType {
+        &self.publication_type
+    }
+
+    fn weight_g(&self) -> &Option<f64> {
+        &self.weight_g
+    }
+
+    fn weight_oz(&self) -> &Option<f64> {
+        &self.weight_oz
+    }
+
+    fn isbn(&self) -> &Option<Isbn> {
+        &self.isbn
+    }
+
+    fn work_id(&self) -> &Uuid {
+        &self.work_id
+    }
+}
+
+impl PublicationProperties for PatchPublication {
+    fn publication_type(&self) -> &PublicationType {
+        &self.publication_type
+    }
+
+    fn weight_g(&self) -> &Option<f64> {
+        &self.weight_g
+    }
+
+    fn weight_oz(&self) -> &Option<f64> {
+        &self.weight_oz
+    }
+
+    fn isbn(&self) -> &Option<Isbn> {
+        &self.isbn
+    }
+
+    fn work_id(&self) -> &Uuid {
+        &self.work_id
+    }
+}
+
 impl Default for PublicationType {
     fn default() -> PublicationType {
         PublicationType::Paperback
@@ -156,6 +296,68 @@ impl Default for PublicationField {
     fn default() -> Self {
         PublicationField::PublicationType
     }
+}
+
+#[test]
+fn test_publicationproperties_type() {
+    let mut publication: Publication = Default::default();
+    for pub_type in [PublicationType::Paperback, PublicationType::Hardback] {
+        publication.publication_type = pub_type;
+        assert!(publication.publication_type.is_physical());
+        assert!(!publication.publication_type.is_digital());
+        assert!(publication.is_physical());
+        assert!(!publication.is_digital());
+    }
+    for pub_type in [
+        PublicationType::Azw3,
+        PublicationType::Docx,
+        PublicationType::Epub,
+        PublicationType::FictionBook,
+        PublicationType::Html,
+        PublicationType::Mobi,
+        PublicationType::Pdf,
+        PublicationType::Xml,
+    ] {
+        publication.publication_type = pub_type;
+        assert!(!publication.publication_type.is_physical());
+        assert!(publication.publication_type.is_digital());
+        assert!(!publication.is_physical());
+        assert!(publication.is_digital());
+    }
+}
+
+#[test]
+fn test_publicationproperties_weight() {
+    let mut publication: Publication = Publication {
+        publication_type: PublicationType::Pdf,
+        weight_g: Some(100.0),
+        ..Default::default()
+    };
+    assert_eq!(
+        publication.weight_error(),
+        Err(ThothError::WeightDigitalError)
+    );
+    publication.weight_g = None;
+    assert_eq!(publication.weight_error(), Ok(()));
+    publication.weight_oz = Some(3.5);
+    assert_eq!(
+        publication.weight_error(),
+        Err(ThothError::WeightDigitalError)
+    );
+    publication.publication_type = PublicationType::Paperback;
+    assert_eq!(
+        publication.weight_error(),
+        Err(ThothError::WeightEmptyError)
+    );
+    publication.weight_oz = None;
+    assert_eq!(publication.weight_error(), Ok(()));
+    publication.weight_g = Some(100.0);
+    assert_eq!(
+        publication.weight_error(),
+        Err(ThothError::WeightEmptyError)
+    );
+    publication.weight_oz = Some(3.5);
+    assert_eq!(publication.weight_error(), Ok(()));
 }
 
 #[test]
@@ -192,6 +394,8 @@ fn test_publicationfield_display() {
     assert_eq!(format!("{}", PublicationField::Isbn), "ISBN");
     assert_eq!(format!("{}", PublicationField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", PublicationField::UpdatedAt), "UpdatedAt");
+    assert_eq!(format!("{}", PublicationField::WeightG), "WeightG");
+    assert_eq!(format!("{}", PublicationField::WeightOz), "WeightOz");
 }
 
 #[test]
@@ -270,6 +474,14 @@ fn test_publicationfield_fromstr() {
     assert_eq!(
         PublicationField::from_str("UpdatedAt").unwrap(),
         PublicationField::UpdatedAt
+    );
+    assert_eq!(
+        PublicationField::from_str("WeightG").unwrap(),
+        PublicationField::WeightG
+    );
+    assert_eq!(
+        PublicationField::from_str("WeightOz").unwrap(),
+        PublicationField::WeightOz
     );
     assert!(PublicationField::from_str("PublicationID").is_err());
     assert!(PublicationField::from_str("Work Title").is_err());

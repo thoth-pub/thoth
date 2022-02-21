@@ -29,6 +29,19 @@ pub enum LengthUnit {
 
 #[cfg_attr(
     feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Unit of measurement for physical Work weight (grams or ounces)")
+)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[strum(serialize_all = "lowercase")]
+pub enum WeightUnit {
+    G,
+    Oz,
+}
+
+#[cfg_attr(
+    feature = "backend",
     derive(DieselNewType, juniper::GraphQLScalarValue),
     graphql(
         description = r#"Digital Object Identifier. Expressed as `^https:\/\/doi\.org\/10\.\d{4,9}\/[-._\;\(\)\/:a-zA-Z0-9]+$`"#
@@ -78,6 +91,12 @@ pub struct Timestamp(DateTime<Utc>);
 impl Default for LengthUnit {
     fn default() -> LengthUnit {
         LengthUnit::Mm
+    }
+}
+
+impl Default for WeightUnit {
+    fn default() -> WeightUnit {
+        WeightUnit::G
     }
 }
 
@@ -463,11 +482,12 @@ macro_rules! db_insert {
 }
 
 pub trait Convert {
-    fn convert_units_from_to(&self, current_units: &LengthUnit, new_units: &LengthUnit) -> f64;
+    fn convert_length_from_to(&self, current_units: &LengthUnit, new_units: &LengthUnit) -> f64;
+    fn convert_weight_from_to(&self, current_units: &WeightUnit, new_units: &WeightUnit) -> f64;
 }
 
 impl Convert for f64 {
-    fn convert_units_from_to(&self, current_units: &LengthUnit, new_units: &LengthUnit) -> f64 {
+    fn convert_length_from_to(&self, current_units: &LengthUnit, new_units: &LengthUnit) -> f64 {
         match (current_units, new_units) {
             // If current units and new units are the same, no conversion is needed
             (LengthUnit::Mm, LengthUnit::Mm)
@@ -488,6 +508,22 @@ impl Convert for f64 {
             (LengthUnit::In, LengthUnit::Mm) => (self * 25.4).round(),
             // We don't currently support conversion between cm and in as it is not required
             _ => unimplemented!(),
+        }
+    }
+
+    fn convert_weight_from_to(&self, current_units: &WeightUnit, new_units: &WeightUnit) -> f64 {
+        match (current_units, new_units) {
+            // If current units and new units are the same, no conversion is needed
+            (WeightUnit::G, WeightUnit::G) | (WeightUnit::Oz, WeightUnit::Oz) => *self,
+            // Return ounce values rounded to 4 decimal places (1 ounce = 28.349523125 grams)
+            (WeightUnit::G, WeightUnit::Oz) => {
+                let unrounded_ounces = self / 28.349523125;
+                // To round to a non-integer scale, multiply by the appropriate factor,
+                // round to the nearest integer, then divide again by the same factor
+                (unrounded_ounces * 10000.0).round() / 10000.0
+            }
+            // Return gram values rounded to nearest gram (1 ounce = 28.349523125 grams)
+            (WeightUnit::Oz, WeightUnit::G) => (self * 28.349523125).round(),
         }
     }
 }
@@ -741,74 +777,165 @@ fn test_ror_fromstr() {
 // Float equality comparison is fine here because the floats
 // have already been rounded by the functions under test
 #[allow(clippy::float_cmp)]
-fn test_convert_units_from_to() {
+fn test_convert_length_from_to() {
     use LengthUnit::*;
-    assert_eq!(123.456.convert_units_from_to(&Mm, &Cm), 12.3);
-    assert_eq!(123.456.convert_units_from_to(&Mm, &In), 4.86);
-    assert_eq!(123.456.convert_units_from_to(&Cm, &Mm), 1235.0);
-    assert_eq!(123.456.convert_units_from_to(&In, &Mm), 3136.0);
+    assert_eq!(123.456.convert_length_from_to(&Mm, &Cm), 12.3);
+    assert_eq!(123.456.convert_length_from_to(&Mm, &In), 4.86);
+    assert_eq!(123.456.convert_length_from_to(&Cm, &Mm), 1235.0);
+    assert_eq!(123.456.convert_length_from_to(&In, &Mm), 3136.0);
     // Test some standard print sizes
-    assert_eq!(4.25.convert_units_from_to(&In, &Mm), 108.0);
-    assert_eq!(108.0.convert_units_from_to(&Mm, &In), 4.25);
-    assert_eq!(6.0.convert_units_from_to(&In, &Mm), 152.0);
-    assert_eq!(152.0.convert_units_from_to(&Mm, &In), 5.98);
-    assert_eq!(8.5.convert_units_from_to(&In, &Mm), 216.0);
-    assert_eq!(216.0.convert_units_from_to(&Mm, &In), 8.5);
+    assert_eq!(4.25.convert_length_from_to(&In, &Mm), 108.0);
+    assert_eq!(108.0.convert_length_from_to(&Mm, &In), 4.25);
+    assert_eq!(6.0.convert_length_from_to(&In, &Mm), 152.0);
+    assert_eq!(152.0.convert_length_from_to(&Mm, &In), 5.98);
+    assert_eq!(8.5.convert_length_from_to(&In, &Mm), 216.0);
+    assert_eq!(216.0.convert_length_from_to(&Mm, &In), 8.5);
     // Test that converting and then converting back again
     // returns a value within a reasonable margin of error
     assert_eq!(
-        5.06.convert_units_from_to(&In, &Mm)
-            .convert_units_from_to(&Mm, &In),
+        5.06.convert_length_from_to(&In, &Mm)
+            .convert_length_from_to(&Mm, &In),
         5.08
     );
     assert_eq!(
-        6.5.convert_units_from_to(&In, &Mm)
-            .convert_units_from_to(&Mm, &In),
+        6.5.convert_length_from_to(&In, &Mm)
+            .convert_length_from_to(&Mm, &In),
         6.5
     );
     assert_eq!(
-        7.44.convert_units_from_to(&In, &Mm)
-            .convert_units_from_to(&Mm, &In),
+        7.44.convert_length_from_to(&In, &Mm)
+            .convert_length_from_to(&Mm, &In),
         7.44
     );
     assert_eq!(
-        8.27.convert_units_from_to(&In, &Mm)
-            .convert_units_from_to(&Mm, &In),
+        8.27.convert_length_from_to(&In, &Mm)
+            .convert_length_from_to(&Mm, &In),
         8.27
     );
     assert_eq!(
-        9.0.convert_units_from_to(&In, &Mm)
-            .convert_units_from_to(&Mm, &In),
+        9.0.convert_length_from_to(&In, &Mm)
+            .convert_length_from_to(&Mm, &In),
         9.02
     );
     assert_eq!(
         10.88
-            .convert_units_from_to(&In, &Mm)
-            .convert_units_from_to(&Mm, &In),
+            .convert_length_from_to(&In, &Mm)
+            .convert_length_from_to(&Mm, &In),
         10.87
     );
     assert_eq!(
         102.0
-            .convert_units_from_to(&Mm, &In)
-            .convert_units_from_to(&In, &Mm),
+            .convert_length_from_to(&Mm, &In)
+            .convert_length_from_to(&In, &Mm),
         102.0
     );
     assert_eq!(
         120.0
-            .convert_units_from_to(&Mm, &In)
-            .convert_units_from_to(&In, &Mm),
+            .convert_length_from_to(&Mm, &In)
+            .convert_length_from_to(&In, &Mm),
         120.0
     );
     assert_eq!(
         168.0
-            .convert_units_from_to(&Mm, &In)
-            .convert_units_from_to(&In, &Mm),
+            .convert_length_from_to(&Mm, &In)
+            .convert_length_from_to(&In, &Mm),
         168.0
     );
     assert_eq!(
         190.0
-            .convert_units_from_to(&Mm, &In)
-            .convert_units_from_to(&In, &Mm),
+            .convert_length_from_to(&Mm, &In)
+            .convert_length_from_to(&In, &Mm),
+        190.0
+    );
+}
+
+#[test]
+// Float equality comparison is fine here because the floats
+// have already been rounded by the functions under test
+#[allow(clippy::float_cmp)]
+fn test_convert_weight_from_to() {
+    use WeightUnit::*;
+    assert_eq!(123.456.convert_weight_from_to(&G, &Oz), 4.3548);
+    assert_eq!(123.456.convert_weight_from_to(&Oz, &G), 3500.0);
+    assert_eq!(4.25.convert_weight_from_to(&Oz, &G), 120.0);
+    assert_eq!(108.0.convert_weight_from_to(&G, &Oz), 3.8096);
+    assert_eq!(6.0.convert_weight_from_to(&Oz, &G), 170.0);
+    assert_eq!(152.0.convert_weight_from_to(&G, &Oz), 5.3616);
+    assert_eq!(8.5.convert_weight_from_to(&Oz, &G), 241.0);
+    assert_eq!(216.0.convert_weight_from_to(&G, &Oz), 7.6192);
+    // Test that converting and then converting back again
+    // returns a value within a reasonable margin of error
+    assert_eq!(
+        5.0.convert_weight_from_to(&Oz, &G)
+            .convert_weight_from_to(&G, &Oz),
+        5.0089
+    );
+    assert_eq!(
+        5.125
+            .convert_weight_from_to(&Oz, &G)
+            .convert_weight_from_to(&G, &Oz),
+        5.1147
+    );
+    assert_eq!(
+        6.5.convert_weight_from_to(&Oz, &G)
+            .convert_weight_from_to(&G, &Oz),
+        6.4904
+    );
+    assert_eq!(
+        7.25.convert_weight_from_to(&Oz, &G)
+            .convert_weight_from_to(&G, &Oz),
+        7.2664
+    );
+    assert_eq!(
+        7.44.convert_weight_from_to(&Oz, &G)
+            .convert_weight_from_to(&G, &Oz),
+        7.4428
+    );
+    assert_eq!(
+        8.0625
+            .convert_weight_from_to(&Oz, &G)
+            .convert_weight_from_to(&G, &Oz),
+        8.0777
+    );
+    assert_eq!(
+        9.0.convert_weight_from_to(&Oz, &G)
+            .convert_weight_from_to(&G, &Oz),
+        8.9949
+    );
+    assert_eq!(
+        10.75
+            .convert_weight_from_to(&Oz, &G)
+            .convert_weight_from_to(&G, &Oz),
+        10.7586
+    );
+    assert_eq!(
+        10.88
+            .convert_weight_from_to(&Oz, &G)
+            .convert_weight_from_to(&G, &Oz),
+        10.8644
+    );
+    assert_eq!(
+        102.0
+            .convert_weight_from_to(&G, &Oz)
+            .convert_weight_from_to(&Oz, &G),
+        102.0
+    );
+    assert_eq!(
+        120.0
+            .convert_weight_from_to(&G, &Oz)
+            .convert_weight_from_to(&Oz, &G),
+        120.0
+    );
+    assert_eq!(
+        168.0
+            .convert_weight_from_to(&G, &Oz)
+            .convert_weight_from_to(&Oz, &G),
+        168.0
+    );
+    assert_eq!(
+        190.0
+            .convert_weight_from_to(&G, &Oz)
+            .convert_weight_from_to(&Oz, &G),
         190.0
     );
 }

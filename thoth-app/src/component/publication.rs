@@ -1,6 +1,7 @@
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::location::Location;
 use thoth_api::model::price::Price;
+use thoth_api::model::publication::PublicationProperties;
 use thoth_api::model::publication::PublicationWithRelations;
 use uuid::Uuid;
 use yew::html;
@@ -253,6 +254,31 @@ impl Component for PublicationComponent {
                                 </div>
                             </div>
                         </form>
+
+                        {
+                            // Weight is only applicable to physical (Paperback/Hardback) publications.
+                            if self.publication.is_physical() {
+                                html! {
+                                    <>
+                                        <div class="field" style="width: 8em;">
+                                            <label class="label">{ "Weight (g)" }</label>
+                                            <div class="control is-expanded">
+                                                {&self.publication.weight_g.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                            </div>
+                                        </div>
+
+                                        <div class="field" style="width: 8em;">
+                                            <label class="label">{ "Weight (oz)" }</label>
+                                            <div class="control is-expanded">
+                                                {&self.publication.weight_oz.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                            </div>
+                                        </div>
+                                    </>
+                                }
+                            } else {
+                                html!{}
+                            }
+                        }
 
                         <hr/>
 

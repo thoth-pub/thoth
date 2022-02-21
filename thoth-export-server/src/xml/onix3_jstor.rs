@@ -736,6 +736,8 @@ mod tests {
                 publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
                 publication_type: PublicationType::PDF,
                 isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+                weight_g: None,
+                weight_oz: None,
                 prices: vec![],
                 locations: vec![WorkPublicationsLocations {
                     landing_page: Some("https://www.book.com/pdf_landing".to_string()),

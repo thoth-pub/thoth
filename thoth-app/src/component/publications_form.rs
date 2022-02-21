@@ -1,8 +1,11 @@
 use std::str::FromStr;
 use thoth_api::model::publication::Publication;
+use thoth_api::model::publication::PublicationProperties;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::work::WorkType;
+use thoth_api::model::Convert;
 use thoth_api::model::Isbn;
+use thoth_api::model::WeightUnit;
 use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
@@ -21,6 +24,7 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::component::utils::FormFloatInput;
 use crate::component::utils::FormPublicationTypeSelect;
 use crate::component::utils::FormTextInputExtended;
 use crate::models::publication::create_publication_mutation::CreatePublicationRequest;
@@ -43,6 +47,8 @@ use crate::string::EMPTY_PUBLICATIONS;
 use crate::string::REMOVE_BUTTON;
 use crate::string::VIEW_BUTTON;
 
+use super::ToOption;
+
 pub struct PublicationsFormComponent {
     props: Props,
     data: PublicationsFormData,
@@ -51,6 +57,7 @@ pub struct PublicationsFormComponent {
     isbn: String,
     isbn_warning: String,
     show_add_form: bool,
+    convert_weights: bool,
     fetch_publication_types: FetchPublicationTypes,
     push_publication: PushCreatePublication,
     delete_publication: PushDeletePublication,
@@ -66,6 +73,7 @@ struct PublicationsFormData {
 
 pub enum Msg {
     ToggleAddFormDisplay(bool),
+    ToggleWeightConversion,
     SetPublicationTypesFetchState(FetchActionPublicationTypes),
     GetPublicationTypes,
     SetPublicationPushState(PushActionCreatePublication),
@@ -74,6 +82,8 @@ pub enum Msg {
     DeletePublication(Uuid),
     ChangePublicationType(PublicationType),
     ChangeIsbn(String),
+    ChangeWeightG(String),
+    ChangeWeightOz(String),
     ChangeRoute(AppRoute),
 }
 
@@ -92,6 +102,7 @@ impl Component for PublicationsFormComponent {
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let data: PublicationsFormData = Default::default();
         let show_add_form = false;
+        let convert_weights = true;
         let new_publication: Publication = Default::default();
         let isbn = Default::default();
         let isbn_warning = Default::default();
@@ -109,6 +120,7 @@ impl Component for PublicationsFormComponent {
             isbn,
             isbn_warning,
             show_add_form,
+            convert_weights,
             fetch_publication_types: Default::default(),
             push_publication,
             delete_publication,
@@ -129,6 +141,10 @@ impl Component for PublicationsFormComponent {
                 self.isbn = Default::default();
                 self.isbn_warning = Default::default();
                 true
+            }
+            Msg::ToggleWeightConversion => {
+                self.convert_weights = !self.convert_weights;
+                false
             }
             Msg::SetPublicationTypesFetchState(fetch_state) => {
                 self.fetch_publication_types.apply(fetch_state);
@@ -192,11 +208,19 @@ impl Component for PublicationsFormComponent {
                 } else if let Ok(result) = self.isbn.parse::<Isbn>() {
                     self.new_publication.isbn.neq_assign(Some(result));
                 }
+                // Clear any fields which are not applicable to the currently selected publication type.
+                // (Do not clear them before the save point as the user may change the type again.)
+                if self.new_publication.is_digital() {
+                    self.new_publication.weight_g = None;
+                    self.new_publication.weight_oz = None;
+                }
                 let body = CreatePublicationRequestBody {
                     variables: Variables {
                         work_id: self.props.work_id,
                         publication_type: self.new_publication.publication_type.clone(),
                         isbn: self.new_publication.isbn.clone(),
+                        weight_g: self.new_publication.weight_g,
+                        weight_oz: self.new_publication.weight_oz,
                     },
                     ..Default::default()
                 };
@@ -282,6 +306,38 @@ impl Component for PublicationsFormComponent {
                     false
                 }
             }
+            Msg::ChangeWeightG(value) => {
+                let changed_value = self
+                    .new_publication
+                    .weight_g
+                    .neq_assign(value.to_opt_float());
+                if changed_value && self.convert_weights {
+                    let mut weight_oz = None;
+                    // Automatically update paired weight field with default conversion.
+                    if let Some(weight_g) = self.new_publication.weight_g {
+                        weight_oz =
+                            Some(weight_g.convert_weight_from_to(&WeightUnit::G, &WeightUnit::Oz));
+                    }
+                    self.new_publication.weight_oz.neq_assign(weight_oz);
+                }
+                changed_value
+            }
+            Msg::ChangeWeightOz(value) => {
+                let changed_value = self
+                    .new_publication
+                    .weight_oz
+                    .neq_assign(value.to_opt_float());
+                if changed_value && self.convert_weights {
+                    let mut weight_g = None;
+                    // Automatically update paired weight field with default conversion.
+                    if let Some(weight_oz) = self.new_publication.weight_oz {
+                        weight_g =
+                            Some(weight_oz.convert_weight_from_to(&WeightUnit::Oz, &WeightUnit::G));
+                    }
+                    self.new_publication.weight_g.neq_assign(weight_g);
+                }
+                changed_value
+            }
             Msg::ChangeRoute(r) => {
                 let route = Route::from(r);
                 self.router.send(RouteRequest::ChangeRoute(route));
@@ -358,6 +414,44 @@ impl Component for PublicationsFormComponent {
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeIsbn(e.value))
                                     deactivated=isbn_deactivated
                                 />
+                                {
+                                    // Weight can only be added for physical (Paperback/Hardback) publications.
+                                    if self.new_publication.is_physical() {
+                                        html! {
+                                            <>
+                                                <label class="checkbox">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked=self.convert_weights
+                                                        onchange=self.link.callback(|event| match event {
+                                                            ChangeData::Value(_) => Msg::ToggleWeightConversion,
+                                                            _ => unreachable!(),
+                                                        })
+                                                    />
+                                                    { "Automatically convert weight values" }
+                                                </label>
+                                                <div class="field is-horizontal">
+                                                    <div class="field-body">
+                                                        <FormFloatInput
+                                                            label = "Weight (g)"
+                                                            value=self.new_publication.weight_g
+                                                            oninput=self.link.callback(|e: InputData| Msg::ChangeWeightG(e.value))
+                                                            step="1".to_string()
+                                                        />
+                                                        <FormFloatInput
+                                                            label = "Weight (oz)"
+                                                            value=self.new_publication.weight_oz
+                                                            oninput=self.link.callback(|e: InputData| Msg::ChangeWeightOz(e.value))
+                                                            step="0.0001".to_string()
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </>
+                                        }
+                                    } else {
+                                        html!{}
+                                    }
+                                }
                             </form>
                         </section>
                         <footer class="modal-card-foot">
@@ -421,6 +515,20 @@ impl PublicationsFormComponent {
                         <label class="label">{ "ISBN" }</label>
                         <div class="control is-expanded">
                             {&p.isbn.as_ref().map(|s| s.to_string()).unwrap_or_else(|| "".to_string())}
+                        </div>
+                    </div>
+
+                    <div class="field" style="width: 8em;">
+                        <label class="label">{ "Weight (g)" }</label>
+                        <div class="control is-expanded">
+                            {&p.weight_g.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                        </div>
+                    </div>
+
+                    <div class="field" style="width: 8em;">
+                        <label class="label">{ "Weight (oz)" }</label>
+                        <div class="control is-expanded">
+                            {&p.weight_oz.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
                         </div>
                     </div>
 

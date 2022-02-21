@@ -17,6 +17,7 @@ use crate::model::issue::*;
 use crate::model::language::*;
 use crate::model::location::*;
 use crate::model::price::*;
+use crate::model::publication::crud::PublicationValidation;
 use crate::model::publication::*;
 use crate::model::publisher::*;
 use crate::model::series::*;
@@ -31,6 +32,7 @@ use crate::model::LengthUnit;
 use crate::model::Orcid;
 use crate::model::Ror;
 use crate::model::Timestamp;
+use crate::model::WeightUnit;
 use thoth_errors::{ThothError, ThothResult};
 
 use super::utils::Direction;
@@ -1354,9 +1356,7 @@ impl MutationRoot {
             .account_access
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
-        if !data.isbn.is_none() {
-            data.can_have_isbn(&context.db)?;
-        }
+        data.validate(&context.db)?;
 
         Publication::create(&context.db, &data).map_err(|e| e.into())
     }
@@ -1569,9 +1569,7 @@ impl MutationRoot {
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
 
-        if !data.isbn.is_none() {
-            data.can_have_isbn(&context.db)?;
-        }
+        data.validate(&context.db)?;
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         publication
@@ -2032,7 +2030,7 @@ impl Work {
     )]
     pub fn width(&self, units: LengthUnit) -> Option<f64> {
         self.width
-            .map(|w| w.convert_units_from_to(&LengthUnit::Mm, &units))
+            .map(|w| w.convert_length_from_to(&LengthUnit::Mm, &units))
     }
 
     #[graphql(
@@ -2046,7 +2044,7 @@ impl Work {
     )]
     pub fn height(&self, units: LengthUnit) -> Option<f64> {
         self.height
-            .map(|h| h.convert_units_from_to(&LengthUnit::Mm, &units))
+            .map(|h| h.convert_length_from_to(&LengthUnit::Mm, &units))
     }
 
     pub fn page_count(&self) -> Option<&i32> {
@@ -2475,6 +2473,22 @@ impl Publication {
 
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
+    }
+
+    #[graphql(
+        description = "Weight of the physical Publication (in g or oz) (only applicable to Paperbacks and Hardbacks)",
+        arguments(
+            units(
+                default = WeightUnit::default(),
+                description = "Unit of measurement in which to represent the weight (grams or ounces)",
+            ),
+        )
+    )]
+    pub fn weight(&self, units: WeightUnit) -> Option<f64> {
+        match units {
+            WeightUnit::G => self.weight_g,
+            WeightUnit::Oz => self.weight_oz,
+        }
     }
 
     #[graphql(

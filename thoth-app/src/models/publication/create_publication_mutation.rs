@@ -10,11 +10,16 @@ const CREATE_PUBLICATION_MUTATION: &str = "
         $publicationType: PublicationType!,
         $workId: Uuid!,
         $isbn: Isbn,
+        $weightG: Float,
+        $weightOz: Float,
     ) {
-        createPublication(data: {
+        createPublication(
+            data: {
             publicationType: $publicationType
             workId: $workId
             isbn: $isbn
+            weightG: $weightG
+            weightOz: $weightOz
         }){
             publicationId
             publicationType
@@ -22,6 +27,8 @@ const CREATE_PUBLICATION_MUTATION: &str = "
             isbn
             createdAt
             updatedAt
+            weightG: weight(units: G)
+            weightOz: weight(units: OZ)
         }
     }
 ";
@@ -43,6 +50,8 @@ pub struct Variables {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
+    pub weight_g: Option<f64>,
+    pub weight_oz: Option<f64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

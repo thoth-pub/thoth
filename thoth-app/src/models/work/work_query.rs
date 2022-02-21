@@ -86,6 +86,8 @@ pub const WORK_QUERY: &str = "
                 isbn
                 createdAt
                 updatedAt
+                weightG: weight(units: G)
+                weightOz: weight(units: OZ)
             }
             languages {
                 languageId

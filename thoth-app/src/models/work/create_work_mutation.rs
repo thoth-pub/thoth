@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 const CREATE_WORK_MUTATION: &str = "
     mutation CreateWork(
-        $units: LengthUnit!
+        $units: LengthUnit!,
         $workType: WorkType!,
         $workStatus: WorkStatus!,
         $fullTitle: String!,

@@ -177,8 +177,22 @@ impl Component for AdminComponent {
                                 AdminRoute::Works => html!{<WorksComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Books => html!{<BooksComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Chapters => html!{<ChaptersComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Work(id) => html!{<WorkComponent work_id = *id current_user = self.props.current_user.clone().unwrap() units_selection = self.units_selection.clone() update_units_selection = self.link.callback(Msg::UpdateLengthUnit) />},
-                                AdminRoute::NewWork => html!{<NewWorkComponent current_user = self.props.current_user.clone().unwrap() units_selection = self.units_selection.clone() update_units_selection = self.link.callback(Msg::UpdateLengthUnit) previous_route = self.previous_route.clone() />},
+                                AdminRoute::Work(id) => html!{
+                                    <WorkComponent
+                                        work_id = *id
+                                        current_user = self.props.current_user.clone().unwrap()
+                                        units_selection = self.units_selection.clone()
+                                        update_units_selection = self.link.callback(Msg::UpdateLengthUnit)
+                                    />
+                                },
+                                AdminRoute::NewWork => html!{
+                                    <NewWorkComponent
+                                        current_user = self.props.current_user.clone().unwrap()
+                                        units_selection = self.units_selection.clone()
+                                        update_units_selection = self.link.callback(Msg::UpdateLengthUnit)
+                                        previous_route = self.previous_route.clone()
+                                    />
+                                },
                                 AdminRoute::Publishers => html!{<PublishersComponent current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id = *id current_user = self.props.current_user.clone().unwrap() />},
                                 AdminRoute::NewPublisher => html!{<NewPublisherComponent/>},
@@ -189,7 +203,12 @@ impl Component for AdminComponent {
                                 AdminRoute::Institution(id) => html!{<InstitutionComponent institution_id = *id />},
                                 AdminRoute::NewInstitution => html!{<NewInstitutionComponent/>},
                                 AdminRoute::Publications => html!{<PublicationsComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Publication(id) => html!{<PublicationComponent publication_id= *id current_user = self.props.current_user.clone().unwrap() />},
+                                AdminRoute::Publication(id) => html!{
+                                    <PublicationComponent
+                                        publication_id = *id
+                                        current_user = self.props.current_user.clone().unwrap()
+                                    />
+                                },
                                 AdminRoute::NewPublication => {
                                     html!{
                                         <article class="message is-info">

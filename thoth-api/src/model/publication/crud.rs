@@ -1,6 +1,6 @@
 use super::{
     NewPublication, NewPublicationHistory, PatchPublication, Publication, PublicationField,
-    PublicationHistory, PublicationOrderBy, PublicationType,
+    PublicationHistory, PublicationOrderBy, PublicationProperties, PublicationType,
 };
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
@@ -45,6 +45,8 @@ impl Crud for Publication {
                 isbn,
                 created_at,
                 updated_at,
+                weight_g,
+                weight_oz,
             ))
             .into_boxed();
 
@@ -72,6 +74,14 @@ impl Crud for Publication {
             PublicationField::UpdatedAt => match order.direction {
                 Direction::Asc => query = query.order(updated_at.asc()),
                 Direction::Desc => query = query.order(updated_at.desc()),
+            },
+            PublicationField::WeightG => match order.direction {
+                Direction::Asc => query = query.order(weight_g.asc()),
+                Direction::Desc => query = query.order(weight_g.desc()),
+            },
+            PublicationField::WeightOz => match order.direction {
+                Direction::Asc => query = query.order(weight_oz.asc()),
+                Direction::Desc => query = query.order(weight_oz.desc()),
             },
         }
         if !publishers.is_empty() {
@@ -159,36 +169,40 @@ impl DbInsert for NewPublicationHistory {
     db_insert!(publication_history::table);
 }
 
-impl NewPublication {
-    pub fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        publication_can_have_isbn(self.work_id, db)
+pub trait PublicationValidation
+where
+    Self: PublicationProperties,
+{
+    fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        use crate::model::work::WorkType;
+        use diesel::prelude::*;
+
+        let connection = db.get().unwrap();
+        let work_type = crate::schema::work::table
+            .select(crate::schema::work::work_type)
+            .filter(crate::schema::work::work_id.eq(self.work_id()))
+            .first::<WorkType>(&connection)
+            .expect("Error loading work type for publication");
+        // If a publication's work is of type Book Chapter,
+        // it cannot have an ISBN.
+        if work_type == WorkType::BookChapter {
+            Err(ThothError::ChapterIsbnError)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn validate(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        if self.isbn().is_some() {
+            self.can_have_isbn(db)?;
+        }
+        self.weight_error()
     }
 }
 
-impl PatchPublication {
-    pub fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        publication_can_have_isbn(self.work_id, db)
-    }
-}
+impl PublicationValidation for NewPublication {}
 
-fn publication_can_have_isbn(work_id: Uuid, db: &crate::db::PgPool) -> ThothResult<()> {
-    use crate::model::work::WorkType;
-    use diesel::prelude::*;
-
-    let connection = db.get().unwrap();
-    let work_type = crate::schema::work::table
-        .select(crate::schema::work::work_type)
-        .filter(crate::schema::work::work_id.eq(work_id))
-        .first::<WorkType>(&connection)
-        .expect("Error loading work type for publication");
-    // If a publication's work is of type Book Chapter,
-    // it cannot have an ISBN.
-    if work_type == WorkType::BookChapter {
-        Err(ThothError::ChapterIsbnError)
-    } else {
-        Ok(())
-    }
-}
+impl PublicationValidation for PatchPublication {}
 
 #[cfg(test)]
 mod tests {
