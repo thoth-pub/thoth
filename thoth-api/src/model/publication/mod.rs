@@ -156,28 +156,38 @@ pub struct PublicationOrderBy {
     pub direction: Direction,
 }
 
-impl Publication {
-    pub fn is_physical(&self) -> bool {
-        publication_type_is_physical(&self.publication_type)
+impl PublicationType {
+    fn is_physical(&self) -> bool {
+        matches!(self, PublicationType::Paperback | PublicationType::Hardback)
     }
 
-    pub fn is_digital(&self) -> bool {
+    fn is_digital(&self) -> bool {
         !self.is_physical()
     }
 }
 
-impl PublicationWithRelations {
-    pub fn is_physical(&self) -> bool {
-        publication_type_is_physical(&self.publication_type)
+pub trait PublicationProperties {
+    fn publication_type(&self) -> &PublicationType;
+
+    fn is_physical(&self) -> bool {
+        self.publication_type().is_physical()
     }
 
-    pub fn is_digital(&self) -> bool {
-        !self.is_physical()
+    fn is_digital(&self) -> bool {
+        self.publication_type().is_digital()
     }
 }
 
-fn publication_type_is_physical(pub_type: &PublicationType) -> bool {
-    pub_type == &PublicationType::Paperback || pub_type == &PublicationType::Hardback
+impl PublicationProperties for Publication {
+    fn publication_type(&self) -> &PublicationType {
+        &self.publication_type
+    }
+}
+
+impl PublicationProperties for PublicationWithRelations {
+    fn publication_type(&self) -> &PublicationType {
+        &self.publication_type
+    }
 }
 
 impl Default for PublicationType {
@@ -189,6 +199,34 @@ impl Default for PublicationType {
 impl Default for PublicationField {
     fn default() -> Self {
         PublicationField::PublicationType
+    }
+}
+
+#[test]
+fn test_publicationproperties() {
+    let mut publication: Publication = Default::default();
+    for pub_type in [PublicationType::Paperback, PublicationType::Hardback] {
+        publication.publication_type = pub_type;
+        assert!(publication.publication_type.is_physical());
+        assert!(!publication.publication_type.is_digital());
+        assert!(publication.is_physical());
+        assert!(!publication.is_digital());
+    }
+    for pub_type in [
+        PublicationType::Azw3,
+        PublicationType::Docx,
+        PublicationType::Epub,
+        PublicationType::FictionBook,
+        PublicationType::Html,
+        PublicationType::Mobi,
+        PublicationType::Pdf,
+        PublicationType::Xml,
+    ] {
+        publication.publication_type = pub_type;
+        assert!(!publication.publication_type.is_physical());
+        assert!(publication.publication_type.is_digital());
+        assert!(!publication.is_physical());
+        assert!(publication.is_digital());
     }
 }
 

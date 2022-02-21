@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use thoth_api::model::publication::Publication;
+use thoth_api::model::publication::PublicationProperties;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::Convert;

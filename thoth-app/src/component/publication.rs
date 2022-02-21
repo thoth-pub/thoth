@@ -1,6 +1,7 @@
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::location::Location;
 use thoth_api::model::price::Price;
+use thoth_api::model::publication::PublicationProperties;
 use thoth_api::model::publication::PublicationWithRelations;
 use uuid::Uuid;
 use yew::html;
