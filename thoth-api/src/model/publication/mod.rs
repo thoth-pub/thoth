@@ -171,6 +171,7 @@ pub trait PublicationProperties {
     fn publication_type(&self) -> &PublicationType;
     fn weight_g(&self) -> Option<f64>;
     fn weight_oz(&self) -> Option<f64>;
+    fn isbn(&self) -> &Option<Isbn>;
 
     fn is_physical(&self) -> bool {
         self.publication_type().is_physical()
@@ -208,6 +209,10 @@ impl PublicationProperties for Publication {
     fn weight_oz(&self) -> Option<f64> {
         self.weight_oz
     }
+
+    fn isbn(&self) -> &Option<Isbn> {
+        &self.isbn
+    }
 }
 
 impl PublicationProperties for PublicationWithRelations {
@@ -221,6 +226,10 @@ impl PublicationProperties for PublicationWithRelations {
 
     fn weight_oz(&self) -> Option<f64> {
         self.weight_oz
+    }
+
+    fn isbn(&self) -> &Option<Isbn> {
+        &self.isbn
     }
 }
 
@@ -236,6 +245,10 @@ impl PublicationProperties for NewPublication {
     fn weight_oz(&self) -> Option<f64> {
         self.weight_oz
     }
+
+    fn isbn(&self) -> &Option<Isbn> {
+        &self.isbn
+    }
 }
 
 impl PublicationProperties for PatchPublication {
@@ -249,6 +262,10 @@ impl PublicationProperties for PatchPublication {
 
     fn weight_oz(&self) -> Option<f64> {
         self.weight_oz
+    }
+
+    fn isbn(&self) -> &Option<Isbn> {
+        &self.isbn
     }
 }
 

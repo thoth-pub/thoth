@@ -1,6 +1,6 @@
 use super::{
     NewPublication, NewPublicationHistory, PatchPublication, Publication, PublicationField,
-    PublicationHistory, PublicationOrderBy, PublicationType,
+    PublicationHistory, PublicationOrderBy, PublicationProperties, PublicationType,
 };
 use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
@@ -169,14 +169,27 @@ impl DbInsert for NewPublicationHistory {
     db_insert!(publication_history::table);
 }
 
-impl NewPublication {
-    pub fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+pub trait PublicationValidation
+where
+    Self: PublicationProperties,
+{
+    fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()>;
+    fn validate(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        if self.isbn().is_some() {
+            self.can_have_isbn(db)?;
+        }
+        self.weight_error()
+    }
+}
+
+impl PublicationValidation for NewPublication {
+    fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
         publication_can_have_isbn(self.work_id, db)
     }
 }
 
-impl PatchPublication {
-    pub fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+impl PublicationValidation for PatchPublication {
+    fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
         publication_can_have_isbn(self.work_id, db)
     }
 }
