@@ -62,6 +62,10 @@ pub enum ThothError {
     RorEmptyError,
     #[fail(display = "Works of type Book Chapter cannot have ISBNs in their Publications.")]
     ChapterIsbnError,
+    #[fail(
+        display = "Works of type Book Chapter cannot have Width, Height, Depth or Weight in their Publications."
+    )]
+    ChapterDimensionError,
     #[fail(display = "Each Publication must have exactly one canonical Location.")]
     CanonicalLocationError,
     #[fail(
@@ -70,8 +74,16 @@ pub enum ThothError {
     LocationUrlError,
     #[fail(display = "When specifying Weight, both values (g and oz) must be supplied.")]
     WeightEmptyError,
-    #[fail(display = "Weight is only applicable to physical (Paperback/Hardback) Publications.")]
-    WeightDigitalError,
+    #[fail(display = "When specifying Width, both values (mm and in) must be supplied.")]
+    WidthEmptyError,
+    #[fail(display = "When specifying Height, both values (mm and in) must be supplied.")]
+    HeightEmptyError,
+    #[fail(display = "When specifying Depth, both values (mm and in) must be supplied.")]
+    DepthEmptyError,
+    #[fail(
+        display = "Width/Height/Depth/Weight are only applicable to physical (Paperback/Hardback) Publications."
+    )]
+    DimensionDigitalError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]

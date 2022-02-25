@@ -1310,13 +1310,13 @@ pub struct MutationRoot;
 
 #[juniper::object(Context = Context)]
 impl MutationRoot {
-    fn create_work(context: &Context, data: NewWork, units: LengthUnit) -> FieldResult<Work> {
+    fn create_work(context: &Context, data: NewWork) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
             .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
 
-        Work::create_with_units(&context.db, data, units).map_err(|e| e.into())
+        Work::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_publisher(context: &Context, data: NewPublisher) -> FieldResult<Publisher> {
@@ -1473,7 +1473,7 @@ impl MutationRoot {
         WorkRelation::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn update_work(context: &Context, data: PatchWork, units: LengthUnit) -> FieldResult<Work> {
+    fn update_work(context: &Context, data: PatchWork) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let work = Work::from_id(&context.db, &data.work_id).unwrap();
         context
@@ -1492,7 +1492,7 @@ impl MutationRoot {
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        work.update_with_units(&context.db, data, &account_id, units)
+        work.update(&context.db, &data, &account_id)
             .map_err(|e| e.into())
     }
 
@@ -2019,34 +2019,6 @@ impl Work {
         self.place.as_ref()
     }
 
-    #[graphql(
-        description = "Width of the physical Work (in mm, cm or in) (not applicable to chapters)",
-        arguments(
-            units(
-                default = LengthUnit::default(),
-                description = "Unit of measurement in which to represent the width (mm, cm or in)",
-            ),
-        )
-    )]
-    pub fn width(&self, units: LengthUnit) -> Option<f64> {
-        self.width
-            .map(|w| w.convert_length_from_to(&LengthUnit::Mm, &units))
-    }
-
-    #[graphql(
-        description = "Height of the physical Work (in mm, cm or in) (not applicable to chapters)",
-        arguments(
-            units(
-                default = LengthUnit::default(),
-                description = "Unit of measurement in which to represent the height (mm, cm or in)",
-            ),
-        )
-    )]
-    pub fn height(&self, units: LengthUnit) -> Option<f64> {
-        self.height
-            .map(|h| h.convert_length_from_to(&LengthUnit::Mm, &units))
-    }
-
     pub fn page_count(&self) -> Option<&i32> {
         self.page_count.as_ref()
     }
@@ -2476,7 +2448,64 @@ impl Publication {
     }
 
     #[graphql(
-        description = "Weight of the physical Publication (in g or oz) (only applicable to Paperbacks and Hardbacks)",
+        description = "Width of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)",
+        arguments(
+            units(
+                default = LengthUnit::default(),
+                description = "Unit of measurement in which to represent the width (mm, cm or in)",
+            ),
+        )
+    )]
+    pub fn width(&self, units: LengthUnit) -> Option<f64> {
+        match units {
+            LengthUnit::Mm => self.width_mm,
+            LengthUnit::Cm => self
+                .width_mm
+                .map(|w| w.convert_length_from_to(&LengthUnit::Mm, &LengthUnit::Cm)),
+            LengthUnit::In => self.width_in,
+        }
+    }
+
+    #[graphql(
+        description = "Height of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)",
+        arguments(
+            units(
+                default = LengthUnit::default(),
+                description = "Unit of measurement in which to represent the height (mm, cm or in)",
+            ),
+        )
+    )]
+    pub fn height(&self, units: LengthUnit) -> Option<f64> {
+        match units {
+            LengthUnit::Mm => self.height_mm,
+            LengthUnit::Cm => self
+                .height_mm
+                .map(|w| w.convert_length_from_to(&LengthUnit::Mm, &LengthUnit::Cm)),
+            LengthUnit::In => self.height_in,
+        }
+    }
+
+    #[graphql(
+        description = "Depth of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)",
+        arguments(
+            units(
+                default = LengthUnit::default(),
+                description = "Unit of measurement in which to represent the depth (mm, cm or in)",
+            ),
+        )
+    )]
+    pub fn depth(&self, units: LengthUnit) -> Option<f64> {
+        match units {
+            LengthUnit::Mm => self.depth_mm,
+            LengthUnit::Cm => self
+                .depth_mm
+                .map(|w| w.convert_length_from_to(&LengthUnit::Mm, &LengthUnit::Cm)),
+            LengthUnit::In => self.depth_in,
+        }
+    }
+
+    #[graphql(
+        description = "Weight of the physical Publication (in g or oz) (only applicable to non-Chapter Paperbacks and Hardbacks)",
         arguments(
             units(
                 default = WeightUnit::default(),
