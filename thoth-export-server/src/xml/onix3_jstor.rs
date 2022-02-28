@@ -49,7 +49,7 @@ impl XmlSpecification for Onix3Jstor {
                     for work in works.iter() {
                         // Do not include Chapters in full publisher metadata record
                         // (assumes that a publisher will always have more than one work)
-                        if !(work.work_type == WorkType::BOOK_CHAPTER) {
+                        if work.work_type != WorkType::BOOK_CHAPTER {
                             XmlElementBlock::<Onix3Jstor>::xml_element(work, w).ok();
                         }
                     }
@@ -395,15 +395,15 @@ fn get_publications_data(publications: &[WorkPublications]) -> (String, Vec<Stri
 
     for publication in publications {
         if let Some(isbn) = &publication.isbn.as_ref().map(|i| i.to_string()) {
-            isbns.push(isbn.replace("-", ""));
+            isbns.push(isbn.replace('-', ""));
             // The default product ISBN is the PDF's
             if publication.publication_type.eq(&PublicationType::PDF) {
-                main_isbn = isbn.replace("-", "");
+                main_isbn = isbn.replace('-', "");
             }
             // Books that don't have a PDF ISBN will use the paperback's
             if publication.publication_type.eq(&PublicationType::PAPERBACK) && main_isbn.is_empty()
             {
-                main_isbn = isbn.replace("-", "");
+                main_isbn = isbn.replace('-', "");
             }
         }
     }
