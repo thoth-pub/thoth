@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [#341](https://github.com/thoth-pub/thoth/issues/341) - Add weight to publication
 
+### Changed
+  - Tidied verbose bools and single-character strings to comply with [`rustc 1.59.0`](https://github.com/rust-lang/rust/releases/tag/1.59.0)
+
 ## [[0.7.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.7.2) - 2022-02-08
 ### Changed
   - [#339](https://github.com/thoth-pub/thoth/pull/339) - Update publication types to include AZW3, DOCX and FictionBook

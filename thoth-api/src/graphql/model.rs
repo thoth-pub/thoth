@@ -1480,7 +1480,7 @@ impl MutationRoot {
             .account_access
             .can_edit(work.publisher_id(&context.db)?)?;
 
-        if !(data.imprint_id == work.imprint_id) {
+        if data.imprint_id != work.imprint_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
@@ -1501,7 +1501,7 @@ impl MutationRoot {
         let publisher = Publisher::from_id(&context.db, &data.publisher_id).unwrap();
         context.account_access.can_edit(publisher.publisher_id)?;
 
-        if !(data.publisher_id == publisher.publisher_id) {
+        if data.publisher_id != publisher.publisher_id {
             context.account_access.can_edit(data.publisher_id)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
@@ -1517,7 +1517,7 @@ impl MutationRoot {
             .account_access
             .can_edit(imprint.publisher_id(&context.db)?)?;
 
-        if !(data.publisher_id == imprint.publisher_id) {
+        if data.publisher_id != imprint.publisher_id {
             context.account_access.can_edit(data.publisher_id)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
@@ -1545,7 +1545,7 @@ impl MutationRoot {
             .account_access
             .can_edit(contribution.publisher_id(&context.db)?)?;
 
-        if !(data.work_id == contribution.work_id) {
+        if data.work_id != contribution.work_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
@@ -1563,7 +1563,7 @@ impl MutationRoot {
             .account_access
             .can_edit(publication.publisher_id(&context.db)?)?;
 
-        if !(data.work_id == publication.work_id) {
+        if data.work_id != publication.work_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
@@ -1584,7 +1584,7 @@ impl MutationRoot {
             .account_access
             .can_edit(series.publisher_id(&context.db)?)?;
 
-        if !(data.imprint_id == series.imprint_id) {
+        if data.imprint_id != series.imprint_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
@@ -1604,7 +1604,7 @@ impl MutationRoot {
 
         data.imprints_match(&context.db)?;
 
-        if !(data.work_id == issue.work_id) {
+        if data.work_id != issue.work_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
@@ -1622,7 +1622,7 @@ impl MutationRoot {
             .account_access
             .can_edit(language.publisher_id(&context.db)?)?;
 
-        if !(data.work_id == language.work_id) {
+        if data.work_id != language.work_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
@@ -1650,7 +1650,7 @@ impl MutationRoot {
             .account_access
             .can_edit(funding.publisher_id(&context.db)?)?;
 
-        if !(data.work_id == funding.work_id) {
+        if data.work_id != funding.work_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
@@ -1669,7 +1669,7 @@ impl MutationRoot {
             .account_access
             .can_edit(location.publisher_id(&context.db)?)?;
 
-        if !(data.publication_id == location.publication_id) {
+        if data.publication_id != location.publication_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_publication_id(
@@ -1678,7 +1678,7 @@ impl MutationRoot {
                 )?)?;
         }
 
-        if !(data.canonical == location.canonical) {
+        if data.canonical != location.canonical {
             // Each publication must have exactly one canonical location.
             // Updating an existing location would always violate this,
             // as it should always result in either zero or two canonical locations.
@@ -1702,7 +1702,7 @@ impl MutationRoot {
             .account_access
             .can_edit(price.publisher_id(&context.db)?)?;
 
-        if !(data.publication_id == price.publication_id) {
+        if data.publication_id != price.publication_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_publication_id(
@@ -1724,7 +1724,7 @@ impl MutationRoot {
             .account_access
             .can_edit(subject.publisher_id(&context.db)?)?;
 
-        if !(data.work_id == subject.work_id) {
+        if data.work_id != subject.work_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
@@ -1745,7 +1745,7 @@ impl MutationRoot {
             .account_access
             .can_edit(affiliation.publisher_id(&context.db)?)?;
 
-        if !(data.contribution_id == affiliation.contribution_id) {
+        if data.contribution_id != affiliation.contribution_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_contribution_id(
@@ -1777,13 +1777,13 @@ impl MutationRoot {
             work_relation.related_work_id,
         )?)?;
 
-        if !(data.relator_work_id == work_relation.relator_work_id) {
+        if data.relator_work_id != work_relation.relator_work_id {
             context.account_access.can_edit(publisher_id_from_work_id(
                 &context.db,
                 data.relator_work_id,
             )?)?;
         }
-        if !(data.related_work_id == work_relation.related_work_id) {
+        if data.related_work_id != work_relation.related_work_id {
             context.account_access.can_edit(publisher_id_from_work_id(
                 &context.db,
                 data.related_work_id,
