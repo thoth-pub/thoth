@@ -12,6 +12,12 @@ const CREATE_PUBLICATION_MUTATION: &str = "
         $isbn: Isbn,
         $weightG: Float,
         $weightOz: Float,
+        $widthMm: Float,
+        $widthIn: Float,
+        $heightMm: Float,
+        $heightIn: Float,
+        $depthMm: Float,
+        $depthIn: Float,
     ) {
         createPublication(
             data: {
@@ -20,6 +26,12 @@ const CREATE_PUBLICATION_MUTATION: &str = "
             isbn: $isbn
             weightG: $weightG
             weightOz: $weightOz
+            widthMm: $widthMm
+            widthIn: $widthIn
+            heightMm: $heightMm
+            heightIn: $heightIn
+            depthMm: $depthMm
+            depthIn: $depthIn
         }){
             publicationId
             publicationType
@@ -29,6 +41,12 @@ const CREATE_PUBLICATION_MUTATION: &str = "
             updatedAt
             weightG: weight(units: G)
             weightOz: weight(units: OZ)
+            widthMm: width(units: MM)
+            widthIn: width(units: IN)
+            heightMm: height(units: MM)
+            heightIn: height(units: IN)
+            depthMm: depth(units: MM)
+            depthIn: depth(units: IN)
         }
     }
 ";
@@ -50,6 +68,12 @@ pub struct Variables {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
+    pub width_mm: Option<f64>,
+    pub width_in: Option<f64>,
+    pub height_mm: Option<f64>,
+    pub height_in: Option<f64>,
+    pub depth_mm: Option<f64>,
+    pub depth_in: Option<f64>,
     pub weight_g: Option<f64>,
     pub weight_oz: Option<f64>,
 }

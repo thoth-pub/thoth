@@ -2,15 +2,13 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::model::imprint::ImprintWithPublisher;
 use thoth_api::model::work::WorkWithRelations;
-use thoth_api::model::LengthUnit;
 use uuid::Uuid;
 
-use super::LengthUnitDefinition;
 use super::WorkStatusDefinition;
 use super::WorkTypeDefinition;
 
 pub const WORK_QUERY: &str = "
-    query WorkQuery($workId: Uuid!, $publishers: [Uuid!], $units: LengthUnit) {
+    query WorkQuery($workId: Uuid!, $publishers: [Uuid!]) {
         work(workId: $workId) {
             workId
             workType
@@ -23,8 +21,6 @@ pub const WORK_QUERY: &str = "
             doi
             publicationDate
             place
-            width(units: $units)
-            height(units: $units)
             pageCount
             pageBreakdown
             imageCount
@@ -88,6 +84,12 @@ pub const WORK_QUERY: &str = "
                 updatedAt
                 weightG: weight(units: G)
                 weightOz: weight(units: OZ)
+                widthMm: width(units: MM)
+                widthIn: width(units: IN)
+                heightMm: height(units: MM)
+                heightIn: height(units: IN)
+                depthMm: depth(units: MM)
+                depthIn: depth(units: IN)
             }
             languages {
                 languageId
@@ -178,11 +180,6 @@ pub const WORK_QUERY: &str = "
                 updatedAt
             }
         }
-        length_units: __type(name: \"LengthUnit\") {
-            enumValues {
-                name
-            }
-        }
         work_types: __type(name: \"WorkType\") {
             enumValues {
                 name
@@ -212,14 +209,12 @@ graphql_query_builder! {
 pub struct Variables {
     pub work_id: Option<Uuid>,
     pub publishers: Option<Vec<String>>,
-    pub units: LengthUnit,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct WorkResponseData {
     pub work: Option<WorkWithRelations>,
     pub imprints: Vec<ImprintWithPublisher>,
-    pub length_units: LengthUnitDefinition,
     pub work_types: WorkTypeDefinition,
     pub work_statuses: WorkStatusDefinition,
 }
