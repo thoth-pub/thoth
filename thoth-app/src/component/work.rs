@@ -11,7 +11,7 @@ use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
-use thoth_api::model::{Doi, LengthUnit, DOI_DOMAIN};
+use thoth_api::model::{Doi, DOI_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
@@ -39,9 +39,7 @@ use crate::component::publications_form::PublicationsFormComponent;
 use crate::component::related_works_form::RelatedWorksFormComponent;
 use crate::component::subjects_form::SubjectsFormComponent;
 use crate::component::utils::FormDateInput;
-use crate::component::utils::FormFloatInput;
 use crate::component::utils::FormImprintSelect;
-use crate::component::utils::FormLengthUnitSelect;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormTextInput;
 use crate::component::utils::FormTextInputExtended;
@@ -65,7 +63,6 @@ use crate::models::work::work_query::FetchWork;
 use crate::models::work::work_query::Variables;
 use crate::models::work::work_query::WorkRequest;
 use crate::models::work::work_query::WorkRequestBody;
-use crate::models::work::LengthUnitValues;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
 use crate::route::AdminRoute;
@@ -99,7 +96,6 @@ struct WorkFormData {
     imprints: Vec<ImprintWithPublisher>,
     work_types: Vec<WorkTypeValues>,
     work_statuses: Vec<WorkStatusValues>,
-    length_units: Vec<LengthUnitValues>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -120,9 +116,6 @@ pub enum Msg {
     ChangeDoi(String),
     ChangeDate(String),
     ChangePlace(String),
-    ChangeWidth(String),
-    ChangeHeight(String),
-    ChangeLengthUnit(LengthUnit),
     ChangePageCount(String),
     ChangePageBreakdown(String),
     ChangeFirstPage(String),
@@ -156,8 +149,6 @@ pub enum Msg {
 pub struct Props {
     pub work_id: Uuid,
     pub current_user: AccountDetails,
-    pub units_selection: LengthUnit,
-    pub update_units_selection: Callback<LengthUnit>,
 }
 
 impl Component for WorkComponent {
@@ -213,7 +204,6 @@ impl Component for WorkComponent {
                         self.imprint_id = self.work.imprint.imprint_id;
                         self.work_type = self.work.work_type.clone();
                         self.data.imprints = body.data.imprints.to_owned();
-                        self.data.length_units = body.data.length_units.enum_values.to_owned();
                         self.data.work_types = body.data.work_types.enum_values.to_owned();
                         self.data.work_statuses = body.data.work_statuses.enum_values.to_owned();
 
@@ -239,7 +229,6 @@ impl Component for WorkComponent {
                     variables: Variables {
                         work_id: Some(self.props.work_id),
                         publishers: self.props.current_user.resource_access.restricted_to(),
-                        units: self.props.units_selection.clone(),
                     },
                     ..Default::default()
                 };
@@ -264,12 +253,6 @@ impl Component for WorkComponent {
                             self.doi_warning.clear();
                             self.imprint_id = self.work.imprint.imprint_id;
                             self.work_type = self.work.work_type.clone();
-                            if self.props.units_selection == LengthUnit::In {
-                                // User-entered dimensions may have been rounded on save due to
-                                // conversion to mm - update display with database values
-                                self.work.width = w.width;
-                                self.work.height = w.height;
-                            }
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
@@ -306,8 +289,6 @@ impl Component for WorkComponent {
                 // (Do not clear them before the save point as the user may change the type again.)
                 if self.work.work_type == WorkType::BookChapter {
                     self.work.edition = None;
-                    self.work.width = None;
-                    self.work.height = None;
                     self.work.toc = None;
                     self.work.lccn = None;
                     self.work.oclc = None;
@@ -330,8 +311,6 @@ impl Component for WorkComponent {
                         doi: self.work.doi.clone(),
                         publication_date: self.work.publication_date.clone(),
                         place: self.work.place.clone(),
-                        width: self.work.width,
-                        height: self.work.height,
                         page_count: self.work.page_count,
                         page_breakdown: self.work.page_breakdown.clone(),
                         image_count: self.work.image_count,
@@ -349,7 +328,6 @@ impl Component for WorkComponent {
                         toc: self.work.toc.clone(),
                         cover_url: self.work.cover_url.clone(),
                         cover_caption: self.work.cover_caption.clone(),
-                        units: self.props.units_selection.clone(),
                         first_page: self.work.first_page.clone(),
                         last_page: self.work.last_page.clone(),
                         page_interval: self.work.page_interval.clone(),
@@ -469,15 +447,6 @@ impl Component for WorkComponent {
             }
             Msg::ChangeDate(value) => self.work.publication_date.neq_assign(value.to_opt_string()),
             Msg::ChangePlace(value) => self.work.place.neq_assign(value.to_opt_string()),
-            Msg::ChangeWidth(value) => self.work.width.neq_assign(value.to_opt_float()),
-            Msg::ChangeHeight(value) => self.work.height.neq_assign(value.to_opt_float()),
-            Msg::ChangeLengthUnit(length_unit) => {
-                self.props.update_units_selection.emit(length_unit);
-                // Callback will prompt parent to update this component's props.
-                // This will trigger a re-render in change(), so not necessary
-                // to also re-render here.
-                false
-            }
             Msg::ChangePageCount(value) => self.work.page_count.neq_assign(value.to_opt_int()),
             Msg::ChangePageBreakdown(value) => {
                 self.work.page_breakdown.neq_assign(value.to_opt_string())
@@ -546,12 +515,10 @@ impl Component for WorkComponent {
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         let updated_permissions =
             self.props.current_user.resource_access != props.current_user.resource_access;
-        let updated_units = self.props.units_selection != props.units_selection;
         let updated_work = self.props.work_id != props.work_id;
         self.props = props;
-        if updated_permissions || updated_units || updated_work {
+        if updated_permissions || updated_work {
             // Required in order to retrieve updated list of imprints for dropdown
-            // and/or Width/Height values in the newly-selected units
             // and/or full work if we have navigated direct from another Work page.
             self.link.send_message(Msg::GetWork);
         }
@@ -585,13 +552,6 @@ impl Component for WorkComponent {
                 {
                     true => vec![WorkType::BookChapter],
                     false => vec![],
-                };
-                // Restrict the number of decimal places the user can enter for width/height values
-                // based on currently selected units.
-                let step = match self.props.units_selection {
-                    LengthUnit::Mm => "1".to_string(),
-                    LengthUnit::Cm => "0.1".to_string(),
-                    LengthUnit::In => "0.01".to_string(),
                 };
                 // Grey out chapter-specific or "book"-specific fields
                 // based on currently selected work type.
@@ -736,37 +696,6 @@ impl Component for WorkComponent {
                                         value=self.work.oclc.clone()
                                         oninput=self.link.callback(|e: InputData| Msg::ChangeOclc(e.value))
                                         deactivated = is_chapter
-                                    />
-                                </div>
-                            </div>
-                            <div class="field is-horizontal">
-                                <div class="field-body">
-                                    <FormFloatInput
-                                        label = "Width"
-                                        value=self.work.width
-                                        oninput=self.link.callback(|e: InputData| Msg::ChangeWidth(e.value))
-                                        step=step.clone()
-                                        deactivated = is_chapter
-                                    />
-                                    <FormFloatInput
-                                        label = "Height"
-                                        value=self.work.height
-                                        oninput=self.link.callback(|e: InputData| Msg::ChangeHeight(e.value))
-                                        step=step.clone()
-                                        deactivated = is_chapter
-                                    />
-                                    <FormLengthUnitSelect
-                                        label = "Units"
-                                        value=self.props.units_selection.clone()
-                                        data=self.data.length_units.clone()
-                                        onchange=self.link.callback(|event| match event {
-                                            ChangeData::Select(elem) => {
-                                                let value = elem.value();
-                                                Msg::ChangeLengthUnit(LengthUnit::from_str(&value).unwrap())
-                                            }
-                                            _ => unreachable!(),
-                                        })
-                                        required = true
                                     />
                                     <FormTextInput
                                         label = "Internal Reference"

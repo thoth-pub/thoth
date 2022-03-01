@@ -11,6 +11,14 @@ pub const PUBLICATION_QUERY: &str = "
             workId
             isbn
             updatedAt
+            weightG: weight(units: G)
+            weightOz: weight(units: OZ)
+            widthMm: width(units: MM)
+            widthIn: width(units: IN)
+            heightMm: height(units: MM)
+            heightIn: height(units: IN)
+            depthMm: depth(units: MM)
+            depthIn: depth(units: IN)
             prices {
                 priceId
                 publicationId

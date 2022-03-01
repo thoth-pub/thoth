@@ -17,6 +17,7 @@ use crate::model::issue::*;
 use crate::model::language::*;
 use crate::model::location::*;
 use crate::model::price::*;
+use crate::model::publication::crud::PublicationValidation;
 use crate::model::publication::*;
 use crate::model::publisher::*;
 use crate::model::series::*;
@@ -31,6 +32,7 @@ use crate::model::LengthUnit;
 use crate::model::Orcid;
 use crate::model::Ror;
 use crate::model::Timestamp;
+use crate::model::WeightUnit;
 use thoth_errors::{ThothError, ThothResult};
 
 use super::utils::Direction;
@@ -1308,13 +1310,13 @@ pub struct MutationRoot;
 
 #[juniper::object(Context = Context)]
 impl MutationRoot {
-    fn create_work(context: &Context, data: NewWork, units: LengthUnit) -> FieldResult<Work> {
+    fn create_work(context: &Context, data: NewWork) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         context
             .account_access
             .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
 
-        Work::create_with_units(&context.db, data, units).map_err(|e| e.into())
+        Work::create(&context.db, &data).map_err(|e| e.into())
     }
 
     fn create_publisher(context: &Context, data: NewPublisher) -> FieldResult<Publisher> {
@@ -1354,9 +1356,7 @@ impl MutationRoot {
             .account_access
             .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
 
-        if !data.isbn.is_none() {
-            data.can_have_isbn(&context.db)?;
-        }
+        data.validate(&context.db)?;
 
         Publication::create(&context.db, &data).map_err(|e| e.into())
     }
@@ -1473,14 +1473,14 @@ impl MutationRoot {
         WorkRelation::create(&context.db, &data).map_err(|e| e.into())
     }
 
-    fn update_work(context: &Context, data: PatchWork, units: LengthUnit) -> FieldResult<Work> {
+    fn update_work(context: &Context, data: PatchWork) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let work = Work::from_id(&context.db, &data.work_id).unwrap();
         context
             .account_access
             .can_edit(work.publisher_id(&context.db)?)?;
 
-        if !(data.imprint_id == work.imprint_id) {
+        if data.imprint_id != work.imprint_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
@@ -1492,7 +1492,7 @@ impl MutationRoot {
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        work.update_with_units(&context.db, data, &account_id, units)
+        work.update(&context.db, &data, &account_id)
             .map_err(|e| e.into())
     }
 
@@ -1501,7 +1501,7 @@ impl MutationRoot {
         let publisher = Publisher::from_id(&context.db, &data.publisher_id).unwrap();
         context.account_access.can_edit(publisher.publisher_id)?;
 
-        if !(data.publisher_id == publisher.publisher_id) {
+        if data.publisher_id != publisher.publisher_id {
             context.account_access.can_edit(data.publisher_id)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
@@ -1517,7 +1517,7 @@ impl MutationRoot {
             .account_access
             .can_edit(imprint.publisher_id(&context.db)?)?;
 
-        if !(data.publisher_id == imprint.publisher_id) {
+        if data.publisher_id != imprint.publisher_id {
             context.account_access.can_edit(data.publisher_id)?;
         }
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
@@ -1545,7 +1545,7 @@ impl MutationRoot {
             .account_access
             .can_edit(contribution.publisher_id(&context.db)?)?;
 
-        if !(data.work_id == contribution.work_id) {
+        if data.work_id != contribution.work_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
@@ -1563,15 +1563,13 @@ impl MutationRoot {
             .account_access
             .can_edit(publication.publisher_id(&context.db)?)?;
 
-        if !(data.work_id == publication.work_id) {
+        if data.work_id != publication.work_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
         }
 
-        if !data.isbn.is_none() {
-            data.can_have_isbn(&context.db)?;
-        }
+        data.validate(&context.db)?;
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         publication
@@ -1586,7 +1584,7 @@ impl MutationRoot {
             .account_access
             .can_edit(series.publisher_id(&context.db)?)?;
 
-        if !(data.imprint_id == series.imprint_id) {
+        if data.imprint_id != series.imprint_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
@@ -1606,7 +1604,7 @@ impl MutationRoot {
 
         data.imprints_match(&context.db)?;
 
-        if !(data.work_id == issue.work_id) {
+        if data.work_id != issue.work_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
@@ -1624,7 +1622,7 @@ impl MutationRoot {
             .account_access
             .can_edit(language.publisher_id(&context.db)?)?;
 
-        if !(data.work_id == language.work_id) {
+        if data.work_id != language.work_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
@@ -1652,7 +1650,7 @@ impl MutationRoot {
             .account_access
             .can_edit(funding.publisher_id(&context.db)?)?;
 
-        if !(data.work_id == funding.work_id) {
+        if data.work_id != funding.work_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
@@ -1671,7 +1669,7 @@ impl MutationRoot {
             .account_access
             .can_edit(location.publisher_id(&context.db)?)?;
 
-        if !(data.publication_id == location.publication_id) {
+        if data.publication_id != location.publication_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_publication_id(
@@ -1680,7 +1678,7 @@ impl MutationRoot {
                 )?)?;
         }
 
-        if !(data.canonical == location.canonical) {
+        if data.canonical != location.canonical {
             // Each publication must have exactly one canonical location.
             // Updating an existing location would always violate this,
             // as it should always result in either zero or two canonical locations.
@@ -1704,7 +1702,7 @@ impl MutationRoot {
             .account_access
             .can_edit(price.publisher_id(&context.db)?)?;
 
-        if !(data.publication_id == price.publication_id) {
+        if data.publication_id != price.publication_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_publication_id(
@@ -1726,7 +1724,7 @@ impl MutationRoot {
             .account_access
             .can_edit(subject.publisher_id(&context.db)?)?;
 
-        if !(data.work_id == subject.work_id) {
+        if data.work_id != subject.work_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
@@ -1747,7 +1745,7 @@ impl MutationRoot {
             .account_access
             .can_edit(affiliation.publisher_id(&context.db)?)?;
 
-        if !(data.contribution_id == affiliation.contribution_id) {
+        if data.contribution_id != affiliation.contribution_id {
             context
                 .account_access
                 .can_edit(publisher_id_from_contribution_id(
@@ -1779,13 +1777,13 @@ impl MutationRoot {
             work_relation.related_work_id,
         )?)?;
 
-        if !(data.relator_work_id == work_relation.relator_work_id) {
+        if data.relator_work_id != work_relation.relator_work_id {
             context.account_access.can_edit(publisher_id_from_work_id(
                 &context.db,
                 data.relator_work_id,
             )?)?;
         }
-        if !(data.related_work_id == work_relation.related_work_id) {
+        if data.related_work_id != work_relation.related_work_id {
             context.account_access.can_edit(publisher_id_from_work_id(
                 &context.db,
                 data.related_work_id,
@@ -2019,34 +2017,6 @@ impl Work {
 
     pub fn place(&self) -> Option<&String> {
         self.place.as_ref()
-    }
-
-    #[graphql(
-        description = "Width of the physical Work (in mm, cm or in) (not applicable to chapters)",
-        arguments(
-            units(
-                default = LengthUnit::default(),
-                description = "Unit of measurement in which to represent the width (mm, cm or in)",
-            ),
-        )
-    )]
-    pub fn width(&self, units: LengthUnit) -> Option<f64> {
-        self.width
-            .map(|w| w.convert_units_from_to(&LengthUnit::Mm, &units))
-    }
-
-    #[graphql(
-        description = "Height of the physical Work (in mm, cm or in) (not applicable to chapters)",
-        arguments(
-            units(
-                default = LengthUnit::default(),
-                description = "Unit of measurement in which to represent the height (mm, cm or in)",
-            ),
-        )
-    )]
-    pub fn height(&self, units: LengthUnit) -> Option<f64> {
-        self.height
-            .map(|h| h.convert_units_from_to(&LengthUnit::Mm, &units))
     }
 
     pub fn page_count(&self) -> Option<&i32> {
@@ -2475,6 +2445,79 @@ impl Publication {
 
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
+    }
+
+    #[graphql(
+        description = "Width of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)",
+        arguments(
+            units(
+                default = LengthUnit::default(),
+                description = "Unit of measurement in which to represent the width (mm, cm or in)",
+            ),
+        )
+    )]
+    pub fn width(&self, units: LengthUnit) -> Option<f64> {
+        match units {
+            LengthUnit::Mm => self.width_mm,
+            LengthUnit::Cm => self
+                .width_mm
+                .map(|w| w.convert_length_from_to(&LengthUnit::Mm, &LengthUnit::Cm)),
+            LengthUnit::In => self.width_in,
+        }
+    }
+
+    #[graphql(
+        description = "Height of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)",
+        arguments(
+            units(
+                default = LengthUnit::default(),
+                description = "Unit of measurement in which to represent the height (mm, cm or in)",
+            ),
+        )
+    )]
+    pub fn height(&self, units: LengthUnit) -> Option<f64> {
+        match units {
+            LengthUnit::Mm => self.height_mm,
+            LengthUnit::Cm => self
+                .height_mm
+                .map(|w| w.convert_length_from_to(&LengthUnit::Mm, &LengthUnit::Cm)),
+            LengthUnit::In => self.height_in,
+        }
+    }
+
+    #[graphql(
+        description = "Depth of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)",
+        arguments(
+            units(
+                default = LengthUnit::default(),
+                description = "Unit of measurement in which to represent the depth (mm, cm or in)",
+            ),
+        )
+    )]
+    pub fn depth(&self, units: LengthUnit) -> Option<f64> {
+        match units {
+            LengthUnit::Mm => self.depth_mm,
+            LengthUnit::Cm => self
+                .depth_mm
+                .map(|w| w.convert_length_from_to(&LengthUnit::Mm, &LengthUnit::Cm)),
+            LengthUnit::In => self.depth_in,
+        }
+    }
+
+    #[graphql(
+        description = "Weight of the physical Publication (in g or oz) (only applicable to non-Chapter Paperbacks and Hardbacks)",
+        arguments(
+            units(
+                default = WeightUnit::default(),
+                description = "Unit of measurement in which to represent the weight (grams or ounces)",
+            ),
+        )
+    )]
+    pub fn weight(&self, units: WeightUnit) -> Option<f64> {
+        match units {
+            WeightUnit::G => self.weight_g,
+            WeightUnit::Oz => self.weight_oz,
+        }
     }
 
     #[graphql(

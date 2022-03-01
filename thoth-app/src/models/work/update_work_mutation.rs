@@ -4,12 +4,10 @@ use thoth_api::model::work::Work;
 use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::Doi;
-use thoth_api::model::LengthUnit;
 use uuid::Uuid;
 
 const UPDATE_WORK_MUTATION: &str = "
     mutation UpdateWork(
-        $units: LengthUnit!
         $workId: Uuid!,
         $workType: WorkType!,
         $workStatus: WorkStatus!,
@@ -22,8 +20,6 @@ const UPDATE_WORK_MUTATION: &str = "
         $doi: Doi,
         $publicationDate: NaiveDate,
         $place: String,
-        $width: Float,
-        $height: Float,
         $pageCount: Int,
         $pageBreakdown: String,
         $imageCount: Int,
@@ -45,7 +41,7 @@ const UPDATE_WORK_MUTATION: &str = "
         $lastPage: String,
         $pageInterval: String
     ) {
-        updateWork(units: $units,
+        updateWork(
             data: {
             workId: $workId
             workType: $workType
@@ -59,8 +55,6 @@ const UPDATE_WORK_MUTATION: &str = "
             doi: $doi
             publicationDate: $publicationDate
             place: $place
-            width: $width
-            height: $height
             pageCount: $pageCount
             pageBreakdown: $pageBreakdown
             imageCount: $imageCount
@@ -88,8 +82,6 @@ const UPDATE_WORK_MUTATION: &str = "
             fullTitle
             title
             imprintId
-            width
-            height
             copyrightHolder
             createdAt
             updatedAt
@@ -122,8 +114,6 @@ pub struct Variables {
     pub doi: Option<Doi>,
     pub publication_date: Option<String>,
     pub place: Option<String>,
-    pub width: Option<f64>,
-    pub height: Option<f64>,
     pub page_count: Option<i32>,
     pub page_breakdown: Option<String>,
     pub image_count: Option<i32>,
@@ -142,7 +132,6 @@ pub struct Variables {
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
     pub imprint_id: Uuid,
-    pub units: LengthUnit,
     pub first_page: Option<String>,
     pub last_page: Option<String>,
     pub page_interval: Option<String>,

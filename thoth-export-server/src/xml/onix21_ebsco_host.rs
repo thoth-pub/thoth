@@ -42,7 +42,7 @@ impl XmlSpecification for Onix21EbscoHost {
                     for work in works.iter() {
                         // Do not include Chapters in full publisher metadata record
                         // (assumes that a publisher will always have more than one work)
-                        if !(work.work_type == WorkType::BOOK_CHAPTER) {
+                        if work.work_type != WorkType::BOOK_CHAPTER {
                             XmlElementBlock::<Onix21EbscoHost>::xml_element(work, w).ok();
                         }
                     }
@@ -431,15 +431,15 @@ fn get_publications_data(publications: &[WorkPublications]) -> (String, Vec<Stri
 
     for publication in publications {
         if let Some(isbn) = &publication.isbn.as_ref().map(|i| i.to_string()) {
-            isbns.push(isbn.replace("-", ""));
+            isbns.push(isbn.replace('-', ""));
             // The default product ISBN is the PDF's
             if publication.publication_type.eq(&PublicationType::PDF) {
-                main_isbn = isbn.replace("-", "");
+                main_isbn = isbn.replace('-', "");
             }
             // Books that don't have a PDF ISBN will use the paperback's
             if publication.publication_type.eq(&PublicationType::PAPERBACK) && main_isbn.is_empty()
             {
-                main_isbn = isbn.replace("-", "");
+                main_isbn = isbn.replace('-', "");
             }
         }
     }
@@ -851,12 +851,6 @@ mod tests {
             long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
             place: Some("León, Spain".to_string()),
-            width_mm: None,
-            width_cm: None,
-            width_in: None,
-            height_mm: None,
-            height_cm: None,
-            height_in: None,
             page_count: Some(334),
             page_breakdown: None,
             first_page: None,
@@ -887,6 +881,17 @@ mod tests {
                     publication_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                     publication_type: PublicationType::EPUB,
                     isbn: Some(Isbn::from_str("978-92-95055-02-5").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
                     prices: vec![],
                     locations: vec![WorkPublicationsLocations {
                         landing_page: Some("https://www.book.com/epub_landing".to_string()),
@@ -899,6 +904,17 @@ mod tests {
                     publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
                     publication_type: PublicationType::PDF,
                     isbn: Some(Isbn::from_str("978-1-56619-909-4").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
                     prices: vec![WorkPublicationsPrices {
                         currency_code: CurrencyCode::USD,
                         unit_price: 0.0,
@@ -914,6 +930,17 @@ mod tests {
                     publication_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
                     publication_type: PublicationType::PAPERBACK,
                     isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
                     prices: vec![
                         WorkPublicationsPrices {
                             currency_code: CurrencyCode::EUR,
