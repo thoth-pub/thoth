@@ -95,9 +95,12 @@ async fn graphql(
         serde_json::to_string(&res)
     })
     .await?;
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(result))
+    match result {
+        Ok(body) => Ok(HttpResponse::Ok()
+            .content_type("application/json")
+            .body(body)),
+        Err(e) => Err(e.into()),
+    }
 }
 
 #[post("/account/login")]
@@ -209,7 +212,7 @@ pub async fn start_server(
                     .name("auth")
                     .path("/")
                     .domain(&domain)
-                    .max_age(session_duration),
+                    .max_age_secs(session_duration),
             ))
             .wrap(
                 Cors::default()
