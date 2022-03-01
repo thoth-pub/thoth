@@ -3,7 +3,7 @@ use super::{
     WorkType,
 };
 use crate::graphql::utils::Direction;
-use crate::model::{Convert, Crud, DbInsert, Doi, HistoryEntry, LengthUnit};
+use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
 use crate::schema::{work, work_history};
 use crate::{crud_methods, db_insert};
 use diesel::dsl::any;
@@ -78,72 +78,6 @@ impl Work {
             Err(ThothError::ChapterIsbnError)
         }
     }
-
-    pub fn update_with_units(
-        &self,
-        db: &crate::db::PgPool,
-        data: PatchWork,
-        account_id: &Uuid,
-        units: LengthUnit,
-    ) -> ThothResult<Self> {
-        if units == LengthUnit::Mm {
-            // Data is already in units compatible with the database -
-            // no conversions required before/after updating
-            self.update(db, &data, account_id)
-        } else {
-            let mut converted_data = data;
-            converted_data.width = converted_data
-                .width
-                .map(|w| w.convert_length_from_to(&units, &LengthUnit::Mm));
-            converted_data.height = converted_data
-                .height
-                .map(|h| h.convert_length_from_to(&units, &LengthUnit::Mm));
-            let result = self.update(db, &converted_data, account_id);
-            if let Ok(mut retrieved_data) = result {
-                retrieved_data.width = retrieved_data
-                    .width
-                    .map(|w| w.convert_length_from_to(&LengthUnit::Mm, &units));
-                retrieved_data.height = retrieved_data
-                    .height
-                    .map(|h| h.convert_length_from_to(&LengthUnit::Mm, &units));
-                Ok(retrieved_data)
-            } else {
-                result
-            }
-        }
-    }
-
-    pub fn create_with_units(
-        db: &crate::db::PgPool,
-        data: NewWork,
-        units: LengthUnit,
-    ) -> ThothResult<Self> {
-        if units == LengthUnit::Mm {
-            // Data is already in units compatible with the database -
-            // no conversions required before/after creating
-            Self::create(db, &data)
-        } else {
-            let mut converted_data = data;
-            converted_data.width = converted_data
-                .width
-                .map(|w| w.convert_length_from_to(&units, &LengthUnit::Mm));
-            converted_data.height = converted_data
-                .height
-                .map(|h| h.convert_length_from_to(&units, &LengthUnit::Mm));
-            let result = Self::create(db, &converted_data);
-            if let Ok(mut retrieved_data) = result {
-                retrieved_data.width = retrieved_data
-                    .width
-                    .map(|w| w.convert_length_from_to(&LengthUnit::Mm, &units));
-                retrieved_data.height = retrieved_data
-                    .height
-                    .map(|h| h.convert_length_from_to(&LengthUnit::Mm, &units));
-                Ok(retrieved_data)
-            } else {
-                result
-            }
-        }
-    }
 }
 
 impl Crud for Work {
@@ -186,8 +120,6 @@ impl Crud for Work {
                 dsl::doi,
                 dsl::publication_date,
                 dsl::place,
-                dsl::width,
-                dsl::height,
                 dsl::page_count,
                 dsl::page_breakdown,
                 dsl::image_count,
@@ -257,14 +189,6 @@ impl Crud for Work {
             WorkField::Place => match order.direction {
                 Direction::Asc => query = query.order(dsl::place.asc()),
                 Direction::Desc => query = query.order(dsl::place.desc()),
-            },
-            WorkField::Width => match order.direction {
-                Direction::Asc => query = query.order(dsl::width.asc()),
-                Direction::Desc => query = query.order(dsl::width.desc()),
-            },
-            WorkField::Height => match order.direction {
-                Direction::Asc => query = query.order(dsl::height.asc()),
-                Direction::Desc => query = query.order(dsl::height.desc()),
             },
             WorkField::PageCount => match order.direction {
                 Direction::Asc => query = query.order(dsl::page_count.asc()),

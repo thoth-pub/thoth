@@ -65,6 +65,12 @@ pub enum PublicationField {
     Isbn,
     CreatedAt,
     UpdatedAt,
+    WidthMm,
+    WidthIn,
+    HeightMm,
+    HeightIn,
+    DepthMm,
+    DepthIn,
     WeightG,
     WeightOz,
 }
@@ -79,6 +85,12 @@ pub struct Publication {
     pub isbn: Option<Isbn>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+    pub width_mm: Option<f64>,
+    pub width_in: Option<f64>,
+    pub height_mm: Option<f64>,
+    pub height_in: Option<f64>,
+    pub depth_mm: Option<f64>,
+    pub depth_in: Option<f64>,
     pub weight_g: Option<f64>,
     pub weight_oz: Option<f64>,
 }
@@ -91,6 +103,12 @@ pub struct PublicationWithRelations {
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
     pub updated_at: Timestamp,
+    pub width_mm: Option<f64>,
+    pub width_in: Option<f64>,
+    pub height_mm: Option<f64>,
+    pub height_in: Option<f64>,
+    pub depth_mm: Option<f64>,
+    pub depth_in: Option<f64>,
     pub weight_g: Option<f64>,
     pub weight_oz: Option<f64>,
     pub prices: Option<Vec<Price>>,
@@ -107,6 +125,12 @@ pub struct NewPublication {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
+    pub width_mm: Option<f64>,
+    pub width_in: Option<f64>,
+    pub height_mm: Option<f64>,
+    pub height_in: Option<f64>,
+    pub depth_mm: Option<f64>,
+    pub depth_in: Option<f64>,
     pub weight_g: Option<f64>,
     pub weight_oz: Option<f64>,
 }
@@ -122,6 +146,12 @@ pub struct PatchPublication {
     pub publication_type: PublicationType,
     pub work_id: Uuid,
     pub isbn: Option<Isbn>,
+    pub width_mm: Option<f64>,
+    pub width_in: Option<f64>,
+    pub height_mm: Option<f64>,
+    pub height_in: Option<f64>,
+    pub depth_mm: Option<f64>,
+    pub depth_in: Option<f64>,
     pub weight_g: Option<f64>,
     pub weight_oz: Option<f64>,
 }
@@ -169,6 +199,12 @@ impl PublicationType {
 
 pub trait PublicationProperties {
     fn publication_type(&self) -> &PublicationType;
+    fn width_mm(&self) -> &Option<f64>;
+    fn width_in(&self) -> &Option<f64>;
+    fn height_mm(&self) -> &Option<f64>;
+    fn height_in(&self) -> &Option<f64>;
+    fn depth_mm(&self) -> &Option<f64>;
+    fn depth_in(&self) -> &Option<f64>;
     fn weight_g(&self) -> &Option<f64>;
     fn weight_oz(&self) -> &Option<f64>;
     fn isbn(&self) -> &Option<Isbn>;
@@ -182,12 +218,38 @@ pub trait PublicationProperties {
         self.publication_type().is_digital()
     }
 
-    fn weight_error(&self) -> ThothResult<()> {
+    fn has_dimension(&self) -> bool {
+        self.width_mm().is_some()
+            || self.width_in().is_some()
+            || self.height_mm().is_some()
+            || self.height_in().is_some()
+            || self.depth_mm().is_some()
+            || self.depth_in().is_some()
+            || self.weight_g().is_some()
+            || self.weight_oz().is_some()
+    }
+
+    fn dimension_error(&self) -> ThothResult<()> {
         if self.is_digital() {
-            // Digital publications cannot have weight values.
-            if self.weight_g().is_some() || self.weight_oz().is_some() {
-                return Err(ThothError::WeightDigitalError);
+            // Digital publications cannot have dimension values.
+            if self.has_dimension() {
+                return Err(ThothError::DimensionDigitalError);
             }
+        } else if (self.width_mm().is_some() && self.width_in().is_none())
+            || (self.width_in().is_some() && self.width_mm().is_none())
+        {
+            // If one width value is supplied, the other cannot be left empty.
+            return Err(ThothError::WidthEmptyError);
+        } else if (self.height_mm().is_some() && self.height_in().is_none())
+            || (self.height_in().is_some() && self.height_mm().is_none())
+        {
+            // If one height value is supplied, the other cannot be left empty.
+            return Err(ThothError::HeightEmptyError);
+        } else if (self.depth_mm().is_some() && self.depth_in().is_none())
+            || (self.depth_in().is_some() && self.depth_mm().is_none())
+        {
+            // If one depth value is supplied, the other cannot be left empty.
+            return Err(ThothError::DepthEmptyError);
         } else if (self.weight_g().is_some() && self.weight_oz().is_none())
             || (self.weight_oz().is_some() && self.weight_g().is_none())
         {
@@ -201,6 +263,30 @@ pub trait PublicationProperties {
 impl PublicationProperties for Publication {
     fn publication_type(&self) -> &PublicationType {
         &self.publication_type
+    }
+
+    fn width_mm(&self) -> &Option<f64> {
+        &self.width_mm
+    }
+
+    fn width_in(&self) -> &Option<f64> {
+        &self.width_in
+    }
+
+    fn height_mm(&self) -> &Option<f64> {
+        &self.height_mm
+    }
+
+    fn height_in(&self) -> &Option<f64> {
+        &self.height_in
+    }
+
+    fn depth_mm(&self) -> &Option<f64> {
+        &self.depth_mm
+    }
+
+    fn depth_in(&self) -> &Option<f64> {
+        &self.depth_in
     }
 
     fn weight_g(&self) -> &Option<f64> {
@@ -225,6 +311,30 @@ impl PublicationProperties for PublicationWithRelations {
         &self.publication_type
     }
 
+    fn width_mm(&self) -> &Option<f64> {
+        &self.width_mm
+    }
+
+    fn width_in(&self) -> &Option<f64> {
+        &self.width_in
+    }
+
+    fn height_mm(&self) -> &Option<f64> {
+        &self.height_mm
+    }
+
+    fn height_in(&self) -> &Option<f64> {
+        &self.height_in
+    }
+
+    fn depth_mm(&self) -> &Option<f64> {
+        &self.depth_mm
+    }
+
+    fn depth_in(&self) -> &Option<f64> {
+        &self.depth_in
+    }
+
     fn weight_g(&self) -> &Option<f64> {
         &self.weight_g
     }
@@ -247,6 +357,30 @@ impl PublicationProperties for NewPublication {
         &self.publication_type
     }
 
+    fn width_mm(&self) -> &Option<f64> {
+        &self.width_mm
+    }
+
+    fn width_in(&self) -> &Option<f64> {
+        &self.width_in
+    }
+
+    fn height_mm(&self) -> &Option<f64> {
+        &self.height_mm
+    }
+
+    fn height_in(&self) -> &Option<f64> {
+        &self.height_in
+    }
+
+    fn depth_mm(&self) -> &Option<f64> {
+        &self.depth_mm
+    }
+
+    fn depth_in(&self) -> &Option<f64> {
+        &self.depth_in
+    }
+
     fn weight_g(&self) -> &Option<f64> {
         &self.weight_g
     }
@@ -267,6 +401,30 @@ impl PublicationProperties for NewPublication {
 impl PublicationProperties for PatchPublication {
     fn publication_type(&self) -> &PublicationType {
         &self.publication_type
+    }
+
+    fn width_mm(&self) -> &Option<f64> {
+        &self.width_mm
+    }
+
+    fn width_in(&self) -> &Option<f64> {
+        &self.width_in
+    }
+
+    fn height_mm(&self) -> &Option<f64> {
+        &self.height_mm
+    }
+
+    fn height_in(&self) -> &Option<f64> {
+        &self.height_in
+    }
+
+    fn depth_mm(&self) -> &Option<f64> {
+        &self.depth_mm
+    }
+
+    fn depth_in(&self) -> &Option<f64> {
+        &self.depth_in
     }
 
     fn weight_g(&self) -> &Option<f64> {
@@ -327,6 +485,108 @@ fn test_publicationproperties_type() {
 }
 
 #[test]
+fn test_publicationproperties_width() {
+    let mut publication: Publication = Publication {
+        publication_type: PublicationType::Pdf,
+        width_mm: Some(100.0),
+        ..Default::default()
+    };
+    assert_eq!(
+        publication.dimension_error(),
+        Err(ThothError::DimensionDigitalError)
+    );
+    publication.width_mm = None;
+    assert_eq!(publication.dimension_error(), Ok(()));
+    publication.width_in = Some(39.4);
+    assert_eq!(
+        publication.dimension_error(),
+        Err(ThothError::DimensionDigitalError)
+    );
+    publication.publication_type = PublicationType::Paperback;
+    assert_eq!(
+        publication.dimension_error(),
+        Err(ThothError::WidthEmptyError)
+    );
+    publication.width_in = None;
+    assert_eq!(publication.dimension_error(), Ok(()));
+    publication.width_mm = Some(100.0);
+    assert_eq!(
+        publication.dimension_error(),
+        Err(ThothError::WidthEmptyError)
+    );
+    publication.width_in = Some(39.4);
+    assert_eq!(publication.dimension_error(), Ok(()));
+}
+
+#[test]
+fn test_publicationproperties_height() {
+    let mut publication: Publication = Publication {
+        publication_type: PublicationType::Pdf,
+        height_mm: Some(100.0),
+        ..Default::default()
+    };
+    assert_eq!(
+        publication.dimension_error(),
+        Err(ThothError::DimensionDigitalError)
+    );
+    publication.height_mm = None;
+    assert_eq!(publication.dimension_error(), Ok(()));
+    publication.height_in = Some(39.4);
+    assert_eq!(
+        publication.dimension_error(),
+        Err(ThothError::DimensionDigitalError)
+    );
+    publication.publication_type = PublicationType::Paperback;
+    assert_eq!(
+        publication.dimension_error(),
+        Err(ThothError::HeightEmptyError)
+    );
+    publication.height_in = None;
+    assert_eq!(publication.dimension_error(), Ok(()));
+    publication.height_mm = Some(100.0);
+    assert_eq!(
+        publication.dimension_error(),
+        Err(ThothError::HeightEmptyError)
+    );
+    publication.height_in = Some(39.4);
+    assert_eq!(publication.dimension_error(), Ok(()));
+}
+
+#[test]
+fn test_publicationproperties_depth() {
+    let mut publication: Publication = Publication {
+        publication_type: PublicationType::Pdf,
+        depth_mm: Some(10.0),
+        ..Default::default()
+    };
+    assert_eq!(
+        publication.dimension_error(),
+        Err(ThothError::DimensionDigitalError)
+    );
+    publication.depth_mm = None;
+    assert_eq!(publication.dimension_error(), Ok(()));
+    publication.depth_in = Some(3.94);
+    assert_eq!(
+        publication.dimension_error(),
+        Err(ThothError::DimensionDigitalError)
+    );
+    publication.publication_type = PublicationType::Paperback;
+    assert_eq!(
+        publication.dimension_error(),
+        Err(ThothError::DepthEmptyError)
+    );
+    publication.depth_in = None;
+    assert_eq!(publication.dimension_error(), Ok(()));
+    publication.depth_mm = Some(10.0);
+    assert_eq!(
+        publication.dimension_error(),
+        Err(ThothError::DepthEmptyError)
+    );
+    publication.depth_in = Some(3.94);
+    assert_eq!(publication.dimension_error(), Ok(()));
+}
+
+#[test]
 fn test_publicationproperties_weight() {
     let mut publication: Publication = Publication {
         publication_type: PublicationType::Pdf,
@@ -334,30 +594,30 @@ fn test_publicationproperties_weight() {
         ..Default::default()
     };
     assert_eq!(
-        publication.weight_error(),
-        Err(ThothError::WeightDigitalError)
+        publication.dimension_error(),
+        Err(ThothError::DimensionDigitalError)
     );
     publication.weight_g = None;
-    assert_eq!(publication.weight_error(), Ok(()));
+    assert_eq!(publication.dimension_error(), Ok(()));
     publication.weight_oz = Some(3.5);
     assert_eq!(
-        publication.weight_error(),
-        Err(ThothError::WeightDigitalError)
+        publication.dimension_error(),
+        Err(ThothError::DimensionDigitalError)
     );
     publication.publication_type = PublicationType::Paperback;
     assert_eq!(
-        publication.weight_error(),
+        publication.dimension_error(),
         Err(ThothError::WeightEmptyError)
     );
     publication.weight_oz = None;
-    assert_eq!(publication.weight_error(), Ok(()));
+    assert_eq!(publication.dimension_error(), Ok(()));
     publication.weight_g = Some(100.0);
     assert_eq!(
-        publication.weight_error(),
+        publication.dimension_error(),
         Err(ThothError::WeightEmptyError)
     );
     publication.weight_oz = Some(3.5);
-    assert_eq!(publication.weight_error(), Ok(()));
+    assert_eq!(publication.dimension_error(), Ok(()));
 }
 
 #[test]
@@ -394,6 +654,12 @@ fn test_publicationfield_display() {
     assert_eq!(format!("{}", PublicationField::Isbn), "ISBN");
     assert_eq!(format!("{}", PublicationField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", PublicationField::UpdatedAt), "UpdatedAt");
+    assert_eq!(format!("{}", PublicationField::WidthMm), "WidthMm");
+    assert_eq!(format!("{}", PublicationField::WidthIn), "WidthIn");
+    assert_eq!(format!("{}", PublicationField::HeightMm), "HeightMm");
+    assert_eq!(format!("{}", PublicationField::HeightIn), "HeightIn");
+    assert_eq!(format!("{}", PublicationField::DepthMm), "DepthMm");
+    assert_eq!(format!("{}", PublicationField::DepthIn), "DepthIn");
     assert_eq!(format!("{}", PublicationField::WeightG), "WeightG");
     assert_eq!(format!("{}", PublicationField::WeightOz), "WeightOz");
 }
@@ -474,6 +740,30 @@ fn test_publicationfield_fromstr() {
     assert_eq!(
         PublicationField::from_str("UpdatedAt").unwrap(),
         PublicationField::UpdatedAt
+    );
+    assert_eq!(
+        PublicationField::from_str("WidthMm").unwrap(),
+        PublicationField::WidthMm
+    );
+    assert_eq!(
+        PublicationField::from_str("WidthIn").unwrap(),
+        PublicationField::WidthIn
+    );
+    assert_eq!(
+        PublicationField::from_str("HeightMm").unwrap(),
+        PublicationField::HeightMm
+    );
+    assert_eq!(
+        PublicationField::from_str("HeightIn").unwrap(),
+        PublicationField::HeightIn
+    );
+    assert_eq!(
+        PublicationField::from_str("DepthMm").unwrap(),
+        PublicationField::DepthMm
+    );
+    assert_eq!(
+        PublicationField::from_str("DepthIn").unwrap(),
+        PublicationField::DepthIn
     );
     assert_eq!(
         PublicationField::from_str("WeightG").unwrap(),

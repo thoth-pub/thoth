@@ -4640,6 +4640,75 @@
             {
               "args": [
                 {
+                  "defaultValue": "\"MM\"",
+                  "description": "Unit of measurement in which to represent the width (mm, cm or in)",
+                  "name": "units",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "LengthUnit",
+                    "ofType": null
+                  }
+                }
+              ],
+              "deprecationReason": null,
+              "description": "Width of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)",
+              "isDeprecated": false,
+              "name": "width",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
+            },
+            {
+              "args": [
+                {
+                  "defaultValue": "\"MM\"",
+                  "description": "Unit of measurement in which to represent the height (mm, cm or in)",
+                  "name": "units",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "LengthUnit",
+                    "ofType": null
+                  }
+                }
+              ],
+              "deprecationReason": null,
+              "description": "Height of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)",
+              "isDeprecated": false,
+              "name": "height",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
+            },
+            {
+              "args": [
+                {
+                  "defaultValue": "\"MM\"",
+                  "description": "Unit of measurement in which to represent the depth (mm, cm or in)",
+                  "name": "units",
+                  "type": {
+                    "kind": "ENUM",
+                    "name": "LengthUnit",
+                    "ofType": null
+                  }
+                }
+              ],
+              "deprecationReason": null,
+              "description": "Depth of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)",
+              "isDeprecated": false,
+              "name": "depth",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
+            },
+            {
+              "args": [
+                {
                   "defaultValue": "\"G\"",
                   "description": "Unit of measurement in which to represent the weight (grams or ounces)",
                   "name": "units",
@@ -4651,7 +4720,7 @@
                 }
               ],
               "deprecationReason": null,
-              "description": "Weight of the physical Publication (in g or oz) (only applicable to Paperbacks and Hardbacks)",
+              "description": "Weight of the physical Publication (in g or oz) (only applicable to non-Chapter Paperbacks and Hardbacks)",
               "isDeprecated": false,
               "name": "weight",
               "type": {
@@ -5295,26 +5364,6 @@
             {
               "defaultValue": null,
               "description": null,
-              "name": "width",
-              "type": {
-                "kind": "SCALAR",
-                "name": "Float",
-                "ofType": null
-              }
-            },
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "height",
-              "type": {
-                "kind": "SCALAR",
-                "name": "Float",
-                "ofType": null
-              }
-            },
-            {
-              "defaultValue": null,
-              "description": null,
               "name": "pageCount",
               "type": {
                 "kind": "SCALAR",
@@ -5538,20 +5587,6 @@
                     "ofType": {
                       "kind": "INPUT_OBJECT",
                       "name": "NewWork",
-                      "ofType": null
-                    }
-                  }
-                },
-                {
-                  "defaultValue": null,
-                  "description": null,
-                  "name": "units",
-                  "type": {
-                    "kind": "NON_NULL",
-                    "name": null,
-                    "ofType": {
-                      "kind": "ENUM",
-                      "name": "LengthUnit",
                       "ofType": null
                     }
                   }
@@ -6048,20 +6083,6 @@
                     "ofType": {
                       "kind": "INPUT_OBJECT",
                       "name": "PatchWork",
-                      "ofType": null
-                    }
-                  }
-                },
-                {
-                  "defaultValue": null,
-                  "description": null,
-                  "name": "units",
-                  "type": {
-                    "kind": "NON_NULL",
-                    "name": null,
-                    "ofType": {
-                      "kind": "ENUM",
-                      "name": "LengthUnit",
                       "ofType": null
                     }
                   }
@@ -11132,52 +11153,6 @@
               }
             },
             {
-              "args": [
-                {
-                  "defaultValue": "\"MM\"",
-                  "description": "Unit of measurement in which to represent the width (mm, cm or in)",
-                  "name": "units",
-                  "type": {
-                    "kind": "ENUM",
-                    "name": "LengthUnit",
-                    "ofType": null
-                  }
-                }
-              ],
-              "deprecationReason": null,
-              "description": "Width of the physical Work (in mm, cm or in) (not applicable to chapters)",
-              "isDeprecated": false,
-              "name": "width",
-              "type": {
-                "kind": "SCALAR",
-                "name": "Float",
-                "ofType": null
-              }
-            },
-            {
-              "args": [
-                {
-                  "defaultValue": "\"MM\"",
-                  "description": "Unit of measurement in which to represent the height (mm, cm or in)",
-                  "name": "units",
-                  "type": {
-                    "kind": "ENUM",
-                    "name": "LengthUnit",
-                    "ofType": null
-                  }
-                }
-              ],
-              "deprecationReason": null,
-              "description": "Height of the physical Work (in mm, cm or in) (not applicable to chapters)",
-              "isDeprecated": false,
-              "name": "height",
-              "type": {
-                "kind": "SCALAR",
-                "name": "Float",
-                "ofType": null
-              }
-            },
-            {
               "args": [],
               "deprecationReason": null,
               "description": null,
@@ -12021,6 +11996,66 @@
               "type": {
                 "kind": "SCALAR",
                 "name": "Isbn",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "widthMm",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "widthIn",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "heightMm",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "heightIn",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "depthMm",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "depthIn",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
                 "ofType": null
               }
             },
@@ -14063,6 +14098,42 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
+              "name": "WIDTH_MM"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "WIDTH_IN"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "HEIGHT_MM"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "HEIGHT_IN"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "DEPTH_MM"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "DEPTH_IN"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
               "name": "WEIGHT_G"
             },
             {
@@ -14541,18 +14612,6 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
-              "name": "WIDTH"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "HEIGHT"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
               "name": "PAGE_COUNT"
             },
             {
@@ -14879,16 +14938,6 @@
           "possibleTypes": null
         },
         {
-          "description": null,
-          "enumValues": null,
-          "fields": null,
-          "inputFields": null,
-          "interfaces": null,
-          "kind": "SCALAR",
-          "name": "Float",
-          "possibleTypes": null
-        },
-        {
           "description": "An organisation with which contributors may be affiliated or by which works may be funded.",
           "enumValues": null,
           "fields": [
@@ -15107,6 +15156,16 @@
           "interfaces": [],
           "kind": "OBJECT",
           "name": "Institution",
+          "possibleTypes": null
+        },
+        {
+          "description": null,
+          "enumValues": null,
+          "fields": null,
+          "inputFields": null,
+          "interfaces": null,
+          "kind": "SCALAR",
+          "name": "Float",
           "possibleTypes": null
         },
         {
@@ -15927,6 +15986,66 @@
               "type": {
                 "kind": "SCALAR",
                 "name": "Isbn",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "widthMm",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "widthIn",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "heightMm",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "heightIn",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "depthMm",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "depthIn",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Float",
                 "ofType": null
               }
             },
@@ -17214,26 +17333,6 @@
               "type": {
                 "kind": "SCALAR",
                 "name": "String",
-                "ofType": null
-              }
-            },
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "width",
-              "type": {
-                "kind": "SCALAR",
-                "name": "Float",
-                "ofType": null
-              }
-            },
-            {
-              "defaultValue": null,
-              "description": null,
-              "name": "height",
-              "type": {
-                "kind": "SCALAR",
-                "name": "Float",
                 "ofType": null
               }
             },
