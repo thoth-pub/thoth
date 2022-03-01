@@ -1,5 +1,5 @@
 ARG RUST_IMAGE=rust:1.59.0
-ARG MUSL_IMAGE=ekidd/rust-musl-builder:1.51.0
+ARG MUSL_IMAGE=ekidd/rust-musl-builder:1.57.0
 
 FROM ${RUST_IMAGE} as wasm
 
