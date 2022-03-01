@@ -14,12 +14,6 @@ fragment Work on Work {
     longAbstract
     generalNote
     place
-    widthMm: width(units: MM)
-    widthCm: width(units: CM)
-    widthIn: width(units: IN)
-    heightMm: height(units: MM)
-    heightCm: height(units: CM)
-    heightIn: height(units: IN)
     pageCount
     pageBreakdown
     firstPage
@@ -84,6 +78,15 @@ fragment Work on Work {
         isbn
         weightG: weight(units: G)
         weightOz: weight(units: OZ)
+        widthMm: width(units: MM)
+        widthCm: width(units: CM)
+        widthIn: width(units: IN)
+        heightMm: height(units: MM)
+        heightCm: height(units: CM)
+        heightIn: height(units: IN)
+        depthMm: depth(units: MM)
+        depthCm: depth(units: CM)
+        depthIn: depth(units: IN)
         prices {
             currencyCode
             unitPrice

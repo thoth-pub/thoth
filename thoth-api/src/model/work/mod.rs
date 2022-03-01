@@ -89,8 +89,6 @@ pub enum WorkField {
     Doi,
     PublicationDate,
     Place,
-    Width,
-    Height,
     PageCount,
     PageBreakdown,
     ImageCount,
@@ -135,8 +133,6 @@ pub struct Work {
     pub doi: Option<Doi>,
     pub publication_date: Option<NaiveDate>,
     pub place: Option<String>,
-    pub width: Option<f64>,
-    pub height: Option<f64>,
     pub page_count: Option<i32>,
     pub page_breakdown: Option<String>,
     pub image_count: Option<i32>,
@@ -175,8 +171,6 @@ pub struct WorkWithRelations {
     pub doi: Option<Doi>,
     pub publication_date: Option<String>,
     pub place: Option<String>,
-    pub width: Option<f64>,
-    pub height: Option<f64>,
     pub page_count: Option<i32>,
     pub page_breakdown: Option<String>,
     pub image_count: Option<i32>,
@@ -225,8 +219,6 @@ pub struct NewWork {
     pub doi: Option<Doi>,
     pub publication_date: Option<NaiveDate>,
     pub place: Option<String>,
-    pub width: Option<f64>,
-    pub height: Option<f64>,
     pub page_count: Option<i32>,
     pub page_breakdown: Option<String>,
     pub image_count: Option<i32>,
@@ -268,8 +260,6 @@ pub struct PatchWork {
     pub doi: Option<Doi>,
     pub publication_date: Option<NaiveDate>,
     pub place: Option<String>,
-    pub width: Option<f64>,
-    pub height: Option<f64>,
     pub page_count: Option<i32>,
     pub page_breakdown: Option<String>,
     pub image_count: Option<i32>,
@@ -452,8 +442,6 @@ fn test_workfield_display() {
     assert_eq!(format!("{}", WorkField::Doi), "DOI");
     assert_eq!(format!("{}", WorkField::PublicationDate), "PublicationDate");
     assert_eq!(format!("{}", WorkField::Place), "Place");
-    assert_eq!(format!("{}", WorkField::Width), "Width");
-    assert_eq!(format!("{}", WorkField::Height), "Height");
     assert_eq!(format!("{}", WorkField::PageCount), "PageCount");
     assert_eq!(format!("{}", WorkField::PageBreakdown), "PageBreakdown");
     assert_eq!(format!("{}", WorkField::FirstPage), "FirstPage");
@@ -587,8 +575,6 @@ fn test_workfield_fromstr() {
         WorkField::PublicationDate
     );
     assert_eq!(WorkField::from_str("Place").unwrap(), WorkField::Place);
-    assert_eq!(WorkField::from_str("Width").unwrap(), WorkField::Width);
-    assert_eq!(WorkField::from_str("Height").unwrap(), WorkField::Height);
     assert_eq!(
         WorkField::from_str("PageCount").unwrap(),
         WorkField::PageCount

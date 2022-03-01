@@ -3,6 +3,7 @@ use super::{
     PublicationHistory, PublicationOrderBy, PublicationProperties, PublicationType,
 };
 use crate::graphql::utils::Direction;
+use crate::model::work::WorkType;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
 use crate::{crud_methods, db_insert};
@@ -45,6 +46,12 @@ impl Crud for Publication {
                 isbn,
                 created_at,
                 updated_at,
+                width_mm,
+                width_in,
+                height_mm,
+                height_in,
+                depth_mm,
+                depth_in,
                 weight_g,
                 weight_oz,
             ))
@@ -74,6 +81,30 @@ impl Crud for Publication {
             PublicationField::UpdatedAt => match order.direction {
                 Direction::Asc => query = query.order(updated_at.asc()),
                 Direction::Desc => query = query.order(updated_at.desc()),
+            },
+            PublicationField::WidthMm => match order.direction {
+                Direction::Asc => query = query.order(width_mm.asc()),
+                Direction::Desc => query = query.order(width_mm.desc()),
+            },
+            PublicationField::WidthIn => match order.direction {
+                Direction::Asc => query = query.order(width_in.asc()),
+                Direction::Desc => query = query.order(width_in.desc()),
+            },
+            PublicationField::HeightMm => match order.direction {
+                Direction::Asc => query = query.order(height_mm.asc()),
+                Direction::Desc => query = query.order(height_mm.desc()),
+            },
+            PublicationField::HeightIn => match order.direction {
+                Direction::Asc => query = query.order(height_in.asc()),
+                Direction::Desc => query = query.order(height_in.desc()),
+            },
+            PublicationField::DepthMm => match order.direction {
+                Direction::Asc => query = query.order(depth_mm.asc()),
+                Direction::Desc => query = query.order(depth_mm.desc()),
+            },
+            PublicationField::DepthIn => match order.direction {
+                Direction::Asc => query = query.order(depth_in.asc()),
+                Direction::Desc => query = query.order(depth_in.desc()),
             },
             PublicationField::WeightG => match order.direction {
                 Direction::Asc => query = query.order(weight_g.asc()),
@@ -173,30 +204,35 @@ pub trait PublicationValidation
 where
     Self: PublicationProperties,
 {
-    fn can_have_isbn(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        use crate::model::work::WorkType;
+    fn work_type(&self, db: &crate::db::PgPool) -> WorkType {
         use diesel::prelude::*;
-
         let connection = db.get().unwrap();
-        let work_type = crate::schema::work::table
+        crate::schema::work::table
             .select(crate::schema::work::work_type)
             .filter(crate::schema::work::work_id.eq(self.work_id()))
             .first::<WorkType>(&connection)
-            .expect("Error loading work type for publication");
-        // If a publication's work is of type Book Chapter,
-        // it cannot have an ISBN.
-        if work_type == WorkType::BookChapter {
-            Err(ThothError::ChapterIsbnError)
+            .expect("Error loading work type for publication")
+    }
+
+    fn chapter_error(&self, db: &crate::db::PgPool) -> ThothResult<()> {
+        if self.work_type(db) == WorkType::BookChapter {
+            // If a publication's work is of type Book Chapter,
+            // it cannot have an ISBN, or any dimensions.
+            if self.isbn().is_some() {
+                Err(ThothError::ChapterIsbnError)
+            } else if self.has_dimension() {
+                Err(ThothError::ChapterDimensionError)
+            } else {
+                Ok(())
+            }
         } else {
             Ok(())
         }
     }
 
     fn validate(&self, db: &crate::db::PgPool) -> ThothResult<()> {
-        if self.isbn().is_some() {
-            self.can_have_isbn(db)?;
-        }
-        self.weight_error()
+        self.chapter_error(db)?;
+        self.dimension_error()
     }
 }
 
