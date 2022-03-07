@@ -124,6 +124,7 @@ pub trait DisplayWork {
     fn onix_ebsco_host_endpoint(&self) -> String;
     fn csv_endpoint(&self) -> String;
     fn kbart_endpoint(&self) -> String;
+    fn bibtex_endpoint(&self) -> String;
     fn cover_alt_text(&self) -> String;
     fn license_icons(&self) -> Html;
     fn status_tag(&self) -> Html;
@@ -169,6 +170,13 @@ impl DisplayWork for WorkWithRelations {
     fn kbart_endpoint(&self) -> String {
         format!(
             "{}/specifications/kbart::oclc/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
+    fn bibtex_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/bibtex::crossref/work/{}",
             THOTH_EXPORT_API, &self.work_id
         )
     }
@@ -397,6 +405,12 @@ impl DisplayWork for WorkWithRelations {
                                                 class="dropdown-item"
                                             >
                                             {"KBART"}
+                                            </a>
+                                            <a
+                                                href={self.bibtex_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"BibTeX"}
                                             </a>
                                         </div>
                                     </div>
