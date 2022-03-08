@@ -1,11 +1,10 @@
-use csv::Writer;
 use serde::Serialize;
 use std::convert::TryFrom;
 use std::io::Write;
 use thoth_client::{ContributionType, PublicationType, Work, WorkType};
 use thoth_errors::{ThothError, ThothResult};
 
-use super::{BibtexEntry, BibtexSpecification};
+use super::{BibtexEntry, BibtexSpecification, BibtexWriter};
 
 pub(crate) struct BibtexCrossref;
 
@@ -32,7 +31,7 @@ struct BibtexCrossrefEntry {
 }
 
 impl BibtexSpecification for BibtexCrossref {
-    fn handle_event<W: Write>(w: &mut Writer<W>, works: &[Work]) -> ThothResult<()> {
+    fn handle_event<W: Write>(w: &mut BibtexWriter<W>, works: &[Work]) -> ThothResult<()> {
         match works.len() {
             0 => Err(ThothError::IncompleteMetadataRecord(
                 "kbart::oclc".to_string(),
@@ -54,9 +53,9 @@ impl BibtexSpecification for BibtexCrossref {
 }
 
 impl BibtexEntry<BibtexCrossref> for Work {
-    fn bibtex_entry<W: Write>(&self, w: &mut Writer<W>) -> ThothResult<()> {
-        w.serialize(BibtexCrossrefEntry::try_from(self.clone())?)
-            .map_err(|e| e.into())
+    fn bibtex_entry<W: Write>(&self, w: &mut BibtexWriter<W>) -> ThothResult<()> {
+        write!(w, "{:?}", BibtexCrossrefEntry::try_from(self.clone())?);
+        Ok(())
     }
 }
 

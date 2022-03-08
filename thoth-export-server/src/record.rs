@@ -134,7 +134,7 @@ impl MetadataRecord<Vec<Work>> {
                 kbart_oclc.generate(&self.data, QuoteStyle::Necessary, DELIMITER_TAB)
             }
             MetadataSpecification::BibtexCrossref(bibtex_crossref) => {
-                bibtex_crossref.generate(&self.data, QuoteStyle::Necessary, DELIMITER_TAB)
+                bibtex_crossref.generate(&self.data)
             }
         }
     }
