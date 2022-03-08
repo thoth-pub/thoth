@@ -1,7 +1,6 @@
 use thoth_client::Work;
 use thoth_errors::{ThothError, ThothResult};
 
-
 pub(crate) trait BibtexSpecification {
     fn generate(&self, works: &[Work]) -> ThothResult<String> {
         let mut buffer: Vec<u8> = Vec::new();

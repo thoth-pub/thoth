@@ -59,9 +59,7 @@ lazy_static! {
             id: "kbart::oclc",
             name: "Crossref BibTeX",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/bibtex"),
-            accepted_by: vec![
-                concat!(env!("THOTH_EXPORT_API"), "/platforms/crossref"),
-            ],
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/crossref"),],
         },
     ];
     pub(crate) static ref ALL_PLATFORMS: Vec<Platform<'static>> = vec![
