@@ -1,14 +1,14 @@
-use serde::Serialize;
 use std::convert::TryFrom;
+use std::fmt;
 use std::io::Write;
 use thoth_client::{ContributionType, PublicationType, Work, WorkType};
 use thoth_errors::{ThothError, ThothResult};
 
-use super::{BibtexEntry, BibtexSpecification, BibtexWriter};
+use super::{BibtexEntry, BibtexSpecification};
 
 pub(crate) struct BibtexCrossref;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 struct BibtexCrossrefEntry {
     title: String,
     shorttitle: Option<String>,
@@ -31,7 +31,7 @@ struct BibtexCrossrefEntry {
 }
 
 impl BibtexSpecification for BibtexCrossref {
-    fn handle_event<W: Write>(w: &mut BibtexWriter<W>, works: &[Work]) -> ThothResult<()> {
+    fn handle_event(w: &mut Vec<u8>, works: &[Work]) -> ThothResult<()> {
         match works.len() {
             0 => Err(ThothError::IncompleteMetadataRecord(
                 "kbart::oclc".to_string(),
@@ -53,9 +53,64 @@ impl BibtexSpecification for BibtexCrossref {
 }
 
 impl BibtexEntry<BibtexCrossref> for Work {
-    fn bibtex_entry<W: Write>(&self, w: &mut BibtexWriter<W>) -> ThothResult<()> {
-        write!(w, "{:?}", BibtexCrossrefEntry::try_from(self.clone())?);
+    fn bibtex_entry(&self, w: &mut Vec<u8>) -> ThothResult<()> {
+        w.write_all(
+            BibtexCrossrefEntry::try_from(self.clone())?
+                .to_string()
+                .as_bytes(),
+        )?;
         Ok(())
+    }
+}
+
+impl fmt::Display for BibtexCrossrefEntry {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "@book{{{},", self.title)?;
+        writeln!(f, "\ttitle\t\t= {{{}}},", self.title)?;
+        if let Some(shorttitle) = &self.shorttitle {
+            writeln!(f, "\tshorttitle\t= {{{shorttitle}}},")?;
+        }
+        if let Some(author) = &self.author {
+            writeln!(f, "\tauthor\t\t= {{{author}}},")?;
+        }
+        if let Some(editor) = &self.editor {
+            writeln!(f, "\teditor\t\t= {{{editor}}},")?;
+        }
+        writeln!(f, "\tyear\t\t= {},", self.year)?;
+        writeln!(f, "\tmonth\t\t= {},", self.month)?;
+        writeln!(f, "\tday\t\t\t= {},", self.day)?;
+        writeln!(f, "\tpublisher\t= {{{}}},", self.publisher)?;
+        if let Some(address) = &self.address {
+            writeln!(f, "\taddress\t\t= {{{address}}},")?;
+        }
+        if let Some(series) = &self.series {
+            writeln!(f, "\tseries\t\t= {{{series}}},")?;
+        }
+        if let Some(volume) = &self.volume {
+            writeln!(f, "\tvolume\t\t= {volume},")?;
+        }
+        if let Some(pages) = &self.pages {
+            writeln!(f, "\tpages\t\t= {{{pages}}},")?;
+        }
+        if let Some(doi) = &self.doi {
+            writeln!(f, "\tdoi\t\t\t= {{{doi}}},")?;
+        }
+        if let Some(isbn) = &self.isbn {
+            writeln!(f, "\tisbn\t\t= {{{isbn}}},")?;
+        }
+        if let Some(issn) = &self.issn {
+            writeln!(f, "\tissn\t\t= {{{issn}}},")?;
+        }
+        if let Some(url) = &self.url {
+            writeln!(f, "\turl\t\t\t= {{{url}}},")?;
+        }
+        if let Some(copyright) = &self.copyright {
+            writeln!(f, "\tcopyright\t= {{{copyright}}},")?;
+        }
+        if let Some(long_abstract) = &self.long_abstract {
+            writeln!(f, "\tabstract\t= {{{long_abstract}}}")?;
+        }
+        writeln!(f, "}}")
     }
 }
 

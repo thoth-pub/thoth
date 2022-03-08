@@ -1,27 +1,23 @@
-use std::io::Write;
 use thoth_client::Work;
 use thoth_errors::{ThothError, ThothResult};
 
-pub struct BibtexWriter<W: Write> {
-    writer: W,
-}
 
 pub(crate) trait BibtexSpecification {
     fn generate(&self, works: &[Work]) -> ThothResult<String> {
-        let mut writer = BibtexWriter { writer: vec![] };
-        Self::handle_event(&mut writer, works)
-            .map(|_| writer)
+        let mut buffer: Vec<u8> = Vec::new();
+        Self::handle_event(&mut buffer, works)
+            .map(|_| buffer)
             .and_then(|bibtex| {
-                String::from_utf8(bibtex.writer)
+                String::from_utf8(bibtex)
                     .map_err(|_| ThothError::InternalError("Could not parse BibTeX".to_string()))
             })
     }
 
-    fn handle_event<W: Write>(w: &mut BibtexWriter<W>, works: &[Work]) -> ThothResult<()>;
+    fn handle_event(w: &mut Vec<u8>, works: &[Work]) -> ThothResult<()>;
 }
 
 pub(crate) trait BibtexEntry<T: BibtexSpecification> {
-    fn bibtex_entry<W: Write>(&self, w: &mut BibtexWriter<W>) -> ThothResult<()>;
+    fn bibtex_entry(&self, w: &mut Vec<u8>) -> ThothResult<()>;
 }
 
 mod bibtex_crossref;
