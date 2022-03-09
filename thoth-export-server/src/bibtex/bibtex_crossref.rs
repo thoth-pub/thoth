@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::fmt;
 use std::io::Write;
-use thoth_client::{ContributionType, PublicationType, Work, WorkType};
+use thoth_client::{ContributionType, PublicationType, RelationType, Work, WorkType};
 use thoth_errors::{ThothError, ThothResult};
 
 use super::{BibtexEntry, BibtexSpecification};
@@ -10,6 +10,7 @@ pub(crate) struct BibtexCrossref;
 
 #[derive(Debug)]
 struct BibtexCrossrefEntry {
+    entry_type: String,
     title: String,
     shorttitle: Option<String>,
     author: Option<String>,
@@ -21,12 +22,15 @@ struct BibtexCrossrefEntry {
     address: Option<String>,
     series: Option<String>,
     volume: Option<i64>,
+    booktitle: Option<String>,
+    chapter: Option<i64>,
     pages: Option<String>,
     doi: Option<String>,
     isbn: Option<String>,
     issn: Option<String>,
     url: Option<String>,
     copyright: Option<String>,
+    // BibTeX field name is "abstract" but this is a reserved Rust keyword
     long_abstract: Option<String>,
 }
 
@@ -65,7 +69,13 @@ impl BibtexEntry<BibtexCrossref> for Work {
 
 impl fmt::Display for BibtexCrossrefEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "@book{{{},", self.title)?;
+        // Cite key must be unique and alphanumeric ("-_:" also permitted)
+        // Most records will have an ISBN, but fall back on publication date if not found
+        let mut citekey = self.isbn.clone().unwrap_or_default();
+        if citekey.is_empty() {
+            citekey = format!("{}-{}-{}", self.year, self.month, self.day);
+        }
+        writeln!(f, "@{}{{{},", self.entry_type, citekey)?;
         writeln!(f, "\ttitle\t\t= {{{}}},", self.title)?;
         if let Some(shorttitle) = &self.shorttitle {
             writeln!(f, "\tshorttitle\t= {{{shorttitle}}},")?;
@@ -88,6 +98,12 @@ impl fmt::Display for BibtexCrossrefEntry {
         }
         if let Some(volume) = &self.volume {
             writeln!(f, "\tvolume\t\t= {volume},")?;
+        }
+        if let Some(booktitle) = &self.booktitle {
+            writeln!(f, "\tbooktitle\t= {{{booktitle}}},")?;
+        }
+        if let Some(chapter) = &self.chapter {
+            writeln!(f, "\tchapter\t\t= {chapter},")?;
         }
         if let Some(pages) = &self.pages {
             writeln!(f, "\tpages\t\t= {{{pages}}},")?;
@@ -118,6 +134,13 @@ impl TryFrom<Work> for BibtexCrossrefEntry {
     type Error = ThothError;
 
     fn try_from(work: Work) -> ThothResult<Self> {
+        // Publication year is mandatory for books/chapters in BibTeX
+        if work.publication_date.is_none() {
+            return Err(ThothError::IncompleteMetadataRecord(
+                "bibtex::crossref".to_string(),
+                "Missing Publication Date".to_string(),
+            ));
+        }
         let mut author_list = vec![];
         let mut editor_list = vec![];
         let mut contributions = work.contributions;
@@ -133,27 +156,13 @@ impl TryFrom<Work> for BibtexCrossrefEntry {
                 }
             }
         }
-        // BibTeX book records must contain either author or editor
+        // BibTeX book/chapter records must contain either author or editor
         if author_list.is_empty() && editor_list.is_empty() {
             Err(ThothError::IncompleteMetadataRecord(
                 "bibtex::crossref".to_string(),
                 "Missing Author/Editor Details".to_string(),
             ))
-        // Publication year is mandatory for books in BibTeX
-        } else if work.publication_date.is_none() {
-            Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::crossref".to_string(),
-                "Missing Publication Date".to_string(),
-            ))
         } else {
-            let mut isbn = None;
-            for publication in work.publications {
-                if publication.publication_type == PublicationType::PDF
-                    && publication.isbn.is_some()
-                {
-                    isbn = publication.isbn.as_ref().map(|i| i.to_string());
-                }
-            }
             let author = match author_list.is_empty() {
                 true => None,
                 false => Some(author_list.join(" and ")),
@@ -162,14 +171,33 @@ impl TryFrom<Work> for BibtexCrossrefEntry {
                 true => None,
                 false => Some(editor_list.join(" and ")),
             };
-            let mut title = work.full_title;
             let mut shorttitle = None;
-            if let Some(subtitle) = work.subtitle {
-                title = format!("{}: {}", work.title, subtitle);
+            if work.subtitle.is_some() {
                 shorttitle = Some(work.title);
             }
+            let mut booktitle = None;
+            let mut chapter = None;
+            let mut pages = None;
+            let mut entry_type = "book".to_string();
+            if work.work_type == WorkType::BOOK_CHAPTER {
+                entry_type = "inbook".to_string();
+                if let Some(parent_relation) = work
+                    .relations
+                    .iter()
+                    .find(|r| r.relation_type == RelationType::IS_CHILD_OF)
+                {
+                    booktitle = Some(parent_relation.related_work.full_title.clone());
+                    chapter = Some(parent_relation.relation_ordinal);
+                }
+                // BibTeX page ranges require a double dash between the page numbers
+                pages = work.page_interval.map(|p| p.replace('-', "--"));
+            } else if work.work_type == WorkType::BOOK_SET {
+                // None of the standard BibTeX entry types are suitable for Book Sets
+                entry_type = "misc".to_string();
+            }
             Ok(BibtexCrossrefEntry {
-                title,
+                entry_type,
+                title: work.full_title,
                 shorttitle,
                 author,
                 editor,
@@ -192,9 +220,16 @@ impl TryFrom<Work> for BibtexCrossrefEntry {
                     .first()
                     .map(|i| i.series.series_name.to_string()),
                 volume: work.issues.first().map(|i| i.issue_ordinal),
-                pages: work.page_interval,
+                booktitle,
+                chapter,
+                pages,
                 doi: work.doi.map(|d| d.to_string()),
-                isbn,
+                // Take digital ISBN/ISSN as canonical
+                isbn: work
+                    .publications
+                    .iter()
+                    .find(|p| p.publication_type.eq(&PublicationType::PDF))
+                    .and_then(|p| p.isbn.as_ref().map(|i| i.to_string())),
                 issn: work
                     .issues
                     .first()
