@@ -38,7 +38,7 @@ impl BibtexSpecification for BibtexCrossref {
     fn handle_event(w: &mut Vec<u8>, works: &[Work]) -> ThothResult<()> {
         match works.len() {
             0 => Err(ThothError::IncompleteMetadataRecord(
-                "kbart::oclc".to_string(),
+                "bibtex::crossref".to_string(),
                 "Not enough data".to_string(),
             )),
             1 => BibtexEntry::<BibtexCrossref>::bibtex_entry(works.first().unwrap(), w),
@@ -239,5 +239,314 @@ impl TryFrom<Work> for BibtexCrossrefEntry {
                 long_abstract: work.long_abstract,
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+    use thoth_api::model::Doi;
+    use thoth_api::model::Isbn;
+    use thoth_api::model::Orcid;
+    use thoth_client::WorkRelations;
+    use thoth_client::WorkRelationsRelatedWork;
+    use thoth_client::{
+        ContributionType, PublicationType, SeriesType, WorkContributions,
+        WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssues,
+        WorkIssuesSeries, WorkPublications, WorkStatus, WorkType,
+    };
+    use uuid::Uuid;
+
+    const TEST_RESULT: &str = "@book{978-1-56619-909-4,
+\ttitle\t\t= {Work Title: Work Subtitle},
+\tshorttitle\t= {Work Title},
+\tauthor\t\t= {Author 1 and Author 2 and Author 3},
+\tyear\t\t= 1999,
+\tmonth\t\t= 12,
+\tday\t\t\t= 31,
+\tpublisher\t= {OA Editions},
+\taddress\t\t= {León, Spain},
+\tseries\t\t= {Name of series},
+\tvolume\t\t= 5,
+\tdoi\t\t\t= {10.00001/BOOK.0001},
+\tisbn\t\t= {978-1-56619-909-4},
+\tissn\t\t= {8765-4321},
+\turl\t\t\t= {https://www.book.com},
+\tcopyright\t= {http://creativecommons.org/licenses/by/4.0/},
+\tabstract\t= {Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.}
+}
+";
+
+    #[test]
+    fn test_bibtex_crossref() {
+        let mut test_work: Work = Work {
+            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            work_status: WorkStatus::ACTIVE,
+            full_title: "Work Title: Work Subtitle".to_string(),
+            title: "Work Title".to_string(),
+            subtitle: Some("Work Subtitle".to_string()),
+            work_type: WorkType::MONOGRAPH,
+            edition: Some(1),
+            doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
+            publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
+            license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),
+            copyright_holder: "Author 1; Author 2".to_string(),
+            short_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.".to_string()),
+            long_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string()),
+            general_note: Some("This is a general note".to_string()),
+            place: Some("León, Spain".to_string()),
+            page_count: Some(334),
+            page_breakdown: Some("x+334".to_string()),
+            first_page: None,
+            last_page: None,
+            page_interval: None,
+            image_count: Some(15),
+            table_count: Some(20),
+            audio_count: Some(25),
+            video_count: Some(30),
+            landing_page: Some("https://www.book.com".to_string()),
+            toc: Some("1. Chapter 1".to_string()),
+            lccn: Some("123456789".to_string()),
+            oclc: Some("987654321".to_string()),
+            cover_url: Some("https://www.book.com/cover".to_string()),
+            cover_caption: Some("This is a cover caption".to_string()),
+            imprint: WorkImprint {
+                imprint_name: "OA Editions Imprint".to_string(),
+                publisher: WorkImprintPublisher {
+                    publisher_name: "OA Editions".to_string(),
+                    publisher_url: None,
+                },
+            },
+            issues: vec![WorkIssues {
+                issue_ordinal: 5,
+                series: WorkIssuesSeries {
+                    series_type: SeriesType::JOURNAL,
+                    series_name: "Name of series".to_string(),
+                    issn_print: "1234-5678".to_string(),
+                    issn_digital: "8765-4321".to_string(),
+                    series_url: Some("https://www.series.com".to_string()),
+                    series_description: Some("Description of series".to_string()),
+                    series_cfp_url: Some("https://www.series.com/cfp".to_string()),
+                },
+            }],
+            contributions: vec![
+                WorkContributions {
+                    contribution_type: ContributionType::AUTHOR,
+                    first_name: Some("Author".to_string()),
+                    last_name: "1".to_string(),
+                    full_name: "Author 1".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    contribution_ordinal: 1,
+                    contributor: WorkContributionsContributor {
+                        orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
+                    },
+                    affiliations: vec![],
+                },
+                WorkContributions {
+                    contribution_type: ContributionType::AUTHOR,
+                    first_name: Some("Author".to_string()),
+                    last_name: "2".to_string(),
+                    full_name: "Author 2".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    contribution_ordinal: 2,
+                    contributor: WorkContributionsContributor {
+                        orcid: None,
+                    },
+                    affiliations: vec![],
+                },
+                WorkContributions {
+                    contribution_type: ContributionType::AUTHOR,
+                    first_name: Some("Author".to_string()),
+                    last_name: "3".to_string(),
+                    full_name: "Author 3".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    contribution_ordinal: 3,
+                    contributor: WorkContributionsContributor {
+                        orcid: None,
+                    },
+                    affiliations: vec![],
+                },
+                WorkContributions {
+                    contribution_type: ContributionType::EDITOR,
+                    first_name: Some("Editor".to_string()),
+                    last_name: "1".to_string(),
+                    full_name: "Editor 1".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    contribution_ordinal: 4,
+                    contributor: WorkContributionsContributor {
+                        orcid: None,
+                    },
+                    affiliations: vec![],
+                },
+                WorkContributions {
+                    contribution_type: ContributionType::EDITOR,
+                    first_name: Some("Editor".to_string()),
+                    last_name: "1".to_string(),
+                    full_name: "Editor 2".to_string(),
+                    main_contribution: false,
+                    biography: None,
+                    contribution_ordinal: 5,
+                    contributor: WorkContributionsContributor {
+                        orcid: None,
+                    },
+                    affiliations: vec![],
+                },
+            ],
+            languages: vec![],
+            publications: vec![
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
+                    publication_type: PublicationType::PAPERBACK,
+                    isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
+                    publication_type: PublicationType::PDF,
+                    isbn: Some(Isbn::from_str("978-1-56619-909-4").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![],
+                },
+            ],
+            subjects: vec![],
+            fundings: vec![],
+            relations: vec![WorkRelations {
+                relation_type: RelationType::IS_CHILD_OF,
+                relation_ordinal: 7,
+                related_work: WorkRelationsRelatedWork {
+                    full_title: "Related work title".to_string(),
+                },
+            },
+            WorkRelations {
+                relation_type: RelationType::HAS_TRANSLATION,
+                relation_ordinal: 4,
+                related_work: WorkRelationsRelatedWork {
+                    full_title: "Irrelevant related work".to_string(),
+                },
+            }]
+        };
+
+        let to_test = BibtexCrossref.generate(&[test_work.clone()]);
+        assert_eq!(to_test, Ok(TEST_RESULT.to_string()));
+
+        // Change work type to Book Set: entry type becomes "misc"
+        test_work.work_type = WorkType::BOOK_SET;
+        let to_test = BibtexCrossref.generate(&[test_work.clone()]);
+        assert_eq!(
+            to_test,
+            Ok(TEST_RESULT.to_string().replace("@book", "@misc"))
+        );
+
+        // Change work type to Edited Book: author field replaced by editor field
+        test_work.work_type = WorkType::EDITED_BOOK;
+        let to_test = BibtexCrossref.generate(&[test_work.clone()]);
+        assert_eq!(
+            to_test,
+            Ok(TEST_RESULT.to_string().replace(
+                "\tauthor\t\t= {Author 1 and Author 2 and Author 3},",
+                "\teditor\t\t= {Editor 1},"
+            ))
+        );
+
+        test_work.work_type = WorkType::MONOGRAPH;
+        // Remove PDF ISBN field: isbn is removed, cite key becomes publication date
+        test_work.publications[1].isbn = None;
+        // Remove subtitle field: shorttitle is removed (as it would duplicate title)
+        test_work.subtitle = None;
+        // We need to manually update the full title to remove the subtitle
+        // in this test framework, but within the Thoth database this is automatic
+        test_work.full_title = "Work Title".to_string();
+        let to_test = BibtexCrossref.generate(&[test_work.clone()]);
+        assert_eq!(
+            to_test,
+            Ok(TEST_RESULT
+                .to_string()
+                .replace("@book{978-1-56619-909-4,", "@book{1999-12-31,")
+                .replace("\tisbn\t\t= {978-1-56619-909-4},\n", "")
+                .replace(
+                    "\ttitle\t\t= {Work Title: Work Subtitle},\n\tshorttitle\t= {Work Title},",
+                    "\ttitle\t\t= {Work Title},"
+                ))
+        );
+
+        // Remove all other optional fields: corresponding fields will be removed
+        test_work.place = None;
+        test_work.doi = None;
+        test_work.landing_page = None;
+        test_work.license = None;
+        test_work.long_abstract = None;
+        test_work.issues.clear();
+        // Change work type to Chapter and add chapter-specific details (page range):
+        // entry type becomes "inbook", booktitle/chapter/pages fields will be added
+        test_work.work_type = WorkType::BOOK_CHAPTER;
+        // We need to manually set the page range in this test framework, but within
+        // the Thoth database this is automatically derived from first + last page
+        test_work.page_interval = Some("10-20".to_string());
+        let to_test = BibtexCrossref.generate(&[test_work.clone()]);
+        let test_result = "@inbook{1999-12-31,
+\ttitle\t\t= {Work Title},
+\tauthor\t\t= {Author 1 and Author 2 and Author 3},
+\tyear\t\t= 1999,
+\tmonth\t\t= 12,
+\tday\t\t\t= 31,
+\tpublisher\t= {OA Editions},
+\tbooktitle\t= {Related work title},
+\tchapter\t\t= 7,
+\tpages\t\t= {10--20},
+}
+"
+        .to_string();
+        assert_eq!(to_test, Ok(test_result));
+
+        // Remove publication date: BibTeX fails to generate
+        test_work.publication_date = None;
+        let to_test = BibtexCrossref.generate(&[test_work.clone()]);
+        assert_eq!(
+            to_test,
+            Err(ThothError::IncompleteMetadataRecord(
+                "bibtex::crossref".to_string(),
+                "Missing Publication Date".to_string(),
+            ))
+        );
+
+        // Reinstate publication date but remove author/editor details: ditto
+        test_work.publication_date = Some(chrono::NaiveDate::from_ymd(1999, 12, 31));
+        test_work.contributions.clear();
+        let to_test = BibtexCrossref.generate(&[test_work.clone()]);
+        assert_eq!(
+            to_test,
+            Err(ThothError::IncompleteMetadataRecord(
+                "bibtex::crossref".to_string(),
+                "Missing Author/Editor Details".to_string(),
+            ))
+        );
     }
 }
