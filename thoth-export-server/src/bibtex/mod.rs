@@ -19,5 +19,5 @@ pub(crate) trait BibtexEntry<T: BibtexSpecification> {
     fn bibtex_entry(&self, w: &mut Vec<u8>) -> ThothResult<()>;
 }
 
-mod bibtex_crossref;
-pub(crate) use bibtex_crossref::BibtexCrossref;
+mod bibtex_thoth;
+pub(crate) use bibtex_thoth::BibtexThoth;

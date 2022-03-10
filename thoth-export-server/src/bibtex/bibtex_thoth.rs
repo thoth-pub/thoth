@@ -6,10 +6,10 @@ use thoth_errors::{ThothError, ThothResult};
 
 use super::{BibtexEntry, BibtexSpecification};
 
-pub(crate) struct BibtexCrossref;
+pub(crate) struct BibtexThoth;
 
 #[derive(Debug)]
-struct BibtexCrossrefEntry {
+struct BibtexThothEntry {
     entry_type: String,
     title: String,
     shorttitle: Option<String>,
@@ -34,20 +34,20 @@ struct BibtexCrossrefEntry {
     long_abstract: Option<String>,
 }
 
-impl BibtexSpecification for BibtexCrossref {
+impl BibtexSpecification for BibtexThoth {
     fn handle_event(w: &mut Vec<u8>, works: &[Work]) -> ThothResult<()> {
         match works.len() {
             0 => Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::crossref".to_string(),
+                "bibtex::thoth".to_string(),
                 "Not enough data".to_string(),
             )),
-            1 => BibtexEntry::<BibtexCrossref>::bibtex_entry(works.first().unwrap(), w),
+            1 => BibtexEntry::<BibtexThoth>::bibtex_entry(works.first().unwrap(), w),
             _ => {
                 for work in works.iter() {
                     // Do not include Chapters in full publisher metadata record
                     // (assumes that a publisher will always have more than one work)
                     if work.work_type != WorkType::BOOK_CHAPTER {
-                        BibtexEntry::<BibtexCrossref>::bibtex_entry(work, w).ok();
+                        BibtexEntry::<BibtexThoth>::bibtex_entry(work, w).ok();
                     }
                 }
                 Ok(())
@@ -56,10 +56,10 @@ impl BibtexSpecification for BibtexCrossref {
     }
 }
 
-impl BibtexEntry<BibtexCrossref> for Work {
+impl BibtexEntry<BibtexThoth> for Work {
     fn bibtex_entry(&self, w: &mut Vec<u8>) -> ThothResult<()> {
         w.write_all(
-            BibtexCrossrefEntry::try_from(self.clone())?
+            BibtexThothEntry::try_from(self.clone())?
                 .to_string()
                 .as_bytes(),
         )?;
@@ -67,7 +67,7 @@ impl BibtexEntry<BibtexCrossref> for Work {
     }
 }
 
-impl fmt::Display for BibtexCrossrefEntry {
+impl fmt::Display for BibtexThothEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Cite key must be unique and alphanumeric ("-_:" also permitted)
         // Most records will have an ISBN, but fall back on publication date if not found
@@ -130,14 +130,14 @@ impl fmt::Display for BibtexCrossrefEntry {
     }
 }
 
-impl TryFrom<Work> for BibtexCrossrefEntry {
+impl TryFrom<Work> for BibtexThothEntry {
     type Error = ThothError;
 
     fn try_from(work: Work) -> ThothResult<Self> {
         // Publication year is mandatory for books/chapters in BibTeX
         if work.publication_date.is_none() {
             return Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::crossref".to_string(),
+                "bibtex::thoth".to_string(),
                 "Missing Publication Date".to_string(),
             ));
         }
@@ -159,7 +159,7 @@ impl TryFrom<Work> for BibtexCrossrefEntry {
         // BibTeX book/chapter records must contain either author or editor
         if author_list.is_empty() && editor_list.is_empty() {
             Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::crossref".to_string(),
+                "bibtex::thoth".to_string(),
                 "Missing Author/Editor Details".to_string(),
             ))
         } else {
@@ -195,7 +195,7 @@ impl TryFrom<Work> for BibtexCrossrefEntry {
                 // None of the standard BibTeX entry types are suitable for Book Sets
                 entry_type = "misc".to_string();
             }
-            Ok(BibtexCrossrefEntry {
+            Ok(BibtexThothEntry {
                 entry_type,
                 title: work.full_title,
                 shorttitle,
@@ -279,7 +279,7 @@ mod tests {
 ";
 
     #[test]
-    fn test_bibtex_crossref() {
+    fn test_bibtex_thoth() {
         let mut test_work: Work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
@@ -454,12 +454,12 @@ mod tests {
             }]
         };
 
-        let to_test = BibtexCrossref.generate(&[test_work.clone()]);
+        let to_test = BibtexThoth.generate(&[test_work.clone()]);
         assert_eq!(to_test, Ok(TEST_RESULT.to_string()));
 
         // Change work type to Book Set: entry type becomes "misc"
         test_work.work_type = WorkType::BOOK_SET;
-        let to_test = BibtexCrossref.generate(&[test_work.clone()]);
+        let to_test = BibtexThoth.generate(&[test_work.clone()]);
         assert_eq!(
             to_test,
             Ok(TEST_RESULT.to_string().replace("@book", "@misc"))
@@ -467,7 +467,7 @@ mod tests {
 
         // Change work type to Edited Book: author field replaced by editor field
         test_work.work_type = WorkType::EDITED_BOOK;
-        let to_test = BibtexCrossref.generate(&[test_work.clone()]);
+        let to_test = BibtexThoth.generate(&[test_work.clone()]);
         assert_eq!(
             to_test,
             Ok(TEST_RESULT.to_string().replace(
@@ -484,7 +484,7 @@ mod tests {
         // We need to manually update the full title to remove the subtitle
         // in this test framework, but within the Thoth database this is automatic
         test_work.full_title = "Work Title".to_string();
-        let to_test = BibtexCrossref.generate(&[test_work.clone()]);
+        let to_test = BibtexThoth.generate(&[test_work.clone()]);
         assert_eq!(
             to_test,
             Ok(TEST_RESULT
@@ -510,7 +510,7 @@ mod tests {
         // We need to manually set the page range in this test framework, but within
         // the Thoth database this is automatically derived from first + last page
         test_work.page_interval = Some("10-20".to_string());
-        let to_test = BibtexCrossref.generate(&[test_work.clone()]);
+        let to_test = BibtexThoth.generate(&[test_work.clone()]);
         let test_result = "@inbook{1999-12-31,
 \ttitle\t\t= {Work Title},
 \tauthor\t\t= {Author 1 and Author 2 and Author 3},
@@ -528,11 +528,11 @@ mod tests {
 
         // Remove publication date: BibTeX fails to generate
         test_work.publication_date = None;
-        let to_test = BibtexCrossref.generate(&[test_work.clone()]);
+        let to_test = BibtexThoth.generate(&[test_work.clone()]);
         assert_eq!(
             to_test,
             Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::crossref".to_string(),
+                "bibtex::thoth".to_string(),
                 "Missing Publication Date".to_string(),
             ))
         );
@@ -540,11 +540,11 @@ mod tests {
         // Reinstate publication date but remove author/editor details: ditto
         test_work.publication_date = Some(chrono::NaiveDate::from_ymd(1999, 12, 31));
         test_work.contributions.clear();
-        let to_test = BibtexCrossref.generate(&[test_work.clone()]);
+        let to_test = BibtexThoth.generate(&[test_work.clone()]);
         assert_eq!(
             to_test,
             Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::crossref".to_string(),
+                "bibtex::thoth".to_string(),
                 "Missing Author/Editor Details".to_string(),
             ))
         );

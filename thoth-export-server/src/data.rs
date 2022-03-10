@@ -56,10 +56,10 @@ lazy_static! {
             ],
         },
         Specification {
-            id: "bibtex::crossref",
-            name: "Crossref BibTeX",
+            id: "bibtex::thoth",
+            name: "Thoth BibTeX",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/bibtex"),
-            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/crossref"),],
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/zotero"),],
         },
     ];
     pub(crate) static ref ALL_PLATFORMS: Vec<Platform<'static>> = vec![
@@ -155,11 +155,11 @@ lazy_static! {
             ),],
         },
         Platform {
-            id: "crossref",
-            name: "Crossref",
+            id: "zotero",
+            name: "Zotero",
             accepts: vec![concat!(
                 env!("THOTH_EXPORT_API"),
-                "/specifications/bibtex::crossref"
+                "/specifications/bibtex::thoth"
             ),],
         },
     ];
@@ -210,7 +210,7 @@ lazy_static! {
             version: None,
             specifications: vec![concat!(
                 env!("THOTH_EXPORT_API"),
-                "/specifications/bibtex::crossref"
+                "/specifications/bibtex::thoth"
             ),],
         },
     ];

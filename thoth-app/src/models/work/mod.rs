@@ -176,7 +176,7 @@ impl DisplayWork for WorkWithRelations {
 
     fn bibtex_endpoint(&self) -> String {
         format!(
-            "{}/specifications/bibtex::crossref/work/{}",
+            "{}/specifications/bibtex::thoth/work/{}",
             THOTH_EXPORT_API, &self.work_id
         )
     }
