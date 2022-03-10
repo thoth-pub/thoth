@@ -76,57 +76,57 @@ impl fmt::Display for BibtexCrossrefEntry {
             citekey = format!("{}-{}-{}", self.year, self.month, self.day);
         }
         writeln!(f, "@{}{{{},", self.entry_type, citekey)?;
-        writeln!(f, "\ttitle\t\t= {{{}}},", self.title)?;
+        write!(f, "\ttitle\t\t= {{{}}}", self.title)?;
         if let Some(shorttitle) = &self.shorttitle {
-            writeln!(f, "\tshorttitle\t= {{{shorttitle}}},")?;
+            write!(f, ",\n\tshorttitle\t= {{{shorttitle}}}")?;
         }
         if let Some(author) = &self.author {
-            writeln!(f, "\tauthor\t\t= {{{author}}},")?;
+            write!(f, ",\n\tauthor\t\t= {{{author}}}")?;
         }
         if let Some(editor) = &self.editor {
-            writeln!(f, "\teditor\t\t= {{{editor}}},")?;
+            write!(f, ",\n\teditor\t\t= {{{editor}}}")?;
         }
-        writeln!(f, "\tyear\t\t= {},", self.year)?;
-        writeln!(f, "\tmonth\t\t= {},", self.month)?;
-        writeln!(f, "\tday\t\t\t= {},", self.day)?;
-        writeln!(f, "\tpublisher\t= {{{}}},", self.publisher)?;
+        write!(f, ",\n\tyear\t\t= {}", self.year)?;
+        write!(f, ",\n\tmonth\t\t= {}", self.month)?;
+        write!(f, ",\n\tday\t\t\t= {}", self.day)?;
+        write!(f, ",\n\tpublisher\t= {{{}}}", self.publisher)?;
         if let Some(address) = &self.address {
-            writeln!(f, "\taddress\t\t= {{{address}}},")?;
+            write!(f, ",\n\taddress\t\t= {{{address}}}")?;
         }
         if let Some(series) = &self.series {
-            writeln!(f, "\tseries\t\t= {{{series}}},")?;
+            write!(f, ",\n\tseries\t\t= {{{series}}}")?;
         }
         if let Some(volume) = &self.volume {
-            writeln!(f, "\tvolume\t\t= {volume},")?;
+            write!(f, ",\n\tvolume\t\t= {volume}")?;
         }
         if let Some(booktitle) = &self.booktitle {
-            writeln!(f, "\tbooktitle\t= {{{booktitle}}},")?;
+            write!(f, ",\n\tbooktitle\t= {{{booktitle}}}")?;
         }
         if let Some(chapter) = &self.chapter {
-            writeln!(f, "\tchapter\t\t= {chapter},")?;
+            write!(f, ",\n\tchapter\t\t= {chapter}")?;
         }
         if let Some(pages) = &self.pages {
-            writeln!(f, "\tpages\t\t= {{{pages}}},")?;
+            write!(f, ",\n\tpages\t\t= {{{pages}}}")?;
         }
         if let Some(doi) = &self.doi {
-            writeln!(f, "\tdoi\t\t\t= {{{doi}}},")?;
+            write!(f, ",\n\tdoi\t\t\t= {{{doi}}}")?;
         }
         if let Some(isbn) = &self.isbn {
-            writeln!(f, "\tisbn\t\t= {{{isbn}}},")?;
+            write!(f, ",\n\tisbn\t\t= {{{isbn}}}")?;
         }
         if let Some(issn) = &self.issn {
-            writeln!(f, "\tissn\t\t= {{{issn}}},")?;
+            write!(f, ",\n\tissn\t\t= {{{issn}}}")?;
         }
         if let Some(url) = &self.url {
-            writeln!(f, "\turl\t\t\t= {{{url}}},")?;
+            write!(f, ",\n\turl\t\t\t= {{{url}}}")?;
         }
         if let Some(copyright) = &self.copyright {
-            writeln!(f, "\tcopyright\t= {{{copyright}}},")?;
+            write!(f, ",\n\tcopyright\t= {{{copyright}}}")?;
         }
         if let Some(long_abstract) = &self.long_abstract {
-            writeln!(f, "\tabstract\t= {{{long_abstract}}}")?;
+            write!(f, ",\n\tabstract\t= {{{long_abstract}}}")?;
         }
-        writeln!(f, "}}")
+        writeln!(f, "\n}}")
     }
 }
 
@@ -520,7 +520,7 @@ mod tests {
 \tpublisher\t= {OA Editions},
 \tbooktitle\t= {Related work title},
 \tchapter\t\t= 7,
-\tpages\t\t= {10--20},
+\tpages\t\t= {10--20}
 }
 "
         .to_string();
