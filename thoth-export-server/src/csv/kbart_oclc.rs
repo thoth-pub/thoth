@@ -132,10 +132,7 @@ impl TryFrom<Work> for KbartOclcRow {
                 false => None,
             };
             Ok(KbartOclcRow {
-                publication_title: match work.subtitle {
-                    Some(subtitle) => format!("{}: {}", work.title, subtitle),
-                    None => work.full_title,
-                },
+                publication_title: work.full_title,
                 print_identifier,
                 online_identifier,
                 date_first_issue_online: None,
@@ -237,9 +234,11 @@ mod tests {
         let mut test_work: Work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
+            // We must manually set full_title within this test framework, but
+            // Thoth UI compiles it automatically from title + (optional) subtitle
             full_title: "Book Title: Book Subtitle".to_string(),
             title: "Book Title".to_string(),
-            subtitle: Some("Separate Subtitle".to_string()),
+            subtitle: Some("Book Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
             edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
@@ -438,7 +437,7 @@ mod tests {
         };
         let mut test_result = TestResult {
             headers: "publication_title\tprint_identifier\tonline_identifier\tdate_first_issue_online\tnum_first_vol_online\tnum_first_issue_online\tdate_last_issue_online\tnum_last_vol_online\tnum_last_issue_online\ttitle_url\tfirst_author\ttitle_id\tembargo_info\tcoverage_depth\tnotes\tpublisher_name\tpublication_type\tdate_monograph_published_print\tdate_monograph_published_online\tmonograph_volume\tmonograph_edition\tfirst_editor\tparent_publication_title_id\tpreceding_publication_title_id\taccess_type\n".to_string(),
-            title: "Book Title: Separate Subtitle".to_string(),
+            title: "Book Title: Book Subtitle".to_string(),
             print_identifier: "978-3-16-148410-0".to_string(),
             online_identifier: "978-1-56619-909-4".to_string(),
             title_url: "https://www.book.com".to_string(),
@@ -457,9 +456,6 @@ mod tests {
             KbartOclc.generate(&[test_work.clone()], QuoteStyle::Necessary, DELIMITER_TAB);
         assert_eq!(to_test, Ok(test_result.to_string()));
 
-        // Remove subtitle: full title is used instead of title + subtitle
-        test_work.subtitle = None;
-        test_result.title = "Book Title: Book Subtitle".to_string();
         // Remove DOI: no title_id
         test_work.doi = None;
         test_result.title_id = "".to_string();
