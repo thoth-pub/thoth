@@ -56,7 +56,7 @@ lazy_static! {
             ],
         },
         Specification {
-            id: "kbart::oclc",
+            id: "bibtex::crossref",
             name: "Crossref BibTeX",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/bibtex"),
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/crossref"),],
