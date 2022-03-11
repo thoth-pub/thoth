@@ -3936,7 +3936,7 @@ dependencies = [
 
 [[package]]
 name = "thoth"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "cargo-husky",
  "clap",
@@ -3951,7 +3951,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "actix-web",
  "argon2rs",
@@ -3980,7 +3980,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api-server"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "actix-cors",
  "actix-identity",
@@ -3995,7 +3995,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4018,7 +4018,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app-server"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -4027,7 +4027,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-client"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "chrono",
  "graphql_client",
@@ -4041,7 +4041,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-errors"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "actix-web",
  "csv",
@@ -4056,7 +4056,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-export-server"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -4867,9 +4867,9 @@ dependencies = [
 
 [[package]]
 name = "xml-rs"
-version = "0.8.0"
+version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "541b12c998c5b56aa2b4e6f18f03664eef9a4fd0a246a55594efae6cc2d964b5"
+checksum = "d2d7d3948613f75c98fd9328cfdcc45acc4d360655289d0a7d4ec931392200a3"
 
 [[package]]
 name = "xmlparser"

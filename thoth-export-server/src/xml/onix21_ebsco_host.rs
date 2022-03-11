@@ -147,21 +147,17 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
                     write_element_block("TitleType", w, |w| {
                         w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                     })?;
+                    write_element_block("TitleText", w, |w| {
+                        w.write(XmlEvent::Characters(&self.title))
+                            .map_err(|e| e.into())
+                    })?;
                     if let Some(subtitle) = &self.subtitle {
-                        write_element_block("TitleText", w, |w| {
-                            w.write(XmlEvent::Characters(&self.title))
-                                .map_err(|e| e.into())
-                        })?;
                         write_element_block("Subtitle", w, |w| {
                             w.write(XmlEvent::Characters(subtitle))
                                 .map_err(|e| e.into())
-                        })
-                    } else {
-                        write_element_block("TitleText", w, |w| {
-                            w.write(XmlEvent::Characters(&self.full_title))
-                                .map_err(|e| e.into())
-                        })
+                        })?;
                     }
+                    Ok(())
                 })?;
                 write_element_block("WorkIdentifier", w, |w| {
                     // 01 Proprietary
@@ -840,7 +836,7 @@ mod tests {
             work_status: WorkStatus::ACTIVE,
             full_title: "Book Title: Book Subtitle".to_string(),
             title: "Book Title".to_string(),
-            subtitle: Some("Separate Subtitle".to_string()),
+            subtitle: Some("Book Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
             edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
@@ -984,7 +980,7 @@ mod tests {
         assert!(output.contains(r#"  <Title>"#));
         assert!(output.contains(r#"    <TitleType>01</TitleType>"#));
         assert!(output.contains(r#"    <TitleText>Book Title</TitleText>"#));
-        assert!(output.contains(r#"    <Subtitle>Separate Subtitle</Subtitle>"#));
+        assert!(output.contains(r#"    <Subtitle>Book Subtitle</Subtitle>"#));
         assert!(output.contains(r#"  <WorkIdentifier>"#));
         assert!(output.contains(r#"    <WorkIDType>01</WorkIDType>"#));
         assert!(output.contains(r#"    <IDTypeName>Thoth WorkID</IDTypeName>"#));
@@ -1081,10 +1077,8 @@ mod tests {
         // No DOI supplied
         assert!(!output.contains(r#"    <ProductIDType>06</ProductIDType>"#));
         assert!(!output.contains(r#"    <IDValue>10.00001/BOOK.0001</IDValue>"#));
-        // No subtitle supplied: work FullTitle is used instead of Title
-        assert!(!output.contains(r#"    <TitleText>Book Title</TitleText>"#));
-        assert!(!output.contains(r#"    <Subtitle>Separate Subtitle</Subtitle>"#));
-        assert!(output.contains(r#"    <TitleText>Book Title: Book Subtitle</TitleText>"#));
+        // No subtitle supplied (within Thoth UI this would automatically update full_title)
+        assert!(!output.contains(r#"    <Subtitle>Book Subtitle</Subtitle>"#));
         // No landing page supplied
         assert!(!output.contains(r#"    <WebsiteRole>01</WebsiteRole>"#));
         assert!(!output.contains(

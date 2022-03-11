@@ -1,6 +1,6 @@
 [package]
 name = "thoth-app"
-version = "0.8.0"
+version = "0.8.1"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -33,5 +33,5 @@ serde = { version = "1.0.115", features = ["derive"] }
 serde_json = "1.0"
 url = "2.1.1"
 uuid = { version = "0.7", features = ["serde", "v4"] }
-thoth-api = { version = "0.8.0", path = "../thoth-api"  }
-thoth-errors = { version = "0.8.0", path = "../thoth-errors" }
+thoth-api = { version = "0.8.1", path = "../thoth-api"  }
+thoth-errors = { version = "0.8.1", path = "../thoth-errors" }

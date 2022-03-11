@@ -159,21 +159,17 @@ impl XmlElementBlock<Onix3Jstor> for Work {
                             write_element_block("TitleElementLevel", w, |w| {
                                 w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                             })?;
+                            write_element_block("TitleText", w, |w| {
+                                w.write(XmlEvent::Characters(&self.title))
+                                    .map_err(|e| e.into())
+                            })?;
                             if let Some(subtitle) = &self.subtitle {
-                                write_element_block("TitleText", w, |w| {
-                                    w.write(XmlEvent::Characters(&self.title))
-                                        .map_err(|e| e.into())
-                                })?;
                                 write_element_block("Subtitle", w, |w| {
                                     w.write(XmlEvent::Characters(subtitle))
                                         .map_err(|e| e.into())
-                                })
-                            } else {
-                                write_element_block("TitleText", w, |w| {
-                                    w.write(XmlEvent::Characters(&self.full_title))
-                                        .map_err(|e| e.into())
-                                })
+                                })?;
                             }
+                            Ok(())
                         })
                     })?;
                     for contribution in &self.contributions {
@@ -941,10 +937,8 @@ mod tests {
         assert!(!output
             .contains(r#"        <EpubLicenseExpressionType>02</EpubLicenseExpressionType>"#));
         assert!(!output.contains(r#"        <EpubLicenseExpressionLink>https://creativecommons.org/licenses/by/4.0/</EpubLicenseExpressionLink>"#));
-        // No subtitle supplied: work FullTitle is used instead of Title
-        assert!(!output.contains(r#"        <TitleText>Book Title</TitleText>"#));
+        // No subtitle supplied (within Thoth UI this would automatically update full_title)
         assert!(!output.contains(r#"        <Subtitle>Book Subtitle</Subtitle>"#));
-        assert!(output.contains(r#"        <TitleText>Book Title: Book Subtitle</TitleText>"#));
         // No page count supplied
         assert!(!output.contains(r#"    <Extent>"#));
         assert!(!output.contains(r#"      <ExtentType>00</ExtentType>"#));

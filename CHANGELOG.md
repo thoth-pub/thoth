@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.8.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.1) - 2022-03-11
+### Added
+  - [#104](https://github.com/thoth-pub/thoth/issues/104) - Implement BibTeX specification
+
+### Changed
+  - Removed unnecessary title branching logic from KBART/ONIX output formats
+
 ## [[0.8.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.0) - 2022-03-01
 ### Added
   - [#341](https://github.com/thoth-pub/thoth/issues/341) - Add weight to publication
