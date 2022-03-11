@@ -9,6 +9,7 @@ use std::str::FromStr;
 use thoth_client::Work;
 use thoth_errors::{ThothError, ThothResult};
 
+use crate::bibtex::{BibtexSpecification, BibtexThoth};
 use crate::csv::{CsvSpecification, CsvThoth, KbartOclc};
 use crate::xml::{Onix21EbscoHost, Onix3Jstor, Onix3Oapen, Onix3ProjectMuse, XmlSpecification};
 
@@ -27,6 +28,7 @@ pub(crate) enum MetadataSpecification {
     Onix21EbscoHost(Onix21EbscoHost),
     CsvThoth(CsvThoth),
     KbartOclc(KbartOclc),
+    BibtexThoth(BibtexThoth),
 }
 
 pub(crate) struct MetadataRecord<T: AsRecord> {
@@ -42,9 +44,11 @@ where
     const XML_MIME_TYPE: &'static str = "text/xml; charset=utf-8";
     const CSV_MIME_TYPE: &'static str = "text/csv; charset=utf-8";
     const TXT_MIME_TYPE: &'static str = "text/plain; charset=utf-8";
+    const BIB_MIME_TYPE: &'static str = "application/x-bibtex; charset=utf-8";
     const XML_EXTENSION: &'static str = ".xml";
     const CSV_EXTENSION: &'static str = ".csv";
     const TXT_EXTENSION: &'static str = ".txt";
+    const BIB_EXTENSION: &'static str = ".bib";
 
     pub(crate) fn new(id: String, specification: MetadataSpecification, data: T) -> Self {
         MetadataRecord {
@@ -62,6 +66,7 @@ where
             MetadataSpecification::Onix21EbscoHost(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::CsvThoth(_) => Self::CSV_MIME_TYPE,
             MetadataSpecification::KbartOclc(_) => Self::TXT_MIME_TYPE,
+            MetadataSpecification::BibtexThoth(_) => Self::BIB_MIME_TYPE,
         }
     }
 
@@ -73,6 +78,7 @@ where
             MetadataSpecification::Onix21EbscoHost(_) => self.xml_file_name(),
             MetadataSpecification::CsvThoth(_) => self.csv_file_name(),
             MetadataSpecification::KbartOclc(_) => self.txt_file_name(),
+            MetadataSpecification::BibtexThoth(_) => self.bib_file_name(),
         }
     }
 
@@ -86,6 +92,10 @@ where
 
     fn txt_file_name(&self) -> String {
         self.format_file_name(Self::TXT_EXTENSION)
+    }
+
+    fn bib_file_name(&self) -> String {
+        self.format_file_name(Self::BIB_EXTENSION)
     }
 
     fn format_file_name(&self, extension: &'static str) -> String {
@@ -123,6 +133,7 @@ impl MetadataRecord<Vec<Work>> {
             MetadataSpecification::KbartOclc(kbart_oclc) => {
                 kbart_oclc.generate(&self.data, QuoteStyle::Necessary, DELIMITER_TAB)
             }
+            MetadataSpecification::BibtexThoth(bibtex_thoth) => bibtex_thoth.generate(&self.data),
         }
     }
 }
@@ -179,6 +190,7 @@ impl FromStr for MetadataSpecification {
             }
             "csv::thoth" => Ok(MetadataSpecification::CsvThoth(CsvThoth {})),
             "kbart::oclc" => Ok(MetadataSpecification::KbartOclc(KbartOclc {})),
+            "bibtex::thoth" => Ok(MetadataSpecification::BibtexThoth(BibtexThoth {})),
             _ => Err(ThothError::InvalidMetadataSpecification(input.to_string())),
         }
     }
@@ -193,6 +205,7 @@ impl ToString for MetadataSpecification {
             MetadataSpecification::Onix21EbscoHost(_) => "onix_2.1::ebsco_host".to_string(),
             MetadataSpecification::CsvThoth(_) => "csv::thoth".to_string(),
             MetadataSpecification::KbartOclc(_) => "kbart::oclc".to_string(),
+            MetadataSpecification::BibtexThoth(_) => "bibtex::thoth".to_string(),
         }
     }
 }
@@ -263,5 +276,14 @@ mod tests {
             vec![],
         );
         assert_eq!(to_test.file_name(), "kbart__oclc__some_id.txt".to_string());
+        let to_test = MetadataRecord::new(
+            "some_id".to_string(),
+            MetadataSpecification::BibtexThoth(BibtexThoth {}),
+            vec![],
+        );
+        assert_eq!(
+            to_test.file_name(),
+            "bibtex__thoth__some_id.bib".to_string()
+        );
     }
 }

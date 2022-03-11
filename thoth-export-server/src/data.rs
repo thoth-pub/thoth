@@ -55,6 +55,12 @@ lazy_static! {
                 concat!(env!("THOTH_EXPORT_API"), "/platforms/jisc_kb"),
             ],
         },
+        Specification {
+            id: "bibtex::thoth",
+            name: "Thoth BibTeX",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/bibtex"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/zotero"),],
+        },
     ];
     pub(crate) static ref ALL_PLATFORMS: Vec<Platform<'static>> = vec![
         Platform {
@@ -148,6 +154,14 @@ lazy_static! {
                 "/specifications/kbart::oclc"
             ),],
         },
+        Platform {
+            id: "zotero",
+            name: "Zotero",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/bibtex::thoth"
+            ),],
+        },
     ];
     pub(crate) static ref ALL_FORMATS: Vec<Format<'static>> = vec![
         Format {
@@ -188,6 +202,15 @@ lazy_static! {
             specifications: vec![concat!(
                 env!("THOTH_EXPORT_API"),
                 "/specifications/kbart::oclc"
+            ),],
+        },
+        Format {
+            id: "bibtex",
+            name: "BibTeX",
+            version: None,
+            specifications: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/bibtex::thoth"
             ),],
         },
     ];
