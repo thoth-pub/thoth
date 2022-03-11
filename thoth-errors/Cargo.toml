@@ -19,5 +19,5 @@ actix-web = "3.3.2"
 diesel = "1.4.0"
 csv = "1.1.6"
 juniper = "0.14.2"
-xml-rs = "0.8.1"
+xml-rs = "0.8.0"
 
