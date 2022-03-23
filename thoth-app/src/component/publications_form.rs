@@ -37,10 +37,16 @@ use crate::models::publication::delete_publication_mutation::PushDeletePublicati
 use crate::models::publication::delete_publication_mutation::Variables as DeleteVariables;
 use crate::models::publication::publication_types_query::FetchActionPublicationTypes;
 use crate::models::publication::publication_types_query::FetchPublicationTypes;
+use crate::models::publication::update_publication_mutation::PushActionUpdatePublication;
+use crate::models::publication::update_publication_mutation::PushUpdatePublication;
+use crate::models::publication::update_publication_mutation::UpdatePublicationRequest;
+use crate::models::publication::update_publication_mutation::UpdatePublicationRequestBody;
+use crate::models::publication::update_publication_mutation::Variables as UpdateVariables;
 use crate::models::publication::PublicationTypeValues;
 use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::CANCEL_BUTTON;
+use crate::string::EDIT_BUTTON;
 use crate::string::EMPTY_PUBLICATIONS;
 use crate::string::REMOVE_BUTTON;
 use crate::string::VIEW_BUTTON;
@@ -59,6 +65,7 @@ pub struct PublicationsFormComponent {
     fetch_publication_types: FetchPublicationTypes,
     push_publication: PushCreatePublication,
     delete_publication: PushDeletePublication,
+    update_publication: PushUpdatePublication,
     link: ComponentLink<Self>,
     notification_bus: NotificationDispatcher,
     router: RouteAgentDispatcher<()>,
@@ -70,12 +77,14 @@ struct PublicationsFormData {
 }
 
 pub enum Msg {
-    ToggleAddFormDisplay(bool),
+    ToggleAddFormDisplay(bool, Option<Publication>),
     ToggleDimensionConversion,
     SetPublicationTypesFetchState(FetchActionPublicationTypes),
     GetPublicationTypes,
     SetPublicationPushState(PushActionCreatePublication),
     CreatePublication,
+    SetPublicationUpdateState(PushActionUpdatePublication),
+    UpdatePublication,
     SetPublicationDeleteState(PushActionDeletePublication),
     DeletePublication(Uuid),
     ChangePublicationType(PublicationType),
@@ -112,6 +121,7 @@ impl Component for PublicationsFormComponent {
         let isbn_warning = Default::default();
         let push_publication = Default::default();
         let delete_publication = Default::default();
+        let update_publication = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let router = RouteAgentDispatcher::new();
 
@@ -128,6 +138,7 @@ impl Component for PublicationsFormComponent {
             fetch_publication_types: Default::default(),
             push_publication,
             delete_publication,
+            update_publication,
             link,
             notification_bus,
             router,
@@ -136,14 +147,27 @@ impl Component for PublicationsFormComponent {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::ToggleAddFormDisplay(value) => {
+            Msg::ToggleAddFormDisplay(value, p) => {
                 self.show_add_form = value;
-                // Ensure ISBN variables are cleared on re-opening form,
-                // otherwise a previously-entered valid ISBN value may be
-                // saved although an invalid value was subsequently entered
-                self.new_publication.isbn = Default::default();
-                self.isbn = Default::default();
-                self.isbn_warning = Default::default();
+                if value {
+                    if let Some(publication) = p {
+                        // Editing existing publication: load its current values.
+                        self.new_publication = publication;
+                    } else {
+                        // Creating new publication: clear any previous values.
+                        self.new_publication = Default::default();
+                    }
+                    // Ensure ISBN variable value is kept in sync with publication object.
+                    self.isbn = self
+                        .new_publication
+                        .isbn()
+                        .clone()
+                        .unwrap_or_default()
+                        .to_string();
+                    // Clear ISBN warning as the variable value is now valid by definition
+                    // (it has either been set to a database value or the default empty value)
+                    self.isbn_warning = Default::default();
+                }
                 true
             }
             Msg::ToggleDimensionConversion => {
@@ -181,11 +205,13 @@ impl Component for PublicationsFormComponent {
                                 self.props.publications.clone().unwrap_or_default();
                             publications.push(publication);
                             self.props.update_publications.emit(Some(publications));
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            self.link
+                                .send_message(Msg::ToggleAddFormDisplay(false, None));
                             true
                         }
                         None => {
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            self.link
+                                .send_message(Msg::ToggleAddFormDisplay(false, None));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -194,7 +220,8 @@ impl Component for PublicationsFormComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                        self.link
+                            .send_message(Msg::ToggleAddFormDisplay(false, None));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
                             NotificationStatus::Danger,
@@ -248,6 +275,97 @@ impl Component for PublicationsFormComponent {
                     .send_future(self.push_publication.fetch(Msg::SetPublicationPushState));
                 self.link
                     .send_message(Msg::SetPublicationPushState(FetchAction::Fetching));
+                false
+            }
+            Msg::SetPublicationUpdateState(fetch_state) => {
+                self.update_publication.apply(fetch_state);
+                match self.update_publication.as_ref().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.update_publication {
+                        Some(p) => {
+                            let mut publications: Vec<Publication> =
+                                self.props.publications.clone().unwrap_or_default();
+                            if let Some(publication) = publications
+                                .iter_mut()
+                                .find(|pb| pb.publication_id == p.publication_id)
+                            {
+                                *publication = p.clone();
+                            }
+                            self.props.update_publications.emit(Some(publications));
+                            self.link
+                                .send_message(Msg::ToggleAddFormDisplay(false, None));
+                            true
+                        }
+                        None => {
+                            self.link
+                                .send_message(Msg::ToggleAddFormDisplay(false, None));
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.link
+                            .send_message(Msg::ToggleAddFormDisplay(false, None));
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::UpdatePublication => {
+                // Only update the ISBN value with the current user-entered string
+                // if it is validly formatted - otherwise keep the default.
+                // If no ISBN was provided, no format check is required.
+                if self.isbn.is_empty() {
+                    self.new_publication.isbn.neq_assign(None);
+                } else if let Ok(result) = self.isbn.parse::<Isbn>() {
+                    self.new_publication.isbn.neq_assign(Some(result));
+                }
+                // Clear any fields which are not applicable to the currently selected work/publication type.
+                // (Do not clear them before the save point as the user may change the type again.)
+                if self.new_publication.is_digital()
+                    || self.props.work_type == WorkType::BookChapter
+                {
+                    self.new_publication.width_mm = None;
+                    self.new_publication.width_in = None;
+                    self.new_publication.height_mm = None;
+                    self.new_publication.height_in = None;
+                    self.new_publication.depth_mm = None;
+                    self.new_publication.depth_in = None;
+                    self.new_publication.weight_g = None;
+                    self.new_publication.weight_oz = None;
+                }
+                let body = UpdatePublicationRequestBody {
+                    variables: UpdateVariables {
+                        publication_id: self.new_publication.publication_id,
+                        work_id: self.props.work_id,
+                        publication_type: self.new_publication.publication_type.clone(),
+                        isbn: self.new_publication.isbn.clone(),
+                        width_mm: self.new_publication.width_mm,
+                        width_in: self.new_publication.width_in,
+                        height_mm: self.new_publication.height_mm,
+                        height_in: self.new_publication.height_in,
+                        depth_mm: self.new_publication.depth_mm,
+                        depth_in: self.new_publication.depth_in,
+                        weight_g: self.new_publication.weight_g,
+                        weight_oz: self.new_publication.weight_oz,
+                    },
+                    ..Default::default()
+                };
+                let request = UpdatePublicationRequest { body };
+                self.update_publication = Fetch::new(request);
+                self.link.send_future(
+                    self.update_publication
+                        .fetch(Msg::SetPublicationUpdateState),
+                );
+                self.link
+                    .send_message(Msg::SetPublicationUpdateState(FetchAction::Fetching));
                 false
             }
             Msg::SetPublicationDeleteState(fetch_state) => {
@@ -470,12 +588,28 @@ impl Component for PublicationsFormComponent {
         let publications = self.props.publications.clone().unwrap_or_default();
         let open_modal = self.link.callback(|e: MouseEvent| {
             e.prevent_default();
-            Msg::ToggleAddFormDisplay(true)
+            Msg::ToggleAddFormDisplay(true, None)
         });
         let close_modal = self.link.callback(|e: MouseEvent| {
             e.prevent_default();
-            Msg::ToggleAddFormDisplay(false)
+            Msg::ToggleAddFormDisplay(false, None)
         });
+        let mut form_title = "New Publication";
+        let mut add_or_save_publication = "Add Publication";
+        let mut submit_publication = self.link.callback(|e: FocusEvent| {
+            e.prevent_default();
+            Msg::CreatePublication
+        });
+        if self.new_publication.publication_id != Uuid::default() {
+            // If the ID is set to the default, we're creating a new publication
+            // If the ID is anything else, we're editing an existing publication
+            form_title = "Edit Publication";
+            add_or_save_publication = "Save Publication";
+            submit_publication = self.link.callback(|e: FocusEvent| {
+                e.prevent_default();
+                Msg::UpdatePublication
+            });
+        }
         html! {
             <nav class="panel">
                 <p class="panel-heading">
@@ -493,7 +627,7 @@ impl Component for PublicationsFormComponent {
                     <div class="modal-background" onclick=&close_modal></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
-                            <p class="modal-card-title">{ "New Publication" }</p>
+                            <p class="modal-card-title">{ form_title }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
@@ -501,11 +635,7 @@ impl Component for PublicationsFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="publications-form" onsubmit=self.link.callback(|e: FocusEvent| {
-                                e.prevent_default();
-                                Msg::CreatePublication
-                            })
-                            >
+                            <form id="publications-form" onsubmit=submit_publication>
                                 <FormPublicationTypeSelect
                                     label = "Publication Type"
                                     value=self.new_publication.publication_type.clone()
@@ -623,7 +753,7 @@ impl Component for PublicationsFormComponent {
                                 type="submit"
                                 form="publications-form"
                             >
-                                { "Add Publication" }
+                                { add_or_save_publication }
                             </button>
                             <button
                                 class="button"
@@ -659,6 +789,7 @@ impl PublicationsFormComponent {
     }
 
     fn render_publication(&self, p: &Publication) -> Html {
+        let publication = p.clone();
         let publication_id = p.publication_id;
         let route = p.edit_route();
         html! {
@@ -757,6 +888,14 @@ impl PublicationsFormComponent {
                     }
 
                     <div class="field is-grouped is-grouped-right">
+                        <div class="control">
+                            <a
+                                class="button is-success"
+                                onclick=self.link.callback(move |_| Msg::ToggleAddFormDisplay(true, Some(publication.clone())))
+                            >
+                                { EDIT_BUTTON }
+                            </a>
+                        </div>
                         <div class="control">
                             <a
                                 class="button is-info"
