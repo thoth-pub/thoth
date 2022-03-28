@@ -56,14 +56,14 @@ use super::ToOption;
 pub struct PublicationsFormComponent {
     props: Props,
     data: PublicationsFormData,
-    new_publication: Publication,
+    publication: Publication,
     // Track the user-entered ISBN string, which may not be validly formatted
     isbn: String,
     isbn_warning: String,
-    show_add_form: bool,
+    show_modal_form: bool,
     convert_dimensions: bool,
     fetch_publication_types: FetchPublicationTypes,
-    push_publication: PushCreatePublication,
+    create_publication: PushCreatePublication,
     delete_publication: PushDeletePublication,
     update_publication: PushUpdatePublication,
     link: ComponentLink<Self>,
@@ -77,11 +77,11 @@ struct PublicationsFormData {
 }
 
 pub enum Msg {
-    ToggleAddFormDisplay(bool, Option<Publication>),
+    ToggleModalFormDisplay(bool, Option<Publication>),
     ToggleDimensionConversion,
     SetPublicationTypesFetchState(FetchActionPublicationTypes),
     GetPublicationTypes,
-    SetPublicationPushState(PushActionCreatePublication),
+    SetPublicationCreateState(PushActionCreatePublication),
     CreatePublication,
     SetPublicationUpdateState(PushActionUpdatePublication),
     UpdatePublication,
@@ -114,12 +114,12 @@ impl Component for PublicationsFormComponent {
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let data: PublicationsFormData = Default::default();
-        let show_add_form = false;
+        let show_modal_form = false;
         let convert_dimensions = true;
-        let new_publication: Publication = Default::default();
+        let publication: Publication = Default::default();
         let isbn = Default::default();
         let isbn_warning = Default::default();
-        let push_publication = Default::default();
+        let create_publication = Default::default();
         let delete_publication = Default::default();
         let update_publication = Default::default();
         let notification_bus = NotificationBus::dispatcher();
@@ -130,13 +130,13 @@ impl Component for PublicationsFormComponent {
         PublicationsFormComponent {
             props,
             data,
-            new_publication,
+            publication,
             isbn,
             isbn_warning,
-            show_add_form,
+            show_modal_form,
             convert_dimensions,
             fetch_publication_types: Default::default(),
-            push_publication,
+            create_publication,
             delete_publication,
             update_publication,
             link,
@@ -147,25 +147,25 @@ impl Component for PublicationsFormComponent {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::ToggleAddFormDisplay(value, p) => {
-                self.show_add_form = value;
-                if value {
+            Msg::ToggleModalFormDisplay(show_form, p) => {
+                self.show_modal_form = show_form;
+                if show_form {
                     if let Some(publication) = p {
                         // Editing existing publication: load its current values.
-                        self.new_publication = publication;
+                        self.publication = publication;
                     } else {
-                        // Creating new publication: clear any previous values.
-                        self.new_publication = Default::default();
+                        // Creating new publication: clear any previous publication ID.
+                        self.publication.publication_id = Default::default();
                     }
                     // Ensure ISBN variable value is kept in sync with publication object.
                     self.isbn = self
-                        .new_publication
-                        .isbn()
+                        .publication
+                        .isbn
                         .clone()
                         .unwrap_or_default()
                         .to_string();
                     // Clear ISBN warning as the variable value is now valid by definition
-                    // (it has either been set to a database value or the default empty value)
+                    // (self.publication.isbn can only store valid ISBNs)
                     self.isbn_warning = Default::default();
                 }
                 true
@@ -193,9 +193,9 @@ impl Component for PublicationsFormComponent {
                     .send_message(Msg::SetPublicationTypesFetchState(FetchAction::Fetching));
                 false
             }
-            Msg::SetPublicationPushState(fetch_state) => {
-                self.push_publication.apply(fetch_state);
-                match self.push_publication.as_ref().state() {
+            Msg::SetPublicationCreateState(fetch_state) => {
+                self.create_publication.apply(fetch_state);
+                match self.create_publication.as_ref().state() {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.create_publication {
@@ -206,12 +206,12 @@ impl Component for PublicationsFormComponent {
                             publications.push(publication);
                             self.props.update_publications.emit(Some(publications));
                             self.link
-                                .send_message(Msg::ToggleAddFormDisplay(false, None));
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
                             true
                         }
                         None => {
                             self.link
-                                .send_message(Msg::ToggleAddFormDisplay(false, None));
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -221,7 +221,7 @@ impl Component for PublicationsFormComponent {
                     },
                     FetchState::Failed(_, err) => {
                         self.link
-                            .send_message(Msg::ToggleAddFormDisplay(false, None));
+                            .send_message(Msg::ToggleModalFormDisplay(false, None));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
                             NotificationStatus::Danger,
@@ -231,50 +231,32 @@ impl Component for PublicationsFormComponent {
                 }
             }
             Msg::CreatePublication => {
-                // Only update the ISBN value with the current user-entered string
-                // if it is validly formatted - otherwise keep the default.
-                // If no ISBN was provided, no format check is required.
-                if self.isbn.is_empty() {
-                    self.new_publication.isbn.neq_assign(None);
-                } else if let Ok(result) = self.isbn.parse::<Isbn>() {
-                    self.new_publication.isbn.neq_assign(Some(result));
-                }
-                // Clear any fields which are not applicable to the currently selected work/publication type.
-                // (Do not clear them before the save point as the user may change the type again.)
-                if self.new_publication.is_digital()
-                    || self.props.work_type == WorkType::BookChapter
-                {
-                    self.new_publication.width_mm = None;
-                    self.new_publication.width_in = None;
-                    self.new_publication.height_mm = None;
-                    self.new_publication.height_in = None;
-                    self.new_publication.depth_mm = None;
-                    self.new_publication.depth_in = None;
-                    self.new_publication.weight_g = None;
-                    self.new_publication.weight_oz = None;
-                }
+                // Update publication object with common field-specific logic before saving
+                self.prepare_for_submission();
                 let body = CreatePublicationRequestBody {
                     variables: Variables {
                         work_id: self.props.work_id,
-                        publication_type: self.new_publication.publication_type.clone(),
-                        isbn: self.new_publication.isbn.clone(),
-                        width_mm: self.new_publication.width_mm,
-                        width_in: self.new_publication.width_in,
-                        height_mm: self.new_publication.height_mm,
-                        height_in: self.new_publication.height_in,
-                        depth_mm: self.new_publication.depth_mm,
-                        depth_in: self.new_publication.depth_in,
-                        weight_g: self.new_publication.weight_g,
-                        weight_oz: self.new_publication.weight_oz,
+                        publication_type: self.publication.publication_type.clone(),
+                        isbn: self.publication.isbn.clone(),
+                        width_mm: self.publication.width_mm,
+                        width_in: self.publication.width_in,
+                        height_mm: self.publication.height_mm,
+                        height_in: self.publication.height_in,
+                        depth_mm: self.publication.depth_mm,
+                        depth_in: self.publication.depth_in,
+                        weight_g: self.publication.weight_g,
+                        weight_oz: self.publication.weight_oz,
                     },
                     ..Default::default()
                 };
                 let request = CreatePublicationRequest { body };
-                self.push_publication = Fetch::new(request);
+                self.create_publication = Fetch::new(request);
+                self.link.send_future(
+                    self.create_publication
+                        .fetch(Msg::SetPublicationCreateState),
+                );
                 self.link
-                    .send_future(self.push_publication.fetch(Msg::SetPublicationPushState));
-                self.link
-                    .send_message(Msg::SetPublicationPushState(FetchAction::Fetching));
+                    .send_message(Msg::SetPublicationCreateState(FetchAction::Fetching));
                 false
             }
             Msg::SetPublicationUpdateState(fetch_state) => {
@@ -291,15 +273,23 @@ impl Component for PublicationsFormComponent {
                                 .find(|pb| pb.publication_id == p.publication_id)
                             {
                                 *publication = p.clone();
+                                self.props.update_publications.emit(Some(publications));
+                            } else {
+                                // This should not be possible: the updated publication returned from the
+                                // database does not match any of the locally-stored publication data.
+                                // Refreshing the page will reload the local data from the database.
+                                self.notification_bus.send(Request::NotificationBusMsg((
+                                    "Changes were saved but display failed to update. Refresh your browser to view current data.".to_string(),
+                                    NotificationStatus::Warning,
+                                )));
                             }
-                            self.props.update_publications.emit(Some(publications));
                             self.link
-                                .send_message(Msg::ToggleAddFormDisplay(false, None));
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
                             true
                         }
                         None => {
                             self.link
-                                .send_message(Msg::ToggleAddFormDisplay(false, None));
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -309,7 +299,7 @@ impl Component for PublicationsFormComponent {
                     },
                     FetchState::Failed(_, err) => {
                         self.link
-                            .send_message(Msg::ToggleAddFormDisplay(false, None));
+                            .send_message(Msg::ToggleModalFormDisplay(false, None));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
                             NotificationStatus::Danger,
@@ -319,42 +309,22 @@ impl Component for PublicationsFormComponent {
                 }
             }
             Msg::UpdatePublication => {
-                // Only update the ISBN value with the current user-entered string
-                // if it is validly formatted - otherwise keep the default.
-                // If no ISBN was provided, no format check is required.
-                if self.isbn.is_empty() {
-                    self.new_publication.isbn.neq_assign(None);
-                } else if let Ok(result) = self.isbn.parse::<Isbn>() {
-                    self.new_publication.isbn.neq_assign(Some(result));
-                }
-                // Clear any fields which are not applicable to the currently selected work/publication type.
-                // (Do not clear them before the save point as the user may change the type again.)
-                if self.new_publication.is_digital()
-                    || self.props.work_type == WorkType::BookChapter
-                {
-                    self.new_publication.width_mm = None;
-                    self.new_publication.width_in = None;
-                    self.new_publication.height_mm = None;
-                    self.new_publication.height_in = None;
-                    self.new_publication.depth_mm = None;
-                    self.new_publication.depth_in = None;
-                    self.new_publication.weight_g = None;
-                    self.new_publication.weight_oz = None;
-                }
+                // Update publication object with common field-specific logic before saving
+                self.prepare_for_submission();
                 let body = UpdatePublicationRequestBody {
                     variables: UpdateVariables {
-                        publication_id: self.new_publication.publication_id,
+                        publication_id: self.publication.publication_id,
                         work_id: self.props.work_id,
-                        publication_type: self.new_publication.publication_type.clone(),
-                        isbn: self.new_publication.isbn.clone(),
-                        width_mm: self.new_publication.width_mm,
-                        width_in: self.new_publication.width_in,
-                        height_mm: self.new_publication.height_mm,
-                        height_in: self.new_publication.height_in,
-                        depth_mm: self.new_publication.depth_mm,
-                        depth_in: self.new_publication.depth_in,
-                        weight_g: self.new_publication.weight_g,
-                        weight_oz: self.new_publication.weight_oz,
+                        publication_type: self.publication.publication_type.clone(),
+                        isbn: self.publication.isbn.clone(),
+                        width_mm: self.publication.width_mm,
+                        width_in: self.publication.width_in,
+                        height_mm: self.publication.height_mm,
+                        height_in: self.publication.height_in,
+                        depth_mm: self.publication.depth_mm,
+                        depth_in: self.publication.depth_in,
+                        weight_g: self.publication.weight_g,
+                        weight_oz: self.publication.weight_oz,
                     },
                     ..Default::default()
                 };
@@ -418,13 +388,11 @@ impl Component for PublicationsFormComponent {
                     .send_message(Msg::SetPublicationDeleteState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangePublicationType(val) => {
-                self.new_publication.publication_type.neq_assign(val)
-            }
+            Msg::ChangePublicationType(val) => self.publication.publication_type.neq_assign(val),
             Msg::ChangeIsbn(value) => {
                 if self.isbn.neq_assign(value.trim().to_owned()) {
                     // If ISBN is not correctly formatted, display a warning.
-                    // Don't update self.new_publication.isbn yet, as user may later
+                    // Don't update self.publication.isbn yet, as user may later
                     // overwrite a new valid value with an invalid one.
                     self.isbn_warning.clear();
                     match self.isbn.parse::<Isbn>() {
@@ -443,132 +411,108 @@ impl Component for PublicationsFormComponent {
                 }
             }
             Msg::ChangeWidthMm(value) => {
-                let changed_value = self
-                    .new_publication
-                    .width_mm
-                    .neq_assign(value.to_opt_float());
+                let changed_value = self.publication.width_mm.neq_assign(value.to_opt_float());
                 if changed_value && self.convert_dimensions {
                     let mut width_in = None;
                     // Automatically update paired length field with default conversion.
-                    if let Some(width_mm) = self.new_publication.width_mm {
+                    if let Some(width_mm) = self.publication.width_mm {
                         width_in =
                             Some(width_mm.convert_length_from_to(&LengthUnit::Mm, &LengthUnit::In));
                     }
-                    self.new_publication.width_in.neq_assign(width_in);
+                    self.publication.width_in.neq_assign(width_in);
                 }
                 changed_value
             }
             Msg::ChangeWidthIn(value) => {
-                let changed_value = self
-                    .new_publication
-                    .width_in
-                    .neq_assign(value.to_opt_float());
+                let changed_value = self.publication.width_in.neq_assign(value.to_opt_float());
                 if changed_value && self.convert_dimensions {
                     let mut width_mm = None;
                     // Automatically update paired length field with default conversion.
-                    if let Some(width_in) = self.new_publication.width_in {
+                    if let Some(width_in) = self.publication.width_in {
                         width_mm =
                             Some(width_in.convert_length_from_to(&LengthUnit::In, &LengthUnit::Mm));
                     }
-                    self.new_publication.width_mm.neq_assign(width_mm);
+                    self.publication.width_mm.neq_assign(width_mm);
                 }
                 changed_value
             }
             Msg::ChangeHeightMm(value) => {
-                let changed_value = self
-                    .new_publication
-                    .height_mm
-                    .neq_assign(value.to_opt_float());
+                let changed_value = self.publication.height_mm.neq_assign(value.to_opt_float());
                 if changed_value && self.convert_dimensions {
                     let mut height_in = None;
                     // Automatically update paired length field with default conversion.
-                    if let Some(height_mm) = self.new_publication.height_mm {
+                    if let Some(height_mm) = self.publication.height_mm {
                         height_in = Some(
                             height_mm.convert_length_from_to(&LengthUnit::Mm, &LengthUnit::In),
                         );
                     }
-                    self.new_publication.height_in.neq_assign(height_in);
+                    self.publication.height_in.neq_assign(height_in);
                 }
                 changed_value
             }
             Msg::ChangeHeightIn(value) => {
-                let changed_value = self
-                    .new_publication
-                    .height_in
-                    .neq_assign(value.to_opt_float());
+                let changed_value = self.publication.height_in.neq_assign(value.to_opt_float());
                 if changed_value && self.convert_dimensions {
                     let mut height_mm = None;
                     // Automatically update paired length field with default conversion.
-                    if let Some(height_in) = self.new_publication.height_in {
+                    if let Some(height_in) = self.publication.height_in {
                         height_mm = Some(
                             height_in.convert_length_from_to(&LengthUnit::In, &LengthUnit::Mm),
                         );
                     }
-                    self.new_publication.height_mm.neq_assign(height_mm);
+                    self.publication.height_mm.neq_assign(height_mm);
                 }
                 changed_value
             }
             Msg::ChangeDepthMm(value) => {
-                let changed_value = self
-                    .new_publication
-                    .depth_mm
-                    .neq_assign(value.to_opt_float());
+                let changed_value = self.publication.depth_mm.neq_assign(value.to_opt_float());
                 if changed_value && self.convert_dimensions {
                     let mut depth_in = None;
                     // Automatically update paired length field with default conversion.
-                    if let Some(depth_mm) = self.new_publication.depth_mm {
+                    if let Some(depth_mm) = self.publication.depth_mm {
                         depth_in =
                             Some(depth_mm.convert_length_from_to(&LengthUnit::Mm, &LengthUnit::In));
                     }
-                    self.new_publication.depth_in.neq_assign(depth_in);
+                    self.publication.depth_in.neq_assign(depth_in);
                 }
                 changed_value
             }
             Msg::ChangeDepthIn(value) => {
-                let changed_value = self
-                    .new_publication
-                    .depth_in
-                    .neq_assign(value.to_opt_float());
+                let changed_value = self.publication.depth_in.neq_assign(value.to_opt_float());
                 if changed_value && self.convert_dimensions {
                     let mut depth_mm = None;
                     // Automatically update paired length field with default conversion.
-                    if let Some(depth_in) = self.new_publication.depth_in {
+                    if let Some(depth_in) = self.publication.depth_in {
                         depth_mm =
                             Some(depth_in.convert_length_from_to(&LengthUnit::In, &LengthUnit::Mm));
                     }
-                    self.new_publication.depth_mm.neq_assign(depth_mm);
+                    self.publication.depth_mm.neq_assign(depth_mm);
                 }
                 changed_value
             }
             Msg::ChangeWeightG(value) => {
-                let changed_value = self
-                    .new_publication
-                    .weight_g
-                    .neq_assign(value.to_opt_float());
+                let changed_value = self.publication.weight_g.neq_assign(value.to_opt_float());
                 if changed_value && self.convert_dimensions {
                     let mut weight_oz = None;
                     // Automatically update paired weight field with default conversion.
-                    if let Some(weight_g) = self.new_publication.weight_g {
+                    if let Some(weight_g) = self.publication.weight_g {
                         weight_oz =
                             Some(weight_g.convert_weight_from_to(&WeightUnit::G, &WeightUnit::Oz));
                     }
-                    self.new_publication.weight_oz.neq_assign(weight_oz);
+                    self.publication.weight_oz.neq_assign(weight_oz);
                 }
                 changed_value
             }
             Msg::ChangeWeightOz(value) => {
-                let changed_value = self
-                    .new_publication
-                    .weight_oz
-                    .neq_assign(value.to_opt_float());
+                let changed_value = self.publication.weight_oz.neq_assign(value.to_opt_float());
                 if changed_value && self.convert_dimensions {
                     let mut weight_g = None;
                     // Automatically update paired weight field with default conversion.
-                    if let Some(weight_oz) = self.new_publication.weight_oz {
+                    if let Some(weight_oz) = self.publication.weight_oz {
                         weight_g =
                             Some(weight_oz.convert_weight_from_to(&WeightUnit::Oz, &WeightUnit::G));
                     }
-                    self.new_publication.weight_g.neq_assign(weight_g);
+                    self.publication.weight_g.neq_assign(weight_g);
                 }
                 changed_value
             }
@@ -588,28 +532,12 @@ impl Component for PublicationsFormComponent {
         let publications = self.props.publications.clone().unwrap_or_default();
         let open_modal = self.link.callback(|e: MouseEvent| {
             e.prevent_default();
-            Msg::ToggleAddFormDisplay(true, None)
+            Msg::ToggleModalFormDisplay(true, None)
         });
         let close_modal = self.link.callback(|e: MouseEvent| {
             e.prevent_default();
-            Msg::ToggleAddFormDisplay(false, None)
+            Msg::ToggleModalFormDisplay(false, None)
         });
-        let mut form_title = "New Publication";
-        let mut add_or_save_publication = "Add Publication";
-        let mut submit_publication = self.link.callback(|e: FocusEvent| {
-            e.prevent_default();
-            Msg::CreatePublication
-        });
-        if self.new_publication.publication_id != Uuid::default() {
-            // If the ID is set to the default, we're creating a new publication
-            // If the ID is anything else, we're editing an existing publication
-            form_title = "Edit Publication";
-            add_or_save_publication = "Save Publication";
-            submit_publication = self.link.callback(|e: FocusEvent| {
-                e.prevent_default();
-                Msg::UpdatePublication
-            });
-        }
         html! {
             <nav class="panel">
                 <p class="panel-heading">
@@ -623,11 +551,11 @@ impl Component for PublicationsFormComponent {
                         { "Add Publication" }
                     </button>
                 </div>
-                <div class=self.add_form_status()>
+                <div class=self.modal_form_status()>
                     <div class="modal-background" onclick=&close_modal></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
-                            <p class="modal-card-title">{ form_title }</p>
+                            <p class="modal-card-title">{ self.modal_form_title() }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
@@ -635,10 +563,10 @@ impl Component for PublicationsFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="publications-form" onsubmit=submit_publication>
+                            <form id="publications-form" onsubmit=self.modal_form_action()>
                                 <FormPublicationTypeSelect
                                     label = "Publication Type"
-                                    value=self.new_publication.publication_type.clone()
+                                    value=self.publication.publication_type.clone()
                                     data=self.data.publication_types.clone()
                                     onchange=self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
@@ -661,7 +589,7 @@ impl Component for PublicationsFormComponent {
                                 />
                                 {
                                     // Dimensions can only be added for physical (Paperback/Hardback) non-Chapter publications.
-                                    if self.new_publication.is_physical() && self.props.work_type != WorkType::BookChapter {
+                                    if self.publication.is_physical() && self.props.work_type != WorkType::BookChapter {
                                         html! {
                                             <>
                                                 <label class="checkbox">
@@ -679,13 +607,13 @@ impl Component for PublicationsFormComponent {
                                                     <div class="field-body">
                                                         <FormFloatInput
                                                             label = "Width (mm)"
-                                                            value=self.new_publication.width_mm
+                                                            value=self.publication.width_mm
                                                             oninput=self.link.callback(|e: InputData| Msg::ChangeWidthMm(e.value))
                                                             step="1".to_string()
                                                         />
                                                         <FormFloatInput
                                                             label = "Width (in)"
-                                                            value=self.new_publication.width_in
+                                                            value=self.publication.width_in
                                                             oninput=self.link.callback(|e: InputData| Msg::ChangeWidthIn(e.value))
                                                             step="0.01".to_string()
                                                         />
@@ -695,13 +623,13 @@ impl Component for PublicationsFormComponent {
                                                     <div class="field-body">
                                                         <FormFloatInput
                                                             label = "Height (mm)"
-                                                            value=self.new_publication.height_mm
+                                                            value=self.publication.height_mm
                                                             oninput=self.link.callback(|e: InputData| Msg::ChangeHeightMm(e.value))
                                                             step="1".to_string()
                                                         />
                                                         <FormFloatInput
                                                             label = "Height (in)"
-                                                            value=self.new_publication.height_in
+                                                            value=self.publication.height_in
                                                             oninput=self.link.callback(|e: InputData| Msg::ChangeHeightIn(e.value))
                                                             step="0.01".to_string()
                                                         />
@@ -711,13 +639,13 @@ impl Component for PublicationsFormComponent {
                                                     <div class="field-body">
                                                         <FormFloatInput
                                                             label = "Depth (mm)"
-                                                            value=self.new_publication.depth_mm
+                                                            value=self.publication.depth_mm
                                                             oninput=self.link.callback(|e: InputData| Msg::ChangeDepthMm(e.value))
                                                             step="1".to_string()
                                                         />
                                                         <FormFloatInput
                                                             label = "Depth (in)"
-                                                            value=self.new_publication.depth_in
+                                                            value=self.publication.depth_in
                                                             oninput=self.link.callback(|e: InputData| Msg::ChangeDepthIn(e.value))
                                                             step="0.01".to_string()
                                                         />
@@ -727,13 +655,13 @@ impl Component for PublicationsFormComponent {
                                                     <div class="field-body">
                                                         <FormFloatInput
                                                             label = "Weight (g)"
-                                                            value=self.new_publication.weight_g
+                                                            value=self.publication.weight_g
                                                             oninput=self.link.callback(|e: InputData| Msg::ChangeWeightG(e.value))
                                                             step="1".to_string()
                                                         />
                                                         <FormFloatInput
                                                             label = "Weight (oz)"
-                                                            value=self.new_publication.weight_oz
+                                                            value=self.publication.weight_oz
                                                             oninput=self.link.callback(|e: InputData| Msg::ChangeWeightOz(e.value))
                                                             step="0.0001".to_string()
                                                         />
@@ -753,7 +681,7 @@ impl Component for PublicationsFormComponent {
                                 type="submit"
                                 form="publications-form"
                             >
-                                { add_or_save_publication }
+                                { self.modal_form_button() }
                             </button>
                             <button
                                 class="button"
@@ -781,10 +709,66 @@ impl Component for PublicationsFormComponent {
 }
 
 impl PublicationsFormComponent {
-    fn add_form_status(&self) -> String {
-        match self.show_add_form {
+    fn modal_form_status(&self) -> String {
+        match self.show_modal_form {
             true => "modal is-active".to_string(),
             false => "modal".to_string(),
+        }
+    }
+
+    fn modal_form_title(&self) -> String {
+        // If the ID is set to the default, we're creating a new publication
+        // If the ID is anything else, we're editing an existing publication
+        match self.publication.publication_id.is_nil() {
+            true => "New Publication".to_string(),
+            false => "Edit Publication".to_string(),
+        }
+    }
+
+    fn modal_form_button(&self) -> String {
+        // If the ID is set to the default, we're creating a new publication
+        // If the ID is anything else, we're editing an existing publication
+        match self.publication.publication_id.is_nil() {
+            true => "Add Publication".to_string(),
+            false => "Save Publication".to_string(),
+        }
+    }
+
+    fn modal_form_action(&self) -> Callback<FocusEvent> {
+        // If the ID is set to the default, we're creating a new publication
+        // If the ID is anything else, we're editing an existing publication
+        match self.publication.publication_id.is_nil() {
+            true => self.link.callback(|e: FocusEvent| {
+                e.prevent_default();
+                Msg::CreatePublication
+            }),
+            false => self.link.callback(|e: FocusEvent| {
+                e.prevent_default();
+                Msg::UpdatePublication
+            }),
+        }
+    }
+
+    fn prepare_for_submission(&mut self) {
+        // Only update the ISBN value with the current user-entered string
+        // if it is validly formatted - otherwise keep the default.
+        // If no ISBN was provided, no format check is required.
+        if self.isbn.is_empty() {
+            self.publication.isbn.neq_assign(None);
+        } else if let Ok(result) = self.isbn.parse::<Isbn>() {
+            self.publication.isbn.neq_assign(Some(result));
+        }
+        // Clear any fields which are not applicable to the currently selected work/publication type.
+        // (Do not clear them before the save point as the user may change the type again.)
+        if self.publication.is_digital() || self.props.work_type == WorkType::BookChapter {
+            self.publication.width_mm = None;
+            self.publication.width_in = None;
+            self.publication.height_mm = None;
+            self.publication.height_in = None;
+            self.publication.depth_mm = None;
+            self.publication.depth_in = None;
+            self.publication.weight_g = None;
+            self.publication.weight_oz = None;
         }
     }
 
@@ -891,7 +875,7 @@ impl PublicationsFormComponent {
                         <div class="control">
                             <a
                                 class="button is-success"
-                                onclick=self.link.callback(move |_| Msg::ToggleAddFormDisplay(true, Some(publication.clone())))
+                                onclick=self.link.callback(move |_| Msg::ToggleModalFormDisplay(true, Some(publication.clone())))
                             >
                                 { EDIT_BUTTON }
                             </a>
