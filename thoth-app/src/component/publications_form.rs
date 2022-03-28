@@ -61,6 +61,7 @@ pub struct PublicationsFormComponent {
     isbn: String,
     isbn_warning: String,
     show_modal_form: bool,
+    in_edit_mode: bool,
     convert_dimensions: bool,
     fetch_publication_types: FetchPublicationTypes,
     create_publication: PushCreatePublication,
@@ -115,6 +116,7 @@ impl Component for PublicationsFormComponent {
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let data: PublicationsFormData = Default::default();
         let show_modal_form = false;
+        let in_edit_mode = false;
         let convert_dimensions = true;
         let publication: Publication = Default::default();
         let isbn = Default::default();
@@ -134,6 +136,7 @@ impl Component for PublicationsFormComponent {
             isbn,
             isbn_warning,
             show_modal_form,
+            in_edit_mode,
             convert_dimensions,
             fetch_publication_types: Default::default(),
             create_publication,
@@ -149,13 +152,11 @@ impl Component for PublicationsFormComponent {
         match msg {
             Msg::ToggleModalFormDisplay(show_form, p) => {
                 self.show_modal_form = show_form;
+                self.in_edit_mode = p.is_some();
                 if show_form {
                     if let Some(publication) = p {
                         // Editing existing publication: load its current values.
                         self.publication = publication;
-                    } else {
-                        // Creating new publication: clear any previous publication ID.
-                        self.publication.publication_id = Default::default();
                     }
                     // Ensure ISBN variable value is kept in sync with publication object.
                     self.isbn = self
@@ -717,34 +718,28 @@ impl PublicationsFormComponent {
     }
 
     fn modal_form_title(&self) -> String {
-        // If the ID is set to the default, we're creating a new publication
-        // If the ID is anything else, we're editing an existing publication
-        match self.publication.publication_id.is_nil() {
-            true => "New Publication".to_string(),
-            false => "Edit Publication".to_string(),
+        match self.in_edit_mode {
+            true => "Edit Publication".to_string(),
+            false => "New Publication".to_string(),
         }
     }
 
     fn modal_form_button(&self) -> String {
-        // If the ID is set to the default, we're creating a new publication
-        // If the ID is anything else, we're editing an existing publication
-        match self.publication.publication_id.is_nil() {
-            true => "Add Publication".to_string(),
-            false => "Save Publication".to_string(),
+        match self.in_edit_mode {
+            true => "Save Publication".to_string(),
+            false => "Add Publication".to_string(),
         }
     }
 
     fn modal_form_action(&self) -> Callback<FocusEvent> {
-        // If the ID is set to the default, we're creating a new publication
-        // If the ID is anything else, we're editing an existing publication
-        match self.publication.publication_id.is_nil() {
+        match self.in_edit_mode {
             true => self.link.callback(|e: FocusEvent| {
                 e.prevent_default();
-                Msg::CreatePublication
+                Msg::UpdatePublication
             }),
             false => self.link.callback(|e: FocusEvent| {
                 e.prevent_default();
-                Msg::UpdatePublication
+                Msg::CreatePublication
             }),
         }
     }
