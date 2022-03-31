@@ -314,6 +314,7 @@ impl Component for PublicationComponent {
                                     show_modal_form=self.show_modal_form
                                     add_publication=self.link.callback(Msg::AddPublication)
                                     update_publication=self.link.callback(Msg::UpdatePublication)
+                                    close_modal_form=self.link.callback(move |_| Msg::ToggleModalFormDisplay(false, None))
                                 />
                                 <p class="level-item">
                                     <ConfirmDeleteComponent

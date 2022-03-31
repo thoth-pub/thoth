@@ -61,7 +61,7 @@ struct PublicationModalData {
 }
 
 pub enum Msg {
-    UpdateProps(bool, Option<Publication>),
+    CloseModalForm,
     ToggleModalFormDisplay,
     ToggleDimensionConversion,
     SetPublicationTypesFetchState(FetchActionPublicationTypes),
@@ -90,6 +90,7 @@ pub struct Props {
     pub show_modal_form: bool,
     pub add_publication: Callback<Publication>,
     pub update_publication: Callback<Publication>,
+    pub close_modal_form: Callback<()>,
 }
 
 impl Component for PublicationModalComponent {
@@ -127,12 +128,10 @@ impl Component for PublicationModalComponent {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::UpdateProps(show_form, p) => {
-                // Allow form to change its own props (e.g. close itself)
-                self.props.show_modal_form = show_form;
-                self.props.publication_under_edit = p;
-                self.link.send_message(Msg::ToggleModalFormDisplay);
-                // ToggleModalFormDisplay will fire re-render so not needed here
+            Msg::CloseModalForm => {
+                // Prompt parent form to close this form by updating the props
+                // (this will eventually cause this form to re-render)
+                self.props.close_modal_form.emit(());
                 false
             }
             Msg::ToggleModalFormDisplay => {
@@ -191,7 +190,7 @@ impl Component for PublicationModalComponent {
                             true
                         }
                         None => {
-                            self.link.send_message(Msg::UpdateProps(false, None));
+                            self.link.send_message(Msg::CloseModalForm);
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -200,7 +199,7 @@ impl Component for PublicationModalComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        self.link.send_message(Msg::UpdateProps(false, None));
+                        self.link.send_message(Msg::CloseModalForm);
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
                             NotificationStatus::Danger,
@@ -251,7 +250,7 @@ impl Component for PublicationModalComponent {
                             true
                         }
                         None => {
-                            self.link.send_message(Msg::UpdateProps(false, None));
+                            self.link.send_message(Msg::CloseModalForm);
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -260,7 +259,7 @@ impl Component for PublicationModalComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        self.link.send_message(Msg::UpdateProps(false, None));
+                        self.link.send_message(Msg::CloseModalForm);
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
                             NotificationStatus::Danger,
@@ -444,7 +443,7 @@ impl Component for PublicationModalComponent {
     fn view(&self) -> Html {
         let close_modal = self.link.callback(|e: MouseEvent| {
             e.prevent_default();
-            Msg::UpdateProps(false, None)
+            Msg::CloseModalForm
         });
         html! {
             <div class=self.modal_form_status()>
