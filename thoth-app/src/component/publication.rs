@@ -56,7 +56,7 @@ pub struct PublicationComponent {
 
 #[allow(clippy::large_enum_variant)]
 pub enum Msg {
-    ToggleModalFormDisplay(bool, Option<PublicationWithRelations>),
+    ToggleModalFormDisplay(bool),
     AddPublication(Publication),
     UpdatePublication(Publication),
     SetPublicationFetchState(FetchActionPublication),
@@ -104,28 +104,30 @@ impl Component for PublicationComponent {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::ToggleModalFormDisplay(show_form, p) => {
+            Msg::ToggleModalFormDisplay(show_form) => {
                 self.show_modal_form = show_form;
-                // Child form requires plain Publication, not PublicationWithRelations
-                self.publication_under_edit = match p {
-                    Some(publication) => Some(Publication {
-                        publication_id: publication.publication_id,
-                        publication_type: publication.publication_type,
-                        work_id: publication.work_id,
-                        isbn: publication.isbn,
+                // Opening the modal form from this form always means
+                // we are about to edit the current publication
+                self.publication_under_edit = match self.show_modal_form {
+                    // Child form requires plain Publication, not PublicationWithRelations
+                    true => Some(Publication {
+                        publication_id: self.publication.publication_id,
+                        publication_type: self.publication.publication_type.clone(),
+                        work_id: self.publication.work_id,
+                        isbn: self.publication.isbn.clone(),
                         // Not used by child form
                         created_at: Default::default(),
-                        updated_at: publication.updated_at,
-                        width_mm: publication.width_mm,
-                        width_in: publication.width_in,
-                        height_mm: publication.height_mm,
-                        height_in: publication.height_in,
-                        depth_mm: publication.depth_mm,
-                        depth_in: publication.depth_in,
-                        weight_g: publication.weight_g,
-                        weight_oz: publication.weight_oz,
+                        updated_at: self.publication.updated_at.clone(),
+                        width_mm: self.publication.width_mm,
+                        width_in: self.publication.width_in,
+                        height_mm: self.publication.height_mm,
+                        height_in: self.publication.height_in,
+                        depth_mm: self.publication.depth_mm,
+                        depth_in: self.publication.depth_in,
+                        weight_g: self.publication.weight_g,
+                        weight_oz: self.publication.weight_oz,
                     }),
-                    None => None,
+                    false => None,
                 };
                 true
             }
@@ -135,11 +137,22 @@ impl Component for PublicationComponent {
                 unreachable!()
             }
             Msg::UpdatePublication(p) => {
-                // Child form has updated the current publication - replace its values
-                // (need to convert from Publication back to PublicationWithRelations)
-                if p.publication_id == self.publication.publication_id {
+                if p.publication_id == self.publication.publication_id
+                    && p.work_id == self.publication.work_id
+                {
+                    self.notification_bus.send(Request::NotificationBusMsg((
+                        format!(
+                            "Saved {}",
+                            &p.isbn
+                                .as_ref()
+                                .map(|s| s.to_string())
+                                .unwrap_or_else(|| p.publication_id.to_string())
+                        ),
+                        NotificationStatus::Success,
+                    )));
+                    // Child form has updated the current publication - replace its values
+                    // (need to convert from Publication back to PublicationWithRelations)
                     self.publication.publication_type = p.publication_type;
-                    self.publication.work_id = p.work_id;
                     self.publication.isbn = p.isbn;
                     self.publication.updated_at = p.updated_at;
                     self.publication.width_mm = p.width_mm;
@@ -160,8 +173,7 @@ impl Component for PublicationComponent {
                     )));
                 }
                 // Close child form
-                self.link
-                    .send_message(Msg::ToggleModalFormDisplay(false, None));
+                self.link.send_message(Msg::ToggleModalFormDisplay(false));
                 true
             }
             Msg::SetPublicationFetchState(fetch_state) => {
@@ -289,7 +301,6 @@ impl Component for PublicationComponent {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(_body) => {
-                let publication = self.publication.clone();
                 html! {
                     <>
                         <nav class="level">
@@ -299,14 +310,14 @@ impl Component for PublicationComponent {
                                 </p>
                             </div>
                             <div class="level-right">
-                                <div class="control">
+                                <p class="level-item">
                                     <a
                                         class="button is-success"
-                                        onclick=self.link.callback(move |_| Msg::ToggleModalFormDisplay(true, Some(publication.clone())))
+                                        onclick=self.link.callback(move |_| Msg::ToggleModalFormDisplay(true))
                                     >
                                         { EDIT_BUTTON }
                                     </a>
-                                </div>
+                                </p>
                                 <PublicationModalComponent
                                     publication_under_edit=self.publication_under_edit.clone()
                                     work_id=self.publication.work.work_id
@@ -314,7 +325,7 @@ impl Component for PublicationComponent {
                                     show_modal_form=self.show_modal_form
                                     add_publication=self.link.callback(Msg::AddPublication)
                                     update_publication=self.link.callback(Msg::UpdatePublication)
-                                    close_modal_form=self.link.callback(move |_| Msg::ToggleModalFormDisplay(false, None))
+                                    close_modal_form=self.link.callback(move |_| Msg::ToggleModalFormDisplay(false))
                                 />
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
