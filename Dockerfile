@@ -51,6 +51,10 @@ FROM scratch
 COPY --from=build \
     /home/rust/src/target/x86_64-unknown-linux-musl/release/thoth /
 
+# Get CA certificates
+COPY --from=build \
+    /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+
 # Expose thoth's default ports
 EXPOSE 8080
 EXPOSE 8000
