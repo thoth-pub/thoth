@@ -444,7 +444,8 @@ mod tests {
         LocationPlatform, PublicationType, RelationType, SeriesType, WorkContributionsAffiliations,
         WorkContributionsAffiliationsInstitution, WorkContributionsContributor,
         WorkFundingsInstitution, WorkImprint, WorkImprintPublisher, WorkIssuesSeries,
-        WorkPublicationsLocations, WorkPublicationsPrices, WorkRelationsRelatedWork, WorkStatus,
+        WorkPublicationsLocations, WorkPublicationsPrices, WorkRelationsRelatedWork,
+        WorkRelationsRelatedWorkImprint, WorkRelationsRelatedWorkImprintPublisher, WorkStatus,
         WorkType,
     };
     use uuid::Uuid;
@@ -749,6 +750,20 @@ mod tests {
                 relation_ordinal: 1,
                 related_work: WorkRelationsRelatedWork {
                     full_title: "Related work title".to_string(),
+                    title: "N/A".to_string(),
+                    doi: None,
+                    publication_date: None,
+                    license: None,
+                    first_page: None,
+                    last_page: None,
+                    landing_page: None,
+                    imprint: WorkRelationsRelatedWorkImprint {
+                        publisher: WorkRelationsRelatedWorkImprintPublisher {
+                            publisher_name: "N/A".to_string(),
+                        },
+                    },
+                    contributions: vec![],
+                    publications: vec![],
                 },
             }]
         };
@@ -1016,6 +1031,20 @@ mod tests {
             relation_ordinal: 1,
             related_work: WorkRelationsRelatedWork {
                 full_title: "Related work title".to_string(),
+                title: "N/A".to_string(),
+                doi: None,
+                publication_date: None,
+                license: None,
+                first_page: None,
+                last_page: None,
+                landing_page: None,
+                imprint: WorkRelationsRelatedWorkImprint {
+                    publisher: WorkRelationsRelatedWorkImprintPublisher {
+                        publisher_name: "N/A".to_string(),
+                    },
+                },
+                contributions: vec![],
+                publications: vec![],
             },
         };
         assert_eq!(

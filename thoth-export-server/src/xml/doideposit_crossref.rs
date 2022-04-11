@@ -1,0 +1,340 @@
+use chrono::Utc;
+use std::collections::HashMap;
+use std::io::Write;
+use thoth_client::{
+    ContributionType, PublicationType, RelationType, Work, WorkRelationsRelatedWork,
+    WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkPublications, WorkType,
+};
+use xml::writer::{EventWriter, XmlEvent};
+
+use super::{write_element_block, XmlSpecification};
+use crate::xml::{write_full_element_block, XmlElementBlock};
+use thoth_errors::{ThothError, ThothResult};
+
+pub struct DoiDepositCrossref {}
+
+impl XmlSpecification for DoiDepositCrossref {
+    fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
+        match works.len() {
+            0 => Err(ThothError::IncompleteMetadataRecord(
+                "doideposit::crossref".to_string(),
+                "Not enough data".to_string(),
+            )),
+            1 => {
+                let work = works.first().unwrap();
+                let work_id = format!("urn:uuid:{}", work.work_id);
+                let mut attr_map: HashMap<&str, &str> = HashMap::new();
+
+                attr_map.insert("version", "4.3.5");
+                attr_map.insert("xmlns", "http://www.crossref.org/schema/4.3.5");
+                attr_map.insert("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
+                attr_map.insert("xsi:schemaLocation", "http://www.crossref.org/schema/4.3.5 http://www.crossref.org/schemas/crossref4.3.5.xsd");
+                attr_map.insert("xmlns:ai", "http://www.crossref.org/AccessIndicators.xsd");
+
+                write_full_element_block("doi_batch", None, Some(attr_map), w, |w| {
+                    write_element_block("head", w, |w| {
+                        write_element_block("doi_batch_id", w, |w| {
+                            w.write(XmlEvent::Characters(&work_id))
+                                .map_err(|e| e.into())
+                        })?;
+                        write_element_block("timestamp", w, |w| {
+                            w.write(XmlEvent::Characters(
+                                &Utc::now().format("%Y%m%d%H%M").to_string(),
+                            ))
+                            .map_err(|e| e.into())
+                        })?;
+                        write_element_block("depositor", w, |w| {
+                            write_element_block("depositor_name", w, |w| {
+                                w.write(XmlEvent::Characters("Thoth")).map_err(|e| e.into())
+                            })?;
+                            write_element_block("email_address", w, |w| {
+                                w.write(XmlEvent::Characters("info@thoth.pub"))
+                                    .map_err(|e| e.into())
+                            })
+                        })?;
+                        write_element_block("registrant", w, |w| {
+                            w.write(XmlEvent::Characters("Thoth")).map_err(|e| e.into())
+                        })
+                    })?;
+                    XmlElementBlock::<DoiDepositCrossref>::xml_element(work, w)
+                })
+            }
+            _ => Err(ThothError::IncompleteMetadataRecord(
+                "doideposit::crossref".to_string(),
+                "Output can only be generated for one work at a time".to_string(),
+            )),
+        }
+    }
+}
+
+impl XmlElementBlock<DoiDepositCrossref> for Work {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        let work_type = match &self.work_type {
+            WorkType::MONOGRAPH => "monograph",
+            WorkType::EDITED_BOOK => "edited_book",
+            WorkType::TEXTBOOK => "reference",
+            WorkType::JOURNAL_ISSUE | WorkType::BOOK_SET | WorkType::BOOK_CHAPTER => "other",
+            WorkType::Other(_) => unreachable!(),
+        };
+        write_element_block("body", w, |w| {
+            write_full_element_block(
+                "book",
+                None,
+                Some(HashMap::from([("book_type", work_type)])),
+                w,
+                |w| {
+                    write_full_element_block(
+                        "book_metadata",
+                        None,
+                        Some(HashMap::from([("language", "en")])),
+                        w,
+                        |w| work_metadata(w, &WorkRelationsRelatedWork::from(self.clone()), false),
+                    )?;
+                    let mut chapters = self.relations.clone();
+                    chapters.sort_by(|a, b| a.relation_ordinal.cmp(&b.relation_ordinal));
+                    for chapter in chapters
+                        .iter()
+                        .filter(|r| r.relation_type == RelationType::HAS_CHILD)
+                        .map(|r| &r.related_work)
+                    {
+                        write_full_element_block(
+                            "content_item",
+                            None,
+                            Some(HashMap::from([("component_type", "chapter")])),
+                            w,
+                            |w| work_metadata(w, chapter, true),
+                        )?;
+                    }
+                    Ok(())
+                },
+            )
+        })
+    }
+}
+
+fn work_metadata<W: Write>(
+    w: &mut EventWriter<W>,
+    work: &WorkRelationsRelatedWork,
+    is_chapter: bool,
+) -> ThothResult<()> {
+    // We can only generate the document if there's a PDF
+    if let Some(pdf_url) = work
+        .publications
+        .iter()
+        .find(|p| p.publication_type.eq(&PublicationType::PDF) && !p.locations.is_empty())
+        .and_then(|p| p.locations.iter().find(|l| l.canonical))
+        .and_then(|l| l.full_text_url.as_ref())
+    {
+        if !work.contributions.is_empty() {
+            write_element_block("contributors", w, |w| {
+                for contribution in &work.contributions {
+                    XmlElementBlock::<DoiDepositCrossref>::xml_element(contribution, w).ok();
+                }
+                Ok(())
+            })?;
+        }
+        write_element_block("titles", w, |w| {
+            write_element_block("title", w, |w| {
+                w.write(XmlEvent::Characters(&work.title))
+                    .map_err(|e| e.into())
+            })
+        })?;
+        if let Some(date) = work.publication_date {
+            write_element_block("publication_date", w, |w| {
+                write_element_block("month", w, |w| {
+                    w.write(XmlEvent::Characters(&date.format("%m").to_string()))
+                        .map_err(|e| e.into())
+                })?;
+                write_element_block("year", w, |w| {
+                    w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
+                        .map_err(|e| e.into())
+                })
+            })?;
+        }
+        if is_chapter {
+            write_element_block("pages", w, |w| {
+                write_element_block("first_page", w, |w| {
+                    w.write(XmlEvent::Characters(
+                        &work.first_page.clone().unwrap_or_default(),
+                    ))
+                    .map_err(|e| e.into())
+                })?;
+                write_element_block("last_page", w, |w| {
+                    w.write(XmlEvent::Characters(
+                        &work.last_page.clone().unwrap_or_default(),
+                    ))
+                    .map_err(|e| e.into())
+                })
+            })?;
+        } else {
+            for (isbn, isbn_type) in &get_publications_data(&work.publications) {
+                write_full_element_block(
+                    "isbn",
+                    None,
+                    Some(HashMap::from([("media_type", isbn_type.as_str())])),
+                    w,
+                    |w| w.write(XmlEvent::Characters(isbn)).map_err(|e| e.into()),
+                )?;
+            }
+            write_element_block("publisher", w, |w| {
+                write_element_block("publisher_name", w, |w| {
+                    w.write(XmlEvent::Characters(&work.imprint.publisher.publisher_name))
+                        .map_err(|e| e.into())
+                })
+            })?;
+        }
+        write_full_element_block(
+            "ai:program",
+            None,
+            Some(HashMap::from([("name", "AccessIndicators")])),
+            w,
+            |w| {
+                write_element_block("ai:free_to_read", w, |_w| Ok(()))?;
+                if let Some(license) = &work.license {
+                    write_element_block("ai:license_ref", w, |w| {
+                        w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
+                    })?;
+                }
+                Ok(())
+            },
+        )?;
+        if let Some(doi) = &work.doi {
+            if let Some(landing_page) = &work.landing_page {
+                write_element_block("doi_data", w, |w| {
+                    write_element_block("doi", w, |w| {
+                        w.write(XmlEvent::Characters(&doi.to_string()))
+                            .map_err(|e| e.into())
+                    })?;
+                    write_element_block("resource", w, |w| {
+                        w.write(XmlEvent::Characters(landing_page))
+                            .map_err(|e| e.into())
+                    })?;
+                    write_full_element_block(
+                        "collection",
+                        None,
+                        Some(HashMap::from([("property", "crawler-based")])),
+                        w,
+                        |w| {
+                            for crawler in [
+                                "iParadigms",
+                                "google",
+                                "msn",
+                                "altavista",
+                                "yahoo",
+                                "scirus",
+                            ] {
+                                write_full_element_block(
+                                    "item",
+                                    None,
+                                    Some(HashMap::from([("crawler", crawler)])),
+                                    w,
+                                    |w| {
+                                        write_full_element_block(
+                                            "resource",
+                                            None,
+                                            Some(HashMap::from([("mime_type", "application/pdf")])),
+                                            w,
+                                            |w| {
+                                                w.write(XmlEvent::Characters(pdf_url))
+                                                    .map_err(|e| e.into())
+                                            },
+                                        )
+                                    },
+                                )?;
+                            }
+                            Ok(())
+                        },
+                    )?;
+                    write_full_element_block(
+                        "collection",
+                        None,
+                        Some(HashMap::from([("property", "text-mining")])),
+                        w,
+                        |w| {
+                            write_element_block("item", w, |w| {
+                                write_full_element_block(
+                                    "resource",
+                                    None,
+                                    Some(HashMap::from([("mime_type", "application/pdf")])),
+                                    w,
+                                    |w| {
+                                        w.write(XmlEvent::Characters(pdf_url)).map_err(|e| e.into())
+                                    },
+                                )
+                            })
+                        },
+                    )
+                })?;
+            }
+        }
+        Ok(())
+    } else {
+        Err(ThothError::IncompleteMetadataRecord(
+            "doideposit::crossref".to_string(),
+            "Missing PDF URL".to_string(),
+        ))
+    }
+}
+
+fn get_publications_data(
+    publications: &[WorkRelationsRelatedWorkPublications],
+) -> Vec<(String, String)> {
+    let mut isbns: Vec<(String, String)> = Vec::new();
+
+    for publication in publications {
+        if let Some(isbn) = publication.isbn.as_ref().map(|i| i.to_string()) {
+            let isbn_type = match publication.publication_type.eq(&PublicationType::PAPERBACK)
+                || publication.publication_type.eq(&PublicationType::HARDBACK)
+            {
+                true => "print".to_string(),
+                false => "electronic".to_string(),
+            };
+            isbns.push((isbn, isbn_type))
+        }
+    }
+    isbns
+}
+
+impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributions {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        let role = match &self.contribution_type {
+            ContributionType::AUTHOR => "author",
+            ContributionType::EDITOR => "editor",
+            ContributionType::TRANSLATOR => "translator",
+            // Only the above roles are supported by this format. Omit any other contributors.
+            ContributionType::PHOTOGRAPHER
+            | ContributionType::ILUSTRATOR
+            | ContributionType::MUSIC_EDITOR
+            | ContributionType::FOREWORD_BY
+            | ContributionType::INTRODUCTION_BY
+            | ContributionType::AFTERWORD_BY
+            | ContributionType::PREFACE_BY => return Ok(()),
+            ContributionType::Other(_) => unreachable!(),
+        };
+        let ordinal = match &self.contribution_ordinal {
+            1 => "first",
+            _ => "additional",
+        };
+        write_full_element_block(
+            "person_name",
+            None,
+            Some(HashMap::from([
+                ("sequence", ordinal),
+                ("contributor_role", role),
+            ])),
+            w,
+            |w| {
+                if let Some(first_name) = &self.first_name {
+                    write_element_block("given_name", w, |w| {
+                        w.write(XmlEvent::Characters(first_name))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                write_element_block("surname", w, |w| {
+                    w.write(XmlEvent::Characters(&self.last_name))
+                        .map_err(|e| e.into())
+                })
+            },
+        )
+    }
+}

@@ -61,6 +61,12 @@ lazy_static! {
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/bibtex"),
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/zotero"),],
         },
+        Specification {
+            id: "doideposit::crossref",
+            name: "CrossRef DOI deposit",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/doideposit"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/crossref"),],
+        },
     ];
     pub(crate) static ref ALL_PLATFORMS: Vec<Platform<'static>> = vec![
         Platform {
@@ -162,6 +168,14 @@ lazy_static! {
                 "/specifications/bibtex::thoth"
             ),],
         },
+        Platform {
+            id: "crossref",
+            name: "CrossRef",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/doideposit::crossref"
+            ),],
+        },
     ];
     pub(crate) static ref ALL_FORMATS: Vec<Format<'static>> = vec![
         Format {
@@ -211,6 +225,15 @@ lazy_static! {
             specifications: vec![concat!(
                 env!("THOTH_EXPORT_API"),
                 "/specifications/bibtex::thoth"
+            ),],
+        },
+        Format {
+            id: "doideposit",
+            name: "DOIdeposit",
+            version: None,
+            specifications: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/doideposit::crossref"
             ),],
         },
     ];

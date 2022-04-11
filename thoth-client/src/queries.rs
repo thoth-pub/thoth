@@ -38,3 +38,10 @@ impl From<works_query::Work> for work_query::Work {
         serde_json::from_str(&se).unwrap()
     }
 }
+
+impl From<work_query::Work> for work_query::WorkRelationsRelatedWork {
+    fn from(w: work_query::Work) -> Self {
+        let se = serde_json::to_string(&w).unwrap();
+        serde_json::from_str(&se).unwrap()
+    }
+}
