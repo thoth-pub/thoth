@@ -83,13 +83,68 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                 Some(HashMap::from([("book_type", work_type)])),
                 w,
                 |w| {
-                    write_full_element_block(
-                        "book_metadata",
-                        None,
-                        Some(HashMap::from([("language", "en")])),
-                        w,
-                        |w| work_metadata(w, &WorkRelationsRelatedWork::from(self.clone()), false),
-                    )?;
+                    // Only one series can be listed, so we select the first one found (if any).
+                    if let Some((series, ordinal)) =
+                        self.issues.first().map(|i| (&i.series, i.issue_ordinal))
+                    {
+                        write_full_element_block(
+                            "book_series_metadata",
+                            None,
+                            Some(HashMap::from([("language", "en")])),
+                            w,
+                            |w| {
+                                write_element_block("series_metadata", w, |w| {
+                                    write_element_block("titles", w, |w| {
+                                        write_element_block("title", w, |w| {
+                                            w.write(XmlEvent::Characters(&series.series_name))
+                                                .map_err(|e| e.into())
+                                        })
+                                    })?;
+                                    write_full_element_block(
+                                        "issn",
+                                        None,
+                                        Some(HashMap::from([("media_type", "print")])),
+                                        w,
+                                        |w| {
+                                            w.write(XmlEvent::Characters(&series.issn_print))
+                                                .map_err(|e| e.into())
+                                        },
+                                    )?;
+                                    write_full_element_block(
+                                        "issn",
+                                        None,
+                                        Some(HashMap::from([("media_type", "electronic")])),
+                                        w,
+                                        |w| {
+                                            w.write(XmlEvent::Characters(&series.issn_digital))
+                                                .map_err(|e| e.into())
+                                        },
+                                    )
+                                })?;
+                                work_metadata(
+                                    w,
+                                    &WorkRelationsRelatedWork::from(self.clone()),
+                                    false,
+                                    Some(ordinal),
+                                )
+                            },
+                        )?;
+                    } else {
+                        write_full_element_block(
+                            "book_metadata",
+                            None,
+                            Some(HashMap::from([("language", "en")])),
+                            w,
+                            |w| {
+                                work_metadata(
+                                    w,
+                                    &WorkRelationsRelatedWork::from(self.clone()),
+                                    false,
+                                    None,
+                                )
+                            },
+                        )?;
+                    }
                     let mut chapters = self.relations.clone();
                     chapters.sort_by(|a, b| a.relation_ordinal.cmp(&b.relation_ordinal));
                     for chapter in chapters
@@ -142,6 +197,13 @@ fn work_metadata<W: Write>(
                 .map_err(|e| e.into())
         })
     })?;
+    // If the work is part of a series, caller should have passed in its issue number
+    if let Some(volume) = volume_number {
+        write_element_block("volume", w, |w| {
+            w.write(XmlEvent::Characters(&volume.to_string()))
+                .map_err(|e| e.into())
+        })?;
+    }
     if let Some(date) = work.publication_date {
         write_element_block("publication_date", w, |w| {
             write_element_block("month", w, |w| {
