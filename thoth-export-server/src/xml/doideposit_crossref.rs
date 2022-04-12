@@ -117,98 +117,126 @@ fn work_metadata<W: Write>(
     work: &WorkRelationsRelatedWork,
     is_chapter: bool,
 ) -> ThothResult<()> {
-    // We can only generate the document if there's a PDF
-    if let Some(pdf_url) = work
-        .publications
-        .iter()
-        .find(|p| p.publication_type.eq(&PublicationType::PDF) && !p.locations.is_empty())
-        .and_then(|p| p.locations.iter().find(|l| l.canonical))
-        .and_then(|l| l.full_text_url.as_ref())
-    {
-        if !work.contributions.is_empty() {
-            write_element_block("contributors", w, |w| {
-                for contribution in &work.contributions {
-                    XmlElementBlock::<DoiDepositCrossref>::xml_element(contribution, w).ok();
-                }
-                Ok(())
+    // Only Author, Editor and Translator are supported by this format. Omit any other contributors.
+    let contributions: Vec<WorkRelationsRelatedWorkContributions> = work
+        .contributions
+        .clone()
+        .into_iter()
+        .filter(|c| {
+            c.contribution_type == ContributionType::AUTHOR
+                || c.contribution_type == ContributionType::EDITOR
+                || c.contribution_type == ContributionType::TRANSLATOR
+        })
+        .collect();
+    if !contributions.is_empty() {
+        write_element_block("contributors", w, |w| {
+            for contribution in &contributions {
+                XmlElementBlock::<DoiDepositCrossref>::xml_element(contribution, w).ok();
+            }
+            Ok(())
+        })?;
+    }
+    write_element_block("titles", w, |w| {
+        write_element_block("title", w, |w| {
+            w.write(XmlEvent::Characters(&work.title))
+                .map_err(|e| e.into())
+        })
+    })?;
+    if let Some(date) = work.publication_date {
+        write_element_block("publication_date", w, |w| {
+            write_element_block("month", w, |w| {
+                w.write(XmlEvent::Characters(&date.format("%m").to_string()))
+                    .map_err(|e| e.into())
             })?;
-        }
-        write_element_block("titles", w, |w| {
-            write_element_block("title", w, |w| {
-                w.write(XmlEvent::Characters(&work.title))
+            write_element_block("year", w, |w| {
+                w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
                     .map_err(|e| e.into())
             })
         })?;
-        if let Some(date) = work.publication_date {
-            write_element_block("publication_date", w, |w| {
-                write_element_block("month", w, |w| {
-                    w.write(XmlEvent::Characters(&date.format("%m").to_string()))
-                        .map_err(|e| e.into())
-                })?;
-                write_element_block("year", w, |w| {
-                    w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
-                        .map_err(|e| e.into())
-                })
-            })?;
-        }
-        if is_chapter {
+    } else if !is_chapter {
+        // `publication_date` element is mandatory for `book_metadata`
+        return Err(ThothError::IncompleteMetadataRecord(
+            "doideposit::crossref".to_string(),
+            "Missing Publication Date".to_string(),
+        ));
+    }
+    if is_chapter {
+        if let Some(first_page) = &work.first_page {
             write_element_block("pages", w, |w| {
                 write_element_block("first_page", w, |w| {
-                    w.write(XmlEvent::Characters(
-                        &work.first_page.clone().unwrap_or_default(),
-                    ))
-                    .map_err(|e| e.into())
-                })?;
-                write_element_block("last_page", w, |w| {
-                    w.write(XmlEvent::Characters(
-                        &work.last_page.clone().unwrap_or_default(),
-                    ))
-                    .map_err(|e| e.into())
-                })
-            })?;
-        } else {
-            for (isbn, isbn_type) in &get_publications_data(&work.publications) {
-                write_full_element_block(
-                    "isbn",
-                    None,
-                    Some(HashMap::from([("media_type", isbn_type.as_str())])),
-                    w,
-                    |w| w.write(XmlEvent::Characters(isbn)).map_err(|e| e.into()),
-                )?;
-            }
-            write_element_block("publisher", w, |w| {
-                write_element_block("publisher_name", w, |w| {
-                    w.write(XmlEvent::Characters(&work.imprint.publisher.publisher_name))
+                    w.write(XmlEvent::Characters(first_page))
                         .map_err(|e| e.into())
-                })
-            })?;
-        }
-        write_full_element_block(
-            "ai:program",
-            None,
-            Some(HashMap::from([("name", "AccessIndicators")])),
-            w,
-            |w| {
-                write_element_block("ai:free_to_read", w, |_w| Ok(()))?;
-                if let Some(license) = &work.license {
-                    write_element_block("ai:license_ref", w, |w| {
-                        w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
+                })?;
+                if let Some(last_page) = &work.last_page {
+                    write_element_block("last_page", w, |w| {
+                        w.write(XmlEvent::Characters(last_page))
+                            .map_err(|e| e.into())
                     })?;
                 }
                 Ok(())
-            },
-        )?;
-        if let Some(doi) = &work.doi {
-            if let Some(landing_page) = &work.landing_page {
-                write_element_block("doi_data", w, |w| {
-                    write_element_block("doi", w, |w| {
-                        w.write(XmlEvent::Characters(&doi.to_string()))
-                            .map_err(|e| e.into())
-                    })?;
-                    write_element_block("resource", w, |w| {
-                        w.write(XmlEvent::Characters(landing_page))
-                            .map_err(|e| e.into())
-                    })?;
+            })?;
+        }
+    } else {
+        let publications: Vec<WorkRelationsRelatedWorkPublications> = work
+            .publications
+            .clone()
+            .into_iter()
+            .filter(|p| p.isbn.is_some())
+            .collect();
+        if !publications.is_empty() {
+            for publication in &publications {
+                XmlElementBlock::<DoiDepositCrossref>::xml_element(publication, w).ok();
+            }
+        } else {
+            // `book_metadata` must have either at least one `isbn` element or a `noisbn`
+            // element with a `reason` attribute - assume missing ISBNs are erroneous
+            return Err(ThothError::IncompleteMetadataRecord(
+                "doideposit::crossref".to_string(),
+                "No ISBNs provided".to_string(),
+            ));
+        }
+        write_element_block("publisher", w, |w| {
+            write_element_block("publisher_name", w, |w| {
+                w.write(XmlEvent::Characters(&work.imprint.publisher.publisher_name))
+                    .map_err(|e| e.into())
+            })
+        })?;
+    }
+    write_full_element_block(
+        "ai:program",
+        None,
+        Some(HashMap::from([("name", "AccessIndicators")])),
+        w,
+        |w| {
+            write_element_block("ai:free_to_read", w, |_w| Ok(()))?;
+            if let Some(license) = &work.license {
+                write_element_block("ai:license_ref", w, |w| {
+                    w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
+                })?;
+            }
+            Ok(())
+        },
+    )?;
+    if let Some(doi) = &work.doi {
+        if let Some(landing_page) = &work.landing_page {
+            write_element_block("doi_data", w, |w| {
+                write_element_block("doi", w, |w| {
+                    w.write(XmlEvent::Characters(&doi.to_string()))
+                        .map_err(|e| e.into())
+                })?;
+                write_element_block("resource", w, |w| {
+                    w.write(XmlEvent::Characters(landing_page))
+                        .map_err(|e| e.into())
+                })?;
+                if let Some(pdf_url) = work
+                    .publications
+                    .iter()
+                    .find(|p| {
+                        p.publication_type.eq(&PublicationType::PDF) && !p.locations.is_empty()
+                    })
+                    .and_then(|p| p.locations.iter().find(|l| l.canonical))
+                    .and_then(|l| l.full_text_url.as_ref())
+                {
                     write_full_element_block(
                         "collection",
                         None,
@@ -263,36 +291,51 @@ fn work_metadata<W: Write>(
                                 )
                             })
                         },
-                    )
-                })?;
-            }
+                    )?;
+                }
+                Ok(())
+            })?;
+        } else if is_chapter {
+            // `doi_data` element is mandatory for `content_item`, and must contain
+            // both `doi` element and `resource` (landing page) element
+            return Err(ThothError::IncompleteMetadataRecord(
+                "doideposit::crossref".to_string(),
+                "Missing chapter Landing Page".to_string(),
+            ));
         }
-        Ok(())
-    } else {
-        Err(ThothError::IncompleteMetadataRecord(
+    } else if is_chapter {
+        // `doi_data` element is mandatory for `content_item`, and must contain
+        // both `doi` element and `resource` (landing page) element
+        return Err(ThothError::IncompleteMetadataRecord(
             "doideposit::crossref".to_string(),
-            "Missing PDF URL".to_string(),
-        ))
+            "Missing chapter DOI".to_string(),
+        ));
     }
+    Ok(())
 }
 
-fn get_publications_data(
-    publications: &[WorkRelationsRelatedWorkPublications],
-) -> Vec<(String, String)> {
-    let mut isbns: Vec<(String, String)> = Vec::new();
-
-    for publication in publications {
-        if let Some(isbn) = publication.isbn.as_ref().map(|i| i.to_string()) {
-            let isbn_type = match publication.publication_type.eq(&PublicationType::PAPERBACK)
-                || publication.publication_type.eq(&PublicationType::HARDBACK)
+impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkPublications {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        if let Some(isbn) = self.isbn.as_ref().map(|i| i.to_string()) {
+            let isbn_type = match self.publication_type.eq(&PublicationType::PAPERBACK)
+                || self.publication_type.eq(&PublicationType::HARDBACK)
             {
                 true => "print".to_string(),
                 false => "electronic".to_string(),
             };
-            isbns.push((isbn, isbn_type))
+            write_full_element_block(
+                "isbn",
+                None,
+                Some(HashMap::from([("media_type", isbn_type.as_str())])),
+                w,
+                |w| w.write(XmlEvent::Characters(&isbn)).map_err(|e| e.into()),
+            )?;
+        } else {
+            // Publications with no ISBN are not output.
+            unreachable!()
         }
+        Ok(())
     }
-    isbns
 }
 
 impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributions {
@@ -301,15 +344,15 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributio
             ContributionType::AUTHOR => "author",
             ContributionType::EDITOR => "editor",
             ContributionType::TRANSLATOR => "translator",
-            // Only the above roles are supported by this format. Omit any other contributors.
+            // Only the above roles are supported by this format.
             ContributionType::PHOTOGRAPHER
             | ContributionType::ILUSTRATOR
             | ContributionType::MUSIC_EDITOR
             | ContributionType::FOREWORD_BY
             | ContributionType::INTRODUCTION_BY
             | ContributionType::AFTERWORD_BY
-            | ContributionType::PREFACE_BY => return Ok(()),
-            ContributionType::Other(_) => unreachable!(),
+            | ContributionType::PREFACE_BY
+            | ContributionType::Other(_) => unreachable!(),
         };
         let ordinal = match &self.contribution_ordinal {
             1 => "first",
