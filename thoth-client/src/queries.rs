@@ -16,6 +16,14 @@ use uuid::Uuid;
 )]
 pub struct WorkQuery;
 
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "assets/schema.json",
+    query_path = "assets/queries.graphql",
+    response_derives = "Debug,Clone,Deserialize,Serialize"
+)]
+pub struct WorkQueryExtended;
+
 impl fmt::Display for work_query::LanguageCode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
