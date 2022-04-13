@@ -42,14 +42,8 @@ pub(crate) async fn by_work(
     web::Path((specification_id, work_id)): web::Path<(String, Uuid)>,
     thoth_client: web::Data<ThothClient>,
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
-    let doideposit = format!("{}", "doideposit::crossref");
-    let query = match &specification_id {
-        // Compiler error: one arm returns WorkExtended types, the other returns Work types
-        // Can't coerce one into the other as this would make the alternating queries pointless
-        x if x == &doideposit => thoth_client.get_work_extended(work_id),
-        _ => thoth_client.get_work(work_id),
-    };
-    query
+    thoth_client
+        .get_work(work_id)
         .await
         .and_then(|data| {
             specification_id.parse().map(|specification| {

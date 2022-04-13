@@ -7,7 +7,6 @@ use paperclip::v2::models::{DefaultOperationRaw, Either, Response};
 use paperclip::v2::schema::Apiv2Schema;
 use std::str::FromStr;
 use thoth_client::Work;
-use thoth_client::WorkExtended;
 use thoth_errors::{ThothError, ThothResult};
 
 use crate::bibtex::{BibtexSpecification, BibtexThoth};
@@ -18,7 +17,6 @@ use crate::xml::{
 
 pub(crate) trait AsRecord {}
 impl AsRecord for Vec<Work> {}
-impl AsRecord for Vec<WorkExtended> {}
 
 pub const DELIMITER_COMMA: u8 = b',';
 pub const DELIMITER_TAB: u8 = b'\t';

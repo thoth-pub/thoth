@@ -9,10 +9,7 @@ use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 pub use crate::queries::work_query::*;
-pub use crate::queries::work_query_extended::*;
-use crate::queries::{
-    work_query, work_query_extended, works_query, WorkQuery, WorkQueryExtended, WorksQuery,
-};
+use crate::queries::{work_query, works_query, WorkQuery, WorksQuery};
 
 type HttpFuture = Result<reqwest::Response, reqwest::Error>;
 
@@ -68,25 +65,6 @@ impl ThothClient {
         let response_body: Response<work_query::ResponseData> = res.json().await?;
         match response_body.data {
             Some(data) => Ok(data.work.work),
-            None => Err(ThothError::EntityNotFound),
-        }
-    }
-
-    /// Get an extended `Work` from Thoth given its `work_id`
-    ///
-    /// # Errors
-    ///
-    /// This method fails if the `work_id` was not found
-    /// or if there was an error while sending the request
-    ///
-    /// # Example: see get_work()
-    pub async fn get_work_extended(&self, work_id: Uuid) -> ThothResult<WorkExtended> {
-        let request_body =
-            WorkQueryExtended::build_query(work_query_extended::Variables { work_id });
-        let res = self.post_request(&request_body).await.await?;
-        let response_body: Response<work_query_extended::ResponseData> = res.json().await?;
-        match response_body.data {
-            Some(data) => Ok(data.work.work_extended),
             None => Err(ThothError::EntityNotFound),
         }
     }
