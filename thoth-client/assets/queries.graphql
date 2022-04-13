@@ -122,9 +122,12 @@ fragment Work on Work {
         relatedWork {
             fullTitle
             title
+            subtitle
+            edition
             doi
             publicationDate
             license
+            place
             firstPage
             lastPage
             landingPage
@@ -138,6 +141,9 @@ fragment Work on Work {
                 firstName
                 lastName
                 contributionOrdinal
+                contributor {
+                    orcid
+                }
             }
             publications {
                 publicationType

@@ -13,6 +13,10 @@ use thoth_errors::{ThothError, ThothResult};
 
 pub struct DoiDepositCrossref {}
 
+// Output format based on schema documentation at https://data.crossref.org/reports/help/schema_doc/5.3.1/index.html
+// (retrieved via https://www.crossref.org/documentation/schema-library/xsd-schema-quick-reference/).
+// Output validity tested using tool at https://www.crossref.org/02publishers/parser.html
+// (retrieved via https://www.crossref.org/documentation/member-setup/direct-deposit-xml/testing-your-xml/).
 impl XmlSpecification for DoiDepositCrossref {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
         match works.len() {
@@ -22,7 +26,8 @@ impl XmlSpecification for DoiDepositCrossref {
             )),
             1 => {
                 let work = works.first().unwrap();
-                let work_id = format!("urn:uuid:{}", work.work_id);
+                let timestamp = Utc::now().format("%Y%m%d%H%M").to_string();
+                let work_id = format!("{}_{}", work.work_id, timestamp);
                 let mut attr_map: HashMap<&str, &str> = HashMap::new();
 
                 attr_map.insert("version", "4.3.5");
@@ -38,10 +43,8 @@ impl XmlSpecification for DoiDepositCrossref {
                                 .map_err(|e| e.into())
                         })?;
                         write_element_block("timestamp", w, |w| {
-                            w.write(XmlEvent::Characters(
-                                &Utc::now().format("%Y%m%d%H%M").to_string(),
-                            ))
-                            .map_err(|e| e.into())
+                            w.write(XmlEvent::Characters(&timestamp))
+                                .map_err(|e| e.into())
                         })?;
                         write_element_block("depositor", w, |w| {
                             write_element_block("depositor_name", w, |w| {
@@ -59,10 +62,8 @@ impl XmlSpecification for DoiDepositCrossref {
                     XmlElementBlock::<DoiDepositCrossref>::xml_element(work, w)
                 })
             }
-            _ => Err(ThothError::IncompleteMetadataRecord(
-                "doideposit::crossref".to_string(),
-                "Output can only be generated for one work at a time".to_string(),
-            )),
+            // handler::by_publisher() prevents generation of output for multiple records
+            _ => unreachable!(),
         }
     }
 }
@@ -124,7 +125,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                 work_metadata(
                                     w,
                                     &WorkRelationsRelatedWork::from(self.clone()),
-                                    false,
+                                    None,
                                     Some(ordinal),
                                 )
                             },
@@ -139,25 +140,28 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                 work_metadata(
                                     w,
                                     &WorkRelationsRelatedWork::from(self.clone()),
-                                    false,
+                                    None,
                                     None,
                                 )
                             },
                         )?;
                     }
+                    // As an alternative to `book_metadata` and `book_series_metadata` above,
+                    // `book_set_metadata` can be used for works which are part of a set.
+                    // Omitted at present but could be considered as a future enhancement.
                     let mut chapters = self.relations.clone();
                     chapters.sort_by(|a, b| a.relation_ordinal.cmp(&b.relation_ordinal));
-                    for chapter in chapters
+                    for (chapter, ordinal) in chapters
                         .iter()
                         .filter(|r| r.relation_type == RelationType::HAS_CHILD)
-                        .map(|r| &r.related_work)
+                        .map(|r| (&r.related_work, r.relation_ordinal))
                     {
                         write_full_element_block(
                             "content_item",
                             None,
                             Some(HashMap::from([("component_type", "chapter")])),
                             w,
-                            |w| work_metadata(w, chapter, true),
+                            |w| work_metadata(w, chapter, Some(ordinal), None),
                         )?;
                     }
                     Ok(())
@@ -170,8 +174,10 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
 fn work_metadata<W: Write>(
     w: &mut EventWriter<W>,
     work: &WorkRelationsRelatedWork,
-    is_chapter: bool,
+    chapter_number: Option<i64>,
+    volume_number: Option<i64>,
 ) -> ThothResult<()> {
+    let is_chapter = chapter_number.is_some();
     // Only Author, Editor and Translator are supported by this format. Omit any other contributors.
     let contributions: Vec<WorkRelationsRelatedWorkContributions> = work
         .contributions
@@ -195,12 +201,41 @@ fn work_metadata<W: Write>(
         write_element_block("title", w, |w| {
             w.write(XmlEvent::Characters(&work.title))
                 .map_err(|e| e.into())
-        })
+        })?;
+        if let Some(subtitle) = &work.subtitle {
+            write_element_block("subtitle", w, |w| {
+                w.write(XmlEvent::Characters(subtitle))
+                    .map_err(|e| e.into())
+            })?;
+        }
+        Ok(())
     })?;
-    // If the work is part of a series, caller should have passed in its issue number
-    if let Some(volume) = volume_number {
+    if let Some(chapter) = chapter_number {
+        // If the work is a chapter of another work, caller should have passed in its chapter number
+        write_element_block("component_number", w, |w| {
+            w.write(XmlEvent::Characters(&chapter.to_string()))
+                .map_err(|e| e.into())
+        })?;
+    } else if let Some(volume) = volume_number {
+        // If the work is part of a series, caller should have passed in its issue number
         write_element_block("volume", w, |w| {
             w.write(XmlEvent::Characters(&volume.to_string()))
+                .map_err(|e| e.into())
+        })?;
+    }
+    // Abstract can also optionally be provided here, but only in JATS format.
+    // Omitted at present but could be considered as a future enhancement.
+    if let Some(edition) = work.edition {
+        if is_chapter {
+            // `edition_number` is not supported for chapters,
+            // but edition should always be None for Thoth chapters.
+            return Err(ThothError::IncompleteMetadataRecord(
+                "doideposit::crossref".to_string(),
+                "Chapters cannot have Edition numbers".to_string(),
+            ));
+        }
+        write_element_block("edition_number", w, |w| {
+            w.write(XmlEvent::Characters(&edition.to_string()))
                 .map_err(|e| e.into())
         })?;
     }
@@ -208,6 +243,10 @@ fn work_metadata<W: Write>(
         write_element_block("publication_date", w, |w| {
             write_element_block("month", w, |w| {
                 w.write(XmlEvent::Characters(&date.format("%m").to_string()))
+                    .map_err(|e| e.into())
+            })?;
+            write_element_block("day", w, |w| {
+                w.write(XmlEvent::Characters(&date.format("%d").to_string()))
                     .map_err(|e| e.into())
             })?;
             write_element_block("year", w, |w| {
@@ -261,7 +300,13 @@ fn work_metadata<W: Write>(
             write_element_block("publisher_name", w, |w| {
                 w.write(XmlEvent::Characters(&work.imprint.publisher.publisher_name))
                     .map_err(|e| e.into())
-            })
+            })?;
+            if let Some(place) = &work.place {
+                write_element_block("publisher_place", w, |w| {
+                    w.write(XmlEvent::Characters(place)).map_err(|e| e.into())
+                })?;
+            }
+            Ok(())
         })?;
     }
     write_full_element_block(
@@ -299,6 +344,8 @@ fn work_metadata<W: Write>(
                     .and_then(|p| p.locations.iter().find(|l| l.canonical))
                     .and_then(|l| l.full_text_url.as_ref())
                 {
+                    // Used for CrossRef Similarity Check. URL must point directly to full-text PDF.
+                    // Alternatively, a direct link to full-text HTML can be used (not implemented here).
                     write_full_element_block(
                         "collection",
                         None,
@@ -335,6 +382,8 @@ fn work_metadata<W: Write>(
                             Ok(())
                         },
                     )?;
+                    // Used for CrossRef Text and Data Mining. URL must point directly to full-text PDF.
+                    // Alternatively, a direct link to full-text XML can be used (not implemented here).
                     write_full_element_block(
                         "collection",
                         None,
@@ -438,7 +487,20 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributio
                 write_element_block("surname", w, |w| {
                     w.write(XmlEvent::Characters(&self.last_name))
                         .map_err(|e| e.into())
-                })
+                })?;
+                if let Some(orcid) = &self.contributor.orcid {
+                    write_element_block("ORCID", w, |w| {
+                        // Leading `https://orcid.org` is required, and omitted by orcid.to_string()
+                        w.write(XmlEvent::Characters(&format!(
+                            "https://orcid.org/{}",
+                            orcid
+                        )))
+                        .map_err(|e| e.into())
+                    })?;
+                }
+                Ok(())
+                // Affiliation information can also optionally be provided here.
+                // Omitted at present but could be considered as a future enhancement.
             },
         )
     }
