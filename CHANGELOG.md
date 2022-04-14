@@ -5,12 +5,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[0.8.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.2) - 2022-04-06
+### Changed
+  - Added CA certificates to docker image to allow https requests from containers
+
+## [[0.8.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.1) - 2022-03-11
+### Added
+  - [#104](https://github.com/thoth-pub/thoth/issues/104) - Implement BibTeX specification
+
+### Changed
+  - Removed unnecessary title branching logic from KBART/ONIX output formats
+
+## [[0.8.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.0) - 2022-03-01
 ### Added
   - [#341](https://github.com/thoth-pub/thoth/issues/341) - Add weight to publication
 
 ### Changed
   - Tidied verbose bools and single-character strings to comply with [`rustc 1.59.0`](https://github.com/rust-lang/rust/releases/tag/1.59.0)
   - [#300](https://github.com/thoth-pub/thoth/issues/300) - Moved width/height to Publication, added depth, improved metric/imperial display
+  - Upgrade docker's base images to latest available releases
 
 ## [[0.7.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.7.2) - 2022-02-08
 ### Changed

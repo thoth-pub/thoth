@@ -6,6 +6,7 @@ use paperclip::actix::{web, web::HttpResponse, OpenApiExt};
 use paperclip::v2::models::{Contact, DefaultApiRaw, Info, License, Tag};
 use thoth_client::ThothClient;
 
+mod bibtex;
 mod csv;
 mod data;
 mod format;
