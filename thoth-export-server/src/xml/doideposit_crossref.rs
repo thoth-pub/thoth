@@ -31,10 +31,10 @@ impl XmlSpecification for DoiDepositCrossref {
                 let work_id = format!("{}_{}", work.work_id, timestamp);
                 let mut attr_map: HashMap<&str, &str> = HashMap::new();
 
-                attr_map.insert("version", "4.3.5");
-                attr_map.insert("xmlns", "http://www.crossref.org/schema/4.3.5");
+                attr_map.insert("version", "5.3.1");
+                attr_map.insert("xmlns", "http://www.crossref.org/schema/5.3.1");
                 attr_map.insert("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
-                attr_map.insert("xsi:schemaLocation", "http://www.crossref.org/schema/4.3.5 http://www.crossref.org/schemas/crossref4.3.5.xsd");
+                attr_map.insert("xsi:schemaLocation", "http://www.crossref.org/schema/5.3.1 http://www.crossref.org/schemas/crossref5.3.1.xsd");
                 attr_map.insert("xmlns:ai", "http://www.crossref.org/AccessIndicators.xsd");
 
                 write_full_element_block("doi_batch", None, Some(attr_map), w, |w| {
@@ -319,14 +319,7 @@ fn work_metadata<W: Write>(
                         Some(HashMap::from([("property", "crawler-based")])),
                         w,
                         |w| {
-                            for crawler in [
-                                "iParadigms",
-                                "google",
-                                "msn",
-                                "altavista",
-                                "yahoo",
-                                "scirus",
-                            ] {
+                            for crawler in ["iParadigms", "google", "msn", "yahoo", "scirus"] {
                                 write_full_element_block(
                                     "item",
                                     None,
@@ -647,7 +640,6 @@ mod tests {
         assert!(output.contains(r#"        <resource mime_type="application/pdf">https://www.book.com/chapterone_fulltext</resource>"#));
         assert!(output.contains(r#"      <item crawler="google">"#));
         assert!(output.contains(r#"      <item crawler="msn">"#));
-        assert!(output.contains(r#"      <item crawler="altavista">"#));
         assert!(output.contains(r#"      <item crawler="yahoo">"#));
         assert!(output.contains(r#"      <item crawler="scirus">"#));
         assert!(output.contains(r#"    <collection property="text-mining">"#));
@@ -696,7 +688,6 @@ mod tests {
         assert!(!output.contains(r#"        <resource mime_type="application/pdf">https://www.book.com/chapterone_fulltext</resource>"#));
         assert!(!output.contains(r#"      <item crawler="google">"#));
         assert!(!output.contains(r#"      <item crawler="msn">"#));
-        assert!(!output.contains(r#"      <item crawler="altavista">"#));
         assert!(!output.contains(r#"      <item crawler="yahoo">"#));
         assert!(!output.contains(r#"      <item crawler="scirus">"#));
         assert!(!output.contains(r#"    <collection property="text-mining">"#));
@@ -1034,7 +1025,6 @@ mod tests {
         assert!(output.contains(r#"            <resource mime_type="application/pdf">https://www.book.com/pdf_fulltext</resource>"#));
         assert!(output.contains(r#"          <item crawler="google">"#));
         assert!(output.contains(r#"          <item crawler="msn">"#));
-        assert!(output.contains(r#"          <item crawler="altavista">"#));
         assert!(output.contains(r#"          <item crawler="yahoo">"#));
         assert!(output.contains(r#"          <item crawler="scirus">"#));
         assert!(output.contains(r#"        <collection property="text-mining">"#));
@@ -1108,7 +1098,6 @@ mod tests {
         assert!(!output.contains(r#"            <resource mime_type="application/pdf">https://www.book.com/pdf_fulltext</resource>"#));
         assert!(!output.contains(r#"          <item crawler="google">"#));
         assert!(!output.contains(r#"          <item crawler="msn">"#));
-        assert!(!output.contains(r#"          <item crawler="altavista">"#));
         assert!(!output.contains(r#"          <item crawler="yahoo">"#));
         assert!(!output.contains(r#"          <item crawler="scirus">"#));
         assert!(!output.contains(r#"        <collection property="text-mining">"#));
