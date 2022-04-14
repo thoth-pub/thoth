@@ -2,8 +2,9 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, PublicationType, RelationType, Work, WorkRelations, WorkRelationsRelatedWork,
-    WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkPublications, WorkType,
+    ContributionType, PublicationType, RelationType, Work, WorkIssuesSeries, WorkRelations,
+    WorkRelationsRelatedWork, WorkRelationsRelatedWorkContributions,
+    WorkRelationsRelatedWorkPublications, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -94,34 +95,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                             Some(HashMap::from([("language", "en")])),
                             w,
                             |w| {
-                                write_element_block("series_metadata", w, |w| {
-                                    write_element_block("titles", w, |w| {
-                                        write_element_block("title", w, |w| {
-                                            w.write(XmlEvent::Characters(&series.series_name))
-                                                .map_err(|e| e.into())
-                                        })
-                                    })?;
-                                    write_full_element_block(
-                                        "issn",
-                                        None,
-                                        Some(HashMap::from([("media_type", "print")])),
-                                        w,
-                                        |w| {
-                                            w.write(XmlEvent::Characters(&series.issn_print))
-                                                .map_err(|e| e.into())
-                                        },
-                                    )?;
-                                    write_full_element_block(
-                                        "issn",
-                                        None,
-                                        Some(HashMap::from([("media_type", "electronic")])),
-                                        w,
-                                        |w| {
-                                            w.write(XmlEvent::Characters(&series.issn_digital))
-                                                .map_err(|e| e.into())
-                                        },
-                                    )
-                                })?;
+                                XmlElementBlock::<DoiDepositCrossref>::xml_element(series, w)?;
                                 work_metadata(
                                     w,
                                     &WorkRelationsRelatedWork::from(self.clone()),
@@ -155,7 +129,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                         .iter()
                         .filter(|r| r.relation_type == RelationType::HAS_CHILD)
                     {
-                        XmlElementBlock::<DoiDepositCrossref>::xml_element(chapter, w).ok();
+                        XmlElementBlock::<DoiDepositCrossref>::xml_element(chapter, w)?;
                     }
                     Ok(())
                 },
@@ -185,7 +159,7 @@ fn work_metadata<W: Write>(
     if !contributions.is_empty() {
         write_element_block("contributors", w, |w| {
             for contribution in &contributions {
-                XmlElementBlock::<DoiDepositCrossref>::xml_element(contribution, w).ok();
+                XmlElementBlock::<DoiDepositCrossref>::xml_element(contribution, w)?;
             }
             Ok(())
         })?;
@@ -279,7 +253,7 @@ fn work_metadata<W: Write>(
             .collect();
         if !publications.is_empty() {
             for publication in &publications {
-                XmlElementBlock::<DoiDepositCrossref>::xml_element(publication, w).ok();
+                XmlElementBlock::<DoiDepositCrossref>::xml_element(publication, w)?;
             }
         } else {
             // `book_metadata` must have either at least one `isbn` element or a `noisbn`
@@ -418,6 +392,39 @@ fn work_metadata<W: Write>(
     Ok(())
 }
 
+impl XmlElementBlock<DoiDepositCrossref> for WorkIssuesSeries {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_element_block("series_metadata", w, |w| {
+            write_element_block("titles", w, |w| {
+                write_element_block("title", w, |w| {
+                    w.write(XmlEvent::Characters(&self.series_name))
+                        .map_err(|e| e.into())
+                })
+            })?;
+            write_full_element_block(
+                "issn",
+                None,
+                Some(HashMap::from([("media_type", "print")])),
+                w,
+                |w| {
+                    w.write(XmlEvent::Characters(&self.issn_print))
+                        .map_err(|e| e.into())
+                },
+            )?;
+            write_full_element_block(
+                "issn",
+                None,
+                Some(HashMap::from([("media_type", "electronic")])),
+                w,
+                |w| {
+                    w.write(XmlEvent::Characters(&self.issn_digital))
+                        .map_err(|e| e.into())
+                },
+            )
+        })
+    }
+}
+
 impl XmlElementBlock<DoiDepositCrossref> for WorkRelations {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         if !self.relation_type.eq(&RelationType::HAS_CHILD) {
@@ -532,7 +539,10 @@ mod tests {
     };
     use uuid::Uuid;
 
-    fn generate_test_output(input: &impl XmlElementBlock<DoiDepositCrossref>) -> String {
+    fn generate_test_output(
+        expect_ok: bool,
+        input: &impl XmlElementBlock<DoiDepositCrossref>,
+    ) -> String {
         // Helper function based on `XmlSpecification::generate`
         let mut buffer = Vec::new();
         let mut writer = xml::writer::EmitterConfig::new()
@@ -544,8 +554,13 @@ mod tests {
                 String::from_utf8(xml)
                     .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
             });
-        assert!(wrapped_output.is_ok());
-        wrapped_output.unwrap()
+        if expect_ok {
+            assert!(wrapped_output.is_ok());
+            wrapped_output.unwrap()
+        } else {
+            assert!(wrapped_output.is_err());
+            wrapped_output.unwrap_err().to_string()
+        }
     }
 
     #[test]
@@ -592,7 +607,7 @@ mod tests {
             },
         };
 
-        let output = generate_test_output(&test_relations);
+        let output = generate_test_output(true, &test_relations);
         assert!(output.contains(r#"<content_item component_type="chapter">"#));
         assert!(output.contains(r#"  <contributors>"#));
         assert!(
@@ -644,7 +659,7 @@ mod tests {
         test_relations.related_work.license = None;
         test_relations.related_work.contributions.clear();
         test_relations.related_work.publications.clear();
-        let output = generate_test_output(&test_relations);
+        let output = generate_test_output(true, &test_relations);
         // Sole contributor removed
         assert!(!output.contains(r#"  <contributors>"#));
         assert!(
@@ -687,27 +702,14 @@ mod tests {
         assert!(!output.contains(r#"    <collection property="text-mining">"#));
 
         test_relations.related_work.first_page = None;
-        let output = generate_test_output(&test_relations);
+        let output = generate_test_output(true, &test_relations);
         // No first page supplied: `pages` element omitted entirely
         assert!(!output.contains(r#"  <pages>"#));
         assert!(!output.contains(r#"    <first_page>10</first_page>"#));
 
         // Editions are not valid chapter metadata
         test_relations.related_work.edition = Some(1);
-        // Can't use helper function for this as it assumes Ok rather than Err
-        let mut buffer = Vec::new();
-        let mut writer = xml::writer::EmitterConfig::new()
-            .perform_indent(true)
-            .create_writer(&mut buffer);
-        let wrapped_output =
-            XmlElementBlock::<DoiDepositCrossref>::xml_element(&test_relations, &mut writer)
-                .map(|_| buffer)
-                .and_then(|xml| {
-                    String::from_utf8(xml)
-                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
-                });
-        assert!(wrapped_output.is_err());
-        let output = wrapped_output.unwrap_err().to_string();
+        let output = generate_test_output(false, &test_relations);
         assert_eq!(
             output,
             "Could not generate doideposit::crossref: Chapters cannot have Edition numbers"
@@ -717,20 +719,7 @@ mod tests {
         // Remove landing page. Result: error (cannot generate mandatory `doi_data` element)
         test_relations.related_work.edition = None;
         test_relations.related_work.landing_page = None;
-        // Can't use helper function for this as it assumes Ok rather than Err
-        let mut buffer = Vec::new();
-        let mut writer = xml::writer::EmitterConfig::new()
-            .perform_indent(true)
-            .create_writer(&mut buffer);
-        let wrapped_output =
-            XmlElementBlock::<DoiDepositCrossref>::xml_element(&test_relations, &mut writer)
-                .map(|_| buffer)
-                .and_then(|xml| {
-                    String::from_utf8(xml)
-                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
-                });
-        assert!(wrapped_output.is_err());
-        let output = wrapped_output.unwrap_err().to_string();
+        let output = generate_test_output(false, &test_relations);
         assert_eq!(
             output,
             "Could not generate doideposit::crossref: Missing chapter Landing Page".to_string()
@@ -741,20 +730,7 @@ mod tests {
         test_relations.related_work.landing_page =
             Some("https://www.book.com/chapter_one".to_string());
         test_relations.related_work.doi = None;
-        // Can't use helper function for this as it assumes Ok rather than Err
-        let mut buffer = Vec::new();
-        let mut writer = xml::writer::EmitterConfig::new()
-            .perform_indent(true)
-            .create_writer(&mut buffer);
-        let wrapped_output =
-            XmlElementBlock::<DoiDepositCrossref>::xml_element(&test_relations, &mut writer)
-                .map(|_| buffer)
-                .and_then(|xml| {
-                    String::from_utf8(xml)
-                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
-                });
-        assert!(wrapped_output.is_err());
-        let output = wrapped_output.unwrap_err().to_string();
+        let output = generate_test_output(false, &test_relations);
         assert_eq!(
             output,
             "Could not generate doideposit::crossref: Missing chapter DOI".to_string()
@@ -954,11 +930,34 @@ mod tests {
             ],
             subjects: vec![],
             fundings: vec![],
-            relations: vec![],
+            relations: vec![WorkRelations {
+                relation_type: RelationType::HAS_PART,
+                relation_ordinal: 1,
+                related_work: WorkRelationsRelatedWork {
+                    full_title: "Part: One".to_string(),
+                    title: "Part".to_string(),
+                    subtitle: Some("One".to_string()),
+                    edition: None,
+                    doi: Some(Doi::from_str("https://doi.org/10.00001/PART.0001").unwrap()),
+                    publication_date: Some(chrono::NaiveDate::from_ymd(2000, 2, 28)),
+                    license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
+                    place: Some("Other Place".to_string()),
+                    first_page: Some("10".to_string()),
+                    last_page: Some("20".to_string()),
+                    landing_page: Some("https://www.book.com/part_one".to_string()),
+                    imprint: WorkRelationsRelatedWorkImprint {
+                        publisher: WorkRelationsRelatedWorkImprintPublisher {
+                            publisher_name: "Part One Publisher".to_string(),
+                        },
+                    },
+                    contributions: vec![],
+                    publications: vec![],
+                },
+            }],
         };
 
         // Test standard output
-        let output = generate_test_output(&test_work);
+        let output = generate_test_output(true, &test_work);
         assert!(output.contains(r#"  <book book_type="monograph">"#));
         assert!(output.contains(r#"    <book_series_metadata language="en">"#));
         assert!(output.contains(r#"      <series_metadata>"#));
@@ -1039,6 +1038,19 @@ mod tests {
         assert!(output.contains(r#"          <item crawler="yahoo">"#));
         assert!(output.contains(r#"          <item crawler="scirus">"#));
         assert!(output.contains(r#"        <collection property="text-mining">"#));
+        // Only omitted relation types supplied: no `content_item` elements emitted
+        assert!(!output.contains(r#"    <content_item component_type="chapter">"#));
+        assert!(!output.contains(r#"        <title>Part</title>"#));
+        assert!(!output.contains(r#"        <subtitle>One</subtitle>"#));
+        assert!(!output.contains(r#"      <component_number>1</component_number>"#));
+        assert!(!output.contains(r#"        <month>02</month>"#));
+        assert!(!output.contains(r#"        <day>28</day>"#));
+        assert!(!output.contains(r#"        <year>2000</year>"#));
+        assert!(!output.contains(r#"      <pages>"#));
+        assert!(!output.contains(r#"        <first_page>10</first_page>"#));
+        assert!(!output.contains(r#"        <last_page>20</last_page>"#));
+        assert!(!output.contains(r#"        <doi>10.00001/PART.0001</doi>"#));
+        assert!(!output.contains(r#"        <resource>https://www.book.com/part_one</resource>"#));
 
         // Remove/change some values to test variations/non-output of optional blocks
         test_work.work_type = WorkType::EDITED_BOOK;
@@ -1052,7 +1064,7 @@ mod tests {
         // Remove last (hardback) publication
         test_work.publications.pop();
 
-        let output = generate_test_output(&test_work);
+        let output = generate_test_output(true, &test_work);
         // Work type changed
         assert!(!output.contains(r#"  <book book_type="monograph">"#));
         assert!(output.contains(r#"  <book book_type="edited_book">"#));
@@ -1088,6 +1100,9 @@ mod tests {
         ));
         // No PDF URL supplied: all `collection` elements omitted
         // (although XML URL is still present)
+        assert!(output.contains(r#"      <doi_data>"#));
+        assert!(output.contains(r#"        <doi>10.00001/BOOK.0001</doi>"#));
+        assert!(output.contains(r#"        <resource>https://www.book.com</resource>"#));
         assert!(!output.contains(r#"        <collection property="crawler-based">"#));
         assert!(!output.contains(r#"          <item crawler="iParadigms">"#));
         assert!(!output.contains(r#"            <resource mime_type="application/pdf">https://www.book.com/pdf_fulltext</resource>"#));
@@ -1104,7 +1119,7 @@ mod tests {
         test_work.landing_page = None;
         test_work.contributions.drain(1..);
         test_work.publications[1].isbn = None;
-        let output = generate_test_output(&test_work);
+        let output = generate_test_output(true, &test_work);
         // Work type changed
         assert!(!output.contains(r#"  <book book_type="edited_book">"#));
         assert!(output.contains(r#"  <book book_type="reference">"#));
@@ -1144,7 +1159,7 @@ mod tests {
         test_work.work_type = WorkType::JOURNAL_ISSUE;
         test_work.landing_page = Some("https://www.book.com".to_string());
         test_work.doi = None;
-        let output = generate_test_output(&test_work);
+        let output = generate_test_output(true, &test_work);
         // Work type changed
         assert!(!output.contains(r#"  <book book_type="reference">"#));
         assert!(output.contains(r#"  <book book_type="other">"#));
@@ -1155,20 +1170,7 @@ mod tests {
 
         // Remove publication date. Result: error
         test_work.publication_date = None;
-        // Can't use helper function for this as it assumes Ok rather than Err
-        let mut buffer = Vec::new();
-        let mut writer = xml::writer::EmitterConfig::new()
-            .perform_indent(true)
-            .create_writer(&mut buffer);
-        let wrapped_output =
-            XmlElementBlock::<DoiDepositCrossref>::xml_element(&test_work, &mut writer)
-                .map(|_| buffer)
-                .and_then(|xml| {
-                    String::from_utf8(xml)
-                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
-                });
-        assert!(wrapped_output.is_err());
-        let output = wrapped_output.unwrap_err().to_string();
+        let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
             "Could not generate doideposit::crossref: Missing Publication Date".to_string()
@@ -1177,20 +1179,7 @@ mod tests {
         // Restore publication date and remove all publication ISBNs. Result: error
         test_work.publication_date = Some(chrono::NaiveDate::from_ymd(1999, 12, 31));
         test_work.publications[0].isbn = None;
-        // Can't use helper function for this as it assumes Ok rather than Err
-        let mut buffer = Vec::new();
-        let mut writer = xml::writer::EmitterConfig::new()
-            .perform_indent(true)
-            .create_writer(&mut buffer);
-        let wrapped_output =
-            XmlElementBlock::<DoiDepositCrossref>::xml_element(&test_work, &mut writer)
-                .map(|_| buffer)
-                .and_then(|xml| {
-                    String::from_utf8(xml)
-                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
-                });
-        assert!(wrapped_output.is_err());
-        let output = wrapped_output.unwrap_err().to_string();
+        let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
             "Could not generate doideposit::crossref: No ISBNs provided".to_string()
