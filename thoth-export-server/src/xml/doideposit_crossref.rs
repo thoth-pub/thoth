@@ -2,7 +2,7 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, PublicationType, RelationType, Work, WorkRelationsRelatedWork,
+    ContributionType, PublicationType, RelationType, Work, WorkRelations, WorkRelationsRelatedWork,
     WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkPublications, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
@@ -151,18 +151,11 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                     // Omitted at present but could be considered as a future enhancement.
                     let mut chapters = self.relations.clone();
                     chapters.sort_by(|a, b| a.relation_ordinal.cmp(&b.relation_ordinal));
-                    for (chapter, ordinal) in chapters
+                    for chapter in chapters
                         .iter()
                         .filter(|r| r.relation_type == RelationType::HAS_CHILD)
-                        .map(|r| (&r.related_work, r.relation_ordinal))
                     {
-                        write_full_element_block(
-                            "content_item",
-                            None,
-                            Some(HashMap::from([("component_type", "chapter")])),
-                            w,
-                            |w| work_metadata(w, chapter, Some(ordinal), None),
-                        )?;
+                        XmlElementBlock::<DoiDepositCrossref>::xml_element(chapter, w).ok();
                     }
                     Ok(())
                 },
@@ -425,6 +418,22 @@ fn work_metadata<W: Write>(
     Ok(())
 }
 
+impl XmlElementBlock<DoiDepositCrossref> for WorkRelations {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        if !self.relation_type.eq(&RelationType::HAS_CHILD) {
+            // Caller should only pass in child works (chapters), not any other relations.
+            unreachable!()
+        }
+        write_full_element_block(
+            "content_item",
+            None,
+            Some(HashMap::from([("component_type", "chapter")])),
+            w,
+            |w| work_metadata(w, &self.related_work, Some(self.relation_ordinal), None),
+        )
+    }
+}
+
 impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkPublications {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         if let Some(isbn) = self.isbn.as_ref().map(|i| i.to_string()) {
@@ -516,7 +525,10 @@ mod tests {
     use thoth_client::{
         ContributionType, LocationPlatform, PublicationType, SeriesType, WorkContributions,
         WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssues,
-        WorkIssuesSeries, WorkPublications, WorkPublicationsLocations, WorkStatus, WorkType,
+        WorkIssuesSeries, WorkPublications, WorkPublicationsLocations, WorkRelations,
+        WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkContributionsContributor,
+        WorkRelationsRelatedWorkImprint, WorkRelationsRelatedWorkImprintPublisher,
+        WorkRelationsRelatedWorkPublicationsLocations, WorkStatus, WorkType,
     };
     use uuid::Uuid;
 
@@ -534,6 +546,219 @@ mod tests {
             });
         assert!(wrapped_output.is_ok());
         wrapped_output.unwrap()
+    }
+
+    #[test]
+    fn test_doideposit_crossref_relatedworks() {
+        let mut test_relations = WorkRelations {
+            relation_type: RelationType::HAS_CHILD,
+            relation_ordinal: 1,
+            related_work: WorkRelationsRelatedWork {
+                full_title: "Chapter: One".to_string(),
+                title: "Chapter".to_string(),
+                subtitle: Some("One".to_string()),
+                edition: None,
+                doi: Some(Doi::from_str("https://doi.org/10.00001/CHAPTER.0001").unwrap()),
+                publication_date: Some(chrono::NaiveDate::from_ymd(2000, 2, 28)),
+                license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
+                place: Some("Other Place".to_string()),
+                first_page: Some("10".to_string()),
+                last_page: Some("20".to_string()),
+                landing_page: Some("https://www.book.com/chapter_one".to_string()),
+                imprint: WorkRelationsRelatedWorkImprint {
+                    publisher: WorkRelationsRelatedWorkImprintPublisher {
+                        publisher_name: "Chapter One Publisher".to_string(),
+                    },
+                },
+                contributions: vec![WorkRelationsRelatedWorkContributions {
+                    contribution_type: ContributionType::AUTHOR,
+                    first_name: Some("Chapter One".to_string()),
+                    last_name: "Author".to_string(),
+                    contribution_ordinal: 1,
+                    contributor: WorkRelationsRelatedWorkContributionsContributor {
+                        orcid: Some(
+                            Orcid::from_str("https://orcid.org/0000-0002-0000-0011").unwrap(),
+                        ),
+                    },
+                }],
+                publications: vec![WorkRelationsRelatedWorkPublications {
+                    publication_type: PublicationType::PDF,
+                    isbn: Some(Isbn::from_str("978-1-56619-909-4").unwrap()),
+                    locations: vec![WorkRelationsRelatedWorkPublicationsLocations {
+                        full_text_url: Some("https://www.book.com/chapterone_fulltext".to_string()),
+                        canonical: true,
+                    }],
+                }],
+            },
+        };
+
+        let output = generate_test_output(&test_relations);
+        assert!(output.contains(r#"<content_item component_type="chapter">"#));
+        assert!(output.contains(r#"  <contributors>"#));
+        assert!(
+            output.contains(r#"    <person_name contributor_role="author" sequence="first">"#)
+                || output
+                    .contains(r#"    <person_name sequence="first" contributor_role="author">"#)
+        );
+        assert!(output.contains(r#"      <given_name>Chapter One</given_name>"#));
+        assert!(output.contains(r#"      <surname>Author</surname>"#));
+        assert!(output.contains(r#"      <ORCID>https://orcid.org/0000-0002-0000-0011</ORCID>"#));
+        assert!(output.contains(r#"  <titles>"#));
+        assert!(output.contains(r#"    <title>Chapter</title>"#));
+        assert!(output.contains(r#"    <subtitle>One</subtitle>"#));
+        assert!(output.contains(r#"  </titles>"#));
+        assert!(output.contains(r#"  <component_number>1</component_number>"#));
+        assert!(output.contains(r#"  <publication_date>"#));
+        assert!(output.contains(r#"    <month>02</month>"#));
+        assert!(output.contains(r#"    <day>28</day>"#));
+        assert!(output.contains(r#"    <year>2000</year>"#));
+        // ISBNs are not output for chapters
+        assert!(!output.contains(r#"  <isbn media_type="print">978-1-4028-9462-6</isbn>"#));
+        // Publisher data is not output for chapters
+        assert!(!output.contains(r#"  <publisher>"#));
+        assert!(!output.contains(r#"    <publisher_name>OA Editions</publisher_name>"#));
+        assert!(!output.contains(r#"    <publisher_place>León, Spain</publisher_place>"#));
+        assert!(output.contains(r#"  <pages>"#));
+        assert!(output.contains(r#"    <first_page>10</first_page>"#));
+        assert!(output.contains(r#"    <last_page>20</last_page>"#));
+        assert!(output.contains(r#"  <ai:program name="AccessIndicators">"#));
+        assert!(output.contains(r#"    <ai:free_to_read />"#));
+        assert!(output.contains(r#"    <ai:license_ref>https://creativecommons.org/licenses/by-nd/4.0/</ai:license_ref>"#));
+        assert!(output.contains(r#"  <doi_data>"#));
+        assert!(output.contains(r#"    <doi>10.00001/CHAPTER.0001</doi>"#));
+        assert!(output.contains(r#"    <resource>https://www.book.com/chapter_one</resource>"#));
+        assert!(output.contains(r#"    <collection property="crawler-based">"#));
+        assert!(output.contains(r#"      <item crawler="iParadigms">"#));
+        assert!(output.contains(r#"        <resource mime_type="application/pdf">https://www.book.com/chapterone_fulltext</resource>"#));
+        assert!(output.contains(r#"      <item crawler="google">"#));
+        assert!(output.contains(r#"      <item crawler="msn">"#));
+        assert!(output.contains(r#"      <item crawler="altavista">"#));
+        assert!(output.contains(r#"      <item crawler="yahoo">"#));
+        assert!(output.contains(r#"      <item crawler="scirus">"#));
+        assert!(output.contains(r#"    <collection property="text-mining">"#));
+
+        // Remove/change some values to test variations/non-output of optional blocks
+        test_relations.related_work.subtitle = None;
+        test_relations.related_work.last_page = None;
+        test_relations.related_work.publication_date = None;
+        test_relations.related_work.license = None;
+        test_relations.related_work.contributions.clear();
+        test_relations.related_work.publications.clear();
+        let output = generate_test_output(&test_relations);
+        // Sole contributor removed
+        assert!(!output.contains(r#"  <contributors>"#));
+        assert!(
+            !output.contains(r#"    <person_name contributor_role="author" sequence="first">"#)
+                && !output
+                    .contains(r#"    <person_name sequence="first" contributor_role="author">"#)
+        );
+        assert!(!output.contains(r#"      <given_name>Chapter One</given_name>"#));
+        assert!(!output.contains(r#"      <surname>Author</surname>"#));
+        assert!(!output.contains(r#"      <ORCID>https://orcid.org/0000-0002-0000-0011</ORCID>"#));
+        // No subtitle supplied
+        assert!(!output.contains(r#"    <subtitle>One</subtitle>"#));
+        // No last page supplied
+        assert!(output.contains(r#"  <pages>"#));
+        assert!(output.contains(r#"    <first_page>10</first_page>"#));
+        assert!(!output.contains(r#"    <last_page>20</last_page>"#));
+        // No publication date supplied
+        assert!(!output.contains(r#"  <publication_date>"#));
+        assert!(!output.contains(r#"    <month>02</month>"#));
+        assert!(!output.contains(r#"    <day>28</day>"#));
+        assert!(!output.contains(r#"    <year>2000</year>"#));
+        // No licence supplied
+        assert!(output.contains(r#"  <ai:program name="AccessIndicators">"#));
+        assert!(output.contains(r#"    <ai:free_to_read />"#));
+        assert!(!output.contains(
+            r#"    <ai:license_ref>https://creativecommons.org/licenses/by/4.0/</ai:license_ref>"#
+        ));
+        // No PDF URL supplied: all `collection` elements omitted
+        assert!(output.contains(r#"  <doi_data>"#));
+        assert!(output.contains(r#"    <doi>10.00001/CHAPTER.0001</doi>"#));
+        assert!(output.contains(r#"    <resource>https://www.book.com/chapter_one</resource>"#));
+        assert!(!output.contains(r#"    <collection property="crawler-based">"#));
+        assert!(!output.contains(r#"      <item crawler="iParadigms">"#));
+        assert!(!output.contains(r#"        <resource mime_type="application/pdf">https://www.book.com/chapterone_fulltext</resource>"#));
+        assert!(!output.contains(r#"      <item crawler="google">"#));
+        assert!(!output.contains(r#"      <item crawler="msn">"#));
+        assert!(!output.contains(r#"      <item crawler="altavista">"#));
+        assert!(!output.contains(r#"      <item crawler="yahoo">"#));
+        assert!(!output.contains(r#"      <item crawler="scirus">"#));
+        assert!(!output.contains(r#"    <collection property="text-mining">"#));
+
+        test_relations.related_work.first_page = None;
+        let output = generate_test_output(&test_relations);
+        // No first page supplied: `pages` element omitted entirely
+        assert!(!output.contains(r#"  <pages>"#));
+        assert!(!output.contains(r#"    <first_page>10</first_page>"#));
+
+        // Editions are not valid chapter metadata
+        test_relations.related_work.edition = Some(1);
+        // Can't use helper function for this as it assumes Ok rather than Err
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+        let wrapped_output =
+            XmlElementBlock::<DoiDepositCrossref>::xml_element(&test_relations, &mut writer)
+                .map(|_| buffer)
+                .and_then(|xml| {
+                    String::from_utf8(xml)
+                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
+                });
+        assert!(wrapped_output.is_err());
+        let output = wrapped_output.unwrap_err().to_string();
+        assert_eq!(
+            output,
+            "Could not generate doideposit::crossref: Chapters cannot have Edition numbers"
+                .to_string()
+        );
+
+        // Remove landing page. Result: error (cannot generate mandatory `doi_data` element)
+        test_relations.related_work.edition = None;
+        test_relations.related_work.landing_page = None;
+        // Can't use helper function for this as it assumes Ok rather than Err
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+        let wrapped_output =
+            XmlElementBlock::<DoiDepositCrossref>::xml_element(&test_relations, &mut writer)
+                .map(|_| buffer)
+                .and_then(|xml| {
+                    String::from_utf8(xml)
+                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
+                });
+        assert!(wrapped_output.is_err());
+        let output = wrapped_output.unwrap_err().to_string();
+        assert_eq!(
+            output,
+            "Could not generate doideposit::crossref: Missing chapter Landing Page".to_string()
+        );
+
+        // Restore landing page but remove DOI. Result: error, as above
+        test_relations.related_work.edition = None;
+        test_relations.related_work.landing_page =
+            Some("https://www.book.com/chapter_one".to_string());
+        test_relations.related_work.doi = None;
+        // Can't use helper function for this as it assumes Ok rather than Err
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+        let wrapped_output =
+            XmlElementBlock::<DoiDepositCrossref>::xml_element(&test_relations, &mut writer)
+                .map(|_| buffer)
+                .and_then(|xml| {
+                    String::from_utf8(xml)
+                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
+                });
+        assert!(wrapped_output.is_err());
+        let output = wrapped_output.unwrap_err().to_string();
+        assert_eq!(
+            output,
+            "Could not generate doideposit::crossref: Missing chapter DOI".to_string()
+        );
     }
 
     #[test]
