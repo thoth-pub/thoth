@@ -1061,7 +1061,7 @@ version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "703e71c268ea2d8da9c0ab0b40d8b217179ee622209c170875d24443193a0dfb"
 dependencies = [
- "heck",
+ "heck 0.3.1",
  "proc-macro2 1.0.36",
  "quote 1.0.15",
  "syn 1.0.72",
@@ -1561,7 +1561,7 @@ dependencies = [
  "failure",
  "graphql-introspection-query",
  "graphql-parser",
- "heck",
+ "heck 0.3.1",
  "lazy_static 1.4.0",
  "proc-macro2 1.0.36",
  "quote 1.0.15",
@@ -1652,6 +1652,12 @@ checksum = "20564e78d53d2bb135c343b3f47714a56af2061f1c928fdb541dc7b9fdd94205"
 dependencies = [
  "unicode-segmentation",
 ]
+
+[[package]]
+name = "heck"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2540771e65fc8cb83cd6e8a237f70c319bd5c29f78ed1084ba5d50eeac86f7f9"
 
 [[package]]
 name = "hermit-abi"
@@ -1813,7 +1819,7 @@ dependencies = [
  "itoa 0.4.5",
  "log",
  "net2",
- "pin-project",
+ "pin-project 0.4.23",
  "time 0.1.42",
  "tokio 0.2.22",
  "tower-service",
@@ -2427,7 +2433,9 @@ dependencies = [
  "anyhow",
  "itertools",
  "once_cell",
+ "paperclip-actix",
  "paperclip-core",
+ "paperclip-macros",
  "parking_lot 0.12.0",
  "semver 0.11.0",
  "serde",
@@ -2439,15 +2447,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "paperclip-actix"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca6acb344bfe7c8be8e140ad01dc2a8bc1a1b829014a29291174be64bc45f06e"
+dependencies = [
+ "actix-service",
+ "actix-web",
+ "futures 0.3.5",
+ "once_cell",
+ "paperclip-core",
+ "paperclip-macros",
+ "parking_lot 0.10.0",
+ "serde_json",
+]
+
+[[package]]
 name = "paperclip-core"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6ba1b92909712a1186613a6ba6e1c48c59baba59672cff2b242e8e03e90101f"
 dependencies = [
+ "actix-web",
  "mime",
  "once_cell",
  "paperclip-macros",
  "parking_lot 0.12.0",
+ "pin-project 1.0.10",
  "regex 1.5.4",
  "serde",
  "serde_json",
@@ -2462,10 +2488,15 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "992e1f19f6a449c41e166a2336c86912eedc17f5167886ef09d601607d9be1f1"
 dependencies = [
+ "heck 0.4.0",
+ "http 0.2.6",
+ "lazy_static 1.4.0",
  "mime",
  "proc-macro-error",
  "proc-macro2 1.0.36",
  "quote 1.0.15",
+ "strum 0.24.0",
+ "strum_macros 0.24.0",
  "syn 1.0.72",
 ]
 
@@ -2653,7 +2684,16 @@ version = "0.4.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca4433fff2ae79342e497d9f8ee990d174071408f28f726d6d83af93e58e48aa"
 dependencies = [
- "pin-project-internal",
+ "pin-project-internal 0.4.23",
+]
+
+[[package]]
+name = "pin-project"
+version = "1.0.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58ad3879ad3baf4e44784bc6a718a8698867bb991f8ce24d1bcbe2cfb4c3a75e"
+dependencies = [
+ "pin-project-internal 1.0.10",
 ]
 
 [[package]]
@@ -2661,6 +2701,17 @@ name = "pin-project-internal"
 version = "0.4.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c0e815c3ee9a031fdf5af21c10aa17c573c9c6a566328d99e3936c34e36461f"
+dependencies = [
+ "proc-macro2 1.0.36",
+ "quote 1.0.15",
+ "syn 1.0.72",
+]
+
+[[package]]
+name = "pin-project-internal"
+version = "1.0.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "744b6f092ba29c3650faf274db506afd39944f48420f6c86b17cfe0ee1cb36bb"
 dependencies = [
  "proc-macro2 1.0.36",
  "quote 1.0.15",
@@ -3257,6 +3308,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustversion"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2cc38e8fa666e2de3c4aba7edeb5ffc5246c1c2ed0e3d17e560aeeba736b23f"
+
+[[package]]
 name = "ryu"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3597,7 +3654,7 @@ version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "53010261a84b37689f9ed7d395165029f9cc7abb9f56bbfe86bee2597ed25107"
 dependencies = [
- "heck",
+ "heck 0.3.1",
  "proc-macro2 0.4.30",
  "quote 0.6.13",
  "syn 0.15.44",
@@ -3609,8 +3666,14 @@ version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7318c509b5ba57f18533982607f24070a55d353e90d4cae30c467cdb2ad5ac5c"
 dependencies = [
- "strum_macros",
+ "strum_macros 0.20.1",
 ]
+
+[[package]]
+name = "strum"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e96acfc1b70604b8b2f1ffa4c57e59176c7dbb05d556c71ecd2f5498a1dee7f8"
 
 [[package]]
 name = "strum_macros"
@@ -3618,9 +3681,22 @@ version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee8bc6b87a5112aeeab1f4a9f7ab634fe6cbefc4850006df31267f4cfb9e3149"
 dependencies = [
- "heck",
+ "heck 0.3.1",
  "proc-macro2 1.0.36",
  "quote 1.0.15",
+ "syn 1.0.72",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6878079b17446e4d3eba6192bb0a2950d5b14f0ed8424b852310e5a94345d0ef"
+dependencies = [
+ "heck 0.4.0",
+ "proc-macro2 1.0.36",
+ "quote 1.0.15",
+ "rustversion",
  "syn 1.0.72",
 ]
 
@@ -3809,7 +3885,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "strum",
+ "strum 0.20.0",
  "thoth-errors",
  "uuid 0.7.4",
 ]
