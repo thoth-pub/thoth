@@ -255,7 +255,7 @@ fn work_metadata<W: Write>(
             })
         })?;
     } else if !is_chapter {
-        // `publication_date` element is mandatory for `book_metadata`
+        // `publication_date` element is mandatory for `book_metadata` and `book_series_metadata`
         return Err(ThothError::IncompleteMetadataRecord(
             "doideposit::crossref".to_string(),
             "Missing Publication Date".to_string(),
@@ -503,5 +503,472 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributio
                 // Omitted at present but could be considered as a future enhancement.
             },
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Testing note: XML nodes cannot be guaranteed to be output in the same order every time
+    // We therefore rely on `assert!(contains)` rather than `assert_eq!`
+    use super::*;
+    use std::str::FromStr;
+    use thoth_api::model::{Doi, Isbn, Orcid};
+    use thoth_client::{
+        ContributionType, LocationPlatform, PublicationType, SeriesType, WorkContributions,
+        WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssues,
+        WorkIssuesSeries, WorkPublications, WorkPublicationsLocations, WorkStatus, WorkType,
+    };
+    use uuid::Uuid;
+
+    fn generate_test_output(input: &impl XmlElementBlock<DoiDepositCrossref>) -> String {
+        // Helper function based on `XmlSpecification::generate`
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+        let wrapped_output = XmlElementBlock::<DoiDepositCrossref>::xml_element(input, &mut writer)
+            .map(|_| buffer)
+            .and_then(|xml| {
+                String::from_utf8(xml)
+                    .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
+            });
+        assert!(wrapped_output.is_ok());
+        wrapped_output.unwrap()
+    }
+
+    #[test]
+    fn test_doideposit_crossref_works() {
+        let mut test_work = Work {
+            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            work_status: WorkStatus::ACTIVE,
+            full_title: "Book Title: Book Subtitle".to_string(),
+            title: "Book Title".to_string(),
+            subtitle: Some("Book Subtitle".to_string()),
+            work_type: WorkType::MONOGRAPH,
+            edition: Some(100),
+            doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
+            publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
+            license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
+            copyright_holder: "Author 1; Author 2".to_string(),
+            short_abstract: None,
+            long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
+            general_note: None,
+            place: Some("León, Spain".to_string()),
+            page_count: None,
+            page_breakdown: None,
+            first_page: None,
+            last_page: None,
+            page_interval: None,
+            image_count: None,
+            table_count: None,
+            audio_count: None,
+            video_count: None,
+            landing_page: Some("https://www.book.com".to_string()),
+            toc: None,
+            lccn: None,
+            oclc: None,
+            cover_url: None,
+            cover_caption: None,
+            imprint: WorkImprint {
+                imprint_name: "OA Editions Imprint".to_string(),
+                publisher: WorkImprintPublisher {
+                    publisher_name: "OA Editions".to_string(),
+                    publisher_url: None,
+                },
+            },
+            issues: vec![
+                WorkIssues {
+                    issue_ordinal: 11,
+                    series: WorkIssuesSeries {
+                        series_type: SeriesType::BOOK_SERIES,
+                        series_name: "Name of series".to_string(),
+                        issn_print: "1234-5678".to_string(),
+                        issn_digital: "8765-4321".to_string(),
+                        series_url: None,
+                        series_description: None,
+                        series_cfp_url: None,
+                    },
+                },
+                WorkIssues {
+                    issue_ordinal: 22,
+                    series: WorkIssuesSeries {
+                        series_type: SeriesType::BOOK_SERIES,
+                        series_name: "Irrelevant series".to_string(),
+                        issn_print: "1111-2222".to_string(),
+                        issn_digital: "3333-4444".to_string(),
+                        series_url: None,
+                        series_description: None,
+                        series_cfp_url: None,
+                    },
+                },
+            ],
+            contributions: vec![
+                WorkContributions {
+                    contribution_type: ContributionType::PHOTOGRAPHER,
+                    first_name: Some("Omitted".to_string()),
+                    last_name: "Contributor".to_string(),
+                    full_name: "Omitted Contributor".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    contribution_ordinal: 4,
+                    contributor: WorkContributionsContributor {
+                        orcid: Some(
+                            Orcid::from_str("https://orcid.org/0000-0002-0000-0004").unwrap(),
+                        ),
+                    },
+                    affiliations: vec![],
+                },
+                WorkContributions {
+                    contribution_type: ContributionType::AUTHOR,
+                    first_name: Some("Sole".to_string()),
+                    last_name: "Author".to_string(),
+                    full_name: "Sole Author".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    contribution_ordinal: 1,
+                    contributor: WorkContributionsContributor {
+                        orcid: Some(
+                            Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap(),
+                        ),
+                    },
+                    affiliations: vec![],
+                },
+                WorkContributions {
+                    contribution_type: ContributionType::EDITOR,
+                    first_name: Some("Only".to_string()),
+                    last_name: "Editor".to_string(),
+                    full_name: "Only Editor".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    contribution_ordinal: 2,
+                    contributor: WorkContributionsContributor {
+                        orcid: Some(
+                            Orcid::from_str("https://orcid.org/0000-0002-0000-0002").unwrap(),
+                        ),
+                    },
+                    affiliations: vec![],
+                },
+                WorkContributions {
+                    contribution_type: ContributionType::TRANSLATOR,
+                    first_name: None,
+                    last_name: "Translator".to_string(),
+                    full_name: "Translator".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    contribution_ordinal: 3,
+                    contributor: WorkContributionsContributor { orcid: None },
+                    affiliations: vec![],
+                },
+            ],
+            languages: vec![],
+            publications: vec![
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
+                    publication_type: PublicationType::PDF,
+                    isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![WorkPublicationsLocations {
+                        landing_page: Some("https://www.book.com/pdf_landing".to_string()),
+                        full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
+                        location_platform: LocationPlatform::OTHER,
+                        canonical: true,
+                    }],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-FFFF-000000000006").unwrap(),
+                    publication_type: PublicationType::XML,
+                    isbn: Some(Isbn::from_str("978-92-95055-02-5").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![WorkPublicationsLocations {
+                        landing_page: Some("https://www.book.com/xml_landing".to_string()),
+                        full_text_url: Some("https://www.book.com/xml_fulltext".to_string()),
+                        location_platform: LocationPlatform::OTHER,
+                        canonical: true,
+                    }],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000003").unwrap(),
+                    publication_type: PublicationType::HARDBACK,
+                    isbn: Some(Isbn::from_str("978-1-4028-9462-6").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![],
+                },
+            ],
+            subjects: vec![],
+            fundings: vec![],
+            relations: vec![],
+        };
+
+        // Test standard output
+        let output = generate_test_output(&test_work);
+        assert!(output.contains(r#"  <book book_type="monograph">"#));
+        assert!(output.contains(r#"    <book_series_metadata language="en">"#));
+        assert!(output.contains(r#"      <series_metadata>"#));
+        assert!(output.contains(r#"        <titles>"#));
+        assert!(output.contains(r#"          <title>Name of series</title>"#));
+        assert!(output.contains(r#"        <issn media_type="print">1234-5678</issn>"#));
+        assert!(output.contains(r#"        <issn media_type="electronic">8765-4321</issn>"#));
+        assert!(!output.contains(r#"          <title>Irrelevant series</title>"#));
+        assert!(!output.contains(r#"        <issn media_type="print">1111-2222</issn>"#));
+        assert!(!output.contains(r#"        <issn media_type="electronic">3333-4444</issn>"#));
+        assert!(output.contains(r#"      <contributors>"#));
+        assert!(
+            output.contains(r#"        <person_name contributor_role="author" sequence="first">"#)
+                || output.contains(
+                    r#"        <person_name sequence="first" contributor_role="author">"#
+                )
+        );
+        assert!(output.contains(r#"          <given_name>Sole</given_name>"#));
+        assert!(output.contains(r#"          <surname>Author</surname>"#));
+        assert!(
+            output.contains(r#"          <ORCID>https://orcid.org/0000-0002-0000-0001</ORCID>"#)
+        );
+        assert!(
+            output.contains(
+                r#"        <person_name contributor_role="editor" sequence="additional">"#
+            ) || output.contains(
+                r#"        <person_name sequence="additional" contributor_role="editor">"#
+            )
+        );
+        assert!(output.contains(r#"          <given_name>Only</given_name>"#));
+        assert!(output.contains(r#"          <surname>Editor</surname>"#));
+        assert!(
+            output.contains(r#"          <ORCID>https://orcid.org/0000-0002-0000-0002</ORCID>"#)
+        );
+        assert!(
+            output.contains(
+                r#"        <person_name contributor_role="translator" sequence="additional">"#
+            ) || output.contains(
+                r#"        <person_name sequence="additional" contributor_role="translator">"#
+            )
+        );
+        assert!(output.contains(r#"          <surname>Translator</surname>"#));
+        // Contributors other than authors, editors and translators are not output
+        assert!(!output.contains(r#"          <given_name>Omitted</given_name>"#));
+        assert!(!output.contains(r#"          <surname>Contributor</surname>"#));
+        assert!(
+            !output.contains(r#"          <ORCID>https://orcid.org/0000-0002-0000-0004</ORCID>"#)
+        );
+        assert!(output.contains(r#"      <titles>"#));
+        assert!(output.contains(r#"        <title>Book Title</title>"#));
+        assert!(output.contains(r#"        <subtitle>Book Subtitle</subtitle>"#));
+        assert!(output.contains(r#"      <volume>11</volume>"#));
+        assert!(output.contains(r#"      <edition_number>100</edition_number>"#));
+        assert!(output.contains(r#"      <publication_date>"#));
+        assert!(output.contains(r#"        <month>12</month>"#));
+        assert!(output.contains(r#"        <day>31</day>"#));
+        assert!(output.contains(r#"        <year>1999</year>"#));
+        assert!(output.contains(r#"      <isbn media_type="electronic">978-3-16-148410-0</isbn>"#));
+        assert!(output.contains(r#"      <isbn media_type="electronic">978-92-95055-02-5</isbn>"#));
+        assert!(output.contains(r#"      <isbn media_type="print">978-1-4028-9462-6</isbn>"#));
+        assert!(output.contains(r#"      <publisher>"#));
+        assert!(output.contains(r#"        <publisher_name>OA Editions</publisher_name>"#));
+        assert!(output.contains(r#"        <publisher_place>León, Spain</publisher_place>"#));
+        assert!(output.contains(r#"      <ai:program name="AccessIndicators">"#));
+        assert!(output.contains(r#"        <ai:free_to_read />"#));
+        assert!(output.contains(
+            r#"      <ai:license_ref>https://creativecommons.org/licenses/by/4.0/</ai:license_ref>"#
+        ));
+        assert!(output.contains(r#"      <doi_data>"#));
+        assert!(output.contains(r#"        <doi>10.00001/BOOK.0001</doi>"#));
+        assert!(output.contains(r#"        <resource>https://www.book.com</resource>"#));
+        assert!(output.contains(r#"        <collection property="crawler-based">"#));
+        assert!(output.contains(r#"          <item crawler="iParadigms">"#));
+        assert!(output.contains(r#"            <resource mime_type="application/pdf">https://www.book.com/pdf_fulltext</resource>"#));
+        assert!(output.contains(r#"          <item crawler="google">"#));
+        assert!(output.contains(r#"          <item crawler="msn">"#));
+        assert!(output.contains(r#"          <item crawler="altavista">"#));
+        assert!(output.contains(r#"          <item crawler="yahoo">"#));
+        assert!(output.contains(r#"          <item crawler="scirus">"#));
+        assert!(output.contains(r#"        <collection property="text-mining">"#));
+
+        // Remove/change some values to test variations/non-output of optional blocks
+        test_work.work_type = WorkType::EDITED_BOOK;
+        test_work.issues.clear();
+        test_work.subtitle = None;
+        test_work.place = None;
+        test_work.license = None;
+        // Remove last (translator) contributor
+        test_work.contributions.pop();
+        test_work.publications[0].locations.clear();
+        // Remove last (hardback) publication
+        test_work.publications.pop();
+
+        let output = generate_test_output(&test_work);
+        // Work type changed
+        assert!(!output.contains(r#"  <book book_type="monograph">"#));
+        assert!(output.contains(r#"  <book book_type="edited_book">"#));
+        // No series supplied
+        assert!(!output.contains(r#"    <book_series_metadata language="en">"#));
+        assert!(output.contains(r#"    <book_metadata language="en">"#));
+        assert!(!output.contains(r#"      <series_metadata>"#));
+        assert!(!output.contains(r#"        <titles>"#));
+        assert!(!output.contains(r#"          <title>Name of series</title>"#));
+        assert!(!output.contains(r#"        <issn media_type="print">1234-5678</issn>"#));
+        assert!(!output.contains(r#"        <issn media_type="electronic">8765-4321</issn>"#));
+        assert!(!output.contains(r#"      <volume>11</volume>"#));
+        // Contributor removed
+        assert!(
+            !output.contains(
+                r#"        <person_name contributor_role="translator" sequence="additional">"#
+            ) && !output.contains(
+                r#"        <person_name sequence="additional" contributor_role="translator">"#
+            )
+        );
+        assert!(!output.contains(r#"          <surname>Translator</surname>"#));
+        // No subtitle supplied
+        assert!(!output.contains(r#"        <subtitle>Book Subtitle</subtitle>"#));
+        // Hardback publication removed
+        assert!(!output.contains(r#"      <isbn media_type="print">978-1-4028-9462-6</isbn>"#));
+        // No place supplied
+        assert!(!output.contains(r#"        <publisher_place>León, Spain</publisher_place>"#));
+        // No licence supplied
+        assert!(output.contains(r#"      <ai:program name="AccessIndicators">"#));
+        assert!(output.contains(r#"        <ai:free_to_read />"#));
+        assert!(!output.contains(
+            r#"      <ai:license_ref>https://creativecommons.org/licenses/by/4.0/</ai:license_ref>"#
+        ));
+        // No PDF URL supplied: all `collection` elements omitted
+        // (although XML URL is still present)
+        assert!(!output.contains(r#"        <collection property="crawler-based">"#));
+        assert!(!output.contains(r#"          <item crawler="iParadigms">"#));
+        assert!(!output.contains(r#"            <resource mime_type="application/pdf">https://www.book.com/pdf_fulltext</resource>"#));
+        assert!(!output.contains(r#"          <item crawler="google">"#));
+        assert!(!output.contains(r#"          <item crawler="msn">"#));
+        assert!(!output.contains(r#"          <item crawler="altavista">"#));
+        assert!(!output.contains(r#"          <item crawler="yahoo">"#));
+        assert!(!output.contains(r#"          <item crawler="scirus">"#));
+        assert!(!output.contains(r#"        <collection property="text-mining">"#));
+
+        // Change work type, remove landing page, remove XML ISBN,
+        // remove all but the omitted contributor
+        test_work.work_type = WorkType::TEXTBOOK;
+        test_work.landing_page = None;
+        test_work.contributions.drain(1..);
+        test_work.publications[1].isbn = None;
+        let output = generate_test_output(&test_work);
+        // Work type changed
+        assert!(!output.contains(r#"  <book book_type="edited_book">"#));
+        assert!(output.contains(r#"  <book book_type="reference">"#));
+        // Only omitted contributors supplied: `contributors` element omitted
+        assert!(!output.contains(r#"      <contributors>"#));
+        assert!(
+            !output.contains(r#"        <person_name contributor_role="author" sequence="first">"#)
+                && !output.contains(
+                    r#"        <person_name sequence="first" contributor_role="author">"#
+                )
+        );
+        assert!(!output.contains(r#"          <given_name>Sole</given_name>"#));
+        assert!(!output.contains(r#"          <surname>Author</surname>"#));
+        assert!(
+            !output.contains(r#"          <ORCID>https://orcid.org/0000-0002-0000-0001</ORCID>"#)
+        );
+        assert!(
+            !output.contains(
+                r#"        <person_name contributor_role="editor" sequence="additional">"#
+            ) && !output.contains(
+                r#"        <person_name sequence="additional" contributor_role="editor">"#
+            )
+        );
+        assert!(!output.contains(r#"          <given_name>Only</given_name>"#));
+        assert!(!output.contains(r#"          <surname>Editor</surname>"#));
+        assert!(
+            !output.contains(r#"          <ORCID>https://orcid.org/0000-0002-0000-0002</ORCID>"#)
+        );
+        // XML ISBN removed
+        assert!(!output.contains(r#"      <isbn media_type="electronic">978-92-95055-02-5</isbn>"#));
+        // No landing page: entire `doi_data` element omitted
+        assert!(!output.contains(r#"      <doi_data>"#));
+        assert!(!output.contains(r#"        <doi>10.00001/BOOK.0001</doi>"#));
+        assert!(!output.contains(r#"        <resource>https://www.book.com</resource>"#));
+
+        // Change work type again, replace landing page but remove DOI
+        test_work.work_type = WorkType::JOURNAL_ISSUE;
+        test_work.landing_page = Some("https://www.book.com".to_string());
+        test_work.doi = None;
+        let output = generate_test_output(&test_work);
+        // Work type changed
+        assert!(!output.contains(r#"  <book book_type="reference">"#));
+        assert!(output.contains(r#"  <book book_type="other">"#));
+        // No DOI: entire `doi_data` element omitted (even though landing page restored)
+        assert!(!output.contains(r#"      <doi_data>"#));
+        assert!(!output.contains(r#"        <doi>10.00001/BOOK.0001</doi>"#));
+        assert!(!output.contains(r#"        <resource>https://www.book.com</resource>"#));
+
+        // Remove publication date. Result: error
+        test_work.publication_date = None;
+        // Can't use helper function for this as it assumes Ok rather than Err
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+        let wrapped_output =
+            XmlElementBlock::<DoiDepositCrossref>::xml_element(&test_work, &mut writer)
+                .map(|_| buffer)
+                .and_then(|xml| {
+                    String::from_utf8(xml)
+                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
+                });
+        assert!(wrapped_output.is_err());
+        let output = wrapped_output.unwrap_err().to_string();
+        assert_eq!(
+            output,
+            "Could not generate doideposit::crossref: Missing Publication Date".to_string()
+        );
+
+        // Restore publication date and remove all publication ISBNs. Result: error
+        test_work.publication_date = Some(chrono::NaiveDate::from_ymd(1999, 12, 31));
+        test_work.publications[0].isbn = None;
+        // Can't use helper function for this as it assumes Ok rather than Err
+        let mut buffer = Vec::new();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+        let wrapped_output =
+            XmlElementBlock::<DoiDepositCrossref>::xml_element(&test_work, &mut writer)
+                .map(|_| buffer)
+                .and_then(|xml| {
+                    String::from_utf8(xml)
+                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
+                });
+        assert!(wrapped_output.is_err());
+        let output = wrapped_output.unwrap_err().to_string();
+        assert_eq!(
+            output,
+            "Could not generate doideposit::crossref: No ISBNs provided".to_string()
+        );
     }
 }
