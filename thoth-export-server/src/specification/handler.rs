@@ -25,9 +25,9 @@ pub(crate) async fn get_all() -> Json<Vec<Specification<'static>>> {
     tags(Specifications)
 )]
 pub(crate) async fn get_one(
-    web::Path(specification_id): web::Path<String>,
+    specification_id: web::Path<String>,
 ) -> Result<Json<Specification<'static>>, Error> {
-    find_specification(specification_id)
+    find_specification(specification_id.into_inner())
         .map(Json)
         .map_err(|e| e.into())
 }
@@ -39,9 +39,10 @@ pub(crate) async fn get_one(
     tags(Specifications)
 )]
 pub(crate) async fn by_work(
-    web::Path((specification_id, work_id)): web::Path<(String, Uuid)>,
+    path: web::Path<(String, Uuid)>,
     thoth_client: web::Data<ThothClient>,
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
+    let (specification_id, work_id) = path.into_inner();
     thoth_client
         .get_work(work_id)
         .await
@@ -60,9 +61,10 @@ pub(crate) async fn by_work(
     tags(Specifications)
 )]
 pub(crate) async fn by_publisher(
-    web::Path((specification_id, publisher_id)): web::Path<(String, Uuid)>,
+    path: web::Path<(String, Uuid)>,
     thoth_client: web::Data<ThothClient>,
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
+    let (specification_id, publisher_id) = path.into_inner();
     thoth_client
         .get_works(Some(vec![publisher_id]))
         .await

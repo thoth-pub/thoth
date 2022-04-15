@@ -5,12 +5,8 @@ use std::{io, sync::Arc};
 use actix_cors::Cors;
 use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
 use actix_web::{
-    error, get,
-    http::header,
-    middleware::Logger,
-    post,
-    web::{self, Data},
-    App, Error, HttpResponse, HttpServer, Result,
+    error, get, http::header, middleware::Logger, post, web, web::Data, App, Error, HttpResponse,
+    HttpServer, Result,
 };
 use juniper::http::GraphQLRequest;
 use serde::Serialize;
