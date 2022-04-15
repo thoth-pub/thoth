@@ -2479,7 +2479,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "thiserror",
- "uuid 0.8.2",
+ "uuid 0.7.4",
 ]
 
 [[package]]
