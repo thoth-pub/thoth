@@ -15,6 +15,7 @@ strings! {
     CANCEL_BUTTON => "Cancel",
     REMOVE_BUTTON => "Remove",
     VIEW_BUTTON => "View",
+    EDIT_BUTTON => "Edit",
     RELOAD_BUTTON => "Reload",
     NEXT_PAGE_BUTTON => "Next page",
     PREVIOUS_PAGE_BUTTON => "Previous",
