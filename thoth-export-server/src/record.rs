@@ -2,7 +2,6 @@ use actix_web::{http::StatusCode, HttpRequest, Responder};
 use csv::QuoteStyle;
 use paperclip::actix::web::HttpResponse;
 use paperclip::actix::OperationModifier;
-use paperclip::util::{ready, Ready};
 use paperclip::v2::models::{DefaultOperationRaw, Either, Response};
 use paperclip::v2::schema::Apiv2Schema;
 use std::str::FromStr;
@@ -138,20 +137,16 @@ impl MetadataRecord<Vec<Work>> {
     }
 }
 
-impl Responder for MetadataRecord<Vec<Work>>
-where
-    actix_web::dev::Body: From<String>,
-{
-    type Error = ThothError;
-    type Future = Ready<ThothResult<HttpResponse>>;
+impl Responder for MetadataRecord<Vec<Work>> {
+    type Body = actix_web::body::BoxBody;
 
-    fn respond_to(self, _: &HttpRequest) -> Self::Future {
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
         match self.generate() {
-            Ok(record) => ready(Ok(HttpResponse::build(StatusCode::OK)
+            Ok(record) => HttpResponse::build(StatusCode::OK)
                 .content_type(self.content_type())
-                .header("Content-Disposition", self.content_disposition())
-                .body(record))),
-            Err(e) => ready(Err(e)),
+                .append_header(("Content-Disposition", self.content_disposition()))
+                .body(record),
+            Err(e) => HttpResponse::from_error(e),
         }
     }
 }
