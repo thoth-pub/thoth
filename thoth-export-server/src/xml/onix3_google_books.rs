@@ -119,16 +119,6 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                     w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                 })?;
                 write_element_block("ProductIdentifier", w, |w| {
-                    // 01 Proprietary
-                    write_element_block("ProductIDType", w, |w| {
-                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                    })?;
-                    write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(&work_id))
-                            .map_err(|e| e.into())
-                    })
-                })?;
-                write_element_block("ProductIdentifier", w, |w| {
                     // 15 ISBN-13
                     write_element_block("ProductIDType", w, |w| {
                         w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
@@ -138,17 +128,6 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                             .map_err(|e| e.into())
                     })
                 })?;
-                if let Some(doi) = &self.doi {
-                    write_element_block("ProductIdentifier", w, |w| {
-                        write_element_block("ProductIDType", w, |w| {
-                            w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
-                        })?;
-                        write_element_block("IDValue", w, |w| {
-                            w.write(XmlEvent::Characters(&doi.to_string()))
-                                .map_err(|e| e.into())
-                        })
-                    })?;
-                }
                 write_element_block("DescriptiveDetail", w, |w| {
                     // 00 Single-component retail product
                     write_element_block("ProductComposition", w, |w| {
@@ -1174,13 +1153,8 @@ mod tests {
         assert!(output.contains(r#"  <NotificationType>03</NotificationType>"#));
         assert!(output.contains(r#"  <RecordSourceType>01</RecordSourceType>"#));
         assert!(output.contains(r#"  <ProductIdentifier>"#));
-        assert!(output.contains(r#"    <ProductIDType>01</ProductIDType>"#));
-        assert!(output
-            .contains(r#"    <IDValue>urn:uuid:00000000-0000-0000-aaaa-000000000001</IDValue>"#));
         assert!(output.contains(r#"    <ProductIDType>15</ProductIDType>"#));
         assert!(output.contains(r#"    <IDValue>9783161484100</IDValue>"#));
-        assert!(output.contains(r#"    <ProductIDType>06</ProductIDType>"#));
-        assert!(output.contains(r#"    <IDValue>10.00001/BOOK.0001</IDValue>"#));
         assert!(output.contains(r#"  <DescriptiveDetail>"#));
         assert!(output.contains(r#"    <ProductComposition>00</ProductComposition>"#));
         assert!(output.contains(r#"    <ProductForm>EB</ProductForm>"#));
@@ -1294,7 +1268,6 @@ mod tests {
         ));
 
         // Remove/change some values to test (non-)output of optional blocks
-        test_work.doi = None;
         test_work.license = None;
         test_work.subtitle = None;
         test_work.page_count = None;
@@ -1305,9 +1278,6 @@ mod tests {
         test_work.publications[0].publication_type = PublicationType::EPUB;
         test_work.subjects.clear();
         let output = generate_test_output(true, &test_work);
-        // No DOI supplied
-        assert!(!output.contains(r#"    <ProductIDType>06</ProductIDType>"#));
-        assert!(!output.contains(r#"    <IDValue>10.00001/BOOK.0001</IDValue>"#));
         // Ebook type changed
         assert!(!output.contains(r#"    <ProductFormDetail>E107</ProductFormDetail>"#));
         assert!(output.contains(r#"    <ProductFormDetail>E101</ProductFormDetail>"#));
