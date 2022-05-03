@@ -102,11 +102,17 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                 })
             })
         {
-            let work_id = format!("urn:uuid:{}", self.work_id);
             let (main_isbn, isbns) = get_publications_data(&self.publications, main_publication);
+            if main_isbn.is_empty() {
+                // Google Books requires at least one ProductIdentifier block with an ISBN type
+                return Err(ThothError::IncompleteMetadataRecord(
+                    "onix_3.0::google_books".to_string(),
+                    "No ISBN supplied".to_string(),
+                ));
+            }
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
-                    w.write(XmlEvent::Characters(&work_id))
+                    w.write(XmlEvent::Characters(&format!("urn:uuid:{}", self.work_id)))
                         .map_err(|e| e.into())
                 })?;
                 // 03 Notification confirmed on publication
@@ -382,16 +388,21 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                         // Assume that the GBP price is the canonical one, currency conversion is
                         // turned on (a Google Books account setting which cannot be specified in the ONIX),
                         // and all other prices will be automatically derived from the GBP price.
-                        if let Some(price) = main_publication.prices.iter().find(|pr| {
-                            pr.currency_code.eq(&CurrencyCode::GBP) && pr.unit_price > 0.0
-                        }) {
+                        if let Some(price) = main_publication
+                            .prices
+                            .iter()
+                            .find(|pr| {
+                                pr.currency_code.eq(&CurrencyCode::GBP) && pr.unit_price > 0.0
+                            })
+                            .map(|pr| pr.unit_price)
+                        {
                             write_element_block("Price", w, |w| {
                                 // 02 RRP including tax
                                 write_element_block("PriceTypeCode", w, |w| {
                                     w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
                                 })?;
                                 write_element_block("PriceAmount", w, |w| {
-                                    w.write(XmlEvent::Characters(&price.unit_price.to_string()))
+                                    w.write(XmlEvent::Characters(&price.to_string()))
                                         .map_err(|e| e.into())
                                 })?;
                                 write_element_block("CurrencyCode", w, |w| {
@@ -1102,13 +1113,22 @@ mod tests {
             "Could not generate onix_3.0::google_books: Missing EPUB or PDF URL".to_string()
         );
 
-        // Replace location but remove all contributors: result is error
+        // Replace location but remove the only ISBN: result is error
         test_work.publications[0].locations = vec![WorkPublicationsLocations {
             landing_page: Some("https://www.book.com/pdf_landing".to_string()),
             full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
             location_platform: LocationPlatform::OTHER,
             canonical: true,
         }];
+        test_work.publications[0].isbn = None;
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::google_books: No ISBN supplied".to_string()
+        );
+
+        // Replace ISBN but remove all contributors: result is error
+        test_work.publications[0].isbn = Some(Isbn::from_str("978-3-16-148410-0").unwrap());
         test_work.contributions.clear();
         let output = generate_test_output(false, &test_work);
         assert_eq!(
