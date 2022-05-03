@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
     ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType, Work,
-    WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkStatus,
-    WorkType,
+    WorkContributions, WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -114,10 +113,6 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                 write_element_block("NotificationType", w, |w| {
                     w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
                 })?;
-                // 01 Publisher
-                write_element_block("RecordSourceType", w, |w| {
-                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                })?;
                 write_element_block("ProductIdentifier", w, |w| {
                     // 15 ISBN-13
                     write_element_block("ProductIDType", w, |w| {
@@ -150,22 +145,6 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                     write_element_block("PrimaryContentType", w, |w| {
                         w.write(XmlEvent::Characters("10")).map_err(|e| e.into())
                     })?;
-                    if let Some(license) = &self.license {
-                        write_element_block("EpubLicense", w, |w| {
-                            write_element_block("EpubLicenseName", w, |w| {
-                                w.write(XmlEvent::Characters("Creative Commons License"))
-                                    .map_err(|e| e.into())
-                            })?;
-                            write_element_block("EpubLicenseExpression", w, |w| {
-                                write_element_block("EpubLicenseExpressionType", w, |w| {
-                                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("EpubLicenseExpressionLink", w, |w| {
-                                    w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
-                                })
-                            })
-                        })?;
-                    }
                     for issue in &self.issues {
                         XmlElementBlock::<Onix3GoogleBooks>::xml_element(issue, w).ok();
                     }
@@ -256,7 +235,7 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                         })
                     })
                 })?;
-                if self.long_abstract.is_some() || self.cover_url.is_some() {
+                if self.long_abstract.is_some() {
                     write_element_block("CollateralDetail", w, |w| {
                         if let Some(labstract) = &self.long_abstract {
                             write_element_block("TextContent", w, |w| {
@@ -273,32 +252,6 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                                 write_full_element_block("Text", None, Some(lang_fmt), w, |w| {
                                     w.write(XmlEvent::Characters(labstract))
                                         .map_err(|e| e.into())
-                                })
-                            })?;
-                        }
-                        if let Some(cover_url) = &self.cover_url {
-                            write_element_block("SupportingResource", w, |w| {
-                                // 01 Front cover
-                                write_element_block("ResourceContentType", w, |w| {
-                                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                                })?;
-                                // 00 Unrestricted
-                                write_element_block("ContentAudience", w, |w| {
-                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                                })?;
-                                // 03 Image
-                                write_element_block("ResourceMode", w, |w| {
-                                    w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("ResourceVersion", w, |w| {
-                                    // 02 Downloadable file
-                                    write_element_block("ResourceForm", w, |w| {
-                                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("ResourceLink", w, |w| {
-                                        w.write(XmlEvent::Characters(cover_url))
-                                            .map_err(|e| e.into())
-                                    })
                                 })
                             })?;
                         }
@@ -324,14 +277,6 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                                 .map_err(|e| e.into())
                         })
                     })?;
-                    for funding in &self.fundings {
-                        XmlElementBlock::<Onix3GoogleBooks>::xml_element(funding, w).ok();
-                    }
-                    if let Some(place) = &self.place {
-                        write_element_block("CityOfPublication", w, |w| {
-                            w.write(XmlEvent::Characters(place)).map_err(|e| e.into())
-                        })?;
-                    }
                     XmlElement::<Onix3GoogleBooks>::xml_element(&self.work_status, w)?;
                     write_element_block("PublishingDate", w, |w| {
                         let mut date_fmt: HashMap<&str, &str> = HashMap::new();
@@ -391,96 +336,55 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                             })
                         })
                     })?;
-                    let mut supplies: HashMap<String, (String, String)> = HashMap::new();
-                    supplies.insert(
-                        main_publication
-                            .locations
-                            .iter()
-                            .find(|l| l.canonical)
-                            .and_then(|l| l.full_text_url.as_ref())
-                            .unwrap()
-                            .to_string(),
-                        (
-                            "29".to_string(),
-                            "Publisher's website: download the title".to_string(),
-                        ),
-                    );
-                    if let Some(landing_page) = &self.landing_page {
-                        supplies.insert(
-                            landing_page.to_string(),
-                            (
-                                "01".to_string(),
-                                "Publisher's website: web shop".to_string(),
-                            ),
-                        );
-                    }
-                    for (url, description) in supplies.iter() {
-                        write_element_block("SupplyDetail", w, |w| {
-                            write_element_block("Supplier", w, |w| {
-                                // 09 Publisher to end-customers
-                                write_element_block("SupplierRole", w, |w| {
-                                    w.write(XmlEvent::Characters("09")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("SupplierName", w, |w| {
-                                    w.write(XmlEvent::Characters(
-                                        &self.imprint.publisher.publisher_name,
-                                    ))
-                                    .map_err(|e| e.into())
-                                })?;
-                                write_element_block("Website", w, |w| {
-                                    // 01 Publisher’s corporate website
-                                    write_element_block("WebsiteRole", w, |w| {
-                                        w.write(XmlEvent::Characters(&description.0))
-                                            .map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("WebsiteDescription", w, |w| {
-                                        w.write(XmlEvent::Characters(&description.1))
-                                            .map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("WebsiteLink", w, |w| {
-                                        w.write(XmlEvent::Characters(url)).map_err(|e| e.into())
-                                    })
-                                })
+                    write_element_block("SupplyDetail", w, |w| {
+                        write_element_block("Supplier", w, |w| {
+                            // 09 Publisher to end-customers
+                            write_element_block("SupplierRole", w, |w| {
+                                w.write(XmlEvent::Characters("09")).map_err(|e| e.into())
                             })?;
-                            // 20 Available from us (form of availability unspecified)
-                            // (99 Contact supplier is not supported by Google Books)
-                            write_element_block("ProductAvailability", w, |w| {
-                                w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
-                            })?;
-                            // Assume that the GBP price is the canonical one, currency conversion is
-                            // turned on (a Google Books account setting which cannot be specified in the ONIX),
-                            // and all other prices will be automatically derived from the GBP price.
-                            if let Some(price) = main_publication.prices.iter().find(|pr| {
-                                pr.currency_code.eq(&CurrencyCode::GBP) && pr.unit_price > 0.0
-                            }) {
-                                write_element_block("Price", w, |w| {
-                                    // 02 RRP including tax
-                                    write_element_block("PriceTypeCode", w, |w| {
-                                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("PriceAmount", w, |w| {
-                                        w.write(XmlEvent::Characters(&price.unit_price.to_string()))
-                                            .map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("CurrencyCode", w, |w| {
-                                        w.write(XmlEvent::Characters("GBP")).map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("Territory", w, |w| {
-                                        write_element_block("RegionsIncluded", w, |w| {
-                                            w.write(XmlEvent::Characters("WORLD"))
-                                                .map_err(|e| e.into())
-                                        })
-                                    })
-                                })
-                            } else {
-                                // 01 Free of charge (this is the only UnpricedItemType code supported by Google Books)
-                                write_element_block("UnpricedItemType", w, |w| {
-                                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                                })
-                            }
+                            write_element_block("SupplierName", w, |w| {
+                                w.write(XmlEvent::Characters(
+                                    &self.imprint.publisher.publisher_name,
+                                ))
+                                .map_err(|e| e.into())
+                            })
                         })?;
-                    }
-                    Ok(())
+                        // 20 Available from us (form of availability unspecified)
+                        // (99 Contact supplier is not supported by Google Books)
+                        write_element_block("ProductAvailability", w, |w| {
+                            w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
+                        })?;
+                        // Assume that the GBP price is the canonical one, currency conversion is
+                        // turned on (a Google Books account setting which cannot be specified in the ONIX),
+                        // and all other prices will be automatically derived from the GBP price.
+                        if let Some(price) = main_publication.prices.iter().find(|pr| {
+                            pr.currency_code.eq(&CurrencyCode::GBP) && pr.unit_price > 0.0
+                        }) {
+                            write_element_block("Price", w, |w| {
+                                // 02 RRP including tax
+                                write_element_block("PriceTypeCode", w, |w| {
+                                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("PriceAmount", w, |w| {
+                                    w.write(XmlEvent::Characters(&price.unit_price.to_string()))
+                                        .map_err(|e| e.into())
+                                })?;
+                                write_element_block("CurrencyCode", w, |w| {
+                                    w.write(XmlEvent::Characters("GBP")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("Territory", w, |w| {
+                                    write_element_block("RegionsIncluded", w, |w| {
+                                        w.write(XmlEvent::Characters("WORLD")).map_err(|e| e.into())
+                                    })
+                                })
+                            })
+                        } else {
+                            // 01 Free of charge (this is the only UnpricedItemType code supported by Google Books)
+                            write_element_block("UnpricedItemType", w, |w| {
+                                w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                            })
+                        }
+                    })
                 })
             })
         } else {
@@ -603,18 +507,6 @@ impl XmlElementBlock<Onix3GoogleBooks> for WorkContributions {
                     .map_err(|e| e.into())
             })?;
             XmlElement::<Onix3GoogleBooks>::xml_element(&self.contribution_type, w)?;
-
-            if let Some(orcid) = &self.contributor.orcid {
-                write_element_block("NameIdentifier", w, |w| {
-                    write_element_block("NameIDType", w, |w| {
-                        w.write(XmlEvent::Characters("21")).map_err(|e| e.into())
-                    })?;
-                    write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(&orcid.to_string()))
-                            .map_err(|e| e.into())
-                    })
-                })?;
-            }
             write_element_block("PersonName", w, |w| {
                 w.write(XmlEvent::Characters(&self.full_name))
                     .map_err(|e| e.into())
@@ -689,52 +581,6 @@ impl XmlElementBlock<Onix3GoogleBooks> for WorkIssues {
     }
 }
 
-impl XmlElementBlock<Onix3GoogleBooks> for WorkFundings {
-    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        write_element_block("Publisher", w, |w| {
-            // 16 Funding body
-            write_element_block("PublishingRole", w, |w| {
-                w.write(XmlEvent::Characters("16")).map_err(|e| e.into())
-            })?;
-            write_element_block("PublisherName", w, |w| {
-                w.write(XmlEvent::Characters(&self.institution.institution_name))
-                    .map_err(|e| e.into())
-            })?;
-            let mut identifiers: HashMap<String, String> = HashMap::new();
-            if let Some(program) = &self.program {
-                identifiers.insert("programname".to_string(), program.to_string());
-            }
-            if let Some(project_name) = &self.project_name {
-                identifiers.insert("projectname".to_string(), project_name.to_string());
-            }
-            if let Some(grant_number) = &self.grant_number {
-                identifiers.insert("grantnumber".to_string(), grant_number.to_string());
-            }
-            if !identifiers.is_empty() {
-                write_element_block("Funding", w, |w| {
-                    for (typename, value) in &identifiers {
-                        write_element_block("FundingIdentifier", w, |w| {
-                            // 01 Proprietary
-                            write_element_block("FundingIDType", w, |w| {
-                                w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                            })?;
-                            write_element_block("IDTypeName", w, |w| {
-                                w.write(XmlEvent::Characters(typename))
-                                    .map_err(|e| e.into())
-                            })?;
-                            write_element_block("IDValue", w, |w| {
-                                w.write(XmlEvent::Characters(value)).map_err(|e| e.into())
-                            })
-                        })?;
-                    }
-                    Ok(())
-                })?;
-            }
-            Ok(())
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     // Testing note: XML nodes cannot be guaranteed to be output in the same order every time
@@ -795,10 +641,6 @@ mod tests {
         let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <SequenceNumber>1</SequenceNumber>"#));
         assert!(output.contains(r#"  <ContributorRole>A01</ContributorRole>"#));
-        assert!(output.contains(r#"  <NameIdentifier>"#));
-        assert!(output.contains(r#"    <NameIDType>21</NameIDType>"#));
-        assert!(output.contains(r#"    <IDValue>0000-0002-0000-0001</IDValue>"#));
-        assert!(output.contains(r#"  </NameIdentifier>"#));
         assert!(output.contains(r#"  <PersonName>Author 1</PersonName>"#));
         assert!(output
             .contains(r#"  <BiographicalNote>Author 1 is an author of books</BiographicalNote>"#));
@@ -807,16 +649,10 @@ mod tests {
         test_contribution.contribution_type = ContributionType::EDITOR;
         test_contribution.contribution_ordinal = 2;
         test_contribution.biography = None;
-        test_contribution.contributor.orcid = None;
         test_contribution.first_name = None;
         let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <SequenceNumber>2</SequenceNumber>"#));
         assert!(output.contains(r#"  <ContributorRole>B01</ContributorRole>"#));
-        // No ORCID supplied
-        assert!(!output.contains(r#"  <NameIdentifier>"#));
-        assert!(!output.contains(r#"    <NameIDType>21</NameIDType>"#));
-        assert!(!output.contains(r#"    <IDValue>0000-0002-0000-0001</IDValue>"#));
-        assert!(!output.contains(r#"  </NameIdentifier>"#));
         // PersonName is always output regardless of whether given name is supplied
         assert!(output.contains(r#"  <PersonName>Author 1</PersonName>"#));
         // No biography supplied
@@ -920,90 +756,6 @@ mod tests {
         assert!(output.contains(r#"      <TitleElementLevel>02</TitleElementLevel>"#));
         assert!(output.contains(r#"      <PartNumber>2</PartNumber>"#));
         assert!(output.contains(r#"      <TitleText>Different series</TitleText>"#));
-    }
-
-    #[test]
-    fn test_onix3_google_books_fundings() {
-        let mut test_funding = WorkFundings {
-            program: Some("Name of program".to_string()),
-            project_name: Some("Name of project".to_string()),
-            project_shortname: None,
-            grant_number: Some("Number of grant".to_string()),
-            jurisdiction: None,
-            institution: thoth_client::WorkFundingsInstitution {
-                institution_name: "Name of institution".to_string(),
-                institution_doi: None,
-                ror: None,
-                country_code: None,
-            },
-        };
-
-        // Test standard output
-        let output = generate_test_output(true, &test_funding);
-        assert!(output.contains(r#"<Publisher>"#));
-        assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
-        assert!(output.contains(r#"  <PublisherName>Name of institution</PublisherName>"#));
-        assert!(output.contains(r#"  <Funding>"#));
-        assert!(output.contains(r#"    <FundingIdentifier>"#));
-        assert!(output.contains(r#"      <FundingIDType>01</FundingIDType>"#));
-        assert!(output.contains(r#"      <IDTypeName>programname</IDTypeName>"#));
-        assert!(output.contains(r#"      <IDValue>Name of program</IDValue>"#));
-        assert!(output.contains(r#"      <IDTypeName>projectname</IDTypeName>"#));
-        assert!(output.contains(r#"      <IDValue>Name of project</IDValue>"#));
-        assert!(output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
-        assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
-
-        // Change all possible values to test that output is updated
-
-        test_funding.institution.institution_name = "Different institution".to_string();
-        test_funding.program = None;
-        let output = generate_test_output(true, &test_funding);
-        assert!(output.contains(r#"<Publisher>"#));
-        assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
-        assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
-        assert!(output.contains(r#"  <Funding>"#));
-        assert!(output.contains(r#"    <FundingIdentifier>"#));
-        assert!(output.contains(r#"      <FundingIDType>01</FundingIDType>"#));
-        // No program supplied
-        assert!(!output.contains(r#"      <IDTypeName>programname</IDTypeName>"#));
-        assert!(!output.contains(r#"      <IDValue>Name of program</IDValue>"#));
-        assert!(output.contains(r#"      <IDTypeName>projectname</IDTypeName>"#));
-        assert!(output.contains(r#"      <IDValue>Name of project</IDValue>"#));
-        assert!(output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
-        assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
-
-        test_funding.project_name = None;
-        let output = generate_test_output(true, &test_funding);
-        assert!(output.contains(r#"<Publisher>"#));
-        assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
-        assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
-        assert!(output.contains(r#"  <Funding>"#));
-        assert!(output.contains(r#"    <FundingIdentifier>"#));
-        assert!(output.contains(r#"      <FundingIDType>01</FundingIDType>"#));
-        // No program supplied
-        assert!(!output.contains(r#"      <IDTypeName>programname</IDTypeName>"#));
-        assert!(!output.contains(r#"      <IDValue>Name of program</IDValue>"#));
-        // No project supplied
-        assert!(!output.contains(r#"      <IDTypeName>projectname</IDTypeName>"#));
-        assert!(!output.contains(r#"      <IDValue>Name of project</IDValue>"#));
-        assert!(output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
-        assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
-
-        test_funding.grant_number = None;
-        let output = generate_test_output(true, &test_funding);
-        assert!(output.contains(r#"<Publisher>"#));
-        assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
-        assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
-        // No program, project or grant supplied, so Funding block is omitted completely
-        assert!(!output.contains(r#"  <Funding>"#));
-        assert!(!output.contains(r#"    <FundingIdentifier>"#));
-        assert!(!output.contains(r#"      <FundingIDType>01</FundingIDType>"#));
-        assert!(!output.contains(r#"      <IDTypeName>programname</IDTypeName>"#));
-        assert!(!output.contains(r#"      <IDValue>Name of program</IDValue>"#));
-        assert!(!output.contains(r#"      <IDTypeName>projectname</IDTypeName>"#));
-        assert!(!output.contains(r#"      <IDValue>Name of project</IDValue>"#));
-        assert!(!output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
-        assert!(!output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
     }
 
     #[test]
@@ -1151,7 +903,6 @@ mod tests {
             r#"  <RecordReference>urn:uuid:00000000-0000-0000-aaaa-000000000001</RecordReference>"#
         ));
         assert!(output.contains(r#"  <NotificationType>03</NotificationType>"#));
-        assert!(output.contains(r#"  <RecordSourceType>01</RecordSourceType>"#));
         assert!(output.contains(r#"  <ProductIdentifier>"#));
         assert!(output.contains(r#"    <ProductIDType>15</ProductIDType>"#));
         assert!(output.contains(r#"    <IDValue>9783161484100</IDValue>"#));
@@ -1160,15 +911,6 @@ mod tests {
         assert!(output.contains(r#"    <ProductForm>EB</ProductForm>"#));
         assert!(output.contains(r#"    <ProductFormDetail>E107</ProductFormDetail>"#));
         assert!(output.contains(r#"    <PrimaryContentType>10</PrimaryContentType>"#));
-        assert!(output.contains(r#"    <EpubLicense>"#));
-        assert!(
-            output.contains(r#"      <EpubLicenseName>Creative Commons License</EpubLicenseName>"#)
-        );
-        assert!(output.contains(r#"      <EpubLicenseExpression>"#));
-        assert!(
-            output.contains(r#"        <EpubLicenseExpressionType>02</EpubLicenseExpressionType>"#)
-        );
-        assert!(output.contains(r#"        <EpubLicenseExpressionLink>https://creativecommons.org/licenses/by/4.0/</EpubLicenseExpressionLink>"#));
         assert!(output.contains(r#"    <TitleDetail>"#));
         assert!(output.contains(r#"      <TitleType>01</TitleType>"#));
         assert!(output.contains(r#"      <TitleElement>"#));
@@ -1210,21 +952,12 @@ mod tests {
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
         assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        assert!(output.contains(r#"    <SupportingResource>"#));
-        assert!(output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
-        assert!(output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
-        assert!(output.contains(r#"      <ResourceVersion>"#));
-        assert!(output.contains(r#"        <ResourceForm>02</ResourceForm>"#));
-        assert!(
-            output.contains(r#"        <ResourceLink>https://www.book.com/cover</ResourceLink>"#)
-        );
         assert!(output.contains(r#"  <PublishingDetail>"#));
         assert!(output.contains(r#"    <Imprint>"#));
         assert!(output.contains(r#"      <ImprintName>OA Editions Imprint</ImprintName>"#));
         assert!(output.contains(r#"    <Publisher>"#));
         assert!(output.contains(r#"      <PublishingRole>01</PublishingRole>"#));
         assert!(output.contains(r#"      <PublisherName>OA Editions</PublisherName>"#));
-        assert!(output.contains(r#"    <CityOfPublication>León, Spain</CityOfPublication>"#));
         assert!(output.contains(r#"    <PublishingStatus>04</PublishingStatus>"#));
         assert!(output.contains(r#"    <PublishingDate>"#));
         assert!(output.contains(r#"      <PublishingDateRole>01</PublishingDateRole>"#));
@@ -1246,12 +979,6 @@ mod tests {
         assert!(output.contains(r#"      <Supplier>"#));
         assert!(output.contains(r#"        <SupplierRole>09</SupplierRole>"#));
         assert!(output.contains(r#"        <SupplierName>OA Editions</SupplierName>"#));
-        assert!(output.contains(r#"        <Website>"#));
-        assert!(output.contains(r#"          <WebsiteRole>01</WebsiteRole>"#));
-        assert!(output.contains(
-            r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
-        ));
-        assert!(output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
         assert!(output.contains(r#"      <ProductAvailability>20</ProductAvailability>"#));
         assert!(output.contains(r#"      <Price>"#));
         assert!(output.contains(r#"        <PriceTypeCode>02</PriceTypeCode>"#));
@@ -1259,21 +986,11 @@ mod tests {
         assert!(output.contains(r#"        <CurrencyCode>GBP</CurrencyCode>"#));
         assert!(output.contains(r#"        <Territory>"#));
         assert!(output.contains(r#"          <RegionsIncluded>WORLD</RegionsIncluded>"#));
-        assert!(output.contains(r#"        <SupplierRole>09</SupplierRole>"#));
-        assert!(output.contains(r#"        <SupplierName>OA Editions</SupplierName>"#));
-        assert!(output.contains(r#"          <WebsiteRole>29</WebsiteRole>"#));
-        assert!(output.contains(r#"          <WebsiteDescription>Publisher's website: download the title</WebsiteDescription>"#));
-        assert!(output.contains(
-            r#"          <WebsiteLink>https://www.book.com/ebook_fulltext</WebsiteLink>"#
-        ));
 
         // Remove/change some values to test (non-)output of optional blocks
-        test_work.license = None;
         test_work.subtitle = None;
         test_work.page_count = None;
         test_work.long_abstract = None;
-        test_work.place = None;
-        test_work.landing_page = None;
         test_work.publications[0].prices.pop();
         test_work.publications[0].publication_type = PublicationType::EPUB;
         test_work.subjects.clear();
@@ -1281,14 +998,6 @@ mod tests {
         // Ebook type changed
         assert!(!output.contains(r#"    <ProductFormDetail>E107</ProductFormDetail>"#));
         assert!(output.contains(r#"    <ProductFormDetail>E101</ProductFormDetail>"#));
-        // No licence supplied
-        assert!(!output.contains(r#"    <EpubLicense>"#));
-        assert!(!output
-            .contains(r#"      <EpubLicenseName>Creative Commons License</EpubLicenseName>"#));
-        assert!(!output.contains(r#"      <EpubLicenseExpression>"#));
-        assert!(!output
-            .contains(r#"        <EpubLicenseExpressionType>02</EpubLicenseExpressionType>"#));
-        assert!(!output.contains(r#"        <EpubLicenseExpressionLink>https://creativecommons.org/licenses/by/4.0/</EpubLicenseExpressionLink>"#));
         // No subtitle supplied (within Thoth UI this would automatically update full_title)
         assert!(!output.contains(r#"        <Subtitle>Book Subtitle</Subtitle>"#));
         // No page count supplied
@@ -1296,28 +1005,11 @@ mod tests {
         assert!(!output.contains(r#"      <ExtentType>00</ExtentType>"#));
         assert!(!output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
         assert!(!output.contains(r#"      <ExtentUnit>03</ExtentUnit>"#));
-        // No long abstract supplied: CollateralDetail block only contains cover URL
-        assert!(output.contains(r#"  <CollateralDetail>"#));
-        assert!(output.contains(r#"    <SupportingResource>"#));
-        assert!(output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
-        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
-        assert!(output.contains(r#"      <ResourceVersion>"#));
-        assert!(output.contains(r#"        <ResourceForm>02</ResourceForm>"#));
-        assert!(
-            output.contains(r#"        <ResourceLink>https://www.book.com/cover</ResourceLink>"#)
-        );
+        // No long abstract supplied: no CollateralDetail block
+        assert!(!output.contains(r#"  <CollateralDetail>"#));
         assert!(!output.contains(r#"    <TextContent>"#));
         assert!(!output.contains(r#"      <TextType>03</TextType>"#));
         assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        // No place supplied
-        assert!(!output.contains(r#"    <CityOfPublication>León, Spain</CityOfPublication>"#));
-        // No landing page supplied: only one SupplyDetail block, linking to ebook download
-        assert!(!output.contains(r#"          <WebsiteRole>01</WebsiteRole>"#));
-        assert!(!output.contains(
-            r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
-        ));
-        assert!(!output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
         // No GBP price supplied
         assert!(!output.contains(r#"      <Price>"#));
         assert!(!output.contains(r#"        <PriceTypeCode>02</PriceTypeCode>"#));
@@ -1338,40 +1030,7 @@ mod tests {
         assert!(!output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
         assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
 
-        // Replace long abstract but remove cover URL
-        // Result: CollateralDetail block still present, but now only contains long abstract
-        test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
-        test_work.cover_url = None;
-        let output = generate_test_output(true, &test_work);
-        assert!(output.contains(r#"  <CollateralDetail>"#));
-        assert!(output.contains(r#"    <TextContent>"#));
-        assert!(output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        assert!(!output.contains(r#"    <SupportingResource>"#));
-        assert!(!output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
-        assert!(!output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
-        assert!(!output.contains(r#"      <ResourceVersion>"#));
-        assert!(!output.contains(r#"        <ResourceForm>02</ResourceForm>"#));
-        assert!(!output
-            .contains(r#"        <ResourceLink>"https://www.book.com/cover"</ResourceLink>"#));
 
-        // Remove both cover URL and long abstract
-        // Result: No CollateralDetail block present at all
-        test_work.long_abstract = None;
-        let output = generate_test_output(true, &test_work);
-        assert!(!output.contains(r#"  <CollateralDetail>"#));
-        assert!(!output.contains(r#"    <TextContent>"#));
-        assert!(!output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(!output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        assert!(!output.contains(r#"    <SupportingResource>"#));
-        assert!(!output.contains(r#"      <ResourceContentType>01</ResourceContentType>"#));
-        assert!(!output.contains(r#"      <ResourceMode>03</ResourceMode>"#));
-        assert!(!output.contains(r#"      <ResourceVersion>"#));
-        assert!(!output.contains(r#"        <ResourceForm>02</ResourceForm>"#));
-        assert!(!output
-            .contains(r#"        <ResourceLink>"https://www.book.com/cover"</ResourceLink>"#));
 
         // Remove publication date: result is error
         test_work.publication_date = None;
