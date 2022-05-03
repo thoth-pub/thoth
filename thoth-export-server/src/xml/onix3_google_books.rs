@@ -235,12 +235,12 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                         })
                     })
                 })?;
-                if self.long_abstract.is_some() {
+                if self.long_abstract.is_some() || self.toc.is_some() {
+                    let mut lang_fmt: HashMap<&str, &str> = HashMap::new();
+                    lang_fmt.insert("language", "eng");
                     write_element_block("CollateralDetail", w, |w| {
                         if let Some(labstract) = &self.long_abstract {
                             write_element_block("TextContent", w, |w| {
-                                let mut lang_fmt: HashMap<&str, &str> = HashMap::new();
-                                lang_fmt.insert("language", "eng");
                                 // 03 Description ("30 Abstract" not implemented in Google Books)
                                 write_element_block("TextType", w, |w| {
                                     w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
@@ -249,10 +249,35 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                                 write_element_block("ContentAudience", w, |w| {
                                     w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                                 })?;
-                                write_full_element_block("Text", None, Some(lang_fmt), w, |w| {
-                                    w.write(XmlEvent::Characters(labstract))
-                                        .map_err(|e| e.into())
-                                })
+                                write_full_element_block(
+                                    "Text",
+                                    None,
+                                    Some(lang_fmt.clone()),
+                                    w,
+                                    |w| {
+                                        w.write(XmlEvent::Characters(labstract))
+                                            .map_err(|e| e.into())
+                                    },
+                                )
+                            })?;
+                        }
+                        if let Some(toc) = &self.toc {
+                            write_element_block("TextContent", w, |w| {
+                                // 04 Table of contents
+                                write_element_block("TextType", w, |w| {
+                                    w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
+                                })?;
+                                // 00 Unrestricted
+                                write_element_block("ContentAudience", w, |w| {
+                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                })?;
+                                write_full_element_block(
+                                    "Text",
+                                    None,
+                                    Some(lang_fmt.clone()),
+                                    w,
+                                    |w| w.write(XmlEvent::Characters(toc)).map_err(|e| e.into()),
+                                )
                             })?;
                         }
                         Ok(())
@@ -786,7 +811,7 @@ mod tests {
             audio_count: None,
             video_count: None,
             landing_page: Some("https://www.book.com".to_string()),
-            toc: None,
+            toc: Some("1. Chapter 1".to_string()),
             lccn: None,
             oclc: None,
             cover_url: Some("https://www.book.com/cover".to_string()),
@@ -952,6 +977,8 @@ mod tests {
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
         assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
         assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(output.contains(r#"      <TextType>04</TextType>"#));
+        assert!(output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
         assert!(output.contains(r#"  <PublishingDetail>"#));
         assert!(output.contains(r#"    <Imprint>"#));
         assert!(output.contains(r#"      <ImprintName>OA Editions Imprint</ImprintName>"#));
@@ -1005,9 +1032,11 @@ mod tests {
         assert!(!output.contains(r#"      <ExtentType>00</ExtentType>"#));
         assert!(!output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
         assert!(!output.contains(r#"      <ExtentUnit>03</ExtentUnit>"#));
-        // No long abstract supplied: no CollateralDetail block
-        assert!(!output.contains(r#"  <CollateralDetail>"#));
-        assert!(!output.contains(r#"    <TextContent>"#));
+        // No long abstract supplied: CollateralDetail block only contains table of contents
+        assert!(output.contains(r#"  <CollateralDetail>"#));
+        assert!(output.contains(r#"    <TextContent>"#));
+        assert!(output.contains(r#"      <TextType>04</TextType>"#));
+        assert!(output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
         assert!(!output.contains(r#"      <TextType>03</TextType>"#));
         assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
         // No GBP price supplied
@@ -1030,7 +1059,30 @@ mod tests {
         assert!(!output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
         assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
 
+        // Replace long abstract but remove table of contents
+        // Result: CollateralDetail block still present, but now only contains long abstract
+        test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
+        test_work.toc = None;
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(r#"  <CollateralDetail>"#));
+        assert!(output.contains(r#"    <TextContent>"#));
+        assert!(output.contains(r#"      <TextType>03</TextType>"#));
+        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
+        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(!output.contains(r#"      <TextType>04</TextType>"#));
+        assert!(!output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
 
+        // Remove both table of contents and long abstract
+        // Result: No CollateralDetail block present at all
+        test_work.long_abstract = None;
+        let output = generate_test_output(true, &test_work);
+        assert!(!output.contains(r#"  <CollateralDetail>"#));
+        assert!(!output.contains(r#"    <TextContent>"#));
+        assert!(!output.contains(r#"      <TextType>03</TextType>"#));
+        assert!(!output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
+        assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(!output.contains(r#"      <TextType>04</TextType>"#));
+        assert!(!output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
 
         // Remove publication date: result is error
         test_work.publication_date = None;
