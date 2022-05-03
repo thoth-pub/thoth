@@ -2,8 +2,9 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
-    WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkSubjects, WorkType,
+    ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType, Work,
+    WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkStatus,
+    WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -13,6 +14,7 @@ use thoth_errors::{ThothError, ThothResult};
 
 pub struct Onix3GoogleBooks {}
 
+// Output format based on documentation at https://support.google.com/books/partner/answer/6374180.
 impl XmlSpecification for Onix3GoogleBooks {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
         let mut attr_map: HashMap<&str, &str> = HashMap::new();
@@ -31,9 +33,15 @@ impl XmlSpecification for Onix3GoogleBooks {
                             .map_err(|e| e.into())
                     })
                 })?;
+                write_element_block("Addressee", w, |w| {
+                    write_element_block("AddresseeName", w, |w| {
+                        w.write(XmlEvent::Characters("Google"))
+                            .map_err(|e| e.into())
+                    })
+                })?;
                 write_element_block("SentDateTime", w, |w| {
                     w.write(XmlEvent::Characters(
-                        &Utc::now().format("%Y%m%d").to_string(),
+                        &Utc::now().format("%Y%m%dT%H%M%S").to_string(),
                     ))
                     .map_err(|e| e.into())
                 })
@@ -62,16 +70,41 @@ impl XmlSpecification for Onix3GoogleBooks {
 
 impl XmlElementBlock<Onix3GoogleBooks> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        let work_id = format!("urn:uuid:{}", self.work_id);
-        let (main_isbn, isbns) = get_publications_data(&self.publications);
-        // We can only generate the document if there's a PDF
-        if let Some(pdf_url) = self
+        // Don't output works with no publication date (mandatory in Google Books)
+        if self.publication_date.is_none() {
+            Err(ThothError::IncompleteMetadataRecord(
+                "onix_3.0::google_books".to_string(),
+                "Missing Publication Date".to_string(),
+            ))
+        // Don't output works with no contributors (at least one required for Google Books)
+        } else if self.contributions.is_empty() {
+            Err(ThothError::IncompleteMetadataRecord(
+                "onix_3.0::google_books".to_string(),
+                "No contributors supplied".to_string(),
+            ))
+        // We can only generate the document if there's an EPUB or PDF
+        } else if let Some(main_publication) = self
             .publications
             .iter()
-            .find(|p| p.publication_type.eq(&PublicationType::PDF) && !p.locations.is_empty())
-            .and_then(|p| p.locations.iter().find(|l| l.canonical))
-            .and_then(|l| l.full_text_url.as_ref())
+            // For preference, distribute the EPUB only
+            .find(|p| {
+                p.publication_type.eq(&PublicationType::EPUB)
+                    && p.locations
+                        .iter()
+                        .any(|l| l.canonical && l.full_text_url.is_some())
+            })
+            // If no EPUB is found, distribute the PDF only
+            .or_else(|| {
+                self.publications.iter().find(|p| {
+                    p.publication_type.eq(&PublicationType::PDF)
+                        && p.locations
+                            .iter()
+                            .any(|l| l.canonical && l.full_text_url.is_some())
+                })
+            })
         {
+            let work_id = format!("urn:uuid:{}", self.work_id);
+            let (main_isbn, isbns) = get_publications_data(&self.publications, main_publication);
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
                     w.write(XmlEvent::Characters(&work_id))
@@ -125,9 +158,14 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                     write_element_block("ProductForm", w, |w| {
                         w.write(XmlEvent::Characters("EB")).map_err(|e| e.into())
                     })?;
-                    // E107 PDF
+                    let digital_type = match main_publication.publication_type {
+                        PublicationType::EPUB => "E101",
+                        PublicationType::PDF => "E107",
+                        _ => unreachable!(),
+                    };
                     write_element_block("ProductFormDetail", w, |w| {
-                        w.write(XmlEvent::Characters("E107")).map_err(|e| e.into())
+                        w.write(XmlEvent::Characters(digital_type))
+                            .map_err(|e| e.into())
                     })?;
                     // 10 Text (eye-readable)
                     write_element_block("PrimaryContentType", w, |w| {
@@ -175,8 +213,24 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                             Ok(())
                         })
                     })?;
-                    for contribution in &self.contributions {
-                        XmlElementBlock::<Onix3GoogleBooks>::xml_element(contribution, w).ok();
+                    // Google Books requires at least one contributor coded as A01 (Author) -
+                    // if this is e.g. a wholly edited book, code the first main contributor as an author.
+                    let mut contributions = self.contributions.clone();
+                    if !contributions
+                        .iter()
+                        .any(|c| c.contribution_type.eq(&ContributionType::AUTHOR))
+                    {
+                        contributions
+                            .sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
+                        contributions.sort_by(|a, b| b.main_contribution.cmp(&a.main_contribution));
+                        contributions[0].contribution_type = ContributionType::AUTHOR;
+                    }
+                    for contribution in &contributions {
+                        // Google Books doesn't support B25 Music Editor code
+                        // (or any appropriate "Other" code)
+                        if contribution.contribution_type != ContributionType::MUSIC_EDITOR {
+                            XmlElementBlock::<Onix3GoogleBooks>::xml_element(contribution, w).ok();
+                        }
                     }
                     for language in &self.languages {
                         XmlElementBlock::<Onix3GoogleBooks>::xml_element(language, w).ok();
@@ -198,7 +252,19 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                         })?;
                     }
                     for subject in &self.subjects {
-                        XmlElementBlock::<Onix3GoogleBooks>::xml_element(subject, w).ok();
+                        // Google Books doesn't support Thema codes
+                        if subject.subject_type != SubjectType::THEMA {
+                            write_element_block("Subject", w, |w| {
+                                XmlElement::<Onix3GoogleBooks>::xml_element(
+                                    &subject.subject_type,
+                                    w,
+                                )?;
+                                write_element_block("SubjectCode", w, |w| {
+                                    w.write(XmlEvent::Characters(&subject.subject_code))
+                                        .map_err(|e| e.into())
+                                })
+                            })?;
+                        }
                     }
                     write_element_block("Audience", w, |w| {
                         // 01 ONIX audience codes
@@ -209,8 +275,7 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                         write_element_block("AudienceCodeValue", w, |w| {
                             w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
                         })
-                    })?;
-                    Ok(())
+                    })
                 })?;
                 if self.long_abstract.is_some() || self.cover_url.is_some() {
                     write_element_block("CollateralDetail", w, |w| {
@@ -218,7 +283,7 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                             write_element_block("TextContent", w, |w| {
                                 let mut lang_fmt: HashMap<&str, &str> = HashMap::new();
                                 lang_fmt.insert("language", "eng");
-                                // 03 Description ("30 Abstract" not implemented in OAPEN)
+                                // 03 Description ("30 Abstract" not implemented in Google Books)
                                 write_element_block("TextType", w, |w| {
                                     w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
                                 })?;
@@ -261,6 +326,8 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                         Ok(())
                     })?;
                 }
+                // Google Books also supports <ContentDetail> blocks for chapter information.
+                // Omitted at present but could be considered as a future enhancement.
                 write_element_block("PublishingDetail", w, |w| {
                     write_element_block("Imprint", w, |w| {
                         write_element_block("ImprintName", w, |w| {
@@ -287,23 +354,33 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                         })?;
                     }
                     XmlElement::<Onix3GoogleBooks>::xml_element(&self.work_status, w)?;
-                    if let Some(date) = self.publication_date {
-                        write_element_block("PublishingDate", w, |w| {
-                            let mut date_fmt: HashMap<&str, &str> = HashMap::new();
-                            date_fmt.insert("dateformat", "05"); // 01 YYYY
+                    write_element_block("PublishingDate", w, |w| {
+                        let mut date_fmt: HashMap<&str, &str> = HashMap::new();
+                        date_fmt.insert("dateformat", "00"); // 00 YYYYMMDD
 
-                            write_element_block("PublishingDateRole", w, |w| {
-                                // 19 Publication date of print counterpart
-                                w.write(XmlEvent::Characters("19")).map_err(|e| e.into())
-                            })?;
-                            // dateformat="05" YYYY
-                            write_full_element_block("Date", None, Some(date_fmt), w, |w| {
-                                w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
-                                    .map_err(|e| e.into())
-                            })
+                        write_element_block("PublishingDateRole", w, |w| {
+                            // 01 Publishing Date (19 not supported by Google Books)
+                            w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                         })?;
-                    }
-                    Ok(())
+                        // dateformat="00" YYYYMMDD
+                        write_full_element_block("Date", None, Some(date_fmt), w, |w| {
+                            w.write(XmlEvent::Characters(
+                                &self.publication_date.unwrap().format("%Y%m%d").to_string(),
+                            ))
+                            .map_err(|e| e.into())
+                        })
+                    })?;
+                    write_element_block("SalesRights", w, |w| {
+                        // 02 For sale with non-exclusive rights in the specified countries or territories
+                        write_element_block("SalesRightsType", w, |w| {
+                            w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("Territory", w, |w| {
+                            write_element_block("RegionsIncluded", w, |w| {
+                                w.write(XmlEvent::Characters("WORLD")).map_err(|e| e.into())
+                            })
+                        })
+                    })
                 })?;
                 if !isbns.is_empty() {
                     write_element_block("RelatedMaterial", w, |w| {
@@ -328,9 +405,22 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                     })?;
                 }
                 write_element_block("ProductSupply", w, |w| {
+                    write_element_block("Market", w, |w| {
+                        write_element_block("Territory", w, |w| {
+                            write_element_block("RegionsIncluded", w, |w| {
+                                w.write(XmlEvent::Characters("WORLD")).map_err(|e| e.into())
+                            })
+                        })
+                    })?;
                     let mut supplies: HashMap<String, (String, String)> = HashMap::new();
                     supplies.insert(
-                        pdf_url.to_string(),
+                        main_publication
+                            .locations
+                            .iter()
+                            .find(|l| l.canonical)
+                            .and_then(|l| l.full_text_url.as_ref())
+                            .unwrap()
+                            .to_string(),
                         (
                             "29".to_string(),
                             "Publisher's website: download the title".to_string(),
@@ -373,14 +463,42 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                                     })
                                 })
                             })?;
-                            // 99 Contact supplier
+                            // 20 Available from us (form of availability unspecified)
+                            // (99 Contact supplier is not supported by Google Books)
                             write_element_block("ProductAvailability", w, |w| {
-                                w.write(XmlEvent::Characters("99")).map_err(|e| e.into())
+                                w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
                             })?;
-                            // 04 Contact supplier
-                            write_element_block("UnpricedItemType", w, |w| {
-                                w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
-                            })
+                            // Assume that the GBP price is the canonical one, currency conversion is
+                            // turned on (a Google Books account setting which cannot be specified in the ONIX),
+                            // and all other prices will be automatically derived from the GBP price.
+                            if let Some(price) = main_publication.prices.iter().find(|pr| {
+                                pr.currency_code.eq(&CurrencyCode::GBP) && pr.unit_price > 0.0
+                            }) {
+                                write_element_block("Price", w, |w| {
+                                    // 02 RRP including tax
+                                    write_element_block("PriceTypeCode", w, |w| {
+                                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("PriceAmount", w, |w| {
+                                        w.write(XmlEvent::Characters(&price.unit_price.to_string()))
+                                            .map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("CurrencyCode", w, |w| {
+                                        w.write(XmlEvent::Characters("GBP")).map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("Territory", w, |w| {
+                                        write_element_block("RegionsIncluded", w, |w| {
+                                            w.write(XmlEvent::Characters("WORLD"))
+                                                .map_err(|e| e.into())
+                                        })
+                                    })
+                                })
+                            } else {
+                                // 01 Free of charge (this is the only UnpricedItemType code supported by Google Books)
+                                write_element_block("UnpricedItemType", w, |w| {
+                                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                                })
+                            }
                         })?;
                     }
                     Ok(())
@@ -389,25 +507,34 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
         } else {
             Err(ThothError::IncompleteMetadataRecord(
                 "onix_3.0::google_books".to_string(),
-                "Missing PDF URL".to_string(),
+                "Missing EPUB or PDF URL".to_string(),
             ))
         }
     }
 }
 
-fn get_publications_data(publications: &[WorkPublications]) -> (String, Vec<String>) {
+fn get_publications_data(
+    publications: &[WorkPublications],
+    main_publication: &WorkPublications,
+) -> (String, Vec<String>) {
     let mut main_isbn = "".to_string();
     let mut isbns: Vec<String> = Vec::new();
 
     for publication in publications {
         if let Some(isbn) = &publication.isbn.as_ref().map(|i| i.to_string()) {
             isbns.push(isbn.replace('-', ""));
-            // The default product ISBN is the PDF's
-            if publication.publication_type.eq(&PublicationType::PDF) {
+            // The default product ISBN is the main publication's (EPUB or PDF)
+            if publication
+                .publication_id
+                .eq(&main_publication.publication_id)
+            {
                 main_isbn = isbn.replace('-', "");
             }
-            // Books that don't have a PDF ISBN will use the paperback's
-            if publication.publication_type.eq(&PublicationType::PAPERBACK) && main_isbn.is_empty()
+            // If the main publication has no ISBN, use either the PDF's or the paperback's
+            // (no guarantee as to which will be chosen)
+            if (publication.publication_type.eq(&PublicationType::PDF)
+                || publication.publication_type.eq(&PublicationType::PAPERBACK))
+                && main_isbn.is_empty()
             {
                 main_isbn = isbn.replace('-', "");
             }
@@ -433,8 +560,8 @@ impl XmlElement<Onix3GoogleBooks> for WorkStatus {
             WorkStatus::INACTIVE => "08",
             WorkStatus::UNKNOWN => "09",
             WorkStatus::REMAINDERED => "10",
-            WorkStatus::WITHDRAWN_FROM_SALE => "11",
-            WorkStatus::RECALLED => "15",
+            // 15 Recalled is not supported by Google Books
+            WorkStatus::WITHDRAWN_FROM_SALE | WorkStatus::RECALLED => "11",
             WorkStatus::Other(_) => unreachable!(),
         }
     }
@@ -447,11 +574,11 @@ impl XmlElement<Onix3GoogleBooks> for SubjectType {
         match self {
             SubjectType::BIC => "12",
             SubjectType::BISAC => "10",
-            SubjectType::KEYWORD => "20",
             SubjectType::LCC => "04",
-            SubjectType::THEMA => "93",
-            // Custom codes are not output for OAPEN
-            SubjectType::CUSTOM | SubjectType::Other(_) => unreachable!(),
+            // 23 Publisher's own category code
+            SubjectType::KEYWORD | SubjectType::CUSTOM => "23",
+            // Thema codes are not output for Google Books
+            SubjectType::THEMA | SubjectType::Other(_) => unreachable!(),
         }
     }
 }
@@ -476,15 +603,15 @@ impl XmlElement<Onix3GoogleBooks> for ContributionType {
         match self {
             ContributionType::AUTHOR => "A01",
             ContributionType::EDITOR => "B01",
-            ContributionType::TRANSLATOR
-            | ContributionType::PHOTOGRAPHER
-            | ContributionType::ILUSTRATOR
-            | ContributionType::MUSIC_EDITOR
-            | ContributionType::FOREWORD_BY
-            | ContributionType::INTRODUCTION_BY
-            | ContributionType::AFTERWORD_BY
-            | ContributionType::PREFACE_BY => "Z01",
-            ContributionType::Other(_) => unreachable!(),
+            ContributionType::TRANSLATOR => "B06",
+            ContributionType::PHOTOGRAPHER => "A13",
+            ContributionType::ILUSTRATOR => "A12",
+            ContributionType::FOREWORD_BY => "A23",
+            ContributionType::INTRODUCTION_BY => "A24",
+            ContributionType::AFTERWORD_BY => "A19",
+            ContributionType::PREFACE_BY => "A15",
+            // Music editors are not output for Google Books
+            ContributionType::MUSIC_EDITOR | ContributionType::Other(_) => unreachable!(),
         }
     }
 }
@@ -509,18 +636,13 @@ impl XmlElementBlock<Onix3GoogleBooks> for WorkContributions {
                     })
                 })?;
             }
-            if let Some(first_name) = &self.first_name {
-                write_element_block("NamesBeforeKey", w, |w| {
-                    w.write(XmlEvent::Characters(first_name))
-                        .map_err(|e| e.into())
-                })?;
-                write_element_block("KeyNames", w, |w| {
-                    w.write(XmlEvent::Characters(&self.last_name))
-                        .map_err(|e| e.into())
-                })?;
-            } else {
-                write_element_block("PersonName", w, |w| {
-                    w.write(XmlEvent::Characters(&self.full_name))
+            write_element_block("PersonName", w, |w| {
+                w.write(XmlEvent::Characters(&self.full_name))
+                    .map_err(|e| e.into())
+            })?;
+            if let Some(biography) = &self.biography {
+                write_element_block("BiographicalNote", w, |w| {
+                    w.write(XmlEvent::Characters(biography))
                         .map_err(|e| e.into())
                 })?;
             }
@@ -551,6 +673,18 @@ impl XmlElementBlock<Onix3GoogleBooks> for WorkIssues {
             // 10 Publisher collection (e.g. series)
             write_element_block("CollectionType", w, |w| {
                 w.write(XmlEvent::Characters("10")).map_err(|e| e.into())
+            })?;
+            write_element_block("CollectionIdentifier", w, |w| {
+                // 02 ISSN
+                write_element_block("CollectionIDType", w, |w| {
+                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                })?;
+                write_element_block("IDValue", w, |w| {
+                    w.write(XmlEvent::Characters(
+                        &self.series.issn_digital.replace('-', ""),
+                    ))
+                    .map_err(|e| e.into())
+                })
             })?;
             write_element_block("TitleDetail", w, |w| {
                 // 01 Cover title (serial)
@@ -622,29 +756,6 @@ impl XmlElementBlock<Onix3GoogleBooks> for WorkFundings {
     }
 }
 
-impl XmlElementBlock<Onix3GoogleBooks> for WorkSubjects {
-    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        // Don't output Custom codes, as these are not imported by OAPEN,
-        // and only used for internal purposes
-        if self.subject_type != SubjectType::CUSTOM {
-            write_element_block("Subject", w, |w| {
-                XmlElement::<Onix3GoogleBooks>::xml_element(&self.subject_type, w)?;
-                match self.subject_type {
-                    SubjectType::KEYWORD => write_element_block("SubjectHeadingText", w, |w| {
-                        w.write(XmlEvent::Characters(&self.subject_code))
-                            .map_err(|e| e.into())
-                    }),
-                    _ => write_element_block("SubjectCode", w, |w| {
-                        w.write(XmlEvent::Characters(&self.subject_code))
-                            .map_err(|e| e.into())
-                    }),
-                }
-            })?;
-        }
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     // Testing note: XML nodes cannot be guaranteed to be output in the same order every time
@@ -657,11 +768,14 @@ mod tests {
     use thoth_client::{
         ContributionType, LanguageCode, LanguageRelation, LocationPlatform, PublicationType,
         WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssuesSeries,
-        WorkPublicationsLocations, WorkStatus, WorkType,
+        WorkPublicationsLocations, WorkPublicationsPrices, WorkStatus, WorkSubjects, WorkType,
     };
     use uuid::Uuid;
 
-    fn generate_test_output(input: &impl XmlElementBlock<Onix3GoogleBooks>) -> String {
+    fn generate_test_output(
+        expect_ok: bool,
+        input: &impl XmlElementBlock<Onix3GoogleBooks>,
+    ) -> String {
         // Helper function based on `XmlSpecification::generate`
         let mut buffer = Vec::new();
         let mut writer = xml::writer::EmitterConfig::new()
@@ -669,12 +783,17 @@ mod tests {
             .create_writer(&mut buffer);
         let wrapped_output = XmlElementBlock::<Onix3GoogleBooks>::xml_element(input, &mut writer)
             .map(|_| buffer)
-            .and_then(|onix| {
-                String::from_utf8(onix)
+            .and_then(|xml| {
+                String::from_utf8(xml)
                     .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
             });
-        assert!(wrapped_output.is_ok());
-        wrapped_output.unwrap()
+        if expect_ok {
+            assert!(wrapped_output.is_ok());
+            wrapped_output.unwrap()
+        } else {
+            assert!(wrapped_output.is_err());
+            wrapped_output.unwrap_err().to_string()
+        }
     }
 
     #[test]
@@ -685,7 +804,7 @@ mod tests {
             last_name: "1".to_string(),
             full_name: "Author 1".to_string(),
             main_contribution: true,
-            biography: None,
+            biography: Some("Author 1 is an author of books".to_string()),
             contribution_ordinal: 1,
             contributor: WorkContributionsContributor {
                 orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
@@ -694,25 +813,24 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <SequenceNumber>1</SequenceNumber>"#));
         assert!(output.contains(r#"  <ContributorRole>A01</ContributorRole>"#));
         assert!(output.contains(r#"  <NameIdentifier>"#));
         assert!(output.contains(r#"    <NameIDType>21</NameIDType>"#));
         assert!(output.contains(r#"    <IDValue>0000-0002-0000-0001</IDValue>"#));
         assert!(output.contains(r#"  </NameIdentifier>"#));
-        // Given name is output as NamesBeforeKey and family name as KeyNames
-        assert!(output.contains(r#"  <NamesBeforeKey>Author</NamesBeforeKey>"#));
-        assert!(output.contains(r#"  <KeyNames>1</KeyNames>"#));
-        // PersonName is not output when given name is supplied
-        assert!(!output.contains(r#"  <PersonName>Author 1</PersonName>"#));
+        assert!(output.contains(r#"  <PersonName>Author 1</PersonName>"#));
+        assert!(output
+            .contains(r#"  <BiographicalNote>Author 1 is an author of books</BiographicalNote>"#));
 
         // Change all possible values to test that output is updated
         test_contribution.contribution_type = ContributionType::EDITOR;
         test_contribution.contribution_ordinal = 2;
+        test_contribution.biography = None;
         test_contribution.contributor.orcid = None;
         test_contribution.first_name = None;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <SequenceNumber>2</SequenceNumber>"#));
         assert!(output.contains(r#"  <ContributorRole>B01</ContributorRole>"#));
         // No ORCID supplied
@@ -720,26 +838,36 @@ mod tests {
         assert!(!output.contains(r#"    <NameIDType>21</NameIDType>"#));
         assert!(!output.contains(r#"    <IDValue>0000-0002-0000-0001</IDValue>"#));
         assert!(!output.contains(r#"  </NameIdentifier>"#));
-        // No given name supplied, so PersonName is output instead of KeyNames and NamesBeforeKey
-        assert!(!output.contains(r#"  <NamesBeforeKey>Author</NamesBeforeKey>"#));
-        assert!(!output.contains(r#"  <KeyNames>1</KeyNames>"#));
+        // PersonName is always output regardless of whether given name is supplied
         assert!(output.contains(r#"  <PersonName>Author 1</PersonName>"#));
+        // No biography supplied
+        assert!(!output
+            .contains(r#"  <BiographicalNote>Author 1 is an author of books</BiographicalNote>"#));
 
-        // All roles except Author and Editor are output as Z01
-        for contribution_type in [
-            ContributionType::TRANSLATOR,
-            ContributionType::PHOTOGRAPHER,
-            ContributionType::ILUSTRATOR,
-            ContributionType::MUSIC_EDITOR,
-            ContributionType::FOREWORD_BY,
-            ContributionType::INTRODUCTION_BY,
-            ContributionType::AFTERWORD_BY,
-            ContributionType::PREFACE_BY,
-        ] {
-            test_contribution.contribution_type = contribution_type;
-            let output = generate_test_output(&test_contribution);
-            assert!(output.contains(r#"  <ContributorRole>Z01</ContributorRole>"#));
-        }
+        // Test all remaining contributor roles
+        test_contribution.contribution_type = ContributionType::TRANSLATOR;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>B06</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::PHOTOGRAPHER;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A13</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::ILUSTRATOR;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A12</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::FOREWORD_BY;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A23</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::INTRODUCTION_BY;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A24</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::AFTERWORD_BY;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A19</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::PREFACE_BY;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A15</ContributorRole>"#));
+        // Don't test Music Editor as the Work logic prevents us from entering
+        // the Contributions routine for them - see Work test instead
     }
 
     #[test]
@@ -751,7 +879,7 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_language);
+        let output = generate_test_output(true, &test_language);
         assert!(output.contains(r#"  <LanguageRole>02</LanguageRole>"#));
         assert!(output.contains(r#"  <LanguageCode>spa</LanguageCode>"#));
 
@@ -762,7 +890,7 @@ mod tests {
             LanguageRelation::TRANSLATED_INTO,
         ] {
             test_language.language_relation = language_relation;
-            let output = generate_test_output(&test_language);
+            let output = generate_test_output(true, &test_language);
             assert!(output.contains(r#"  <LanguageRole>01</LanguageRole>"#));
             assert!(output.contains(r#"  <LanguageCode>wel</LanguageCode>"#));
         }
@@ -784,9 +912,12 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_issue);
+        let output = generate_test_output(true, &test_issue);
         assert!(output.contains(r#"<Collection>"#));
         assert!(output.contains(r#"  <CollectionType>10</CollectionType>"#));
+        assert!(output.contains(r#"  <CollectionIdentifier>"#));
+        assert!(output.contains(r#"    <CollectionIDType>02</CollectionIDType>"#));
+        assert!(output.contains(r#"    <IDValue>87654321</IDValue>"#));
         assert!(output.contains(r#"  <TitleDetail>"#));
         assert!(output.contains(r#"    <TitleType>01</TitleType>"#));
         assert!(output.contains(r#"    <TitleElement>"#));
@@ -797,9 +928,13 @@ mod tests {
         // Change all possible values to test that output is updated
         test_issue.issue_ordinal = 2;
         test_issue.series.series_name = "Different series".to_string();
-        let output = generate_test_output(&test_issue);
+        test_issue.series.issn_digital = "1111-2222".to_string();
+        let output = generate_test_output(true, &test_issue);
         assert!(output.contains(r#"<Collection>"#));
         assert!(output.contains(r#"  <CollectionType>10</CollectionType>"#));
+        assert!(output.contains(r#"  <CollectionIdentifier>"#));
+        assert!(output.contains(r#"    <CollectionIDType>02</CollectionIDType>"#));
+        assert!(output.contains(r#"    <IDValue>11112222</IDValue>"#));
         assert!(output.contains(r#"  <TitleDetail>"#));
         assert!(output.contains(r#"    <TitleType>01</TitleType>"#));
         assert!(output.contains(r#"    <TitleElement>"#));
@@ -825,7 +960,7 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_funding);
+        let output = generate_test_output(true, &test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
         assert!(output.contains(r#"  <PublisherName>Name of institution</PublisherName>"#));
@@ -843,7 +978,7 @@ mod tests {
 
         test_funding.institution.institution_name = "Different institution".to_string();
         test_funding.program = None;
-        let output = generate_test_output(&test_funding);
+        let output = generate_test_output(true, &test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
         assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
@@ -859,7 +994,7 @@ mod tests {
         assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
 
         test_funding.project_name = None;
-        let output = generate_test_output(&test_funding);
+        let output = generate_test_output(true, &test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
         assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
@@ -876,7 +1011,7 @@ mod tests {
         assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
 
         test_funding.grant_number = None;
-        let output = generate_test_output(&test_funding);
+        let output = generate_test_output(true, &test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
         assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
@@ -890,59 +1025,6 @@ mod tests {
         assert!(!output.contains(r#"      <IDValue>Name of project</IDValue>"#));
         assert!(!output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
         assert!(!output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
-    }
-
-    #[test]
-    fn test_onix3_google_books_subjects() {
-        let mut test_subject = WorkSubjects {
-            subject_code: "AAB".to_string(),
-            subject_type: SubjectType::BIC,
-            subject_ordinal: 1,
-        };
-
-        // Test BIC output
-        let output = generate_test_output(&test_subject);
-        assert!(output.contains(r#"<Subject>"#));
-        assert!(output.contains(r#"  <SubjectSchemeIdentifier>12</SubjectSchemeIdentifier>"#));
-        assert!(output.contains(r#"  <SubjectCode>AAB</SubjectCode>"#));
-
-        // Test BISAC output
-        test_subject.subject_code = "AAA000000".to_string();
-        test_subject.subject_type = SubjectType::BISAC;
-        let output = generate_test_output(&test_subject);
-        assert!(output.contains(r#"<Subject>"#));
-        assert!(output.contains(r#"  <SubjectSchemeIdentifier>10</SubjectSchemeIdentifier>"#));
-        assert!(output.contains(r#"  <SubjectCode>AAA000000</SubjectCode>"#));
-
-        // Test LCC output
-        test_subject.subject_code = "JA85".to_string();
-        test_subject.subject_type = SubjectType::LCC;
-        let output = generate_test_output(&test_subject);
-        assert!(output.contains(r#"<Subject>"#));
-        assert!(output.contains(r#"  <SubjectSchemeIdentifier>04</SubjectSchemeIdentifier>"#));
-        assert!(output.contains(r#"  <SubjectCode>JA85</SubjectCode>"#));
-
-        // Test Thema output
-        test_subject.subject_code = "JWA".to_string();
-        test_subject.subject_type = SubjectType::THEMA;
-        let output = generate_test_output(&test_subject);
-        assert!(output.contains(r#"<Subject>"#));
-        assert!(output.contains(r#"  <SubjectSchemeIdentifier>93</SubjectSchemeIdentifier>"#));
-        assert!(output.contains(r#"  <SubjectCode>JWA</SubjectCode>"#));
-
-        // Test keyword output
-        test_subject.subject_code = "keyword1".to_string();
-        test_subject.subject_type = SubjectType::KEYWORD;
-        let output = generate_test_output(&test_subject);
-        assert!(output.contains(r#"<Subject>"#));
-        assert!(output.contains(r#"  <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>"#));
-        assert!(output.contains(r#"  <SubjectHeadingText>keyword1</SubjectHeadingText>"#));
-
-        // Custom subjects are not output
-        test_subject.subject_code = "custom1".to_string();
-        test_subject.subject_type = SubjectType::CUSTOM;
-        let output = generate_test_output(&test_subject);
-        assert_eq!(output, "".to_string());
     }
 
     #[test]
@@ -986,7 +1068,30 @@ mod tests {
                 },
             },
             issues: vec![],
-            contributions: vec![],
+            contributions: vec![
+                WorkContributions {
+                    contribution_type: ContributionType::MUSIC_EDITOR,
+                    first_name: Some("Music".to_string()),
+                    last_name: "Editor".to_string(),
+                    full_name: "Music Editor".to_string(),
+                    main_contribution: false,
+                    biography: None,
+                    contribution_ordinal: 1,
+                    contributor: WorkContributionsContributor { orcid: None },
+                    affiliations: vec![],
+                },
+                WorkContributions {
+                    contribution_type: ContributionType::EDITOR,
+                    first_name: Some("Volume".to_string()),
+                    last_name: "Editor".to_string(),
+                    full_name: "Volume Editor".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    contribution_ordinal: 2,
+                    contributor: WorkContributionsContributor { orcid: None },
+                    affiliations: vec![],
+                },
+            ],
             languages: vec![],
             publications: vec![WorkPublications {
                 publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
@@ -1003,21 +1108,65 @@ mod tests {
                 depth_in: None,
                 weight_g: None,
                 weight_oz: None,
-                prices: vec![],
+                prices: vec![
+                    WorkPublicationsPrices {
+                        currency_code: CurrencyCode::EUR,
+                        unit_price: 5.95,
+                    },
+                    WorkPublicationsPrices {
+                        currency_code: CurrencyCode::USD,
+                        unit_price: 7.99,
+                    },
+                    WorkPublicationsPrices {
+                        currency_code: CurrencyCode::GBP,
+                        unit_price: 4.95,
+                    },
+                ],
                 locations: vec![WorkPublicationsLocations {
-                    landing_page: Some("https://www.book.com/pdf_landing".to_string()),
-                    full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
+                    landing_page: Some("https://www.book.com/ebook_landing".to_string()),
+                    full_text_url: Some("https://www.book.com/ebook_fulltext".to_string()),
                     location_platform: LocationPlatform::OTHER,
                     canonical: true,
                 }],
             }],
-            subjects: vec![],
+            subjects: vec![
+                WorkSubjects {
+                    subject_code: "AAB".to_string(),
+                    subject_type: SubjectType::BIC,
+                    subject_ordinal: 1,
+                },
+                WorkSubjects {
+                    subject_code: "AAA000000".to_string(),
+                    subject_type: SubjectType::BISAC,
+                    subject_ordinal: 2,
+                },
+                WorkSubjects {
+                    subject_code: "JA85".to_string(),
+                    subject_type: SubjectType::LCC,
+                    subject_ordinal: 3,
+                },
+                WorkSubjects {
+                    subject_code: "JWA".to_string(),
+                    subject_type: SubjectType::THEMA,
+                    subject_ordinal: 4,
+                },
+                WorkSubjects {
+                    subject_code: "keyword1".to_string(),
+                    subject_type: SubjectType::KEYWORD,
+                    subject_ordinal: 5,
+                },
+                WorkSubjects {
+                    subject_code: "custom1".to_string(),
+                    subject_type: SubjectType::CUSTOM,
+                    subject_ordinal: 6,
+                },
+            ],
             fundings: vec![],
             relations: vec![],
         };
 
         // Test standard output
-        let output = generate_test_output(&test_work);
+        let output = generate_test_output(true, &test_work);
         assert!(output.contains(r#"<Product>"#));
         assert!(output.contains(
             r#"  <RecordReference>urn:uuid:00000000-0000-0000-aaaa-000000000001</RecordReference>"#
@@ -1052,10 +1201,33 @@ mod tests {
         assert!(output.contains(r#"        <TitleElementLevel>01</TitleElementLevel>"#));
         assert!(output.contains(r#"        <TitleText>Book Title</TitleText>"#));
         assert!(output.contains(r#"        <Subtitle>Book Subtitle</Subtitle>"#));
+        // If a book has no Authors, the first main contributor will be marked as an Author
+        assert!(output.contains(r#"    <Contributor>"#));
+        assert!(output.contains(r#"      <SequenceNumber>2</SequenceNumber>"#));
+        assert!(output.contains(r#"      <ContributorRole>A01</ContributorRole>"#));
+        assert!(output.contains(r#"      <PersonName>Volume Editor</PersonName>"#));
+        // Music Editors are omitted (unless required to be marked as an Author as above)
+        assert!(!output.contains(r#"      <SequenceNumber>1</SequenceNumber>"#));
+        assert!(!output.contains(r#"      <ContributorRole>B25</ContributorRole>"#));
+        assert!(!output.contains(r#"      <PersonName>Music Editor</PersonName>"#));
         assert!(output.contains(r#"    <Extent>"#));
         assert!(output.contains(r#"      <ExtentType>00</ExtentType>"#));
         assert!(output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
         assert!(output.contains(r#"      <ExtentUnit>03</ExtentUnit>"#));
+        assert!(output.contains(r#"    <Subject>"#));
+        assert!(output.contains(r#"      <SubjectSchemeIdentifier>12</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"      <SubjectCode>AAB</SubjectCode>"#));
+        assert!(output.contains(r#"      <SubjectSchemeIdentifier>10</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"      <SubjectCode>AAA000000</SubjectCode>"#));
+        assert!(output.contains(r#"      <SubjectSchemeIdentifier>04</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"      <SubjectCode>JA85</SubjectCode>"#));
+        assert!(output.contains(r#"      <SubjectSchemeIdentifier>23</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
+        // Both Keywords and Custom codes are output with code 23
+        assert!(output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
+        // Thema codes are not output for Google Books
+        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>93</SubjectSchemeIdentifier>"#));
+        assert!(!output.contains(r#"      <SubjectCode>JWA</SubjectCode>"#));
         assert!(output.contains(r#"    <Audience>"#));
         assert!(output.contains(r#"      <AudienceCodeType>01</AudienceCodeType>"#));
         assert!(output.contains(r#"      <AudienceCodeValue>06</AudienceCodeValue>"#));
@@ -1081,14 +1253,21 @@ mod tests {
         assert!(output.contains(r#"    <CityOfPublication>León, Spain</CityOfPublication>"#));
         assert!(output.contains(r#"    <PublishingStatus>04</PublishingStatus>"#));
         assert!(output.contains(r#"    <PublishingDate>"#));
-        assert!(output.contains(r#"      <PublishingDateRole>19</PublishingDateRole>"#));
-        assert!(output.contains(r#"      <Date dateformat="05">1999</Date>"#));
+        assert!(output.contains(r#"      <PublishingDateRole>01</PublishingDateRole>"#));
+        assert!(output.contains(r#"      <Date dateformat="00">19991231</Date>"#));
+        assert!(output.contains(r#"    <SalesRights>"#));
+        assert!(output.contains(r#"      <SalesRightsType>02</SalesRightsType>"#));
+        assert!(output.contains(r#"      <Territory>"#));
+        assert!(output.contains(r#"         <RegionsIncluded>WORLD</RegionsIncluded>"#));
         assert!(output.contains(r#"    <RelatedProduct>"#));
         assert!(output.contains(r#"      <ProductRelationCode>06</ProductRelationCode>"#));
         assert!(output.contains(r#"      <ProductIdentifier>"#));
         assert!(output.contains(r#"        <ProductIDType>15</ProductIDType>"#));
         assert!(output.contains(r#"        <IDValue>9783161484100</IDValue>"#));
         assert!(output.contains(r#"  <ProductSupply>"#));
+        assert!(output.contains(r#"    <Market>"#));
+        assert!(output.contains(r#"      <Territory>"#));
+        assert!(output.contains(r#"         <RegionsIncluded>WORLD</RegionsIncluded>"#));
         assert!(output.contains(r#"    <SupplyDetail>"#));
         assert!(output.contains(r#"      <Supplier>"#));
         assert!(output.contains(r#"        <SupplierRole>09</SupplierRole>"#));
@@ -1099,28 +1278,39 @@ mod tests {
             r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
         assert!(output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
-        assert!(output.contains(r#"      <ProductAvailability>99</ProductAvailability>"#));
-        assert!(output.contains(r#"      <UnpricedItemType>04</UnpricedItemType>"#));
+        assert!(output.contains(r#"      <ProductAvailability>20</ProductAvailability>"#));
+        assert!(output.contains(r#"      <Price>"#));
+        assert!(output.contains(r#"        <PriceTypeCode>02</PriceTypeCode>"#));
+        assert!(output.contains(r#"        <PriceAmount>4.95</PriceAmount>"#));
+        assert!(output.contains(r#"        <CurrencyCode>GBP</CurrencyCode>"#));
+        assert!(output.contains(r#"        <Territory>"#));
+        assert!(output.contains(r#"          <RegionsIncluded>WORLD</RegionsIncluded>"#));
         assert!(output.contains(r#"        <SupplierRole>09</SupplierRole>"#));
         assert!(output.contains(r#"        <SupplierName>OA Editions</SupplierName>"#));
         assert!(output.contains(r#"          <WebsiteRole>29</WebsiteRole>"#));
         assert!(output.contains(r#"          <WebsiteDescription>Publisher's website: download the title</WebsiteDescription>"#));
-        assert!(output
-            .contains(r#"          <WebsiteLink>https://www.book.com/pdf_fulltext</WebsiteLink>"#));
+        assert!(output.contains(
+            r#"          <WebsiteLink>https://www.book.com/ebook_fulltext</WebsiteLink>"#
+        ));
 
-        // Remove some values to test non-output of optional blocks
+        // Remove/change some values to test (non-)output of optional blocks
         test_work.doi = None;
         test_work.license = None;
         test_work.subtitle = None;
         test_work.page_count = None;
         test_work.long_abstract = None;
         test_work.place = None;
-        test_work.publication_date = None;
         test_work.landing_page = None;
-        let output = generate_test_output(&test_work);
+        test_work.publications[0].prices.pop();
+        test_work.publications[0].publication_type = PublicationType::EPUB;
+        test_work.subjects.clear();
+        let output = generate_test_output(true, &test_work);
         // No DOI supplied
         assert!(!output.contains(r#"    <ProductIDType>06</ProductIDType>"#));
         assert!(!output.contains(r#"    <IDValue>10.00001/BOOK.0001</IDValue>"#));
+        // Ebook type changed
+        assert!(!output.contains(r#"    <ProductFormDetail>E107</ProductFormDetail>"#));
+        assert!(output.contains(r#"    <ProductFormDetail>E101</ProductFormDetail>"#));
         // No licence supplied
         assert!(!output.contains(r#"    <EpubLicense>"#));
         assert!(!output
@@ -1152,22 +1342,37 @@ mod tests {
         assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
         // No place supplied
         assert!(!output.contains(r#"    <CityOfPublication>León, Spain</CityOfPublication>"#));
-        // No publication date supplied
-        assert!(!output.contains(r#"    <PublishingDate>"#));
-        assert!(!output.contains(r#"      <PublishingDateRole>19</PublishingDateRole>"#));
-        assert!(!output.contains(r#"      <Date dateformat="05">1999</Date>"#));
-        // No landing page supplied: only one SupplyDetail block, linking to PDF download
+        // No landing page supplied: only one SupplyDetail block, linking to ebook download
         assert!(!output.contains(r#"          <WebsiteRole>01</WebsiteRole>"#));
         assert!(!output.contains(
             r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
         assert!(!output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
+        // No GBP price supplied
+        assert!(!output.contains(r#"      <Price>"#));
+        assert!(!output.contains(r#"        <PriceTypeCode>02</PriceTypeCode>"#));
+        assert!(!output.contains(r#"        <PriceAmount>4.95</PriceAmount>"#));
+        assert!(!output.contains(r#"        <CurrencyCode>GBP</CurrencyCode>"#));
+        assert!(!output.contains(r#"        <Territory>"#));
+        assert!(!output.contains(r#"          <RegionsIncluded>WORLD</RegionsIncluded>"#));
+        assert!(output.contains(r#"      <UnpricedItemType>01</UnpricedItemType>"#));
+        // No subjects supplied
+        assert!(!output.contains(r#"    <Subject>"#));
+        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>12</SubjectSchemeIdentifier>"#));
+        assert!(!output.contains(r#"      <SubjectCode>AAB</SubjectCode>"#));
+        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>10</SubjectSchemeIdentifier>"#));
+        assert!(!output.contains(r#"      <SubjectCode>AAA000000</SubjectCode>"#));
+        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>04</SubjectSchemeIdentifier>"#));
+        assert!(!output.contains(r#"      <SubjectCode>JA85</SubjectCode>"#));
+        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>23</SubjectSchemeIdentifier>"#));
+        assert!(!output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
+        assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
 
         // Replace long abstract but remove cover URL
         // Result: CollateralDetail block still present, but now only contains long abstract
         test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
         test_work.cover_url = None;
-        let output = generate_test_output(&test_work);
+        let output = generate_test_output(true, &test_work);
         assert!(output.contains(r#"  <CollateralDetail>"#));
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
@@ -1184,7 +1389,7 @@ mod tests {
         // Remove both cover URL and long abstract
         // Result: No CollateralDetail block present at all
         test_work.long_abstract = None;
-        let output = generate_test_output(&test_work);
+        let output = generate_test_output(true, &test_work);
         assert!(!output.contains(r#"  <CollateralDetail>"#));
         assert!(!output.contains(r#"    <TextContent>"#));
         assert!(!output.contains(r#"      <TextType>03</TextType>"#));
@@ -1198,26 +1403,36 @@ mod tests {
         assert!(!output
             .contains(r#"        <ResourceLink>"https://www.book.com/cover"</ResourceLink>"#));
 
-        // Remove the only publication, which is the PDF
-        // Result: error (can't generate OAPEN ONIX without PDF URL)
-        test_work.publications.clear();
-        // Can't use helper function for this as it assumes Ok rather than Err
-        let mut buffer = Vec::new();
-        let mut writer = xml::writer::EmitterConfig::new()
-            .perform_indent(true)
-            .create_writer(&mut buffer);
-        let wrapped_output =
-            XmlElementBlock::<Onix3GoogleBooks>::xml_element(&test_work, &mut writer)
-                .map(|_| buffer)
-                .and_then(|onix| {
-                    String::from_utf8(onix)
-                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
-                });
-        assert!(wrapped_output.is_err());
-        let output = wrapped_output.unwrap_err().to_string();
+        // Remove publication date: result is error
+        test_work.publication_date = None;
+        let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
-            "Could not generate onix_3.0::google_books: Missing PDF URL".to_string()
+            "Could not generate onix_3.0::google_books: Missing Publication Date".to_string()
+        );
+
+        // Replace publication date but remove the only (PDF) publication's only location
+        // Result: error (can't generate Google Books ONIX without EPUB or PDF URL)
+        test_work.publication_date = Some(chrono::NaiveDate::from_ymd(1999, 12, 31));
+        test_work.publications[0].locations.clear();
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::google_books: Missing EPUB or PDF URL".to_string()
+        );
+
+        // Replace location but remove all contributors: result is error
+        test_work.publications[0].locations = vec![WorkPublicationsLocations {
+            landing_page: Some("https://www.book.com/pdf_landing".to_string()),
+            full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
+            location_platform: LocationPlatform::OTHER,
+            canonical: true,
+        }];
+        test_work.contributions.clear();
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::google_books: No contributors supplied".to_string()
         );
     }
 }
