@@ -398,7 +398,7 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                         {
                             write_element_block("Price", w, |w| {
                                 // 02 RRP including tax
-                                write_element_block("PriceTypeCode", w, |w| {
+                                write_element_block("PriceType", w, |w| {
                                     w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
                                 })?;
                                 write_element_block("PriceAmount", w, |w| {
@@ -1019,7 +1019,7 @@ mod tests {
         assert!(output.contains(r#"        <SupplierName>OA Editions</SupplierName>"#));
         assert!(output.contains(r#"      <ProductAvailability>20</ProductAvailability>"#));
         assert!(output.contains(r#"      <Price>"#));
-        assert!(output.contains(r#"        <PriceTypeCode>02</PriceTypeCode>"#));
+        assert!(output.contains(r#"        <PriceType>02</PriceType>"#));
         assert!(output.contains(r#"        <PriceAmount>4.95</PriceAmount>"#));
         assert!(output.contains(r#"        <CurrencyCode>GBP</CurrencyCode>"#));
         assert!(output.contains(r#"        <Territory>"#));
@@ -1052,7 +1052,7 @@ mod tests {
         assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
         // No GBP price supplied
         assert!(!output.contains(r#"      <Price>"#));
-        assert!(!output.contains(r#"        <PriceTypeCode>02</PriceTypeCode>"#));
+        assert!(!output.contains(r#"        <PriceType>02</PriceType>"#));
         assert!(!output.contains(r#"        <PriceAmount>4.95</PriceAmount>"#));
         assert!(!output.contains(r#"        <CurrencyCode>GBP</CurrencyCode>"#));
         assert!(!output.contains(r#"        <Territory>"#));
