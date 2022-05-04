@@ -568,7 +568,10 @@ mod tests {
     };
     use uuid::Uuid;
 
-    fn generate_test_output(input: &impl XmlElementBlock<Onix3ProjectMuse>) -> String {
+    fn generate_test_output(
+        expect_ok: bool,
+        input: &impl XmlElementBlock<Onix3ProjectMuse>,
+    ) -> String {
         // Helper function based on `XmlSpecification::generate`
         let mut buffer = Vec::new();
         let mut writer = xml::writer::EmitterConfig::new()
@@ -576,12 +579,17 @@ mod tests {
             .create_writer(&mut buffer);
         let wrapped_output = XmlElementBlock::<Onix3ProjectMuse>::xml_element(input, &mut writer)
             .map(|_| buffer)
-            .and_then(|onix| {
-                String::from_utf8(onix)
+            .and_then(|xml| {
+                String::from_utf8(xml)
                     .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
             });
-        assert!(wrapped_output.is_ok());
-        wrapped_output.unwrap()
+        if expect_ok {
+            assert!(wrapped_output.is_ok());
+            wrapped_output.unwrap()
+        } else {
+            assert!(wrapped_output.is_err());
+            wrapped_output.unwrap_err().to_string()
+        }
     }
 
     #[test]
@@ -601,7 +609,7 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <SequenceNumber>1</SequenceNumber>"#));
         assert!(output.contains(r#"  <ContributorRole>A01</ContributorRole>"#));
         assert!(output.contains(r#"  <NameIdentifier>"#));
@@ -619,7 +627,7 @@ mod tests {
         test_contribution.contribution_ordinal = 2;
         test_contribution.contributor.orcid = None;
         test_contribution.first_name = None;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <SequenceNumber>2</SequenceNumber>"#));
         assert!(output.contains(r#"  <ContributorRole>B01</ContributorRole>"#));
         // No ORCID supplied
@@ -634,28 +642,28 @@ mod tests {
 
         // Test all remaining contributor roles
         test_contribution.contribution_type = ContributionType::TRANSLATOR;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>B06</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::PHOTOGRAPHER;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A13</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::ILUSTRATOR;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A12</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::MUSIC_EDITOR;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>B25</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::FOREWORD_BY;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A23</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::INTRODUCTION_BY;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A24</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::AFTERWORD_BY;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A19</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::PREFACE_BY;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A15</ContributorRole>"#));
     }
 
@@ -668,7 +676,7 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_language);
+        let output = generate_test_output(true, &test_language);
         assert!(output.contains(r#"  <LanguageRole>02</LanguageRole>"#));
         assert!(output.contains(r#"  <LanguageCode>spa</LanguageCode>"#));
 
@@ -679,7 +687,7 @@ mod tests {
             LanguageRelation::TRANSLATED_INTO,
         ] {
             test_language.language_relation = language_relation;
-            let output = generate_test_output(&test_language);
+            let output = generate_test_output(true, &test_language);
             assert!(output.contains(r#"  <LanguageRole>01</LanguageRole>"#));
             assert!(output.contains(r#"  <LanguageCode>wel</LanguageCode>"#));
         }
@@ -811,7 +819,7 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_work);
+        let output = generate_test_output(true, &test_work);
         assert!(output.contains(r#"<Product>"#));
         assert!(output.contains(
             r#"  <RecordReference>urn:uuid:00000000-0000-0000-aaaa-000000000001</RecordReference>"#
@@ -942,7 +950,7 @@ mod tests {
         test_work.publication_date = None;
         test_work.landing_page = None;
         test_work.subjects.drain(1..);
-        let output = generate_test_output(&test_work);
+        let output = generate_test_output(true, &test_work);
         // No DOI supplied
         assert!(!output.contains(r#"    <ProductIDType>06</ProductIDType>"#));
         assert!(!output.contains(r#"    <IDValue>10.00001/BOOK.0001</IDValue>"#));
@@ -996,20 +1004,7 @@ mod tests {
         // Remove the only remaining (BIC) subject
         // Result: error (can't generate Project MUSE ONIX without either a BIC or BISAC subject)
         test_work.subjects.clear();
-        // Can't use helper function for this as it assumes Ok rather than Err
-        let mut buffer = Vec::new();
-        let mut writer = xml::writer::EmitterConfig::new()
-            .perform_indent(true)
-            .create_writer(&mut buffer);
-        let wrapped_output =
-            XmlElementBlock::<Onix3ProjectMuse>::xml_element(&test_work, &mut writer)
-                .map(|_| buffer)
-                .and_then(|onix| {
-                    String::from_utf8(onix)
-                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
-                });
-        assert!(wrapped_output.is_err());
-        let output = wrapped_output.unwrap_err().to_string();
+        let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
             "Could not generate onix_3.0::project_muse: No BIC or BISAC subject code".to_string()
@@ -1023,20 +1018,7 @@ mod tests {
             subject_ordinal: 1,
         }];
         test_work.publications.clear();
-        // Can't use helper function for this as it assumes Ok rather than Err
-        let mut buffer = Vec::new();
-        let mut writer = xml::writer::EmitterConfig::new()
-            .perform_indent(true)
-            .create_writer(&mut buffer);
-        let wrapped_output =
-            XmlElementBlock::<Onix3ProjectMuse>::xml_element(&test_work, &mut writer)
-                .map(|_| buffer)
-                .and_then(|onix| {
-                    String::from_utf8(onix)
-                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
-                });
-        assert!(wrapped_output.is_err());
-        let output = wrapped_output.unwrap_err().to_string();
+        let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
             "Could not generate onix_3.0::project_muse: Missing PDF URL".to_string()
