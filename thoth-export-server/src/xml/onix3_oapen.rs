@@ -62,8 +62,6 @@ impl XmlSpecification for Onix3Oapen {
 
 impl XmlElementBlock<Onix3Oapen> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        let work_id = format!("urn:uuid:{}", self.work_id);
-        let (main_isbn, isbns) = get_publications_data(&self.publications);
         // We can only generate the document if there's a PDF
         if let Some(pdf_url) = self
             .publications
@@ -72,6 +70,8 @@ impl XmlElementBlock<Onix3Oapen> for Work {
             .and_then(|p| p.locations.iter().find(|l| l.canonical))
             .and_then(|l| l.full_text_url.as_ref())
         {
+            let work_id = format!("urn:uuid:{}", self.work_id);
+            let (main_isbn, isbns) = get_publications_data(&self.publications);
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
                     w.write(XmlEvent::Characters(&work_id))
@@ -209,8 +209,7 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                         write_element_block("AudienceCodeValue", w, |w| {
                             w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
                         })
-                    })?;
-                    Ok(())
+                    })
                 })?;
                 if self.long_abstract.is_some() || self.cover_url.is_some() {
                     write_element_block("CollateralDetail", w, |w| {
@@ -661,7 +660,7 @@ mod tests {
     };
     use uuid::Uuid;
 
-    fn generate_test_output(input: &impl XmlElementBlock<Onix3Oapen>) -> String {
+    fn generate_test_output(expect_ok: bool, input: &impl XmlElementBlock<Onix3Oapen>) -> String {
         // Helper function based on `XmlSpecification::generate`
         let mut buffer = Vec::new();
         let mut writer = xml::writer::EmitterConfig::new()
@@ -669,12 +668,17 @@ mod tests {
             .create_writer(&mut buffer);
         let wrapped_output = XmlElementBlock::<Onix3Oapen>::xml_element(input, &mut writer)
             .map(|_| buffer)
-            .and_then(|onix| {
-                String::from_utf8(onix)
+            .and_then(|xml| {
+                String::from_utf8(xml)
                     .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
             });
-        assert!(wrapped_output.is_ok());
-        wrapped_output.unwrap()
+        if expect_ok {
+            assert!(wrapped_output.is_ok());
+            wrapped_output.unwrap()
+        } else {
+            assert!(wrapped_output.is_err());
+            wrapped_output.unwrap_err().to_string()
+        }
     }
 
     #[test]
@@ -694,7 +698,7 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <SequenceNumber>1</SequenceNumber>"#));
         assert!(output.contains(r#"  <ContributorRole>A01</ContributorRole>"#));
         assert!(output.contains(r#"  <NameIdentifier>"#));
@@ -712,7 +716,7 @@ mod tests {
         test_contribution.contribution_ordinal = 2;
         test_contribution.contributor.orcid = None;
         test_contribution.first_name = None;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <SequenceNumber>2</SequenceNumber>"#));
         assert!(output.contains(r#"  <ContributorRole>B01</ContributorRole>"#));
         // No ORCID supplied
@@ -737,7 +741,7 @@ mod tests {
             ContributionType::PREFACE_BY,
         ] {
             test_contribution.contribution_type = contribution_type;
-            let output = generate_test_output(&test_contribution);
+            let output = generate_test_output(true, &test_contribution);
             assert!(output.contains(r#"  <ContributorRole>Z01</ContributorRole>"#));
         }
     }
@@ -751,7 +755,7 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_language);
+        let output = generate_test_output(true, &test_language);
         assert!(output.contains(r#"  <LanguageRole>02</LanguageRole>"#));
         assert!(output.contains(r#"  <LanguageCode>spa</LanguageCode>"#));
 
@@ -762,7 +766,7 @@ mod tests {
             LanguageRelation::TRANSLATED_INTO,
         ] {
             test_language.language_relation = language_relation;
-            let output = generate_test_output(&test_language);
+            let output = generate_test_output(true, &test_language);
             assert!(output.contains(r#"  <LanguageRole>01</LanguageRole>"#));
             assert!(output.contains(r#"  <LanguageCode>wel</LanguageCode>"#));
         }
@@ -784,7 +788,7 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_issue);
+        let output = generate_test_output(true, &test_issue);
         assert!(output.contains(r#"<Collection>"#));
         assert!(output.contains(r#"  <CollectionType>10</CollectionType>"#));
         assert!(output.contains(r#"  <TitleDetail>"#));
@@ -797,7 +801,7 @@ mod tests {
         // Change all possible values to test that output is updated
         test_issue.issue_ordinal = 2;
         test_issue.series.series_name = "Different series".to_string();
-        let output = generate_test_output(&test_issue);
+        let output = generate_test_output(true, &test_issue);
         assert!(output.contains(r#"<Collection>"#));
         assert!(output.contains(r#"  <CollectionType>10</CollectionType>"#));
         assert!(output.contains(r#"  <TitleDetail>"#));
@@ -825,7 +829,7 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_funding);
+        let output = generate_test_output(true, &test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
         assert!(output.contains(r#"  <PublisherName>Name of institution</PublisherName>"#));
@@ -843,7 +847,7 @@ mod tests {
 
         test_funding.institution.institution_name = "Different institution".to_string();
         test_funding.program = None;
-        let output = generate_test_output(&test_funding);
+        let output = generate_test_output(true, &test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
         assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
@@ -859,7 +863,7 @@ mod tests {
         assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
 
         test_funding.project_name = None;
-        let output = generate_test_output(&test_funding);
+        let output = generate_test_output(true, &test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
         assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
@@ -876,7 +880,7 @@ mod tests {
         assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
 
         test_funding.grant_number = None;
-        let output = generate_test_output(&test_funding);
+        let output = generate_test_output(true, &test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
         assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
@@ -901,7 +905,7 @@ mod tests {
         };
 
         // Test BIC output
-        let output = generate_test_output(&test_subject);
+        let output = generate_test_output(true, &test_subject);
         assert!(output.contains(r#"<Subject>"#));
         assert!(output.contains(r#"  <SubjectSchemeIdentifier>12</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"  <SubjectCode>AAB</SubjectCode>"#));
@@ -909,7 +913,7 @@ mod tests {
         // Test BISAC output
         test_subject.subject_code = "AAA000000".to_string();
         test_subject.subject_type = SubjectType::BISAC;
-        let output = generate_test_output(&test_subject);
+        let output = generate_test_output(true, &test_subject);
         assert!(output.contains(r#"<Subject>"#));
         assert!(output.contains(r#"  <SubjectSchemeIdentifier>10</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"  <SubjectCode>AAA000000</SubjectCode>"#));
@@ -917,7 +921,7 @@ mod tests {
         // Test LCC output
         test_subject.subject_code = "JA85".to_string();
         test_subject.subject_type = SubjectType::LCC;
-        let output = generate_test_output(&test_subject);
+        let output = generate_test_output(true, &test_subject);
         assert!(output.contains(r#"<Subject>"#));
         assert!(output.contains(r#"  <SubjectSchemeIdentifier>04</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"  <SubjectCode>JA85</SubjectCode>"#));
@@ -925,7 +929,7 @@ mod tests {
         // Test Thema output
         test_subject.subject_code = "JWA".to_string();
         test_subject.subject_type = SubjectType::THEMA;
-        let output = generate_test_output(&test_subject);
+        let output = generate_test_output(true, &test_subject);
         assert!(output.contains(r#"<Subject>"#));
         assert!(output.contains(r#"  <SubjectSchemeIdentifier>93</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"  <SubjectCode>JWA</SubjectCode>"#));
@@ -933,7 +937,7 @@ mod tests {
         // Test keyword output
         test_subject.subject_code = "keyword1".to_string();
         test_subject.subject_type = SubjectType::KEYWORD;
-        let output = generate_test_output(&test_subject);
+        let output = generate_test_output(true, &test_subject);
         assert!(output.contains(r#"<Subject>"#));
         assert!(output.contains(r#"  <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"  <SubjectHeadingText>keyword1</SubjectHeadingText>"#));
@@ -941,7 +945,7 @@ mod tests {
         // Custom subjects are not output
         test_subject.subject_code = "custom1".to_string();
         test_subject.subject_type = SubjectType::CUSTOM;
-        let output = generate_test_output(&test_subject);
+        let output = generate_test_output(true, &test_subject);
         assert_eq!(output, "".to_string());
     }
 
@@ -1017,7 +1021,7 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_work);
+        let output = generate_test_output(true, &test_work);
         assert!(output.contains(r#"<Product>"#));
         assert!(output.contains(
             r#"  <RecordReference>urn:uuid:00000000-0000-0000-aaaa-000000000001</RecordReference>"#
@@ -1117,7 +1121,7 @@ mod tests {
         test_work.place = None;
         test_work.publication_date = None;
         test_work.landing_page = None;
-        let output = generate_test_output(&test_work);
+        let output = generate_test_output(true, &test_work);
         // No DOI supplied
         assert!(!output.contains(r#"    <ProductIDType>06</ProductIDType>"#));
         assert!(!output.contains(r#"    <IDValue>10.00001/BOOK.0001</IDValue>"#));
@@ -1167,7 +1171,7 @@ mod tests {
         // Result: CollateralDetail block still present, but now only contains long abstract
         test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
         test_work.cover_url = None;
-        let output = generate_test_output(&test_work);
+        let output = generate_test_output(true, &test_work);
         assert!(output.contains(r#"  <CollateralDetail>"#));
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
@@ -1184,7 +1188,7 @@ mod tests {
         // Remove both cover URL and long abstract
         // Result: No CollateralDetail block present at all
         test_work.long_abstract = None;
-        let output = generate_test_output(&test_work);
+        let output = generate_test_output(true, &test_work);
         assert!(!output.contains(r#"  <CollateralDetail>"#));
         assert!(!output.contains(r#"    <TextContent>"#));
         assert!(!output.contains(r#"      <TextType>03</TextType>"#));
@@ -1201,19 +1205,7 @@ mod tests {
         // Remove the only publication, which is the PDF
         // Result: error (can't generate OAPEN ONIX without PDF URL)
         test_work.publications.clear();
-        // Can't use helper function for this as it assumes Ok rather than Err
-        let mut buffer = Vec::new();
-        let mut writer = xml::writer::EmitterConfig::new()
-            .perform_indent(true)
-            .create_writer(&mut buffer);
-        let wrapped_output = XmlElementBlock::<Onix3Oapen>::xml_element(&test_work, &mut writer)
-            .map(|_| buffer)
-            .and_then(|onix| {
-                String::from_utf8(onix)
-                    .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
-            });
-        assert!(wrapped_output.is_err());
-        let output = wrapped_output.unwrap_err().to_string();
+        let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
             "Could not generate onix_3.0::oapen: Missing PDF URL".to_string()
