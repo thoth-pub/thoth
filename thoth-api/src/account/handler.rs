@@ -146,7 +146,6 @@ lazy_static::lazy_static! {
 impl actix_web::FromRequest for DecodedToken {
     type Error = actix_web::Error;
     type Future = futures::future::Ready<Result<Self, Self::Error>>;
-    type Config = ();
 
     fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
         let token = req
