@@ -4,6 +4,7 @@ use paperclip::actix::{
     web::{self, Json},
 };
 use thoth_client::{ThothClient, Work};
+use thoth_errors::ThothError;
 use uuid::Uuid;
 
 use super::model::Specification;
@@ -65,6 +66,14 @@ pub(crate) async fn by_publisher(
     thoth_client: web::Data<ThothClient>,
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
     let (specification_id, publisher_id) = path.into_inner();
+    if specification_id.eq("doideposit::crossref") {
+        // Full publisher record is not supported for this specification
+        return Err(ThothError::IncompleteMetadataRecord(
+            "doideposit::crossref".to_string(),
+            "Output can only be generated for one work at a time".to_string(),
+        )
+        .into());
+    }
     thoth_client
         .get_works(Some(vec![publisher_id]))
         .await

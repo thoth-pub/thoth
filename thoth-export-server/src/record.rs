@@ -10,7 +10,9 @@ use thoth_errors::{ThothError, ThothResult};
 
 use crate::bibtex::{BibtexSpecification, BibtexThoth};
 use crate::csv::{CsvSpecification, CsvThoth, KbartOclc};
-use crate::xml::{Onix21EbscoHost, Onix3Jstor, Onix3Oapen, Onix3ProjectMuse, XmlSpecification};
+use crate::xml::{
+    DoiDepositCrossref, Onix21EbscoHost, Onix3Jstor, Onix3Oapen, Onix3ProjectMuse, XmlSpecification,
+};
 
 pub(crate) trait AsRecord {}
 impl AsRecord for Vec<Work> {}
@@ -28,6 +30,7 @@ pub(crate) enum MetadataSpecification {
     CsvThoth(CsvThoth),
     KbartOclc(KbartOclc),
     BibtexThoth(BibtexThoth),
+    DoiDepositCrossref(DoiDepositCrossref),
 }
 
 pub(crate) struct MetadataRecord<T: AsRecord> {
@@ -66,6 +69,7 @@ where
             MetadataSpecification::CsvThoth(_) => Self::CSV_MIME_TYPE,
             MetadataSpecification::KbartOclc(_) => Self::TXT_MIME_TYPE,
             MetadataSpecification::BibtexThoth(_) => Self::BIB_MIME_TYPE,
+            MetadataSpecification::DoiDepositCrossref(_) => Self::XML_MIME_TYPE,
         }
     }
 
@@ -78,6 +82,7 @@ where
             MetadataSpecification::CsvThoth(_) => self.csv_file_name(),
             MetadataSpecification::KbartOclc(_) => self.txt_file_name(),
             MetadataSpecification::BibtexThoth(_) => self.bib_file_name(),
+            MetadataSpecification::DoiDepositCrossref(_) => self.xml_file_name(),
         }
     }
 
@@ -133,6 +138,9 @@ impl MetadataRecord<Vec<Work>> {
                 kbart_oclc.generate(&self.data, QuoteStyle::Necessary, DELIMITER_TAB)
             }
             MetadataSpecification::BibtexThoth(bibtex_thoth) => bibtex_thoth.generate(&self.data),
+            MetadataSpecification::DoiDepositCrossref(doideposit_crossref) => {
+                doideposit_crossref.generate(&self.data, None)
+            }
         }
     }
 }
@@ -186,6 +194,9 @@ impl FromStr for MetadataSpecification {
             "csv::thoth" => Ok(MetadataSpecification::CsvThoth(CsvThoth {})),
             "kbart::oclc" => Ok(MetadataSpecification::KbartOclc(KbartOclc {})),
             "bibtex::thoth" => Ok(MetadataSpecification::BibtexThoth(BibtexThoth {})),
+            "doideposit::crossref" => Ok(MetadataSpecification::DoiDepositCrossref(
+                DoiDepositCrossref {},
+            )),
             _ => Err(ThothError::InvalidMetadataSpecification(input.to_string())),
         }
     }
@@ -201,6 +212,7 @@ impl ToString for MetadataSpecification {
             MetadataSpecification::CsvThoth(_) => "csv::thoth".to_string(),
             MetadataSpecification::KbartOclc(_) => "kbart::oclc".to_string(),
             MetadataSpecification::BibtexThoth(_) => "bibtex::thoth".to_string(),
+            MetadataSpecification::DoiDepositCrossref(_) => "doideposit::crossref".to_string(),
         }
     }
 }
@@ -279,6 +291,15 @@ mod tests {
         assert_eq!(
             to_test.file_name(),
             "bibtex__thoth__some_id.bib".to_string()
+        );
+        let to_test = MetadataRecord::new(
+            "some_id".to_string(),
+            MetadataSpecification::DoiDepositCrossref(DoiDepositCrossref {}),
+            vec![],
+        );
+        assert_eq!(
+            to_test.file_name(),
+            "doideposit__crossref__some_id.xml".to_string()
         );
     }
 }

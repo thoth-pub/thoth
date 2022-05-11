@@ -121,6 +121,38 @@ fragment Work on Work {
         relationOrdinal
         relatedWork {
             fullTitle
+            title
+            subtitle
+            edition
+            doi
+            publicationDate
+            license
+            place
+            firstPage
+            lastPage
+            landingPage
+            imprint {
+                publisher {
+                    publisherName
+                }
+            }
+            contributions {
+                contributionType
+                firstName
+                lastName
+                contributionOrdinal
+                contributor {
+                    orcid
+                }
+            }
+            publications {
+                publicationType
+                isbn
+                locations {
+                    fullTextUrl
+                    canonical
+                }
+            }
         }
     }
 }

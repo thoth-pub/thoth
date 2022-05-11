@@ -249,12 +249,12 @@ mod tests {
     use thoth_api::model::Doi;
     use thoth_api::model::Isbn;
     use thoth_api::model::Orcid;
-    use thoth_client::WorkRelations;
-    use thoth_client::WorkRelationsRelatedWork;
     use thoth_client::{
         ContributionType, PublicationType, SeriesType, WorkContributions,
         WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssues,
-        WorkIssuesSeries, WorkPublications, WorkStatus, WorkType,
+        WorkIssuesSeries, WorkPublications, WorkRelations, WorkRelationsRelatedWork,
+        WorkRelationsRelatedWorkImprint, WorkRelationsRelatedWorkImprintPublisher, WorkStatus,
+        WorkType,
     };
     use uuid::Uuid;
 
@@ -443,6 +443,23 @@ mod tests {
                 relation_ordinal: 7,
                 related_work: WorkRelationsRelatedWork {
                     full_title: "Related work title".to_string(),
+                    title: "N/A".to_string(),
+                    subtitle: None,
+                    edition: None,
+                    doi: None,
+                    publication_date: None,
+                    license: None,
+                    place: None,
+                    first_page: None,
+                    last_page: None,
+                    landing_page: None,
+                    imprint: WorkRelationsRelatedWorkImprint {
+                        publisher: WorkRelationsRelatedWorkImprintPublisher {
+                            publisher_name: "N/A".to_string(),
+                        },
+                    },
+                    contributions: vec![],
+                    publications: vec![],
                 },
             },
             WorkRelations {
@@ -450,6 +467,23 @@ mod tests {
                 relation_ordinal: 4,
                 related_work: WorkRelationsRelatedWork {
                     full_title: "Irrelevant related work".to_string(),
+                    title: "N/A".to_string(),
+                    subtitle: None,
+                    edition: None,
+                    doi: None,
+                    publication_date: None,
+                    license: None,
+                    place: None,
+                    first_page: None,
+                    last_page: None,
+                    landing_page: None,
+                    imprint: WorkRelationsRelatedWorkImprint {
+                        publisher: WorkRelationsRelatedWorkImprintPublisher {
+                            publisher_name: "N/A".to_string(),
+                        },
+                    },
+                    contributions: vec![],
+                    publications: vec![],
                 },
             }]
         };
