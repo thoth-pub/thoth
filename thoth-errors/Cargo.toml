@@ -1,6 +1,6 @@
 [package]
 name = "thoth-errors"
-version = "0.8.3"
+version = "0.8.4"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -9,13 +9,13 @@ repository = "https://github.com/thoth-pub/thoth"
 readme = "README.md"
 
 [dependencies]
-failure = "0.1.6"
-reqwest = { version = "0.10", features = ["json"] }
+failure = "0.1.8"
+reqwest = { version = "0.11", features = ["json"] }
 serde = "1.0.115"
 uuid = { version = "0.7", features = ["serde", "v4"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-actix-web = "3.3.2"
+actix-web = "4.0.1"
 diesel = "1.4.0"
 csv = "1.1.6"
 juniper = "0.14.2"

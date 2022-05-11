@@ -38,3 +38,11 @@ impl From<works_query::Work> for work_query::Work {
         serde_json::from_str(&se).unwrap()
     }
 }
+
+// As above: enables shared processing of parent Works and child RelatedWorks in doideposit format
+impl From<work_query::Work> for work_query::WorkRelationsRelatedWork {
+    fn from(w: work_query::Work) -> Self {
+        let se = serde_json::to_string(&w).unwrap();
+        serde_json::from_str(&se).unwrap()
+    }
+}

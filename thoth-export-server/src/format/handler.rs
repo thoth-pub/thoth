@@ -21,8 +21,8 @@ pub(crate) async fn get_all() -> Json<Vec<Format<'static>>> {
     description = "Find the details of a format that can be output by Thoth",
     tags(Formats)
 )]
-pub(crate) async fn get_one(
-    web::Path(format_id): web::Path<String>,
-) -> Result<Json<Format<'static>>, Error> {
-    find_format(format_id).map(Json).map_err(|e| e.into())
+pub(crate) async fn get_one(format_id: web::Path<String>) -> Result<Json<Format<'static>>, Error> {
+    find_format(format_id.into_inner())
+        .map(Json)
+        .map_err(|e| e.into())
 }

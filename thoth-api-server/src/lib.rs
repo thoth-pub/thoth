@@ -5,8 +5,8 @@ use std::{io, sync::Arc};
 use actix_cors::Cors;
 use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
 use actix_web::{
-    error, get, http::header, middleware::Logger, post, web, App, Error, HttpResponse, HttpServer,
-    Result,
+    error, get, http::header, middleware::Logger, post, web, web::Data, App, Error, HttpResponse,
+    HttpServer, Result,
 };
 use juniper::http::GraphQLRequest;
 use serde::Serialize;
@@ -91,9 +91,12 @@ async fn graphql(
         serde_json::to_string(&res)
     })
     .await?;
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(result))
+    match result {
+        Ok(body) => Ok(HttpResponse::Ok()
+            .content_type("application/json")
+            .body(body)),
+        Err(e) => Err(e.into()),
+    }
 }
 
 #[post("/account/login")]
@@ -175,8 +178,8 @@ fn config(cfg: &mut web::ServiceConfig) {
     let pool = establish_connection();
     let schema = std::sync::Arc::new(create_schema());
 
-    cfg.data(schema.clone());
-    cfg.data(pool);
+    cfg.app_data(Data::new(schema.clone()));
+    cfg.app_data(Data::new(pool));
     cfg.service(index);
     cfg.service(graphql_index);
     cfg.service(graphql);
@@ -205,7 +208,7 @@ pub async fn start_server(
                     .name("auth")
                     .path("/")
                     .domain(&domain)
-                    .max_age(session_duration),
+                    .max_age_secs(session_duration),
             ))
             .wrap(
                 Cors::default()
@@ -215,7 +218,7 @@ pub async fn start_server(
                     .allowed_header(header::CONTENT_TYPE)
                     .supports_credentials(),
             )
-            .data(ApiConfig::new(public_url.clone()))
+            .app_data(Data::new(ApiConfig::new(public_url.clone())))
             .configure(config)
     })
     .bind(format!("{}:{}", host, port))?

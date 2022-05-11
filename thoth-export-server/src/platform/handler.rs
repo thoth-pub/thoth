@@ -22,7 +22,9 @@ pub(crate) async fn get_all() -> Json<Vec<Platform<'static>>> {
     tags(Platforms)
 )]
 pub(crate) async fn get_one(
-    web::Path(platform_id): web::Path<String>,
+    platform_id: web::Path<String>,
 ) -> Result<Json<Platform<'static>>, Error> {
-    find_platform(platform_id).map(Json).map_err(|e| e.into())
+    find_platform(platform_id.into_inner())
+        .map(Json)
+        .map_err(|e| e.into())
 }

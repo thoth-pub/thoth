@@ -32,6 +32,12 @@ lazy_static! {
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/jstor"),],
         },
         Specification {
+            id: "onix_3.0::google_books",
+            name: "Google Books ONIX 3.0",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_3.0"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/google_books"),],
+        },
+        Specification {
             id: "onix_2.1::ebsco_host",
             name: "EBSCO Host ONIX 2.1",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_2.1"),
@@ -60,6 +66,12 @@ lazy_static! {
             name: "Thoth BibTeX",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/bibtex"),
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/zotero"),],
+        },
+        Specification {
+            id: "doideposit::crossref",
+            name: "CrossRef DOI deposit",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/doideposit"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/crossref"),],
         },
     ];
     pub(crate) static ref ALL_PLATFORMS: Vec<Platform<'static>> = vec![
@@ -105,6 +117,14 @@ lazy_static! {
                     "/specifications/onix_3.0::project_muse"
                 ),
             ],
+        },
+        Platform {
+            id: "google_books",
+            name: "Google Books",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/onix_3.0::google_books"
+            ),],
         },
         Platform {
             id: "ebsco_host",
@@ -162,6 +182,14 @@ lazy_static! {
                 "/specifications/bibtex::thoth"
             ),],
         },
+        Platform {
+            id: "crossref",
+            name: "CrossRef",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/doideposit::crossref"
+            ),],
+        },
     ];
     pub(crate) static ref ALL_FORMATS: Vec<Format<'static>> = vec![
         Format {
@@ -175,6 +203,10 @@ lazy_static! {
                 ),
                 concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.0::oapen"),
                 concat!(env!("THOTH_EXPORT_API"), "/specifications/onix_3.0::jstor"),
+                concat!(
+                    env!("THOTH_EXPORT_API"),
+                    "/specifications/onix_3.0::google_books"
+                ),
             ],
         },
         Format {
@@ -211,6 +243,15 @@ lazy_static! {
             specifications: vec![concat!(
                 env!("THOTH_EXPORT_API"),
                 "/specifications/bibtex::thoth"
+            ),],
+        },
+        Format {
+            id: "doideposit",
+            name: "DOIdeposit",
+            version: None,
+            specifications: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/doideposit::crossref"
             ),],
         },
     ];

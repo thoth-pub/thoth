@@ -12,7 +12,7 @@ macro_rules! static_files {
 
             #[get($dest_path)]
             async fn $fname() -> HttpResponse {
-                HttpResponse::Ok().content_type($type).header("Cache-Control", NO_CACHE).body($cname)
+                HttpResponse::Ok().content_type($type).append_header(("Cache-Control", NO_CACHE)).body($cname)
             }
         )*
 
@@ -67,7 +67,7 @@ const INDEX_FILE: &[u8] = include_bytes!("../static/index.html");
 async fn index() -> HttpResponse {
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
-        .header("Cache-Control", NO_CACHE)
+        .append_header(("Cache-Control", NO_CACHE))
         .body(INDEX_FILE)
 }
 

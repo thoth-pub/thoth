@@ -121,10 +121,12 @@ pub trait DisplayWork {
     fn onix_projectmuse_endpoint(&self) -> String;
     fn onix_oapen_endpoint(&self) -> String;
     fn onix_jstor_endpoint(&self) -> String;
+    fn onix_google_books_endpoint(&self) -> String;
     fn onix_ebsco_host_endpoint(&self) -> String;
     fn csv_endpoint(&self) -> String;
     fn kbart_endpoint(&self) -> String;
     fn bibtex_endpoint(&self) -> String;
+    fn doideposit_endpoint(&self) -> String;
     fn cover_alt_text(&self) -> String;
     fn license_icons(&self) -> Html;
     fn status_tag(&self) -> Html;
@@ -153,6 +155,13 @@ impl DisplayWork for WorkWithRelations {
         )
     }
 
+    fn onix_google_books_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/onix_3.0::google_books/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
     fn onix_ebsco_host_endpoint(&self) -> String {
         format!(
             "{}/specifications/onix_2.1::ebsco_host/work/{}",
@@ -177,6 +186,13 @@ impl DisplayWork for WorkWithRelations {
     fn bibtex_endpoint(&self) -> String {
         format!(
             "{}/specifications/bibtex::thoth/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
+    fn doideposit_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/doideposit::crossref/work/{}",
             THOTH_EXPORT_API, &self.work_id
         )
     }
@@ -389,6 +405,12 @@ impl DisplayWork for WorkWithRelations {
                                             {"ONIX 3.0 (JSTOR)"}
                                             </a>
                                             <a
+                                                href={self.onix_google_books_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"ONIX 3.0 (Google Books)"}
+                                            </a>
+                                            <a
                                                 href={self.onix_ebsco_host_endpoint()}
                                                 class="dropdown-item"
                                             >
@@ -411,6 +433,12 @@ impl DisplayWork for WorkWithRelations {
                                                 class="dropdown-item"
                                             >
                                             {"BibTeX"}
+                                            </a>
+                                            <a
+                                                href={self.doideposit_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"CrossRef DOI deposit"}
                                             </a>
                                         </div>
                                     </div>
