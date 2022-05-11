@@ -126,6 +126,7 @@ pub trait DisplayWork {
     fn csv_endpoint(&self) -> String;
     fn kbart_endpoint(&self) -> String;
     fn bibtex_endpoint(&self) -> String;
+    fn doideposit_endpoint(&self) -> String;
     fn cover_alt_text(&self) -> String;
     fn license_icons(&self) -> Html;
     fn status_tag(&self) -> Html;
@@ -185,6 +186,13 @@ impl DisplayWork for WorkWithRelations {
     fn bibtex_endpoint(&self) -> String {
         format!(
             "{}/specifications/bibtex::thoth/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
+    fn doideposit_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/doideposit::crossref/work/{}",
             THOTH_EXPORT_API, &self.work_id
         )
     }
@@ -425,6 +433,12 @@ impl DisplayWork for WorkWithRelations {
                                                 class="dropdown-item"
                                             >
                                             {"BibTeX"}
+                                            </a>
+                                            <a
+                                                href={self.doideposit_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"CrossRef DOI deposit"}
                                             </a>
                                         </div>
                                     </div>

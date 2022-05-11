@@ -89,3 +89,5 @@ mod onix3_google_books;
 pub(crate) use onix3_google_books::Onix3GoogleBooks;
 mod onix21_ebsco_host;
 pub(crate) use onix21_ebsco_host::Onix21EbscoHost;
+mod doideposit_crossref;
+pub(crate) use doideposit_crossref::DoiDepositCrossref;
