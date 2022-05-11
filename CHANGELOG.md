@@ -5,8 +5,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[0.8.4]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.4) - 2022-05-11
 ### Added
   - [#29](https://github.com/thoth-pub/thoth/issues/29) - Implement CrossRef DOI Deposit specification
+  - [#72](https://github.com/thoth-pub/thoth/issues/72) - Implement CrossRef Google Books ONIX 3.0 specification
+
+### Changed
+  - [#356](https://github.com/thoth-pub/thoth/issues/356) - Upgrade actix to v4
 
 ## [[0.8.3]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.3) - 2022-04-18
 ### Added
