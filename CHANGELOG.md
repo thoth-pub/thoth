@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [#29](https://github.com/thoth-pub/thoth/issues/29) - Implement CrossRef DOI Deposit specification
 
+## [[0.8.3]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.3) - 2022-04-18
+### Added
+  - [#359](https://github.com/thoth-pub/thoth/issues/359) - Allow editing publications
+
 ## [[0.8.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.2) - 2022-04-06
 ### Changed
   - Added CA certificates to docker image to allow https requests from containers
