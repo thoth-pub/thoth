@@ -121,6 +121,7 @@ pub trait DisplayWork {
     fn onix_projectmuse_endpoint(&self) -> String;
     fn onix_oapen_endpoint(&self) -> String;
     fn onix_jstor_endpoint(&self) -> String;
+    fn onix_google_books_endpoint(&self) -> String;
     fn onix_ebsco_host_endpoint(&self) -> String;
     fn csv_endpoint(&self) -> String;
     fn kbart_endpoint(&self) -> String;
@@ -150,6 +151,13 @@ impl DisplayWork for WorkWithRelations {
     fn onix_jstor_endpoint(&self) -> String {
         format!(
             "{}/specifications/onix_3.0::jstor/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
+    fn onix_google_books_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/onix_3.0::google_books/work/{}",
             THOTH_EXPORT_API, &self.work_id
         )
     }
@@ -395,6 +403,12 @@ impl DisplayWork for WorkWithRelations {
                                                 class="dropdown-item"
                                             >
                                             {"ONIX 3.0 (JSTOR)"}
+                                            </a>
+                                            <a
+                                                href={self.onix_google_books_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"ONIX 3.0 (Google Books)"}
                                             </a>
                                             <a
                                                 href={self.onix_ebsco_host_endpoint()}

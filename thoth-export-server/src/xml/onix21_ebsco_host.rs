@@ -55,8 +55,6 @@ impl XmlSpecification for Onix21EbscoHost {
 
 impl XmlElementBlock<Onix21EbscoHost> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        let work_id = format!("urn:uuid:{}", self.work_id);
-        let (main_isbn, isbns) = get_publications_data(&self.publications);
         // EBSCO Host can only accept PDFs and EPUBs, and can only
         // process them as Open Access if they are zero-priced
         let pdf_url = self
@@ -80,6 +78,8 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
             .and_then(|p| p.locations.iter().find(|l| l.canonical))
             .and_then(|l| l.full_text_url.as_ref());
         if pdf_url.is_some() || epub_url.is_some() {
+            let work_id = format!("urn:uuid:{}", self.work_id);
+            let (main_isbn, isbns) = get_publications_data(&self.publications);
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
                     w.write(XmlEvent::Characters(&work_id))
@@ -626,7 +626,10 @@ mod tests {
     };
     use uuid::Uuid;
 
-    fn generate_test_output(input: &impl XmlElementBlock<Onix21EbscoHost>) -> String {
+    fn generate_test_output(
+        expect_ok: bool,
+        input: &impl XmlElementBlock<Onix21EbscoHost>,
+    ) -> String {
         // Helper function based on `XmlSpecification::generate`
         let mut buffer = Vec::new();
         let mut writer = xml::writer::EmitterConfig::new()
@@ -634,12 +637,17 @@ mod tests {
             .create_writer(&mut buffer);
         let wrapped_output = XmlElementBlock::<Onix21EbscoHost>::xml_element(input, &mut writer)
             .map(|_| buffer)
-            .and_then(|onix| {
-                String::from_utf8(onix)
+            .and_then(|xml| {
+                String::from_utf8(xml)
                     .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
             });
-        assert!(wrapped_output.is_ok());
-        wrapped_output.unwrap()
+        if expect_ok {
+            assert!(wrapped_output.is_ok());
+            wrapped_output.unwrap()
+        } else {
+            assert!(wrapped_output.is_err());
+            wrapped_output.unwrap_err().to_string()
+        }
     }
 
     #[test]
@@ -659,7 +667,7 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <SequenceNumber>1</SequenceNumber>"#));
         assert!(output.contains(r#"  <ContributorRole>A01</ContributorRole>"#));
         assert!(output.contains(r#"  <PersonNameIdentifier>"#));
@@ -678,7 +686,7 @@ mod tests {
         test_contribution.contribution_ordinal = 2;
         test_contribution.contributor.orcid = None;
         test_contribution.first_name = None;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <SequenceNumber>2</SequenceNumber>"#));
         assert!(output.contains(r#"  <ContributorRole>B01</ContributorRole>"#));
         // No ORCID supplied
@@ -694,28 +702,28 @@ mod tests {
 
         // Test all remaining contributor roles
         test_contribution.contribution_type = ContributionType::TRANSLATOR;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>B06</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::PHOTOGRAPHER;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A13</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::ILUSTRATOR;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A12</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::MUSIC_EDITOR;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>B25</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::FOREWORD_BY;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A23</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::INTRODUCTION_BY;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A24</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::AFTERWORD_BY;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A19</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::PREFACE_BY;
-        let output = generate_test_output(&test_contribution);
+        let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A15</ContributorRole>"#));
     }
 
@@ -728,7 +736,7 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_language);
+        let output = generate_test_output(true, &test_language);
         assert!(output.contains(r#"  <LanguageRole>02</LanguageRole>"#));
         assert!(output.contains(r#"  <LanguageCode>spa</LanguageCode>"#));
 
@@ -739,7 +747,7 @@ mod tests {
             LanguageRelation::TRANSLATED_INTO,
         ] {
             test_language.language_relation = language_relation;
-            let output = generate_test_output(&test_language);
+            let output = generate_test_output(true, &test_language);
             assert!(output.contains(r#"  <LanguageRole>01</LanguageRole>"#));
             assert!(output.contains(r#"  <LanguageCode>wel</LanguageCode>"#));
         }
@@ -761,7 +769,7 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_issue);
+        let output = generate_test_output(true, &test_issue);
         assert!(output.contains(r#"<Series>"#));
         assert!(output.contains(r#"  <TitleOfSeries>Name of series</TitleOfSeries>"#));
         assert!(output.contains(r#"  <NumberWithinSeries>1</NumberWithinSeries>"#));
@@ -769,7 +777,7 @@ mod tests {
         // Change all possible values to test that output is updated
         test_issue.issue_ordinal = 2;
         test_issue.series.series_name = "Different series".to_string();
-        let output = generate_test_output(&test_issue);
+        let output = generate_test_output(true, &test_issue);
         assert!(output.contains(r#"<Series>"#));
         assert!(output.contains(r#"  <TitleOfSeries>Different series</TitleOfSeries>"#));
         assert!(output.contains(r#"  <NumberWithinSeries>2</NumberWithinSeries>"#));
@@ -784,7 +792,7 @@ mod tests {
         };
 
         // Test BIC output
-        let output = generate_test_output(&test_subject);
+        let output = generate_test_output(true, &test_subject);
         assert!(output.contains(r#"<Subject>"#));
         assert!(output.contains(r#"  <SubjectSchemeIdentifier>12</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"  <SubjectCode>AAB</SubjectCode>"#));
@@ -792,7 +800,7 @@ mod tests {
         // Test BISAC output
         test_subject.subject_code = "AAA000000".to_string();
         test_subject.subject_type = SubjectType::BISAC;
-        let output = generate_test_output(&test_subject);
+        let output = generate_test_output(true, &test_subject);
         assert!(output.contains(r#"<Subject>"#));
         assert!(output.contains(r#"  <SubjectSchemeIdentifier>10</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"  <SubjectCode>AAA000000</SubjectCode>"#));
@@ -800,7 +808,7 @@ mod tests {
         // Test LCC output
         test_subject.subject_code = "JA85".to_string();
         test_subject.subject_type = SubjectType::LCC;
-        let output = generate_test_output(&test_subject);
+        let output = generate_test_output(true, &test_subject);
         assert!(output.contains(r#"<Subject>"#));
         assert!(output.contains(r#"  <SubjectSchemeIdentifier>04</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"  <SubjectCode>JA85</SubjectCode>"#));
@@ -808,7 +816,7 @@ mod tests {
         // Test Thema output
         test_subject.subject_code = "JWA".to_string();
         test_subject.subject_type = SubjectType::THEMA;
-        let output = generate_test_output(&test_subject);
+        let output = generate_test_output(true, &test_subject);
         assert!(output.contains(r#"<Subject>"#));
         assert!(output.contains(r#"  <SubjectSchemeIdentifier>93</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"  <SubjectCode>JWA</SubjectCode>"#));
@@ -816,7 +824,7 @@ mod tests {
         // Test keyword output
         test_subject.subject_code = "keyword1".to_string();
         test_subject.subject_type = SubjectType::KEYWORD;
-        let output = generate_test_output(&test_subject);
+        let output = generate_test_output(true, &test_subject);
         assert!(output.contains(r#"<Subject>"#));
         assert!(output.contains(r#"  <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"  <SubjectHeadingText>keyword1</SubjectHeadingText>"#));
@@ -824,7 +832,7 @@ mod tests {
         // Test custom output
         test_subject.subject_code = "custom1".to_string();
         test_subject.subject_type = SubjectType::CUSTOM;
-        let output = generate_test_output(&test_subject);
+        let output = generate_test_output(true, &test_subject);
         assert!(output.contains(r#"  <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"  <SubjectHeadingText>custom1</SubjectHeadingText>"#));
     }
@@ -960,7 +968,7 @@ mod tests {
         };
 
         // Test standard output
-        let output = generate_test_output(&test_work);
+        let output = generate_test_output(true, &test_work);
         assert!(output.contains(r#"<Product>"#));
         assert!(output.contains(
             r#"  <RecordReference>urn:uuid:00000000-0000-0000-aaaa-000000000001</RecordReference>"#
@@ -1068,7 +1076,7 @@ mod tests {
         test_work.publications.pop();
         // Give PDF publication a positive price point
         test_work.publications[1].prices[0].unit_price = 7.99;
-        let output = generate_test_output(&test_work);
+        let output = generate_test_output(true, &test_work);
         // Paperback publication removed, so its ISBN no longer appears
         // (either as the main ISBN or in RelatedProducts)
         assert!(!output.contains(r#"    <IDValue>9783161484100</IDValue>"#));
@@ -1123,20 +1131,7 @@ mod tests {
 
         // Remove the EPUB publication's only location: error
         test_work.publications[0].locations.clear();
-        // Can't use helper function for this as it assumes Ok rather than Err
-        let mut buffer = Vec::new();
-        let mut writer = xml::writer::EmitterConfig::new()
-            .perform_indent(true)
-            .create_writer(&mut buffer);
-        let wrapped_output =
-            XmlElementBlock::<Onix21EbscoHost>::xml_element(&test_work, &mut writer)
-                .map(|_| buffer)
-                .and_then(|onix| {
-                    String::from_utf8(onix)
-                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
-                });
-        assert!(wrapped_output.is_err());
-        let output = wrapped_output.unwrap_err().to_string();
+        let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
             "Could not generate onix_2.1::ebsco_host: No zero-priced PDF or EPUB URL".to_string()
