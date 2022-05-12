@@ -170,6 +170,8 @@ pub struct PureFloatInput {
     pub required: bool,
     #[prop_or_default]
     pub step: Option<String>,
+    #[prop_or("0".to_string())]
+    pub min: String,
     #[prop_or(false)]
     pub deactivated: bool,
 }
@@ -511,7 +513,7 @@ impl PureComponent for PureFloatInput {
                 onblur=self.onblur.clone()
                 required=self.required
                 step=self.step.clone()
-                min="0".to_string()
+                min=self.min.clone()
                 deactivated=self.deactivated
             />
         }

@@ -1431,6 +1431,11 @@ impl MutationRoot {
                 data.publication_id,
             )?)?;
 
+        if data.unit_price == 0.0 {
+            // Prices must be non-zero.
+            return Err(ThothError::PriceZeroError.into());
+        }
+
         Price::create(&context.db, &data).map_err(|e| e.into())
     }
 
@@ -1709,6 +1714,11 @@ impl MutationRoot {
                     &context.db,
                     data.publication_id,
                 )?)?;
+        }
+
+        if data.unit_price == 0.0 {
+            // Prices must be non-zero.
+            return Err(ThothError::PriceZeroError.into());
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
