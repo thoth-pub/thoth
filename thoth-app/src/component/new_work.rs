@@ -642,7 +642,7 @@ impl Component for NewWorkComponent {
                             />
                         </div>
                     </div>
-                    <FormTextInput
+                    <FormUrlInput
                         label = "License"
                         value=self.work.license.clone()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeLicense(e.value))
