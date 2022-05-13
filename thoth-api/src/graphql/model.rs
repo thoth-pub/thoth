@@ -1431,8 +1431,8 @@ impl MutationRoot {
                 data.publication_id,
             )?)?;
 
-        if data.unit_price == 0.0 {
-            // Prices must be non-zero.
+        if data.unit_price <= 0.0 {
+            // Prices must be non-zero (and non-negative).
             return Err(ThothError::PriceZeroError.into());
         }
 
@@ -1716,8 +1716,8 @@ impl MutationRoot {
                 )?)?;
         }
 
-        if data.unit_price == 0.0 {
-            // Prices must be non-zero.
+        if data.unit_price <= 0.0 {
+            // Prices must be non-zero (and non-negative).
             return Err(ThothError::PriceZeroError.into());
         }
 

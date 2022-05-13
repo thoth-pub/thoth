@@ -85,7 +85,7 @@ pub enum ThothError {
     )]
     DimensionDigitalError,
     #[fail(
-        display = "Prices may not be set at zero. To indicate an unpriced Publication, omit all Prices."
+        display = "Price values must be greater than zero. To indicate an unpriced Publication, omit all Prices."
     )]
     PriceZeroError,
 }
