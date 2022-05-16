@@ -392,7 +392,8 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                             .prices
                             .iter()
                             .find(|pr| {
-                                pr.currency_code.eq(&CurrencyCode::GBP) && pr.unit_price > 0.0
+                                // Thoth database only accepts non-zero prices
+                                pr.currency_code.eq(&CurrencyCode::GBP)
                             })
                             .map(|pr| pr.unit_price)
                         {
