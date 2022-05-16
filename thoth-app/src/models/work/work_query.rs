@@ -71,6 +71,7 @@ pub const WORK_QUERY: &str = "
                 biography
                 createdAt
                 updatedAt
+                firstName
                 lastName
                 fullName
                 contributionOrdinal
