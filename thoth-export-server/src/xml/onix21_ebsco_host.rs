@@ -56,14 +56,15 @@ impl XmlSpecification for Onix21EbscoHost {
 impl XmlElementBlock<Onix21EbscoHost> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         // EBSCO Host can only accept PDFs and EPUBs, and can only
-        // process them as Open Access if they are zero-priced
+        // process them as Open Access if they are unpriced
         let pdf_url = self
             .publications
             .iter()
             .find(|p| {
                 p.publication_type.eq(&PublicationType::PDF)
                     && !p.locations.is_empty()
-                    && !p.prices.iter().any(|pr| pr.unit_price > 0.0)
+                    // Thoth database only accepts non-zero prices
+                    && p.prices.is_empty()
             })
             .and_then(|p| p.locations.iter().find(|l| l.canonical))
             .and_then(|l| l.full_text_url.as_ref());
@@ -73,7 +74,8 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
             .find(|p| {
                 p.publication_type.eq(&PublicationType::EPUB)
                     && !p.locations.is_empty()
-                    && !p.prices.iter().any(|pr| pr.unit_price > 0.0)
+                    // Thoth database only accepts non-zero prices
+                    && p.prices.is_empty()
             })
             .and_then(|p| p.locations.iter().find(|l| l.canonical))
             .and_then(|l| l.full_text_url.as_ref());
@@ -415,7 +417,7 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
         } else {
             Err(ThothError::IncompleteMetadataRecord(
                 "onix_2.1::ebsco_host".to_string(),
-                "No zero-priced PDF or EPUB URL".to_string(),
+                "No unpriced PDF or EPUB URL".to_string(),
             ))
         }
     }
@@ -919,10 +921,7 @@ mod tests {
                     depth_in: None,
                     weight_g: None,
                     weight_oz: None,
-                    prices: vec![WorkPublicationsPrices {
-                        currency_code: CurrencyCode::USD,
-                        unit_price: 0.0,
-                    }],
+                    prices: vec![],
                     locations: vec![WorkPublicationsLocations {
                         landing_page: Some("https://www.book.com/pdf_landing".to_string()),
                         full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
@@ -1075,7 +1074,10 @@ mod tests {
         // Remove third (paperback) publication
         test_work.publications.pop();
         // Give PDF publication a positive price point
-        test_work.publications[1].prices[0].unit_price = 7.99;
+        test_work.publications[1].prices = vec![WorkPublicationsPrices {
+            currency_code: CurrencyCode::USD,
+            unit_price: 7.99,
+        }];
         let output = generate_test_output(true, &test_work);
         // Paperback publication removed, so its ISBN no longer appears
         // (either as the main ISBN or in RelatedProducts)
@@ -1093,7 +1095,7 @@ mod tests {
             r#"    <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
         assert!(!output.contains(r#"    <WebsiteLink>https://www.book.com</WebsiteLink>"#));
-        // PDF publication price is now non-zero, hence no PDF URL, and EpubType changes
+        // PDF publication is no longer unpriced, hence no PDF URL, and EpubType changes
         assert!(
             !output.contains(r#"    <WebsiteLink>https://www.book.com/pdf_fulltext</WebsiteLink>"#)
         );
@@ -1134,7 +1136,7 @@ mod tests {
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
-            "Could not generate onix_2.1::ebsco_host: No zero-priced PDF or EPUB URL".to_string()
+            "Could not generate onix_2.1::ebsco_host: No unpriced PDF or EPUB URL".to_string()
         );
     }
 }
