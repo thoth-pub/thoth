@@ -31,6 +31,11 @@ use crate::models::affiliation::delete_affiliation_mutation::DeleteAffiliationRe
 use crate::models::affiliation::delete_affiliation_mutation::PushActionDeleteAffiliation;
 use crate::models::affiliation::delete_affiliation_mutation::PushDeleteAffiliation;
 use crate::models::affiliation::delete_affiliation_mutation::Variables as DeleteVariables;
+use crate::models::affiliation::update_affiliation_mutation::PushActionUpdateAffiliation;
+use crate::models::affiliation::update_affiliation_mutation::PushUpdateAffiliation;
+use crate::models::affiliation::update_affiliation_mutation::UpdateAffiliationRequest;
+use crate::models::affiliation::update_affiliation_mutation::UpdateAffiliationRequestBody;
+use crate::models::affiliation::update_affiliation_mutation::Variables as UpdateVariables;
 use crate::models::institution::institutions_query::FetchActionInstitutions;
 use crate::models::institution::institutions_query::FetchInstitutions;
 use crate::models::institution::institutions_query::InstitutionsRequest;
@@ -38,6 +43,7 @@ use crate::models::institution::institutions_query::InstitutionsRequestBody;
 use crate::models::institution::institutions_query::Variables as SearchVariables;
 use crate::models::Dropdown;
 use crate::string::CANCEL_BUTTON;
+use crate::string::EDIT_BUTTON;
 use crate::string::REMOVE_BUTTON;
 
 use super::ToOption;
@@ -46,12 +52,14 @@ pub struct AffiliationsFormComponent {
     fetch_affiliations: FetchAffiliations,
     props: Props,
     data: AffiliationsFormData,
-    new_affiliation: AffiliationWithInstitution,
-    show_add_form: bool,
+    affiliation: AffiliationWithInstitution,
+    show_modal_form: bool,
+    in_edit_mode: bool,
     show_results: bool,
     fetch_institutions: FetchInstitutions,
-    push_affiliation: PushCreateAffiliation,
+    create_affiliation: PushCreateAffiliation,
     delete_affiliation: PushDeleteAffiliation,
+    update_affiliation: PushUpdateAffiliation,
     link: ComponentLink<Self>,
     notification_bus: NotificationDispatcher,
 }
@@ -63,15 +71,17 @@ struct AffiliationsFormData {
 }
 
 pub enum Msg {
-    ToggleAddFormDisplay(bool),
+    ToggleModalFormDisplay(bool, Option<AffiliationWithInstitution>),
     SetAffiliationsFetchState(FetchActionAffiliations),
     GetAffiliations,
     SetInstitutionsFetchState(FetchActionInstitutions),
     GetInstitutions,
     ToggleSearchResultDisplay(bool),
     SearchInstitution(String),
-    SetAffiliationPushState(PushActionCreateAffiliation),
+    SetAffiliationCreateState(PushActionCreateAffiliation),
     CreateAffiliation,
+    SetAffiliationUpdateState(PushActionUpdateAffiliation),
+    UpdateAffiliation,
     SetAffiliationDeleteState(PushActionDeleteAffiliation),
     DeleteAffiliation(Uuid),
     AddAffiliation(Institution),
@@ -91,12 +101,14 @@ impl Component for AffiliationsFormComponent {
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let fetch_affiliations = Default::default();
         let data: AffiliationsFormData = Default::default();
-        let new_affiliation: AffiliationWithInstitution = Default::default();
-        let show_add_form = false;
+        let affiliation: AffiliationWithInstitution = Default::default();
+        let show_modal_form = false;
+        let in_edit_mode = false;
         let show_results = false;
         let fetch_institutions = Default::default();
-        let push_affiliation = Default::default();
+        let create_affiliation = Default::default();
         let delete_affiliation = Default::default();
+        let update_affiliation = Default::default();
         let notification_bus = NotificationBus::dispatcher();
 
         link.send_message(Msg::GetAffiliations);
@@ -105,12 +117,14 @@ impl Component for AffiliationsFormComponent {
             fetch_affiliations,
             props,
             data,
-            new_affiliation,
-            show_add_form,
+            affiliation,
+            show_modal_form,
+            in_edit_mode,
             show_results,
             fetch_institutions,
-            push_affiliation,
+            create_affiliation,
             delete_affiliation,
+            update_affiliation,
             link,
             notification_bus,
         }
@@ -118,8 +132,15 @@ impl Component for AffiliationsFormComponent {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::ToggleAddFormDisplay(value) => {
-                self.show_add_form = value;
+            Msg::ToggleModalFormDisplay(show_form, a) => {
+                self.show_modal_form = show_form;
+                self.in_edit_mode = a.is_some();
+                if show_form {
+                    if let Some(affiliation) = a {
+                        // Editing existing affiliation: load its current values.
+                        self.affiliation = affiliation;
+                    }
+                }
                 true
             }
             Msg::SetAffiliationsFetchState(fetch_state) => {
@@ -172,23 +193,25 @@ impl Component for AffiliationsFormComponent {
                     .send_message(Msg::SetInstitutionsFetchState(FetchAction::Fetching));
                 false
             }
-            Msg::SetAffiliationPushState(fetch_state) => {
-                self.push_affiliation.apply(fetch_state);
-                match self.push_affiliation.clone().state() {
+            Msg::SetAffiliationCreateState(fetch_state) => {
+                self.create_affiliation.apply(fetch_state);
+                match self.create_affiliation.clone().state() {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.create_affiliation {
-                        Some(i) => {
-                            let affiliation = i.clone();
+                        Some(a) => {
+                            let affiliation = a.clone();
                             let mut affiliations: Vec<AffiliationWithInstitution> =
                                 self.data.affiliations.clone().unwrap_or_default();
                             affiliations.push(affiliation);
                             self.data.affiliations = Some(affiliations);
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            self.link
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
                             true
                         }
                         None => {
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            self.link
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -197,7 +220,8 @@ impl Component for AffiliationsFormComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                        self.link
+                            .send_message(Msg::ToggleModalFormDisplay(false, None));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
                             NotificationStatus::Danger,
@@ -210,18 +234,90 @@ impl Component for AffiliationsFormComponent {
                 let body = CreateAffiliationRequestBody {
                     variables: CreateVariables {
                         contribution_id: self.props.contribution_id,
-                        institution_id: self.new_affiliation.institution_id,
-                        position: self.new_affiliation.position.clone(),
-                        affiliation_ordinal: self.new_affiliation.affiliation_ordinal,
+                        institution_id: self.affiliation.institution_id,
+                        position: self.affiliation.position.clone(),
+                        affiliation_ordinal: self.affiliation.affiliation_ordinal,
                     },
                     ..Default::default()
                 };
                 let request = CreateAffiliationRequest { body };
-                self.push_affiliation = Fetch::new(request);
+                self.create_affiliation = Fetch::new(request);
+                self.link.send_future(
+                    self.create_affiliation
+                        .fetch(Msg::SetAffiliationCreateState),
+                );
                 self.link
-                    .send_future(self.push_affiliation.fetch(Msg::SetAffiliationPushState));
+                    .send_message(Msg::SetAffiliationCreateState(FetchAction::Fetching));
+                false
+            }
+            Msg::SetAffiliationUpdateState(fetch_state) => {
+                self.update_affiliation.apply(fetch_state);
+                match self.update_affiliation.clone().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.update_affiliation {
+                        Some(a) => {
+                            let mut affiliations: Vec<AffiliationWithInstitution> =
+                                self.data.affiliations.clone().unwrap_or_default();
+                            if let Some(affiliation) = affiliations
+                                .iter_mut()
+                                .find(|af| af.affiliation_id == a.affiliation_id)
+                            {
+                                *affiliation = a.clone();
+                                self.data.affiliations = Some(affiliations);
+                            } else {
+                                // This should not be possible: the updated affiliation returned from the
+                                // database does not match any of the locally-stored affiliation data.
+                                // Refreshing the page will reload the local data from the database.
+                                self.notification_bus.send(Request::NotificationBusMsg((
+                                    "Changes were saved but display failed to update. Refresh your browser to view current data.".to_string(),
+                                    NotificationStatus::Warning,
+                                )));
+                            }
+                            self.link
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
+                            true
+                        }
+                        None => {
+                            self.link
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        self.link
+                            .send_message(Msg::ToggleModalFormDisplay(false, None));
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::UpdateAffiliation => {
+                let body = UpdateAffiliationRequestBody {
+                    variables: UpdateVariables {
+                        affiliation_id: self.affiliation.affiliation_id,
+                        contribution_id: self.props.contribution_id,
+                        institution_id: self.affiliation.institution_id,
+                        position: self.affiliation.position.clone(),
+                        affiliation_ordinal: self.affiliation.affiliation_ordinal,
+                    },
+                    ..Default::default()
+                };
+                let request = UpdateAffiliationRequest { body };
+                self.update_affiliation = Fetch::new(request);
+                self.link.send_future(
+                    self.update_affiliation
+                        .fetch(Msg::SetAffiliationUpdateState),
+                );
                 self.link
-                    .send_message(Msg::SetAffiliationPushState(FetchAction::Fetching));
+                    .send_message(Msg::SetAffiliationUpdateState(FetchAction::Fetching));
                 false
             }
             Msg::SetAffiliationDeleteState(fetch_state) => {
@@ -275,9 +371,10 @@ impl Component for AffiliationsFormComponent {
                 false
             }
             Msg::AddAffiliation(institution) => {
-                self.new_affiliation.institution_id = institution.institution_id;
-                self.new_affiliation.institution = institution;
-                self.link.send_message(Msg::ToggleAddFormDisplay(true));
+                self.affiliation.institution_id = institution.institution_id;
+                self.affiliation.institution = institution;
+                self.link
+                    .send_message(Msg::ToggleModalFormDisplay(true, None));
                 true
             }
             Msg::ToggleSearchResultDisplay(value) => {
@@ -298,13 +395,10 @@ impl Component for AffiliationsFormComponent {
                 self.link.send_message(Msg::GetInstitutions);
                 false
             }
-            Msg::ChangePosition(val) => self
-                .new_affiliation
-                .position
-                .neq_assign(val.to_opt_string()),
+            Msg::ChangePosition(val) => self.affiliation.position.neq_assign(val.to_opt_string()),
             Msg::ChangeOrdinal(ordinal) => {
                 let ordinal = ordinal.parse::<i32>().unwrap_or(0);
-                self.new_affiliation.affiliation_ordinal.neq_assign(ordinal);
+                self.affiliation.affiliation_ordinal.neq_assign(ordinal);
                 false // otherwise we re-render the component and reset the value
             }
         }
@@ -326,15 +420,15 @@ impl Component for AffiliationsFormComponent {
         let affiliations = self.data.affiliations.clone().unwrap_or_default();
         let close_modal = self.link.callback(|e: MouseEvent| {
             e.prevent_default();
-            Msg::ToggleAddFormDisplay(false)
+            Msg::ToggleModalFormDisplay(false, None)
         });
         html! {
             <div class="field">
-                <div class=self.add_form_status()>
+                <div class=self.modal_form_status()>
                     <div class="modal-background" onclick=&close_modal></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
-                            <p class="modal-card-title">{ "New Affiliation" }</p>
+                            <p class="modal-card-title">{ self.modal_form_title() }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
@@ -342,25 +436,21 @@ impl Component for AffiliationsFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id={form_id.clone()} onsubmit=self.link.callback(|e: FocusEvent| {
-                                e.prevent_default();
-                                Msg::CreateAffiliation
-                            })
-                            >
+                            <form id={form_id.clone()} onsubmit=self.modal_form_action()>
                                 <div class="field">
                                     <label class="label">{ "Institution" }</label>
                                     <div class="control is-expanded">
-                                        {&self.new_affiliation.institution.institution_name}
+                                        {&self.affiliation.institution.institution_name}
                                     </div>
                                 </div>
                                 <FormTextInput
                                     label="Position"
-                                    value=self.new_affiliation.position.clone().unwrap_or_else(|| "".to_string())
+                                    value=self.affiliation.position.clone().unwrap_or_else(|| "".to_string())
                                     oninput=self.link.callback(|e: InputData| Msg::ChangePosition(e.value))
                                 />
                                 <FormNumberInput
                                     label = "Affiliation Ordinal"
-                                    value=self.new_affiliation.affiliation_ordinal
+                                    value=self.affiliation.affiliation_ordinal
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
                                     required = true
                                     min = "1".to_string()
@@ -373,7 +463,7 @@ impl Component for AffiliationsFormComponent {
                                 type="submit"
                                 form={form_id.clone()}
                             >
-                                { "Add Affiliation" }
+                                { self.modal_form_button() }
                             </button>
                             <button
                                 class="button"
@@ -396,7 +486,7 @@ impl Component for AffiliationsFormComponent {
                             <th class="th">
                                 { "Affiliation Ordinal" }
                             </th>
-                            // Empty column for "Remove" buttons
+                            // Empty column for "Edit" and "Remove" buttons
                             <th class="th"></th>
                         </tr>
                     </thead>
@@ -447,10 +537,37 @@ impl Component for AffiliationsFormComponent {
 }
 
 impl AffiliationsFormComponent {
-    fn add_form_status(&self) -> String {
-        match self.show_add_form {
+    fn modal_form_status(&self) -> String {
+        match self.show_modal_form {
             true => "modal is-active".to_string(),
             false => "modal".to_string(),
+        }
+    }
+
+    fn modal_form_title(&self) -> String {
+        match self.in_edit_mode {
+            true => "Edit Affiliation".to_string(),
+            false => "New Affiliation".to_string(),
+        }
+    }
+
+    fn modal_form_button(&self) -> String {
+        match self.in_edit_mode {
+            true => "Save Affiliation".to_string(),
+            false => "Add Affiliation".to_string(),
+        }
+    }
+
+    fn modal_form_action(&self) -> Callback<FocusEvent> {
+        match self.in_edit_mode {
+            true => self.link.callback(|e: FocusEvent| {
+                e.prevent_default();
+                Msg::UpdateAffiliation
+            }),
+            false => self.link.callback(|e: FocusEvent| {
+                e.prevent_default();
+                Msg::CreateAffiliation
+            }),
         }
     }
 
@@ -462,6 +579,7 @@ impl AffiliationsFormComponent {
     }
 
     fn render_affiliation(&self, a: &AffiliationWithInstitution) -> Html {
+        let affiliation = a.clone();
         let affiliation_id = a.affiliation_id;
         html! {
             <tr class="row">
@@ -469,6 +587,12 @@ impl AffiliationsFormComponent {
                 <td>{&a.position.clone().unwrap_or_else(|| "".to_string())}</td>
                 <td>{&a.affiliation_ordinal.clone()}</td>
                 <td>
+                    <a
+                        class="button is-success is-small"
+                        onclick=self.link.callback(move |_| Msg::ToggleModalFormDisplay(true, Some(affiliation.clone())))
+                    >
+                        { EDIT_BUTTON }
+                    </a>
                     <a
                         class="button is-danger is-small"
                         onclick=self.link.callback(move |_| Msg::DeleteAffiliation(affiliation_id))
