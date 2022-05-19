@@ -112,6 +112,7 @@ impl Component for AffiliationsFormComponent {
         let notification_bus = NotificationBus::dispatcher();
 
         link.send_message(Msg::GetAffiliations);
+        link.send_message(Msg::GetInstitutions);
 
         AffiliationsFormComponent {
             fetch_affiliations,
