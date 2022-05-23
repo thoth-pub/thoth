@@ -14,6 +14,7 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::component::utils::FormInstitutionSelect;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormTextInput;
 use crate::models::affiliation::affiliations_query::AffiliationsRequest;
@@ -38,10 +39,6 @@ use crate::models::affiliation::update_affiliation_mutation::UpdateAffiliationRe
 use crate::models::affiliation::update_affiliation_mutation::Variables as UpdateVariables;
 use crate::models::institution::institutions_query::FetchActionInstitutions;
 use crate::models::institution::institutions_query::FetchInstitutions;
-use crate::models::institution::institutions_query::InstitutionsRequest;
-use crate::models::institution::institutions_query::InstitutionsRequestBody;
-use crate::models::institution::institutions_query::Variables as SearchVariables;
-use crate::models::Dropdown;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EDIT_BUTTON;
 use crate::string::REMOVE_BUTTON;
@@ -55,7 +52,6 @@ pub struct AffiliationsFormComponent {
     affiliation: AffiliationWithInstitution,
     show_modal_form: bool,
     in_edit_mode: bool,
-    show_results: bool,
     fetch_institutions: FetchInstitutions,
     create_affiliation: PushCreateAffiliation,
     delete_affiliation: PushDeleteAffiliation,
@@ -76,17 +72,15 @@ pub enum Msg {
     GetAffiliations,
     SetInstitutionsFetchState(FetchActionInstitutions),
     GetInstitutions,
-    ToggleSearchResultDisplay(bool),
-    SearchInstitution(String),
     SetAffiliationCreateState(PushActionCreateAffiliation),
     CreateAffiliation,
     SetAffiliationUpdateState(PushActionUpdateAffiliation),
     UpdateAffiliation,
     SetAffiliationDeleteState(PushActionDeleteAffiliation),
     DeleteAffiliation(Uuid),
-    AddAffiliation(Institution),
     ChangePosition(String),
     ChangeOrdinal(String),
+    ChangeInstitution(Uuid),
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -104,7 +98,6 @@ impl Component for AffiliationsFormComponent {
         let affiliation: AffiliationWithInstitution = Default::default();
         let show_modal_form = false;
         let in_edit_mode = false;
-        let show_results = false;
         let fetch_institutions = Default::default();
         let create_affiliation = Default::default();
         let delete_affiliation = Default::default();
@@ -121,7 +114,6 @@ impl Component for AffiliationsFormComponent {
             affiliation,
             show_modal_form,
             in_edit_mode,
-            show_results,
             fetch_institutions,
             create_affiliation,
             delete_affiliation,
@@ -371,36 +363,28 @@ impl Component for AffiliationsFormComponent {
                     .send_message(Msg::SetAffiliationDeleteState(FetchAction::Fetching));
                 false
             }
-            Msg::AddAffiliation(institution) => {
-                self.affiliation.institution_id = institution.institution_id;
-                self.affiliation.institution = institution;
-                self.link
-                    .send_message(Msg::ToggleModalFormDisplay(true, None));
-                true
-            }
-            Msg::ToggleSearchResultDisplay(value) => {
-                self.show_results = value;
-                true
-            }
-            Msg::SearchInstitution(value) => {
-                let body = InstitutionsRequestBody {
-                    variables: SearchVariables {
-                        filter: Some(value),
-                        limit: Some(9999),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                };
-                let request = InstitutionsRequest { body };
-                self.fetch_institutions = Fetch::new(request);
-                self.link.send_message(Msg::GetInstitutions);
-                false
-            }
             Msg::ChangePosition(val) => self.affiliation.position.neq_assign(val.to_opt_string()),
             Msg::ChangeOrdinal(ordinal) => {
                 let ordinal = ordinal.parse::<i32>().unwrap_or(0);
                 self.affiliation.affiliation_ordinal.neq_assign(ordinal);
                 false // otherwise we re-render the component and reset the value
+            }
+            Msg::ChangeInstitution(institution_id) => {
+                // we already have the full list of institutions
+                if let Some(index) = self
+                    .data
+                    .institutions
+                    .iter()
+                    .position(|i| i.institution_id == institution_id)
+                {
+                    self.affiliation
+                        .institution
+                        .neq_assign(self.data.institutions.get(index).unwrap().clone());
+                    self.affiliation.institution_id.neq_assign(institution_id);
+                    true
+                } else {
+                    false
+                }
             }
         }
     }
@@ -419,6 +403,10 @@ impl Component for AffiliationsFormComponent {
         // the form on the same parent page, and ID clashes can lead to bugs
         let form_id = format!("affiliations-form-{}", self.props.contribution_id);
         let affiliations = self.data.affiliations.clone().unwrap_or_default();
+        let open_modal = self.link.callback(|e: MouseEvent| {
+            e.prevent_default();
+            Msg::ToggleModalFormDisplay(true, None)
+        });
         let close_modal = self.link.callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleModalFormDisplay(false, None)
@@ -438,12 +426,19 @@ impl Component for AffiliationsFormComponent {
                         </header>
                         <section class="modal-card-body">
                             <form id={form_id.clone()} onsubmit=self.modal_form_action()>
-                                <div class="field">
-                                    <label class="label">{ "Institution" }</label>
-                                    <div class="control is-expanded">
-                                        {&self.affiliation.institution.institution_name}
-                                    </div>
-                                </div>
+                                <FormInstitutionSelect
+                                    label = "Institution"
+                                    value=self.affiliation.institution_id
+                                    data=self.data.institutions.clone()
+                                    onchange=self.link.callback(|event| match event {
+                                        ChangeData::Select(elem) => {
+                                            let value = elem.value();
+                                            Msg::ChangeInstitution(Uuid::parse_str(&value).unwrap_or_default())
+                                        }
+                                        _ => unreachable!(),
+                                    })
+                                    required = true
+                                />
                                 <FormTextInput
                                     label="Position"
                                     value=self.affiliation.position.clone().unwrap_or_else(|| "".to_string())
@@ -494,40 +489,13 @@ impl Component for AffiliationsFormComponent {
                     <tbody>
                         {for affiliations.iter().map(|a| self.render_affiliation(a))}
                         <tr class="row">
-                            <div class=self.search_dropdown_status() style="width: 100%">
-                                <div class="dropdown-trigger" style="width: 100%">
-                                    <div class="field">
-                                        <p class="control is-expanded has-icons-left">
-                                            <input
-                                                class="input"
-                                                type="search"
-                                                placeholder="Search Institution"
-                                                aria-haspopup="true"
-                                                aria-controls="institutions-menu"
-                                                oninput=self.link.callback(|e: InputData| Msg::SearchInstitution(e.value))
-                                                onfocus=self.link.callback(|_| Msg::ToggleSearchResultDisplay(true))
-                                                onblur=self.link.callback(|_| Msg::ToggleSearchResultDisplay(false))
-                                            />
-                                            <span class="icon is-left">
-                                                <i class="fas fa-search" aria-hidden="true"></i>
-                                            </span>
-                                        </p>
-                                    </div>
-                                </div>
-                                <div class="dropdown-menu" id="institutions-menu" role="menu">
-                                    <div class="dropdown-content">
-                                        {
-                                            for self.data.institutions.iter().map(|i| {
-                                                let institution = i.clone();
-                                                i.as_dropdown_item(
-                                                    self.link.callback(move |_| {
-                                                        Msg::AddAffiliation(institution.clone())
-                                                    })
-                                                )
-                                            })
-                                        }
-                                    </div>
-                                </div>
+                            <div class="panel-block">
+                                <button
+                                    class="button is-link is-outlined is-success is-fullwidth"
+                                    onclick=open_modal
+                                >
+                                    { "Add Affiliation" }
+                                </button>
                             </div>
                         </tr>
                     </tbody>
@@ -569,13 +537,6 @@ impl AffiliationsFormComponent {
                 e.prevent_default();
                 Msg::CreateAffiliation
             }),
-        }
-    }
-
-    fn search_dropdown_status(&self) -> String {
-        match self.show_results {
-            true => "dropdown is-active".to_string(),
-            false => "dropdown".to_string(),
         }
     }
 
