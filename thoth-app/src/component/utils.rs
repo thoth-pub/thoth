@@ -1,3 +1,4 @@
+use thoth_api::model::contributor::Contributor;
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::imprint::ImprintWithPublisher;
 use thoth_api::model::institution::CountryCode;
@@ -65,6 +66,7 @@ pub type FormBooleanSelect = Pure<PureBooleanSelect>;
 pub type FormImprintSelect = Pure<PureImprintSelect>;
 pub type FormPublisherSelect = Pure<PurePublisherSelect>;
 pub type FormInstitutionSelect = Pure<PureInstitutionSelect>;
+pub type FormContributorSelect = Pure<PureContributorSelect>;
 pub type Loader = Pure<PureLoader>;
 pub type Reloader = Pure<PureReloader>;
 
@@ -352,6 +354,16 @@ pub struct PurePublisherSelect {
 pub struct PureInstitutionSelect {
     pub label: String,
     pub data: Vec<Institution>,
+    pub value: Option<Uuid>,
+    pub onchange: Callback<ChangeData>,
+    #[prop_or(false)]
+    pub required: bool,
+}
+
+#[derive(Clone, PartialEq, Properties)]
+pub struct PureContributorSelect {
+    pub label: String,
+    pub data: Vec<Contributor>,
     pub value: Option<Uuid>,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
@@ -847,6 +859,24 @@ impl PureComponent for PureInstitutionSelect {
     }
 }
 
+impl PureComponent for PureContributorSelect {
+    fn render(&self) -> VNode {
+        html! {
+            <div class="field">
+                <label class="label">{ &self.label }</label>
+                <div class="control is-expanded">
+                    <div class="select is-fullwidth">
+                    <select required=self.required onchange=&self.onchange>
+                        <option value="">{"Select Contributor"}</option>
+                        { for self.data.iter().map(|i| self.render_contributor(i)) }
+                    </select>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
 impl PureWorkTypeSelect {
     fn render_worktype(&self, w: &WorkTypeValues, deactivate: &[WorkType]) -> VNode {
         let deactivated = deactivate.contains(&w.name);
@@ -1003,6 +1033,17 @@ impl PureInstitutionSelect {
         html! {
             <option value={i.institution_id.to_string()} selected={&i.institution_id == value}>
                 {&i.institution_name}
+            </option>
+        }
+    }
+}
+
+impl PureContributorSelect {
+    fn render_contributor(&self, c: &Contributor) -> VNode {
+        let value = &self.value.unwrap_or_default();
+        html! {
+            <option value={c.contributor_id.to_string()} selected={&c.contributor_id == value}>
+                {&c.full_name}
             </option>
         }
     }

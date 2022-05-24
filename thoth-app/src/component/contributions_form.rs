@@ -18,6 +18,7 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::affiliations_form::AffiliationsFormComponent;
 use crate::component::utils::FormBooleanSelect;
+use crate::component::utils::FormContributorSelect;
 use crate::component::utils::FormContributionTypeSelect;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormTextInput;
@@ -44,7 +45,6 @@ use crate::models::contributor::contributors_query::ContributorsRequestBody;
 use crate::models::contributor::contributors_query::FetchActionContributors;
 use crate::models::contributor::contributors_query::FetchContributors;
 use crate::models::contributor::contributors_query::Variables;
-use crate::models::Dropdown;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EDIT_BUTTON;
 use crate::string::EMPTY_CONTRIBUTIONS;
@@ -60,7 +60,6 @@ pub struct ContributionsFormComponent {
     contribution: Contribution,
     show_modal_form: bool,
     in_edit_mode: bool,
-    show_results: bool,
     fetch_contributors: FetchContributors,
     fetch_contribution_types: FetchContributionTypes,
     create_contribution: PushCreateContribution,
@@ -82,7 +81,6 @@ pub enum Msg {
     GetContributors,
     SetContributionTypesFetchState(FetchActionContributionTypes),
     GetContributionTypes,
-    ToggleSearchResultDisplay(bool),
     SearchContributor(String),
     SetContributionCreateState(PushActionCreateContribution),
     CreateContribution,
@@ -90,7 +88,6 @@ pub enum Msg {
     UpdateContribution,
     SetContributionDeleteState(PushActionDeleteContribution),
     DeleteContribution(Uuid),
-    AddContribution(Contributor),
     ChangeFirstName(String),
     ChangeLastName(String),
     ChangeFullName(String),
@@ -98,6 +95,7 @@ pub enum Msg {
     ChangeContributiontype(ContributionType),
     ChangeMainContribution(bool),
     ChangeOrdinal(String),
+    ChangeContributor(Uuid),
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -116,7 +114,6 @@ impl Component for ContributionsFormComponent {
         let contribution: Contribution = Default::default();
         let show_modal_form = false;
         let in_edit_mode = false;
-        let show_results = false;
         let fetch_contributors = Default::default();
         let fetch_contribution_types = Default::default();
         let create_contribution = Default::default();
@@ -133,7 +130,6 @@ impl Component for ContributionsFormComponent {
             contribution,
             show_modal_form,
             in_edit_mode,
-            show_results,
             fetch_contributors,
             fetch_contribution_types,
             create_contribution,
@@ -383,19 +379,6 @@ impl Component for ContributionsFormComponent {
                     .send_message(Msg::SetContributionDeleteState(FetchAction::Fetching));
                 false
             }
-            Msg::AddContribution(contributor) => {
-                self.contribution.contributor_id = contributor.contributor_id;
-                self.contribution.first_name = contributor.first_name;
-                self.contribution.last_name = contributor.last_name;
-                self.contribution.full_name = contributor.full_name;
-                self.link
-                    .send_message(Msg::ToggleModalFormDisplay(true, None));
-                true
-            }
-            Msg::ToggleSearchResultDisplay(value) => {
-                self.show_results = value;
-                true
-            }
             Msg::SearchContributor(value) => {
                 let body = ContributorsRequestBody {
                     variables: Variables {
@@ -431,6 +414,24 @@ impl Component for ContributionsFormComponent {
                 self.contribution.contribution_ordinal.neq_assign(ordinal);
                 false // otherwise we re-render the component and reset the value
             }
+            Msg::ChangeContributor(contributor_id) => {
+                // we already have the full list of contributors
+                if let Some(contributor) = self
+                    .data
+                    .contributors
+                    .iter()
+                    .find(|c| c.contributor_id == contributor_id)
+                {
+                    self.contribution.contributor_id.neq_assign(contributor_id);
+                    // Update user-editable name fields to default to canonical name
+                    self.contribution.first_name.neq_assign(contributor.first_name.clone());
+                    self.contribution.last_name.neq_assign(contributor.last_name.clone());
+                    self.contribution.full_name.neq_assign(contributor.full_name.clone());
+                    true
+                } else {
+                    false
+                }
+            }
         }
     }
 
@@ -440,6 +441,10 @@ impl Component for ContributionsFormComponent {
 
     fn view(&self) -> Html {
         let contributions = self.props.contributions.clone().unwrap_or_default();
+        let open_modal = self.link.callback(|e: MouseEvent| {
+            e.prevent_default();
+            Msg::ToggleModalFormDisplay(true, None)
+        });
         let close_modal = self.link.callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleModalFormDisplay(false, None)
@@ -450,41 +455,12 @@ impl Component for ContributionsFormComponent {
                     { "Contributions" }
                 </p>
                 <div class="panel-block">
-                    <div class=self.search_dropdown_status() style="width: 100%">
-                        <div class="dropdown-trigger" style="width: 100%">
-                            <div class="field">
-                                <p class="control is-expanded has-icons-left">
-                                    <input
-                                        class="input"
-                                        type="search"
-                                        placeholder="Search Contributor"
-                                        aria-haspopup="true"
-                                        aria-controls="contributors-menu"
-                                        oninput=self.link.callback(|e: InputData| Msg::SearchContributor(e.value))
-                                        onfocus=self.link.callback(|_| Msg::ToggleSearchResultDisplay(true))
-                                        onblur=self.link.callback(|_| Msg::ToggleSearchResultDisplay(false))
-                                    />
-                                    <span class="icon is-left">
-                                        <i class="fas fa-search" aria-hidden="true"></i>
-                                    </span>
-                                </p>
-                            </div>
-                        </div>
-                        <div class="dropdown-menu" id="contributors-menu" role="menu">
-                            <div class="dropdown-content">
-                                {
-                                    for self.data.contributors.iter().map(|c| {
-                                        let contributor = c.clone();
-                                        c.as_dropdown_item(
-                                            self.link.callback(move |_| {
-                                                Msg::AddContribution(contributor.clone())
-                                            })
-                                        )
-                                    })
-                                }
-                            </div>
-                        </div>
-                    </div>
+                    <button
+                        class="button is-link is-outlined is-success is-fullwidth"
+                        onclick=open_modal
+                    >
+                        { "Add Contribution" }
+                    </button>
                 </div>
                 <div class=self.modal_form_status()>
                     <div class="modal-background" onclick=&close_modal></div>
@@ -499,6 +475,32 @@ impl Component for ContributionsFormComponent {
                         </header>
                         <section class="modal-card-body">
                             <form id="contributions-form" onsubmit=self.modal_form_action()>
+                                <div class="field">
+                                    <p class="control is-expanded has-icons-left">
+                                        <input
+                                            class="input"
+                                            type="search"
+                                            placeholder="Filter Contributors"
+                                            oninput=self.link.callback(|e: InputData| Msg::SearchContributor(e.value))
+                                        />
+                                        <span class="icon is-left">
+                                            <i class="fas fa-search" aria-hidden="true"></i>
+                                        </span>
+                                    </p>
+                                </div>
+                                <FormContributorSelect
+                                    label = "Contributor"
+                                    value=self.contribution.contributor_id
+                                    data=self.data.contributors.clone()
+                                    onchange=self.link.callback(|event| match event {
+                                        ChangeData::Select(elem) => {
+                                            let value = elem.value();
+                                            Msg::ChangeContributor(Uuid::parse_str(&value).unwrap_or_default())
+                                        }
+                                        _ => unreachable!(),
+                                    })
+                                    required = true
+                                />
                                 <FormTextInput
                                     label="Contributor's Given Name"
                                     value=self.contribution.first_name.clone()
@@ -621,13 +623,6 @@ impl ContributionsFormComponent {
                 e.prevent_default();
                 Msg::CreateContribution
             }),
-        }
-    }
-
-    fn search_dropdown_status(&self) -> String {
-        match self.show_results {
-            true => "dropdown is-active".to_string(),
-            false => "dropdown".to_string(),
         }
     }
 
