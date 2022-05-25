@@ -39,6 +39,9 @@ use crate::models::affiliation::update_affiliation_mutation::UpdateAffiliationRe
 use crate::models::affiliation::update_affiliation_mutation::Variables as UpdateVariables;
 use crate::models::institution::institutions_query::FetchActionInstitutions;
 use crate::models::institution::institutions_query::FetchInstitutions;
+use crate::models::institution::institutions_query::InstitutionsRequest;
+use crate::models::institution::institutions_query::InstitutionsRequestBody;
+use crate::models::institution::institutions_query::Variables as SearchVariables;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EDIT_BUTTON;
 use crate::string::REMOVE_BUTTON;
@@ -78,9 +81,9 @@ pub enum Msg {
     UpdateAffiliation,
     SetAffiliationDeleteState(PushActionDeleteAffiliation),
     DeleteAffiliation(Uuid),
+    ChangeInstitution(Uuid),
     ChangePosition(String),
     ChangeOrdinal(String),
-    ChangeInstitution(Uuid),
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -98,7 +101,15 @@ impl Component for AffiliationsFormComponent {
         let affiliation: AffiliationWithInstitution = Default::default();
         let show_modal_form = false;
         let in_edit_mode = false;
-        let fetch_institutions = Default::default();
+        let body = InstitutionsRequestBody {
+            variables: SearchVariables {
+                limit: Some(9999),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let request = InstitutionsRequest { body };
+        let fetch_institutions = Fetch::new(request);
         let create_affiliation = Default::default();
         let delete_affiliation = Default::default();
         let update_affiliation = Default::default();
@@ -132,6 +143,9 @@ impl Component for AffiliationsFormComponent {
                     if let Some(affiliation) = a {
                         // Editing existing affiliation: load its current values.
                         self.affiliation = affiliation;
+                    } else {
+                        self.affiliation.institution_id = Default::default();
+                        self.affiliation.institution = Default::default();
                     }
                 }
                 true
@@ -363,28 +377,29 @@ impl Component for AffiliationsFormComponent {
                     .send_message(Msg::SetAffiliationDeleteState(FetchAction::Fetching));
                 false
             }
+            Msg::ChangeInstitution(institution_id) => {
+                // ID may be nil if placeholder option was selected.
+                // Reset institution anyway, to keep display/underlying values in sync.
+                self.affiliation.institution_id.neq_assign(institution_id);
+                // we already have the full list of institutions
+                if let Some(institution) = self
+                    .data
+                    .institutions
+                    .iter()
+                    .find(|i| i.institution_id == institution_id)
+                {
+                    self.affiliation.institution.neq_assign(institution.clone());
+                } else {
+                    // Institution not found: clear existing selection
+                    self.affiliation.institution.neq_assign(Default::default());
+                }
+                true
+            }
             Msg::ChangePosition(val) => self.affiliation.position.neq_assign(val.to_opt_string()),
             Msg::ChangeOrdinal(ordinal) => {
                 let ordinal = ordinal.parse::<i32>().unwrap_or(0);
                 self.affiliation.affiliation_ordinal.neq_assign(ordinal);
                 false // otherwise we re-render the component and reset the value
-            }
-            Msg::ChangeInstitution(institution_id) => {
-                // we already have the full list of institutions
-                if let Some(index) = self
-                    .data
-                    .institutions
-                    .iter()
-                    .position(|i| i.institution_id == institution_id)
-                {
-                    self.affiliation
-                        .institution
-                        .neq_assign(self.data.institutions.get(index).unwrap().clone());
-                    self.affiliation.institution_id.neq_assign(institution_id);
-                    true
-                } else {
-                    false
-                }
             }
         }
     }
@@ -482,7 +497,8 @@ impl Component for AffiliationsFormComponent {
                             <th class="th">
                                 { "Affiliation Ordinal" }
                             </th>
-                            // Empty column for "Edit" and "Remove" buttons
+                            // Empty columns for "Edit" and "Remove" buttons
+                            <th class="th"></th>
                             <th class="th"></th>
                         </tr>
                     </thead>
@@ -491,7 +507,7 @@ impl Component for AffiliationsFormComponent {
                         <tr class="row">
                             <div class="panel-block">
                                 <button
-                                    class="button is-link is-outlined is-success is-fullwidth"
+                                    class="button is-link is-outlined is-success"
                                     onclick=open_modal
                                 >
                                     { "Add Affiliation" }
@@ -555,6 +571,8 @@ impl AffiliationsFormComponent {
                     >
                         { EDIT_BUTTON }
                     </a>
+                </td>
+                <td>
                     <a
                         class="button is-danger is-small"
                         onclick=self.link.callback(move |_| Msg::DeleteAffiliation(affiliation_id))

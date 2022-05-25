@@ -354,7 +354,7 @@ pub struct PurePublisherSelect {
 pub struct PureInstitutionSelect {
     pub label: String,
     pub data: Vec<Institution>,
-    pub value: Option<Uuid>,
+    pub value: Uuid,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -849,7 +849,7 @@ impl PureComponent for PureInstitutionSelect {
                 <div class="control is-expanded">
                     <div class="select is-fullwidth">
                     <select required=self.required onchange=&self.onchange>
-                        <option value="">{"Select Institution"}</option>
+                        <option value="" selected={self.value.is_nil()}>{"Select Institution"}</option>
                         { for self.data.iter().map(|i| self.render_institution(i)) }
                     </select>
                     </div>
@@ -868,7 +868,7 @@ impl PureComponent for PureContributorSelect {
                     <div class="select is-fullwidth">
                     <select required=self.required onchange=&self.onchange>
                         <option value="" selected={self.value.is_nil()}>{"Select Contributor"}</option>
-                        { for self.data.iter().map(|i| self.render_contributor(i)) }
+                        { for self.data.iter().map(|c| self.render_contributor(c)) }
                     </select>
                     </div>
                 </div>
@@ -1029,10 +1029,9 @@ impl PurePublisherSelect {
 
 impl PureInstitutionSelect {
     fn render_institution(&self, i: &Institution) -> VNode {
-        let value = &self.value.unwrap_or_default();
         html! {
-            <option value={i.institution_id.to_string()} selected={&i.institution_id == value}>
-                {&i.institution_name}
+            <option value={i.institution_id.to_string()} selected={i.institution_id == self.value}>
+                {&i.to_string()}
             </option>
         }
     }

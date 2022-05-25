@@ -87,6 +87,7 @@ pub enum Msg {
     UpdateContribution,
     SetContributionDeleteState(PushActionDeleteContribution),
     DeleteContribution(Uuid),
+    ChangeContributor(Uuid),
     ChangeFirstName(String),
     ChangeLastName(String),
     ChangeFullName(String),
@@ -94,7 +95,6 @@ pub enum Msg {
     ChangeContributiontype(ContributionType),
     ChangeMainContribution(bool),
     ChangeOrdinal(String),
-    ChangeContributor(Uuid),
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -392,27 +392,6 @@ impl Component for ContributionsFormComponent {
                     .send_message(Msg::SetContributionDeleteState(FetchAction::Fetching));
                 false
             }
-            Msg::ChangeFirstName(val) => {
-                self.contribution.first_name.neq_assign(val.to_opt_string())
-            }
-            Msg::ChangeLastName(val) => self
-                .contribution
-                .last_name
-                .neq_assign(val.trim().to_owned()),
-            Msg::ChangeFullName(val) => self
-                .contribution
-                .full_name
-                .neq_assign(val.trim().to_owned()),
-            Msg::ChangeBiography(val) => {
-                self.contribution.biography.neq_assign(val.to_opt_string())
-            }
-            Msg::ChangeContributiontype(val) => self.contribution.contribution_type.neq_assign(val),
-            Msg::ChangeMainContribution(val) => self.contribution.main_contribution.neq_assign(val),
-            Msg::ChangeOrdinal(ordinal) => {
-                let ordinal = ordinal.parse::<i32>().unwrap_or(0);
-                self.contribution.contribution_ordinal.neq_assign(ordinal);
-                false // otherwise we re-render the component and reset the value
-            }
             Msg::ChangeContributor(contributor_id) => {
                 // ID may be nil if placeholder option was selected.
                 // Reset contributor anyway, to keep display/underlying values in sync.
@@ -436,6 +415,27 @@ impl Component for ContributionsFormComponent {
                         .neq_assign(contributor.full_name.clone());
                 }
                 true
+            }
+            Msg::ChangeFirstName(val) => {
+                self.contribution.first_name.neq_assign(val.to_opt_string())
+            }
+            Msg::ChangeLastName(val) => self
+                .contribution
+                .last_name
+                .neq_assign(val.trim().to_owned()),
+            Msg::ChangeFullName(val) => self
+                .contribution
+                .full_name
+                .neq_assign(val.trim().to_owned()),
+            Msg::ChangeBiography(val) => {
+                self.contribution.biography.neq_assign(val.to_opt_string())
+            }
+            Msg::ChangeContributiontype(val) => self.contribution.contribution_type.neq_assign(val),
+            Msg::ChangeMainContribution(val) => self.contribution.main_contribution.neq_assign(val),
+            Msg::ChangeOrdinal(ordinal) => {
+                let ordinal = ordinal.parse::<i32>().unwrap_or(0);
+                self.contribution.contribution_ordinal.neq_assign(ordinal);
+                false // otherwise we re-render the component and reset the value
             }
         }
     }
