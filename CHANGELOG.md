@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+  - [#287](https://github.com/thoth-pub/thoth/issues/287) - Allow editing contributions (and affiliations)
+
+### Fixed
+  - [#360](https://github.com/thoth-pub/thoth/issues/360) - Prevent adding 0 as the price of a publication
+  - [#376](https://github.com/thoth-pub/thoth/issues/376) - Restrict Licence field entries to URL-formatted strings
 
 ## [[0.8.4]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.4) - 2022-05-11
 ### Added
