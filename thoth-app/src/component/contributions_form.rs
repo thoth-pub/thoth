@@ -18,8 +18,8 @@ use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::affiliations_form::AffiliationsFormComponent;
 use crate::component::utils::FormBooleanSelect;
-use crate::component::utils::FormContributorSelect;
 use crate::component::utils::FormContributionTypeSelect;
+use crate::component::utils::FormContributorSelect;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormTextInput;
 use crate::models::contribution::contribution_types_query::FetchActionContributionTypes;
@@ -81,7 +81,6 @@ pub enum Msg {
     GetContributors,
     SetContributionTypesFetchState(FetchActionContributionTypes),
     GetContributionTypes,
-    SearchContributor(String),
     SetContributionCreateState(PushActionCreateContribution),
     CreateContribution,
     SetContributionUpdateState(PushActionUpdateContribution),
@@ -114,7 +113,15 @@ impl Component for ContributionsFormComponent {
         let contribution: Contribution = Default::default();
         let show_modal_form = false;
         let in_edit_mode = false;
-        let fetch_contributors = Default::default();
+        let body = ContributorsRequestBody {
+            variables: Variables {
+                limit: Some(9999),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let request = ContributorsRequest { body };
+        let fetch_contributors = Fetch::new(request);
         let fetch_contribution_types = Default::default();
         let create_contribution = Default::default();
         let delete_contribution = Default::default();
@@ -149,6 +156,12 @@ impl Component for ContributionsFormComponent {
                     if let Some(contribution) = c {
                         // Editing existing contribution: load its current values.
                         self.contribution = contribution;
+                    } else {
+                        self.contribution.contributor_id = Default::default();
+                        // Clear user-editable name fields as no contributor is selected yet.
+                        self.contribution.first_name = Default::default();
+                        self.contribution.last_name = Default::default();
+                        self.contribution.full_name = Default::default();
                     }
                 }
                 true
@@ -379,20 +392,6 @@ impl Component for ContributionsFormComponent {
                     .send_message(Msg::SetContributionDeleteState(FetchAction::Fetching));
                 false
             }
-            Msg::SearchContributor(value) => {
-                let body = ContributorsRequestBody {
-                    variables: Variables {
-                        filter: Some(value),
-                        limit: Some(9999),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                };
-                let request = ContributorsRequest { body };
-                self.fetch_contributors = Fetch::new(request);
-                self.link.send_message(Msg::GetContributors);
-                false
-            }
             Msg::ChangeFirstName(val) => {
                 self.contribution.first_name.neq_assign(val.to_opt_string())
             }
@@ -415,6 +414,9 @@ impl Component for ContributionsFormComponent {
                 false // otherwise we re-render the component and reset the value
             }
             Msg::ChangeContributor(contributor_id) => {
+                // ID may be nil if placeholder option was selected.
+                // Reset contributor anyway, to keep display/underlying values in sync.
+                self.contribution.contributor_id.neq_assign(contributor_id);
                 // we already have the full list of contributors
                 if let Some(contributor) = self
                     .data
@@ -422,15 +424,18 @@ impl Component for ContributionsFormComponent {
                     .iter()
                     .find(|c| c.contributor_id == contributor_id)
                 {
-                    self.contribution.contributor_id.neq_assign(contributor_id);
                     // Update user-editable name fields to default to canonical name
-                    self.contribution.first_name.neq_assign(contributor.first_name.clone());
-                    self.contribution.last_name.neq_assign(contributor.last_name.clone());
-                    self.contribution.full_name.neq_assign(contributor.full_name.clone());
-                    true
-                } else {
-                    false
+                    self.contribution
+                        .first_name
+                        .neq_assign(contributor.first_name.clone());
+                    self.contribution
+                        .last_name
+                        .neq_assign(contributor.last_name.clone());
+                    self.contribution
+                        .full_name
+                        .neq_assign(contributor.full_name.clone());
                 }
+                true
             }
         }
     }
@@ -475,19 +480,6 @@ impl Component for ContributionsFormComponent {
                         </header>
                         <section class="modal-card-body">
                             <form id="contributions-form" onsubmit=self.modal_form_action()>
-                                <div class="field">
-                                    <p class="control is-expanded has-icons-left">
-                                        <input
-                                            class="input"
-                                            type="search"
-                                            placeholder="Filter Contributors"
-                                            oninput=self.link.callback(|e: InputData| Msg::SearchContributor(e.value))
-                                        />
-                                        <span class="icon is-left">
-                                            <i class="fas fa-search" aria-hidden="true"></i>
-                                        </span>
-                                    </p>
-                                </div>
                                 <FormContributorSelect
                                     label = "Contributor"
                                     value=self.contribution.contributor_id

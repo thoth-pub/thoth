@@ -1,5 +1,5 @@
-use thoth_api::model::contributor::Contributor;
 use thoth_api::model::contribution::ContributionType;
+use thoth_api::model::contributor::Contributor;
 use thoth_api::model::imprint::ImprintWithPublisher;
 use thoth_api::model::institution::CountryCode;
 use thoth_api::model::institution::Institution;
@@ -364,7 +364,7 @@ pub struct PureInstitutionSelect {
 pub struct PureContributorSelect {
     pub label: String,
     pub data: Vec<Contributor>,
-    pub value: Option<Uuid>,
+    pub value: Uuid,
     pub onchange: Callback<ChangeData>,
     #[prop_or(false)]
     pub required: bool,
@@ -867,7 +867,7 @@ impl PureComponent for PureContributorSelect {
                 <div class="control is-expanded">
                     <div class="select is-fullwidth">
                     <select required=self.required onchange=&self.onchange>
-                        <option value="">{"Select Contributor"}</option>
+                        <option value="" selected={self.value.is_nil()}>{"Select Contributor"}</option>
                         { for self.data.iter().map(|i| self.render_contributor(i)) }
                     </select>
                     </div>
@@ -1040,10 +1040,9 @@ impl PureInstitutionSelect {
 
 impl PureContributorSelect {
     fn render_contributor(&self, c: &Contributor) -> VNode {
-        let value = &self.value.unwrap_or_default();
         html! {
-            <option value={c.contributor_id.to_string()} selected={&c.contributor_id == value}>
-                {&c.full_name}
+            <option value={c.contributor_id.to_string()} selected={c.contributor_id == self.value}>
+                {&c.to_string()}
             </option>
         }
     }
