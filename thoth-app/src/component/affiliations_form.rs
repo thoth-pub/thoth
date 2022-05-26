@@ -139,6 +139,16 @@ impl Component for AffiliationsFormComponent {
                 self.show_modal_form = show_form;
                 self.in_edit_mode = a.is_some();
                 if show_form {
+                    let body = InstitutionsRequestBody {
+                        variables: SearchVariables {
+                            limit: Some(9999),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    };
+                    let request = InstitutionsRequest { body };
+                    self.fetch_institutions = Fetch::new(request);
+                    self.link.send_message(Msg::GetInstitutions);
                     if let Some(affiliation) = a {
                         // Editing existing affiliation: load its current values.
                         self.affiliation = affiliation;

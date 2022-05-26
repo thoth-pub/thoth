@@ -152,6 +152,16 @@ impl Component for ContributionsFormComponent {
                 self.show_modal_form = show_form;
                 self.in_edit_mode = c.is_some();
                 if show_form {
+                    let body = ContributorsRequestBody {
+                        variables: Variables {
+                            limit: Some(9999),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    };
+                    let request = ContributorsRequest { body };
+                    self.fetch_contributors = Fetch::new(request);
+                    self.link.send_message(Msg::GetContributors);
                     if let Some(contribution) = c {
                         // Editing existing contribution: load its current values.
                         self.contribution = contribution;
