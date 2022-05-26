@@ -142,9 +142,6 @@ impl Component for AffiliationsFormComponent {
                     if let Some(affiliation) = a {
                         // Editing existing affiliation: load its current values.
                         self.affiliation = affiliation;
-                    } else {
-                        self.affiliation.institution_id = Default::default();
-                        self.affiliation.institution = Default::default();
                     }
                 }
                 true

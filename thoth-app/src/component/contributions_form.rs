@@ -155,12 +155,6 @@ impl Component for ContributionsFormComponent {
                     if let Some(contribution) = c {
                         // Editing existing contribution: load its current values.
                         self.contribution = contribution;
-                    } else {
-                        self.contribution.contributor_id = Default::default();
-                        // Clear user-editable name fields as no contributor is selected yet.
-                        self.contribution.first_name = Default::default();
-                        self.contribution.last_name = Default::default();
-                        self.contribution.full_name = Default::default();
                     }
                 }
                 true
