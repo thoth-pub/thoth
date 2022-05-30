@@ -410,17 +410,16 @@ impl Component for WorkComponent {
             Msg::ChangeReference(value) => self.work.reference.neq_assign(value.to_opt_string()),
             Msg::ChangeImprint(imprint_id) => {
                 // we already have the full list of imprints
-                if let Some(index) = self
+                if let Some(imprint) = self
                     .data
                     .imprints
                     .iter()
-                    .position(|i| i.imprint_id == imprint_id)
+                    .find(|i| i.imprint_id == imprint_id)
                 {
-                    self.work
-                        .imprint
-                        .neq_assign(self.data.imprints.get(index).unwrap().clone())
+                    self.work.imprint.neq_assign(imprint.clone())
                 } else {
-                    false
+                    // Imprint not found: clear existing selection
+                    self.work.imprint.neq_assign(Default::default())
                 }
             }
             Msg::ChangeEdition(edition) => self.work.edition.neq_assign(edition.to_opt_int()),
