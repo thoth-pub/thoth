@@ -23,7 +23,7 @@ anyhow = "1.0.32"
 chrono = { version = "0.4", features = ["serde"] }
 log = "0.4.11"
 thiserror = "1.0.20"
-yew = "0.18.0"
+yew = "0.19.3"
 yew-router = "0.15.0"
 yewtil = { version = "0.4.0", features = ["fetch", "pure"] }
 wasm-bindgen = "0.2.74"
