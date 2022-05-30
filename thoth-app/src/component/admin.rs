@@ -96,7 +96,7 @@ impl Component for AdminComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::RedirectToLogin => {
                 self.router
@@ -106,7 +106,7 @@ impl Component for AdminComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         if self.props != props {
             self.previous_route.neq_assign(self.props.route.clone());
             self.props = props;
@@ -134,44 +134,44 @@ impl Component for AdminComponent {
                 <div class="columns">
                     <div class="column">
                         <div class="container">
-                            <MenuComponent route = self.props.route.clone() />
+                            <MenuComponent route={ self.props.route.clone() } />
                         </div>
                     </div>
                     <div class="column is-four-fifths">
                         <div class="container">
                         {
                             match &self.props.route {
-                                AdminRoute::Admin => html!{<DashboardComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Dashboard => html!{<DashboardComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Works => html!{<WorksComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Books => html!{<BooksComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Chapters => html!{<ChaptersComponent current_user = self.props.current_user.clone().unwrap() />},
+                                AdminRoute::Admin => html!{<DashboardComponent current_user={ self.props.current_user.clone().unwrap() } />},
+                                AdminRoute::Dashboard => html!{<DashboardComponent current_user={ self.props.current_user.clone().unwrap() } />},
+                                AdminRoute::Works => html!{<WorksComponent current_user={ self.props.current_user.clone().unwrap() } />},
+                                AdminRoute::Books => html!{<BooksComponent current_user={ self.props.current_user.clone().unwrap() } />},
+                                AdminRoute::Chapters => html!{<ChaptersComponent current_user={ self.props.current_user.clone().unwrap() } />},
                                 AdminRoute::Work(id) => html!{
                                     <WorkComponent
-                                        work_id = *id
-                                        current_user = self.props.current_user.clone().unwrap()
+                                        work_id={ *id }
+                                        current_user={ self.props.current_user.clone().unwrap() }
                                     />
                                 },
                                 AdminRoute::NewWork => html!{
                                     <NewWorkComponent
-                                        current_user = self.props.current_user.clone().unwrap()
-                                        previous_route = self.previous_route.clone()
+                                        current_user={ self.props.current_user.clone().unwrap() }
+                                        previous_route={ self.previous_route.clone() }
                                     />
                                 },
-                                AdminRoute::Publishers => html!{<PublishersComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id = *id current_user = self.props.current_user.clone().unwrap() />},
+                                AdminRoute::Publishers => html!{<PublishersComponent current_user={ self.props.current_user.clone().unwrap() } />},
+                                AdminRoute::Publisher(id) => html!{<PublisherComponent publisher_id={ *id } current_user={ self.props.current_user.clone().unwrap() } />},
                                 AdminRoute::NewPublisher => html!{<NewPublisherComponent/>},
-                                AdminRoute::Imprints => html!{<ImprintsComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Imprint(id) => html!{<ImprintComponent imprint_id= *id current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::NewImprint => html!{<NewImprintComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Institutions => html!{<InstitutionsComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Institution(id) => html!{<InstitutionComponent institution_id = *id />},
+                                AdminRoute::Imprints => html!{<ImprintsComponent current_user={ self.props.current_user.clone().unwrap() } />},
+                                AdminRoute::Imprint(id) => html!{<ImprintComponent imprint_id={ *id } current_user={ self.props.current_user.clone().unwrap() } />},
+                                AdminRoute::NewImprint => html!{<NewImprintComponent current_user={ self.props.current_user.clone().unwrap() } />},
+                                AdminRoute::Institutions => html!{<InstitutionsComponent current_user={ self.props.current_user.clone().unwrap() } />},
+                                AdminRoute::Institution(id) => html!{<InstitutionComponent institution_id={ *id } />},
                                 AdminRoute::NewInstitution => html!{<NewInstitutionComponent/>},
-                                AdminRoute::Publications => html!{<PublicationsComponent current_user = self.props.current_user.clone().unwrap() />},
+                                AdminRoute::Publications => html!{<PublicationsComponent current_user={ self.props.current_user.clone().unwrap() } />},
                                 AdminRoute::Publication(id) => html!{
                                     <PublicationComponent
-                                        publication_id = *id
-                                        current_user = self.props.current_user.clone().unwrap()
+                                        publication_id={ *id }
+                                        current_user={ self.props.current_user.clone().unwrap() }
                                     />
                                 },
                                 AdminRoute::NewPublication => {
@@ -183,12 +183,12 @@ impl Component for AdminComponent {
                                         </article>
                                     }
                                 }
-                                AdminRoute::Contributors => html!{<ContributorsComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Contributor(id) => html!{<ContributorComponent contributor_id = *id />},
+                                AdminRoute::Contributors => html!{<ContributorsComponent current_user={ self.props.current_user.clone().unwrap() } />},
+                                AdminRoute::Contributor(id) => html!{<ContributorComponent contributor_id={ *id } />},
                                 AdminRoute::NewContributor => html!{<NewContributorComponent/>},
-                                AdminRoute::Serieses => html!{<SeriesesComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::NewSeries => html!{<NewSeriesComponent current_user = self.props.current_user.clone().unwrap() />},
-                                AdminRoute::Series(id) => html!{<SeriesComponent series_id = *id current_user = self.props.current_user.clone().unwrap() />},
+                                AdminRoute::Serieses => html!{<SeriesesComponent current_user={ self.props.current_user.clone().unwrap() } />},
+                                AdminRoute::NewSeries => html!{<NewSeriesComponent current_user={ self.props.current_user.clone().unwrap() } />},
+                                AdminRoute::Series(id) => html!{<SeriesComponent series_id={ *id } current_user={ self.props.current_user.clone().unwrap() } />},
                             }
                         }
                         </div>

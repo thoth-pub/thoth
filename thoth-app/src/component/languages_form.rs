@@ -113,7 +113,7 @@ impl Component for LanguagesFormComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleAddFormDisplay(value) => {
                 self.show_add_form = value;
@@ -264,7 +264,7 @@ impl Component for LanguagesFormComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         self.props.neq_assign(props)
     }
 
@@ -286,33 +286,33 @@ impl Component for LanguagesFormComponent {
                 <div class="panel-block">
                     <button
                         class="button is-link is-outlined is-success is-fullwidth"
-                        onclick=open_modal
+                        onclick={ open_modal }
                     >
                         { "Add Language" }
                     </button>
                 </div>
-                <div class=self.add_form_status()>
-                    <div class="modal-background" onclick=&close_modal></div>
+                <div class={ self.add_form_status() }>
+                    <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
                             <p class="modal-card-title">{ "New Language" }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="languages-form" onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="languages-form" onsubmit={ self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
                                 Msg::CreateLanguage
-                            })
+                            }) }
                             >
                                 <FormLanguageCodeSelect
                                     label = "Language Code"
-                                    value=self.new_language.language_code.clone()
-                                    data=self.data.language_codes.clone()
-                                    onchange=self.link.callback(|event| match event {
+                                    value={ self.new_language.language_code.clone() }
+                                    data={ self.data.language_codes.clone() }
+                                    onchange={ self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             Msg::ChangeLanguageCode(
@@ -320,14 +320,14 @@ impl Component for LanguagesFormComponent {
                                             )
                                         }
                                         _ => unreachable!(),
-                                    })
+                                    }) }
                                     required = true
                                 />
                                 <FormLanguageRelationSelect
                                     label = "Language Relation"
-                                    value=self.new_language.language_relation.clone()
-                                    data=self.data.language_relations.clone()
-                                    onchange=self.link.callback(|event| match event {
+                                    value={ self.new_language.language_relation.clone() }
+                                    data={ self.data.language_relations.clone() }
+                                    onchange={ self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             Msg::ChangeLanguageRelation(
@@ -335,20 +335,20 @@ impl Component for LanguagesFormComponent {
                                             )
                                         }
                                         _ => unreachable!(),
-                                    })
+                                    }) }
                                     required = true
                                 />
                                 <FormBooleanSelect
                                     label = "Main"
-                                    value=self.new_language.main_language
-                                    onchange=self.link.callback(|event| match event {
+                                    value={ self.new_language.main_language }
+                                    onchange={ self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             let boolean = value == "true";
                                             Msg::ChangeMainLanguage(boolean)
                                         }
                                         _ => unreachable!(),
-                                    })
+                                    }) }
                                     required = true
                                 />
                             </form>
@@ -363,7 +363,7 @@ impl Component for LanguagesFormComponent {
                             </button>
                             <button
                                 class="button"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             >
                                 { CANCEL_BUTTON }
                             </button>
@@ -433,7 +433,7 @@ impl LanguagesFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteLanguage(language_id))
+                                onclick={ self.link.callback(move |_| Msg::DeleteLanguage(language_id)) }
                             >
                                 { REMOVE_BUTTON }
                             </a>

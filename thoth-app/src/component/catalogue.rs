@@ -4,7 +4,6 @@ use yew::prelude::Component;
 use yew::prelude::FocusEvent;
 use yew::prelude::Html;
 use yew::prelude::InputData;
-use yew::prelude::ShouldRender;
 use yew::ComponentLink;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
@@ -72,7 +71,7 @@ impl Component for CatalogueComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::SetFetchState(fetch_state) => {
                 self.fetch_data.apply(fetch_state);
@@ -143,7 +142,7 @@ impl Component for CatalogueComponent {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, _props: Self::Properties) -> bool {
         false
     }
 
@@ -163,29 +162,29 @@ impl Component for CatalogueComponent {
                 </nav>
                 <nav class="pagination is-centered" role="navigation" aria-label="pagination">
                     <a class="pagination-previous"
-                        onclick=self.link.callback(|_| Msg::PreviousPage)
-                        disabled=self.is_previous_disabled()
+                        onclick={ self.link.callback(|_| Msg::PreviousPage) }
+                        disabled={ self.is_previous_disabled() }
                     >{ crate::string::PREVIOUS_PAGE_BUTTON }</a>
                     <a class="pagination-next"
-                        onclick=self.link.callback(|_| Msg::NextPage)
-                        disabled=self.is_next_disabled()
+                        onclick={ self.link.callback(|_| Msg::NextPage) }
+                        disabled={ self.is_next_disabled() }
                     >{ crate::string::NEXT_PAGE_BUTTON }</a>
                     <div class="pagination-list">
                         <form
                             style="width: 80%"
-                            onsubmit=self.link.callback(|e: FocusEvent| {
+                            onsubmit={ self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
                                 Msg::TriggerSearch
-                            })
+                            }) }
                         >
                             <div class="field has-addons">
                                 <p class="control is-expanded has-icons-left">
                                     <input
                                         class="input"
                                         type="search"
-                                        value=self.search_term.clone()
-                                        placeholder=self.search_text()
-                                        oninput=self.link.callback(|e: InputData| Msg::ChangeSearchTerm(e.value))
+                                        value={ self.search_term.clone() }
+                                        placeholder={ self.search_text() }
+                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeSearchTerm(e.value)) }
                                     />
                                     <span class="icon is-left">
                                         <i class="fas fa-search" aria-hidden="true"></i>
@@ -203,7 +202,7 @@ impl Component for CatalogueComponent {
                 {
                     match self.fetch_data.as_ref().state() {
                         FetchState::NotFetching(_) => {
-                            html! {<Reloader onclick=self.link.callback(|_| Msg::GetData)/>}
+                            html! {<Reloader onclick={ self.link.callback(|_| Msg::GetData) }/>}
                         }
                         FetchState::Fetching(_) => html! {<Loader/>},
                         FetchState::Fetched(_body) => html! {

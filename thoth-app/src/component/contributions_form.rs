@@ -146,7 +146,7 @@ impl Component for ContributionsFormComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleModalFormDisplay(show_form, c) => {
                 self.show_modal_form = show_form;
@@ -470,7 +470,7 @@ impl Component for ContributionsFormComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         self.props.neq_assign(props)
     }
 
@@ -486,7 +486,7 @@ impl Component for ContributionsFormComponent {
                     { "Contributions" }
                 </p>
                 <div class="panel-block">
-                    <div class=self.search_dropdown_status() style="width: 100%">
+                    <div class={ self.search_dropdown_status() } style="width: 100%">
                         <div class="dropdown-trigger" style="width: 100%">
                             <div class="field">
                                 <p class="control is-expanded has-icons-left">
@@ -496,9 +496,9 @@ impl Component for ContributionsFormComponent {
                                         placeholder="Search Contributor"
                                         aria-haspopup="true"
                                         aria-controls="contributors-menu"
-                                        oninput=self.link.callback(|e: InputData| Msg::SearchContributor(e.value))
-                                        onfocus=self.link.callback(|_| Msg::ToggleSearchResultDisplay(true))
-                                        onblur=self.link.callback(|_| Msg::ToggleSearchResultDisplay(false))
+                                        oninput={ self.link.callback(|e: InputData| Msg::SearchContributor(e.value)) }
+                                        onfocus={ self.link.callback(|_| Msg::ToggleSearchResultDisplay(true)) }
+                                        onblur={ self.link.callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                     />
                                     <span class="icon is-left">
                                         <i class="fas fa-search" aria-hidden="true"></i>
@@ -522,86 +522,86 @@ impl Component for ContributionsFormComponent {
                         </div>
                     </div>
                 </div>
-                <div class=self.modal_form_status()>
-                    <div class="modal-background" onclick=&close_modal></div>
+                <div class={ self.modal_form_status() }>
+                    <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
                             <p class="modal-card-title">{ self.modal_form_title() }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="contributions-form" onsubmit=self.modal_form_action()>
+                            <form id="contributions-form" onsubmit={ self.modal_form_action() }>
                                 <FormContributorSelect
                                     label = "Contributor"
-                                    value=self.contribution.contributor_id
-                                    data=self.data.contributors.clone()
-                                    onchange=self.link.callback(|event| match event {
+                                    value={ self.contribution.contributor_id }
+                                    data={ self.data.contributors.clone() }
+                                    onchange={ self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             Msg::ChangeContributor(Uuid::parse_str(&value).unwrap_or_default())
                                         }
                                         _ => unreachable!(),
-                                    })
+                                    }) }
                                     required = true
                                 />
                                 <FormTextInput
                                     label="Contributor's Given Name"
-                                    value=self.contribution.first_name.clone()
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
+                                    value={ self.contribution.first_name.clone() }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value)) }
                                 />
                                 <FormTextInput
                                     label="Contributor's Family Name"
-                                    value=self.contribution.last_name.clone()
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
+                                    value={ self.contribution.last_name.clone() }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeLastName(e.value)) }
                                     required = true
                                 />
                                 <FormTextInput
                                     label="Contributor's Full Name"
-                                    value=self.contribution.full_name.clone()
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
+                                    value={ self.contribution.full_name.clone() }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeFullName(e.value)) }
                                     required = true
                                 />
                                 <FormContributionTypeSelect
                                     label = "Contribution Type"
-                                    value=self.contribution.contribution_type
-                                    onchange=self.link.callback(|event| match event {
+                                    value={ self.contribution.contribution_type }
+                                    onchange={ self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             Msg::ChangeContributiontype(ContributionType::from_str(&value).unwrap())
                                         }
                                         _ => unreachable!(),
-                                    })
-                                    data=self.data.contribution_types.clone()
+                                    }) }
+                                    data={ self.data.contribution_types.clone() }
                                     required = true
                                 />
                                 <FormTextInput
                                     label="Biography"
-                                    value=self.contribution.biography.clone().unwrap_or_else(|| "".to_string())
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeBiography(e.value))
+                                    value={ self.contribution.biography.clone().unwrap_or_else(|| "".to_string()) }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeBiography(e.value)) }
                                 />
                                 <FormBooleanSelect
                                     label = "Main"
-                                    value=self.contribution.main_contribution
-                                    onchange=self.link.callback(|event| match event {
+                                    value={ self.contribution.main_contribution }
+                                    onchange={ self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             let boolean = value == "true";
                                             Msg::ChangeMainContribution(boolean)
                                         }
                                         _ => unreachable!(),
-                                    })
+                                    }) }
                                     required = true
                                 />
                                 <FormNumberInput
                                     label = "Contribution Ordinal"
-                                    value=self.contribution.contribution_ordinal
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
+                                    value={ self.contribution.contribution_ordinal }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value)) }
                                     required = true
-                                    min = "1".to_string()
+                                    min={ "1".to_string() }
                                 />
                             </form>
                         </section>
@@ -615,7 +615,7 @@ impl Component for ContributionsFormComponent {
                             </button>
                             <button
                                 class="button"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             >
                                 { CANCEL_BUTTON }
                             </button>
@@ -729,7 +729,7 @@ impl ContributionsFormComponent {
                         <div class="control">
                             <a
                                 class="button is-success"
-                                onclick=self.link.callback(move |_| Msg::ToggleModalFormDisplay(true, Some(contribution.clone())))
+                                onclick={ self.link.callback(move |_| Msg::ToggleModalFormDisplay(true, Some(contribution.clone()))) }
                             >
                                 { EDIT_BUTTON }
                             </a>
@@ -737,7 +737,7 @@ impl ContributionsFormComponent {
                         <div class="control">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteContribution(contribution_id))
+                                onclick={ self.link.callback(move |_| Msg::DeleteContribution(contribution_id)) }
                             >
                                 { REMOVE_BUTTON }
                             </a>
@@ -745,7 +745,7 @@ impl ContributionsFormComponent {
                     </div>
                 </div>
                 <AffiliationsFormComponent
-                    contribution_id=c.contribution_id
+                    contribution_id={ c.contribution_id }
                 />
             </div>
         }

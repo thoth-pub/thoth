@@ -28,11 +28,11 @@ impl Component for ConfirmDeleteComponent {
         ConfirmDeleteComponent { props, link }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, _props: Self::Properties) -> bool {
         false
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleConfirmDeleteDisplay(value) => {
                 self.props.show = value;
@@ -52,18 +52,18 @@ impl Component for ConfirmDeleteComponent {
         });
         html! {
             <>
-                <button class="button is-danger" onclick=open_modal>
+                <button class="button is-danger" onclick={ open_modal }>
                     { DELETE_BUTTON }
                 </button>
-                <div class=self.confirm_delete_status()>
-                    <div class="modal-background" onclick=&close_modal></div>
+                <div class={ self.confirm_delete_status() }>
+                    <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
                             <p class="modal-card-title">{ "Confirm deletion" }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             ></button>
                         </header>
                         <section class="modal-card-body">
@@ -76,13 +76,13 @@ impl Component for ConfirmDeleteComponent {
                         <footer class="modal-card-foot">
                             <button
                                 class="button is-success"
-                                onclick=&self.props.onclick
+                                onclick={ &self.props.onclick }
                             >
                                 { DELETE_BUTTON }
                             </button>
                             <button
                                 class="button"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             >
                                 { CANCEL_BUTTON }
                             </button>

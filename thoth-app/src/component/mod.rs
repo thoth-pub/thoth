@@ -34,12 +34,12 @@ macro_rules! pagination_helpers {
                 html! {
                     <nav class="pagination is-centered" role="navigation" aria-label="pagination">
                         <a class="pagination-previous"
-                            onclick=self.link.callback(|_| Msg::PreviousPage)
-                            disabled=self.is_previous_disabled()
+                            onclick={ self.link.callback(|_| Msg::PreviousPage) }
+                            disabled={ self.is_previous_disabled() }
                         >{ crate::string::PREVIOUS_PAGE_BUTTON }</a>
                         <a class="pagination-next"
-                            onclick=self.link.callback(|_| Msg::NextPage)
-                            disabled=self.is_next_disabled()
+                            onclick={ self.link.callback(|_| Msg::NextPage) }
+                            disabled={ self.is_next_disabled() }
                         >{ crate::string::NEXT_PAGE_BUTTON }</a>
                         <div class="pagination-list">
                             <div class="field" style="width: 80%">
@@ -47,9 +47,9 @@ macro_rules! pagination_helpers {
                                     <input
                                         class="input"
                                         type="search"
-                                        value=self.search_term.clone()
-                                        placeholder=self.search_text()
-                                        oninput=self.link.callback(|e: InputData| Msg::Search(e.value))
+                                        value={ self.search_term.clone() }
+                                        placeholder={ self.search_text() }
+                                        oninput={ self.link.callback(|e: InputData| Msg::Search(e.value)) }
                                     />
                                     <span class="icon is-left">
                                         <i class="fas fa-search" aria-hidden="true"></i>
@@ -90,7 +90,6 @@ macro_rules! pagination_component {
         use yew::prelude::Html;
         use yew::prelude::InputData;
         use yew::prelude::Properties;
-        use yew::prelude::ShouldRender;
         use yew::ComponentLink;
         use yew_router::agent::RouteAgentDispatcher;
         use yew_router::agent::RouteRequest;
@@ -174,7 +173,7 @@ macro_rules! pagination_component {
                 }
             }
 
-            fn update(&mut self, msg: Self::Message) -> ShouldRender {
+            fn update(&mut self, msg: Self::Message) -> bool {
                 match msg {
                     Msg::SetFetchState(fetch_state) => {
                         self.fetch_data.apply(fetch_state);
@@ -255,9 +254,8 @@ macro_rules! pagination_component {
                 }
             }
 
-            fn change(&mut self, props: Self::Properties) -> ShouldRender {
-                let updated_permissions =
-                    self.props.current_user.resource_access != props.current_user.resource_access;
+            fn changed(&mut self, props: Self::Properties) -> bool {
+                let updated_permissions = self.props.current_user.resource_access != props.current_user.resource_access;
                 self.props = props;
                 if updated_permissions {
                     self.link.send_message(Msg::PaginateData);
@@ -292,7 +290,7 @@ macro_rules! pagination_component {
                         {
                             match self.fetch_data.as_ref().state() {
                                 FetchState::NotFetching(_) => {
-                                    html! {<Reloader onclick=self.link.callback(|_| Msg::GetData)/>}
+                                    html! {<Reloader onclick={ self.link.callback(|_| Msg::GetData) }/>}
                                 },
                                 FetchState::Fetching(_) => html! {<Loader/>},
                                 FetchState::Fetched(_body) => html! {
@@ -307,9 +305,9 @@ macro_rules! pagination_component {
                                                                 Ok(header) => {
                                                                     html! {
                                                                         <th class="th is-clickable"
-                                                                            onclick=self.link.callback(move |_| {
+                                                                            onclick={ self.link.callback(move |_| {
                                                                                 Msg::SortColumn(header.clone())
-                                                                            })
+                                                                            }) }
                                                                         >
                                                                             {h}
                                                                         </th>

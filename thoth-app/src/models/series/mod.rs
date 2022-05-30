@@ -49,7 +49,7 @@ impl MetadataTable for SeriesWithImprint {
         html! {
             <tr
                 class="row"
-                onclick=callback
+                onclick={ callback }
             >
                 <td>{&self.series_id}</td>
                 <td>{&self.series_name}</td>

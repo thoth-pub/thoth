@@ -102,7 +102,7 @@ impl Component for PublicationComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleModalFormDisplay(show_form) => {
                 self.show_modal_form = show_form;
@@ -291,7 +291,7 @@ impl Component for PublicationComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         self.props = props;
         true
     }
@@ -313,29 +313,30 @@ impl Component for PublicationComponent {
                                 <p class="level-item">
                                     <a
                                         class="button is-success"
-                                        onclick=self.link.callback(move |_| Msg::ToggleModalFormDisplay(true))
+                                        onclick={ self.link.callback(move |_| Msg::ToggleModalFormDisplay(true)) }
                                     >
                                         { EDIT_BUTTON }
                                     </a>
                                 </p>
                                 <PublicationModalComponent
-                                    publication_under_edit=self.publication_under_edit.clone()
-                                    work_id=self.publication.work.work_id
-                                    work_type=self.publication.work.work_type.clone()
-                                    show_modal_form=self.show_modal_form
-                                    add_publication=self.link.callback(Msg::AddPublication)
-                                    update_publication=self.link.callback(Msg::UpdatePublication)
-                                    close_modal_form=self.link.callback(move |_| Msg::ToggleModalFormDisplay(false))
+                                    publication_under_edit={ self.publication_under_edit.clone() }
+                                    work_id={ self.publication.work.work_id }
+                                    work_type={ self.publication.work.work_type.clone() }
+                                    show_modal_form={ self.show_modal_form }
+                                    add_publication={ self.link.callback(Msg::AddPublication) }
+                                    update_publication={ self.link.callback(Msg::UpdatePublication) }
+                                    close_modal_form={ self.link.callback(move |_| Msg::ToggleModalFormDisplay(false)) }
                                 />
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
-                                        onclick=self.link.callback(|_| Msg::DeletePublication)
-                                        object_name=self
+                                        onclick={ self.link.callback(|_| Msg::DeletePublication) }
+                                        object_name={ self
                                             .publication.isbn
                                             .as_ref()
                                             .map(|s| s.to_string())
                                             .unwrap_or_else(|| self.publication.publication_id.to_string())
                                             .clone()
+                                        }
                                     />
                                 </p>
                             </div>
@@ -437,15 +438,15 @@ impl Component for PublicationComponent {
                         </article>
 
                         <LocationsFormComponent
-                            locations=self.publication.locations.clone()
-                            publication_id=self.publication.publication_id
-                            update_locations=self.link.callback(Msg::UpdateLocations)
+                            locations={ self.publication.locations.clone() }
+                            publication_id={ self.publication.publication_id }
+                            update_locations={ self.link.callback(Msg::UpdateLocations) }
                         />
 
                         <PricesFormComponent
-                            prices=self.publication.prices.clone()
-                            publication_id=self.publication.publication_id
-                            update_prices=self.link.callback(Msg::UpdatePrices)
+                            prices={ self.publication.prices.clone() }
+                            publication_id={ self.publication.publication_id }
+                            update_prices={ self.link.callback(Msg::UpdatePrices) }
                         />
                     </>
                 }

@@ -110,7 +110,7 @@ impl Component for LocationsFormComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleAddFormDisplay(value) => {
                 self.show_add_form = value;
@@ -252,7 +252,7 @@ impl Component for LocationsFormComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         self.props.neq_assign(props)
     }
 
@@ -274,43 +274,43 @@ impl Component for LocationsFormComponent {
                 <div class="panel-block">
                     <button
                         class="button is-link is-outlined is-success is-fullwidth"
-                        onclick=open_modal
+                        onclick={ open_modal }
                     >
                         { "Add Location" }
                     </button>
                 </div>
-                <div class=self.add_form_status()>
-                    <div class="modal-background" onclick=&close_modal></div>
+                <div class={ self.add_form_status() }>
+                    <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
                             <p class="modal-card-title">{ "New Location" }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="locations-form" onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="locations-form" onsubmit={ self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
                                 Msg::CreateLocation
-                            })
+                            }) }
                             >
                                 <FormUrlInput
                                     label="Landing Page"
-                                    value=self.new_location.landing_page.clone()
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeLandingPage(e.value))
+                                    value={ self.new_location.landing_page.clone() }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeLandingPage(e.value)) }
                                 />
                                 <FormUrlInput
                                     label="Full Text URL"
-                                    value=self.new_location.full_text_url.clone().unwrap_or_else(|| "".to_string())
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeFullTextUrl(e.value))
+                                    value={ self.new_location.full_text_url.clone().unwrap_or_else(|| "".to_string()) }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeFullTextUrl(e.value)) }
                                 />
                                 <FormLocationPlatformSelect
                                     label = "Location Platform"
-                                    value=self.new_location.location_platform.clone()
-                                    data=self.data.location_platforms.clone()
-                                    onchange=self.link.callback(|event| match event {
+                                    value={ self.new_location.location_platform.clone() }
+                                    data={ self.data.location_platforms.clone() }
+                                    onchange={ self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             Msg::ChangeLocationPlatform(
@@ -318,20 +318,20 @@ impl Component for LocationsFormComponent {
                                             )
                                         }
                                         _ => unreachable!(),
-                                    })
+                                    }) }
                                     required = true
                                 />
                                 <FormBooleanSelect
                                     label = "Canonical"
-                                    value=self.new_location.canonical
-                                    onchange=self.link.callback(|event| match event {
+                                    value={ self.new_location.canonical }
+                                    onchange={ self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             let boolean = value == "true";
                                             Msg::ChangeCanonical(boolean)
                                         }
                                         _ => unreachable!(),
-                                    })
+                                    }) }
                                     required = true
                                 />
                             </form>
@@ -346,7 +346,7 @@ impl Component for LocationsFormComponent {
                             </button>
                             <button
                                 class="button"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             >
                                 { CANCEL_BUTTON }
                             </button>
@@ -431,8 +431,8 @@ impl LocationsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=delete_callback
-                                disabled=delete_deactivated
+                                onclick={ delete_callback }
+                                disabled={ delete_deactivated }
                             >
                                 { REMOVE_BUTTON }
                             </a>

@@ -31,7 +31,7 @@ impl MetadataTable for Publisher {
         html! {
             <tr
                 class="row"
-                onclick=callback
+                onclick={ callback }
             >
                 <td>{&self.publisher_id}</td>
                 <td>{&self.publisher_name}</td>

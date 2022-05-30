@@ -99,7 +99,7 @@ impl Component for SubjectsFormComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleAddFormDisplay(value) => {
                 self.show_add_form = value;
@@ -237,7 +237,7 @@ impl Component for SubjectsFormComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         self.props.neq_assign(props)
     }
 
@@ -259,33 +259,33 @@ impl Component for SubjectsFormComponent {
                 <div class="panel-block">
                     <button
                         class="button is-link is-outlined is-success is-fullwidth"
-                        onclick=open_modal
+                        onclick={ open_modal }
                     >
                         { "Add Subject" }
                     </button>
                 </div>
-                <div class=self.add_form_status()>
-                    <div class="modal-background" onclick=&close_modal></div>
+                <div class={ self.add_form_status() }>
+                    <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
                             <p class="modal-card-title">{ "New Subject" }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="subjects-form" onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="subjects-form" onsubmit={ self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
                                 Msg::CreateSubject
-                            })
+                            }) }
                             >
                                 <FormSubjectTypeSelect
                                     label = "Subject Type"
-                                    value=self.new_subject.subject_type.clone()
-                                    data=self.data.subject_types.clone()
-                                    onchange=self.link.callback(|event| match event {
+                                    value={ self.new_subject.subject_type.clone() }
+                                    data={ self.data.subject_types.clone() }
+                                    onchange={ self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             Msg::ChangeSubjectType(
@@ -293,21 +293,21 @@ impl Component for SubjectsFormComponent {
                                             )
                                         }
                                         _ => unreachable!(),
-                                    })
+                                    }) }
                                     required = true
                                 />
                                 <FormTextInput
                                     label = "Subject Code"
-                                    value=self.new_subject.subject_code.clone()
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeCode(e.value))
+                                    value={ self.new_subject.subject_code.clone() }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeCode(e.value)) }
                                     required = true
                                 />
                                 <FormNumberInput
                                     label = "Subject Ordinal"
-                                    value=self.new_subject.subject_ordinal
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
+                                    value={ self.new_subject.subject_ordinal }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value)) }
                                     required = true
-                                    min = "1".to_string()
+                                    min={ "1".to_string() }
                                 />
                             </form>
                         </section>
@@ -321,7 +321,7 @@ impl Component for SubjectsFormComponent {
                             </button>
                             <button
                                 class="button"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             >
                                 { CANCEL_BUTTON }
                             </button>
@@ -386,7 +386,7 @@ impl SubjectsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteSubject(subject_id))
+                                onclick={ self.link.callback(move |_| Msg::DeleteSubject(subject_id)) }
                             >
                                 { REMOVE_BUTTON }
                             </a>

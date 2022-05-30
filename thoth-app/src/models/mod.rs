@@ -103,7 +103,7 @@ pub trait Dropdown {
         // onclick. This is not ideal, but it seems to be the only event that'd do the callback
         // without disabling onblur so that onclick can take effect
         html! {
-            <div onmousedown=callback class="dropdown-item">
+            <div onmousedown={ callback } class="dropdown-item">
                 { self }
             </div>
         }

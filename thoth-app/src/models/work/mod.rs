@@ -95,7 +95,7 @@ impl MetadataTable for WorkWithRelations {
         html! {
             <tr
                 class="row"
-                onclick=callback
+                onclick={ callback }
             >
                 <td>{&self.work_id}</td>
                 <td>{&self.title}</td>

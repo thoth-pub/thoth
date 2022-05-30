@@ -97,7 +97,7 @@ impl Component for NewImprintComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::SetPublishersFetchState(fetch_state) => {
                 self.fetch_publishers.apply(fetch_state);
@@ -190,7 +190,7 @@ impl Component for NewImprintComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         let updated_permissions =
             self.props.current_user.resource_access != props.current_user.resource_access;
         self.props = props;
@@ -216,30 +216,30 @@ impl Component for NewImprintComponent {
                     <div class="level-right" />
                 </nav>
 
-                <form onsubmit=callback>
+                <form onsubmit={ callback }>
                     <FormPublisherSelect
                         label = "Publisher"
-                        value=self.publisher_id
-                        data=self.data.publishers.clone()
-                        onchange=self.link.callback(|event| match event {
+                        value={ self.publisher_id }
+                        data={ self.data.publishers.clone() }
+                        onchange={ self.link.callback(|event| match event {
                             ChangeData::Select(elem) => {
                                 let value = elem.value();
                                 Msg::ChangePublisher(Uuid::parse_str(&value).unwrap_or_default())
                             }
                             _ => unreachable!(),
-                        })
+                        }) }
                         required = true
                     />
                     <FormTextInput
                         label = "Imprint Name"
-                        value=self.imprint.imprint_name.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeImprintName(e.value))
-                        required=true
+                        value={ self.imprint.imprint_name.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeImprintName(e.value)) }
+                        required = true
                     />
                     <FormUrlInput
                         label = "Imprint URL"
-                        value=self.imprint.imprint_url.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeImprintUrl(e.value))
+                        value={ self.imprint.imprint_url.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeImprintUrl(e.value)) }
                     />
 
                     <div class="field">

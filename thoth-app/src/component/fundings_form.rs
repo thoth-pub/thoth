@@ -111,7 +111,7 @@ impl Component for FundingsFormComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleAddFormDisplay(value) => {
                 self.show_add_form = value;
@@ -283,7 +283,7 @@ impl Component for FundingsFormComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         self.props.neq_assign(props)
     }
 
@@ -299,7 +299,7 @@ impl Component for FundingsFormComponent {
                     { "Funding" }
                 </p>
                 <div class="panel-block">
-                    <div class=self.search_dropdown_status() style="width: 100%">
+                    <div class={ self.search_dropdown_status() } style="width: 100%">
                         <div class="dropdown-trigger" style="width: 100%">
                             <div class="field">
                                 <p class="control is-expanded has-icons-left">
@@ -309,9 +309,9 @@ impl Component for FundingsFormComponent {
                                         placeholder="Search Institution"
                                         aria-haspopup="true"
                                         aria-controls="institutions-menu"
-                                        oninput=self.link.callback(|e: InputData| Msg::SearchInstitution(e.value))
-                                        onfocus=self.link.callback(|_| Msg::ToggleSearchResultDisplay(true))
-                                        onblur=self.link.callback(|_| Msg::ToggleSearchResultDisplay(false))
+                                        oninput={ self.link.callback(|e: InputData| Msg::SearchInstitution(e.value)) }
+                                        onfocus={ self.link.callback(|_| Msg::ToggleSearchResultDisplay(true)) }
+                                        onblur={ self.link.callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                     />
                                     <span class="icon is-left">
                                         <i class="fas fa-search" aria-hidden="true"></i>
@@ -335,22 +335,22 @@ impl Component for FundingsFormComponent {
                         </div>
                     </div>
                 </div>
-                <div class=self.add_form_status()>
-                    <div class="modal-background" onclick=&close_modal></div>
+                <div class={ self.add_form_status() }>
+                    <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
                             <p class="modal-card-title">{ "New Funding" }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="fundings-form" onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="fundings-form" onsubmit={ self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
                                 Msg::CreateFunding
-                            })
+                            }) }
                             >
                                 <div class="field">
                                     <label class="label">{ "Institution" }</label>
@@ -360,28 +360,28 @@ impl Component for FundingsFormComponent {
                                 </div>
                                 <FormTextInput
                                     label="Program"
-                                    value=self.new_funding.program.clone().unwrap_or_else(|| "".to_string())
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeProgram(e.value))
+                                    value={ self.new_funding.program.clone().unwrap_or_else(|| "".to_string()) }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeProgram(e.value)) }
                                 />
                                 <FormTextInput
                                     label="Project Name"
-                                    value=self.new_funding.project_name.clone().unwrap_or_else(|| "".to_string())
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeProjectName(e.value))
+                                    value={ self.new_funding.project_name.clone().unwrap_or_else(|| "".to_string()) }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeProjectName(e.value)) }
                                 />
                                 <FormTextInput
                                     label="Project Short Name"
-                                    value=self.new_funding.project_shortname.clone().unwrap_or_else(|| "".to_string())
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeProjectShortname(e.value))
+                                    value={ self.new_funding.project_shortname.clone().unwrap_or_else(|| "".to_string()) }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeProjectShortname(e.value)) }
                                 />
                                 <FormTextInput
                                     label="Grant Number"
-                                    value=self.new_funding.grant_number.clone().unwrap_or_else(|| "".to_string())
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeGrant(e.value))
+                                    value={ self.new_funding.grant_number.clone().unwrap_or_else(|| "".to_string()) }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeGrant(e.value)) }
                                 />
                                 <FormTextInput
                                     label="Jurisdiction"
-                                    value=self.new_funding.jurisdiction.clone().unwrap_or_else(|| "".to_string())
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeJurisdiction(e.value))
+                                    value={ self.new_funding.jurisdiction.clone().unwrap_or_else(|| "".to_string()) }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeJurisdiction(e.value)) }
                                 />
 
                             </form>
@@ -396,7 +396,7 @@ impl Component for FundingsFormComponent {
                             </button>
                             <button
                                 class="button"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             >
                                 { CANCEL_BUTTON }
                             </button>
@@ -483,7 +483,7 @@ impl FundingsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteFunding(funding_id))
+                                onclick={ self.link.callback(move |_| Msg::DeleteFunding(funding_id)) }
                             >
                                 { REMOVE_BUTTON }
                             </a>

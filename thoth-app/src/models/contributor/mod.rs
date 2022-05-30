@@ -32,7 +32,7 @@ impl MetadataTable for Contributor {
         html! {
             <tr
                 class="row"
-                onclick=callback
+                onclick={ callback }
             >
                 <td>{&self.contributor_id}</td>
                 <td>{&self.full_name}</td>

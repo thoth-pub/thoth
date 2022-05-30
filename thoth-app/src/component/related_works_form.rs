@@ -139,7 +139,7 @@ impl Component for RelatedWorksFormComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleAddFormDisplay(value) => {
                 self.show_add_form = value;
@@ -320,7 +320,7 @@ impl Component for RelatedWorksFormComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         self.props.neq_assign(props)
     }
 
@@ -336,7 +336,7 @@ impl Component for RelatedWorksFormComponent {
                     { "Related Works" }
                 </p>
                 <div class="panel-block">
-                    <div class=self.search_dropdown_status() style="width: 100%">
+                    <div class={ self.search_dropdown_status() } style="width: 100%">
                         <div class="dropdown-trigger" style="width: 100%">
                             <div class="field">
                                 <p class="control is-expanded has-icons-left">
@@ -346,9 +346,9 @@ impl Component for RelatedWorksFormComponent {
                                         placeholder="Search Work"
                                         aria-haspopup="true"
                                         aria-controls="works-menu"
-                                        oninput=self.link.callback(|e: InputData| Msg::SearchWork(e.value))
-                                        onfocus=self.link.callback(|_| Msg::ToggleSearchResultDisplay(true))
-                                        onblur=self.link.callback(|_| Msg::ToggleSearchResultDisplay(false))
+                                        oninput={ self.link.callback(|e: InputData| Msg::SearchWork(e.value)) }
+                                        onfocus={ self.link.callback(|_| Msg::ToggleSearchResultDisplay(true)) }
+                                        onblur={ self.link.callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                     />
                                     <span class="icon is-left">
                                         <i class="fas fa-search" aria-hidden="true"></i>
@@ -383,34 +383,34 @@ impl Component for RelatedWorksFormComponent {
                         </div>
                     </div>
                 </div>
-                <div class=self.add_form_status()>
-                    <div class="modal-background" onclick=&close_modal></div>
+                <div class={ self.add_form_status() }>
+                    <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
                             <p class="modal-card-title">{ "New Related Work" }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="relations-form" onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="relations-form" onsubmit={ self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
                                 Msg::CreateWorkRelation
-                            })
+                            }) }
                             >
                                 <FormRelationTypeSelect
                                     label = "Relation Type"
-                                    value=self.new_relation.relation_type
-                                    onchange=self.link.callback(|event| match event {
+                                    value={ self.new_relation.relation_type }
+                                    onchange={ self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             Msg::ChangeRelationtype(RelationType::from_str(&value).unwrap())
                                         }
                                         _ => unreachable!(),
-                                    })
-                                    data=self.data.relation_types.clone()
+                                    }) }
+                                    data={ self.data.relation_types.clone() }
                                     required = true
                                 />
                                 <div class="field">
@@ -421,10 +421,10 @@ impl Component for RelatedWorksFormComponent {
                                 </div>
                                 <FormNumberInput
                                     label = "Relation Ordinal"
-                                    value=self.new_relation.relation_ordinal
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
+                                    value={ self.new_relation.relation_ordinal }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value)) }
                                     required = true
-                                    min = "1".to_string()
+                                    min={ "1".to_string() }
                                 />
                             </form>
                         </section>
@@ -438,7 +438,7 @@ impl Component for RelatedWorksFormComponent {
                             </button>
                             <button
                                 class="button"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             >
                                 { CANCEL_BUTTON }
                             </button>
@@ -508,7 +508,7 @@ impl RelatedWorksFormComponent {
                         <div class="control">
                             <a
                                 class="button is-info"
-                                onclick=self.link.callback(move |_| Msg::ChangeRoute(route.clone()))
+                                onclick={ self.link.callback(move |_| Msg::ChangeRoute(route.clone())) }
                             >
                                 { VIEW_BUTTON }
                             </a>
@@ -516,7 +516,7 @@ impl RelatedWorksFormComponent {
                         <div class="control">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteWorkRelation(relation_id))
+                                onclick={ self.link.callback(move |_| Msg::DeleteWorkRelation(relation_id)) }
                             >
                                 { REMOVE_BUTTON }
                             </a>

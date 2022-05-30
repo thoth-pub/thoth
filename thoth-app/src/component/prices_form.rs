@@ -98,7 +98,7 @@ impl Component for PricesFormComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleAddFormDisplay(value) => {
                 self.show_add_form = value;
@@ -230,7 +230,7 @@ impl Component for PricesFormComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         self.props.neq_assign(props)
     }
 
@@ -252,33 +252,33 @@ impl Component for PricesFormComponent {
                 <div class="panel-block">
                     <button
                         class="button is-link is-outlined is-success is-fullwidth"
-                        onclick=open_modal
+                        onclick={ open_modal }
                     >
                         { "Add Price" }
                     </button>
                 </div>
-                <div class=self.add_form_status()>
-                    <div class="modal-background" onclick=&close_modal></div>
+                <div class={ self.add_form_status() }>
+                    <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
                             <p class="modal-card-title">{ "New Price" }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="prices-form" onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="prices-form" onsubmit={ self.link.callback(|e: FocusEvent| {
                                 e.prevent_default();
                                 Msg::CreatePrice
-                            })
+                            }) }
                             >
                                 <FormCurrencyCodeSelect
                                     label = "Price Code"
-                                    value=self.new_price.currency_code.clone()
-                                    data=self.data.currency_codes.clone()
-                                    onchange=self.link.callback(|event| match event {
+                                    value={ self.new_price.currency_code.clone() }
+                                    data={ self.data.currency_codes.clone() }
+                                    onchange={ self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             Msg::ChangeCurrencyCode(
@@ -286,16 +286,16 @@ impl Component for PricesFormComponent {
                                             )
                                         }
                                         _ => unreachable!(),
-                                    })
+                                    }) }
                                     required = true
                                 />
                                 <FormFloatInput
                                     label = "Unit Price"
-                                    value=self.new_price.unit_price
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeUnitPrice(e.value))
+                                    value={ self.new_price.unit_price }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeUnitPrice(e.value)) }
                                     required = true
-                                    step="0.01".to_string()
-                                    min="0.01".to_string()
+                                    step={ "0.01".to_string() }
+                                    min={ "0.01".to_string() }
                                 />
                             </form>
                         </section>
@@ -309,7 +309,7 @@ impl Component for PricesFormComponent {
                             </button>
                             <button
                                 class="button"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             >
                                 { CANCEL_BUTTON }
                             </button>
@@ -367,7 +367,7 @@ impl PricesFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeletePrice(price_id))
+                                onclick={ self.link.callback(move |_| Msg::DeletePrice(price_id)) }
                             >
                                 { REMOVE_BUTTON }
                             </a>

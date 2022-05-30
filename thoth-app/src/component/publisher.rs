@@ -98,7 +98,7 @@ impl Component for PublisherComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::SetPublisherFetchState(fetch_state) => {
                 self.fetch_publisher.apply(fetch_state);
@@ -257,7 +257,7 @@ impl Component for PublisherComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         self.props = props;
         true
     }
@@ -282,29 +282,29 @@ impl Component for PublisherComponent {
                             <div class="level-right">
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
-                                        onclick=self.link.callback(|_| Msg::DeletePublisher)
-                                        object_name=self.publisher.publisher_name.clone()
+                                        onclick={ self.link.callback(|_| Msg::DeletePublisher) }
+                                        object_name={ self.publisher.publisher_name.clone() }
                                     />
                                 </p>
                             </div>
                         </nav>
 
-                        <form onsubmit=callback>
+                        <form onsubmit={ callback }>
                             <FormTextInput
                                 label = "Publisher Name"
-                                value=self.publisher.publisher_name.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangePublisherName(e.value))
-                                required=true
+                                value={ self.publisher.publisher_name.clone() }
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangePublisherName(e.value)) }
+                                required = true
                             />
                             <FormTextInput
                                 label = "Publisher Short Name"
-                                value=self.publisher.publisher_shortname.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangePublisherShortname(e.value))
+                                value={ self.publisher.publisher_shortname.clone() }
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangePublisherShortname(e.value)) }
                             />
                             <FormUrlInput
                                 label = "Publisher URL"
-                                value=self.publisher.publisher_url.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangePublisherUrl(e.value))
+                                value={ self.publisher.publisher_url.clone() }
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangePublisherUrl(e.value)) }
                             />
 
                             <div class="field">

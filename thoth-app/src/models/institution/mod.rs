@@ -56,7 +56,7 @@ impl MetadataTable for Institution {
         html! {
             <tr
                 class="row"
-                onclick=callback
+                onclick={ callback }
             >
                 <td>{&self.institution_id}</td>
                 <td>{&self.institution_name}</td>

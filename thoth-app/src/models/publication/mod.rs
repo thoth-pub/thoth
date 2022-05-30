@@ -52,7 +52,7 @@ impl MetadataTable for PublicationWithRelations {
         html! {
             <tr
                 class="row"
-                onclick=callback
+                onclick={ callback }
             >
                 <td>{&self.publication_id}</td>
                 <td>{&self.work.title}</td>

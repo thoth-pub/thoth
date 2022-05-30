@@ -33,7 +33,7 @@ impl MetadataTable for ImprintWithPublisher {
         html! {
             <tr
                 class="row"
-                onclick=callback
+                onclick={ callback }
             >
                 <td>{&self.imprint_id}</td>
                 <td>{&self.imprint_name}</td>

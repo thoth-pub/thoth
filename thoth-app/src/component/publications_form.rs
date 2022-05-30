@@ -80,7 +80,7 @@ impl Component for PublicationsFormComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleModalFormDisplay(show_form, p) => {
                 self.show_modal_form = show_form;
@@ -180,7 +180,7 @@ impl Component for PublicationsFormComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         self.props.neq_assign(props)
     }
 
@@ -198,7 +198,7 @@ impl Component for PublicationsFormComponent {
                 <div class="panel-block">
                     <button
                         class="button is-link is-outlined is-success is-fullwidth"
-                        onclick=open_modal
+                        onclick={ open_modal }
                     >
                         { "Add Publication" }
                     </button>
@@ -215,13 +215,13 @@ impl Component for PublicationsFormComponent {
                     }
                 }
                 <PublicationModalComponent
-                    publication_under_edit=self.publication_under_edit.clone()
-                    work_id=self.props.work_id
-                    work_type=self.props.work_type.clone()
-                    show_modal_form=self.show_modal_form
-                    add_publication=self.link.callback(Msg::AddPublication)
-                    update_publication=self.link.callback(Msg::UpdatePublication)
-                    close_modal_form=self.link.callback(move |_| Msg::ToggleModalFormDisplay(false, None))
+                    publication_under_edit={ self.publication_under_edit.clone() }
+                    work_id={ self.props.work_id }
+                    work_type={ self.props.work_type.clone() }
+                    show_modal_form={ self.show_modal_form }
+                    add_publication={ self.link.callback(Msg::AddPublication) }
+                    update_publication={ self.link.callback(Msg::UpdatePublication) }
+                    close_modal_form={ self.link.callback(move |_| Msg::ToggleModalFormDisplay(false, None)) }
                 />
             </nav>
         }
@@ -332,7 +332,7 @@ impl PublicationsFormComponent {
                         <div class="control">
                             <a
                                 class="button is-success"
-                                onclick=self.link.callback(move |_| Msg::ToggleModalFormDisplay(true, Some(publication.clone())))
+                                onclick={ self.link.callback(move |_| Msg::ToggleModalFormDisplay(true, Some(publication.clone()))) }
                             >
                                 { EDIT_BUTTON }
                             </a>
@@ -340,7 +340,7 @@ impl PublicationsFormComponent {
                         <div class="control">
                             <a
                                 class="button is-info"
-                                onclick=self.link.callback(move |_| Msg::ChangeRoute(route.clone()))
+                                onclick={ self.link.callback(move |_| Msg::ChangeRoute(route.clone())) }
                             >
                                 { VIEW_BUTTON }
                             </a>
@@ -348,7 +348,7 @@ impl PublicationsFormComponent {
                         <div class="control">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeletePublication(publication_id))
+                                onclick={ self.link.callback(move |_| Msg::DeletePublication(publication_id)) }
                             >
                                 { REMOVE_BUTTON }
                             </a>

@@ -96,7 +96,7 @@ impl Component for NewContributorComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::SetContributorPushState(fetch_state) => {
                 self.push_contributor.apply(fetch_state);
@@ -248,7 +248,7 @@ impl Component for NewContributorComponent {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, _props: Self::Properties) -> bool {
         false
     }
 
@@ -275,38 +275,38 @@ impl Component for NewContributorComponent {
                     <div class="level-right" />
                 </nav>
 
-                <form onsubmit=callback>
+                <form onsubmit={ callback }>
                     <FormTextInput
                         label = "Given Name"
-                        value=self.contributor.first_name.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
+                        value={ self.contributor.first_name.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value)) }
                     />
                     <FormTextInput
                         label = "Family Name"
-                        value=self.contributor.last_name.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
-                        required=true
+                        value={ self.contributor.last_name.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeLastName(e.value)) }
+                        required = true
                     />
                     <FormTextInputExtended
                         label = "Full Name"
-                        value=self.contributor.full_name.clone()
-                        tooltip=tooltip
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
-                        onfocus=self.link.callback(|_| Msg::ToggleDuplicateTooltip(true))
-                        onblur=self.link.callback(|_| Msg::ToggleDuplicateTooltip(false))
-                        required=true
+                        value={ self.contributor.full_name.clone() }
+                        tooltip={ tooltip }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeFullName(e.value)) }
+                        onfocus={ self.link.callback(|_| Msg::ToggleDuplicateTooltip(true)) }
+                        onblur={ self.link.callback(|_| Msg::ToggleDuplicateTooltip(false)) }
+                        required = true
                     />
                     <FormTextInputExtended
                         label = "ORCID"
-                        statictext = ORCID_DOMAIN
-                        value=self.orcid.clone()
-                        tooltip=self.orcid_warning.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
+                        statictext={ ORCID_DOMAIN }
+                        value={ self.orcid.clone() }
+                        tooltip={ self.orcid_warning.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value)) }
                     />
                     <FormUrlInput
                         label = "Website"
-                        value=self.contributor.website.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeWebsite(e.value))
+                        value={ self.contributor.website.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeWebsite(e.value)) }
                     />
 
                     <div class="field">

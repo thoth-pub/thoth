@@ -31,12 +31,12 @@ impl Component for NavbarComponent {
         NavbarComponent { props, link }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         self.props = props;
         true
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::Logout => {
                 self.props.callback.emit(());
@@ -69,7 +69,7 @@ impl Component for NavbarComponent {
                     <div class="navbar-start">
                         <RouterAnchor<AppRoute>
                             classes="navbar-item"
-                            route=AppRoute::Home
+                            route={ AppRoute::Home }
                         >
                             {"Catalogue"}
                         </  RouterAnchor<AppRoute>>
@@ -104,7 +104,7 @@ impl Component for NavbarComponent {
 
                         <RouterAnchor<AppRoute>
                             classes="navbar-item"
-                            route=AppRoute::Admin(AdminRoute::Dashboard)
+                            route={ AppRoute::Admin(AdminRoute::Dashboard) }
                         >
                             {"Admin"}
                         </  RouterAnchor<AppRoute>>
@@ -120,13 +120,13 @@ impl Component for NavbarComponent {
                             {
                                 if self.props.current_user.is_some() {
                                     html! {
-                                        <button class="button is-light" onclick=logout>
+                                        <button class="button is-light" onclick={ logout }>
                                             { "Logout" }
                                         </button>
                                     }
                                 } else {
                                     html! {
-                                        <RouterAnchor<AppRoute> classes="button is-light" route=AppRoute::Login>
+                                        <RouterAnchor<AppRoute> classes="button is-light" route={ AppRoute::Login }>
                                             {"Login"}
                                         </  RouterAnchor<AppRoute>>
                                     }

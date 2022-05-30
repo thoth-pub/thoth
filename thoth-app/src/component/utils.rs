@@ -389,8 +389,8 @@ impl PureComponent for PureInput {
                         type={ self.input_type.clone() }
                         placeholder={ self.label.clone() }
                         value={ self.value.clone() }
-                        oninput=self.oninput.clone()
-                        onblur=self.onblur.clone()
+                        oninput={ self.oninput.clone() }
+                        onblur={ self.onblur.clone() }
                         required={ self.required }
                         step={ self.step.clone() }
                         min={ self.min.clone() }
@@ -410,9 +410,9 @@ impl PureComponent for PureTextarea {
                 <div class="control is-expanded">
                     <textarea
                         class="textarea"
-                        placeholder=self.label.clone()
+                        placeholder={ self.label.clone() }
                         value={ self.value.clone().unwrap_or_else(|| "".to_string()) }
-                        oninput=self.oninput.clone()
+                        oninput={ self.oninput.clone() }
                         required={ self.required }
                         disabled={ self.deactivated }
                     />
@@ -451,9 +451,9 @@ impl PureComponent for PureTextInputExtended {
                         type="text"
                         placeholder={ self.label.clone() }
                         value={ self.value.clone() }
-                        oninput=self.oninput.clone()
-                        onfocus=self.onfocus.clone()
-                        onblur=self.onblur.clone()
+                        oninput={ self.oninput.clone() }
+                        onfocus={ self.onfocus.clone() }
+                        onblur={ self.onblur.clone() }
                         required={ self.required }
                         disabled={ self.deactivated }
                     />
@@ -467,13 +467,13 @@ impl PureComponent for PureTextInput {
     fn render(&self) -> VNode {
         html! {
             <FormInput
-                label=self.label.clone()
-                value=self.value.clone().unwrap_or_else(|| "".to_string())
+                label={ self.label.clone() }
+                value={ self.value.clone().unwrap_or_else(|| "".to_string()) }
                 input_type="text"
-                oninput=self.oninput.clone()
-                onblur=self.onblur.clone()
-                required=self.required
-                deactivated=self.deactivated
+                oninput={ self.oninput.clone() }
+                onblur={ self.onblur.clone() }
+                required={ self.required }
+                deactivated={ self.deactivated }
             />
         }
     }
@@ -483,12 +483,12 @@ impl PureComponent for PureUrlInput {
     fn render(&self) -> VNode {
         html! {
             <FormInput
-                label=self.label.clone()
-                value=self.value.clone().unwrap_or_else(|| "".to_string())
+                label={ self.label.clone() }
+                value={ self.value.clone().unwrap_or_else(|| "".to_string()) }
                 input_type="url"
-                oninput=self.oninput.clone()
-                onblur=self.onblur.clone()
-                required=self.required
+                oninput={ self.oninput.clone() }
+                onblur={ self.onblur.clone() }
+                required={ self.required }
             />
         }
     }
@@ -498,12 +498,12 @@ impl PureComponent for PureDateInput {
     fn render(&self) -> VNode {
         html! {
             <FormInput
-                label=self.label.clone()
-                value=self.value.clone().unwrap_or_else(|| "".to_string())
+                label={ self.label.clone() }
+                value={ self.value.clone().unwrap_or_else(|| "".to_string()) }
                 input_type="date"
-                oninput=self.oninput.clone()
-                onblur=self.onblur.clone()
-                required=self.required
+                oninput={ self.oninput.clone() }
+                onblur={ self.onblur.clone() }
+                required={ self.required }
             />
         }
     }
@@ -513,14 +513,14 @@ impl PureComponent for PureNumberInput {
     fn render(&self) -> VNode {
         html! {
             <FormInput
-                label=self.label.clone()
-                value=self.value.unwrap_or(0).to_string()
+                label={ self.label.clone() }
+                value={ self.value.unwrap_or(0).to_string() }
                 input_type="number"
-                oninput=self.oninput.clone()
-                onblur=self.onblur.clone()
-                required=self.required
-                min=self.min.clone()
-                deactivated=self.deactivated
+                oninput={ self.oninput.clone() }
+                onblur={ self.onblur.clone() }
+                required={ self.required }
+                min={ self.min.clone() }
+                deactivated={ self.deactivated }
             />
         }
     }
@@ -530,15 +530,15 @@ impl PureComponent for PureFloatInput {
     fn render(&self) -> VNode {
         html! {
             <FormInput
-                label=self.label.clone()
-                value=self.value.unwrap_or(0.00).to_string()
+                label={ self.label.clone() }
+                value={ self.value.unwrap_or(0.00).to_string() }
                 input_type="number"
-                oninput=self.oninput.clone()
-                onblur=self.onblur.clone()
-                required=self.required
-                step=self.step.clone()
-                min=self.min.clone()
-                deactivated=self.deactivated
+                oninput={ self.oninput.clone() }
+                onblur={ self.onblur.clone() }
+                required={ self.required }
+                step={ self.step.clone() }
+                min={ self.min.clone() }
+                deactivated={ self.deactivated }
             />
         }
     }
@@ -551,7 +551,7 @@ impl PureComponent for PureWorkTypeSelect {
                 <label class="label">{ &self.label }</label>
                 <div class="control is-expanded">
                     <div class="select is-fullwidth">
-                    <select required=self.required onchange=&self.onchange>
+                    <select required={ self.required } onchange={ &self.onchange }>
                         { for self.data.iter().map(|i| self.render_worktype(i, &self.deactivate)) }
                     </select>
                     </div>
@@ -568,7 +568,7 @@ impl PureComponent for PureWorkStatusSelect {
                 <label class="label">{ &self.label }</label>
                 <div class="control is-expanded">
                     <div class="select is-fullwidth">
-                    <select required=self.required onchange=&self.onchange>
+                    <select required={ self.required } onchange={ &self.onchange }>
                         { for self.data.iter().map(|i| self.render_workstatus(i)) }
                     </select>
                     </div>
@@ -586,8 +586,8 @@ impl PureComponent for PureContributionTypeSelect {
                 <div class="control is-expanded">
                     <div class="select">
                     <select
-                        required=self.required
-                        onchange=&self.onchange
+                        required={ self.required }
+                        onchange={ &self.onchange }
                     >
                         { for self.data.iter().map(|i| self.render_contributiontype(i)) }
                     </select>
@@ -606,8 +606,8 @@ impl PureComponent for PurePublicationTypeSelect {
                 <div class="control is-expanded">
                     <div class="select">
                     <select
-                        required=self.required
-                        onchange=&self.onchange
+                        required={ self.required }
+                        onchange={ &self.onchange }
                     >
                         { for self.data.iter().map(|p| self.render_publicationtype(p)) }
                     </select>
@@ -626,8 +626,8 @@ impl PureComponent for PureSubjectTypeSelect {
                 <div class="control is-expanded">
                     <div class="select">
                     <select
-                        required=self.required
-                        onchange=&self.onchange
+                        required={ self.required }
+                        onchange={ &self.onchange }
                     >
                         { for self.data.iter().map(|p| self.render_subjecttype(p)) }
                     </select>
@@ -646,8 +646,8 @@ impl PureComponent for PureSeriesTypeSelect {
                 <div class="control is-expanded">
                     <div class="select">
                     <select
-                        required=self.required
-                        onchange=&self.onchange
+                        required={ self.required }
+                        onchange={ &self.onchange }
                     >
                         { for self.data.iter().map(|s| self.render_seriestype(s)) }
                     </select>
@@ -666,8 +666,8 @@ impl PureComponent for PureLanguageCodeSelect {
                 <div class="control is-expanded">
                     <div class="select">
                     <select
-                        required=self.required
-                        onchange=&self.onchange
+                        required={ self.required }
+                        onchange={ &self.onchange }
                     >
                         { for self.data.iter().map(|l| self.render_languagecode(l)) }
                     </select>
@@ -686,8 +686,8 @@ impl PureComponent for PureLanguageRelationSelect {
                 <div class="control is-expanded">
                     <div class="select">
                     <select
-                        required=self.required
-                        onchange=&self.onchange
+                        required={ self.required }
+                        onchange={ &self.onchange }
                     >
                         { for self.data.iter().map(|l| self.render_languagerelation(l)) }
                     </select>
@@ -706,8 +706,8 @@ impl PureComponent for PureCurrencyCodeSelect {
                 <div class="control is-expanded">
                     <div class="select">
                     <select
-                        required=self.required
-                        onchange=&self.onchange
+                        required={ self.required }
+                        onchange={ &self.onchange }
                     >
                         { for self.data.iter().map(|c| self.render_currencycode(c)) }
                     </select>
@@ -726,8 +726,8 @@ impl PureComponent for PureLocationPlatformSelect {
                 <div class="control is-expanded">
                     <div class="select">
                     <select
-                        required=self.required
-                        onchange=&self.onchange
+                        required={ self.required }
+                        onchange={ &self.onchange }
                     >
                         { for self.data.iter().map(|l| self.render_locationplatform(l)) }
                     </select>
@@ -746,8 +746,8 @@ impl PureComponent for PureCountryCodeSelect {
                 <div class="control is-expanded">
                     <div class="select">
                     <select
-                        required=self.required
-                        onchange=&self.onchange
+                        required={ self.required }
+                        onchange={ &self.onchange }
                     >
                         <option value="">{"Select Country"}</option>
                         { for self.data.iter().map(|c| self.render_countrycode(c)) }
@@ -767,8 +767,8 @@ impl PureComponent for PureRelationTypeSelect {
                 <div class="control is-expanded">
                     <div class="select">
                     <select
-                        required=self.required
-                        onchange=&self.onchange
+                        required={ self.required }
+                        onchange={ &self.onchange }
                     >
                         { for self.data.iter().map(|r| self.render_relationtype(r)) }
                     </select>
@@ -787,14 +787,14 @@ impl PureComponent for PureBooleanSelect {
                 <div class="control is-expanded">
                     <div class="select">
                     <select
-                        required=self.required
-                        onchange=&self.onchange
-                        onblur=self.onblur.clone()
+                        required={ self.required }
+                        onchange={ &self.onchange }
+                        onblur={ self.onblur.clone() }
                     >
-                        <option value=true.to_string() selected=self.value>
+                        <option value={ true.to_string() } selected={ self.value }>
                             { YES }
                         </option>
-                        <option value=false.to_string() selected=!self.value>
+                        <option value={ false.to_string() } selected={ !self.value }>
                             { NO }
                         </option>
                     </select>
@@ -812,7 +812,7 @@ impl PureComponent for PureImprintSelect {
                 <label class="label">{ &self.label }</label>
                 <div class="control is-expanded">
                     <div class="select is-fullwidth">
-                    <select required=self.required onchange=&self.onchange>
+                    <select required={ self.required } onchange={ &self.onchange }>
                         <option value="">{"Select Imprint"}</option>
                         { for self.data.iter().map(|i| self.render_imprint(i)) }
                     </select>
@@ -830,7 +830,7 @@ impl PureComponent for PurePublisherSelect {
                 <label class="label">{ &self.label }</label>
                 <div class="control is-expanded">
                     <div class="select is-fullwidth">
-                    <select required=self.required onchange=&self.onchange>
+                    <select required={ self.required } onchange={ &self.onchange }>
                         <option value="">{"Select Publisher"}</option>
                         { for self.data.iter().map(|p| self.render_publisher(p)) }
                     </select>
@@ -848,7 +848,7 @@ impl PureComponent for PureInstitutionSelect {
                 <label class="label">{ &self.label }</label>
                 <div class="control is-expanded">
                     <div class="select is-fullwidth">
-                    <select required=self.required onchange=&self.onchange>
+                    <select required={ self.required } onchange={ &self.onchange }>
                         <option value="" selected={self.value.is_nil()}>{"Select Institution"}</option>
                         { for self.data.iter().map(|i| self.render_institution(i)) }
                     </select>
@@ -866,7 +866,7 @@ impl PureComponent for PureContributorSelect {
                 <label class="label">{ &self.label }</label>
                 <div class="control is-expanded">
                     <div class="select is-fullwidth">
-                    <select required=self.required onchange=&self.onchange>
+                    <select required={ self.required } onchange={ &self.onchange }>
                         <option value="" selected={self.value.is_nil()}>{"Select Contributor"}</option>
                         { for self.data.iter().map(|c| self.render_contributor(c)) }
                     </select>
@@ -983,7 +983,7 @@ impl PureCountryCodeSelect {
     fn render_countrycode(&self, c: &CountryCodeValues) -> VNode {
         if Some(c.name.clone()) == self.value {
             html! {
-                <option value={c.name.to_string()} selected=true>
+                <option value={c.name.to_string()} selected={ true }>
                     {&c.name}
                 </option>
             }
@@ -1067,7 +1067,7 @@ impl PureComponent for PureReloader {
             <div class="buttons has-addons is-centered">
                 <button
                     class="button is-success is-large"
-                    onclick=&self.onclick
+                    onclick={ &self.onclick }
                 >
                     <span class="icon">
                         <i class="fas fa-sync"></i>

@@ -100,7 +100,7 @@ impl Component for NewInstitutionComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::SetCountryCodesFetchState(fetch_state) => {
                 self.fetch_country_codes.apply(fetch_state);
@@ -244,7 +244,7 @@ impl Component for NewInstitutionComponent {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, _props: Self::Properties) -> bool {
         false
     }
 
@@ -264,37 +264,37 @@ impl Component for NewInstitutionComponent {
                     <div class="level-right" />
                 </nav>
 
-                <form onsubmit=callback>
+                <form onsubmit={ callback }>
                     <FormTextInput
                         label = "Institution Name"
-                        value=self.institution.institution_name.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeInstitutionName(e.value))
-                        required=true
+                        value={ self.institution.institution_name.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeInstitutionName(e.value)) }
+                        required = true
                     />
                     <FormTextInputExtended
                         label = "Institution DOI"
-                        statictext = DOI_DOMAIN
-                        value=self.institution_doi.clone()
-                        tooltip=self.institution_doi_warning.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeInstitutionDoi(e.value))
+                        statictext={ DOI_DOMAIN }
+                        value={ self.institution_doi.clone() }
+                        tooltip={ self.institution_doi_warning.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeInstitutionDoi(e.value)) }
                     />
                     <FormTextInputExtended
                         label = "ROR ID"
-                        statictext = ROR_DOMAIN
-                        value=self.ror.clone()
-                        tooltip=self.ror_warning.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeRor(e.value))
+                        statictext={ ROR_DOMAIN }
+                        value={ self.ror.clone() }
+                        tooltip={ self.ror_warning.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeRor(e.value)) }
                     />
                     <FormCountryCodeSelect
                         label = "Country"
-                        value=self.institution.country_code.clone()
-                        data=self.data.country_codes.clone()
-                        onchange=self.link.callback(|event| match event {
+                        value={ self.institution.country_code.clone() }
+                        data={ self.data.country_codes.clone() }
+                        onchange={ self.link.callback(|event| match event {
                             ChangeData::Select(elem) => {
                                 Msg::ChangeCountryCode(elem.value())
                             }
                             _ => unreachable!(),
-                        })
+                        }) }
                     />
 
                     <div class="field">

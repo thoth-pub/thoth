@@ -33,12 +33,12 @@ impl Component for MenuComponent {
         MenuComponent { props }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         self.props = props;
         true
     }
 
-    fn update(&mut self, _msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, _msg: Self::Message) -> bool {
         false
     }
 
@@ -52,7 +52,7 @@ impl Component for MenuComponent {
                     <li>
                         <RouterAnchor<AppRoute>
                             classes={self.is_active(AdminRoute::Dashboard)}
-                            route=AppRoute::Admin(AdminRoute::Dashboard)
+                            route={ AppRoute::Admin(AdminRoute::Dashboard) }
                         >
                             {"Dashboard"}
                         </  RouterAnchor<AppRoute>>
@@ -65,7 +65,7 @@ impl Component for MenuComponent {
                     <li>
                         <RouterAnchor<AppRoute>
                             classes={self.is_active(AdminRoute::Works)}
-                            route=AppRoute::Admin(AdminRoute::Works)
+                            route={ AppRoute::Admin(AdminRoute::Works) }
                         >
                             {"Works"}
                         </  RouterAnchor<AppRoute>>
@@ -75,7 +75,7 @@ impl Component for MenuComponent {
                             <li>
                                 <RouterAnchor<AppRoute>
                                     classes={self.is_active(AdminRoute::Books)}
-                                    route=AppRoute::Admin(AdminRoute::Books)
+                                    route={ AppRoute::Admin(AdminRoute::Books) }
                                 >
                                     {"Books"}
                                 </  RouterAnchor<AppRoute>>
@@ -83,7 +83,7 @@ impl Component for MenuComponent {
                             <li>
                                 <RouterAnchor<AppRoute>
                                     classes={self.is_active(AdminRoute::Chapters)}
-                                    route=AppRoute::Admin(AdminRoute::Chapters)
+                                    route={ AppRoute::Admin(AdminRoute::Chapters) }
                                 >
                                     {"Chapters"}
                                 </  RouterAnchor<AppRoute>>
@@ -93,7 +93,7 @@ impl Component for MenuComponent {
                     <li>
                         <RouterAnchor<AppRoute>
                             classes={self.is_active(AdminRoute::Publications)}
-                            route=AppRoute::Admin(AdminRoute::Publications)
+                            route={ AppRoute::Admin(AdminRoute::Publications) }
                         >
                             {"Publications"}
                         </  RouterAnchor<AppRoute>>
@@ -101,7 +101,7 @@ impl Component for MenuComponent {
                     <li>
                         <RouterAnchor<AppRoute>
                             classes={self.is_active(AdminRoute::Publishers)}
-                            route=AppRoute::Admin(AdminRoute::Publishers)
+                            route={ AppRoute::Admin(AdminRoute::Publishers) }
                         >
                             {"Publishers"}
                         </  RouterAnchor<AppRoute>>
@@ -109,7 +109,7 @@ impl Component for MenuComponent {
                     <li>
                         <RouterAnchor<AppRoute>
                             classes={self.is_active(AdminRoute::Imprints)}
-                            route=AppRoute::Admin(AdminRoute::Imprints)
+                            route={ AppRoute::Admin(AdminRoute::Imprints) }
                         >
                             {"Imprints"}
                         </  RouterAnchor<AppRoute>>
@@ -117,7 +117,7 @@ impl Component for MenuComponent {
                     <li>
                         <RouterAnchor<AppRoute>
                             classes={self.is_active(AdminRoute::Contributors)}
-                            route=AppRoute::Admin(AdminRoute::Contributors)
+                            route={ AppRoute::Admin(AdminRoute::Contributors) }
                         >
                             {"Contributors"}
                         </  RouterAnchor<AppRoute>>
@@ -125,7 +125,7 @@ impl Component for MenuComponent {
                     <li>
                         <RouterAnchor<AppRoute>
                             classes={self.is_active(AdminRoute::Serieses)}
-                            route=AppRoute::Admin(AdminRoute::Serieses)
+                            route={ AppRoute::Admin(AdminRoute::Serieses) }
                         >
                             {"Series"}
                         </  RouterAnchor<AppRoute>>
@@ -133,7 +133,7 @@ impl Component for MenuComponent {
                     <li>
                         <RouterAnchor<AppRoute>
                             classes={self.is_active(AdminRoute::Institutions)}
-                            route=AppRoute::Admin(AdminRoute::Institutions)
+                            route={ AppRoute::Admin(AdminRoute::Institutions) }
                         >
                             {"Institutions"}
                         </  RouterAnchor<AppRoute>>

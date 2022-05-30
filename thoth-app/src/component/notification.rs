@@ -4,7 +4,6 @@ use yew::Bridge;
 use yew::Component;
 use yew::ComponentLink;
 use yew::Html;
-use yew::ShouldRender;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationStatus;
@@ -39,11 +38,11 @@ impl Component for NotificationComponent {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, _props: Self::Properties) -> bool {
         false
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::Add(s) => {
                 let notification = Notification {
@@ -73,7 +72,7 @@ impl NotificationComponent {
         html! {
             <div class={format!("notification {}", &notification.status)}>
                 <button
-                    onclick=self.link.callback(move |_| Msg::Remove(idx))
+                    onclick={ self.link.callback(move |_| Msg::Remove(idx)) }
                     class="delete"
                 ></button>
                 { &notification.message }

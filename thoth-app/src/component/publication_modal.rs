@@ -126,7 +126,7 @@ impl Component for PublicationModalComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::CloseModalForm => {
                 // Prompt parent form to close this form by updating the props
@@ -429,7 +429,7 @@ impl Component for PublicationModalComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         let updated_show_modal_form = self.props.show_modal_form != props.show_modal_form;
         self.props = props;
         if updated_show_modal_form {
@@ -446,24 +446,24 @@ impl Component for PublicationModalComponent {
             Msg::CloseModalForm
         });
         html! {
-            <div class=self.modal_form_status()>
-                <div class="modal-background" onclick=&close_modal></div>
+            <div class={ self.modal_form_status() }>
+                <div class="modal-background" onclick={ &close_modal }></div>
                 <div class="modal-card">
                     <header class="modal-card-head">
                         <p class="modal-card-title">{ self.modal_form_title() }</p>
                         <button
                             class="delete"
                             aria-label="close"
-                            onclick=&close_modal
+                            onclick={ &close_modal }
                         ></button>
                     </header>
                     <section class="modal-card-body">
-                        <form id="publication-modal" onsubmit=self.modal_form_action()>
+                        <form id="publication-modal" onsubmit={ self.modal_form_action() }>
                             <FormPublicationTypeSelect
                                 label = "Publication Type"
-                                value=self.publication.publication_type.clone()
-                                data=self.data.publication_types.clone()
-                                onchange=self.link.callback(|event| match event {
+                                value={ self.publication.publication_type.clone() }
+                                data={ self.data.publication_types.clone() }
+                                onchange={ self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {
                                         let value = elem.value();
                                         Msg::ChangePublicationType(
@@ -471,16 +471,16 @@ impl Component for PublicationModalComponent {
                                         )
                                     }
                                     _ => unreachable!(),
-                                })
+                                }) }
                                 required = true
                             />
                             <FormTextInputExtended
                                 label = "ISBN"
-                                value=self.isbn.clone()
-                                tooltip=self.isbn_warning.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeIsbn(e.value))
+                                value={ self.isbn.clone() }
+                                tooltip={ self.isbn_warning.clone() }
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangeIsbn(e.value)) }
                                 // ISBNs cannot be added for publications whose work type is Book Chapter.
-                                deactivated=self.props.work_type == WorkType::BookChapter
+                                deactivated={ self.props.work_type == WorkType::BookChapter }
                             />
                             {
                                 // Dimensions can only be added for physical (Paperback/Hardback) non-Chapter publications.
@@ -490,11 +490,11 @@ impl Component for PublicationModalComponent {
                                             <label class="checkbox">
                                                 <input
                                                     type="checkbox"
-                                                    checked=self.convert_dimensions
-                                                    onchange=self.link.callback(|event| match event {
+                                                    checked={ self.convert_dimensions }
+                                                    onchange={ self.link.callback(|event| match event {
                                                         ChangeData::Value(_) => Msg::ToggleDimensionConversion,
                                                         _ => unreachable!(),
-                                                    })
+                                                    }) }
                                                 />
                                                 { "Automatically convert dimension values" }
                                             </label>
@@ -502,15 +502,15 @@ impl Component for PublicationModalComponent {
                                                 <div class="field-body">
                                                     <FormFloatInput
                                                         label = "Width (mm)"
-                                                        value=self.publication.width_mm
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeWidthMm(e.value))
-                                                        step="1".to_string()
+                                                        value={ self.publication.width_mm }
+                                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeWidthMm(e.value)) }
+                                                        step={ "1".to_string() }
                                                     />
                                                     <FormFloatInput
                                                         label = "Width (in)"
-                                                        value=self.publication.width_in
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeWidthIn(e.value))
-                                                        step="0.01".to_string()
+                                                        value={ self.publication.width_in }
+                                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeWidthIn(e.value)) }
+                                                        step={ "0.01".to_string() }
                                                     />
                                                 </div>
                                             </div>
@@ -518,15 +518,15 @@ impl Component for PublicationModalComponent {
                                                 <div class="field-body">
                                                     <FormFloatInput
                                                         label = "Height (mm)"
-                                                        value=self.publication.height_mm
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeHeightMm(e.value))
-                                                        step="1".to_string()
+                                                        value={ self.publication.height_mm }
+                                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeHeightMm(e.value)) }
+                                                        step={ "1".to_string() }
                                                     />
                                                     <FormFloatInput
                                                         label = "Height (in)"
-                                                        value=self.publication.height_in
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeHeightIn(e.value))
-                                                        step="0.01".to_string()
+                                                        value={ self.publication.height_in }
+                                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeHeightIn(e.value)) }
+                                                        step={ "0.01".to_string() }
                                                     />
                                                 </div>
                                             </div>
@@ -534,15 +534,15 @@ impl Component for PublicationModalComponent {
                                                 <div class="field-body">
                                                     <FormFloatInput
                                                         label = "Depth (mm)"
-                                                        value=self.publication.depth_mm
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeDepthMm(e.value))
-                                                        step="1".to_string()
+                                                        value={ self.publication.depth_mm }
+                                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeDepthMm(e.value)) }
+                                                        step={ "1".to_string() }
                                                     />
                                                     <FormFloatInput
                                                         label = "Depth (in)"
-                                                        value=self.publication.depth_in
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeDepthIn(e.value))
-                                                        step="0.01".to_string()
+                                                        value={ self.publication.depth_in }
+                                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeDepthIn(e.value)) }
+                                                        step={ "0.01".to_string() }
                                                     />
                                                 </div>
                                             </div>
@@ -550,15 +550,15 @@ impl Component for PublicationModalComponent {
                                                 <div class="field-body">
                                                     <FormFloatInput
                                                         label = "Weight (g)"
-                                                        value=self.publication.weight_g
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeWeightG(e.value))
-                                                        step="1".to_string()
+                                                        value={ self.publication.weight_g }
+                                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeWeightG(e.value)) }
+                                                        step={ "1".to_string() }
                                                     />
                                                     <FormFloatInput
                                                         label = "Weight (oz)"
-                                                        value=self.publication.weight_oz
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeWeightOz(e.value))
-                                                        step="0.0001".to_string()
+                                                        value={ self.publication.weight_oz }
+                                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeWeightOz(e.value)) }
+                                                        step={ "0.0001".to_string() }
                                                     />
                                                 </div>
                                             </div>
@@ -580,7 +580,7 @@ impl Component for PublicationModalComponent {
                         </button>
                         <button
                             class="button"
-                            onclick=&close_modal
+                            onclick={ &close_modal }
                         >
                             { CANCEL_BUTTON }
                         </button>

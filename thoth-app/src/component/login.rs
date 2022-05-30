@@ -72,7 +72,7 @@ impl Component for LoginComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         self.props = props;
         if self.props.current_user.is_some() {
             self.link.send_message(Msg::RedirectToAdmin);
@@ -80,7 +80,7 @@ impl Component for LoginComponent {
         true
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::RedirectToAdmin => {
                 self.router
@@ -137,9 +137,9 @@ impl Component for LoginComponent {
                                 <input
                                     class="input"
                                     type="email"
-                                    value=self.request.email.clone()
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeEmail(e.value))
-                                    placeholder=INPUT_EMAIL
+                                    value={ self.request.email.clone() }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeEmail(e.value)) }
+                                    placeholder={ INPUT_EMAIL }
                                 />
                                 <span class="icon is-small is-left">
                                     <i class="fas fa-envelope"></i>
@@ -151,9 +151,9 @@ impl Component for LoginComponent {
                                 <input
                                     class="input"
                                     type="password"
-                                    value=self.request.password.clone()
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangePassword(e.value))
-                                    placeholder=INPUT_PASSWORD
+                                    value={ self.request.password.clone() }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangePassword(e.value)) }
+                                    placeholder={ INPUT_PASSWORD }
                                 />
                                 <span class="icon is-small is-left">
                                     <i class="fas fa-lock"></i>
@@ -164,7 +164,7 @@ impl Component for LoginComponent {
                             <p class="control">
                                 <button
                                     class="button is-success"
-                                    onclick=self.link.callback(|_| Msg::Request)
+                                    onclick={ self.link.callback(|_| Msg::Request) }
                                 >
                                     { TEXT_LOGIN }
                                 </button>

@@ -175,7 +175,7 @@ impl Component for NewWorkComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::SetImprintsFetchState(fetch_state) => {
                 self.fetch_imprints.apply(fetch_state);
@@ -434,7 +434,7 @@ impl Component for NewWorkComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         let updated_permissions =
             self.props.current_user.resource_access != props.current_user.resource_access;
         self.props = props;
@@ -463,78 +463,78 @@ impl Component for NewWorkComponent {
                     <div class="level-right" />
                 </nav>
 
-                <form onsubmit=callback>
+                <form onsubmit={ callback }>
                     <div class="field is-horizontal">
                         <div class="field-body">
                             <FormWorkTypeSelect
                                 label = "Work Type"
-                                value=self.work.work_type.clone()
-                                data=self.data.work_types.clone()
-                                onchange=self.link.callback(|event| match event {
+                                value={ self.work.work_type.clone() }
+                                data={ self.data.work_types.clone() }
+                                onchange={ self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {
                                         let value = elem.value();
                                         Msg::ChangeWorkType(WorkType::from_str(&value).unwrap())
                                     }
                                     _ => unreachable!(),
-                                })
+                                }) }
                                 required = true
                             />
                             <FormWorkStatusSelect
                                 label = "Work Status"
-                                value=self.work.work_status.clone()
-                                data=self.data.work_statuses.clone()
-                                onchange=self.link.callback(|event| match event {
+                                value={ self.work.work_status.clone() }
+                                data={ self.data.work_statuses.clone() }
+                                onchange={ self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {
                                         let value = elem.value();
                                         Msg::ChangeWorkStatus(WorkStatus::from_str(&value).unwrap())
                                     }
                                     _ => unreachable!(),
-                                })
+                                }) }
                                 required = true
                             />
                             <FormImprintSelect
                                 label = "Imprint"
-                                value=self.imprint_id
-                                data=self.data.imprints.clone()
-                                onchange=self.link.callback(|event| match event {
+                                value={ self.imprint_id }
+                                data={ self.data.imprints.clone() }
+                                onchange={ self.link.callback(|event| match event {
                                     ChangeData::Select(elem) => {
                                         let value = elem.value();
                                         Msg::ChangeImprint(Uuid::parse_str(&value).unwrap_or_default())
                                     }
                                     _ => unreachable!(),
-                                })
+                                }) }
                                 required = true
                             />
                         </div>
                     </div>
                     <FormTextInput
                         label = "Title"
-                        value=self.work.title.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeTitle(e.value))
+                        value={ self.work.title.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeTitle(e.value)) }
                         required = true
                     />
                     <FormTextInput
                         label = "Subtitle"
-                        value=self.work.subtitle.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeSubtitle(e.value))
+                        value={ self.work.subtitle.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeSubtitle(e.value)) }
                     />
                     <FormNumberInput
                         label = "Edition"
-                        value=self.work.edition
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeEdition(e.value))
+                        value={ self.work.edition }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeEdition(e.value)) }
                         required = true
-                        min = "1".to_string()
-                        deactivated = is_chapter
+                        min={ "1".to_string() }
+                        deactivated={ is_chapter }
                     />
                     <FormDateInput
                         label = "Publication Date"
-                        value=self.work.publication_date.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeDate(e.value))
+                        value={ self.work.publication_date.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeDate(e.value)) }
                     />
                     <FormTextInput
                         label = "Place of Publication"
-                        value=self.work.place.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangePlace(e.value))
+                        value={ self.work.place.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangePlace(e.value)) }
                     />
                     <div class="field">
                         <div class="tile is-ancestor">
@@ -552,13 +552,13 @@ impl Component for NewWorkComponent {
                                 <div class="tile is-child">
                                     <FormUrlInput
                                         label = "Cover URL"
-                                        value=self.work.cover_url.clone()
-                                        oninput=self.link.callback(|e: InputData| Msg::ChangeCoverUrl(e.value))
+                                        value={ self.work.cover_url.clone() }
+                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeCoverUrl(e.value)) }
                                     />
                                     <FormTextarea
                                         label = "Cover Caption"
-                                        value=self.work.cover_caption.clone()
-                                        oninput=self.link.callback(|e: InputData| Msg::ChangeCoverCaption(e.value))
+                                        value={ self.work.cover_caption.clone() }
+                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeCoverCaption(e.value)) }
                                     />
                                 </div>
                             </div>
@@ -568,27 +568,27 @@ impl Component for NewWorkComponent {
                         <div class="field-body">
                             <FormTextInputExtended
                                 label = "DOI"
-                                statictext = DOI_DOMAIN
-                                value=self.doi.clone()
-                                tooltip=self.doi_warning.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeDoi(e.value))
+                                statictext={ DOI_DOMAIN }
+                                value={ self.doi.clone() }
+                                tooltip={ self.doi_warning.clone() }
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangeDoi(e.value)) }
                             />
                             <FormTextInput
                                 label = "LCCN"
-                                value=self.work.lccn.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeLccn(e.value))
-                                deactivated = is_chapter
+                                value={ self.work.lccn.clone() }
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangeLccn(e.value)) }
+                                deactivated={ is_chapter }
                             />
                             <FormTextInput
                                 label = "OCLC Number"
-                                value=self.work.oclc.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeOclc(e.value))
-                                deactivated = is_chapter
+                                value={ self.work.oclc.clone() }
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangeOclc(e.value)) }
+                                deactivated={ is_chapter }
                             />
                             <FormTextInput
                                 label = "Internal Reference"
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeReference(e.value))
-                                value=self.work.reference.clone()
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangeReference(e.value)) }
+                                value={ self.work.reference.clone() }
                             />
                         </div>
                     </div>
@@ -596,25 +596,25 @@ impl Component for NewWorkComponent {
                         <div class="field-body">
                             <FormNumberInput
                                 label = "Page Count"
-                                value=self.work.page_count
-                                oninput=self.link.callback(|e: InputData| Msg::ChangePageCount(e.value))
+                                value={ self.work.page_count }
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangePageCount(e.value)) }
                             />
                             <FormTextInput
                                 label = "Page Breakdown"
-                                value=self.work.page_breakdown.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangePageBreakdown(e.value))
+                                value={ self.work.page_breakdown.clone() }
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangePageBreakdown(e.value)) }
                             />
                             <FormTextInput
                                 label = "First Page"
-                                value=self.work.first_page.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeFirstPage(e.value))
-                                deactivated = !is_chapter
+                                value={ self.work.first_page.clone() }
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangeFirstPage(e.value)) }
+                                deactivated={ !is_chapter }
                             />
                             <FormTextInput
                                 label = "Last Page"
-                                value=self.work.last_page.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeLastPage(e.value))
-                                deactivated = !is_chapter
+                                value={ self.work.last_page.clone() }
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangeLastPage(e.value)) }
+                                deactivated={ !is_chapter }
                             />
                         </div>
                     </div>
@@ -622,62 +622,62 @@ impl Component for NewWorkComponent {
                         <div class="field-body">
                             <FormNumberInput
                                 label = "Image Count"
-                                value=self.work.image_count
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeImageCount(e.value))
+                                value={ self.work.image_count }
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangeImageCount(e.value)) }
                             />
                             <FormNumberInput
                                 label = "Table Count"
-                                value=self.work.table_count
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeTableCount(e.value))
+                                value={ self.work.table_count }
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangeTableCount(e.value)) }
                             />
                             <FormNumberInput
                                 label = "Audio Count"
-                                value=self.work.audio_count
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeAudioCount(e.value))
+                                value={ self.work.audio_count }
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangeAudioCount(e.value)) }
                             />
                             <FormNumberInput
                                 label = "Video Count"
-                                value=self.work.video_count
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeVideoCount(e.value))
+                                value={ self.work.video_count }
+                                oninput={ self.link.callback(|e: InputData| Msg::ChangeVideoCount(e.value)) }
                             />
                         </div>
                     </div>
                     <FormUrlInput
                         label = "License"
-                        value=self.work.license.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeLicense(e.value))
+                        value={ self.work.license.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeLicense(e.value)) }
                     />
                     <FormTextInput
                         label = "Copyright Holder"
-                        value=self.work.copyright_holder.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeCopyright(e.value))
+                        value={ self.work.copyright_holder.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeCopyright(e.value)) }
                         required = true
                     />
                     <FormUrlInput
                         label = "Landing Page"
-                        value=self.work.landing_page.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeLandingPage(e.value))
+                        value={ self.work.landing_page.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeLandingPage(e.value)) }
                     />
                     <FormTextarea
                         label = "Short Abstract"
-                        value=self.work.short_abstract.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeShortAbstract(e.value))
+                        value={ self.work.short_abstract.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeShortAbstract(e.value)) }
                     />
                     <FormTextarea
                         label = "Long Abstract"
-                        value=self.work.long_abstract.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeLongAbstract(e.value))
+                        value={ self.work.long_abstract.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeLongAbstract(e.value)) }
                     />
                     <FormTextarea
                         label = "General Note"
-                        value=self.work.general_note.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeNote(e.value))
+                        value={ self.work.general_note.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeNote(e.value)) }
                     />
                     <FormTextarea
                         label = "Table of Content"
-                        value=self.work.toc.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeToc(e.value))
-                        deactivated = is_chapter
+                        value={ self.work.toc.clone() }
+                        oninput={ self.link.callback(|e: InputData| Msg::ChangeToc(e.value)) }
+                        deactivated={ is_chapter }
                     />
 
                     <div class="field">

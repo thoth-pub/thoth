@@ -133,7 +133,7 @@ impl Component for AffiliationsFormComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleModalFormDisplay(show_form, a) => {
                 self.show_modal_form = show_form;
@@ -435,7 +435,7 @@ impl Component for AffiliationsFormComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         if self.props.neq_assign(props) {
             self.link.send_message(Msg::GetAffiliations);
             true
@@ -455,43 +455,43 @@ impl Component for AffiliationsFormComponent {
         });
         html! {
             <div class="field">
-                <div class=self.modal_form_status()>
-                    <div class="modal-background" onclick=&close_modal></div>
+                <div class={ self.modal_form_status() }>
+                    <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
                             <p class="modal-card-title">{ self.modal_form_title() }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id={form_id.clone()} onsubmit=self.modal_form_action()>
+                            <form id={form_id.clone()} onsubmit={ self.modal_form_action() }>
                                 <FormInstitutionSelect
                                     label = "Institution"
-                                    value=self.affiliation.institution_id
-                                    data=self.data.institutions.clone()
-                                    onchange=self.link.callback(|event| match event {
+                                    value={ self.affiliation.institution_id }
+                                    data={ self.data.institutions.clone() }
+                                    onchange={ self.link.callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             Msg::ChangeInstitution(Uuid::parse_str(&value).unwrap_or_default())
                                         }
                                         _ => unreachable!(),
-                                    })
+                                    }) }
                                     required = true
                                 />
                                 <FormTextInput
                                     label="Position"
-                                    value=self.affiliation.position.clone().unwrap_or_else(|| "".to_string())
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangePosition(e.value))
+                                    value={ self.affiliation.position.clone().unwrap_or_else(|| "".to_string()) }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangePosition(e.value)) }
                                 />
                                 <FormNumberInput
                                     label = "Affiliation Ordinal"
-                                    value=self.affiliation.affiliation_ordinal
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
+                                    value={ self.affiliation.affiliation_ordinal }
+                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value)) }
                                     required = true
-                                    min = "1".to_string()
+                                    min={ "1".to_string() }
                                 />
                             </form>
                         </section>
@@ -505,7 +505,7 @@ impl Component for AffiliationsFormComponent {
                             </button>
                             <button
                                 class="button"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             >
                                 { CANCEL_BUTTON }
                             </button>
@@ -532,7 +532,7 @@ impl Component for AffiliationsFormComponent {
                     <tbody>
                         {for affiliations.iter().map(|a| self.render_affiliation(a))}
                         <tr class="row">
-                            <div class=self.search_dropdown_status() style="width: 100%">
+                            <div class={ self.search_dropdown_status() } style="width: 100%">
                                 <div class="dropdown-trigger" style="width: 100%">
                                     <div class="field">
                                         <p class="control is-expanded has-icons-left">
@@ -542,9 +542,9 @@ impl Component for AffiliationsFormComponent {
                                                 placeholder="Search Institution"
                                                 aria-haspopup="true"
                                                 aria-controls="institutions-menu"
-                                                oninput=self.link.callback(|e: InputData| Msg::SearchInstitution(e.value))
-                                                onfocus=self.link.callback(|_| Msg::ToggleSearchResultDisplay(true))
-                                                onblur=self.link.callback(|_| Msg::ToggleSearchResultDisplay(false))
+                                                oninput={ self.link.callback(|e: InputData| Msg::SearchInstitution(e.value)) }
+                                                onfocus={ self.link.callback(|_| Msg::ToggleSearchResultDisplay(true)) }
+                                                onblur={ self.link.callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                             />
                                             <span class="icon is-left">
                                                 <i class="fas fa-search" aria-hidden="true"></i>
@@ -628,7 +628,7 @@ impl AffiliationsFormComponent {
                 <td>
                     <a
                         class="button is-success is-small"
-                        onclick=self.link.callback(move |_| Msg::ToggleModalFormDisplay(true, Some(affiliation.clone())))
+                        onclick={ self.link.callback(move |_| Msg::ToggleModalFormDisplay(true, Some(affiliation.clone()))) }
                     >
                         { EDIT_BUTTON }
                     </a>
@@ -636,7 +636,7 @@ impl AffiliationsFormComponent {
                 <td>
                     <a
                         class="button is-danger is-small"
-                        onclick=self.link.callback(move |_| Msg::DeleteAffiliation(affiliation_id))
+                        onclick={ self.link.callback(move |_| Msg::DeleteAffiliation(affiliation_id)) }
                     >
                         { REMOVE_BUTTON }
                     </a>

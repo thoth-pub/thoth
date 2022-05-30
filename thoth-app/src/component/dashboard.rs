@@ -47,7 +47,7 @@ impl Component for DashboardComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::SetStatsFetchState(fetch_state) => {
                 self.get_stats.apply(fetch_state);
@@ -72,7 +72,7 @@ impl Component for DashboardComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn changed(&mut self, props: Self::Properties) -> bool {
         let updated_permissions =
             self.props.current_user.resource_access != props.current_user.resource_access;
         self.props = props;
@@ -85,7 +85,7 @@ impl Component for DashboardComponent {
     fn view(&self) -> Html {
         match self.get_stats.as_ref().state() {
             FetchState::NotFetching(_) => {
-                html! {<Reloader onclick=self.link.callback(|_| Msg::GetStats)/>}
+                html! {<Reloader onclick={ self.link.callback(|_| Msg::GetStats) }/>}
             }
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(body) => html! {
@@ -99,7 +99,7 @@ impl Component for DashboardComponent {
                                             {format!("{} Works", body.data.work_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Works)
+                                            route={ AppRoute::Admin(AdminRoute::Works) }
                                         >
                                             {"See all"}
                                         </  RouterAnchor<AppRoute>>
@@ -111,7 +111,7 @@ impl Component for DashboardComponent {
                                             {format!("{} Books", body.data.book_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Books)
+                                            route={ AppRoute::Admin(AdminRoute::Books) }
                                         >
                                             {"See all"}
                                         </  RouterAnchor<AppRoute>>
@@ -123,7 +123,7 @@ impl Component for DashboardComponent {
                                             {format!("{} Chapters", body.data.chapter_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Chapters)
+                                            route={ AppRoute::Admin(AdminRoute::Chapters) }
                                         >
                                             {"See all"}
                                         </  RouterAnchor<AppRoute>>
@@ -139,7 +139,7 @@ impl Component for DashboardComponent {
                                             {format!("{} Publications", body.data.publication_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Publications)
+                                            route={ AppRoute::Admin(AdminRoute::Publications) }
                                         >
                                             {"See all"}
                                         </  RouterAnchor<AppRoute>>
@@ -151,7 +151,7 @@ impl Component for DashboardComponent {
                                             {format!("{} Contributors", body.data.contributor_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Contributors)
+                                            route={ AppRoute::Admin(AdminRoute::Contributors) }
                                         >
                                             {"See all"}
                                         </  RouterAnchor<AppRoute>>
@@ -163,7 +163,7 @@ impl Component for DashboardComponent {
                                             {format!("{} Publishers", body.data.publisher_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Publishers)
+                                            route={ AppRoute::Admin(AdminRoute::Publishers) }
                                         >
                                             {"See all"}
                                         </  RouterAnchor<AppRoute>>
@@ -179,7 +179,7 @@ impl Component for DashboardComponent {
                                             {format!("{} Series", body.data.series_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Serieses)
+                                            route={ AppRoute::Admin(AdminRoute::Serieses) }
                                         >
                                             {"See all"}
                                         </  RouterAnchor<AppRoute>>
@@ -191,7 +191,7 @@ impl Component for DashboardComponent {
                                             {format!("{} Imprints", body.data.imprint_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Imprints)
+                                            route={ AppRoute::Admin(AdminRoute::Imprints) }
                                         >
                                             {"See all"}
                                         </  RouterAnchor<AppRoute>>
@@ -203,7 +203,7 @@ impl Component for DashboardComponent {
                                             {format!("{} Institutions", body.data.institution_count)}
                                         </p>
                                         <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Institutions)
+                                            route={ AppRoute::Admin(AdminRoute::Institutions) }
                                         >
                                             {"See all"}
                                         </  RouterAnchor<AppRoute>>
