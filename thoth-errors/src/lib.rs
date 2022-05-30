@@ -84,6 +84,10 @@ pub enum ThothError {
         display = "Width/Height/Depth/Weight are only applicable to physical (Paperback/Hardback) Publications."
     )]
     DimensionDigitalError,
+    #[fail(
+        display = "Price values must be greater than zero. To indicate an unpriced Publication, omit all Prices."
+    )]
+    PriceZeroError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]

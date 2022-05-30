@@ -288,17 +288,16 @@ impl Component for ImprintComponent {
                 false
             }
             Msg::ChangePublisher(publisher_id) => {
-                if let Some(index) = self
+                if let Some(publisher) = self
                     .data
                     .publishers
                     .iter()
-                    .position(|p| p.publisher_id == publisher_id)
+                    .find(|p| p.publisher_id == publisher_id)
                 {
-                    self.imprint
-                        .publisher
-                        .neq_assign(self.data.publishers.get(index).unwrap().clone())
+                    self.imprint.publisher.neq_assign(publisher.clone())
                 } else {
-                    false
+                    // Publisher not found: clear existing selection
+                    self.imprint.publisher.neq_assign(Default::default())
                 }
             }
             Msg::ChangeImprintName(imprint_name) => self

@@ -295,6 +295,7 @@ impl Component for PricesFormComponent {
                                     oninput=self.link.callback(|e: InputData| Msg::ChangeUnitPrice(e.value))
                                     required = true
                                     step="0.01".to_string()
+                                    min="0.01".to_string()
                                 />
                             </form>
                         </section>
