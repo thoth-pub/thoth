@@ -5,7 +5,6 @@ use thoth_api::model::contributor::Contributor;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -56,7 +55,6 @@ use crate::string::YES;
 use super::ToOption;
 
 pub struct ContributionsFormComponent {
-    props: Props,
     data: ContributionsFormData,
     contribution: Contribution,
     show_modal_form: bool,
@@ -67,7 +65,6 @@ pub struct ContributionsFormComponent {
     create_contribution: PushCreateContribution,
     delete_contribution: PushDeleteContribution,
     update_contribution: PushUpdateContribution,
-    link: ComponentLink<Self>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -113,7 +110,7 @@ impl Component for ContributionsFormComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let data: ContributionsFormData = Default::default();
         let contribution: Contribution = Default::default();
         let show_modal_form = false;
@@ -126,11 +123,10 @@ impl Component for ContributionsFormComponent {
         let update_contribution = Default::default();
         let notification_bus = NotificationBus::dispatcher();
 
-        link.send_message(Msg::GetContributors);
-        link.send_message(Msg::GetContributionTypes);
+        ctx.link().send_message(Msg::GetContributors);
+        ctx.link().send_message(Msg::GetContributionTypes);
 
         ContributionsFormComponent {
-            props,
             data,
             contribution,
             show_modal_form,
@@ -141,12 +137,11 @@ impl Component for ContributionsFormComponent {
             create_contribution,
             delete_contribution,
             update_contribution,
-            link,
             notification_bus,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleModalFormDisplay(show_form, c) => {
                 self.show_modal_form = show_form;
@@ -161,7 +156,7 @@ impl Component for ContributionsFormComponent {
                     };
                     let request = ContributorsRequest { body };
                     self.fetch_contributors = Fetch::new(request);
-                    self.link.send_message(Msg::GetContributors);
+                    ctx.link().send_message(Msg::GetContributors);
                     if let Some(contribution) = c {
                         // Editing existing contribution: load its current values.
                         self.contribution = contribution;
@@ -180,11 +175,11 @@ impl Component for ContributionsFormComponent {
                 true
             }
             Msg::GetContributors => {
-                self.link.send_future(
+                ctx.link().send_future(
                     self.fetch_contributors
                         .fetch(Msg::SetContributorsFetchState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetContributorsFetchState(FetchAction::Fetching));
                 false
             }
@@ -200,11 +195,11 @@ impl Component for ContributionsFormComponent {
                 true
             }
             Msg::GetContributionTypes => {
-                self.link.send_future(
+                ctx.link().send_future(
                     self.fetch_contribution_types
                         .fetch(Msg::SetContributionTypesFetchState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetContributionTypesFetchState(FetchAction::Fetching));
                 false
             }
@@ -217,15 +212,15 @@ impl Component for ContributionsFormComponent {
                         Some(i) => {
                             let contribution = i.clone();
                             let mut contributions: Vec<Contribution> =
-                                self.props.contributions.clone().unwrap_or_default();
+                                ctx.props().contributions.clone().unwrap_or_default();
                             contributions.push(contribution);
-                            self.props.update_contributions.emit(Some(contributions));
-                            self.link
+                            ctx.props().update_contributions.emit(Some(contributions));
+                            ctx.link()
                                 .send_message(Msg::ToggleModalFormDisplay(false, None));
                             true
                         }
                         None => {
-                            self.link
+                            ctx.link()
                                 .send_message(Msg::ToggleModalFormDisplay(false, None));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
@@ -235,7 +230,7 @@ impl Component for ContributionsFormComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        self.link
+                        ctx.link()
                             .send_message(Msg::ToggleModalFormDisplay(false, None));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
@@ -248,7 +243,7 @@ impl Component for ContributionsFormComponent {
             Msg::CreateContribution => {
                 let body = CreateContributionRequestBody {
                     variables: CreateVariables {
-                        work_id: self.props.work_id,
+                        work_id: ctx.props().work_id,
                         contributor_id: self.contribution.contributor_id,
                         contribution_type: self.contribution.contribution_type,
                         main_contribution: self.contribution.main_contribution,
@@ -262,11 +257,11 @@ impl Component for ContributionsFormComponent {
                 };
                 let request = CreateContributionRequest { body };
                 self.create_contribution = Fetch::new(request);
-                self.link.send_future(
+                ctx.link().send_future(
                     self.create_contribution
                         .fetch(Msg::SetContributionCreateState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetContributionCreateState(FetchAction::Fetching));
                 false
             }
@@ -278,13 +273,13 @@ impl Component for ContributionsFormComponent {
                     FetchState::Fetched(body) => match &body.data.update_contribution {
                         Some(c) => {
                             let mut contributions: Vec<Contribution> =
-                                self.props.contributions.clone().unwrap_or_default();
+                                ctx.props().contributions.clone().unwrap_or_default();
                             if let Some(contribution) = contributions
                                 .iter_mut()
                                 .find(|cn| cn.contribution_id == c.contribution_id)
                             {
                                 *contribution = c.clone();
-                                self.props.update_contributions.emit(Some(contributions));
+                                ctx.props().update_contributions.emit(Some(contributions));
                             } else {
                                 // This should not be possible: the updated contribution returned from the
                                 // database does not match any of the locally-stored contribution data.
@@ -294,12 +289,12 @@ impl Component for ContributionsFormComponent {
                                     NotificationStatus::Warning,
                                 )));
                             }
-                            self.link
+                            ctx.link()
                                 .send_message(Msg::ToggleModalFormDisplay(false, None));
                             true
                         }
                         None => {
-                            self.link
+                            ctx.link()
                                 .send_message(Msg::ToggleModalFormDisplay(false, None));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
@@ -309,7 +304,7 @@ impl Component for ContributionsFormComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        self.link
+                        ctx.link()
                             .send_message(Msg::ToggleModalFormDisplay(false, None));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
@@ -323,7 +318,7 @@ impl Component for ContributionsFormComponent {
                 let body = UpdateContributionRequestBody {
                     variables: UpdateVariables {
                         contribution_id: self.contribution.contribution_id,
-                        work_id: self.props.work_id,
+                        work_id: ctx.props().work_id,
                         contributor_id: self.contribution.contributor_id,
                         contribution_type: self.contribution.contribution_type,
                         main_contribution: self.contribution.main_contribution,
@@ -337,11 +332,11 @@ impl Component for ContributionsFormComponent {
                 };
                 let request = UpdateContributionRequest { body };
                 self.update_contribution = Fetch::new(request);
-                self.link.send_future(
+                ctx.link().send_future(
                     self.update_contribution
                         .fetch(Msg::SetContributionUpdateState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetContributionUpdateState(FetchAction::Fetching));
                 false
             }
@@ -360,7 +355,7 @@ impl Component for ContributionsFormComponent {
                                 .into_iter()
                                 .filter(|c| c.contribution_id != contribution.contribution_id)
                                 .collect();
-                            self.props.update_contributions.emit(Some(to_keep));
+                            ctx.props().update_contributions.emit(Some(to_keep));
                             true
                         }
                         None => {
@@ -387,11 +382,11 @@ impl Component for ContributionsFormComponent {
                 };
                 let request = DeleteContributionRequest { body };
                 self.delete_contribution = Fetch::new(request);
-                self.link.send_future(
+                ctx.link().send_future(
                     self.delete_contribution
                         .fetch(Msg::SetContributionDeleteState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetContributionDeleteState(FetchAction::Fetching));
                 false
             }
@@ -400,7 +395,7 @@ impl Component for ContributionsFormComponent {
                 self.contribution.first_name = contributor.first_name;
                 self.contribution.last_name = contributor.last_name;
                 self.contribution.full_name = contributor.full_name;
-                self.link
+                ctx.link()
                     .send_message(Msg::ToggleModalFormDisplay(true, None));
                 true
             }
@@ -419,7 +414,7 @@ impl Component for ContributionsFormComponent {
                 };
                 let request = ContributorsRequest { body };
                 self.fetch_contributors = Fetch::new(request);
-                self.link.send_message(Msg::GetContributors);
+                ctx.link().send_message(Msg::GetContributors);
                 false
             }
             Msg::ChangeContributor(contributor_id) => {
@@ -470,13 +465,9 @@ impl Component for ContributionsFormComponent {
         }
     }
 
-    fn changed(&mut self, props: Self::Properties) -> bool {
-        self.props.neq_assign(props)
-    }
-
-    fn view(&self) -> Html {
-        let contributions = self.props.contributions.clone().unwrap_or_default();
-        let close_modal = self.link.callback(|e: MouseEvent| {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let contributions = ctx.props().contributions.clone().unwrap_or_default();
+        let close_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleModalFormDisplay(false, None)
         });
@@ -496,9 +487,9 @@ impl Component for ContributionsFormComponent {
                                         placeholder="Search Contributor"
                                         aria-haspopup="true"
                                         aria-controls="contributors-menu"
-                                        oninput={ self.link.callback(|e: InputData| Msg::SearchContributor(e.value)) }
-                                        onfocus={ self.link.callback(|_| Msg::ToggleSearchResultDisplay(true)) }
-                                        onblur={ self.link.callback(|_| Msg::ToggleSearchResultDisplay(false)) }
+                                        oninput={ ctx.link().callback(|e: InputData| Msg::SearchContributor(e.value)) }
+                                        onfocus={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(true)) }
+                                        onblur={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                     />
                                     <span class="icon is-left">
                                         <i class="fas fa-search" aria-hidden="true"></i>
@@ -512,7 +503,7 @@ impl Component for ContributionsFormComponent {
                                     for self.data.contributors.iter().map(|c| {
                                         let contributor = c.clone();
                                         c.as_dropdown_item(
-                                            self.link.callback(move |_| {
+                                            ctx.link().callback(move |_| {
                                                 Msg::AddContribution(contributor.clone())
                                             })
                                         )
@@ -534,12 +525,12 @@ impl Component for ContributionsFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="contributions-form" onsubmit={ self.modal_form_action() }>
+                            <form id="contributions-form" onsubmit={ self.modal_form_action(ctx) }>
                                 <FormContributorSelect
                                     label = "Contributor"
                                     value={ self.contribution.contributor_id }
                                     data={ self.data.contributors.clone() }
-                                    onchange={ self.link.callback(|event| match event {
+                                    onchange={ ctx.link().callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             Msg::ChangeContributor(Uuid::parse_str(&value).unwrap_or_default())
@@ -551,24 +542,24 @@ impl Component for ContributionsFormComponent {
                                 <FormTextInput
                                     label="Contributor's Given Name"
                                     value={ self.contribution.first_name.clone() }
-                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeFirstName(e.value)) }
                                 />
                                 <FormTextInput
                                     label="Contributor's Family Name"
                                     value={ self.contribution.last_name.clone() }
-                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeLastName(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeLastName(e.value)) }
                                     required = true
                                 />
                                 <FormTextInput
                                     label="Contributor's Full Name"
                                     value={ self.contribution.full_name.clone() }
-                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeFullName(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeFullName(e.value)) }
                                     required = true
                                 />
                                 <FormContributionTypeSelect
                                     label = "Contribution Type"
                                     value={ self.contribution.contribution_type }
-                                    onchange={ self.link.callback(|event| match event {
+                                    onchange={ ctx.link().callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             Msg::ChangeContributiontype(ContributionType::from_str(&value).unwrap())
@@ -581,12 +572,12 @@ impl Component for ContributionsFormComponent {
                                 <FormTextInput
                                     label="Biography"
                                     value={ self.contribution.biography.clone().unwrap_or_else(|| "".to_string()) }
-                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeBiography(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeBiography(e.value)) }
                                 />
                                 <FormBooleanSelect
                                     label = "Main"
                                     value={ self.contribution.main_contribution }
-                                    onchange={ self.link.callback(|event| match event {
+                                    onchange={ ctx.link().callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             let boolean = value == "true";
@@ -599,7 +590,7 @@ impl Component for ContributionsFormComponent {
                                 <FormNumberInput
                                     label = "Contribution Ordinal"
                                     value={ self.contribution.contribution_ordinal }
-                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeOrdinal(e.value)) }
                                     required = true
                                     min={ "1".to_string() }
                                 />
@@ -624,7 +615,7 @@ impl Component for ContributionsFormComponent {
                 </div>
                 {
                     if !contributions.is_empty() {
-                        html!{{for contributions.iter().map(|c| self.render_contribution(c))}}
+                        html!{{for contributions.iter().map(|c| self.render_contribution(ctx, c))}}
                     } else {
                         html! {
                             <div class="notification is-warning is-light">
@@ -660,13 +651,13 @@ impl ContributionsFormComponent {
         }
     }
 
-    fn modal_form_action(&self) -> Callback<FocusEvent> {
+    fn modal_form_action(&self, ctx: &Context<Self>) -> Callback<FocusEvent> {
         match self.in_edit_mode {
-            true => self.link.callback(|e: FocusEvent| {
+            true => ctx.link().callback(|e: FocusEvent| {
                 e.prevent_default();
                 Msg::UpdateContribution
             }),
-            false => self.link.callback(|e: FocusEvent| {
+            false => ctx.link().callback(|e: FocusEvent| {
                 e.prevent_default();
                 Msg::CreateContribution
             }),
@@ -680,7 +671,7 @@ impl ContributionsFormComponent {
         }
     }
 
-    fn render_contribution(&self, c: &Contribution) -> Html {
+    fn render_contribution(&self, ctx: &Context<Self>, c: &Contribution) -> Html {
         let contribution = c.clone();
         let contribution_id = c.contribution_id;
         html! {
@@ -729,7 +720,7 @@ impl ContributionsFormComponent {
                         <div class="control">
                             <a
                                 class="button is-success"
-                                onclick={ self.link.callback(move |_| Msg::ToggleModalFormDisplay(true, Some(contribution.clone()))) }
+                                onclick={ ctx.link().callback(move |_| Msg::ToggleModalFormDisplay(true, Some(contribution.clone()))) }
                             >
                                 { EDIT_BUTTON }
                             </a>
@@ -737,7 +728,7 @@ impl ContributionsFormComponent {
                         <div class="control">
                             <a
                                 class="button is-danger"
-                                onclick={ self.link.callback(move |_| Msg::DeleteContribution(contribution_id)) }
+                                onclick={ ctx.link().callback(move |_| Msg::DeleteContribution(contribution_id)) }
                             >
                                 { REMOVE_BUTTON }
                             </a>

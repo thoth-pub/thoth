@@ -5,7 +5,6 @@ use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 use yew_router::prelude::RouterAnchor;
@@ -58,7 +57,6 @@ pub struct ContributorComponent {
     fetch_contributor: FetchContributor,
     push_contributor: PushUpdateContributor,
     delete_contributor: PushDeleteContributor,
-    link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     _contributor_activity_checker: Box<dyn Bridge<ContributorActivityChecker>>,
@@ -90,10 +88,10 @@ impl Component for ContributorComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let body = ContributorRequestBody {
             variables: Variables {
-                contributor_id: Some(props.contributor_id),
+                contributor_id: Some(ctx.props().contributor_id),
             },
             ..Default::default()
         };
@@ -107,12 +105,12 @@ impl Component for ContributorComponent {
         let orcid_warning = Default::default();
         let router = RouteAgentDispatcher::new();
         let mut _contributor_activity_checker =
-            ContributorActivityChecker::bridge(link.callback(Msg::GetContributorActivity));
+            ContributorActivityChecker::bridge(ctx.link().callback(Msg::GetContributorActivity));
         let contributor_activity = Default::default();
 
-        link.send_message(Msg::GetContributor);
+        ctx.link().send_message(Msg::GetContributor);
         _contributor_activity_checker.send(
-            ContributorActivityRequest::RetrieveContributorActivity(props.contributor_id),
+            ContributorActivityRequest::RetrieveContributorActivity(ctx.props().contributor_id),
         );
 
         ContributorComponent {
@@ -122,7 +120,6 @@ impl Component for ContributorComponent {
             fetch_contributor,
             push_contributor,
             delete_contributor,
-            link,
             router,
             notification_bus,
             _contributor_activity_checker,
@@ -130,7 +127,7 @@ impl Component for ContributorComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::GetContributorActivity(response) => {
                 let mut should_render = false;
@@ -167,9 +164,9 @@ impl Component for ContributorComponent {
                 }
             }
             Msg::GetContributor => {
-                self.link
+                ctx.link()
                     .send_future(self.fetch_contributor.fetch(Msg::SetContributorFetchState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetContributorFetchState(FetchAction::Fetching));
                 false
             }
@@ -233,9 +230,9 @@ impl Component for ContributorComponent {
                 };
                 let request = UpdateContributorRequest { body };
                 self.push_contributor = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_contributor.fetch(Msg::SetContributorPushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetContributorPushState(FetchAction::Fetching));
                 false
             }
@@ -250,7 +247,7 @@ impl Component for ContributorComponent {
                                 format!("Deleted {}", c.full_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                            ctx.link().send_message(Msg::ChangeRoute(AppRoute::Admin(
                                 AdminRoute::Contributors,
                             )));
                             true
@@ -281,11 +278,11 @@ impl Component for ContributorComponent {
                 };
                 let request = DeleteContributorRequest { body };
                 self.delete_contributor = Fetch::new(request);
-                self.link.send_future(
+                ctx.link().send_future(
                     self.delete_contributor
                         .fetch(Msg::SetContributorDeleteState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetContributorDeleteState(FetchAction::Fetching));
                 false
             }
@@ -331,16 +328,12 @@ impl Component for ContributorComponent {
         }
     }
 
-    fn changed(&mut self, _props: Self::Properties) -> bool {
-        false
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         match self.fetch_contributor.as_ref().state() {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(_body) => {
-                let callback = self.link.callback(|event: FocusEvent| {
+                let callback = ctx.link().callback(|event: FocusEvent| {
                     event.prevent_default();
                     Msg::UpdateContributor
                 });
@@ -355,7 +348,7 @@ impl Component for ContributorComponent {
                             <div class="level-right">
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
-                                        onclick={ self.link.callback(|_| Msg::DeleteContributor) }
+                                        onclick={ ctx.link().callback(|_| Msg::DeleteContributor) }
                                         object_name={ self.contributor.full_name.clone() }
                                     />
                                 </p>
@@ -391,18 +384,18 @@ impl Component for ContributorComponent {
                             <FormTextInput
                                 label = "Given Name"
                                 value={ self.contributor.first_name.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeFirstName(e.value)) }
                             />
                             <FormTextInput
                                 label = "Family Name"
                                 value={ self.contributor.last_name.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeLastName(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeLastName(e.value)) }
                                 required = true
                             />
                             <FormTextInput
                                 label = "Full Name"
                                 value={ self.contributor.full_name.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeFullName(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeFullName(e.value)) }
                                 required = true
                             />
                             <FormTextInputExtended
@@ -410,12 +403,12 @@ impl Component for ContributorComponent {
                                 statictext={ ORCID_DOMAIN }
                                 value={ self.orcid.clone() }
                                 tooltip={ self.orcid_warning.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeOrcid(e.value)) }
                             />
                             <FormUrlInput
                                 label = "Website"
                                 value={ self.contributor.website.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeWebsite(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeWebsite(e.value)) }
                             />
 
                             <div class="field">

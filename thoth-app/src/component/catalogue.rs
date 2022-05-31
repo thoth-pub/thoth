@@ -1,10 +1,10 @@
 use thoth_api::model::work::WorkWithRelations;
 use yew::html;
 use yew::prelude::Component;
+use yew::prelude::Context;
 use yew::prelude::FocusEvent;
 use yew::prelude::Html;
 use yew::prelude::InputData;
-use yew::ComponentLink;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -27,7 +27,6 @@ pub struct CatalogueComponent {
     data: Vec<WorkWithRelations>,
     result_count: i32,
     fetch_data: FetchWorks,
-    link: ComponentLink<Self>,
 }
 
 pagination_helpers! {CatalogueComponent, PAGINATION_COUNT_WORKS, SEARCH_WORKS}
@@ -48,7 +47,7 @@ impl Component for CatalogueComponent {
     type Message = Msg;
     type Properties = ();
 
-    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let offset: i32 = Default::default();
         let page_size: i32 = 10;
         let limit: i32 = page_size;
@@ -57,7 +56,7 @@ impl Component for CatalogueComponent {
         let data = Default::default();
         let fetch_data = Default::default();
 
-        link.send_message(Msg::PaginateData);
+        ctx.link().send_message(Msg::PaginateData);
 
         CatalogueComponent {
             limit,
@@ -67,11 +66,10 @@ impl Component for CatalogueComponent {
             data,
             result_count,
             fetch_data,
-            link,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::SetFetchState(fetch_state) => {
                 self.fetch_data.apply(fetch_state);
@@ -86,9 +84,9 @@ impl Component for CatalogueComponent {
                 true
             }
             Msg::GetData => {
-                self.link
+                ctx.link()
                     .send_future(self.fetch_data.fetch(Msg::SetFetchState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetFetchState(FetchAction::Fetching));
                 false
             }
@@ -108,7 +106,7 @@ impl Component for CatalogueComponent {
                 };
                 let request = WorksRequest { body };
                 self.fetch_data = Fetch::new(request);
-                self.link.send_message(Msg::GetData);
+                ctx.link().send_message(Msg::GetData);
                 false
             }
             Msg::Search(_) => {
@@ -122,31 +120,27 @@ impl Component for CatalogueComponent {
             Msg::TriggerSearch => {
                 self.limit = self.page_size;
                 self.offset = 0;
-                self.link.send_message(Msg::PaginateData);
+                ctx.link().send_message(Msg::PaginateData);
                 false
             }
             Msg::NextPage => {
                 if self.limit < self.result_count && !self.is_next_disabled() {
                     self.offset += self.page_size;
-                    self.link.send_message(Msg::PaginateData);
+                    ctx.link().send_message(Msg::PaginateData);
                 }
                 false
             }
             Msg::PreviousPage => {
                 if self.offset > 0 && !self.is_previous_disabled() {
                     self.offset -= self.page_size;
-                    self.link.send_message(Msg::PaginateData);
+                    ctx.link().send_message(Msg::PaginateData);
                 }
                 false
             }
         }
     }
 
-    fn changed(&mut self, _props: Self::Properties) -> bool {
-        false
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
             <div class="container">
                 <h1 class="title">{ "Catalogue" }</h1>
@@ -162,17 +156,17 @@ impl Component for CatalogueComponent {
                 </nav>
                 <nav class="pagination is-centered" role="navigation" aria-label="pagination">
                     <a class="pagination-previous"
-                        onclick={ self.link.callback(|_| Msg::PreviousPage) }
+                        onclick={ ctx.link().callback(|_| Msg::PreviousPage) }
                         disabled={ self.is_previous_disabled() }
                     >{ crate::string::PREVIOUS_PAGE_BUTTON }</a>
                     <a class="pagination-next"
-                        onclick={ self.link.callback(|_| Msg::NextPage) }
+                        onclick={ ctx.link().callback(|_| Msg::NextPage) }
                         disabled={ self.is_next_disabled() }
                     >{ crate::string::NEXT_PAGE_BUTTON }</a>
                     <div class="pagination-list">
                         <form
                             style="width: 80%"
-                            onsubmit={ self.link.callback(|e: FocusEvent| {
+                            onsubmit={ ctx.link().callback(|e: FocusEvent| {
                                 e.prevent_default();
                                 Msg::TriggerSearch
                             }) }
@@ -184,7 +178,7 @@ impl Component for CatalogueComponent {
                                         type="search"
                                         value={ self.search_term.clone() }
                                         placeholder={ self.search_text() }
-                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeSearchTerm(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeSearchTerm(e.value)) }
                                     />
                                     <span class="icon is-left">
                                         <i class="fas fa-search" aria-hidden="true"></i>
@@ -202,7 +196,7 @@ impl Component for CatalogueComponent {
                 {
                     match self.fetch_data.as_ref().state() {
                         FetchState::NotFetching(_) => {
-                            html! {<Reloader onclick={ self.link.callback(|_| Msg::GetData) }/>}
+                            html! {<Reloader onclick={ ctx.link().callback(|_| Msg::GetData) }/>}
                         }
                         FetchState::Fetching(_) => html! {<Loader/>},
                         FetchState::Fetched(_body) => html! {

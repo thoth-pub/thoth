@@ -6,9 +6,7 @@ use yew_router::prelude::*;
 use crate::route::AdminRoute;
 use crate::route::AppRoute;
 
-pub struct MenuComponent {
-    props: Props,
-}
+pub struct MenuComponent {}
 
 #[derive(Clone, Properties)]
 pub struct Props {
@@ -16,8 +14,8 @@ pub struct Props {
 }
 
 impl MenuComponent {
-    fn is_active(&self, route: AdminRoute) -> String {
-        if self.props.route == route {
+    fn is_active(&self, route: AdminRoute, ctx: &Context<Self>) -> String {
+        if ctx.props().route == route {
             "is-active".to_string()
         } else {
             "".to_string()
@@ -29,20 +27,15 @@ impl Component for MenuComponent {
     type Message = ();
     type Properties = Props;
 
-    fn create(props: Self::Properties, _link: ComponentLink<Self>) -> Self {
-        MenuComponent { props }
+    fn create(ctx: &Context<Self>) -> Self {
+        MenuComponent {}
     }
 
-    fn changed(&mut self, props: Self::Properties) -> bool {
-        self.props = props;
-        true
-    }
-
-    fn update(&mut self, _msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, _msg: Self::Message) -> bool {
         false
     }
 
-    fn view(&self) -> VNode {
+    fn view(&self, ctx: &Context<Self>) -> VNode {
         html! {
             <aside class="menu">
                 <p class="menu-label">
@@ -51,7 +44,7 @@ impl Component for MenuComponent {
                 <ul class="menu-list">
                     <li>
                         <RouterAnchor<AppRoute>
-                            classes={self.is_active(AdminRoute::Dashboard)}
+                            classes={self.is_active(AdminRoute::Dashboard, ctx)}
                             route={ AppRoute::Admin(AdminRoute::Dashboard) }
                         >
                             {"Dashboard"}
@@ -64,7 +57,7 @@ impl Component for MenuComponent {
                 <ul class="menu-list">
                     <li>
                         <RouterAnchor<AppRoute>
-                            classes={self.is_active(AdminRoute::Works)}
+                            classes={self.is_active(AdminRoute::Works, ctx)}
                             route={ AppRoute::Admin(AdminRoute::Works) }
                         >
                             {"Works"}
@@ -74,7 +67,7 @@ impl Component for MenuComponent {
                         <ul class="menu-list">
                             <li>
                                 <RouterAnchor<AppRoute>
-                                    classes={self.is_active(AdminRoute::Books)}
+                                    classes={self.is_active(AdminRoute::Books, ctx)}
                                     route={ AppRoute::Admin(AdminRoute::Books) }
                                 >
                                     {"Books"}
@@ -82,7 +75,7 @@ impl Component for MenuComponent {
                             </li>
                             <li>
                                 <RouterAnchor<AppRoute>
-                                    classes={self.is_active(AdminRoute::Chapters)}
+                                    classes={self.is_active(AdminRoute::Chapters, ctx)}
                                     route={ AppRoute::Admin(AdminRoute::Chapters) }
                                 >
                                     {"Chapters"}
@@ -92,7 +85,7 @@ impl Component for MenuComponent {
                     </li>
                     <li>
                         <RouterAnchor<AppRoute>
-                            classes={self.is_active(AdminRoute::Publications)}
+                            classes={self.is_active(AdminRoute::Publications, ctx)}
                             route={ AppRoute::Admin(AdminRoute::Publications) }
                         >
                             {"Publications"}
@@ -100,7 +93,7 @@ impl Component for MenuComponent {
                     </li>
                     <li>
                         <RouterAnchor<AppRoute>
-                            classes={self.is_active(AdminRoute::Publishers)}
+                            classes={self.is_active(AdminRoute::Publishers, ctx)}
                             route={ AppRoute::Admin(AdminRoute::Publishers) }
                         >
                             {"Publishers"}
@@ -108,7 +101,7 @@ impl Component for MenuComponent {
                     </li>
                     <li>
                         <RouterAnchor<AppRoute>
-                            classes={self.is_active(AdminRoute::Imprints)}
+                            classes={self.is_active(AdminRoute::Imprints, ctx)}
                             route={ AppRoute::Admin(AdminRoute::Imprints) }
                         >
                             {"Imprints"}
@@ -116,7 +109,7 @@ impl Component for MenuComponent {
                     </li>
                     <li>
                         <RouterAnchor<AppRoute>
-                            classes={self.is_active(AdminRoute::Contributors)}
+                            classes={self.is_active(AdminRoute::Contributors, ctx)}
                             route={ AppRoute::Admin(AdminRoute::Contributors) }
                         >
                             {"Contributors"}
@@ -124,7 +117,7 @@ impl Component for MenuComponent {
                     </li>
                     <li>
                         <RouterAnchor<AppRoute>
-                            classes={self.is_active(AdminRoute::Serieses)}
+                            classes={self.is_active(AdminRoute::Serieses, ctx)}
                             route={ AppRoute::Admin(AdminRoute::Serieses) }
                         >
                             {"Series"}
@@ -132,7 +125,7 @@ impl Component for MenuComponent {
                     </li>
                     <li>
                         <RouterAnchor<AppRoute>
-                            classes={self.is_active(AdminRoute::Institutions)}
+                            classes={self.is_active(AdminRoute::Institutions, ctx)}
                             route={ AppRoute::Admin(AdminRoute::Institutions) }
                         >
                             {"Institutions"}

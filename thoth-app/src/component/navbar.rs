@@ -8,10 +8,7 @@ use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::{THOTH_EXPORT_API, THOTH_GRAPHQL_API};
 
-pub struct NavbarComponent {
-    props: Props,
-    link: ComponentLink<Self>,
-}
+pub struct NavbarComponent {}
 
 pub enum Msg {
     Logout,
@@ -27,26 +24,21 @@ impl Component for NavbarComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        NavbarComponent { props, link }
+    fn create(ctx: &Context<Self>) -> Self {
+        NavbarComponent {}
     }
 
-    fn changed(&mut self, props: Self::Properties) -> bool {
-        self.props = props;
-        true
-    }
-
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Logout => {
-                self.props.callback.emit(());
+                ctx.props().callback.emit(());
                 true
             }
         }
     }
 
-    fn view(&self) -> VNode {
-        let logout = self.link.callback(|e: MouseEvent| {
+    fn view(&self, ctx: &Context<Self>) -> VNode {
+        let logout = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::Logout
         });
@@ -118,7 +110,7 @@ impl Component for NavbarComponent {
                                 {"v"}{ env!("CARGO_PKG_VERSION") }
                             </a>
                             {
-                                if self.props.current_user.is_some() {
+                                if ctx.props().current_user.is_some() {
                                     html! {
                                         <button class="button is-light" onclick={ logout }>
                                             { "Logout" }

@@ -4,7 +4,6 @@ use thoth_api::model::price::Price;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -35,14 +34,12 @@ use crate::string::EMPTY_PRICES;
 use crate::string::REMOVE_BUTTON;
 
 pub struct PricesFormComponent {
-    props: Props,
     data: PricesFormData,
     new_price: Price,
     show_add_form: bool,
     fetch_currency_codes: FetchCurrencyCodes,
     push_price: PushCreatePrice,
     delete_price: PushDeletePrice,
-    link: ComponentLink<Self>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -74,7 +71,7 @@ impl Component for PricesFormComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let data: PricesFormData = Default::default();
         let show_add_form = false;
         let new_price: Price = Default::default();
@@ -83,22 +80,20 @@ impl Component for PricesFormComponent {
         let delete_price = Default::default();
         let notification_bus = NotificationBus::dispatcher();
 
-        link.send_message(Msg::GetCurrencyCodes);
+        ctx.link().send_message(Msg::GetCurrencyCodes);
 
         PricesFormComponent {
-            props,
             data,
             new_price,
             show_add_form,
             fetch_currency_codes,
             push_price,
             delete_price,
-            link,
             notification_bus,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleAddFormDisplay(value) => {
                 self.show_add_form = value;
@@ -115,11 +110,11 @@ impl Component for PricesFormComponent {
                 true
             }
             Msg::GetCurrencyCodes => {
-                self.link.send_future(
+                ctx.link().send_future(
                     self.fetch_currency_codes
                         .fetch(Msg::SetCurrencyCodesFetchState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetCurrencyCodesFetchState(FetchAction::Fetching));
                 false
             }
@@ -132,14 +127,14 @@ impl Component for PricesFormComponent {
                         Some(l) => {
                             let price = l.clone();
                             let mut prices: Vec<Price> =
-                                self.props.prices.clone().unwrap_or_default();
+                                ctx.props().prices.clone().unwrap_or_default();
                             prices.push(price);
-                            self.props.update_prices.emit(Some(prices));
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.props().update_prices.emit(Some(prices));
+                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                             true
                         }
                         None => {
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -148,7 +143,7 @@ impl Component for PricesFormComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                        ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
                             NotificationStatus::Danger,
@@ -160,7 +155,7 @@ impl Component for PricesFormComponent {
             Msg::CreatePrice => {
                 let body = CreatePriceRequestBody {
                     variables: Variables {
-                        publication_id: self.props.publication_id,
+                        publication_id: ctx.props().publication_id,
                         currency_code: self.new_price.currency_code.clone(),
                         unit_price: self.new_price.unit_price,
                     },
@@ -168,9 +163,9 @@ impl Component for PricesFormComponent {
                 };
                 let request = CreatePriceRequest { body };
                 self.push_price = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_price.fetch(Msg::SetPricePushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetPricePushState(FetchAction::Fetching));
                 false
             }
@@ -189,7 +184,7 @@ impl Component for PricesFormComponent {
                                 .into_iter()
                                 .filter(|p| p.price_id != price.price_id)
                                 .collect();
-                            self.props.update_prices.emit(Some(to_keep));
+                            ctx.props().update_prices.emit(Some(to_keep));
                             true
                         }
                         None => {
@@ -216,9 +211,9 @@ impl Component for PricesFormComponent {
                 };
                 let request = DeletePriceRequest { body };
                 self.delete_price = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.delete_price.fetch(Msg::SetPriceDeleteState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetPriceDeleteState(FetchAction::Fetching));
                 false
             }
@@ -230,17 +225,13 @@ impl Component for PricesFormComponent {
         }
     }
 
-    fn changed(&mut self, props: Self::Properties) -> bool {
-        self.props.neq_assign(props)
-    }
-
-    fn view(&self) -> Html {
-        let prices = self.props.prices.clone().unwrap_or_default();
-        let open_modal = self.link.callback(|e: MouseEvent| {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let prices = ctx.props().prices.clone().unwrap_or_default();
+        let open_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(true)
         });
-        let close_modal = self.link.callback(|e: MouseEvent| {
+        let close_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(false)
         });
@@ -269,7 +260,7 @@ impl Component for PricesFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="prices-form" onsubmit={ self.link.callback(|e: FocusEvent| {
+                            <form id="prices-form" onsubmit={ ctx.link().callback(|e: FocusEvent| {
                                 e.prevent_default();
                                 Msg::CreatePrice
                             }) }
@@ -278,7 +269,7 @@ impl Component for PricesFormComponent {
                                     label = "Price Code"
                                     value={ self.new_price.currency_code.clone() }
                                     data={ self.data.currency_codes.clone() }
-                                    onchange={ self.link.callback(|event| match event {
+                                    onchange={ ctx.link().callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             Msg::ChangeCurrencyCode(
@@ -292,7 +283,7 @@ impl Component for PricesFormComponent {
                                 <FormFloatInput
                                     label = "Unit Price"
                                     value={ self.new_price.unit_price }
-                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeUnitPrice(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeUnitPrice(e.value)) }
                                     required = true
                                     step={ "0.01".to_string() }
                                     min={ "0.01".to_string() }
@@ -318,7 +309,7 @@ impl Component for PricesFormComponent {
                 </div>
                 {
                     if !prices.is_empty() {
-                        html!{{for prices.iter().map(|p| self.render_price(p))}}
+                        html!{{for prices.iter().map(|p| self.render_price(ctx, p))}}
                     } else {
                         html! {
                             <div class="notification is-warning is-light">
@@ -340,7 +331,7 @@ impl PricesFormComponent {
         }
     }
 
-    fn render_price(&self, p: &Price) -> Html {
+    fn render_price(&self, ctx: &Context<Self>, p: &Price) -> Html {
         let price_id = p.price_id;
         html! {
             <div class="panel-block field is-horizontal">
@@ -367,7 +358,7 @@ impl PricesFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick={ self.link.callback(move |_| Msg::DeletePrice(price_id)) }
+                                onclick={ ctx.link().callback(move |_| Msg::DeletePrice(price_id)) }
                             >
                                 { REMOVE_BUTTON }
                             </a>

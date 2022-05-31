@@ -1,10 +1,10 @@
+use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::imprint::Imprint;
 use thoth_api::model::publisher::Publisher;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 use yew_router::route::Route;
@@ -43,10 +43,10 @@ pub struct NewImprintComponent {
     push_imprint: PushCreateImprint,
     data: ImprintFormData,
     fetch_publishers: FetchPublishers,
-    link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
-    props: Props,
+    // Store props value locally in order to test whether it has been updated on props change
+    resource_access: AccountAccess,
 }
 
 #[derive(Default)]
@@ -73,7 +73,7 @@ impl Component for NewImprintComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let push_imprint = Default::default();
         let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
@@ -81,8 +81,9 @@ impl Component for NewImprintComponent {
         let publisher_id: Uuid = Default::default();
         let data: ImprintFormData = Default::default();
         let fetch_publishers: FetchPublishers = Default::default();
+        let resource_access = ctx.props().current_user.resource_access;
 
-        link.send_message(Msg::GetPublishers);
+        ctx.link().send_message(Msg::GetPublishers);
 
         NewImprintComponent {
             imprint,
@@ -90,14 +91,13 @@ impl Component for NewImprintComponent {
             push_imprint,
             data,
             fetch_publishers,
-            link,
             router,
             notification_bus,
-            props,
+            resource_access,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::SetPublishersFetchState(fetch_state) => {
                 self.fetch_publishers.apply(fetch_state);
@@ -112,7 +112,7 @@ impl Component for NewImprintComponent {
             Msg::GetPublishers => {
                 let body = PublishersRequestBody {
                     variables: PublishersVariables {
-                        publishers: self.props.current_user.resource_access.restricted_to(),
+                        publishers: self.resource_access.restricted_to(),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -120,9 +120,9 @@ impl Component for NewImprintComponent {
                 let request = PublishersRequest { body };
                 self.fetch_publishers = Fetch::new(request);
 
-                self.link
+                ctx.link()
                     .send_future(self.fetch_publishers.fetch(Msg::SetPublishersFetchState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetPublishersFetchState(FetchAction::Fetching));
                 false
             }
@@ -137,7 +137,7 @@ impl Component for NewImprintComponent {
                                 format!("Saved {}", i.imprint_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(i.edit_route()));
+                            ctx.link().send_message(Msg::ChangeRoute(i.edit_route()));
                             true
                         }
                         None => {
@@ -168,9 +168,9 @@ impl Component for NewImprintComponent {
                 };
                 let request = CreateImprintRequest { body };
                 self.push_imprint = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_imprint.fetch(Msg::SetImprintPushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetImprintPushState(FetchAction::Fetching));
                 false
             }
@@ -190,18 +190,18 @@ impl Component for NewImprintComponent {
         }
     }
 
-    fn changed(&mut self, props: Self::Properties) -> bool {
-        let updated_permissions =
-            self.props.current_user.resource_access != props.current_user.resource_access;
-        self.props = props;
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+        let updated_permissions = self
+            .resource_access
+            .neq_assign(ctx.props().current_user.resource_access);
         if updated_permissions {
-            self.link.send_message(Msg::GetPublishers);
+            ctx.link().send_message(Msg::GetPublishers);
         }
         false
     }
 
-    fn view(&self) -> Html {
-        let callback = self.link.callback(|event: FocusEvent| {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let callback = ctx.link().callback(|event: FocusEvent| {
             event.prevent_default();
             Msg::CreateImprint
         });
@@ -221,7 +221,7 @@ impl Component for NewImprintComponent {
                         label = "Publisher"
                         value={ self.publisher_id }
                         data={ self.data.publishers.clone() }
-                        onchange={ self.link.callback(|event| match event {
+                        onchange={ ctx.link().callback(|event| match event {
                             ChangeData::Select(elem) => {
                                 let value = elem.value();
                                 Msg::ChangePublisher(Uuid::parse_str(&value).unwrap_or_default())
@@ -233,13 +233,13 @@ impl Component for NewImprintComponent {
                     <FormTextInput
                         label = "Imprint Name"
                         value={ self.imprint.imprint_name.clone() }
-                        oninput={ self.link.callback(|e: InputData| Msg::ChangeImprintName(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeImprintName(e.value)) }
                         required = true
                     />
                     <FormUrlInput
                         label = "Imprint URL"
                         value={ self.imprint.imprint_url.clone() }
-                        oninput={ self.link.callback(|e: InputData| Msg::ChangeImprintUrl(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeImprintUrl(e.value)) }
                     />
 
                     <div class="field">

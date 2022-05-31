@@ -4,7 +4,6 @@ use thoth_api::model::subject::SubjectType;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -36,14 +35,12 @@ use crate::string::EMPTY_SUBJECTS;
 use crate::string::REMOVE_BUTTON;
 
 pub struct SubjectsFormComponent {
-    props: Props,
     data: SubjectsFormData,
     new_subject: Subject,
     show_add_form: bool,
     fetch_subject_types: FetchSubjectTypes,
     push_subject: PushCreateSubject,
     delete_subject: PushDeleteSubject,
-    link: ComponentLink<Self>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -76,7 +73,7 @@ impl Component for SubjectsFormComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let data: SubjectsFormData = Default::default();
         let show_add_form = false;
         let new_subject: Subject = Default::default();
@@ -84,22 +81,20 @@ impl Component for SubjectsFormComponent {
         let delete_subject = Default::default();
         let notification_bus = NotificationBus::dispatcher();
 
-        link.send_message(Msg::GetSubjectTypes);
+        ctx.link().send_message(Msg::GetSubjectTypes);
 
         SubjectsFormComponent {
-            props,
             data,
             new_subject,
             show_add_form,
             fetch_subject_types: Default::default(),
             push_subject,
             delete_subject,
-            link,
             notification_bus,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleAddFormDisplay(value) => {
                 self.show_add_form = value;
@@ -116,11 +111,11 @@ impl Component for SubjectsFormComponent {
                 true
             }
             Msg::GetSubjectTypes => {
-                self.link.send_future(
+                ctx.link().send_future(
                     self.fetch_subject_types
                         .fetch(Msg::SetSubjectTypesFetchState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetSubjectTypesFetchState(FetchAction::Fetching));
                 false
             }
@@ -133,14 +128,14 @@ impl Component for SubjectsFormComponent {
                         Some(p) => {
                             let subject = p.clone();
                             let mut subjects: Vec<Subject> =
-                                self.props.subjects.clone().unwrap_or_default();
+                                ctx.props().subjects.clone().unwrap_or_default();
                             subjects.push(subject);
-                            self.props.update_subjects.emit(Some(subjects));
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.props().update_subjects.emit(Some(subjects));
+                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                             true
                         }
                         None => {
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -149,7 +144,7 @@ impl Component for SubjectsFormComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                        ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
                             NotificationStatus::Danger,
@@ -161,7 +156,7 @@ impl Component for SubjectsFormComponent {
             Msg::CreateSubject => {
                 let body = CreateSubjectRequestBody {
                     variables: Variables {
-                        work_id: self.props.work_id,
+                        work_id: ctx.props().work_id,
                         subject_type: self.new_subject.subject_type.clone(),
                         subject_code: self.new_subject.subject_code.clone(),
                         subject_ordinal: self.new_subject.subject_ordinal,
@@ -170,9 +165,9 @@ impl Component for SubjectsFormComponent {
                 };
                 let request = CreateSubjectRequest { body };
                 self.push_subject = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_subject.fetch(Msg::SetSubjectPushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetSubjectPushState(FetchAction::Fetching));
                 false
             }
@@ -191,7 +186,7 @@ impl Component for SubjectsFormComponent {
                                 .into_iter()
                                 .filter(|s| s.subject_id != subject.subject_id)
                                 .collect();
-                            self.props.update_subjects.emit(Some(to_keep));
+                            ctx.props().update_subjects.emit(Some(to_keep));
                             true
                         }
                         None => {
@@ -218,9 +213,9 @@ impl Component for SubjectsFormComponent {
                 };
                 let request = DeleteSubjectRequest { body };
                 self.delete_subject = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.delete_subject.fetch(Msg::SetSubjectDeleteState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetSubjectDeleteState(FetchAction::Fetching));
                 false
             }
@@ -237,17 +232,13 @@ impl Component for SubjectsFormComponent {
         }
     }
 
-    fn changed(&mut self, props: Self::Properties) -> bool {
-        self.props.neq_assign(props)
-    }
-
-    fn view(&self) -> Html {
-        let subjects = self.props.subjects.clone().unwrap_or_default();
-        let open_modal = self.link.callback(|e: MouseEvent| {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let subjects = ctx.props().subjects.clone().unwrap_or_default();
+        let open_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(true)
         });
-        let close_modal = self.link.callback(|e: MouseEvent| {
+        let close_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(false)
         });
@@ -276,7 +267,7 @@ impl Component for SubjectsFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="subjects-form" onsubmit={ self.link.callback(|e: FocusEvent| {
+                            <form id="subjects-form" onsubmit={ ctx.link().callback(|e: FocusEvent| {
                                 e.prevent_default();
                                 Msg::CreateSubject
                             }) }
@@ -285,7 +276,7 @@ impl Component for SubjectsFormComponent {
                                     label = "Subject Type"
                                     value={ self.new_subject.subject_type.clone() }
                                     data={ self.data.subject_types.clone() }
-                                    onchange={ self.link.callback(|event| match event {
+                                    onchange={ ctx.link().callback(|event| match event {
                                         ChangeData::Select(elem) => {
                                             let value = elem.value();
                                             Msg::ChangeSubjectType(
@@ -299,13 +290,13 @@ impl Component for SubjectsFormComponent {
                                 <FormTextInput
                                     label = "Subject Code"
                                     value={ self.new_subject.subject_code.clone() }
-                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeCode(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeCode(e.value)) }
                                     required = true
                                 />
                                 <FormNumberInput
                                     label = "Subject Ordinal"
                                     value={ self.new_subject.subject_ordinal }
-                                    oninput={ self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeOrdinal(e.value)) }
                                     required = true
                                     min={ "1".to_string() }
                                 />
@@ -330,7 +321,7 @@ impl Component for SubjectsFormComponent {
                 </div>
                 {
                     if !subjects.is_empty() {
-                        html!{{for subjects.iter().map(|p| self.render_subject(p))}}
+                        html!{{for subjects.iter().map(|p| self.render_subject(ctx, p))}}
                     } else {
                         html! {
                             <div class="notification is-warning is-light">
@@ -352,7 +343,7 @@ impl SubjectsFormComponent {
         }
     }
 
-    fn render_subject(&self, s: &Subject) -> Html {
+    fn render_subject(&self, ctx: &Context<Self>, s: &Subject) -> Html {
         let subject_id = s.subject_id;
         html! {
             <div class="panel-block field is-horizontal">
@@ -386,7 +377,7 @@ impl SubjectsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick={ self.link.callback(move |_| Msg::DeleteSubject(subject_id)) }
+                                onclick={ ctx.link().callback(move |_| Msg::DeleteSubject(subject_id)) }
                             >
                                 { REMOVE_BUTTON }
                             </a>

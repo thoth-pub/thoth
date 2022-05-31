@@ -1,9 +1,9 @@
+use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::publisher::Publisher;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 use yew_router::route::Route;
@@ -47,10 +47,10 @@ pub struct PublisherComponent {
     fetch_publisher: FetchPublisher,
     push_publisher: PushUpdatePublisher,
     delete_publisher: PushDeletePublisher,
-    link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
-    props: Props,
+    // Store props value locally in order to test whether it has been updated on props change
+    resource_access: AccountAccess,
 }
 
 pub enum Msg {
@@ -76,29 +76,29 @@ impl Component for PublisherComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let fetch_publisher: FetchPublisher = Default::default();
         let push_publisher = Default::default();
         let delete_publisher = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let publisher: Publisher = Default::default();
         let router = RouteAgentDispatcher::new();
+        let resource_access = ctx.props().current_user.resource_access;
 
-        link.send_message(Msg::GetPublisher);
+        ctx.link().send_message(Msg::GetPublisher);
 
         PublisherComponent {
             publisher,
             fetch_publisher,
             push_publisher,
             delete_publisher,
-            link,
             router,
             notification_bus,
-            props,
+            resource_access,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::SetPublisherFetchState(fetch_state) => {
                 self.fetch_publisher.apply(fetch_state);
@@ -111,9 +111,7 @@ impl Component for PublisherComponent {
                             None => Default::default(),
                         };
                         // If user doesn't have permission to edit this object, redirect to dashboard
-                        if let Some(publishers) =
-                            self.props.current_user.resource_access.restricted_to()
-                        {
+                        if let Some(publishers) = self.resource_access.restricted_to() {
                             if !publishers.contains(&self.publisher.publisher_id.to_string()) {
                                 self.router.send(RouteRequest::ChangeRoute(Route::from(
                                     AppRoute::Admin(AdminRoute::Dashboard),
@@ -128,16 +126,16 @@ impl Component for PublisherComponent {
             Msg::GetPublisher => {
                 let body = PublisherRequestBody {
                     variables: Variables {
-                        publisher_id: Some(self.props.publisher_id),
+                        publisher_id: Some(ctx.props().publisher_id),
                     },
                     ..Default::default()
                 };
                 let request = PublisherRequest { body };
                 self.fetch_publisher = Fetch::new(request);
 
-                self.link
+                ctx.link()
                     .send_future(self.fetch_publisher.fetch(Msg::SetPublisherFetchState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetPublisherFetchState(FetchAction::Fetching));
                 false
             }
@@ -183,9 +181,9 @@ impl Component for PublisherComponent {
                 };
                 let request = UpdatePublisherRequest { body };
                 self.push_publisher = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_publisher.fetch(Msg::SetPublisherPushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetPublisherPushState(FetchAction::Fetching));
                 false
             }
@@ -200,7 +198,7 @@ impl Component for PublisherComponent {
                                 format!("Deleted {}", f.publisher_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                            ctx.link().send_message(Msg::ChangeRoute(AppRoute::Admin(
                                 AdminRoute::Publishers,
                             )));
                             true
@@ -231,9 +229,9 @@ impl Component for PublisherComponent {
                 };
                 let request = DeletePublisherRequest { body };
                 self.delete_publisher = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.delete_publisher.fetch(Msg::SetPublisherDeleteState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetPublisherDeleteState(FetchAction::Fetching));
                 false
             }
@@ -257,17 +255,12 @@ impl Component for PublisherComponent {
         }
     }
 
-    fn changed(&mut self, props: Self::Properties) -> bool {
-        self.props = props;
-        true
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         match self.fetch_publisher.as_ref().state() {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(_body) => {
-                let callback = self.link.callback(|event: FocusEvent| {
+                let callback = ctx.link().callback(|event: FocusEvent| {
                     event.prevent_default();
                     Msg::UpdatePublisher
                 });
@@ -282,7 +275,7 @@ impl Component for PublisherComponent {
                             <div class="level-right">
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
-                                        onclick={ self.link.callback(|_| Msg::DeletePublisher) }
+                                        onclick={ ctx.link().callback(|_| Msg::DeletePublisher) }
                                         object_name={ self.publisher.publisher_name.clone() }
                                     />
                                 </p>
@@ -293,18 +286,18 @@ impl Component for PublisherComponent {
                             <FormTextInput
                                 label = "Publisher Name"
                                 value={ self.publisher.publisher_name.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangePublisherName(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangePublisherName(e.value)) }
                                 required = true
                             />
                             <FormTextInput
                                 label = "Publisher Short Name"
                                 value={ self.publisher.publisher_shortname.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangePublisherShortname(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangePublisherShortname(e.value)) }
                             />
                             <FormUrlInput
                                 label = "Publisher URL"
                                 value={ self.publisher.publisher_url.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangePublisherUrl(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangePublisherUrl(e.value)) }
                             />
 
                             <div class="field">

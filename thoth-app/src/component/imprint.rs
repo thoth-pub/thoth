@@ -1,10 +1,10 @@
+use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::imprint::ImprintWithPublisher;
 use thoth_api::model::publisher::Publisher;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 use yew_router::route::Route;
@@ -56,10 +56,10 @@ pub struct ImprintComponent {
     delete_imprint: PushDeleteImprint,
     data: ImprintFormData,
     fetch_publishers: FetchPublishers,
-    link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
-    props: Props,
+    // Store props value locally in order to test whether it has been updated on props change
+    resource_access: AccountAccess,
 }
 
 #[derive(Default)]
@@ -92,7 +92,7 @@ impl Component for ImprintComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let fetch_imprint: FetchImprint = Default::default();
         let data: ImprintFormData = Default::default();
         let fetch_publishers: FetchPublishers = Default::default();
@@ -101,9 +101,10 @@ impl Component for ImprintComponent {
         let notification_bus = NotificationBus::dispatcher();
         let imprint: ImprintWithPublisher = Default::default();
         let router = RouteAgentDispatcher::new();
+        let resource_access = ctx.props().current_user.resource_access;
 
-        link.send_message(Msg::GetImprint);
-        link.send_message(Msg::GetPublishers);
+        ctx.link().send_message(Msg::GetImprint);
+        ctx.link().send_message(Msg::GetPublishers);
 
         ImprintComponent {
             imprint,
@@ -112,14 +113,13 @@ impl Component for ImprintComponent {
             delete_imprint,
             data,
             fetch_publishers,
-            link,
             router,
             notification_bus,
-            props,
+            resource_access,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::SetPublishersFetchState(fetch_state) => {
                 self.fetch_publishers.apply(fetch_state);
@@ -134,7 +134,7 @@ impl Component for ImprintComponent {
             Msg::GetPublishers => {
                 let body = PublishersRequestBody {
                     variables: PublishersVariables {
-                        publishers: self.props.current_user.resource_access.restricted_to(),
+                        publishers: self.resource_access.restricted_to(),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -142,9 +142,9 @@ impl Component for ImprintComponent {
                 let request = PublishersRequest { body };
                 self.fetch_publishers = Fetch::new(request);
 
-                self.link
+                ctx.link()
                     .send_future(self.fetch_publishers.fetch(Msg::SetPublishersFetchState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetPublishersFetchState(FetchAction::Fetching));
                 false
             }
@@ -159,9 +159,7 @@ impl Component for ImprintComponent {
                             None => Default::default(),
                         };
                         // If user doesn't have permission to edit this object, redirect to dashboard
-                        if let Some(publishers) =
-                            self.props.current_user.resource_access.restricted_to()
-                        {
+                        if let Some(publishers) = self.resource_access.restricted_to() {
                             if !publishers
                                 .contains(&self.imprint.publisher.publisher_id.to_string())
                             {
@@ -178,16 +176,16 @@ impl Component for ImprintComponent {
             Msg::GetImprint => {
                 let body = ImprintRequestBody {
                     variables: Variables {
-                        imprint_id: Some(self.props.imprint_id),
+                        imprint_id: Some(ctx.props().imprint_id),
                     },
                     ..Default::default()
                 };
                 let request = ImprintRequest { body };
                 self.fetch_imprint = Fetch::new(request);
 
-                self.link
+                ctx.link()
                     .send_future(self.fetch_imprint.fetch(Msg::SetImprintFetchState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetImprintFetchState(FetchAction::Fetching));
                 false
             }
@@ -233,9 +231,9 @@ impl Component for ImprintComponent {
                 };
                 let request = UpdateImprintRequest { body };
                 self.push_imprint = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_imprint.fetch(Msg::SetImprintPushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetImprintPushState(FetchAction::Fetching));
                 false
             }
@@ -250,7 +248,7 @@ impl Component for ImprintComponent {
                                 format!("Deleted {}", i.imprint_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
+                            ctx.link().send_message(Msg::ChangeRoute(AppRoute::Admin(
                                 AdminRoute::Imprints,
                             )));
                             true
@@ -281,9 +279,9 @@ impl Component for ImprintComponent {
                 };
                 let request = DeleteImprintRequest { body };
                 self.delete_imprint = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.delete_imprint.fetch(Msg::SetImprintDeleteState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetImprintDeleteState(FetchAction::Fetching));
                 false
             }
@@ -315,22 +313,22 @@ impl Component for ImprintComponent {
         }
     }
 
-    fn changed(&mut self, props: Self::Properties) -> bool {
-        let updated_permissions =
-            self.props.current_user.resource_access != props.current_user.resource_access;
-        self.props = props;
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+        let updated_permissions = self
+            .resource_access
+            .neq_assign(ctx.props().current_user.resource_access);
         if updated_permissions {
-            self.link.send_message(Msg::GetPublishers);
+            ctx.link().send_message(Msg::GetPublishers);
         }
         false
     }
 
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         match self.fetch_imprint.as_ref().state() {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(_body) => {
-                let callback = self.link.callback(|event: FocusEvent| {
+                let callback = ctx.link().callback(|event: FocusEvent| {
                     event.prevent_default();
                     Msg::UpdateImprint
                 });
@@ -345,7 +343,7 @@ impl Component for ImprintComponent {
                             <div class="level-right">
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
-                                        onclick={ self.link.callback(|_| Msg::DeleteImprint) }
+                                        onclick={ ctx.link().callback(|_| Msg::DeleteImprint) }
                                         object_name={ self.imprint.imprint_name.clone() }
                                     />
                                 </p>
@@ -357,7 +355,7 @@ impl Component for ImprintComponent {
                                 label = "Publisher"
                                 value={ self.imprint.publisher.publisher_id }
                                 data={ self.data.publishers.clone() }
-                                onchange={ self.link.callback(|event| match event {
+                                onchange={ ctx.link().callback(|event| match event {
                                     ChangeData::Select(elem) => {
                                         let value = elem.value();
                                         Msg::ChangePublisher(Uuid::parse_str(&value).unwrap_or_default())
@@ -369,13 +367,13 @@ impl Component for ImprintComponent {
                             <FormTextInput
                                 label = "Imprint Name"
                                 value={ self.imprint.imprint_name.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeImprintName(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeImprintName(e.value)) }
                                 required = true
                             />
                             <FormUrlInput
                                 label = "Imprint URL"
                                 value={ self.imprint.imprint_url.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeImprintUrl(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeImprintUrl(e.value)) }
                             />
 
                             <div class="field">

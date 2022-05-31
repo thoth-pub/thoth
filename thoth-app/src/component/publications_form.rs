@@ -4,7 +4,6 @@ use thoth_api::model::work::WorkType;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 use yew_router::route::Route;
@@ -12,7 +11,6 @@ use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
-use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
@@ -32,11 +30,9 @@ use crate::string::REMOVE_BUTTON;
 use crate::string::VIEW_BUTTON;
 
 pub struct PublicationsFormComponent {
-    props: Props,
     show_modal_form: bool,
     publication_under_edit: Option<Publication>,
     delete_publication: PushDeletePublication,
-    link: ComponentLink<Self>,
     notification_bus: NotificationDispatcher,
     router: RouteAgentDispatcher<()>,
 }
@@ -62,7 +58,7 @@ impl Component for PublicationsFormComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let show_modal_form = false;
         let publication_under_edit = Default::default();
         let delete_publication = Default::default();
@@ -70,17 +66,15 @@ impl Component for PublicationsFormComponent {
         let router = RouteAgentDispatcher::new();
 
         PublicationsFormComponent {
-            props,
             show_modal_form,
             publication_under_edit,
             delete_publication,
-            link,
             notification_bus,
             router,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleModalFormDisplay(show_form, p) => {
                 self.show_modal_form = show_form;
@@ -90,24 +84,24 @@ impl Component for PublicationsFormComponent {
             Msg::AddPublication(p) => {
                 // Child form has created a new publication - add it to list
                 let mut publications: Vec<Publication> =
-                    self.props.publications.clone().unwrap_or_default();
+                    ctx.props().publications.clone().unwrap_or_default();
                 publications.push(p);
-                self.props.update_publications.emit(Some(publications));
+                ctx.props().update_publications.emit(Some(publications));
                 // Close child form
-                self.link
+                ctx.link()
                     .send_message(Msg::ToggleModalFormDisplay(false, None));
                 true
             }
             Msg::UpdatePublication(p) => {
                 // Child form has updated an existing publication - replace it in list
                 let mut publications: Vec<Publication> =
-                    self.props.publications.clone().unwrap_or_default();
+                    ctx.props().publications.clone().unwrap_or_default();
                 if let Some(publication) = publications
                     .iter_mut()
                     .find(|pb| pb.publication_id == p.publication_id)
                 {
                     *publication = p.clone();
-                    self.props.update_publications.emit(Some(publications));
+                    ctx.props().update_publications.emit(Some(publications));
                 } else {
                     // This should not be possible: the updated publication returned from the
                     // database does not match any of the locally-stored publication data.
@@ -118,7 +112,7 @@ impl Component for PublicationsFormComponent {
                     )));
                 }
                 // Close child form
-                self.link
+                ctx.link()
                     .send_message(Msg::ToggleModalFormDisplay(false, None));
                 true
             }
@@ -137,7 +131,7 @@ impl Component for PublicationsFormComponent {
                                 .into_iter()
                                 .filter(|p| p.publication_id != publication.publication_id)
                                 .collect();
-                            self.props.update_publications.emit(Some(to_keep));
+                            ctx.props().update_publications.emit(Some(to_keep));
                             true
                         }
                         None => {
@@ -164,11 +158,11 @@ impl Component for PublicationsFormComponent {
                 };
                 let request = DeletePublicationRequest { body };
                 self.delete_publication = Fetch::new(request);
-                self.link.send_future(
+                ctx.link().send_future(
                     self.delete_publication
                         .fetch(Msg::SetPublicationDeleteState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetPublicationDeleteState(FetchAction::Fetching));
                 false
             }
@@ -180,13 +174,9 @@ impl Component for PublicationsFormComponent {
         }
     }
 
-    fn changed(&mut self, props: Self::Properties) -> bool {
-        self.props.neq_assign(props)
-    }
-
-    fn view(&self) -> Html {
-        let publications = self.props.publications.clone().unwrap_or_default();
-        let open_modal = self.link.callback(|e: MouseEvent| {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let publications = ctx.props().publications.clone().unwrap_or_default();
+        let open_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleModalFormDisplay(true, None)
         });
@@ -205,7 +195,7 @@ impl Component for PublicationsFormComponent {
                 </div>
                 {
                     if !publications.is_empty() {
-                        html!{{for publications.iter().map(|p| self.render_publication(p))}}
+                        html!{{for publications.iter().map(|p| self.render_publication(ctx, p))}}
                     } else {
                         html! {
                             <div class="notification is-warning is-light">
@@ -216,12 +206,12 @@ impl Component for PublicationsFormComponent {
                 }
                 <PublicationModalComponent
                     publication_under_edit={ self.publication_under_edit.clone() }
-                    work_id={ self.props.work_id }
-                    work_type={ self.props.work_type.clone() }
+                    work_id={ ctx.props().work_id }
+                    work_type={ ctx.props().work_type.clone() }
                     show_modal_form={ self.show_modal_form }
-                    add_publication={ self.link.callback(Msg::AddPublication) }
-                    update_publication={ self.link.callback(Msg::UpdatePublication) }
-                    close_modal_form={ self.link.callback(move |_| Msg::ToggleModalFormDisplay(false, None)) }
+                    add_publication={ ctx.link().callback(Msg::AddPublication) }
+                    update_publication={ ctx.link().callback(Msg::UpdatePublication) }
+                    close_modal_form={ ctx.link().callback(move |_| Msg::ToggleModalFormDisplay(false, None)) }
                 />
             </nav>
         }
@@ -229,7 +219,7 @@ impl Component for PublicationsFormComponent {
 }
 
 impl PublicationsFormComponent {
-    fn render_publication(&self, p: &Publication) -> Html {
+    fn render_publication(&self, ctx: &Context<Self>, p: &Publication) -> Html {
         let publication = p.clone();
         let publication_id = p.publication_id;
         let route = p.edit_route();
@@ -255,7 +245,7 @@ impl PublicationsFormComponent {
 
                     {
                         // Dimensions are only applicable to physical (Paperback/Hardback) non-Chapter publications.
-                        if p.is_physical() && self.props.work_type != WorkType::BookChapter {
+                        if p.is_physical() && ctx.props().work_type != WorkType::BookChapter {
                             html! {
                                 <>
                                     <div class="field is-vertical">
@@ -332,7 +322,7 @@ impl PublicationsFormComponent {
                         <div class="control">
                             <a
                                 class="button is-success"
-                                onclick={ self.link.callback(move |_| Msg::ToggleModalFormDisplay(true, Some(publication.clone()))) }
+                                onclick={ ctx.link().callback(move |_| Msg::ToggleModalFormDisplay(true, Some(publication.clone()))) }
                             >
                                 { EDIT_BUTTON }
                             </a>
@@ -340,7 +330,7 @@ impl PublicationsFormComponent {
                         <div class="control">
                             <a
                                 class="button is-info"
-                                onclick={ self.link.callback(move |_| Msg::ChangeRoute(route.clone())) }
+                                onclick={ ctx.link().callback(move |_| Msg::ChangeRoute(route.clone())) }
                             >
                                 { VIEW_BUTTON }
                             </a>
@@ -348,7 +338,7 @@ impl PublicationsFormComponent {
                         <div class="control">
                             <a
                                 class="button is-danger"
-                                onclick={ self.link.callback(move |_| Msg::DeletePublication(publication_id)) }
+                                onclick={ ctx.link().callback(move |_| Msg::DeletePublication(publication_id)) }
                             >
                                 { REMOVE_BUTTON }
                             </a>

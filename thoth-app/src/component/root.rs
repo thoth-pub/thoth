@@ -47,7 +47,6 @@ pub struct RootComponent {
     session_timer_agent: SessionTimerDispatcher,
     version_timer_agent: VersionTimerDispatcher,
     notification_bus: NotificationDispatcher,
-    link: ComponentLink<Self>,
 }
 
 pub enum Msg {
@@ -67,10 +66,10 @@ impl Component for RootComponent {
     type Message = Msg;
     type Properties = ();
 
-    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let session_timer_agent = SessionTimerAgent::dispatcher();
         let version_timer_agent = VersionTimerAgent::dispatcher();
-        let _router_agent = RouteAgent::bridge(link.callback(Msg::Route));
+        let _router_agent = RouteAgent::bridge(ctx.link().callback(Msg::Route));
         let route_service: RouteService = RouteService::new();
         let route = route_service.get_route();
         let notification_bus = NotificationBus::dispatcher();
@@ -79,33 +78,32 @@ impl Component for RootComponent {
             current_route: AppRoute::switch(route),
             account_service: AccountService::new(),
             current_user: Default::default(),
-            current_user_response: link.callback(Msg::CurrentUserResponse),
+            current_user_response: ctx.link().callback(Msg::CurrentUserResponse),
             current_user_task: Default::default(),
             renew_token_task: Default::default(),
-            renew_token_response: link.callback(Msg::RenewTokenResponse),
+            renew_token_response: ctx.link().callback(Msg::RenewTokenResponse),
             check_version_task: Default::default(),
-            check_version_response: link.callback(Msg::CheckVersionResponse),
+            check_version_response: ctx.link().callback(Msg::CheckVersionResponse),
             _router_agent,
             session_timer_agent,
             version_timer_agent,
             notification_bus,
-            link,
         }
     }
 
-    fn rendered(&mut self, first_render: bool) {
+    fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         if first_render {
             // Start timer to check for updated app version
             self.version_timer_agent.send(VersionTimerRequest::Start(
-                self.link.callback(|_| Msg::CheckVersion),
+                ctx.link().callback(|_| Msg::CheckVersion),
             ));
             if self.account_service.is_loggedin() {
-                self.link.send_message(Msg::FetchCurrentUser);
+                ctx.link().send_message(Msg::FetchCurrentUser);
             }
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::FetchCurrentUser => {
                 let task = self
@@ -124,19 +122,19 @@ impl Component for RootComponent {
                 self.check_version_task = Some(task);
             }
             Msg::CurrentUserResponse(Ok(account_details)) => {
-                self.link.send_message(Msg::Login(account_details));
+                ctx.link().send_message(Msg::Login(account_details));
                 self.current_user_task = None;
             }
             Msg::CurrentUserResponse(Err(_)) => {
-                self.link.send_message(Msg::Logout);
+                ctx.link().send_message(Msg::Logout);
                 self.current_user_task = None;
             }
             Msg::RenewTokenResponse(Ok(account_details)) => {
-                self.link.send_message(Msg::UpdateAccount(account_details));
+                ctx.link().send_message(Msg::UpdateAccount(account_details));
                 self.renew_token_task = None;
             }
             Msg::RenewTokenResponse(Err(_)) => {
-                self.link.send_message(Msg::Logout);
+                ctx.link().send_message(Msg::Logout);
                 self.current_user_task = None;
             }
             Msg::CheckVersionResponse(Ok(server_version)) => {
@@ -164,9 +162,9 @@ impl Component for RootComponent {
             Msg::Login(account_details) => {
                 // start session timer
                 self.session_timer_agent.send(SessionTimerRequest::Start(
-                    self.link.callback(|_| Msg::RenewToken),
+                    ctx.link().callback(|_| Msg::RenewToken),
                 ));
-                self.link.send_message(Msg::UpdateAccount(account_details));
+                ctx.link().send_message(Msg::UpdateAccount(account_details));
             }
             Msg::Logout => {
                 self.account_service.logout();
@@ -177,13 +175,9 @@ impl Component for RootComponent {
         true
     }
 
-    fn changed(&mut self, _props: Self::Properties) -> bool {
-        false
-    }
-
-    fn view(&self) -> VNode {
-        let callback_login = self.link.callback(Msg::Login);
-        let callback_logout = self.link.callback(|_| Msg::Logout);
+    fn view(&self, ctx: &Context<Self>) -> VNode {
+        let callback_login = ctx.link().callback(Msg::Login);
+        let callback_logout = ctx.link().callback(|_| Msg::Logout);
 
         html! {
             <>

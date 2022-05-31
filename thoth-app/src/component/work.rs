@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::contribution::Contribution;
 use thoth_api::model::funding::FundingWithInstitution;
@@ -16,7 +17,6 @@ use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 use yew_router::route::Route;
@@ -85,10 +85,11 @@ pub struct WorkComponent {
     fetch_work: FetchWork,
     push_work: PushUpdateWork,
     delete_work: PushDeleteWork,
-    link: ComponentLink<Self>,
     router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
-    props: Props,
+    // Store props values locally in order to test whether they have been updated on props change
+    resource_access: AccountAccess,
+    work_id: Uuid,
 }
 
 #[derive(Default)]
@@ -155,7 +156,7 @@ impl Component for WorkComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let fetch_work: FetchWork = Default::default();
         let push_work = Default::default();
         let delete_work = Default::default();
@@ -167,8 +168,10 @@ impl Component for WorkComponent {
         let work_type = work.work_type.clone();
         let data: WorkFormData = Default::default();
         let router = RouteAgentDispatcher::new();
+        let resource_access = ctx.props().current_user.resource_access;
+        let work_id = ctx.props().work_id;
 
-        link.send_message(Msg::GetWork);
+        ctx.link().send_message(Msg::GetWork);
 
         WorkComponent {
             work,
@@ -180,14 +183,14 @@ impl Component for WorkComponent {
             fetch_work,
             push_work,
             delete_work,
-            link,
             router,
             notification_bus,
-            props,
+            resource_access,
+            work_id,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::SetWorkFetchState(fetch_state) => {
                 self.fetch_work.apply(fetch_state);
@@ -208,9 +211,7 @@ impl Component for WorkComponent {
                         self.data.work_statuses = body.data.work_statuses.enum_values.to_owned();
 
                         // If user doesn't have permission to edit this object, redirect to dashboard
-                        if let Some(publishers) =
-                            self.props.current_user.resource_access.restricted_to()
-                        {
+                        if let Some(publishers) = self.resource_access.restricted_to() {
                             if !publishers
                                 .contains(&self.work.imprint.publisher.publisher_id.to_string())
                             {
@@ -227,17 +228,17 @@ impl Component for WorkComponent {
             Msg::GetWork => {
                 let body = WorkRequestBody {
                     variables: Variables {
-                        work_id: Some(self.props.work_id),
-                        publishers: self.props.current_user.resource_access.restricted_to(),
+                        work_id: Some(ctx.props().work_id),
+                        publishers: self.resource_access.restricted_to(),
                     },
                     ..Default::default()
                 };
                 let request = WorkRequest { body };
                 self.fetch_work = Fetch::new(request);
 
-                self.link
+                ctx.link()
                     .send_future(self.fetch_work.fetch(Msg::SetWorkFetchState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetWorkFetchState(FetchAction::Fetching));
                 false
             }
@@ -336,9 +337,9 @@ impl Component for WorkComponent {
                 };
                 let request = UpdateWorkRequest { body };
                 self.push_work = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_work.fetch(Msg::SetWorkPushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetWorkPushState(FetchAction::Fetching));
                 false
             }
@@ -353,7 +354,7 @@ impl Component for WorkComponent {
                                 format!("Deleted {}", w.title),
                                 NotificationStatus::Success,
                             )));
-                            self.link
+                            ctx.link()
                                 .send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Works)));
                             true
                         }
@@ -383,9 +384,9 @@ impl Component for WorkComponent {
                 };
                 let request = DeleteWorkRequest { body };
                 self.delete_work = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.delete_work.fetch(Msg::SetWorkDeleteState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetWorkDeleteState(FetchAction::Fetching));
                 false
             }
@@ -511,25 +512,25 @@ impl Component for WorkComponent {
         }
     }
 
-    fn changed(&mut self, props: Self::Properties) -> bool {
-        let updated_permissions =
-            self.props.current_user.resource_access != props.current_user.resource_access;
-        let updated_work = self.props.work_id != props.work_id;
-        self.props = props;
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+        let updated_permissions = self
+            .resource_access
+            .neq_assign(ctx.props().current_user.resource_access);
+        let updated_work = self.work_id.neq_assign(ctx.props().work_id);
         if updated_permissions || updated_work {
             // Required in order to retrieve updated list of imprints for dropdown
             // and/or full work if we have navigated direct from another Work page.
-            self.link.send_message(Msg::GetWork);
+            ctx.link().send_message(Msg::GetWork);
         }
         false
     }
 
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         match self.fetch_work.as_ref().state() {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(_body) => {
-                let callback = self.link.callback(|event: FocusEvent| {
+                let callback = ctx.link().callback(|event: FocusEvent| {
                     event.prevent_default();
                     Msg::UpdateWork
                 });
@@ -566,7 +567,7 @@ impl Component for WorkComponent {
                             <div class="level-right">
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
-                                        onclick={ self.link.callback(|_| Msg::DeleteWork) }
+                                        onclick={ ctx.link().callback(|_| Msg::DeleteWork) }
                                         object_name={ self.work.title.clone() }
                                     />
                                 </p>
@@ -581,7 +582,7 @@ impl Component for WorkComponent {
                                         value={ self.work.work_type.clone() }
                                         data={ self.data.work_types.clone() }
                                         deactivate={ deactivated_types.clone() }
-                                        onchange={ self.link.callback(|event| match event {
+                                        onchange={ ctx.link().callback(|event| match event {
                                             ChangeData::Select(elem) => {
                                                 let value = elem.value();
                                                 Msg::ChangeWorkType(WorkType::from_str(&value).unwrap())
@@ -594,7 +595,7 @@ impl Component for WorkComponent {
                                         label = "Work Status"
                                         value={ self.work.work_status.clone() }
                                         data={ self.data.work_statuses.clone() }
-                                        onchange={ self.link.callback(|event| match event {
+                                        onchange={ ctx.link().callback(|event| match event {
                                             ChangeData::Select(elem) => {
                                                 let value = elem.value();
                                                 Msg::ChangeWorkStatus(WorkStatus::from_str(&value).unwrap())
@@ -607,7 +608,7 @@ impl Component for WorkComponent {
                                         label = "Imprint"
                                         value={ self.work.imprint.imprint_id }
                                         data={ imprints.clone() }
-                                        onchange={ self.link.callback(|event| match event {
+                                        onchange={ ctx.link().callback(|event| match event {
                                             ChangeData::Select(elem) => {
                                                 let value = elem.value();
                                                 Msg::ChangeImprint(Uuid::parse_str(&value).unwrap_or_default())
@@ -621,18 +622,18 @@ impl Component for WorkComponent {
                             <FormTextInput
                                 label = "Title"
                                 value={ self.work.title.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeTitle(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeTitle(e.value)) }
                                 required = true
                             />
                             <FormTextInput
                                 label = "Subtitle"
                                 value={ self.work.subtitle.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeSubtitle(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeSubtitle(e.value)) }
                             />
                             <FormNumberInput
                                 label = "Edition"
                                 value={ self.work.edition }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeEdition(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeEdition(e.value)) }
                                 required = true
                                 min={ "1".to_string() }
                                 deactivated={ is_chapter }
@@ -640,12 +641,12 @@ impl Component for WorkComponent {
                             <FormDateInput
                                 label = "Publication Date"
                                 value={ self.work.publication_date.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeDate(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeDate(e.value)) }
                             />
                             <FormTextInput
                                 label = "Place of Publication"
                                 value={ self.work.place.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangePlace(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangePlace(e.value)) }
                             />
                             <div class="field">
                                 <div class="tile is-ancestor">
@@ -664,12 +665,12 @@ impl Component for WorkComponent {
                                             <FormUrlInput
                                                 label = "Cover URL"
                                                 value={ self.work.cover_url.clone() }
-                                                oninput={ self.link.callback(|e: InputData| Msg::ChangeCoverUrl(e.value)) }
+                                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeCoverUrl(e.value)) }
                                             />
                                             <FormTextarea
                                                 label = "Cover Caption"
                                                 value={ self.work.cover_caption.clone() }
-                                                oninput={ self.link.callback(|e: InputData| Msg::ChangeCoverCaption(e.value)) }
+                                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeCoverCaption(e.value)) }
                                             />
                                         </div>
                                     </div>
@@ -682,23 +683,23 @@ impl Component for WorkComponent {
                                         statictext={ DOI_DOMAIN }
                                         value={ self.doi.clone() }
                                         tooltip={ self.doi_warning.clone() }
-                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeDoi(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeDoi(e.value)) }
                                     />
                                     <FormTextInput
                                         label = "LCCN"
                                         value={ self.work.lccn.clone() }
-                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeLccn(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeLccn(e.value)) }
                                         deactivated={ is_chapter }
                                     />
                                     <FormTextInput
                                         label = "OCLC Number"
                                         value={ self.work.oclc.clone() }
-                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeOclc(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeOclc(e.value)) }
                                         deactivated={ is_chapter }
                                     />
                                     <FormTextInput
                                         label = "Internal Reference"
-                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeReference(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeReference(e.value)) }
                                         value={ self.work.reference.clone() }
                                     />
                                 </div>
@@ -708,23 +709,23 @@ impl Component for WorkComponent {
                                     <FormNumberInput
                                         label = "Page Count"
                                         value={ self.work.page_count }
-                                        oninput={ self.link.callback(|e: InputData| Msg::ChangePageCount(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangePageCount(e.value)) }
                                     />
                                     <FormTextInput
                                         label = "Page Breakdown"
                                         value={ self.work.page_breakdown.clone() }
-                                        oninput={ self.link.callback(|e: InputData| Msg::ChangePageBreakdown(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangePageBreakdown(e.value)) }
                                     />
                                     <FormTextInput
                                         label = "First Page"
                                         value={ self.work.first_page.clone() }
-                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeFirstPage(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeFirstPage(e.value)) }
                                         deactivated={ !is_chapter }
                                     />
                                     <FormTextInput
                                         label = "Last Page"
                                         value={ self.work.last_page.clone() }
-                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeLastPage(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeLastPage(e.value)) }
                                         deactivated={ !is_chapter }
                                     />
                                 </div>
@@ -734,60 +735,60 @@ impl Component for WorkComponent {
                                     <FormNumberInput
                                         label = "Image Count"
                                         value={ self.work.image_count }
-                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeImageCount(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeImageCount(e.value)) }
                                     />
                                     <FormNumberInput
                                         label = "Table Count"
                                         value={ self.work.table_count }
-                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeTableCount(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeTableCount(e.value)) }
                                     />
                                     <FormNumberInput
                                         label = "Audio Count"
                                         value={ self.work.audio_count }
-                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeAudioCount(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeAudioCount(e.value)) }
                                     />
                                     <FormNumberInput
                                         label = "Video Count"
                                         value={ self.work.video_count }
-                                        oninput={ self.link.callback(|e: InputData| Msg::ChangeVideoCount(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeVideoCount(e.value)) }
                                     />
                                 </div>
                             </div>
                             <FormUrlInput
                                 label = "License"
                                 value={ self.work.license.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeLicense(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeLicense(e.value)) }
                             />
                             <FormTextInput
                                 label = "Copyright Holder"
                                 value={ self.work.copyright_holder.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeCopyright(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeCopyright(e.value)) }
                                 required = true
                             />
                             <FormUrlInput
                                 label = "Landing Page"
                                 value={ self.work.landing_page.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeLandingPage(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeLandingPage(e.value)) }
                             />
                             <FormTextarea
                                 label = "Short Abstract"
                                 value={ self.work.short_abstract.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeShortAbstract(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeShortAbstract(e.value)) }
                             />
                             <FormTextarea
                                 label = "Long Abstract"
                                 value={ self.work.long_abstract.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeLongAbstract(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeLongAbstract(e.value)) }
                             />
                             <FormTextarea
                                 label = "General Note"
                                 value={ self.work.general_note.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeNote(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeNote(e.value)) }
                             />
                             <FormTextarea
                                 label = "Table of Content"
                                 value={ self.work.toc.clone() }
-                                oninput={ self.link.callback(|e: InputData| Msg::ChangeToc(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeToc(e.value)) }
                                 deactivated={ is_chapter }
                             />
 
@@ -811,41 +812,41 @@ impl Component for WorkComponent {
                         <RelatedWorksFormComponent
                             relations={ self.work.relations.clone() }
                             work_id={ self.work.work_id }
-                            current_user={ self.props.current_user.clone() }
-                            update_relations={ self.link.callback(Msg::UpdateRelatedWorks) }
+                            current_user={ ctx.props().current_user.clone() }
+                            update_relations={ ctx.link().callback(Msg::UpdateRelatedWorks) }
                         />
                         <ContributionsFormComponent
                             contributions={ self.work.contributions.clone() }
                             work_id={ self.work.work_id }
-                            update_contributions={ self.link.callback(Msg::UpdateContributions) }
+                            update_contributions={ ctx.link().callback(Msg::UpdateContributions) }
                         />
                         <PublicationsFormComponent
                             publications={ self.work.publications.clone() }
                             work_id={ self.work.work_id }
                             work_type={ self.work_type.clone() }
-                            update_publications={ self.link.callback(Msg::UpdatePublications) }
+                            update_publications={ ctx.link().callback(Msg::UpdatePublications) }
                         />
                         <LanguagesFormComponent
                             languages={ self.work.languages.clone() }
                             work_id={ self.work.work_id }
-                            update_languages={ self.link.callback(Msg::UpdateLanguages) }
+                            update_languages={ ctx.link().callback(Msg::UpdateLanguages) }
                         />
                         <SubjectsFormComponent
                             subjects={ self.work.subjects.clone() }
                             work_id={ self.work.work_id }
-                            update_subjects={ self.link.callback(Msg::UpdateSubjects) }
+                            update_subjects={ ctx.link().callback(Msg::UpdateSubjects) }
                         />
                         <IssuesFormComponent
                             issues={ self.work.issues.clone() }
                             work_id={ self.work.work_id }
                             imprint_id={ self.imprint_id }
-                            current_user={ self.props.current_user.clone() }
-                            update_issues={ self.link.callback(Msg::UpdateIssues) }
+                            current_user={ ctx.props().current_user.clone() }
+                            update_issues={ ctx.link().callback(Msg::UpdateIssues) }
                         />
                         <FundingsFormComponent
                             fundings={ self.work.fundings.clone() }
                             work_id={ self.work.work_id }
-                            update_fundings={ self.link.callback(Msg::UpdateFundings) }
+                            update_fundings={ ctx.link().callback(Msg::UpdateFundings) }
                         />
                     </>
                 }
