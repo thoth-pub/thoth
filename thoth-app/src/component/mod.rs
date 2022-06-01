@@ -379,6 +379,21 @@ impl ToOption for String {
     }
 }
 
+pub trait ToElementValue {
+    fn to_value(self) -> String;
+}
+
+impl ToElementValue for yew::InputEvent {
+    fn to_value(self) -> String {
+        use wasm_bindgen::JsCast;
+        use web_sys::HtmlInputElement;
+        self.target()
+            .and_then(|t| t.dyn_into::<HtmlInputElement>().ok())
+            .map(|i| i.value())
+            .unwrap_or_default()
+    }
+}
+
 pub mod admin;
 pub mod affiliations_form;
 pub mod books;

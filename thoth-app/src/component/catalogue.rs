@@ -1,11 +1,10 @@
 use thoth_api::model::work::WorkWithRelations;
-use wasm_bindgen::JsCast;
 use yew::html;
 use yew::prelude::Component;
 use yew::prelude::Context;
 use yew::prelude::FocusEvent;
 use yew::prelude::Html;
-use yew::prelude::InputData;
+use yew::prelude::InputEvent;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -19,6 +18,8 @@ use crate::models::work::works_query::Variables;
 use crate::models::work::works_query::WorksRequest;
 use crate::models::work::works_query::WorksRequestBody;
 use crate::models::work::DisplayWork;
+
+use super::ToElementValue;
 
 pub struct CatalogueComponent {
     limit: i32,
@@ -179,13 +180,7 @@ impl Component for CatalogueComponent {
                                         type="search"
                                         value={ self.search_term.clone() }
                                         placeholder={ self.search_text() }
-                                        oninput={ ctx.link().callback(|e: yew::InputEvent|
-                                            Msg::ChangeSearchTerm(e
-                                                .target()
-                                                .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
-                                                .map(|i| i.value())
-                                            ))
-                                        }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeSearchTerm(e.to_value())) }
                                     />
                                     <span class="icon is-left">
                                         <i class="fas fa-search" aria-hidden="true"></i>
