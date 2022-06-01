@@ -40,6 +40,7 @@ use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+use super::ToElementValue;
 use super::ToOption;
 
 pub struct PublisherComponent {
@@ -286,18 +287,18 @@ impl Component for PublisherComponent {
                             <FormTextInput
                                 label = "Publisher Name"
                                 value={ self.publisher.publisher_name.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangePublisherName(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePublisherName(e.to_value())) }
                                 required = true
                             />
                             <FormTextInput
                                 label = "Publisher Short Name"
                                 value={ self.publisher.publisher_shortname.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangePublisherShortname(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePublisherShortname(e.to_value())) }
                             />
                             <FormUrlInput
                                 label = "Publisher URL"
                                 value={ self.publisher.publisher_url.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangePublisherUrl(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePublisherUrl(e.to_value())) }
                             />
 
                             <div class="field">

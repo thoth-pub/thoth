@@ -36,6 +36,7 @@ use crate::string::NO;
 use crate::string::REMOVE_BUTTON;
 use crate::string::YES;
 
+use super::ToElementValue;
 use super::ToOption;
 
 pub struct LocationsFormComponent {
@@ -290,12 +291,12 @@ impl Component for LocationsFormComponent {
                                 <FormUrlInput
                                     label="Landing Page"
                                     value={ self.new_location.landing_page.clone() }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeLandingPage(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeLandingPage(e.to_value())) }
                                 />
                                 <FormUrlInput
                                     label="Full Text URL"
                                     value={ self.new_location.full_text_url.clone().unwrap_or_else(|| "".to_string()) }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeFullTextUrl(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeFullTextUrl(e.to_value())) }
                                 />
                                 <FormLocationPlatformSelect
                                     label = "Location Platform"

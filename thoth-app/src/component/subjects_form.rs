@@ -34,6 +34,8 @@ use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_SUBJECTS;
 use crate::string::REMOVE_BUTTON;
 
+use super::ToElementValue;
+
 pub struct SubjectsFormComponent {
     data: SubjectsFormData,
     new_subject: Subject,
@@ -290,13 +292,13 @@ impl Component for SubjectsFormComponent {
                                 <FormTextInput
                                     label = "Subject Code"
                                     value={ self.new_subject.subject_code.clone() }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeCode(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeCode(e.to_value())) }
                                     required = true
                                 />
                                 <FormNumberInput
                                     label = "Subject Ordinal"
                                     value={ self.new_subject.subject_ordinal }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeOrdinal(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeOrdinal(e.to_value())) }
                                     required = true
                                     min={ "1".to_string() }
                                 />

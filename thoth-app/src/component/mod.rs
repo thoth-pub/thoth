@@ -49,7 +49,7 @@ macro_rules! pagination_helpers {
                                         type="search"
                                         value={ self.search_term.clone() }
                                         placeholder={ self.search_text() }
-                                        oninput={ ctx.link().callback(|e: InputData| Msg::Search(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::Search(e.to_value())) }
                                     />
                                     <span class="icon is-left">
                                         <i class="fas fa-search" aria-hidden="true"></i>
@@ -90,7 +90,7 @@ macro_rules! pagination_component {
         use yew::prelude::Component;
         use yew::prelude::Context;
         use yew::prelude::Html;
-        use yew::prelude::InputData;
+        use yew::prelude::InputEvent;
         use yew::prelude::Properties;
         use yew_router::agent::RouteAgentDispatcher;
         use yew_router::agent::RouteRequest;

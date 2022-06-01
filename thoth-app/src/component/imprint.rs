@@ -47,6 +47,7 @@ use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+use super::ToElementValue;
 use super::ToOption;
 
 pub struct ImprintComponent {
@@ -367,13 +368,13 @@ impl Component for ImprintComponent {
                             <FormTextInput
                                 label = "Imprint Name"
                                 value={ self.imprint.imprint_name.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeImprintName(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeImprintName(e.to_value())) }
                                 required = true
                             />
                             <FormUrlInput
                                 label = "Imprint URL"
                                 value={ self.imprint.imprint_url.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeImprintUrl(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeImprintUrl(e.to_value())) }
                             />
 
                             <div class="field">

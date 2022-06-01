@@ -20,7 +20,7 @@ use yew::virtual_dom::VNode;
 use yew::Callback;
 use yew::ChangeData;
 use yew::FocusEvent;
-use yew::InputData;
+use yew::InputEvent;
 use yew::MouseEvent;
 use yew::Properties;
 use yewtil::Pure;
@@ -76,7 +76,7 @@ pub struct PureInput {
     pub value: String,
     pub input_type: String,
     #[prop_or_default]
-    pub oninput: Callback<InputData>,
+    pub oninput: Callback<InputEvent>,
     #[prop_or_default]
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
@@ -94,7 +94,7 @@ pub struct PureTextarea {
     pub label: String,
     pub value: Option<String>,
     #[prop_or_default]
-    pub oninput: Callback<InputData>,
+    pub oninput: Callback<InputEvent>,
     #[prop_or(false)]
     pub required: bool,
     #[prop_or(false)]
@@ -113,7 +113,7 @@ pub struct PureTextInputExtended {
     #[prop_or_default]
     pub statictext: String,
     #[prop_or_default]
-    pub oninput: Callback<InputData>,
+    pub oninput: Callback<InputEvent>,
     #[prop_or_default]
     pub onfocus: Callback<FocusEvent>,
     #[prop_or_default]
@@ -129,7 +129,7 @@ pub struct PureTextInput {
     pub label: String,
     pub value: Option<String>,
     #[prop_or_default]
-    pub oninput: Callback<InputData>,
+    pub oninput: Callback<InputEvent>,
     #[prop_or_default]
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
@@ -143,7 +143,7 @@ pub struct PureUrlInput {
     pub label: String,
     pub value: Option<String>,
     #[prop_or_default]
-    pub oninput: Callback<InputData>,
+    pub oninput: Callback<InputEvent>,
     #[prop_or_default]
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
@@ -155,7 +155,7 @@ pub struct PureDateInput {
     pub label: String,
     pub value: Option<String>,
     #[prop_or_default]
-    pub oninput: Callback<InputData>,
+    pub oninput: Callback<InputEvent>,
     #[prop_or_default]
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
@@ -167,7 +167,7 @@ pub struct PureFloatInput {
     pub label: String,
     pub value: Option<f64>,
     #[prop_or_default]
-    pub oninput: Callback<InputData>,
+    pub oninput: Callback<InputEvent>,
     #[prop_or_default]
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
@@ -185,7 +185,7 @@ pub struct PureNumberInput {
     pub label: String,
     pub value: Option<i32>,
     #[prop_or_default]
-    pub oninput: Callback<InputData>,
+    pub oninput: Callback<InputEvent>,
     #[prop_or_default]
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]

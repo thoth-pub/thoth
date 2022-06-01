@@ -46,6 +46,7 @@ use crate::string::CANCEL_BUTTON;
 use crate::string::EDIT_BUTTON;
 use crate::string::REMOVE_BUTTON;
 
+use super::ToElementValue;
 use super::ToOption;
 
 pub struct AffiliationsFormComponent {
@@ -474,12 +475,12 @@ impl Component for AffiliationsFormComponent {
                                 <FormTextInput
                                     label="Position"
                                     value={ self.affiliation.position.clone().unwrap_or_else(|| "".to_string()) }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangePosition(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePosition(e.to_value())) }
                                 />
                                 <FormNumberInput
                                     label = "Affiliation Ordinal"
                                     value={ self.affiliation.affiliation_ordinal }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeOrdinal(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeOrdinal(e.to_value())) }
                                     required = true
                                     min={ "1".to_string() }
                                 />
@@ -532,7 +533,7 @@ impl Component for AffiliationsFormComponent {
                                                 placeholder="Search Institution"
                                                 aria-haspopup="true"
                                                 aria-controls="institutions-menu"
-                                                oninput={ ctx.link().callback(|e: InputData| Msg::SearchInstitution(e.value)) }
+                                                oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchInstitution(e.to_value())) }
                                                 onfocus={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(true)) }
                                                 onblur={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                             />

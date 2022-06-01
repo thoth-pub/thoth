@@ -36,6 +36,7 @@ use crate::models::publication::update_publication_mutation::Variables as Update
 use crate::models::publication::PublicationTypeValues;
 use crate::string::CANCEL_BUTTON;
 
+use super::ToElementValue;
 use super::ToOption;
 
 pub struct PublicationModalComponent {
@@ -476,7 +477,7 @@ impl Component for PublicationModalComponent {
                                 label = "ISBN"
                                 value={ self.isbn.clone() }
                                 tooltip={ self.isbn_warning.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeIsbn(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIsbn(e.to_value())) }
                                 // ISBNs cannot be added for publications whose work type is Book Chapter.
                                 deactivated={ ctx.props().work_type == WorkType::BookChapter }
                             />
@@ -501,13 +502,13 @@ impl Component for PublicationModalComponent {
                                                     <FormFloatInput
                                                         label = "Width (mm)"
                                                         value={ self.publication.width_mm }
-                                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeWidthMm(e.value)) }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWidthMm(e.to_value())) }
                                                         step={ "1".to_string() }
                                                     />
                                                     <FormFloatInput
                                                         label = "Width (in)"
                                                         value={ self.publication.width_in }
-                                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeWidthIn(e.value)) }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWidthIn(e.to_value())) }
                                                         step={ "0.01".to_string() }
                                                     />
                                                 </div>
@@ -517,13 +518,13 @@ impl Component for PublicationModalComponent {
                                                     <FormFloatInput
                                                         label = "Height (mm)"
                                                         value={ self.publication.height_mm }
-                                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeHeightMm(e.value)) }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeHeightMm(e.to_value())) }
                                                         step={ "1".to_string() }
                                                     />
                                                     <FormFloatInput
                                                         label = "Height (in)"
                                                         value={ self.publication.height_in }
-                                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeHeightIn(e.value)) }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeHeightIn(e.to_value())) }
                                                         step={ "0.01".to_string() }
                                                     />
                                                 </div>
@@ -533,13 +534,13 @@ impl Component for PublicationModalComponent {
                                                     <FormFloatInput
                                                         label = "Depth (mm)"
                                                         value={ self.publication.depth_mm }
-                                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeDepthMm(e.value)) }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDepthMm(e.to_value())) }
                                                         step={ "1".to_string() }
                                                     />
                                                     <FormFloatInput
                                                         label = "Depth (in)"
                                                         value={ self.publication.depth_in }
-                                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeDepthIn(e.value)) }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDepthIn(e.to_value())) }
                                                         step={ "0.01".to_string() }
                                                     />
                                                 </div>
@@ -549,13 +550,13 @@ impl Component for PublicationModalComponent {
                                                     <FormFloatInput
                                                         label = "Weight (g)"
                                                         value={ self.publication.weight_g }
-                                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeWeightG(e.value)) }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWeightG(e.to_value())) }
                                                         step={ "1".to_string() }
                                                     />
                                                     <FormFloatInput
                                                         label = "Weight (oz)"
                                                         value={ self.publication.weight_oz }
-                                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeWeightOz(e.value)) }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWeightOz(e.to_value())) }
                                                         step={ "0.0001".to_string() }
                                                     />
                                                 </div>

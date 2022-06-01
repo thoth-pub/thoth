@@ -36,6 +36,8 @@ use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_ISSUES;
 use crate::string::REMOVE_BUTTON;
 
+use super::ToElementValue;
+
 pub struct IssuesFormComponent {
     data: IssuesFormData,
     new_issue: IssueWithSeries,
@@ -303,7 +305,7 @@ impl Component for IssuesFormComponent {
                                         placeholder="Search Series"
                                         aria-haspopup="true"
                                         aria-controls="serieses-menu"
-                                        oninput={ ctx.link().callback(|e: InputData| Msg::SearchSeries(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchSeries(e.to_value())) }
                                         onfocus={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(true)) }
                                         onblur={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                     />
@@ -367,7 +369,7 @@ impl Component for IssuesFormComponent {
                                 <FormNumberInput
                                     label="Issue Ordinal"
                                     value={ self.new_issue.issue_ordinal }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeOrdinal(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeOrdinal(e.to_value())) }
                                     required = true
                                     min={ "1".to_string() }
                                 />

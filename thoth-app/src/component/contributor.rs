@@ -47,6 +47,7 @@ use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+use super::ToElementValue;
 use super::ToOption;
 
 pub struct ContributorComponent {
@@ -384,18 +385,18 @@ impl Component for ContributorComponent {
                             <FormTextInput
                                 label = "Given Name"
                                 value={ self.contributor.first_name.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeFirstName(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeFirstName(e.to_value())) }
                             />
                             <FormTextInput
                                 label = "Family Name"
                                 value={ self.contributor.last_name.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeLastName(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeLastName(e.to_value())) }
                                 required = true
                             />
                             <FormTextInput
                                 label = "Full Name"
                                 value={ self.contributor.full_name.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeFullName(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeFullName(e.to_value())) }
                                 required = true
                             />
                             <FormTextInputExtended
@@ -403,12 +404,12 @@ impl Component for ContributorComponent {
                                 statictext={ ORCID_DOMAIN }
                                 value={ self.orcid.clone() }
                                 tooltip={ self.orcid_warning.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeOrcid(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeOrcid(e.to_value())) }
                             />
                             <FormUrlInput
                                 label = "Website"
                                 value={ self.contributor.website.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeWebsite(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWebsite(e.to_value())) }
                             />
 
                             <div class="field">

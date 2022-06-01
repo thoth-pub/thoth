@@ -53,6 +53,7 @@ use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+use super::ToElementValue;
 use super::ToOption;
 
 pub struct NewWorkComponent {
@@ -510,18 +511,18 @@ impl Component for NewWorkComponent {
                     <FormTextInput
                         label = "Title"
                         value={ self.work.title.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeTitle(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeTitle(e.to_value())) }
                         required = true
                     />
                     <FormTextInput
                         label = "Subtitle"
                         value={ self.work.subtitle.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeSubtitle(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeSubtitle(e.to_value())) }
                     />
                     <FormNumberInput
                         label = "Edition"
                         value={ self.work.edition }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeEdition(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeEdition(e.to_value())) }
                         required = true
                         min={ "1".to_string() }
                         deactivated={ is_chapter }
@@ -529,12 +530,12 @@ impl Component for NewWorkComponent {
                     <FormDateInput
                         label = "Publication Date"
                         value={ self.work.publication_date.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeDate(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDate(e.to_value())) }
                     />
                     <FormTextInput
                         label = "Place of Publication"
                         value={ self.work.place.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangePlace(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePlace(e.to_value())) }
                     />
                     <div class="field">
                         <div class="tile is-ancestor">
@@ -553,12 +554,12 @@ impl Component for NewWorkComponent {
                                     <FormUrlInput
                                         label = "Cover URL"
                                         value={ self.work.cover_url.clone() }
-                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeCoverUrl(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeCoverUrl(e.to_value())) }
                                     />
                                     <FormTextarea
                                         label = "Cover Caption"
                                         value={ self.work.cover_caption.clone() }
-                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeCoverCaption(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeCoverCaption(e.to_value())) }
                                     />
                                 </div>
                             </div>
@@ -571,23 +572,23 @@ impl Component for NewWorkComponent {
                                 statictext={ DOI_DOMAIN }
                                 value={ self.doi.clone() }
                                 tooltip={ self.doi_warning.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeDoi(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDoi(e.to_value())) }
                             />
                             <FormTextInput
                                 label = "LCCN"
                                 value={ self.work.lccn.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeLccn(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeLccn(e.to_value())) }
                                 deactivated={ is_chapter }
                             />
                             <FormTextInput
                                 label = "OCLC Number"
                                 value={ self.work.oclc.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeOclc(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeOclc(e.to_value())) }
                                 deactivated={ is_chapter }
                             />
                             <FormTextInput
                                 label = "Internal Reference"
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeReference(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeReference(e.to_value())) }
                                 value={ self.work.reference.clone() }
                             />
                         </div>
@@ -597,23 +598,23 @@ impl Component for NewWorkComponent {
                             <FormNumberInput
                                 label = "Page Count"
                                 value={ self.work.page_count }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangePageCount(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePageCount(e.to_value())) }
                             />
                             <FormTextInput
                                 label = "Page Breakdown"
                                 value={ self.work.page_breakdown.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangePageBreakdown(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePageBreakdown(e.to_value())) }
                             />
                             <FormTextInput
                                 label = "First Page"
                                 value={ self.work.first_page.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeFirstPage(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeFirstPage(e.to_value())) }
                                 deactivated={ !is_chapter }
                             />
                             <FormTextInput
                                 label = "Last Page"
                                 value={ self.work.last_page.clone() }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeLastPage(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeLastPage(e.to_value())) }
                                 deactivated={ !is_chapter }
                             />
                         </div>
@@ -623,60 +624,60 @@ impl Component for NewWorkComponent {
                             <FormNumberInput
                                 label = "Image Count"
                                 value={ self.work.image_count }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeImageCount(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeImageCount(e.to_value())) }
                             />
                             <FormNumberInput
                                 label = "Table Count"
                                 value={ self.work.table_count }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeTableCount(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeTableCount(e.to_value())) }
                             />
                             <FormNumberInput
                                 label = "Audio Count"
                                 value={ self.work.audio_count }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeAudioCount(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeAudioCount(e.to_value())) }
                             />
                             <FormNumberInput
                                 label = "Video Count"
                                 value={ self.work.video_count }
-                                oninput={ ctx.link().callback(|e: InputData| Msg::ChangeVideoCount(e.value)) }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeVideoCount(e.to_value())) }
                             />
                         </div>
                     </div>
                     <FormUrlInput
                         label = "License"
                         value={ self.work.license.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeLicense(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeLicense(e.to_value())) }
                     />
                     <FormTextInput
                         label = "Copyright Holder"
                         value={ self.work.copyright_holder.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeCopyright(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeCopyright(e.to_value())) }
                         required = true
                     />
                     <FormUrlInput
                         label = "Landing Page"
                         value={ self.work.landing_page.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeLandingPage(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeLandingPage(e.to_value())) }
                     />
                     <FormTextarea
                         label = "Short Abstract"
                         value={ self.work.short_abstract.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeShortAbstract(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeShortAbstract(e.to_value())) }
                     />
                     <FormTextarea
                         label = "Long Abstract"
                         value={ self.work.long_abstract.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeLongAbstract(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeLongAbstract(e.to_value())) }
                     />
                     <FormTextarea
                         label = "General Note"
                         value={ self.work.general_note.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeNote(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeNote(e.to_value())) }
                     />
                     <FormTextarea
                         label = "Table of Content"
                         value={ self.work.toc.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeToc(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeToc(e.to_value())) }
                         deactivated={ is_chapter }
                     />
 

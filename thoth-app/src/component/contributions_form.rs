@@ -52,6 +52,7 @@ use crate::string::NO;
 use crate::string::REMOVE_BUTTON;
 use crate::string::YES;
 
+use super::ToElementValue;
 use super::ToOption;
 
 pub struct ContributionsFormComponent {
@@ -487,7 +488,7 @@ impl Component for ContributionsFormComponent {
                                         placeholder="Search Contributor"
                                         aria-haspopup="true"
                                         aria-controls="contributors-menu"
-                                        oninput={ ctx.link().callback(|e: InputData| Msg::SearchContributor(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchContributor(e.to_value())) }
                                         onfocus={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(true)) }
                                         onblur={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                     />
@@ -542,18 +543,18 @@ impl Component for ContributionsFormComponent {
                                 <FormTextInput
                                     label="Contributor's Given Name"
                                     value={ self.contribution.first_name.clone() }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeFirstName(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeFirstName(e.to_value())) }
                                 />
                                 <FormTextInput
                                     label="Contributor's Family Name"
                                     value={ self.contribution.last_name.clone() }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeLastName(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeLastName(e.to_value())) }
                                     required = true
                                 />
                                 <FormTextInput
                                     label="Contributor's Full Name"
                                     value={ self.contribution.full_name.clone() }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeFullName(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeFullName(e.to_value())) }
                                     required = true
                                 />
                                 <FormContributionTypeSelect
@@ -572,7 +573,7 @@ impl Component for ContributionsFormComponent {
                                 <FormTextInput
                                     label="Biography"
                                     value={ self.contribution.biography.clone().unwrap_or_else(|| "".to_string()) }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeBiography(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeBiography(e.to_value())) }
                                 />
                                 <FormBooleanSelect
                                     label = "Main"
@@ -590,7 +591,7 @@ impl Component for ContributionsFormComponent {
                                 <FormNumberInput
                                     label = "Contribution Ordinal"
                                     value={ self.contribution.contribution_ordinal }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeOrdinal(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeOrdinal(e.to_value())) }
                                     required = true
                                     min={ "1".to_string() }
                                 />

@@ -48,6 +48,8 @@ use crate::string::EMPTY_RELATIONS;
 use crate::string::REMOVE_BUTTON;
 use crate::string::VIEW_BUTTON;
 
+use super::ToElementValue;
+
 pub struct RelatedWorksFormComponent {
     data: RelatedWorksFormData,
     new_relation: WorkRelationWithRelatedWork,
@@ -342,7 +344,7 @@ impl Component for RelatedWorksFormComponent {
                                         placeholder="Search Work"
                                         aria-haspopup="true"
                                         aria-controls="works-menu"
-                                        oninput={ ctx.link().callback(|e: InputData| Msg::SearchWork(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchWork(e.to_value())) }
                                         onfocus={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(true)) }
                                         onblur={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                     />
@@ -418,7 +420,7 @@ impl Component for RelatedWorksFormComponent {
                                 <FormNumberInput
                                     label = "Relation Ordinal"
                                     value={ self.new_relation.relation_ordinal }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeOrdinal(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeOrdinal(e.to_value())) }
                                     required = true
                                     min={ "1".to_string() }
                                 />

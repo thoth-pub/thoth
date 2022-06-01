@@ -22,6 +22,8 @@ use crate::string::INPUT_PASSWORD;
 use crate::string::RESPONSE_ERROR;
 use crate::string::TEXT_LOGIN;
 
+use super::ToElementValue;
+
 pub struct LoginComponent {
     request: LoginCredentials,
     response: Callback<Result<AccountDetails, AccountError>>,
@@ -132,7 +134,7 @@ impl Component for LoginComponent {
                                     class="input"
                                     type="email"
                                     value={ self.request.email.clone() }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeEmail(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeEmail(e.to_value())) }
                                     placeholder={ INPUT_EMAIL }
                                 />
                                 <span class="icon is-small is-left">
@@ -146,7 +148,7 @@ impl Component for LoginComponent {
                                     class="input"
                                     type="password"
                                     value={ self.request.password.clone() }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangePassword(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePassword(e.to_value())) }
                                     placeholder={ INPUT_PASSWORD }
                                 />
                                 <span class="icon is-small is-left">

@@ -42,6 +42,7 @@ use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+use super::ToElementValue;
 use super::ToOption;
 
 pub struct NewSeriesComponent {
@@ -298,35 +299,35 @@ impl Component for NewSeriesComponent {
                     <FormTextInput
                         label = "Series Name"
                         value={ self.series.series_name.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeSeriesName(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeSeriesName(e.to_value())) }
                         required = true
                     />
                     <FormTextInput
                         label = "ISSN Print"
                         value={ self.series.issn_print.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeIssnPrint(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIssnPrint(e.to_value())) }
                         required = true
                     />
                     <FormTextInput
                         label = "ISSN Digital"
                         value={ self.series.issn_digital.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeIssnDigital(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIssnDigital(e.to_value())) }
                         required = true
                     />
                     <FormUrlInput
                         label = "Series URL"
                         value={ self.series.series_url.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeSeriesUrl(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeSeriesUrl(e.to_value())) }
                     />
                     <FormUrlInput
                         label = "Series Call for Proposals URL"
                         value={ self.series.series_cfp_url.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeSeriesCfpUrl(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeSeriesCfpUrl(e.to_value())) }
                     />
                     <FormTextarea
                         label = "Series Description"
                         value={ self.series.series_description.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeSeriesDescription(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeSeriesDescription(e.to_value())) }
                     />
 
                     <div class="field">

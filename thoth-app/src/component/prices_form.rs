@@ -33,6 +33,8 @@ use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_PRICES;
 use crate::string::REMOVE_BUTTON;
 
+use super::ToElementValue;
+
 pub struct PricesFormComponent {
     data: PricesFormData,
     new_price: Price,
@@ -283,7 +285,7 @@ impl Component for PricesFormComponent {
                                 <FormFloatInput
                                     label = "Unit Price"
                                     value={ self.new_price.unit_price }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeUnitPrice(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeUnitPrice(e.to_value())) }
                                     required = true
                                     step={ "0.01".to_string() }
                                     min={ "0.01".to_string() }

@@ -34,6 +34,7 @@ use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_FUNDINGS;
 use crate::string::REMOVE_BUTTON;
 
+use super::ToElementValue;
 use super::ToOption;
 
 pub struct FundingsFormComponent {
@@ -300,7 +301,7 @@ impl Component for FundingsFormComponent {
                                         placeholder="Search Institution"
                                         aria-haspopup="true"
                                         aria-controls="institutions-menu"
-                                        oninput={ ctx.link().callback(|e: InputData| Msg::SearchInstitution(e.value)) }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchInstitution(e.to_value())) }
                                         onfocus={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(true)) }
                                         onblur={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                     />
@@ -352,27 +353,27 @@ impl Component for FundingsFormComponent {
                                 <FormTextInput
                                     label="Program"
                                     value={ self.new_funding.program.clone().unwrap_or_else(|| "".to_string()) }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeProgram(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeProgram(e.to_value())) }
                                 />
                                 <FormTextInput
                                     label="Project Name"
                                     value={ self.new_funding.project_name.clone().unwrap_or_else(|| "".to_string()) }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeProjectName(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeProjectName(e.to_value())) }
                                 />
                                 <FormTextInput
                                     label="Project Short Name"
                                     value={ self.new_funding.project_shortname.clone().unwrap_or_else(|| "".to_string()) }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeProjectShortname(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeProjectShortname(e.to_value())) }
                                 />
                                 <FormTextInput
                                     label="Grant Number"
                                     value={ self.new_funding.grant_number.clone().unwrap_or_else(|| "".to_string()) }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeGrant(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeGrant(e.to_value())) }
                                 />
                                 <FormTextInput
                                     label="Jurisdiction"
                                     value={ self.new_funding.jurisdiction.clone().unwrap_or_else(|| "".to_string()) }
-                                    oninput={ ctx.link().callback(|e: InputData| Msg::ChangeJurisdiction(e.value)) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeJurisdiction(e.to_value())) }
                                 />
 
                             </form>

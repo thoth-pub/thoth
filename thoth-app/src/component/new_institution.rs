@@ -33,6 +33,8 @@ use crate::models::EditRoute;
 use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+use super::ToElementValue;
+
 pub struct NewInstitutionComponent {
     institution: Institution,
     fetch_country_codes: FetchCountryCodes,
@@ -261,7 +263,7 @@ impl Component for NewInstitutionComponent {
                     <FormTextInput
                         label = "Institution Name"
                         value={ self.institution.institution_name.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeInstitutionName(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeInstitutionName(e.to_value())) }
                         required = true
                     />
                     <FormTextInputExtended
@@ -269,14 +271,14 @@ impl Component for NewInstitutionComponent {
                         statictext={ DOI_DOMAIN }
                         value={ self.institution_doi.clone() }
                         tooltip={ self.institution_doi_warning.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeInstitutionDoi(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeInstitutionDoi(e.to_value())) }
                     />
                     <FormTextInputExtended
                         label = "ROR ID"
                         statictext={ ROR_DOMAIN }
                         value={ self.ror.clone() }
                         tooltip={ self.ror_warning.clone() }
-                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeRor(e.value)) }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeRor(e.to_value())) }
                     />
                     <FormCountryCodeSelect
                         label = "Country"
