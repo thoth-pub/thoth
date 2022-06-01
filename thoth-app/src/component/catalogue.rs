@@ -1,4 +1,5 @@
 use thoth_api::model::work::WorkWithRelations;
+use wasm_bindgen::JsCast;
 use yew::html;
 use yew::prelude::Component;
 use yew::prelude::Context;
@@ -178,7 +179,13 @@ impl Component for CatalogueComponent {
                                         type="search"
                                         value={ self.search_term.clone() }
                                         placeholder={ self.search_text() }
-                                        oninput={ ctx.link().callback(|e: InputData| Msg::ChangeSearchTerm(e.value)) }
+                                        oninput={ ctx.link().callback(|e: yew::InputEvent|
+                                            Msg::ChangeSearchTerm(e
+                                                .target()
+                                                .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
+                                                .map(|i| i.value())
+                                            ))
+                                        }
                                     />
                                     <span class="icon is-left">
                                         <i class="fas fa-search" aria-hidden="true"></i>

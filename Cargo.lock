@@ -3955,6 +3955,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-logger",
  "wasm-pack",
+ "web-sys",
  "yew 0.19.3",
  "yew-router",
  "yewtil",
@@ -4630,9 +4631,9 @@ dependencies = [
 
 [[package]]
 name = "web-sys"
-version = "0.3.44"
+version = "0.3.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dda38f4e5ca63eda02c059d243aa25b5f35ab98451e518c51612cd0f1bd19a47"
+checksum = "e828417b379f3df7111d3a2a9e5753706cae29c41f7c4029ee9fd77f3e09e582"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
