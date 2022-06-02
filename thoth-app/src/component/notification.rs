@@ -1,9 +1,9 @@
-use yew::agent::Bridged;
 use yew::html;
 use yew::prelude::Context;
-use yew::Bridge;
 use yew::Component;
 use yew::Html;
+use yew_agent::Bridge;
+use yew_agent::Bridged;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationStatus;

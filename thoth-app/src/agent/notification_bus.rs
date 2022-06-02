@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::fmt;
-use yew::agent::Dispatcher;
-use yew::worker::*;
+use yew_agent::{Agent, AgentLink, Context, Dispatcher, HandlerId};
 
 pub type NotificationDispatcher = Dispatcher<NotificationBus>;
 

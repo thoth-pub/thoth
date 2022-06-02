@@ -9,11 +9,10 @@ macro_rules! timer_agent {
         use serde::Deserialize;
         use serde::Serialize;
         use std::time::Duration;
-        use yew::agent::Dispatcher;
-        use yew::prelude::worker::*;
         use yew::services::IntervalService;
         use yew::services::Task;
         use yew::Callback;
+        use yew_agent::{Agent, AgentLink, Context, Dispatcher, HandlerId};
 
         pub type $agent_dispatcher = Dispatcher<$agent>;
 
