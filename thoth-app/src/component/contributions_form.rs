@@ -531,13 +531,9 @@ impl Component for ContributionsFormComponent {
                                     label = "Contributor"
                                     value={ self.contribution.contributor_id }
                                     data={ self.data.contributors.clone() }
-                                    onchange={ ctx.link().callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            Msg::ChangeContributor(Uuid::parse_str(&value).unwrap_or_default())
-                                        }
-                                        _ => unreachable!(),
-                                    }) }
+                                    onchange={ ctx.link().callback(|e: Event|
+                                        Msg::ChangeContributor(Uuid::parse_str(&e.to_value()).unwrap_or_default())
+                                    ) }
                                     required = true
                                 />
                                 <FormTextInput
@@ -560,13 +556,9 @@ impl Component for ContributionsFormComponent {
                                 <FormContributionTypeSelect
                                     label = "Contribution Type"
                                     value={ self.contribution.contribution_type }
-                                    onchange={ ctx.link().callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            Msg::ChangeContributiontype(ContributionType::from_str(&value).unwrap())
-                                        }
-                                        _ => unreachable!(),
-                                    }) }
+                                    onchange={ ctx.link().callback(|e: Event|
+                                        Msg::ChangeContributiontype(ContributionType::from_str(&e.to_value()).unwrap())
+                                    ) }
                                     data={ self.data.contribution_types.clone() }
                                     required = true
                                 />
@@ -578,14 +570,9 @@ impl Component for ContributionsFormComponent {
                                 <FormBooleanSelect
                                     label = "Main"
                                     value={ self.contribution.main_contribution }
-                                    onchange={ ctx.link().callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            let boolean = value == "true";
-                                            Msg::ChangeMainContribution(boolean)
-                                        }
-                                        _ => unreachable!(),
-                                    }) }
+                                    onchange={ ctx.link().callback(|e: Event|
+                                        Msg::ChangeMainContribution(e.to_value() == "true")
+                                    ) }
                                     required = true
                                 />
                                 <FormNumberInput

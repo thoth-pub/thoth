@@ -271,15 +271,9 @@ impl Component for PricesFormComponent {
                                     label = "Price Code"
                                     value={ self.new_price.currency_code.clone() }
                                     data={ self.data.currency_codes.clone() }
-                                    onchange={ ctx.link().callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            Msg::ChangeCurrencyCode(
-                                                CurrencyCode::from_str(&value).unwrap()
-                                            )
-                                        }
-                                        _ => unreachable!(),
-                                    }) }
+                                    onchange={ ctx.link().callback(|e: Event|
+                                        Msg::ChangeCurrencyCode(CurrencyCode::from_str(&e.to_value()).unwrap())
+                                    ) }
                                     required = true
                                 />
                                 <FormFloatInput

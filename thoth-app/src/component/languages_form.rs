@@ -303,43 +303,26 @@ impl Component for LanguagesFormComponent {
                                     label = "Language Code"
                                     value={ self.new_language.language_code.clone() }
                                     data={ self.data.language_codes.clone() }
-                                    onchange={ ctx.link().callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            Msg::ChangeLanguageCode(
-                                                LanguageCode::from_str(&value).unwrap()
-                                            )
-                                        }
-                                        _ => unreachable!(),
-                                    }) }
+                                    onchange={ ctx.link().callback(|e: Event|
+                                        Msg::ChangeLanguageCode(LanguageCode::from_str(&e.to_value()).unwrap())
+                                    ) }
                                     required = true
                                 />
                                 <FormLanguageRelationSelect
                                     label = "Language Relation"
                                     value={ self.new_language.language_relation.clone() }
                                     data={ self.data.language_relations.clone() }
-                                    onchange={ ctx.link().callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            Msg::ChangeLanguageRelation(
-                                                LanguageRelation::from_str(&value).unwrap()
-                                            )
-                                        }
-                                        _ => unreachable!(),
-                                    }) }
+                                    onchange={ ctx.link().callback(|e: Event|
+                                        Msg::ChangeLanguageRelation(LanguageRelation::from_str(&e.to_value()).unwrap())
+                                    ) }
                                     required = true
                                 />
                                 <FormBooleanSelect
                                     label = "Main"
                                     value={ self.new_language.main_language }
-                                    onchange={ ctx.link().callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            let boolean = value == "true";
-                                            Msg::ChangeMainLanguage(boolean)
-                                        }
-                                        _ => unreachable!(),
-                                    }) }
+                                    onchange={ ctx.link().callback(|e: Event|
+                                        Msg::ChangeMainLanguage(e.to_value() == "true")
+                                    ) }
                                     required = true
                                 />
                             </form>

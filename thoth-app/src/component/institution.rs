@@ -472,12 +472,7 @@ impl Component for InstitutionComponent {
                                 label = "Country"
                                 value={ self.institution.country_code.clone() }
                                 data={ self.data.country_codes.clone() }
-                                onchange={ ctx.link().callback(|event| match event {
-                                    ChangeData::Select(elem) => {
-                                        Msg::ChangeCountryCode(elem.value())
-                                    }
-                                    _ => unreachable!(),
-                                }) }
+                                onchange={ ctx.link().callback(|e: Event| Msg::ChangeCountryCode(e.to_value())) }
                             />
 
                             <div class="field">

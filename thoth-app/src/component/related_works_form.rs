@@ -401,13 +401,9 @@ impl Component for RelatedWorksFormComponent {
                                 <FormRelationTypeSelect
                                     label = "Relation Type"
                                     value={ self.new_relation.relation_type }
-                                    onchange={ ctx.link().callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            Msg::ChangeRelationtype(RelationType::from_str(&value).unwrap())
-                                        }
-                                        _ => unreachable!(),
-                                    }) }
+                                    onchange={ ctx.link().callback(|e: Event|
+                                        Msg::ChangeRelationtype(RelationType::from_str(&e.to_value()).unwrap())
+                                    ) }
                                     data={ self.data.relation_types.clone() }
                                     required = true
                                 />

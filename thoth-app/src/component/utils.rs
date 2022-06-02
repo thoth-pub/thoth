@@ -18,7 +18,7 @@ use uuid::Uuid;
 use yew::html;
 use yew::virtual_dom::VNode;
 use yew::Callback;
-use yew::ChangeData;
+use yew::Event;
 use yew::FocusEvent;
 use yew::InputEvent;
 use yew::MouseEvent;
@@ -204,7 +204,7 @@ pub struct PureWorkTypeSelect {
     #[prop_or_default]
     pub deactivate: Vec<WorkType>,
     pub value: WorkType,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -214,7 +214,7 @@ pub struct PureWorkStatusSelect {
     pub label: String,
     pub data: Vec<WorkStatusValues>,
     pub value: WorkStatus,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -224,7 +224,7 @@ pub struct PureContributionTypeSelect {
     pub label: String,
     pub data: Vec<ContributionTypeValues>,
     pub value: ContributionType,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -234,7 +234,7 @@ pub struct PurePublicationTypeSelect {
     pub label: String,
     pub data: Vec<PublicationTypeValues>,
     pub value: PublicationType,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -244,7 +244,7 @@ pub struct PureSubjectTypeSelect {
     pub label: String,
     pub data: Vec<SubjectTypeValues>,
     pub value: SubjectType,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -254,7 +254,7 @@ pub struct PureSeriesTypeSelect {
     pub label: String,
     pub data: Vec<SeriesTypeValues>,
     pub value: SeriesType,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -264,7 +264,7 @@ pub struct PureLanguageCodeSelect {
     pub label: String,
     pub data: Vec<LanguageCodeValues>,
     pub value: LanguageCode,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -274,7 +274,7 @@ pub struct PureLanguageRelationSelect {
     pub label: String,
     pub data: Vec<LanguageRelationValues>,
     pub value: LanguageRelation,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -284,7 +284,7 @@ pub struct PureCurrencyCodeSelect {
     pub label: String,
     pub data: Vec<CurrencyCodeValues>,
     pub value: CurrencyCode,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -294,7 +294,7 @@ pub struct PureLocationPlatformSelect {
     pub label: String,
     pub data: Vec<LocationPlatformValues>,
     pub value: LocationPlatform,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -304,7 +304,7 @@ pub struct PureCountryCodeSelect {
     pub label: String,
     pub data: Vec<CountryCodeValues>,
     pub value: Option<CountryCode>,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -314,7 +314,7 @@ pub struct PureRelationTypeSelect {
     pub label: String,
     pub data: Vec<RelationTypeValues>,
     pub value: RelationType,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -323,7 +323,7 @@ pub struct PureRelationTypeSelect {
 pub struct PureBooleanSelect {
     pub label: String,
     pub value: bool,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or_default]
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
@@ -335,7 +335,7 @@ pub struct PureImprintSelect {
     pub label: String,
     pub data: Vec<ImprintWithPublisher>,
     pub value: Option<Uuid>,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -345,7 +345,7 @@ pub struct PurePublisherSelect {
     pub label: String,
     pub data: Vec<Publisher>,
     pub value: Option<Uuid>,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -355,7 +355,7 @@ pub struct PureInstitutionSelect {
     pub label: String,
     pub data: Vec<Institution>,
     pub value: Uuid,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }
@@ -365,7 +365,7 @@ pub struct PureContributorSelect {
     pub label: String,
     pub data: Vec<Contributor>,
     pub value: Uuid,
-    pub onchange: Callback<ChangeData>,
+    pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
 }

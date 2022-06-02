@@ -356,13 +356,9 @@ impl Component for ImprintComponent {
                                 label = "Publisher"
                                 value={ self.imprint.publisher.publisher_id }
                                 data={ self.data.publishers.clone() }
-                                onchange={ ctx.link().callback(|event| match event {
-                                    ChangeData::Select(elem) => {
-                                        let value = elem.value();
-                                        Msg::ChangePublisher(Uuid::parse_str(&value).unwrap_or_default())
-                                    }
-                                    _ => unreachable!(),
-                                }) }
+                                onchange={ ctx.link().callback(|e: Event|
+                                    Msg::ChangePublisher(Uuid::parse_str(&e.to_value()).unwrap_or_default())
+                                ) }
                                 required = true
                             />
                             <FormTextInput

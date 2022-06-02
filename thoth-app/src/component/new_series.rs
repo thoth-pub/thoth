@@ -273,13 +273,9 @@ impl Component for NewSeriesComponent {
                     <FormSeriesTypeSelect
                         label = "Series Type"
                         value={ self.series.series_type.clone() }
-                        onchange={ ctx.link().callback(|event| match event {
-                            ChangeData::Select(elem) => {
-                                let value = elem.value();
-                                Msg::ChangeSeriesType(SeriesType::from_str(&value).unwrap())
-                            }
-                            _ => unreachable!(),
-                        }) }
+                        onchange={ ctx.link().callback(|e: Event|
+                            Msg::ChangeSeriesType(SeriesType::from_str(&e.to_value()).unwrap())
+                        ) }
                         data={ self.data.series_types.clone() }
                         required = true
                     />
@@ -287,13 +283,9 @@ impl Component for NewSeriesComponent {
                         label = "Imprint"
                         value={ self.series.imprint_id }
                         data={ self.data.imprints.clone() }
-                        onchange={ ctx.link().callback(|event| match event {
-                            ChangeData::Select(elem) => {
-                                let value = elem.value();
-                                Msg::ChangeImprint(Uuid::parse_str(&value).unwrap_or_default())
-                            }
-                            _ => unreachable!(),
-                        }) }
+                        onchange={ ctx.link().callback(|e: Event|
+                            Msg::ChangeImprint(Uuid::parse_str(&e.to_value()).unwrap_or_default())
+                        ) }
                         required = true
                     />
                     <FormTextInput

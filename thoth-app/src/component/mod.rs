@@ -394,6 +394,17 @@ impl ToElementValue for yew::InputEvent {
     }
 }
 
+impl ToElementValue for yew::Event {
+    fn to_value(self) -> String {
+        use wasm_bindgen::JsCast;
+        use web_sys::HtmlSelectElement;
+        self.target()
+            .and_then(|t| t.dyn_into::<HtmlSelectElement>().ok())
+            .map(|i| i.value())
+            .unwrap_or_default()
+    }
+}
+
 pub mod admin;
 pub mod affiliations_form;
 pub mod books;

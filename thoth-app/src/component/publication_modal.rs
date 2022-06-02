@@ -462,15 +462,9 @@ impl Component for PublicationModalComponent {
                                 label = "Publication Type"
                                 value={ self.publication.publication_type.clone() }
                                 data={ self.data.publication_types.clone() }
-                                onchange={ ctx.link().callback(|event| match event {
-                                    ChangeData::Select(elem) => {
-                                        let value = elem.value();
-                                        Msg::ChangePublicationType(
-                                            PublicationType::from_str(&value).unwrap()
-                                        )
-                                    }
-                                    _ => unreachable!(),
-                                }) }
+                                onchange={ ctx.link().callback(|e: Event|
+                                    Msg::ChangePublicationType(PublicationType::from_str(&e.to_value()).unwrap())
+                                ) }
                                 required = true
                             />
                             <FormTextInputExtended
@@ -490,10 +484,7 @@ impl Component for PublicationModalComponent {
                                                 <input
                                                     type="checkbox"
                                                     checked={ self.convert_dimensions }
-                                                    onchange={ ctx.link().callback(|event| match event {
-                                                        ChangeData::Value(_) => Msg::ToggleDimensionConversion,
-                                                        _ => unreachable!(),
-                                                    }) }
+                                                    onchange={ ctx.link().callback(|e: Event| Msg::ToggleDimensionConversion) }
                                                 />
                                                 { "Automatically convert dimension values" }
                                             </label>

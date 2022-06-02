@@ -278,15 +278,9 @@ impl Component for SubjectsFormComponent {
                                     label = "Subject Type"
                                     value={ self.new_subject.subject_type.clone() }
                                     data={ self.data.subject_types.clone() }
-                                    onchange={ ctx.link().callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            Msg::ChangeSubjectType(
-                                                SubjectType::from_str(&value).unwrap()
-                                            )
-                                        }
-                                        _ => unreachable!(),
-                                    }) }
+                                    onchange={ ctx.link().callback(|e: Event|
+                                        Msg::ChangeSubjectType(SubjectType::from_str(&e.to_value()).unwrap())
+                                    ) }
                                     required = true
                                 />
                                 <FormTextInput

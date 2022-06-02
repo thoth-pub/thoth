@@ -302,28 +302,17 @@ impl Component for LocationsFormComponent {
                                     label = "Location Platform"
                                     value={ self.new_location.location_platform.clone() }
                                     data={ self.data.location_platforms.clone() }
-                                    onchange={ ctx.link().callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            Msg::ChangeLocationPlatform(
-                                                LocationPlatform::from_str(&value).unwrap()
-                                            )
-                                        }
-                                        _ => unreachable!(),
-                                    }) }
+                                    onchange={ ctx.link().callback(|e: Event|
+                                        Msg::ChangeLocationPlatform(LocationPlatform::from_str(&e.to_value()).unwrap())
+                                    ) }
                                     required = true
                                 />
                                 <FormBooleanSelect
                                     label = "Canonical"
                                     value={ self.new_location.canonical }
-                                    onchange={ ctx.link().callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            let boolean = value == "true";
-                                            Msg::ChangeCanonical(boolean)
-                                        }
-                                        _ => unreachable!(),
-                                    }) }
+                                    onchange={ ctx.link().callback(|e: Event|
+                                        Msg::ChangeCanonical(e.to_value() == "true")
+                                    ) }
                                     required = true
                                 />
                             </form>

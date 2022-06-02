@@ -463,13 +463,9 @@ impl Component for AffiliationsFormComponent {
                                     label = "Institution"
                                     value={ self.affiliation.institution_id }
                                     data={ self.data.institutions.clone() }
-                                    onchange={ ctx.link().callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            Msg::ChangeInstitution(Uuid::parse_str(&value).unwrap_or_default())
-                                        }
-                                        _ => unreachable!(),
-                                    }) }
+                                    onchange={ ctx.link().callback(|e: Event|
+                                        Msg::ChangeInstitution(Uuid::parse_str(&e.to_value()).unwrap_or_default())
+                                    ) }
                                     required = true
                                 />
                                 <FormTextInput

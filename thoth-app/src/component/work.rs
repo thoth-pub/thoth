@@ -583,39 +583,27 @@ impl Component for WorkComponent {
                                         value={ self.work.work_type.clone() }
                                         data={ self.data.work_types.clone() }
                                         deactivate={ deactivated_types.clone() }
-                                        onchange={ ctx.link().callback(|event| match event {
-                                            ChangeData::Select(elem) => {
-                                                let value = elem.value();
-                                                Msg::ChangeWorkType(WorkType::from_str(&value).unwrap())
-                                            }
-                                            _ => unreachable!(),
-                                        }) }
+                                        onchange={ ctx.link().callback(|e: Event|
+                                            Msg::ChangeWorkType(WorkType::from_str(&e.to_value()).unwrap())
+                                        ) }
                                         required = true
                                     />
                                     <FormWorkStatusSelect
                                         label = "Work Status"
                                         value={ self.work.work_status.clone() }
                                         data={ self.data.work_statuses.clone() }
-                                        onchange={ ctx.link().callback(|event| match event {
-                                            ChangeData::Select(elem) => {
-                                                let value = elem.value();
-                                                Msg::ChangeWorkStatus(WorkStatus::from_str(&value).unwrap())
-                                            }
-                                            _ => unreachable!(),
-                                        }) }
+                                        onchange={ ctx.link().callback(|e: Event|
+                                            Msg::ChangeWorkStatus(WorkStatus::from_str(&e.to_value()).unwrap())
+                                        ) }
                                         required = true
                                     />
                                     <FormImprintSelect
                                         label = "Imprint"
                                         value={ self.work.imprint.imprint_id }
                                         data={ imprints.clone() }
-                                        onchange={ ctx.link().callback(|event| match event {
-                                            ChangeData::Select(elem) => {
-                                                let value = elem.value();
-                                                Msg::ChangeImprint(Uuid::parse_str(&value).unwrap_or_default())
-                                            }
-                                            _ => unreachable!(),
-                                        }) }
+                                        onchange={ ctx.link().callback(|e: Event|
+                                            Msg::ChangeImprint(Uuid::parse_str(&e.to_value()).unwrap_or_default())
+                                        ) }
                                         required = true
                                     />
                                 </div>
