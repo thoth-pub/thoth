@@ -69,11 +69,17 @@ impl XmlSpecification for Onix3Overdrive {
 
 impl XmlElementBlock<Onix3Overdrive> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        // Don't output works with no publication date (mandatory in Google Books)
+        // Don't output works with no publication date (mandatory in OverDrive)
         if self.publication_date.is_none() {
             Err(ThothError::IncompleteMetadataRecord(
                 "onix_3.0::overdrive".to_string(),
                 "Missing Publication Date".to_string(),
+            ))
+        // Don't output works with no long abstract (Description element mandatory in OverDrive)
+        } else if self.long_abstract.is_none() {
+            Err(ThothError::IncompleteMetadataRecord(
+                "onix_3.0::overdrive".to_string(),
+                "Missing Long Abstract".to_string(),
             ))
         // Don't output works with no contributors (at least one required for Google Books)
         } else if self.contributions.is_empty() {
@@ -241,54 +247,40 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                         })
                     })
                 })?;
-                if self.long_abstract.is_some() || self.toc.is_some() {
-                    let mut lang_fmt: HashMap<&str, &str> = HashMap::new();
-                    lang_fmt.insert("language", "eng");
-                    write_element_block("CollateralDetail", w, |w| {
-                        if let Some(labstract) = &self.long_abstract {
-                            write_element_block("TextContent", w, |w| {
-                                // 03 Description ("30 Abstract" not implemented in Google Books)
-                                write_element_block("TextType", w, |w| {
-                                    w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
-                                })?;
-                                // 00 Unrestricted
-                                write_element_block("ContentAudience", w, |w| {
-                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                                })?;
-                                write_full_element_block(
-                                    "Text",
-                                    None,
-                                    Some(lang_fmt.clone()),
-                                    w,
-                                    |w| {
-                                        w.write(XmlEvent::Characters(labstract))
-                                            .map_err(|e| e.into())
-                                    },
-                                )
-                            })?;
-                        }
-                        if let Some(toc) = &self.toc {
-                            write_element_block("TextContent", w, |w| {
-                                // 04 Table of contents
-                                write_element_block("TextType", w, |w| {
-                                    w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
-                                })?;
-                                // 00 Unrestricted
-                                write_element_block("ContentAudience", w, |w| {
-                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                                })?;
-                                write_full_element_block(
-                                    "Text",
-                                    None,
-                                    Some(lang_fmt.clone()),
-                                    w,
-                                    |w| w.write(XmlEvent::Characters(toc)).map_err(|e| e.into()),
-                                )
-                            })?;
-                        }
-                        Ok(())
+                let mut lang_fmt: HashMap<&str, &str> = HashMap::new();
+                lang_fmt.insert("language", "eng");
+                write_element_block("CollateralDetail", w, |w| {
+                    write_element_block("TextContent", w, |w| {
+                        // 03 Description ("30 Abstract" not implemented in OverDrive)
+                        write_element_block("TextType", w, |w| {
+                            w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
+                        })?;
+                        // 00 Unrestricted
+                        write_element_block("ContentAudience", w, |w| {
+                            w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                        })?;
+                        write_full_element_block("Text", None, Some(lang_fmt.clone()), w, |w| {
+                            w.write(XmlEvent::Characters(self.long_abstract.as_ref().unwrap()))
+                                .map_err(|e| e.into())
+                        })
                     })?;
-                }
+                    if let Some(toc) = &self.toc {
+                        write_element_block("TextContent", w, |w| {
+                            // 04 Table of contents
+                            write_element_block("TextType", w, |w| {
+                                w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
+                            })?;
+                            // 00 Unrestricted
+                            write_element_block("ContentAudience", w, |w| {
+                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                            })?;
+                            write_full_element_block("Text", None, Some(lang_fmt.clone()), w, |w| {
+                                w.write(XmlEvent::Characters(toc)).map_err(|e| e.into())
+                            })
+                        })?;
+                    }
+                    Ok(())
+                })?;
                 // Google Books also supports <ContentDetail> blocks for chapter information.
                 // Omitted at present but could be considered as a future enhancement.
                 write_element_block("PublishingDetail", w, |w| {
@@ -314,7 +306,7 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                         date_fmt.insert("dateformat", "00"); // 00 YYYYMMDD
 
                         write_element_block("PublishingDateRole", w, |w| {
-                            // 01 Publishing Date (19 not supported by Google Books)
+                            // 01 Publishing Date (19 not supported by OverDrive)
                             w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                         })?;
                         // dateformat="00" YYYYMMDD
@@ -381,9 +373,25 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                             })
                         })?;
                         // 20 Available from us (form of availability unspecified)
-                        // (99 Contact supplier is not supported by Google Books)
+                        // (99 Contact supplier is not supported by OverDrive)
                         write_element_block("ProductAvailability", w, |w| {
                             w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("SupplyDate", w, |w| {
+                            let mut date_fmt: HashMap<&str, &str> = HashMap::new();
+                            date_fmt.insert("dateformat", "00"); // 00 YYYYMMDD
+
+                            write_element_block("SupplyDateRole", w, |w| {
+                                // 02 Embargo Date
+                                w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                            })?;
+                            // dateformat="00" YYYYMMDD
+                            write_full_element_block("Date", None, Some(date_fmt), w, |w| {
+                                w.write(XmlEvent::Characters(
+                                    &self.publication_date.unwrap().format("%Y%m%d").to_string(),
+                                ))
+                                .map_err(|e| e.into())
+                            })
                         })?;
                         // Assume that the GBP price is the canonical one, currency conversion is
                         // turned on (a Google Books account setting which cannot be specified in the ONIX),
@@ -1019,6 +1027,9 @@ mod tests {
         assert!(output.contains(r#"        <SupplierRole>09</SupplierRole>"#));
         assert!(output.contains(r#"        <SupplierName>OA Editions</SupplierName>"#));
         assert!(output.contains(r#"      <ProductAvailability>20</ProductAvailability>"#));
+        assert!(output.contains(r#"      <SupplyDate>"#));
+        assert!(output.contains(r#"        <SupplyDateRole>02</SupplyDateRole>"#));
+        assert!(output.contains(r#"        <Date dateformat="00">19991231</Date>"#));
         assert!(output.contains(r#"      <Price>"#));
         assert!(output.contains(r#"        <PriceType>02</PriceType>"#));
         assert!(output.contains(r#"        <PriceAmount>4.95</PriceAmount>"#));
@@ -1029,7 +1040,7 @@ mod tests {
         // Remove/change some values to test (non-)output of optional blocks
         test_work.subtitle = None;
         test_work.page_count = None;
-        test_work.long_abstract = None;
+        test_work.toc = None;
         test_work.publications[0].prices.pop();
         test_work.publications[0].publication_type = PublicationType::EPUB;
         test_work.subjects.clear();
@@ -1044,13 +1055,14 @@ mod tests {
         assert!(!output.contains(r#"      <ExtentType>00</ExtentType>"#));
         assert!(!output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
         assert!(!output.contains(r#"      <ExtentUnit>03</ExtentUnit>"#));
-        // No long abstract supplied: CollateralDetail block only contains table of contents
+        // No table of contents supplied: CollateralDetail block only contains long abstract
         assert!(output.contains(r#"  <CollateralDetail>"#));
         assert!(output.contains(r#"    <TextContent>"#));
-        assert!(output.contains(r#"      <TextType>04</TextType>"#));
-        assert!(output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
-        assert!(!output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(output.contains(r#"      <TextType>03</TextType>"#));
+        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
+        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
+        assert!(!output.contains(r#"      <TextType>04</TextType>"#));
+        assert!(!output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
         // No GBP price supplied
         assert!(!output.contains(r#"      <Price>"#));
         assert!(!output.contains(r#"        <PriceType>02</PriceType>"#));
@@ -1071,32 +1083,16 @@ mod tests {
         assert!(!output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
         assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
 
-        // Replace long abstract but remove table of contents
-        // Result: CollateralDetail block still present, but now only contains long abstract
-        test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
-        test_work.toc = None;
-        let output = generate_test_output(true, &test_work);
-        assert!(output.contains(r#"  <CollateralDetail>"#));
-        assert!(output.contains(r#"    <TextContent>"#));
-        assert!(output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        assert!(!output.contains(r#"      <TextType>04</TextType>"#));
-        assert!(!output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
-
-        // Remove both table of contents and long abstract
-        // Result: No CollateralDetail block present at all
+        // Remove long abstract: result is error
         test_work.long_abstract = None;
-        let output = generate_test_output(true, &test_work);
-        assert!(!output.contains(r#"  <CollateralDetail>"#));
-        assert!(!output.contains(r#"    <TextContent>"#));
-        assert!(!output.contains(r#"      <TextType>03</TextType>"#));
-        assert!(!output.contains(r#"      <ContentAudience>00</ContentAudience>"#));
-        assert!(!output.contains(r#"      <Text language="eng">Lorem ipsum dolor sit amet</Text>"#));
-        assert!(!output.contains(r#"      <TextType>04</TextType>"#));
-        assert!(!output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::overdrive: Missing Long Abstract".to_string()
+        );
 
-        // Remove publication date: result is error
+        // Replace long abstract but remove publication date: result is error
+        test_work.long_abstract = Some("Lorem ipsum dolor sit amet".to_string());
         test_work.publication_date = None;
         let output = generate_test_output(false, &test_work);
         assert_eq!(
