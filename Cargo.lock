@@ -107,7 +107,7 @@ dependencies = [
  "firestorm",
  "http 0.2.6",
  "log",
- "regex 1.5.4",
+ "regex 1.5.5",
  "serde",
 ]
 
@@ -190,7 +190,7 @@ dependencies = [
  "mime",
  "once_cell",
  "pin-project-lite",
- "regex 1.5.4",
+ "regex 1.5.5",
  "serde",
  "serde_json",
  "serde_urlencoded 0.7.0",
@@ -738,7 +738,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "libc",
  "parking_lot 0.12.0",
- "regex 1.5.4",
+ "regex 1.5.5",
  "termios",
  "unicode-width",
  "winapi 0.3.9",
@@ -753,7 +753,7 @@ dependencies = [
  "encode_unicode",
  "lazy_static 1.4.0",
  "libc",
- "regex 1.5.4",
+ "regex 1.5.5",
  "terminal_size",
  "unicode-width",
  "winapi 0.3.9",
@@ -1173,7 +1173,7 @@ dependencies = [
  "atty",
  "humantime",
  "log",
- "regex 1.5.4",
+ "regex 1.5.5",
  "termcolor",
 ]
 
@@ -2388,7 +2388,7 @@ version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7edc011af0ae98b7f88cf7e4a83b70a54a75d2b8cb013d6efd02e5956207e9eb"
 dependencies = [
- "regex 1.5.4",
+ "regex 1.5.5",
 ]
 
 [[package]]
@@ -2419,7 +2419,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "thiserror",
- "url 1.7.2",
+ "url 2.2.2",
 ]
 
 [[package]]
@@ -2450,12 +2450,12 @@ dependencies = [
  "paperclip-macros",
  "parking_lot 0.12.0",
  "pin-project",
- "regex 1.5.4",
+ "regex 1.5.5",
  "serde",
  "serde_json",
  "serde_yaml",
  "thiserror",
- "uuid 0.7.4",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -2586,7 +2586,7 @@ checksum = "59698ea79df9bf77104aefd39cc3ec990cb9693fb59c3b0a70ddf2646fdffb4b"
 dependencies = [
  "base64 0.12.3",
  "once_cell",
- "regex 1.5.4",
+ "regex 1.5.5",
 ]
 
 [[package]]
@@ -2782,7 +2782,7 @@ dependencies = [
  "error-chain",
  "idna 0.2.0",
  "lazy_static 1.4.0",
- "regex 1.5.4",
+ "regex 1.5.5",
  "url 2.2.2",
 ]
 
@@ -3094,9 +3094,9 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.5.4"
+version = "1.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d07a8629359eb56f1e2fb1652bb04212c072a87ba68546a04065d525673ac461"
+checksum = "1a11647b6b25ff05a515cb92c365cec08801e83423a235b51e231e1808747286"
 dependencies = [
  "aho-corasick 0.7.18",
  "memchr",
@@ -3821,7 +3821,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "phf",
  "rand 0.7.3",
- "regex 1.5.4",
+ "regex 1.5.5",
  "serde",
  "serde_derive",
  "serde_json",
