@@ -33,7 +33,7 @@ pub struct LoginComponent {
     router: RouteAgentDispatcher<()>,
 }
 
-#[derive(Properties, Clone)]
+#[derive(Clone, PartialEq, Properties)]
 pub struct Props {
     pub callback: Callback<AccountDetails>,
     pub current_user: Option<AccountDetails>,

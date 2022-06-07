@@ -80,7 +80,7 @@ pub enum Msg {
     ChangeSeriesCfpUrl(String),
     ChangeRoute(AppRoute),
 }
-#[derive(Clone, Properties)]
+#[derive(Clone, PartialEq, Properties)]
 pub struct Props {
     pub current_user: AccountDetails,
 }

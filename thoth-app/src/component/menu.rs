@@ -8,7 +8,7 @@ use crate::route::AppRoute;
 
 pub struct MenuComponent {}
 
-#[derive(Clone, Properties)]
+#[derive(Clone, PartialEq, Properties)]
 pub struct Props {
     pub route: AdminRoute,
 }

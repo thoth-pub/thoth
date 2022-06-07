@@ -14,7 +14,7 @@ pub enum Msg {
     Logout,
 }
 
-#[derive(Properties, Clone)]
+#[derive(Clone, PartialEq, Properties)]
 pub struct Props {
     pub current_user: Option<AccountDetails>,
     pub callback: Callback<()>,

@@ -67,7 +67,7 @@ pub enum Msg {
     ChangeRoute(AppRoute),
 }
 
-#[derive(Clone, Properties)]
+#[derive(Clone, PartialEq, Properties)]
 pub struct Props {
     pub publisher_id: Uuid,
     pub current_user: AccountDetails,

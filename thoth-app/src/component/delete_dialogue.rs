@@ -5,7 +5,7 @@ use yew::prelude::*;
 
 pub struct ConfirmDeleteComponent {}
 
-#[derive(Clone, Properties)]
+#[derive(Clone, PartialEq, Properties)]
 pub struct Props {
     pub onclick: Callback<MouseEvent>,
     pub object_name: String,
