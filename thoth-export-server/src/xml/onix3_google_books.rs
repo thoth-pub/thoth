@@ -397,13 +397,14 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                             })
                             .map(|pr| pr.unit_price)
                         {
+                            let formatted_price = format!("{:.2}", price);
                             write_element_block("Price", w, |w| {
                                 // 02 RRP including tax
                                 write_element_block("PriceType", w, |w| {
                                     w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
                                 })?;
                                 write_element_block("PriceAmount", w, |w| {
-                                    w.write(XmlEvent::Characters(&price.to_string()))
+                                    w.write(XmlEvent::Characters(&formatted_price))
                                         .map_err(|e| e.into())
                                 })?;
                                 write_element_block("CurrencyCode", w, |w| {
@@ -887,7 +888,7 @@ mod tests {
                     },
                     WorkPublicationsPrices {
                         currency_code: CurrencyCode::GBP,
-                        unit_price: 4.95,
+                        unit_price: 5.0,
                     },
                 ],
                 locations: vec![WorkPublicationsLocations {
@@ -1021,7 +1022,7 @@ mod tests {
         assert!(output.contains(r#"      <ProductAvailability>20</ProductAvailability>"#));
         assert!(output.contains(r#"      <Price>"#));
         assert!(output.contains(r#"        <PriceType>02</PriceType>"#));
-        assert!(output.contains(r#"        <PriceAmount>4.95</PriceAmount>"#));
+        assert!(output.contains(r#"        <PriceAmount>5.00</PriceAmount>"#));
         assert!(output.contains(r#"        <CurrencyCode>GBP</CurrencyCode>"#));
         assert!(output.contains(r#"        <Territory>"#));
         assert!(output.contains(r#"          <RegionsIncluded>WORLD</RegionsIncluded>"#));
@@ -1054,7 +1055,7 @@ mod tests {
         // No GBP price supplied
         assert!(!output.contains(r#"      <Price>"#));
         assert!(!output.contains(r#"        <PriceType>02</PriceType>"#));
-        assert!(!output.contains(r#"        <PriceAmount>4.95</PriceAmount>"#));
+        assert!(!output.contains(r#"        <PriceAmount>5.00</PriceAmount>"#));
         assert!(!output.contains(r#"        <CurrencyCode>GBP</CurrencyCode>"#));
         assert!(!output.contains(r#"        <Territory>"#));
         assert!(!output.contains(r#"          <RegionsIncluded>WORLD</RegionsIncluded>"#));
