@@ -3948,6 +3948,7 @@ version = "0.8.5"
 dependencies = [
  "anyhow",
  "chrono",
+ "gloo-storage",
  "gloo-timers",
  "log",
  "semver 0.11.0",

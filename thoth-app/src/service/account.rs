@@ -1,3 +1,4 @@
+use gloo_storage::LocalStorage;
 use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
@@ -11,10 +12,7 @@ use yew::services::fetch::FetchService;
 use yew::services::fetch::FetchTask;
 use yew::services::fetch::Request;
 use yew::services::fetch::Response;
-use yew::services::storage::Area;
-use yew::services::storage::StorageService;
 
-use crate::string::STORAGE_ERROR;
 use crate::SESSION_KEY;
 
 #[derive(Debug, Error)]
@@ -36,8 +34,7 @@ impl AccountService {
     }
 
     pub fn get_token(&self) -> Option<String> {
-        let storage_service = StorageService::new(Area::Local).expect(STORAGE_ERROR);
-        if let Ok(token) = storage_service.restore(SESSION_KEY) {
+        if let Ok(token) = LocalStorage.get(SESSION_KEY) {
             Some(token)
         } else {
             None
@@ -49,11 +46,10 @@ impl AccountService {
     }
 
     fn update_storage(&self, token: Option<String>) {
-        let mut storage_service = StorageService::new(Area::Local).expect(STORAGE_ERROR);
         if let Some(t) = token {
-            storage_service.store(SESSION_KEY, Ok(t));
+            LocalStorage.set(SESSION_KEY, Ok(t));
         } else {
-            storage_service.remove(SESSION_KEY);
+            LocalStorage.delete(SESSION_KEY);
         }
     }
 
