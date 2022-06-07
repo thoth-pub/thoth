@@ -6,11 +6,9 @@ macro_rules! timer_agent {
         $agent_request:ident,
         $agent_response:ident,
     ) => {
+        use gloo_timers::callback::Interval;
         use serde::Deserialize;
         use serde::Serialize;
-        use std::time::Duration;
-        use yew::services::IntervalService;
-        use yew::services::Task;
         use yew::Callback;
         use yew_agent::{Agent, AgentLink, Context, Dispatcher, HandlerId};
 
@@ -26,7 +24,7 @@ macro_rules! timer_agent {
 
         pub struct $agent {
             _link: AgentLink<$agent>,
-            timer_task: Option<Box<dyn Task>>,
+            timer_task: Option<Interval>,
         }
 
         impl Agent for $agent {
@@ -47,12 +45,11 @@ macro_rules! timer_agent {
             fn handle_input(&mut self, msg: Self::Input, _: HandlerId) {
                 match msg {
                     $agent_request::Start(callback) => {
-                        let handle = IntervalService::spawn(Duration::from_secs(60), callback);
-                        self.timer_task = Some(Box::new(handle));
+                        let timer_task = Some(Interval::new(60_000, callback));
                     }
                     $agent_request::Stop => {
-                        if self.timer_task.take().is_some() {
-                            self.timer_task = None;
+                        if self.timer_task.is_some() {
+                            self.timer_task.cancel();
                         }
                     }
                 }
