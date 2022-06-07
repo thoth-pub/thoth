@@ -392,71 +392,115 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                             })
                         })
                     })?;
-                    write_element_block("SupplyDetail", w, |w| {
-                        write_element_block("Supplier", w, |w| {
-                            // 09 Publisher to end-customers
-                            write_element_block("SupplierRole", w, |w| {
-                                w.write(XmlEvent::Characters("09")).map_err(|e| e.into())
-                            })?;
-                            write_element_block("SupplierName", w, |w| {
-                                w.write(XmlEvent::Characters(
-                                    &self.imprint.publisher.publisher_name,
-                                ))
-                                .map_err(|e| e.into())
-                            })
-                        })?;
-                        // 20 Available from us (form of availability unspecified)
-                        // (99 Contact supplier is not supported by OverDrive)
-                        write_element_block("ProductAvailability", w, |w| {
-                            w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
-                        })?;
-                        write_element_block("SupplyDate", w, |w| {
-                            let mut date_fmt: HashMap<&str, &str> = HashMap::new();
-                            date_fmt.insert("dateformat", "00"); // 00 YYYYMMDD
-
-                            write_element_block("SupplyDateRole", w, |w| {
-                                // 02 Embargo Date
-                                w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                            })?;
-                            // dateformat="00" YYYYMMDD
-                            write_full_element_block("Date", None, Some(date_fmt), w, |w| {
-                                w.write(XmlEvent::Characters(
-                                    &self.publication_date.unwrap().format("%Y%m%d").to_string(),
-                                ))
-                                .map_err(|e| e.into())
-                            })
-                        })?;
-                        // Price element is required for OverDrive. Assume the USD price is canonical.
-                        // If no USD price found (e.g. for PDFs), assume the price point is zero.
-                        let price = main_publication
-                            .prices
+                    let mut supplies: HashMap<String, (String, String)> = HashMap::new();
+                    supplies.insert(
+                        // Main publication's canonical location is guaranteed to have a full text URL
+                        main_publication
+                            .locations
                             .iter()
-                            .find(|pr| {
-                                // Thoth database only accepts non-zero prices
-                                pr.currency_code.eq(&CurrencyCode::USD)
-                            })
-                            .map(|pr| pr.unit_price)
-                            .unwrap_or(0.0);
-                        let formatted_price = format!("{:.2}", price);
-                        write_element_block("Price", w, |w| {
-                            // 02 RRP including tax
-                            write_element_block("PriceType", w, |w| {
-                                w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                            })?;
-                            write_element_block("PriceAmount", w, |w| {
-                                w.write(XmlEvent::Characters(&formatted_price))
+                            .find(|l| l.canonical)
+                            .and_then(|l| l.full_text_url.clone())
+                            .unwrap(),
+                        (
+                            "29".to_string(),
+                            "Publisher's website: download the title".to_string(),
+                        ),
+                    );
+                    if let Some(landing_page) = &self.landing_page {
+                        supplies.insert(
+                            landing_page.to_string(),
+                            (
+                                "01".to_string(),
+                                "Publisher's website: web shop".to_string(),
+                            ),
+                        );
+                    }
+                    for (url, description) in supplies.iter() {
+                        write_element_block("SupplyDetail", w, |w| {
+                            write_element_block("Supplier", w, |w| {
+                                // 09 Publisher to end-customers
+                                write_element_block("SupplierRole", w, |w| {
+                                    w.write(XmlEvent::Characters("09")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("SupplierName", w, |w| {
+                                    w.write(XmlEvent::Characters(
+                                        &self.imprint.publisher.publisher_name,
+                                    ))
                                     .map_err(|e| e.into())
+                                })?;
+                                write_element_block("Website", w, |w| {
+                                    // 01 Publisher’s corporate website
+                                    write_element_block("WebsiteRole", w, |w| {
+                                        w.write(XmlEvent::Characters(&description.0))
+                                            .map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("WebsiteDescription", w, |w| {
+                                        w.write(XmlEvent::Characters(&description.1))
+                                            .map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("WebsiteLink", w, |w| {
+                                        w.write(XmlEvent::Characters(url)).map_err(|e| e.into())
+                                    })
+                                })
                             })?;
-                            write_element_block("CurrencyCode", w, |w| {
-                                w.write(XmlEvent::Characters("USD")).map_err(|e| e.into())
+                            // 20 Available from us (form of availability unspecified)
+                            // (99 Contact supplier is not supported by OverDrive)
+                            write_element_block("ProductAvailability", w, |w| {
+                                w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
                             })?;
-                            write_element_block("Territory", w, |w| {
-                                write_element_block("RegionsIncluded", w, |w| {
-                                    w.write(XmlEvent::Characters("WORLD")).map_err(|e| e.into())
+                            write_element_block("SupplyDate", w, |w| {
+                                let mut date_fmt: HashMap<&str, &str> = HashMap::new();
+                                date_fmt.insert("dateformat", "00"); // 00 YYYYMMDD
+
+                                write_element_block("SupplyDateRole", w, |w| {
+                                    // 02 Embargo Date
+                                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                                })?;
+                                // dateformat="00" YYYYMMDD
+                                write_full_element_block("Date", None, Some(date_fmt), w, |w| {
+                                    w.write(XmlEvent::Characters(
+                                        &self
+                                            .publication_date
+                                            .unwrap()
+                                            .format("%Y%m%d")
+                                            .to_string(),
+                                    ))
+                                    .map_err(|e| e.into())
+                                })
+                            })?;
+                            // Price element is required for OverDrive. Assume the USD price is canonical.
+                            // If no USD price found (e.g. for PDFs), assume the price point is zero.
+                            let price = main_publication
+                                .prices
+                                .iter()
+                                .find(|pr| {
+                                    // Thoth database only accepts non-zero prices
+                                    pr.currency_code.eq(&CurrencyCode::USD)
+                                })
+                                .map(|pr| pr.unit_price)
+                                .unwrap_or(0.0);
+                            let formatted_price = format!("{:.2}", price);
+                            write_element_block("Price", w, |w| {
+                                // 02 RRP including tax
+                                write_element_block("PriceType", w, |w| {
+                                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("PriceAmount", w, |w| {
+                                    w.write(XmlEvent::Characters(&formatted_price))
+                                        .map_err(|e| e.into())
+                                })?;
+                                write_element_block("CurrencyCode", w, |w| {
+                                    w.write(XmlEvent::Characters("USD")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("Territory", w, |w| {
+                                    write_element_block("RegionsIncluded", w, |w| {
+                                        w.write(XmlEvent::Characters("WORLD")).map_err(|e| e.into())
+                                    })
                                 })
                             })
-                        })
-                    })
+                        })?;
+                    }
+                    Ok(())
                 })
             })
         } else {
@@ -1202,6 +1246,12 @@ mod tests {
         assert!(output.contains(r#"      <Supplier>"#));
         assert!(output.contains(r#"        <SupplierRole>09</SupplierRole>"#));
         assert!(output.contains(r#"        <SupplierName>OA Editions</SupplierName>"#));
+        assert!(output.contains(r#"        <Website>"#));
+        assert!(output.contains(r#"          <WebsiteRole>01</WebsiteRole>"#));
+        assert!(output.contains(
+            r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
+        ));
+        assert!(output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
         assert!(output.contains(r#"      <ProductAvailability>20</ProductAvailability>"#));
         assert!(output.contains(r#"      <SupplyDate>"#));
         assert!(output.contains(r#"        <SupplyDateRole>02</SupplyDateRole>"#));
@@ -1212,6 +1262,11 @@ mod tests {
         assert!(output.contains(r#"        <CurrencyCode>USD</CurrencyCode>"#));
         assert!(output.contains(r#"        <Territory>"#));
         assert!(output.contains(r#"          <RegionsIncluded>WORLD</RegionsIncluded>"#));
+        assert!(output.contains(r#"          <WebsiteRole>29</WebsiteRole>"#));
+        assert!(output.contains(r#"          <WebsiteDescription>Publisher's website: download the title</WebsiteDescription>"#));
+        assert!(output.contains(
+            r#"          <WebsiteLink>https://www.book.com/ebook_fulltext</WebsiteLink>"#
+        ));
 
         // Remove/change some values to test (non-)output of optional blocks
         test_work.doi = None;
@@ -1221,6 +1276,7 @@ mod tests {
         test_work.toc = None;
         test_work.cover_url = None;
         test_work.place = None;
+        test_work.landing_page = None;
         test_work.publications[0].prices.pop();
         test_work.publications[0].publication_type = PublicationType::EPUB;
         test_work.subjects.clear();
@@ -1263,6 +1319,12 @@ mod tests {
             .contains(r#"        <ResourceLink>"https://www.book.com/cover"</ResourceLink>"#));
         // No place supplied
         assert!(!output.contains(r#"    <CityOfPublication>León, Spain</CityOfPublication>"#));
+        // No landing page supplied: only one SupplyDetail block, linking to ebook download
+        assert!(!output.contains(r#"          <WebsiteRole>01</WebsiteRole>"#));
+        assert!(!output.contains(
+            r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
+        ));
+        assert!(!output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
         // No USD price supplied: PriceAmount is zero
         assert!(output.contains(r#"      <Price>"#));
         assert!(output.contains(r#"        <PriceType>02</PriceType>"#));
