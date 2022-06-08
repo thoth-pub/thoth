@@ -5,6 +5,7 @@ use thoth_api::model::{Doi, Ror, DOI_DOMAIN, ROR_DOMAIN};
 use thoth_errors::ThothError;
 use yew::html;
 use yew::prelude::*;
+use yew_agent::Dispatched;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 use yew_router::route::Route;

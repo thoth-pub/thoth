@@ -3,6 +3,7 @@ use thoth_api::model::institution::Institution;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
+use yew_agent::Dispatched;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;

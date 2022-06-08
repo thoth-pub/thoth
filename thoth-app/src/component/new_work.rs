@@ -10,6 +10,7 @@ use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
+use yew_agent::Dispatched;
 use yew_router::agent::RouteAgentDispatcher;
 use yew_router::agent::RouteRequest;
 use yew_router::route::Route;
