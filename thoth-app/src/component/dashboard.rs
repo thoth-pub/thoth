@@ -7,6 +7,7 @@ use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
 use yewtil::future::LinkFuture;
+use yewtil::NeqAssign;
 
 use crate::component::utils::Loader;
 use crate::component::utils::Reloader;
@@ -43,7 +44,7 @@ impl Component for DashboardComponent {
 
         DashboardComponent {
             get_stats: Default::default(),
-            resource_access: ctx.props().current_user.resource_access,
+            resource_access: ctx.props().current_user.resource_access.clone(),
         }
     }
 
@@ -75,7 +76,7 @@ impl Component for DashboardComponent {
     fn changed(&mut self, ctx: &Context<Self>) -> bool {
         let updated_permissions = self
             .resource_access
-            .neq_assign(ctx.props().current_user.resource_access);
+            .neq_assign(ctx.props().current_user.resource_access.clone());
         if updated_permissions {
             ctx.link().send_message(Msg::GetStats);
         }

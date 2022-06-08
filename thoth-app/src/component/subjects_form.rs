@@ -181,8 +181,8 @@ impl Component for SubjectsFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_subject {
                         Some(subject) => {
-                            let to_keep: Vec<Subject> = self
-                                .props
+                            let to_keep: Vec<Subject> = ctx
+                                .props()
                                 .subjects
                                 .clone()
                                 .unwrap_or_default()

@@ -434,6 +434,7 @@ impl Component for AffiliationsFormComponent {
 
     fn changed(&mut self, ctx: &Context<Self>) -> bool {
         ctx.link().send_message(Msg::GetAffiliations);
+        false
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {

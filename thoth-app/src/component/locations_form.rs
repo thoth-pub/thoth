@@ -193,8 +193,8 @@ impl Component for LocationsFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_location {
                         Some(location) => {
-                            let to_keep: Vec<Location> = self
-                                .props
+                            let to_keep: Vec<Location> = ctx
+                                .props()
                                 .locations
                                 .clone()
                                 .unwrap_or_default()

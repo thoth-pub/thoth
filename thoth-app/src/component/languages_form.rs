@@ -41,6 +41,8 @@ use crate::string::NO;
 use crate::string::REMOVE_BUTTON;
 use crate::string::YES;
 
+use super::ToElementValue;
+
 pub struct LanguagesFormComponent {
     data: LanguagesFormData,
     new_language: Language,
@@ -213,8 +215,8 @@ impl Component for LanguagesFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_language {
                         Some(language) => {
-                            let to_keep: Vec<Language> = self
-                                .props
+                            let to_keep: Vec<Language> = ctx
+                                .props()
                                 .languages
                                 .clone()
                                 .unwrap_or_default()

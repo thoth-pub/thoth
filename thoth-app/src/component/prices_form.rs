@@ -179,8 +179,8 @@ impl Component for PricesFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_price {
                         Some(price) => {
-                            let to_keep: Vec<Price> = self
-                                .props
+                            let to_keep: Vec<Price> = ctx
+                                .props()
                                 .prices
                                 .clone()
                                 .unwrap_or_default()

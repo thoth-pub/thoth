@@ -7,6 +7,7 @@ use yew::services::fetch::FetchTask;
 use yew::virtual_dom::VNode;
 use yew::Callback;
 use yew_agent::Bridge;
+use yew_agent::Bridged;
 use yew_agent::Dispatched;
 use yew_router::prelude::*;
 use yew_router::route::Route;

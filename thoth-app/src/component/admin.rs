@@ -75,8 +75,8 @@ impl Component for AdminComponent {
 
     fn rendered(&mut self, ctx: &Context<Self>, _first_render: bool) {
         if ctx.props().current_user.is_some()
-            && self
-                .props
+            && ctx
+                .props()
                 .current_user
                 .as_ref()
                 .unwrap()
@@ -112,8 +112,8 @@ impl Component for AdminComponent {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         if ctx.props().current_user.is_some()
-            && self
-                .props
+            && ctx
+                .props()
                 .current_user
                 .as_ref()
                 .unwrap()

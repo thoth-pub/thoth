@@ -200,8 +200,8 @@ impl Component for IssuesFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_issue {
                         Some(issue) => {
-                            let to_keep: Vec<IssueWithSeries> = self
-                                .props
+                            let to_keep: Vec<IssueWithSeries> = ctx
+                                .props()
                                 .issues
                                 .clone()
                                 .unwrap_or_default()

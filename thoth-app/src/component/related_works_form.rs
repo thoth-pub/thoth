@@ -243,8 +243,8 @@ impl Component for RelatedWorksFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_work_relation {
                         Some(relation) => {
-                            let to_keep: Vec<WorkRelationWithRelatedWork> = self
-                                .props
+                            let to_keep: Vec<WorkRelationWithRelatedWork> = ctx
+                                .props()
                                 .relations
                                 .clone()
                                 .unwrap_or_default()

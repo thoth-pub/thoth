@@ -195,8 +195,8 @@ impl Component for FundingsFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_funding {
                         Some(funding) => {
-                            let to_keep: Vec<FundingWithInstitution> = self
-                                .props
+                            let to_keep: Vec<FundingWithInstitution> = ctx
+                                .props()
                                 .fundings
                                 .clone()
                                 .unwrap_or_default()

@@ -7,6 +7,8 @@ use thoth_api::model::imprint::ImprintField;
 use thoth_api::model::imprint::ImprintOrderBy;
 use thoth_api::model::imprint::ImprintWithPublisher;
 
+use super::ToElementValue;
+
 pagination_component! {
     ImprintsComponent,
     ImprintWithPublisher,

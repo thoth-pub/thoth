@@ -349,8 +349,8 @@ impl Component for ContributionsFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_contribution {
                         Some(contribution) => {
-                            let to_keep: Vec<Contribution> = self
-                                .props
+                            let to_keep: Vec<Contribution> = ctx
+                                .props()
                                 .contributions
                                 .clone()
                                 .unwrap_or_default()

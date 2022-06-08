@@ -124,8 +124,8 @@ impl Component for PublicationsFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_publication {
                         Some(publication) => {
-                            let to_keep: Vec<Publication> = self
-                                .props
+                            let to_keep: Vec<Publication> = ctx
+                                .props()
                                 .publications
                                 .clone()
                                 .unwrap_or_default()
