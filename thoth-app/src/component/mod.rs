@@ -135,7 +135,7 @@ macro_rules! pagination_component {
             SortColumn($order_field),
         }
 
-        #[derive(Clone, PartialEq, Properties)]
+        #[derive(PartialEq, Properties)]
         pub struct Props {
             pub current_user: AccountDetails,
         }

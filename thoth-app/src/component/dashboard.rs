@@ -29,7 +29,7 @@ pub enum Msg {
     GetStats,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct Props {
     pub current_user: AccountDetails,
 }

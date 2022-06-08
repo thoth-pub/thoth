@@ -8,7 +8,7 @@ use crate::{THOTH_EXPORT_API, THOTH_GRAPHQL_API};
 
 pub type HeroComponent = Pure<PureHero>;
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureHero {}
 
 impl PureComponent for PureHero {

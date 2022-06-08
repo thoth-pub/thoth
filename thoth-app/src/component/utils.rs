@@ -70,7 +70,7 @@ pub type FormContributorSelect = Pure<PureContributorSelect>;
 pub type Loader = Pure<PureLoader>;
 pub type Reloader = Pure<PureReloader>;
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureInput {
     pub label: String,
     pub value: String,
@@ -89,7 +89,7 @@ pub struct PureInput {
     pub deactivated: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureTextarea {
     pub label: String,
     pub value: Option<String>,
@@ -104,7 +104,7 @@ pub struct PureTextarea {
 // Variant of PureTextInput which supports tooltips,
 // prepended static buttons, or both together.
 // Also supports deactivating the input.
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureTextInputExtended {
     pub label: String,
     pub value: String,
@@ -124,7 +124,7 @@ pub struct PureTextInputExtended {
     pub deactivated: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureTextInput {
     pub label: String,
     pub value: Option<String>,
@@ -138,7 +138,7 @@ pub struct PureTextInput {
     pub deactivated: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureUrlInput {
     pub label: String,
     pub value: Option<String>,
@@ -150,7 +150,7 @@ pub struct PureUrlInput {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureDateInput {
     pub label: String,
     pub value: Option<String>,
@@ -162,7 +162,7 @@ pub struct PureDateInput {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureFloatInput {
     pub label: String,
     pub value: Option<f64>,
@@ -180,7 +180,7 @@ pub struct PureFloatInput {
     pub deactivated: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureNumberInput {
     pub label: String,
     pub value: Option<i32>,
@@ -196,7 +196,7 @@ pub struct PureNumberInput {
     pub deactivated: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureWorkTypeSelect {
     pub label: String,
     pub data: Vec<WorkTypeValues>,
@@ -209,7 +209,7 @@ pub struct PureWorkTypeSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureWorkStatusSelect {
     pub label: String,
     pub data: Vec<WorkStatusValues>,
@@ -219,7 +219,7 @@ pub struct PureWorkStatusSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureContributionTypeSelect {
     pub label: String,
     pub data: Vec<ContributionTypeValues>,
@@ -229,7 +229,7 @@ pub struct PureContributionTypeSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PurePublicationTypeSelect {
     pub label: String,
     pub data: Vec<PublicationTypeValues>,
@@ -239,7 +239,7 @@ pub struct PurePublicationTypeSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureSubjectTypeSelect {
     pub label: String,
     pub data: Vec<SubjectTypeValues>,
@@ -249,7 +249,7 @@ pub struct PureSubjectTypeSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureSeriesTypeSelect {
     pub label: String,
     pub data: Vec<SeriesTypeValues>,
@@ -259,7 +259,7 @@ pub struct PureSeriesTypeSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureLanguageCodeSelect {
     pub label: String,
     pub data: Vec<LanguageCodeValues>,
@@ -269,7 +269,7 @@ pub struct PureLanguageCodeSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureLanguageRelationSelect {
     pub label: String,
     pub data: Vec<LanguageRelationValues>,
@@ -279,7 +279,7 @@ pub struct PureLanguageRelationSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureCurrencyCodeSelect {
     pub label: String,
     pub data: Vec<CurrencyCodeValues>,
@@ -289,7 +289,7 @@ pub struct PureCurrencyCodeSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureLocationPlatformSelect {
     pub label: String,
     pub data: Vec<LocationPlatformValues>,
@@ -299,7 +299,7 @@ pub struct PureLocationPlatformSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureCountryCodeSelect {
     pub label: String,
     pub data: Vec<CountryCodeValues>,
@@ -309,7 +309,7 @@ pub struct PureCountryCodeSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureRelationTypeSelect {
     pub label: String,
     pub data: Vec<RelationTypeValues>,
@@ -319,7 +319,7 @@ pub struct PureRelationTypeSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureBooleanSelect {
     pub label: String,
     pub value: bool,
@@ -330,7 +330,7 @@ pub struct PureBooleanSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureImprintSelect {
     pub label: String,
     pub data: Vec<ImprintWithPublisher>,
@@ -340,7 +340,7 @@ pub struct PureImprintSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PurePublisherSelect {
     pub label: String,
     pub data: Vec<Publisher>,
@@ -350,7 +350,7 @@ pub struct PurePublisherSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureInstitutionSelect {
     pub label: String,
     pub data: Vec<Institution>,
@@ -360,7 +360,7 @@ pub struct PureInstitutionSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureContributorSelect {
     pub label: String,
     pub data: Vec<Contributor>,
@@ -370,10 +370,10 @@ pub struct PureContributorSelect {
     pub required: bool,
 }
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureLoader {}
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct PureReloader {
     pub onclick: Callback<MouseEvent>,
 }

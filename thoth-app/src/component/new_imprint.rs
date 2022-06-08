@@ -65,7 +65,7 @@ pub enum Msg {
     ChangeImprintUrl(String),
     ChangeRoute(AppRoute),
 }
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct Props {
     pub current_user: AccountDetails,
 }

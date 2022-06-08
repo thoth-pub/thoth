@@ -122,7 +122,7 @@ pub enum Msg {
     ChangeCoverCaption(String),
     ChangeRoute(AppRoute),
 }
-#[derive(Clone, PartialEq, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct Props {
     pub current_user: AccountDetails,
     pub previous_route: AdminRoute,
