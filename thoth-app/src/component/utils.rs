@@ -15,6 +15,7 @@ use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
 use thoth_api::model::work_relation::RelationType;
 use uuid::Uuid;
+use yew::function_component;
 use yew::html;
 use yew::virtual_dom::VNode;
 use yew::Callback;
@@ -23,8 +24,6 @@ use yew::FocusEvent;
 use yew::InputEvent;
 use yew::MouseEvent;
 use yew::Properties;
-use yewtil::Pure;
-use yewtil::PureComponent;
 
 use crate::models::contribution::ContributionTypeValues;
 use crate::models::institution::CountryCodeValues;
@@ -42,36 +41,9 @@ use crate::string::NO;
 use crate::string::RELOAD_BUTTON;
 use crate::string::YES;
 
-pub type FormInput = Pure<PureInput>;
-pub type FormTextarea = Pure<PureTextarea>;
-pub type FormTextInputExtended = Pure<PureTextInputExtended>;
-pub type FormTextInput = Pure<PureTextInput>;
-pub type FormUrlInput = Pure<PureUrlInput>;
-pub type FormDateInput = Pure<PureDateInput>;
-pub type FormFloatInput = Pure<PureFloatInput>;
-pub type FormNumberInput = Pure<PureNumberInput>;
-pub type FormWorkTypeSelect = Pure<PureWorkTypeSelect>;
-pub type FormWorkStatusSelect = Pure<PureWorkStatusSelect>;
-pub type FormContributionTypeSelect = Pure<PureContributionTypeSelect>;
-pub type FormPublicationTypeSelect = Pure<PurePublicationTypeSelect>;
-pub type FormSeriesTypeSelect = Pure<PureSeriesTypeSelect>;
-pub type FormSubjectTypeSelect = Pure<PureSubjectTypeSelect>;
-pub type FormLanguageCodeSelect = Pure<PureLanguageCodeSelect>;
-pub type FormLanguageRelationSelect = Pure<PureLanguageRelationSelect>;
-pub type FormCurrencyCodeSelect = Pure<PureCurrencyCodeSelect>;
-pub type FormLocationPlatformSelect = Pure<PureLocationPlatformSelect>;
-pub type FormCountryCodeSelect = Pure<PureCountryCodeSelect>;
-pub type FormRelationTypeSelect = Pure<PureRelationTypeSelect>;
-pub type FormBooleanSelect = Pure<PureBooleanSelect>;
-pub type FormImprintSelect = Pure<PureImprintSelect>;
-pub type FormPublisherSelect = Pure<PurePublisherSelect>;
-pub type FormInstitutionSelect = Pure<PureInstitutionSelect>;
-pub type FormContributorSelect = Pure<PureContributorSelect>;
-pub type Loader = Pure<PureLoader>;
-pub type Reloader = Pure<PureReloader>;
 
 #[derive(PartialEq, Properties)]
-pub struct PureInput {
+pub struct FormInputProps {
     pub label: String,
     pub value: String,
     pub input_type: String,
@@ -90,7 +62,7 @@ pub struct PureInput {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureTextarea {
+pub struct FormTextareaProps {
     pub label: String,
     pub value: Option<String>,
     #[prop_or_default]
@@ -101,11 +73,11 @@ pub struct PureTextarea {
     pub deactivated: bool,
 }
 
-// Variant of PureTextInput which supports tooltips,
+// Variant of FormTextInput which supports tooltips,
 // prepended static buttons, or both together.
 // Also supports deactivating the input.
 #[derive(PartialEq, Properties)]
-pub struct PureTextInputExtended {
+pub struct FormTextInputExtendedProps {
     pub label: String,
     pub value: String,
     #[prop_or_default]
@@ -125,7 +97,7 @@ pub struct PureTextInputExtended {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureTextInput {
+pub struct FormTextInputProps {
     pub label: String,
     pub value: Option<String>,
     #[prop_or_default]
@@ -139,7 +111,7 @@ pub struct PureTextInput {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureUrlInput {
+pub struct FormUrlInputProps {
     pub label: String,
     pub value: Option<String>,
     #[prop_or_default]
@@ -151,7 +123,7 @@ pub struct PureUrlInput {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureDateInput {
+pub struct FormDateInputProps {
     pub label: String,
     pub value: Option<String>,
     #[prop_or_default]
@@ -163,7 +135,7 @@ pub struct PureDateInput {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureFloatInput {
+pub struct FormFloatInputProps {
     pub label: String,
     pub value: Option<f64>,
     #[prop_or_default]
@@ -181,7 +153,7 @@ pub struct PureFloatInput {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureNumberInput {
+pub struct FormNumberInputProps {
     pub label: String,
     pub value: Option<i32>,
     #[prop_or_default]
@@ -197,7 +169,7 @@ pub struct PureNumberInput {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureWorkTypeSelect {
+pub struct FormWorkTypeSelectProps {
     pub label: String,
     pub data: Vec<WorkTypeValues>,
     // Subset of `data` list which should be deactivated, if any
@@ -210,7 +182,7 @@ pub struct PureWorkTypeSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureWorkStatusSelect {
+pub struct FormWorkStatusSelectProps {
     pub label: String,
     pub data: Vec<WorkStatusValues>,
     pub value: WorkStatus,
@@ -220,7 +192,7 @@ pub struct PureWorkStatusSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureContributionTypeSelect {
+pub struct FormContributionTypeSelectProps {
     pub label: String,
     pub data: Vec<ContributionTypeValues>,
     pub value: ContributionType,
@@ -230,7 +202,7 @@ pub struct PureContributionTypeSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PurePublicationTypeSelect {
+pub struct FormPublicationTypeSelectProps {
     pub label: String,
     pub data: Vec<PublicationTypeValues>,
     pub value: PublicationType,
@@ -240,7 +212,7 @@ pub struct PurePublicationTypeSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureSubjectTypeSelect {
+pub struct FormSubjectTypeSelectProps {
     pub label: String,
     pub data: Vec<SubjectTypeValues>,
     pub value: SubjectType,
@@ -250,7 +222,7 @@ pub struct PureSubjectTypeSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureSeriesTypeSelect {
+pub struct FormSeriesTypeSelectProps {
     pub label: String,
     pub data: Vec<SeriesTypeValues>,
     pub value: SeriesType,
@@ -260,7 +232,7 @@ pub struct PureSeriesTypeSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureLanguageCodeSelect {
+pub struct FormLanguageCodeSelectProps {
     pub label: String,
     pub data: Vec<LanguageCodeValues>,
     pub value: LanguageCode,
@@ -270,7 +242,7 @@ pub struct PureLanguageCodeSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureLanguageRelationSelect {
+pub struct FormLanguageRelationSelectProps {
     pub label: String,
     pub data: Vec<LanguageRelationValues>,
     pub value: LanguageRelation,
@@ -280,7 +252,7 @@ pub struct PureLanguageRelationSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureCurrencyCodeSelect {
+pub struct FormCurrencyCodeSelectProps {
     pub label: String,
     pub data: Vec<CurrencyCodeValues>,
     pub value: CurrencyCode,
@@ -290,7 +262,7 @@ pub struct PureCurrencyCodeSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureLocationPlatformSelect {
+pub struct FormLocationPlatformSelectProps {
     pub label: String,
     pub data: Vec<LocationPlatformValues>,
     pub value: LocationPlatform,
@@ -300,7 +272,7 @@ pub struct PureLocationPlatformSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureCountryCodeSelect {
+pub struct FormCountryCodeSelectProps {
     pub label: String,
     pub data: Vec<CountryCodeValues>,
     pub value: Option<CountryCode>,
@@ -310,7 +282,7 @@ pub struct PureCountryCodeSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureRelationTypeSelect {
+pub struct FormRelationTypeSelectProps {
     pub label: String,
     pub data: Vec<RelationTypeValues>,
     pub value: RelationType,
@@ -320,7 +292,7 @@ pub struct PureRelationTypeSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureBooleanSelect {
+pub struct FormBooleanSelectProps {
     pub label: String,
     pub value: bool,
     pub onchange: Callback<Event>,
@@ -331,7 +303,7 @@ pub struct PureBooleanSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureImprintSelect {
+pub struct FormImprintSelectProps {
     pub label: String,
     pub data: Vec<ImprintWithPublisher>,
     pub value: Option<Uuid>,
@@ -341,7 +313,7 @@ pub struct PureImprintSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PurePublisherSelect {
+pub struct FormPublisherSelectProps {
     pub label: String,
     pub data: Vec<Publisher>,
     pub value: Option<Uuid>,
@@ -351,7 +323,7 @@ pub struct PurePublisherSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureInstitutionSelect {
+pub struct FormInstitutionSelectProps {
     pub label: String,
     pub data: Vec<Institution>,
     pub value: Uuid,
@@ -361,7 +333,7 @@ pub struct PureInstitutionSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureContributorSelect {
+pub struct FormContributorSelectProps {
     pub label: String,
     pub data: Vec<Contributor>,
     pub value: Uuid,
@@ -371,513 +343,485 @@ pub struct PureContributorSelect {
 }
 
 #[derive(PartialEq, Properties)]
-pub struct PureLoader {}
-
-#[derive(PartialEq, Properties)]
-pub struct PureReloader {
+pub struct ReloaderProps {
     pub onclick: Callback<MouseEvent>,
 }
 
-impl PureComponent for PureInput {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <input
-                        class="input"
-                        type={ self.input_type.clone() }
-                        placeholder={ self.label.clone() }
-                        value={ self.value.clone() }
-                        oninput={ self.oninput.clone() }
-                        onblur={ self.onblur.clone() }
-                        required={ self.required }
-                        step={ self.step.clone() }
-                        min={ self.min.clone() }
-                        disabled={ self.deactivated }
-                    />
-                </div>
+#[function_component(FormInput)]
+pub fn form_input(props: &FormInputProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <input
+                    class="input"
+                    type={ props.input_type.clone() }
+                    placeholder={ props.label.clone() }
+                    value={ props.value.clone() }
+                    oninput={ props.oninput.clone() }
+                    onblur={ props.onblur.clone() }
+                    required={ props.required }
+                    step={ props.step.clone() }
+                    min={ props.min.clone() }
+                    disabled={ props.deactivated }
+                />
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureTextarea {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <textarea
-                        class="textarea"
-                        placeholder={ self.label.clone() }
-                        value={ self.value.clone().unwrap_or_else(|| "".to_string()) }
-                        oninput={ self.oninput.clone() }
-                        required={ self.required }
-                        disabled={ self.deactivated }
-                    />
-                </div>
+#[function_component(FormTextarea)]
+pub fn form_textarea(props: &FormTextareaProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <textarea
+                    class="textarea"
+                    placeholder={ props.label.clone() }
+                    value={ props.value.clone().unwrap_or_else(|| "".to_string()) }
+                    oninput={ props.oninput.clone() }
+                    required={ props.required }
+                    disabled={ props.deactivated }
+                />
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureTextInputExtended {
-    fn render(&self) -> VNode {
-        // Only display tooltip if its value is set.
-        let optional_tooltip = match self.tooltip.is_empty() {
-            true => None,
-            false => Some(self.tooltip.clone()),
-        };
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div
-                    class="field has-addons is-expanded has-tooltip-arrow has-tooltip-bottom has-tooltip-active"
-                    data-tooltip={ optional_tooltip }
-                >
-                    {
-                        // Only display static button if a static text value was provided.
-                        if self.statictext.is_empty() {
-                            html! {}
-                        } else {
-                            html! {
-                                <button class="button is-static">{ &self.statictext }</button>
-                            }
+#[function_component(FormTextInputExtended)]
+pub fn form_text_input_extended(props: &FormTextInputExtendedProps) -> VNode {
+    // Only display tooltip if its value is set.
+    let optional_tooltip = match props.tooltip.is_empty() {
+        true => None,
+        false => Some(props.tooltip.clone()),
+    };
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div
+                class="field has-addons is-expanded has-tooltip-arrow has-tooltip-bottom has-tooltip-active"
+                data-tooltip={ optional_tooltip }
+            >
+                {
+                    // Only display static button if a static text value was provided.
+                    if props.statictext.is_empty() {
+                        html! {}
+                    } else {
+                        html! {
+                            <button class="button is-static">{ &props.statictext }</button>
                         }
                     }
-                    <input
-                        class="input"
-                        type="text"
-                        placeholder={ self.label.clone() }
-                        value={ self.value.clone() }
-                        oninput={ self.oninput.clone() }
-                        onfocus={ self.onfocus.clone() }
-                        onblur={ self.onblur.clone() }
-                        required={ self.required }
-                        disabled={ self.deactivated }
-                    />
+                }
+                <input
+                    class="input"
+                    type="text"
+                    placeholder={ props.label.clone() }
+                    value={ props.value.clone() }
+                    oninput={ props.oninput.clone() }
+                    onfocus={ props.onfocus.clone() }
+                    onblur={ props.onblur.clone() }
+                    required={ props.required }
+                    disabled={ props.deactivated }
+                />
+            </div>
+        </div>
+    }
+}
+
+#[function_component(FormTextInput)]
+pub fn form_text_input(props: &FormTextInputProps) -> VNode {
+    html! {
+        <FormInput
+            label={ props.label.clone() }
+            value={ props.value.clone().unwrap_or_else(|| "".to_string()) }
+            input_type="text"
+            oninput={ props.oninput.clone() }
+            onblur={ props.onblur.clone() }
+            required={ props.required }
+            deactivated={ props.deactivated }
+        />
+    }
+}
+
+#[function_component(FormUrlInput)]
+pub fn form_url_input(props: &FormUrlInputProps) -> VNode {
+    html! {
+        <FormInput
+            label={ props.label.clone() }
+            value={ props.value.clone().unwrap_or_else(|| "".to_string()) }
+            input_type="url"
+            oninput={ props.oninput.clone() }
+            onblur={ props.onblur.clone() }
+            required={ props.required }
+        />
+    }
+}
+
+#[function_component(FormDateInput)]
+pub fn form_date_input(props: &FormDateInputProps) -> VNode {
+    html! {
+        <FormInput
+            label={ props.label.clone() }
+            value={ props.value.clone().unwrap_or_else(|| "".to_string()) }
+            input_type="date"
+            oninput={ props.oninput.clone() }
+            onblur={ props.onblur.clone() }
+            required={ props.required }
+        />
+    }
+}
+
+#[function_component(FormNumberInput)]
+pub fn form_number_input(props: &FormNumberInputProps) -> VNode {
+    html! {
+        <FormInput
+            label={ props.label.clone() }
+            value={ props.value.unwrap_or(0).to_string() }
+            input_type="number"
+            oninput={ props.oninput.clone() }
+            onblur={ props.onblur.clone() }
+            required={ props.required }
+            min={ props.min.clone() }
+            deactivated={ props.deactivated }
+        />
+    }
+}
+
+#[function_component(FormFloatInput)]
+pub fn form_float_input(props: &FormFloatInputProps) -> VNode {
+    html! {
+        <FormInput
+            label={ props.label.clone() }
+            value={ props.value.unwrap_or(0.00).to_string() }
+            input_type="number"
+            oninput={ props.oninput.clone() }
+            onblur={ props.onblur.clone() }
+            required={ props.required }
+            step={ props.step.clone() }
+            min={ props.min.clone() }
+            deactivated={ props.deactivated }
+        />
+    }
+}
+
+#[function_component(FormWorkTypeSelect)]
+pub fn form_work_type_select(props: &FormWorkTypeSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select is-fullwidth">
+                <select required={ props.required } onchange={ &props.onchange }>
+                    { for props.data.iter().map(|i| props.render_worktype(i, &props.deactivate)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureTextInput {
-    fn render(&self) -> VNode {
-        html! {
-            <FormInput
-                label={ self.label.clone() }
-                value={ self.value.clone().unwrap_or_else(|| "".to_string()) }
-                input_type="text"
-                oninput={ self.oninput.clone() }
-                onblur={ self.onblur.clone() }
-                required={ self.required }
-                deactivated={ self.deactivated }
-            />
-        }
-    }
-}
-
-impl PureComponent for PureUrlInput {
-    fn render(&self) -> VNode {
-        html! {
-            <FormInput
-                label={ self.label.clone() }
-                value={ self.value.clone().unwrap_or_else(|| "".to_string()) }
-                input_type="url"
-                oninput={ self.oninput.clone() }
-                onblur={ self.onblur.clone() }
-                required={ self.required }
-            />
-        }
-    }
-}
-
-impl PureComponent for PureDateInput {
-    fn render(&self) -> VNode {
-        html! {
-            <FormInput
-                label={ self.label.clone() }
-                value={ self.value.clone().unwrap_or_else(|| "".to_string()) }
-                input_type="date"
-                oninput={ self.oninput.clone() }
-                onblur={ self.onblur.clone() }
-                required={ self.required }
-            />
-        }
-    }
-}
-
-impl PureComponent for PureNumberInput {
-    fn render(&self) -> VNode {
-        html! {
-            <FormInput
-                label={ self.label.clone() }
-                value={ self.value.unwrap_or(0).to_string() }
-                input_type="number"
-                oninput={ self.oninput.clone() }
-                onblur={ self.onblur.clone() }
-                required={ self.required }
-                min={ self.min.clone() }
-                deactivated={ self.deactivated }
-            />
-        }
-    }
-}
-
-impl PureComponent for PureFloatInput {
-    fn render(&self) -> VNode {
-        html! {
-            <FormInput
-                label={ self.label.clone() }
-                value={ self.value.unwrap_or(0.00).to_string() }
-                input_type="number"
-                oninput={ self.oninput.clone() }
-                onblur={ self.onblur.clone() }
-                required={ self.required }
-                step={ self.step.clone() }
-                min={ self.min.clone() }
-                deactivated={ self.deactivated }
-            />
-        }
-    }
-}
-
-impl PureComponent for PureWorkTypeSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select is-fullwidth">
-                    <select required={ self.required } onchange={ &self.onchange }>
-                        { for self.data.iter().map(|i| self.render_worktype(i, &self.deactivate)) }
-                    </select>
-                    </div>
+#[function_component(FormWorkStatusSelect)]
+pub fn form_work_status_select(props: &FormWorkStatusSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select is-fullwidth">
+                <select required={ props.required } onchange={ &props.onchange }>
+                    { for props.data.iter().map(|i| props.render_workstatus(i)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureWorkStatusSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select is-fullwidth">
-                    <select required={ self.required } onchange={ &self.onchange }>
-                        { for self.data.iter().map(|i| self.render_workstatus(i)) }
-                    </select>
-                    </div>
+#[function_component(FormContributionTypeSelect)]
+pub fn form_contribution_type_select(props: &FormContributionTypeSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select">
+                <select
+                    required={ props.required }
+                    onchange={ &props.onchange }
+                >
+                    { for props.data.iter().map(|i| props.render_contributiontype(i)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureContributionTypeSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select">
-                    <select
-                        required={ self.required }
-                        onchange={ &self.onchange }
-                    >
-                        { for self.data.iter().map(|i| self.render_contributiontype(i)) }
-                    </select>
-                    </div>
+#[function_component(FormPublicationTypeSelect)]
+pub fn form_publication_type_select(props: &FormPublicationTypeSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select">
+                <select
+                    required={ props.required }
+                    onchange={ &props.onchange }
+                >
+                    { for props.data.iter().map(|p| props.render_publicationtype(p)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PurePublicationTypeSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select">
-                    <select
-                        required={ self.required }
-                        onchange={ &self.onchange }
-                    >
-                        { for self.data.iter().map(|p| self.render_publicationtype(p)) }
-                    </select>
-                    </div>
+#[function_component(FormSubjectTypeSelect)]
+pub fn form_subject_type_select(props: &FormSubjectTypeSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select">
+                <select
+                    required={ props.required }
+                    onchange={ &props.onchange }
+                >
+                    { for props.data.iter().map(|p| props.render_subjecttype(p)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureSubjectTypeSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select">
-                    <select
-                        required={ self.required }
-                        onchange={ &self.onchange }
-                    >
-                        { for self.data.iter().map(|p| self.render_subjecttype(p)) }
-                    </select>
-                    </div>
+#[function_component(FormSeriesTypeSelect)]
+pub fn form_series_type_select(props: &FormSeriesTypeSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select">
+                <select
+                    required={ props.required }
+                    onchange={ &props.onchange }
+                >
+                    { for props.data.iter().map(|s| props.render_seriestype(s)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureSeriesTypeSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select">
-                    <select
-                        required={ self.required }
-                        onchange={ &self.onchange }
-                    >
-                        { for self.data.iter().map(|s| self.render_seriestype(s)) }
-                    </select>
-                    </div>
+#[function_component(FormLanguageCodeSelect)]
+pub fn form_language_code_select(props: &FormLanguageCodeSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select">
+                <select
+                    required={ props.required }
+                    onchange={ &props.onchange }
+                >
+                    { for props.data.iter().map(|l| props.render_languagecode(l)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureLanguageCodeSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select">
-                    <select
-                        required={ self.required }
-                        onchange={ &self.onchange }
-                    >
-                        { for self.data.iter().map(|l| self.render_languagecode(l)) }
-                    </select>
-                    </div>
+#[function_component(FormLanguageRelationSelect)]
+pub fn form_language_relation_select(props: &FormLanguageRelationSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select">
+                <select
+                    required={ props.required }
+                    onchange={ &props.onchange }
+                >
+                    { for props.data.iter().map(|l| props.render_languagerelation(l)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureLanguageRelationSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select">
-                    <select
-                        required={ self.required }
-                        onchange={ &self.onchange }
-                    >
-                        { for self.data.iter().map(|l| self.render_languagerelation(l)) }
-                    </select>
-                    </div>
+#[function_component(FormCurrencyCodeSelect)]
+pub fn form_currency_code_select(props: &FormCurrencyCodeSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select">
+                <select
+                    required={ props.required }
+                    onchange={ &props.onchange }
+                >
+                    { for props.data.iter().map(|c| props.render_currencycode(c)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureCurrencyCodeSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select">
-                    <select
-                        required={ self.required }
-                        onchange={ &self.onchange }
-                    >
-                        { for self.data.iter().map(|c| self.render_currencycode(c)) }
-                    </select>
-                    </div>
+#[function_component(FormLocationPlatformSelect)]
+pub fn form_location_platform_select(props: &FormLocationPlatformSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select">
+                <select
+                    required={ props.required }
+                    onchange={ &props.onchange }
+                >
+                    { for props.data.iter().map(|l| props.render_locationplatform(l)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureLocationPlatformSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select">
-                    <select
-                        required={ self.required }
-                        onchange={ &self.onchange }
-                    >
-                        { for self.data.iter().map(|l| self.render_locationplatform(l)) }
-                    </select>
-                    </div>
+#[function_component(FormCountryCodeSelect)]
+pub fn form_country_code_select(props: &FormCountryCodeSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select">
+                <select
+                    required={ props.required }
+                    onchange={ &props.onchange }
+                >
+                    <option value="">{"Select Country"}</option>
+                    { for props.data.iter().map(|c| props.render_countrycode(c)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureCountryCodeSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select">
-                    <select
-                        required={ self.required }
-                        onchange={ &self.onchange }
-                    >
-                        <option value="">{"Select Country"}</option>
-                        { for self.data.iter().map(|c| self.render_countrycode(c)) }
-                    </select>
-                    </div>
+#[function_component(FormRelationTypeSelect)]
+pub fn form_relation_type_select(props: &FormRelationTypeSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select">
+                <select
+                    required={ props.required }
+                    onchange={ &props.onchange }
+                >
+                    { for props.data.iter().map(|r| props.render_relationtype(r)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureRelationTypeSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select">
-                    <select
-                        required={ self.required }
-                        onchange={ &self.onchange }
-                    >
-                        { for self.data.iter().map(|r| self.render_relationtype(r)) }
-                    </select>
-                    </div>
+#[function_component(FormBooleanSelect)]
+pub fn form_boolean_select(props: &FormBooleanSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select">
+                <select
+                    required={ props.required }
+                    onchange={ &props.onchange }
+                    onblur={ props.onblur.clone() }
+                >
+                    <option value={ true.to_string() } selected={ props.value }>
+                        { YES }
+                    </option>
+                    <option value={ false.to_string() } selected={ !props.value }>
+                        { NO }
+                    </option>
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureBooleanSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select">
-                    <select
-                        required={ self.required }
-                        onchange={ &self.onchange }
-                        onblur={ self.onblur.clone() }
-                    >
-                        <option value={ true.to_string() } selected={ self.value }>
-                            { YES }
-                        </option>
-                        <option value={ false.to_string() } selected={ !self.value }>
-                            { NO }
-                        </option>
-                    </select>
-                    </div>
+#[function_component(FormImprintSelect)]
+pub fn form_imprint_select(props: &FormImprintSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select is-fullwidth">
+                <select required={ props.required } onchange={ &props.onchange }>
+                    <option value="">{"Select Imprint"}</option>
+                    { for props.data.iter().map(|i| props.render_imprint(i)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureImprintSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select is-fullwidth">
-                    <select required={ self.required } onchange={ &self.onchange }>
-                        <option value="">{"Select Imprint"}</option>
-                        { for self.data.iter().map(|i| self.render_imprint(i)) }
-                    </select>
-                    </div>
+#[function_component(FormPublisherSelect)]
+pub fn form_publisher_select(props: &FormPublisherSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select is-fullwidth">
+                <select required={ props.required } onchange={ &props.onchange }>
+                    <option value="">{"Select Publisher"}</option>
+                    { for props.data.iter().map(|p| props.render_publisher(p)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PurePublisherSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select is-fullwidth">
-                    <select required={ self.required } onchange={ &self.onchange }>
-                        <option value="">{"Select Publisher"}</option>
-                        { for self.data.iter().map(|p| self.render_publisher(p)) }
-                    </select>
-                    </div>
+#[function_component(FormInstitutionSelect)]
+pub fn form_institution_select(props: &FormInstitutionSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select is-fullwidth">
+                <select required={ props.required } onchange={ &props.onchange }>
+                    <option value="" selected={props.value.is_nil()}>{"Select Institution"}</option>
+                    { for props.data.iter().map(|i| props.render_institution(i)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureInstitutionSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select is-fullwidth">
-                    <select required={ self.required } onchange={ &self.onchange }>
-                        <option value="" selected={self.value.is_nil()}>{"Select Institution"}</option>
-                        { for self.data.iter().map(|i| self.render_institution(i)) }
-                    </select>
-                    </div>
+#[function_component(FormContributorSelect)]
+pub fn form_contributor_select(props: &FormContributorSelectProps) -> VNode {
+    html! {
+        <div class="field">
+            <label class="label">{ &props.label }</label>
+            <div class="control is-expanded">
+                <div class="select is-fullwidth">
+                <select required={ props.required } onchange={ &props.onchange }>
+                    <option value="" selected={props.value.is_nil()}>{"Select Contributor"}</option>
+                    { for props.data.iter().map(|c| props.render_contributor(c)) }
+                </select>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureContributorSelect {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="field">
-                <label class="label">{ &self.label }</label>
-                <div class="control is-expanded">
-                    <div class="select is-fullwidth">
-                    <select required={ self.required } onchange={ &self.onchange }>
-                        <option value="" selected={self.value.is_nil()}>{"Select Contributor"}</option>
-                        { for self.data.iter().map(|c| self.render_contributor(c)) }
-                    </select>
-                    </div>
-                </div>
-            </div>
-        }
-    }
-}
-
-impl PureWorkTypeSelect {
+impl FormWorkTypeSelectProps {
     fn render_worktype(&self, w: &WorkTypeValues, deactivate: &[WorkType]) -> VNode {
         let deactivated = deactivate.contains(&w.name);
         let selected = w.name == self.value;
@@ -889,7 +833,7 @@ impl PureWorkTypeSelect {
     }
 }
 
-impl PureWorkStatusSelect {
+impl FormWorkStatusSelectProps {
     fn render_workstatus(&self, w: &WorkStatusValues) -> VNode {
         html! {
             <option value={w.name.to_string()} selected={w.name == self.value}>
@@ -899,7 +843,7 @@ impl PureWorkStatusSelect {
     }
 }
 
-impl PureContributionTypeSelect {
+impl FormContributionTypeSelectProps {
     fn render_contributiontype(&self, c: &ContributionTypeValues) -> VNode {
         html! {
             <option value={c.name.to_string()} selected={c.name == self.value}>
@@ -909,7 +853,7 @@ impl PureContributionTypeSelect {
     }
 }
 
-impl PurePublicationTypeSelect {
+impl FormPublicationTypeSelectProps {
     fn render_publicationtype(&self, p: &PublicationTypeValues) -> VNode {
         html! {
             <option value={p.name.to_string()} selected={p.name == self.value}>
@@ -919,7 +863,7 @@ impl PurePublicationTypeSelect {
     }
 }
 
-impl PureSubjectTypeSelect {
+impl FormSubjectTypeSelectProps {
     fn render_subjecttype(&self, s: &SubjectTypeValues) -> VNode {
         html! {
             <option value={s.name.to_string()} selected={s.name == self.value}>
@@ -929,7 +873,7 @@ impl PureSubjectTypeSelect {
     }
 }
 
-impl PureSeriesTypeSelect {
+impl FormSeriesTypeSelectProps {
     fn render_seriestype(&self, s: &SeriesTypeValues) -> VNode {
         html! {
             <option value={s.name.to_string()} selected={s.name == self.value}>
@@ -939,7 +883,7 @@ impl PureSeriesTypeSelect {
     }
 }
 
-impl PureLanguageCodeSelect {
+impl FormLanguageCodeSelectProps {
     fn render_languagecode(&self, l: &LanguageCodeValues) -> VNode {
         html! {
             <option value={l.name.to_string()} selected={l.name == self.value}>
@@ -949,7 +893,7 @@ impl PureLanguageCodeSelect {
     }
 }
 
-impl PureLanguageRelationSelect {
+impl FormLanguageRelationSelectProps {
     fn render_languagerelation(&self, l: &LanguageRelationValues) -> VNode {
         html! {
             <option value={l.name.to_string()} selected={l.name == self.value}>
@@ -959,7 +903,7 @@ impl PureLanguageRelationSelect {
     }
 }
 
-impl PureCurrencyCodeSelect {
+impl FormCurrencyCodeSelectProps {
     fn render_currencycode(&self, c: &CurrencyCodeValues) -> VNode {
         html! {
             <option value={c.name.to_string()} selected={c.name == self.value}>
@@ -969,7 +913,7 @@ impl PureCurrencyCodeSelect {
     }
 }
 
-impl PureLocationPlatformSelect {
+impl FormLocationPlatformSelectProps {
     fn render_locationplatform(&self, l: &LocationPlatformValues) -> VNode {
         html! {
             <option value={l.name.to_string()} selected={l.name == self.value}>
@@ -979,7 +923,7 @@ impl PureLocationPlatformSelect {
     }
 }
 
-impl PureCountryCodeSelect {
+impl FormCountryCodeSelectProps {
     fn render_countrycode(&self, c: &CountryCodeValues) -> VNode {
         if Some(c.name.clone()) == self.value {
             html! {
@@ -995,7 +939,7 @@ impl PureCountryCodeSelect {
     }
 }
 
-impl PureRelationTypeSelect {
+impl FormRelationTypeSelectProps {
     fn render_relationtype(&self, r: &RelationTypeValues) -> VNode {
         html! {
             <option value={r.name.to_string()} selected={r.name == self.value}>
@@ -1005,7 +949,7 @@ impl PureRelationTypeSelect {
     }
 }
 
-impl PureImprintSelect {
+impl FormImprintSelectProps {
     fn render_imprint(&self, i: &ImprintWithPublisher) -> VNode {
         let value = &self.value.unwrap_or_default();
         html! {
@@ -1016,7 +960,7 @@ impl PureImprintSelect {
     }
 }
 
-impl PurePublisherSelect {
+impl FormPublisherSelectProps {
     fn render_publisher(&self, p: &Publisher) -> VNode {
         let value = &self.value.unwrap_or_default();
         html! {
@@ -1027,7 +971,7 @@ impl PurePublisherSelect {
     }
 }
 
-impl PureInstitutionSelect {
+impl FormInstitutionSelectProps {
     fn render_institution(&self, i: &Institution) -> VNode {
         html! {
             <option value={i.institution_id.to_string()} selected={i.institution_id == self.value}>
@@ -1037,7 +981,7 @@ impl PureInstitutionSelect {
     }
 }
 
-impl PureContributorSelect {
+impl FormContributorSelectProps {
     fn render_contributor(&self, c: &Contributor) -> VNode {
         html! {
             <option value={c.contributor_id.to_string()} selected={c.contributor_id == self.value}>
@@ -1047,34 +991,32 @@ impl PureContributorSelect {
     }
 }
 
-impl PureComponent for PureLoader {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="hero is-medium">
-                <div class="hero-body">
-                    <div class="container has-text-centered">
-                        <progress class="progress is-warning" max="100"></progress>
-                    </div>
+#[function_component(Loader)]
+pub fn loader() -> VNode {
+    html! {
+        <div class="hero is-medium">
+            <div class="hero-body">
+                <div class="container has-text-centered">
+                    <progress class="progress is-warning" max="100"></progress>
                 </div>
             </div>
-        }
+        </div>
     }
 }
 
-impl PureComponent for PureReloader {
-    fn render(&self) -> VNode {
-        html! {
-            <div class="buttons has-addons is-centered">
-                <button
-                    class="button is-success is-large"
-                    onclick={ &self.onclick }
-                >
-                    <span class="icon">
-                        <i class="fas fa-sync"></i>
-                    </span>
-                    <span>{ RELOAD_BUTTON }</span>
-                </button>
-            </div>
-        }
+#[function_component(Reloader)]
+pub fn reloader(props: &ReloaderProps) -> VNode {
+    html! {
+        <div class="buttons has-addons is-centered">
+            <button
+                class="button is-success is-large"
+                onclick={ &props.onclick }
+            >
+                <span class="icon">
+                    <i class="fas fa-sync"></i>
+                </span>
+                <span>{ RELOAD_BUTTON }</span>
+            </button>
+        </div>
     }
 }
