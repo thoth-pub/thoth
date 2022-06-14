@@ -75,6 +75,12 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                 "onix_3.0::overdrive".to_string(),
                 "Missing Long Abstract".to_string(),
             ))
+        // Don't output works with no language codes (mandatory in OverDrive)
+        } else if self.languages.is_empty() {
+            Err(ThothError::IncompleteMetadataRecord(
+                "onix_3.0::overdrive".to_string(),
+                "Missing Language Code(s)".to_string(),
+            ))
         // We can only generate the document if there's an EPUB or PDF
         // with a non-zero price (OverDrive only accepts priced items)
         } else if let Some(main_publication) = self
@@ -1085,7 +1091,11 @@ mod tests {
             },
             issues: vec![],
             contributions: vec![],
-            languages: vec![],
+            languages: vec![WorkLanguages {
+                language_code: LanguageCode::SPA,
+                language_relation: LanguageRelation::TRANSLATED_FROM,
+                main_language: true,
+            }],
             publications: vec![WorkPublications {
                 publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
                 publication_type: PublicationType::PDF,
@@ -1194,6 +1204,9 @@ mod tests {
         assert!(output.contains(r#"        <TitleElementLevel>01</TitleElementLevel>"#));
         assert!(output.contains(r#"        <TitleText>Book Title</TitleText>"#));
         assert!(output.contains(r#"        <Subtitle>Book Subtitle</Subtitle>"#));
+        assert!(output.contains(r#"    <Language>"#));
+        assert!(output.contains(r#"      <LanguageRole>02</LanguageRole>"#));
+        assert!(output.contains(r#"      <LanguageCode>spa</LanguageCode>"#));
         assert!(output.contains(r#"    <Extent>"#));
         assert!(output.contains(r#"      <ExtentType>00</ExtentType>"#));
         assert!(output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
@@ -1350,7 +1363,20 @@ mod tests {
         assert!(!output.contains(r#"      <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
         assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
 
-        // Remove long abstract: result is error
+        // Remove the only language: result is error
+        test_work.languages.clear();
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::overdrive: Missing Language Code(s)".to_string()
+        );
+
+        // Replace language but remove long abstract: result is error
+        test_work.languages = vec![WorkLanguages {
+            language_code: LanguageCode::SPA,
+            language_relation: LanguageRelation::TRANSLATED_FROM,
+            main_language: true,
+        }];
         test_work.long_abstract = None;
         let output = generate_test_output(false, &test_work);
         assert_eq!(
