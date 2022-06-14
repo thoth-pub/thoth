@@ -756,6 +756,7 @@ mod tests {
 
         // Test standard output
         let output = generate_test_output(true, &test_language);
+        assert!(output.contains(r#"<Language>"#));
         assert!(output.contains(r#"  <LanguageRole>02</LanguageRole>"#));
         assert!(output.contains(r#"  <LanguageCode>spa</LanguageCode>"#));
 
@@ -767,6 +768,7 @@ mod tests {
         ] {
             test_language.language_relation = language_relation;
             let output = generate_test_output(true, &test_language);
+            assert!(output.contains(r#"<Language>"#));
             assert!(output.contains(r#"  <LanguageRole>01</LanguageRole>"#));
             assert!(output.contains(r#"  <LanguageCode>wel</LanguageCode>"#));
         }
