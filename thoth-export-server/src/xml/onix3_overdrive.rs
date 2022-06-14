@@ -76,6 +76,7 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                 "Missing Long Abstract".to_string(),
             ))
         // We can only generate the document if there's an EPUB or PDF
+        // with a non-zero price (OverDrive only accepts priced items)
         } else if let Some(main_publication) = self
             .publications
             .iter()
@@ -85,6 +86,8 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                     && p.locations
                         .iter()
                         .any(|l| l.canonical && l.full_text_url.is_some())
+                    // Thoth database only accepts non-zero prices
+                    && !p.prices.is_empty()
             })
             // If no EPUB is found, distribute the PDF only
             .or_else(|| {
@@ -93,6 +96,8 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                         && p.locations
                             .iter()
                             .any(|l| l.canonical && l.full_text_url.is_some())
+                        // Thoth database only accepts non-zero prices
+                        && !p.prices.is_empty()
                 })
             })
         {
@@ -469,8 +474,7 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                                 })
                             })?;
                             // Price element is required for OverDrive. Assume the USD price is canonical.
-                            // If no USD price found (e.g. for PDFs), assume the price point is zero.
-                            let price = main_publication
+                            if let Some(price) = main_publication
                                 .prices
                                 .iter()
                                 .find(|pr| {
@@ -478,26 +482,33 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                                     pr.currency_code.eq(&CurrencyCode::USD)
                                 })
                                 .map(|pr| pr.unit_price)
-                                .unwrap_or(0.0);
-                            let formatted_price = format!("{:.2}", price);
-                            write_element_block("Price", w, |w| {
-                                // 02 RRP including tax
-                                write_element_block("PriceType", w, |w| {
-                                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("PriceAmount", w, |w| {
-                                    w.write(XmlEvent::Characters(&formatted_price))
-                                        .map_err(|e| e.into())
-                                })?;
-                                write_element_block("CurrencyCode", w, |w| {
-                                    w.write(XmlEvent::Characters("USD")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("Territory", w, |w| {
-                                    write_element_block("RegionsIncluded", w, |w| {
-                                        w.write(XmlEvent::Characters("WORLD")).map_err(|e| e.into())
+                            {
+                                let formatted_price = format!("{:.2}", price);
+                                write_element_block("Price", w, |w| {
+                                    // 02 RRP including tax
+                                    write_element_block("PriceType", w, |w| {
+                                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("PriceAmount", w, |w| {
+                                        w.write(XmlEvent::Characters(&formatted_price))
+                                            .map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("CurrencyCode", w, |w| {
+                                        w.write(XmlEvent::Characters("USD")).map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("Territory", w, |w| {
+                                        write_element_block("RegionsIncluded", w, |w| {
+                                            w.write(XmlEvent::Characters("WORLD"))
+                                                .map_err(|e| e.into())
+                                        })
                                     })
                                 })
-                            })
+                            } else {
+                                Err(ThothError::IncompleteMetadataRecord(
+                                    "onix_3.0::overdrive".to_string(),
+                                    "No USD price found".to_string(),
+                                ))
+                            }
                         })?;
                     }
                     Ok(())
@@ -506,7 +517,7 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
         } else {
             Err(ThothError::IncompleteMetadataRecord(
                 "onix_3.0::overdrive".to_string(),
-                "Missing EPUB or PDF URL".to_string(),
+                "No priced EPUB or PDF URL".to_string(),
             ))
         }
     }
@@ -1277,7 +1288,6 @@ mod tests {
         test_work.cover_url = None;
         test_work.place = None;
         test_work.landing_page = None;
-        test_work.publications[0].prices.pop();
         test_work.publications[0].publication_type = PublicationType::EPUB;
         test_work.subjects.clear();
         let output = generate_test_output(true, &test_work);
@@ -1325,14 +1335,6 @@ mod tests {
             r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
         assert!(!output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
-        // No USD price supplied: PriceAmount is zero
-        assert!(output.contains(r#"      <Price>"#));
-        assert!(output.contains(r#"        <PriceType>02</PriceType>"#));
-        assert!(!output.contains(r#"        <PriceAmount>8.00</PriceAmount>"#));
-        assert!(output.contains(r#"        <PriceAmount>0.00</PriceAmount>"#));
-        assert!(output.contains(r#"        <CurrencyCode>USD</CurrencyCode>"#));
-        assert!(output.contains(r#"        <Territory>"#));
-        assert!(output.contains(r#"          <RegionsIncluded>WORLD</RegionsIncluded>"#));
         // No subjects supplied
         assert!(!output.contains(r#"    <Subject>"#));
         assert!(!output.contains(r#"      <SubjectSchemeIdentifier>12</SubjectSchemeIdentifier>"#));
@@ -1365,14 +1367,23 @@ mod tests {
             "Could not generate onix_3.0::overdrive: Missing Publication Date".to_string()
         );
 
-        // Replace publication date but remove the only (PDF) publication's only location
-        // Result: error (can't generate Google Books ONIX without EPUB or PDF URL)
+        // Replace publication date but remove USD price: result is error
         test_work.publication_date = Some(chrono::NaiveDate::from_ymd(1999, 12, 31));
+        test_work.publications[0].prices.pop();
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::overdrive: No USD price found".to_string()
+        );
+
+        // Replace USD price but remove the only (PDF) publication's only location
+        // Result: error (can't generate OverDrive ONIX without EPUB or PDF URL)
+        test_work.publications[0].prices[0].currency_code = CurrencyCode::USD;
         test_work.publications[0].locations.clear();
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
-            "Could not generate onix_3.0::overdrive: Missing EPUB or PDF URL".to_string()
+            "Could not generate onix_3.0::overdrive: No priced EPUB or PDF URL".to_string()
         );
     }
 }
