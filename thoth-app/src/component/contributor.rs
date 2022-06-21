@@ -9,7 +9,7 @@ use yew_agent::Bridge;
 use yew_agent::Bridged;
 use yew_agent::Dispatched;
 use yew_router::history::History;
-use yew_router::prelude::RouterAnchor;
+use yew_router::prelude::Link;
 use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
@@ -46,7 +46,6 @@ use crate::models::contributor::update_contributor_mutation::UpdateContributorRe
 use crate::models::contributor::update_contributor_mutation::Variables as UpdateVariables;
 use crate::models::EditRoute;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 use super::ToElementValue;
@@ -355,11 +354,11 @@ impl Component for ContributorComponent {
                                             html! {
                                                 <p>
                                                     { "Contributed to: " }
-                                                    <RouterAnchor<AppRoute>
-                                                        route={ contribution.work.edit_route() }
+                                                    <Link<AdminRoute>
+                                                        to={ contribution.work.edit_route() }
                                                     >
                                                         { &contribution.work.title }
-                                                    </  RouterAnchor<AppRoute>>
+                                                    </Link<AdminRoute>>
                                                     { format!(", from: {}", contribution.work.imprint.publisher.publisher_name) }
                                                 </p>
                                             }

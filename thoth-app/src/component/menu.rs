@@ -4,7 +4,6 @@ use yew::virtual_dom::VNode;
 use yew_router::prelude::*;
 
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 
 pub struct MenuComponent {}
 
@@ -14,11 +13,11 @@ pub struct Props {
 }
 
 impl MenuComponent {
-    fn is_active(&self, route: AdminRoute, ctx: &Context<Self>) -> String {
+    fn is_active(&self, route: AdminRoute, ctx: &Context<Self>) -> Classes {
         if ctx.props().route == route {
-            "is-active".to_string()
+            "is-active".into()
         } else {
-            "".to_string()
+            "".into()
         }
     }
 }
@@ -43,12 +42,12 @@ impl Component for MenuComponent {
                 </p>
                 <ul class="menu-list">
                     <li>
-                        <RouterAnchor<AppRoute>
+                        <Link<AdminRoute>
                             classes={self.is_active(AdminRoute::Dashboard, ctx)}
-                            route={ AppRoute::Admin(AdminRoute::Dashboard) }
+                            to={ AdminRoute::Dashboard }
                         >
                             {"Dashboard"}
-                        </  RouterAnchor<AppRoute>>
+                        </Link<AdminRoute>>
                     </li>
                 </ul>
                 <p class="menu-label">
@@ -56,80 +55,80 @@ impl Component for MenuComponent {
                 </p>
                 <ul class="menu-list">
                     <li>
-                        <RouterAnchor<AppRoute>
+                        <Link<AdminRoute>
                             classes={self.is_active(AdminRoute::Works, ctx)}
-                            route={ AppRoute::Admin(AdminRoute::Works) }
+                            to={ AdminRoute::Works }
                         >
                             {"Works"}
-                        </  RouterAnchor<AppRoute>>
+                        </Link<AdminRoute>>
                     </li>
                     <li>
                         <ul class="menu-list">
                             <li>
-                                <RouterAnchor<AppRoute>
+                                <Link<AdminRoute>
                                     classes={self.is_active(AdminRoute::Books, ctx)}
-                                    route={ AppRoute::Admin(AdminRoute::Books) }
+                                    to={ AdminRoute::Books }
                                 >
                                     {"Books"}
-                                </  RouterAnchor<AppRoute>>
+                                </Link<AdminRoute>>
                             </li>
                             <li>
-                                <RouterAnchor<AppRoute>
+                                <Link<AdminRoute>
                                     classes={self.is_active(AdminRoute::Chapters, ctx)}
-                                    route={ AppRoute::Admin(AdminRoute::Chapters) }
+                                    to={ AdminRoute::Chapters }
                                 >
                                     {"Chapters"}
-                                </  RouterAnchor<AppRoute>>
+                                </Link<AdminRoute>>
                             </li>
                         </ul>
                     </li>
                     <li>
-                        <RouterAnchor<AppRoute>
+                        <Link<AdminRoute>
                             classes={self.is_active(AdminRoute::Publications, ctx)}
-                            route={ AppRoute::Admin(AdminRoute::Publications) }
+                            to={ AdminRoute::Publications }
                         >
                             {"Publications"}
-                        </  RouterAnchor<AppRoute>>
+                        </Link<AdminRoute>>
                     </li>
                     <li>
-                        <RouterAnchor<AppRoute>
+                        <Link<AdminRoute>
                             classes={self.is_active(AdminRoute::Publishers, ctx)}
-                            route={ AppRoute::Admin(AdminRoute::Publishers) }
+                            to={ AdminRoute::Publishers }
                         >
                             {"Publishers"}
-                        </  RouterAnchor<AppRoute>>
+                        </Link<AdminRoute>>
                     </li>
                     <li>
-                        <RouterAnchor<AppRoute>
+                        <Link<AdminRoute>
                             classes={self.is_active(AdminRoute::Imprints, ctx)}
-                            route={ AppRoute::Admin(AdminRoute::Imprints) }
+                            to={ AdminRoute::Imprints }
                         >
                             {"Imprints"}
-                        </  RouterAnchor<AppRoute>>
+                        </Link<AdminRoute>>
                     </li>
                     <li>
-                        <RouterAnchor<AppRoute>
+                        <Link<AdminRoute>
                             classes={self.is_active(AdminRoute::Contributors, ctx)}
-                            route={ AppRoute::Admin(AdminRoute::Contributors) }
+                            to={ AdminRoute::Contributors }
                         >
                             {"Contributors"}
-                        </  RouterAnchor<AppRoute>>
+                        </Link<AdminRoute>>
                     </li>
                     <li>
-                        <RouterAnchor<AppRoute>
+                        <Link<AdminRoute>
                             classes={self.is_active(AdminRoute::Serieses, ctx)}
-                            route={ AppRoute::Admin(AdminRoute::Serieses) }
+                            to={ AdminRoute::Serieses }
                         >
                             {"Series"}
-                        </  RouterAnchor<AppRoute>>
+                        </Link<AdminRoute>>
                     </li>
                     <li>
-                        <RouterAnchor<AppRoute>
+                        <Link<AdminRoute>
                             classes={self.is_active(AdminRoute::Institutions, ctx)}
-                            route={ AppRoute::Admin(AdminRoute::Institutions) }
+                            to={ AdminRoute::Institutions }
                         >
                             {"Institutions"}
-                        </  RouterAnchor<AppRoute>>
+                        </Link<AdminRoute>>
                     </li>
                 </ul>
 

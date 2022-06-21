@@ -11,7 +11,7 @@ use yew_agent::Bridge;
 use yew_agent::Bridged;
 use yew_agent::Dispatched;
 use yew_router::history::History;
-use yew_router::prelude::RouterAnchor;
+use yew_router::prelude::Link;
 use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
@@ -51,7 +51,6 @@ use crate::models::institution::update_institution_mutation::Variables as Update
 use crate::models::institution::CountryCodeValues;
 use crate::models::EditRoute;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 use super::ToElementValue;
@@ -493,11 +492,11 @@ impl InstitutionComponent {
                             html! {
                                 <p>
                                     { explanatory_text }
-                                    <RouterAnchor<AppRoute>
-                                        route={ work.edit_route() }
+                                    <Link<AdminRoute>
+                                        to={ work.edit_route() }
                                     >
                                         { &work.title }
-                                    </  RouterAnchor<AppRoute>>
+                                    </Link<AdminRoute>>
                                     { format!(", from: {}", work.imprint.publisher.publisher_name) }
                                 </p>
                             }

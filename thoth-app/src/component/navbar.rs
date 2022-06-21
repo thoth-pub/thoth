@@ -59,12 +59,12 @@ impl Component for NavbarComponent {
 
                 <div id="thothNavbar" class="navbar-menu">
                     <div class="navbar-start">
-                        <RouterAnchor<AppRoute>
+                        <Link<AppRoute>
                             classes="navbar-item"
-                            route={ AppRoute::Home }
+                            to={ AppRoute::Home }
                         >
                             {"Catalogue"}
-                        </  RouterAnchor<AppRoute>>
+                        </Link<AppRoute>>
 
                         <div class="navbar-item has-dropdown is-hoverable">
                             <a class="navbar-link">
@@ -94,12 +94,12 @@ impl Component for NavbarComponent {
                             </div>
                         </div>
 
-                        <RouterAnchor<AppRoute>
+                        <Link<AdminRoute>
                             classes="navbar-item"
-                            route={ AppRoute::Admin(AdminRoute::Dashboard) }
+                            to={ AdminRoute::Dashboard }
                         >
                             {"Admin"}
-                        </  RouterAnchor<AppRoute>>
+                        </Link<AdminRoute>>
                     </div>
                 </div>
 
@@ -118,9 +118,9 @@ impl Component for NavbarComponent {
                                     }
                                 } else {
                                     html! {
-                                        <RouterAnchor<AppRoute> classes="button is-light" route={ AppRoute::Login }>
+                                        <Link<AppRoute> classes="button is-light" to={ AppRoute::Login }>
                                             {"Login"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AppRoute>>
                                     }
                                 }
                             }

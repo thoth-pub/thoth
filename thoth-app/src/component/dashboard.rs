@@ -2,7 +2,7 @@ use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
-use yew_router::prelude::RouterAnchor;
+use yew_router::prelude::Link;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -17,7 +17,6 @@ use crate::models::stats::stats_query::StatsRequest;
 use crate::models::stats::stats_query::StatsRequestBody;
 use crate::models::stats::stats_query::Variables;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 
 pub struct DashboardComponent {
     get_stats: FetchStats,
@@ -99,11 +98,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Works", body.data.work_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route={ AppRoute::Admin(AdminRoute::Works) }
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Works }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                                 <article class="tile is-child notification is-info">
@@ -111,11 +110,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Books", body.data.book_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route={ AppRoute::Admin(AdminRoute::Books) }
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Books }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                                 <article class="tile is-child notification is-danger">
@@ -123,11 +122,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Chapters", body.data.chapter_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route={ AppRoute::Admin(AdminRoute::Chapters) }
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Chapters }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                             </div>
@@ -139,11 +138,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Publications", body.data.publication_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route={ AppRoute::Admin(AdminRoute::Publications) }
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Publications }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                                 <article class="tile is-child notification is-warning">
@@ -151,11 +150,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Contributors", body.data.contributor_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route={ AppRoute::Admin(AdminRoute::Contributors) }
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Contributors }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                                 <article class="tile is-child notification is-info">
@@ -163,11 +162,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Publishers", body.data.publisher_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route={ AppRoute::Admin(AdminRoute::Publishers) }
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Publishers }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                             </div>
@@ -179,11 +178,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Series", body.data.series_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route={ AppRoute::Admin(AdminRoute::Serieses) }
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Serieses }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                                 <article class="tile is-child notification is-success">
@@ -191,11 +190,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Imprints", body.data.imprint_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route={ AppRoute::Admin(AdminRoute::Imprints) }
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Imprints }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                                 <article class="tile is-child notification is-warning">
@@ -203,11 +202,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Institutions", body.data.institution_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route={ AppRoute::Admin(AdminRoute::Institutions) }
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Institutions }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                             </div>

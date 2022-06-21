@@ -93,7 +93,7 @@ macro_rules! pagination_component {
         use yew::prelude::InputEvent;
         use yew::prelude::Properties;
         use yew_router::history::History;
-        use yew_router::prelude::RouterAnchor;
+        use yew_router::prelude::Link;
         use yew_router::prelude::RouterScopeExt;
         use yewtil::fetch::Fetch;
         use yewtil::fetch::FetchAction;
@@ -105,7 +105,6 @@ macro_rules! pagination_component {
         use crate::component::utils::Reloader;
         use crate::models::{EditRoute, CreateRoute, MetadataTable};
         use crate::route::AdminRoute;
-        use crate::route::AppRoute;
 
         pub struct $component {
             limit: i32,
@@ -274,12 +273,12 @@ macro_rules! pagination_component {
                             </div>
                             <div class="level-right">
                                 <p class="level-item">
-                                        <RouterAnchor<AppRoute>
+                                        <Link<AdminRoute>
                                             classes="button is-success"
-                                            route={route}
+                                            to={route}
                                         >
                                             {"New"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                 </p>
                             </div>
                         </nav>
