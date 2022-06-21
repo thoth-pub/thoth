@@ -10,8 +10,6 @@ use yew_agent::Bridge;
 use yew_agent::Bridged;
 use yew_agent::Dispatched;
 use yew_router::prelude::*;
-use yew_router::route::Route;
-use yew_router::switch::Permissive;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
@@ -36,7 +34,6 @@ use crate::service::version;
 use crate::string::NEW_VERSION_PROMPT;
 
 pub struct RootComponent {
-    current_route: Option<AppRoute>,
     account_service: AccountService,
     current_user: Option<AccountDetails>,
     current_user_response: Callback<Result<AccountDetails, AccountError>>,
@@ -45,7 +42,6 @@ pub struct RootComponent {
     renew_token_response: Callback<Result<AccountDetails, AccountError>>,
     check_version_task: Option<FetchTask>,
     check_version_response: Callback<Result<Version, ThothError>>,
-    _router_agent: Box<dyn Bridge<RouteAgent>>,
     session_timer_agent: SessionTimerDispatcher,
     version_timer_agent: VersionTimerDispatcher,
     notification_bus: NotificationDispatcher,
@@ -58,7 +54,6 @@ pub enum Msg {
     RenewTokenResponse(Result<AccountDetails, AccountError>),
     CheckVersion,
     CheckVersionResponse(Result<Version, ThothError>),
-    Route(Route),
     UpdateAccount(AccountDetails),
     Login(AccountDetails),
     Logout,
@@ -71,13 +66,9 @@ impl Component for RootComponent {
     fn create(ctx: &Context<Self>) -> Self {
         let session_timer_agent = SessionTimerAgent::dispatcher();
         let version_timer_agent = VersionTimerAgent::dispatcher();
-        let _router_agent = RouteAgent::bridge(ctx.link().callback(Msg::Route));
-        let route_service: RouteService = RouteService::new();
-        let route = route_service.get_route();
         let notification_bus = NotificationBus::dispatcher();
 
         RootComponent {
-            current_route: AppRoute::switch(route),
             account_service: AccountService::new(),
             current_user: Default::default(),
             current_user_response: ctx.link().callback(Msg::CurrentUserResponse),
@@ -86,7 +77,6 @@ impl Component for RootComponent {
             renew_token_response: ctx.link().callback(Msg::RenewTokenResponse),
             check_version_task: Default::default(),
             check_version_response: ctx.link().callback(Msg::CheckVersionResponse),
-            _router_agent,
             session_timer_agent,
             version_timer_agent,
             notification_bus,
@@ -157,7 +147,6 @@ impl Component for RootComponent {
                 // Ignore and move on - not worth alerting the user.
                 self.check_version_task = None;
             }
-            Msg::Route(route) => self.current_route = AppRoute::switch(route),
             Msg::UpdateAccount(account_details) => {
                 self.current_user = Some(account_details);
             }
@@ -180,6 +169,8 @@ impl Component for RootComponent {
     fn view(&self, ctx: &Context<Self>) -> VNode {
         let callback_login = ctx.link().callback(Msg::Login);
         let callback_logout = ctx.link().callback(|_| Msg::Logout);
+        let current_user = self.current_user.clone();
+        let render = Switch::render(move |r| switch_app(r, current_user.clone(), callback_login));
 
         html! {
             <>
@@ -188,40 +179,42 @@ impl Component for RootComponent {
                 </header>
                 <NotificationComponent />
                 <div class="main">
-                {
-                    if let Some(route) = &self.current_route {
-                        match route {
-                            AppRoute::Home => html! {
-                                <>
-                                    <HeroComponent />
-                                    <div class="section">
-                                        <CatalogueComponent />
-                                    </div>
-                                </>
-                            },
-                            AppRoute::Login => html! {
-                                <div class="section">
-                                    <LoginComponent current_user={ self.current_user.clone() } callback={ callback_login }/>
-                                </div>
-                            },
-                            AppRoute::Admin(admin_route) => html! {
-                                <div class="section">
-                                    <AdminComponent route={admin_route.clone()} current_user={ self.current_user.clone() }/>
-                                </div>
-                            },
-                            AppRoute::Error(Permissive(None)) => html! {
-                                <div class="uk-position-center"></div>
-                            },
-                            AppRoute::Error(Permissive(Some(missed_route))) => html!{
-                                format!("Page '{}' not found", missed_route)
-                            }
-                        }
-                    } else {
-                        html! {}
-                    }
-                }
+                    <BrowserRouter>
+                        <Switch<AppRoute> { render } />
+                    </BrowserRouter>
                 </div>
             </>
         }
+    }
+}
+
+fn switch_app(
+    route: &AppRoute,
+    current_user: Option<AccountDetails>,
+    callback_login: Callback<AccountDetails>,
+) -> Html {
+    match route {
+        AppRoute::Home => html! {
+            <>
+                <HeroComponent />
+                <div class="section">
+                    <CatalogueComponent />
+                </div>
+            </>
+        },
+        AppRoute::Login => html! {
+            <div class="section">
+                <LoginComponent current_user={ current_user.clone() } callback={ callback_login }/>
+            </div>
+        },
+        AppRoute::Admin => html! {
+            <div class="section">
+                <AdminComponent current_user={ current_user.clone() }/>
+            </div>
+        },
+        AppRoute::Error => html! {
+            "Page not found"
+        },
+        _ => html! {},
     }
 }
