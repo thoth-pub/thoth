@@ -6,9 +6,8 @@ use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -33,7 +32,6 @@ use crate::models::publisher::publishers_query::PublishersRequest;
 use crate::models::publisher::publishers_query::PublishersRequestBody;
 use crate::models::publisher::publishers_query::Variables as PublishersVariables;
 use crate::models::EditRoute;
-use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 use super::ToElementValue;
@@ -45,7 +43,6 @@ pub struct NewImprintComponent {
     push_imprint: PushCreateImprint,
     data: ImprintFormData,
     fetch_publishers: FetchPublishers,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     // Store props value locally in order to test whether it has been updated on props change
     resource_access: AccountAccess,
@@ -64,7 +61,6 @@ pub enum Msg {
     ChangePublisher(Uuid),
     ChangeImprintName(String),
     ChangeImprintUrl(String),
-    ChangeRoute(AppRoute),
 }
 #[derive(PartialEq, Properties)]
 pub struct Props {
@@ -77,7 +73,6 @@ impl Component for NewImprintComponent {
 
     fn create(ctx: &Context<Self>) -> Self {
         let push_imprint = Default::default();
-        let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let imprint: Imprint = Default::default();
         let publisher_id: Uuid = Default::default();
@@ -93,7 +88,6 @@ impl Component for NewImprintComponent {
             push_imprint,
             data,
             fetch_publishers,
-            router,
             notification_bus,
             resource_access,
         }
@@ -139,7 +133,7 @@ impl Component for NewImprintComponent {
                                 format!("Saved {}", i.imprint_name),
                                 NotificationStatus::Success,
                             )));
-                            ctx.link().send_message(Msg::ChangeRoute(i.edit_route()));
+                            ctx.link().history().unwrap().push(i.edit_route());
                             true
                         }
                         None => {
@@ -183,11 +177,6 @@ impl Component for NewImprintComponent {
                 .neq_assign(imprint_name.trim().to_owned()),
             Msg::ChangeImprintUrl(value) => {
                 self.imprint.imprint_url.neq_assign(value.to_opt_string())
-            }
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
             }
         }
     }

@@ -10,9 +10,8 @@ use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -39,7 +38,6 @@ use crate::models::publication::publication_query::PublicationRequest;
 use crate::models::publication::publication_query::PublicationRequestBody;
 use crate::models::publication::publication_query::Variables;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use crate::string::EDIT_BUTTON;
 use crate::string::RELATIONS_INFO;
 
@@ -49,7 +47,6 @@ pub struct PublicationComponent {
     delete_publication: PushDeletePublication,
     show_modal_form: bool,
     publication_under_edit: Option<Publication>,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     // Store props value locally in order to test whether it has been updated on props change
     resource_access: AccountAccess,
@@ -66,7 +63,6 @@ pub enum Msg {
     DeletePublication,
     UpdateLocations(Option<Vec<Location>>),
     UpdatePrices(Option<Vec<Price>>),
-    ChangeRoute(AppRoute),
 }
 
 #[derive(PartialEq, Properties)]
@@ -86,7 +82,6 @@ impl Component for PublicationComponent {
         let publication_under_edit = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let publication: PublicationWithRelations = Default::default();
-        let router = RouteAgentDispatcher::new();
         let resource_access = ctx.props().current_user.resource_access;
 
         ctx.link().send_message(Msg::GetPublication);
@@ -97,7 +92,6 @@ impl Component for PublicationComponent {
             delete_publication,
             show_modal_form,
             publication_under_edit,
-            router,
             notification_bus,
             resource_access,
         }
@@ -198,9 +192,7 @@ impl Component for PublicationComponent {
                                     .publisher_id
                                     .to_string(),
                             ) {
-                                self.router.send(RouteRequest::ChangeRoute(Route::from(
-                                    AppRoute::Admin(AdminRoute::Dashboard),
-                                )));
+                                ctx.link().history().unwrap().push(AdminRoute::Dashboard);
                             }
                         }
                         true
@@ -241,9 +233,7 @@ impl Component for PublicationComponent {
                                 ),
                                 NotificationStatus::Success,
                             )));
-                            ctx.link().send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Publications,
-                            )));
+                            ctx.link().history().unwrap().push(AdminRoute::Publications);
                             true
                         }
                         None => {
@@ -282,11 +272,6 @@ impl Component for PublicationComponent {
             }
             Msg::UpdateLocations(locations) => self.publication.locations.neq_assign(locations),
             Msg::UpdatePrices(prices) => self.publication.prices.neq_assign(prices),
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
-            }
         }
     }
 

@@ -92,7 +92,7 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use crate::route::AppRoute;
+use crate::route::AdminRoute;
 
 pub trait Dropdown {
     fn as_dropdown_item(&self, callback: Callback<MouseEvent>) -> Html
@@ -126,11 +126,11 @@ pub trait ListString {
 }
 
 pub trait CreateRoute {
-    fn create_route() -> AppRoute;
+    fn create_route() -> AdminRoute;
 }
 
 pub trait EditRoute {
-    fn edit_route(&self) -> AppRoute;
+    fn edit_route(&self) -> AdminRoute;
 }
 
 pub trait MetadataTable {

@@ -10,7 +10,6 @@ use yew::MouseEvent;
 
 use super::{CreateRoute, EditRoute, MetadataTable};
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -25,14 +24,18 @@ pub struct PublicationTypeValues {
 }
 
 impl EditRoute for Publication {
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Publication(self.publication_id))
+    fn edit_route(&self) -> AdminRoute {
+        AdminRoute::Publication {
+            id: self.publication_id,
+        }
     }
 }
 
 impl EditRoute for PublicationWithRelations {
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Publication(self.publication_id))
+    fn edit_route(&self) -> AdminRoute {
+        AdminRoute::Publication {
+            id: self.publication_id,
+        }
     }
 }
 
@@ -67,8 +70,8 @@ impl MetadataTable for PublicationWithRelations {
 }
 
 impl CreateRoute for PublicationWithRelations {
-    fn create_route() -> AppRoute {
-        AppRoute::Admin(AdminRoute::NewPublication)
+    fn create_route() -> AdminRoute {
+        AdminRoute::NewPublication
     }
 }
 

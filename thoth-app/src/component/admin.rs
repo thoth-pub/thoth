@@ -2,10 +2,7 @@ use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
 use yew_router::prelude::*;
-use yew_router::route::Route;
 use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
@@ -43,7 +40,6 @@ use crate::string::PERMISSIONS_ERROR;
 
 pub struct AdminComponent {
     notification_bus: NotificationDispatcher,
-    router: RouteAgentDispatcher<()>,
     previous_route: AdminRoute,
 }
 
@@ -68,7 +64,6 @@ impl Component for AdminComponent {
 
         AdminComponent {
             notification_bus: NotificationBus::dispatcher(),
-            router: RouteAgentDispatcher::new(),
             previous_route,
         }
     }
@@ -95,8 +90,7 @@ impl Component for AdminComponent {
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::RedirectToLogin => {
-                self.router
-                    .send(RouteRequest::ChangeRoute(Route::from(AppRoute::Login)));
+                ctx.link().history().unwrap().push(AppRoute::Login);
                 false
             }
         }

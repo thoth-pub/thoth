@@ -6,9 +6,8 @@ use thoth_errors::ThothError;
 use yew::html;
 use yew::prelude::*;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -31,7 +30,6 @@ use crate::models::institution::create_institution_mutation::PushCreateInstituti
 use crate::models::institution::create_institution_mutation::Variables;
 use crate::models::institution::CountryCodeValues;
 use crate::models::EditRoute;
-use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 use super::ToElementValue;
@@ -47,7 +45,6 @@ pub struct NewInstitutionComponent {
     ror_warning: String,
     push_institution: PushCreateInstitution,
     data: InstitutionFormData,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -65,7 +62,6 @@ pub enum Msg {
     ChangeInstitutionDoi(String),
     ChangeRor(String),
     ChangeCountryCode(String),
-    ChangeRoute(AppRoute),
 }
 
 impl Component for NewInstitutionComponent {
@@ -82,7 +78,6 @@ impl Component for NewInstitutionComponent {
         let institution_doi_warning = Default::default();
         let ror = Default::default();
         let ror_warning = Default::default();
-        let router = RouteAgentDispatcher::new();
 
         ctx.link().send_message(Msg::GetCountryCodes);
 
@@ -95,7 +90,6 @@ impl Component for NewInstitutionComponent {
             ror_warning,
             push_institution,
             data,
-            router,
             notification_bus,
         }
     }
@@ -132,7 +126,7 @@ impl Component for NewInstitutionComponent {
                                 format!("Saved {}", i.institution_name),
                                 NotificationStatus::Success,
                             )));
-                            ctx.link().send_message(Msg::ChangeRoute(i.edit_route()));
+                            ctx.link().history().unwrap().push(i.edit_route());
                             true
                         }
                         None => {
@@ -236,11 +230,6 @@ impl Component for NewInstitutionComponent {
                 .institution
                 .country_code
                 .neq_assign(CountryCode::from_str(&value).ok()),
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
-            }
         }
     }
 

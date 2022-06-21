@@ -18,9 +18,8 @@ use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -67,7 +66,6 @@ use crate::models::work::work_query::WorkRequestBody;
 use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use crate::string::RELATIONS_INFO;
 use crate::string::SAVE_BUTTON;
 
@@ -87,7 +85,6 @@ pub struct WorkComponent {
     fetch_work: FetchWork,
     push_work: PushUpdateWork,
     delete_work: PushDeleteWork,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     // Store props values locally in order to test whether they have been updated on props change
     resource_access: AccountAccess,
@@ -145,7 +142,6 @@ pub enum Msg {
     UpdateLanguages(Option<Vec<Language>>),
     UpdateSubjects(Option<Vec<Subject>>),
     UpdateIssues(Option<Vec<IssueWithSeries>>),
-    ChangeRoute(AppRoute),
 }
 
 #[derive(PartialEq, Properties)]
@@ -169,7 +165,6 @@ impl Component for WorkComponent {
         let imprint_id = work.imprint.imprint_id;
         let work_type = work.work_type.clone();
         let data: WorkFormData = Default::default();
-        let router = RouteAgentDispatcher::new();
         let resource_access = ctx.props().current_user.resource_access;
         let work_id = ctx.props().work_id;
 
@@ -185,7 +180,6 @@ impl Component for WorkComponent {
             fetch_work,
             push_work,
             delete_work,
-            router,
             notification_bus,
             resource_access,
             work_id,
@@ -217,9 +211,7 @@ impl Component for WorkComponent {
                             if !publishers
                                 .contains(&self.work.imprint.publisher.publisher_id.to_string())
                             {
-                                self.router.send(RouteRequest::ChangeRoute(Route::from(
-                                    AppRoute::Admin(AdminRoute::Dashboard),
-                                )));
+                                ctx.link().history().unwrap().push(AdminRoute::Dashboard);
                             }
                         }
                         true
@@ -356,8 +348,7 @@ impl Component for WorkComponent {
                                 format!("Deleted {}", w.title),
                                 NotificationStatus::Success,
                             )));
-                            ctx.link()
-                                .send_message(Msg::ChangeRoute(AppRoute::Admin(AdminRoute::Works)));
+                            ctx.link().history().unwrap().push(AdminRoute::Works);
                             true
                         }
                         None => {
@@ -506,11 +497,6 @@ impl Component for WorkComponent {
             Msg::UpdateLanguages(languages) => self.work.languages.neq_assign(languages),
             Msg::UpdateSubjects(subjects) => self.work.subjects.neq_assign(subjects),
             Msg::UpdateIssues(issues) => self.work.issues.neq_assign(issues),
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
-            }
         }
     }
 

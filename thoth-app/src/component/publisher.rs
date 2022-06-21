@@ -5,9 +5,8 @@ use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -38,7 +37,6 @@ use crate::models::publisher::update_publisher_mutation::UpdatePublisherRequest;
 use crate::models::publisher::update_publisher_mutation::UpdatePublisherRequestBody;
 use crate::models::publisher::update_publisher_mutation::Variables as UpdateVariables;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 use super::ToElementValue;
@@ -49,7 +47,6 @@ pub struct PublisherComponent {
     fetch_publisher: FetchPublisher,
     push_publisher: PushUpdatePublisher,
     delete_publisher: PushDeletePublisher,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     // Store props value locally in order to test whether it has been updated on props change
     resource_access: AccountAccess,
@@ -65,7 +62,6 @@ pub enum Msg {
     ChangePublisherName(String),
     ChangePublisherShortname(String),
     ChangePublisherUrl(String),
-    ChangeRoute(AppRoute),
 }
 
 #[derive(PartialEq, Properties)]
@@ -84,7 +80,6 @@ impl Component for PublisherComponent {
         let delete_publisher = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let publisher: Publisher = Default::default();
-        let router = RouteAgentDispatcher::new();
         let resource_access = ctx.props().current_user.resource_access;
 
         ctx.link().send_message(Msg::GetPublisher);
@@ -94,7 +89,6 @@ impl Component for PublisherComponent {
             fetch_publisher,
             push_publisher,
             delete_publisher,
-            router,
             notification_bus,
             resource_access,
         }
@@ -115,9 +109,7 @@ impl Component for PublisherComponent {
                         // If user doesn't have permission to edit this object, redirect to dashboard
                         if let Some(publishers) = self.resource_access.restricted_to() {
                             if !publishers.contains(&self.publisher.publisher_id.to_string()) {
-                                self.router.send(RouteRequest::ChangeRoute(Route::from(
-                                    AppRoute::Admin(AdminRoute::Dashboard),
-                                )));
+                                ctx.link().history().unwrap().push(AdminRoute::Dashboard);
                             }
                         }
                         true
@@ -200,9 +192,7 @@ impl Component for PublisherComponent {
                                 format!("Deleted {}", f.publisher_name),
                                 NotificationStatus::Success,
                             )));
-                            ctx.link().send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Publishers,
-                            )));
+                            ctx.link().history().unwrap().push(AdminRoute::Publishers);
                             true
                         }
                         None => {
@@ -249,11 +239,6 @@ impl Component for PublisherComponent {
                 .publisher
                 .publisher_url
                 .neq_assign(value.to_opt_string()),
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
-            }
         }
     }
 

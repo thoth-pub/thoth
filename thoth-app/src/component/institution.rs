@@ -10,10 +10,9 @@ use yew::prelude::*;
 use yew_agent::Bridge;
 use yew_agent::Bridged;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
+use yew_router::history::History;
 use yew_router::prelude::RouterAnchor;
-use yew_router::route::Route;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -70,7 +69,6 @@ pub struct InstitutionComponent {
     push_institution: PushUpdateInstitution,
     delete_institution: PushDeleteInstitution,
     data: InstitutionFormData,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     _institution_activity_checker: Box<dyn Bridge<InstitutionActivityChecker>>,
     funded_works: Vec<WorkWithRelations>,
@@ -96,7 +94,6 @@ pub enum Msg {
     ChangeInstitutionDoi(String),
     ChangeRor(String),
     ChangeCountryCode(String),
-    ChangeRoute(AppRoute),
 }
 
 #[derive(PartialEq, Properties)]
@@ -127,7 +124,6 @@ impl Component for InstitutionComponent {
         let institution_doi_warning = Default::default();
         let ror = Default::default();
         let ror_warning = Default::default();
-        let router = RouteAgentDispatcher::new();
         let mut _institution_activity_checker =
             InstitutionActivityChecker::bridge(ctx.link().callback(Msg::GetInstitutionActivity));
         let funded_works = Default::default();
@@ -150,7 +146,6 @@ impl Component for InstitutionComponent {
             push_institution,
             delete_institution,
             data,
-            router,
             notification_bus,
             _institution_activity_checker,
             funded_works,
@@ -322,9 +317,7 @@ impl Component for InstitutionComponent {
                                 format!("Deleted {}", i.institution_name),
                                 NotificationStatus::Success,
                             )));
-                            ctx.link().send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Institutions,
-                            )));
+                            ctx.link().history().unwrap().push(AdminRoute::Institutions);
                             true
                         }
                         None => {
@@ -411,11 +404,6 @@ impl Component for InstitutionComponent {
                 .institution
                 .country_code
                 .neq_assign(CountryCode::from_str(&value).ok()),
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
-            }
         }
     }
 

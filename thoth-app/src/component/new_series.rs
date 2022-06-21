@@ -8,9 +8,8 @@ use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -40,7 +39,6 @@ use crate::models::series::series_types_query::FetchActionSeriesTypes;
 use crate::models::series::series_types_query::FetchSeriesTypes;
 use crate::models::series::SeriesTypeValues;
 use crate::models::EditRoute;
-use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 use super::ToElementValue;
@@ -52,7 +50,6 @@ pub struct NewSeriesComponent {
     data: SeriesFormData,
     fetch_imprints: FetchImprints,
     fetch_series_types: FetchSeriesTypes,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     // Store props value locally in order to test whether it has been updated on props change
     resource_access: AccountAccess,
@@ -79,7 +76,6 @@ pub enum Msg {
     ChangeSeriesUrl(String),
     ChangeSeriesDescription(String),
     ChangeSeriesCfpUrl(String),
-    ChangeRoute(AppRoute),
 }
 #[derive(PartialEq, Properties)]
 pub struct Props {
@@ -97,7 +93,6 @@ impl Component for NewSeriesComponent {
         let data: SeriesFormData = Default::default();
         let fetch_imprints: FetchImprints = Default::default();
         let fetch_series_types: FetchSeriesTypes = Default::default();
-        let router = RouteAgentDispatcher::new();
         let resource_access = ctx.props().current_user.resource_access;
 
         ctx.link().send_message(Msg::GetImprints);
@@ -109,7 +104,6 @@ impl Component for NewSeriesComponent {
             data,
             fetch_imprints,
             fetch_series_types,
-            router,
             notification_bus,
             resource_access,
         }
@@ -172,7 +166,7 @@ impl Component for NewSeriesComponent {
                                 format!("Saved {}", s.series_name),
                                 NotificationStatus::Success,
                             )));
-                            ctx.link().send_message(Msg::ChangeRoute(s.edit_route()));
+                            ctx.link().history().unwrap().push(s.edit_route());
                             true
                         }
                         None => {
@@ -235,11 +229,6 @@ impl Component for NewSeriesComponent {
                 .neq_assign(value.to_opt_string()),
             Msg::ChangeSeriesCfpUrl(value) => {
                 self.series.series_cfp_url.neq_assign(value.to_opt_string())
-            }
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
             }
         }
     }

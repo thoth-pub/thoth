@@ -92,10 +92,9 @@ macro_rules! pagination_component {
         use yew::prelude::Html;
         use yew::prelude::InputEvent;
         use yew::prelude::Properties;
-        use yew_router::agent::RouteAgentDispatcher;
-        use yew_router::agent::RouteRequest;
+        use yew_router::history::History;
         use yew_router::prelude::RouterAnchor;
-        use yew_router::route::Route;
+        use yew_router::prelude::RouterScopeExt;
         use yewtil::fetch::Fetch;
         use yewtil::fetch::FetchAction;
         use yewtil::fetch::FetchState;
@@ -105,6 +104,7 @@ macro_rules! pagination_component {
         use crate::component::utils::Loader;
         use crate::component::utils::Reloader;
         use crate::models::{EditRoute, CreateRoute, MetadataTable};
+        use crate::route::AdminRoute;
         use crate::route::AppRoute;
 
         pub struct $component {
@@ -117,7 +117,6 @@ macro_rules! pagination_component {
             table_headers: Vec<String>,
             result_count: i32,
             fetch_data: $fetch_data,
-            router: RouteAgentDispatcher<()>,
             // Store props value locally in order to test whether it has been updated on props change
             resource_access: AccountAccess,
         }
@@ -131,7 +130,7 @@ macro_rules! pagination_component {
             Search(String),
             NextPage,
             PreviousPage,
-            ChangeRoute(AppRoute),
+            ChangeRoute(AdminRoute),
             SortColumn($order_field),
         }
 
@@ -145,7 +144,6 @@ macro_rules! pagination_component {
             type Properties = Props;
 
             fn create(ctx: &Context<Self>) -> Self {
-                let router = RouteAgentDispatcher::new();
                 let offset: i32 = Default::default();
                 let page_size: i32 = 20;
                 let limit: i32 = page_size;
@@ -169,7 +167,6 @@ macro_rules! pagination_component {
                     table_headers,
                     result_count,
                     fetch_data,
-                    router,
                     resource_access,
                 }
             }
@@ -234,8 +231,7 @@ macro_rules! pagination_component {
                         false
                     }
                     Msg::ChangeRoute(r) => {
-                        let route = Route::from(r);
-                        self.router.send(RouteRequest::ChangeRoute(route));
+                        ctx.link().history().unwrap().push(r);
                         false
                     }
                     Msg::SortColumn(header) => {

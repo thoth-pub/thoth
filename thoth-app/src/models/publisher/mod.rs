@@ -5,19 +5,20 @@ use yew::Callback;
 use yew::MouseEvent;
 
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 
 use super::{CreateRoute, EditRoute, MetadataTable};
 
 impl CreateRoute for Publisher {
-    fn create_route() -> AppRoute {
-        AppRoute::Admin(AdminRoute::NewPublisher)
+    fn create_route() -> AdminRoute {
+        AdminRoute::NewPublisher
     }
 }
 
 impl EditRoute for Publisher {
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Publisher(self.publisher_id))
+    fn edit_route(&self) -> AdminRoute {
+        AdminRoute::Publisher {
+            id: self.publisher_id,
+        }
     }
 }
 

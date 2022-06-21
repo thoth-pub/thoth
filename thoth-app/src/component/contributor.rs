@@ -8,10 +8,9 @@ use yew::prelude::*;
 use yew_agent::Bridge;
 use yew_agent::Bridged;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
+use yew_router::history::History;
 use yew_router::prelude::RouterAnchor;
-use yew_router::route::Route;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -61,7 +60,6 @@ pub struct ContributorComponent {
     fetch_contributor: FetchContributor,
     push_contributor: PushUpdateContributor,
     delete_contributor: PushDeleteContributor,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     _contributor_activity_checker: Box<dyn Bridge<ContributorActivityChecker>>,
     contributor_activity: Vec<ContributionWithWork>,
@@ -80,7 +78,6 @@ pub enum Msg {
     ChangeFullName(String),
     ChangeOrcid(String),
     ChangeWebsite(String),
-    ChangeRoute(AppRoute),
 }
 
 #[derive(PartialEq, Properties)]
@@ -107,7 +104,6 @@ impl Component for ContributorComponent {
         let contributor: Contributor = Default::default();
         let orcid = Default::default();
         let orcid_warning = Default::default();
-        let router = RouteAgentDispatcher::new();
         let mut _contributor_activity_checker =
             ContributorActivityChecker::bridge(ctx.link().callback(Msg::GetContributorActivity));
         let contributor_activity = Default::default();
@@ -124,7 +120,6 @@ impl Component for ContributorComponent {
             fetch_contributor,
             push_contributor,
             delete_contributor,
-            router,
             notification_bus,
             _contributor_activity_checker,
             contributor_activity,
@@ -251,9 +246,7 @@ impl Component for ContributorComponent {
                                 format!("Deleted {}", c.full_name),
                                 NotificationStatus::Success,
                             )));
-                            ctx.link().send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Contributors,
-                            )));
+                            ctx.link().history().unwrap().push(AdminRoute::Contributors);
                             true
                         }
                         None => {
@@ -324,11 +317,6 @@ impl Component for ContributorComponent {
                 }
             }
             Msg::ChangeWebsite(value) => self.contributor.website.neq_assign(value.to_opt_string()),
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
-            }
         }
     }
 

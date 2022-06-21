@@ -4,9 +4,8 @@ use thoth_errors::ThothError;
 use yew::html;
 use yew::prelude::*;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -31,7 +30,6 @@ use crate::models::contributor::create_contributor_mutation::PushActionCreateCon
 use crate::models::contributor::create_contributor_mutation::PushCreateContributor;
 use crate::models::contributor::create_contributor_mutation::Variables;
 use crate::models::EditRoute;
-use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 use super::ToElementValue;
@@ -46,7 +44,6 @@ pub struct NewContributorComponent {
     orcid: String,
     orcid_warning: String,
     push_contributor: PushCreateContributor,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     show_duplicate_tooltip: bool,
     fetch_contributors: FetchContributors,
@@ -63,7 +60,6 @@ pub enum Msg {
     ChangeFullName(String),
     ChangeOrcid(String),
     ChangeWebsite(String),
-    ChangeRoute(AppRoute),
     ToggleDuplicateTooltip(bool),
 }
 
@@ -73,7 +69,6 @@ impl Component for NewContributorComponent {
 
     fn create(ctx: &Context<Self>) -> Self {
         let push_contributor = Default::default();
-        let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
         let orcid = Default::default();
@@ -87,7 +82,6 @@ impl Component for NewContributorComponent {
             orcid,
             orcid_warning,
             push_contributor,
-            router,
             notification_bus,
             show_duplicate_tooltip,
             fetch_contributors,
@@ -108,7 +102,7 @@ impl Component for NewContributorComponent {
                                 format!("Saved {}", c.full_name),
                                 NotificationStatus::Success,
                             )));
-                            ctx.link().send_message(Msg::ChangeRoute(c.edit_route()));
+                            ctx.link().history().unwrap().push(c.edit_route());
                             true
                         }
                         None => {
@@ -235,11 +229,6 @@ impl Component for NewContributorComponent {
                 }
             }
             Msg::ChangeWebsite(value) => self.contributor.website.neq_assign(value.to_opt_string()),
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
-            }
             Msg::ToggleDuplicateTooltip(value) => {
                 self.show_duplicate_tooltip = value;
                 true

@@ -5,9 +5,8 @@ use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -24,7 +23,7 @@ use crate::models::publication::delete_publication_mutation::PushActionDeletePub
 use crate::models::publication::delete_publication_mutation::PushDeletePublication;
 use crate::models::publication::delete_publication_mutation::Variables as DeleteVariables;
 use crate::models::EditRoute;
-use crate::route::AppRoute;
+use crate::route::AdminRoute;
 use crate::string::EDIT_BUTTON;
 use crate::string::EMPTY_PUBLICATIONS;
 use crate::string::REMOVE_BUTTON;
@@ -35,7 +34,6 @@ pub struct PublicationsFormComponent {
     publication_under_edit: Option<Publication>,
     delete_publication: PushDeletePublication,
     notification_bus: NotificationDispatcher,
-    router: RouteAgentDispatcher<()>,
 }
 
 pub enum Msg {
@@ -44,7 +42,7 @@ pub enum Msg {
     UpdatePublication(Publication),
     SetPublicationDeleteState(PushActionDeletePublication),
     DeletePublication(Uuid),
-    ChangeRoute(AppRoute),
+    ChangeRoute(AdminRoute),
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -64,14 +62,12 @@ impl Component for PublicationsFormComponent {
         let publication_under_edit = Default::default();
         let delete_publication = Default::default();
         let notification_bus = NotificationBus::dispatcher();
-        let router = RouteAgentDispatcher::new();
 
         PublicationsFormComponent {
             show_modal_form,
             publication_under_edit,
             delete_publication,
             notification_bus,
-            router,
         }
     }
 
@@ -168,8 +164,7 @@ impl Component for PublicationsFormComponent {
                 false
             }
             Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
+                ctx.link().history().unwrap().push(r);
                 false
             }
         }

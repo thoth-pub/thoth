@@ -6,9 +6,8 @@ use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -45,7 +44,6 @@ use crate::models::publisher::publishers_query::PublishersRequest;
 use crate::models::publisher::publishers_query::PublishersRequestBody;
 use crate::models::publisher::publishers_query::Variables as PublishersVariables;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 use super::ToElementValue;
@@ -58,7 +56,6 @@ pub struct ImprintComponent {
     delete_imprint: PushDeleteImprint,
     data: ImprintFormData,
     fetch_publishers: FetchPublishers,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     // Store props value locally in order to test whether it has been updated on props change
     resource_access: AccountAccess,
@@ -81,7 +78,6 @@ pub enum Msg {
     ChangePublisher(Uuid),
     ChangeImprintName(String),
     ChangeImprintUrl(String),
-    ChangeRoute(AppRoute),
 }
 
 #[derive(PartialEq, Properties)]
@@ -102,7 +98,6 @@ impl Component for ImprintComponent {
         let delete_imprint = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let imprint: ImprintWithPublisher = Default::default();
-        let router = RouteAgentDispatcher::new();
         let resource_access = ctx.props().current_user.resource_access;
 
         ctx.link().send_message(Msg::GetImprint);
@@ -115,7 +110,6 @@ impl Component for ImprintComponent {
             delete_imprint,
             data,
             fetch_publishers,
-            router,
             notification_bus,
             resource_access,
         }
@@ -165,9 +159,7 @@ impl Component for ImprintComponent {
                             if !publishers
                                 .contains(&self.imprint.publisher.publisher_id.to_string())
                             {
-                                self.router.send(RouteRequest::ChangeRoute(Route::from(
-                                    AppRoute::Admin(AdminRoute::Dashboard),
-                                )));
+                                ctx.link().history().unwrap().push(AdminRoute::Dashboard);
                             }
                         }
                         true
@@ -250,9 +242,7 @@ impl Component for ImprintComponent {
                                 format!("Deleted {}", i.imprint_name),
                                 NotificationStatus::Success,
                             )));
-                            ctx.link().send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Imprints,
-                            )));
+                            ctx.link().history().unwrap().push(AdminRoute::Imprints);
                             true
                         }
                         None => {
@@ -306,11 +296,6 @@ impl Component for ImprintComponent {
                 .neq_assign(imprint_name.trim().to_owned()),
             Msg::ChangeImprintUrl(value) => {
                 self.imprint.imprint_url.neq_assign(value.to_opt_string())
-            }
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
             }
         }
     }

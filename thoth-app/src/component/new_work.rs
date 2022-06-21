@@ -11,9 +11,8 @@ use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -51,7 +50,6 @@ use crate::models::work::WorkStatusValues;
 use crate::models::work::WorkTypeValues;
 use crate::models::EditRoute;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 use super::ToElementValue;
@@ -69,7 +67,6 @@ pub struct NewWorkComponent {
     fetch_imprints: FetchImprints,
     fetch_work_types: FetchWorkTypes,
     fetch_work_statuses: FetchWorkStatuses,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     // Store props value locally in order to test whether it has been updated on props change
     resource_access: AccountAccess,
@@ -121,7 +118,6 @@ pub enum Msg {
     ChangeToc(String),
     ChangeCoverUrl(String),
     ChangeCoverCaption(String),
-    ChangeRoute(AppRoute),
 }
 #[derive(PartialEq, Properties)]
 pub struct Props {
@@ -135,7 +131,6 @@ impl Component for NewWorkComponent {
 
     fn create(ctx: &Context<Self>) -> Self {
         let push_work = Default::default();
-        let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let work = WorkWithRelations {
             work_type: match ctx.props().previous_route {
@@ -171,7 +166,6 @@ impl Component for NewWorkComponent {
             fetch_imprints,
             fetch_work_types,
             fetch_work_statuses,
-            router,
             notification_bus,
             resource_access,
         }
@@ -253,7 +247,7 @@ impl Component for NewWorkComponent {
                                 format!("Saved {}", w.title),
                                 NotificationStatus::Success,
                             )));
-                            ctx.link().send_message(Msg::ChangeRoute(w.edit_route()));
+                            ctx.link().history().unwrap().push(w.edit_route());
                             true
                         }
                         None => {
@@ -427,11 +421,6 @@ impl Component for NewWorkComponent {
             Msg::ChangeCoverUrl(value) => self.work.cover_url.neq_assign(value.to_opt_string()),
             Msg::ChangeCoverCaption(value) => {
                 self.work.cover_caption.neq_assign(value.to_opt_string())
-            }
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
             }
         }
     }

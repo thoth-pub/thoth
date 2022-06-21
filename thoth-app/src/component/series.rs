@@ -8,9 +8,8 @@ use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -52,7 +51,6 @@ use crate::models::series::update_series_mutation::UpdateSeriesRequestBody;
 use crate::models::series::update_series_mutation::Variables as UpdateVariables;
 use crate::models::series::SeriesTypeValues;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
 use super::ToElementValue;
@@ -66,7 +64,6 @@ pub struct SeriesComponent {
     fetch_imprints: FetchImprints,
     fetch_series_types: FetchSeriesTypes,
     delete_series: PushDeleteSeries,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     // Store props value locally in order to test whether it has been updated on props change
     resource_access: AccountAccess,
@@ -98,7 +95,6 @@ pub enum Msg {
     ChangeSeriesUrl(String),
     ChangeSeriesDescription(String),
     ChangeSeriesCfpUrl(String),
-    ChangeRoute(AppRoute),
 }
 
 #[derive(PartialEq, Properties)]
@@ -120,7 +116,6 @@ impl Component for SeriesComponent {
         let data: SeriesFormData = Default::default();
         let fetch_imprints: FetchImprints = Default::default();
         let fetch_series_types: FetchSeriesTypes = Default::default();
-        let router = RouteAgentDispatcher::new();
         let resource_access = ctx.props().current_user.resource_access;
 
         ctx.link().send_message(Msg::GetSeries);
@@ -135,7 +130,6 @@ impl Component for SeriesComponent {
             fetch_imprints,
             fetch_series_types,
             delete_series,
-            router,
             notification_bus,
             resource_access,
         }
@@ -202,9 +196,7 @@ impl Component for SeriesComponent {
                             if !publishers
                                 .contains(&self.series.imprint.publisher.publisher_id.to_string())
                             {
-                                self.router.send(RouteRequest::ChangeRoute(Route::from(
-                                    AppRoute::Admin(AdminRoute::Dashboard),
-                                )));
+                                ctx.link().history().unwrap().push(AdminRoute::Dashboard);
                             }
                         }
                         true
@@ -292,9 +284,7 @@ impl Component for SeriesComponent {
                                 format!("Deleted {}", s.series_name),
                                 NotificationStatus::Success,
                             )));
-                            ctx.link().send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Serieses,
-                            )));
+                            ctx.link().history().unwrap().push(AdminRoute::Serieses);
                             true
                         }
                         None => {
@@ -350,11 +340,6 @@ impl Component for SeriesComponent {
                 .neq_assign(value.to_opt_string()),
             Msg::ChangeSeriesCfpUrl(value) => {
                 self.series.series_cfp_url.neq_assign(value.to_opt_string())
-            }
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
             }
         }
     }

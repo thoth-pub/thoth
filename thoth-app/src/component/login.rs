@@ -4,9 +4,8 @@ use yew::html;
 use yew::prelude::*;
 use yew::services::fetch::FetchTask;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
@@ -14,7 +13,6 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use crate::service::account::AccountError;
 use crate::service::account::AccountService;
 use crate::string::AUTHENTICATION_ERROR;
@@ -31,7 +29,6 @@ pub struct LoginComponent {
     task: Option<FetchTask>,
     account_service: AccountService,
     notification_bus: NotificationDispatcher,
-    router: RouteAgentDispatcher<()>,
 }
 
 #[derive(PartialEq, Properties)]
@@ -59,7 +56,6 @@ impl Component for LoginComponent {
             task: None,
             account_service: AccountService::new(),
             notification_bus: NotificationBus::dispatcher(),
-            router: RouteAgentDispatcher::new(),
         }
     }
 
@@ -80,10 +76,7 @@ impl Component for LoginComponent {
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::RedirectToAdmin => {
-                self.router
-                    .send(RouteRequest::ChangeRoute(Route::from(AppRoute::Admin(
-                        AdminRoute::Admin,
-                    ))));
+                ctx.link().history().unwrap().push(AdminRoute::Admin);
                 false
             }
             Msg::Request => {

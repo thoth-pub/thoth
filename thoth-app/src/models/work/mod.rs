@@ -14,7 +14,6 @@ use yew::MouseEvent;
 
 use super::{CreateRoute, Dropdown, EditRoute, ListString, MetadataTable};
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use crate::THOTH_EXPORT_API;
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -68,20 +67,20 @@ pub struct WorkStatusValues {
 impl Dropdown for Work {}
 
 impl EditRoute for Work {
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Work(self.work_id))
+    fn edit_route(&self) -> AdminRoute {
+        AdminRoute::Work { id: self.work_id }
     }
 }
 
 impl CreateRoute for WorkWithRelations {
-    fn create_route() -> AppRoute {
-        AppRoute::Admin(AdminRoute::NewWork)
+    fn create_route() -> AdminRoute {
+        AdminRoute::NewWork
     }
 }
 
 impl EditRoute for WorkWithRelations {
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Work(self.work_id))
+    fn edit_route(&self) -> AdminRoute {
+        AdminRoute::Work { id: self.work_id }
     }
 }
 

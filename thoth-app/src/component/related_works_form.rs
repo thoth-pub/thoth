@@ -8,9 +8,8 @@ use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
 use yew_agent::Dispatched;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
@@ -43,7 +42,7 @@ use crate::models::work_relation::relation_types_query::FetchRelationTypes;
 use crate::models::work_relation::RelationTypeValues;
 use crate::models::Dropdown;
 use crate::models::EditRoute;
-use crate::route::AppRoute;
+use crate::route::AdminRoute;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_RELATIONS;
 use crate::string::REMOVE_BUTTON;
@@ -61,7 +60,6 @@ pub struct RelatedWorksFormComponent {
     push_relation: PushCreateWorkRelation,
     delete_relation: PushDeleteWorkRelation,
     notification_bus: NotificationDispatcher,
-    router: RouteAgentDispatcher<()>,
     // Store props value locally in order to test whether it has been updated on props change
     resource_access: AccountAccess,
 }
@@ -88,7 +86,7 @@ pub enum Msg {
     AddRelation(Work),
     ChangeRelationtype(RelationType),
     ChangeOrdinal(String),
-    ChangeRoute(AppRoute),
+    ChangeRoute(AdminRoute),
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -121,7 +119,6 @@ impl Component for RelatedWorksFormComponent {
         let push_relation = Default::default();
         let delete_relation = Default::default();
         let notification_bus = NotificationBus::dispatcher();
-        let router = RouteAgentDispatcher::new();
         let resource_access = ctx.props().current_user.resource_access;
 
         ctx.link().send_message(Msg::GetWorks);
@@ -137,7 +134,6 @@ impl Component for RelatedWorksFormComponent {
             push_relation,
             delete_relation,
             notification_bus,
-            router,
             resource_access,
         }
     }
@@ -316,8 +312,7 @@ impl Component for RelatedWorksFormComponent {
                 false // otherwise we re-render the component and reset the value
             }
             Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
+                ctx.link().history().unwrap().push(r);
                 false
             }
         }
