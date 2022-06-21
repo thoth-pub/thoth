@@ -1,4 +1,4 @@
-use gloo_storage::LocalStorage;
+use gloo_storage::{LocalStorage, Storage};
 use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
@@ -15,7 +15,7 @@ use yew::services::fetch::Response;
 
 use crate::SESSION_KEY;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Serialize)]
 pub enum AccountError {
     #[error("Authentication error")]
     AuthenticationError,
@@ -34,7 +34,7 @@ impl AccountService {
     }
 
     pub fn get_token(&self) -> Option<String> {
-        if let Ok(token) = LocalStorage.get(SESSION_KEY) {
+        if let Ok(token) = LocalStorage::get(SESSION_KEY) {
             Some(token)
         } else {
             None
@@ -47,9 +47,9 @@ impl AccountService {
 
     fn update_storage(&self, token: Option<String>) {
         if let Some(t) = token {
-            LocalStorage.set(SESSION_KEY, Ok(t));
+            LocalStorage::set(SESSION_KEY, Ok::<String, AccountError>(t));
         } else {
-            LocalStorage.delete(SESSION_KEY);
+            LocalStorage::delete(SESSION_KEY);
         }
     }
 
