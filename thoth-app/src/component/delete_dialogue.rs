@@ -3,14 +3,14 @@ use crate::string::DELETE_BUTTON;
 use yew::html;
 use yew::prelude::*;
 
-pub struct ConfirmDeleteComponent {}
+pub struct ConfirmDeleteComponent {
+    show: bool,
+}
 
 #[derive(PartialEq, Properties)]
 pub struct Props {
     pub onclick: Callback<MouseEvent>,
     pub object_name: String,
-    #[prop_or(false)]
-    pub show: bool,
 }
 
 pub enum Msg {
@@ -21,14 +21,14 @@ impl Component for ConfirmDeleteComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(ctx: &Context<Self>) -> Self {
-        ConfirmDeleteComponent {}
+    fn create(_ctx: &Context<Self>) -> Self {
+        ConfirmDeleteComponent { show: false }
     }
 
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleConfirmDeleteDisplay(value) => {
-                ctx.props().show = value;
+                self.show = value;
                 true
             }
         }
@@ -48,7 +48,7 @@ impl Component for ConfirmDeleteComponent {
                 <button class="button is-danger" onclick={ open_modal }>
                     { DELETE_BUTTON }
                 </button>
-                <div class={ self.confirm_delete_status(ctx) }>
+                <div class={ self.confirm_delete_status() }>
                     <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
@@ -88,8 +88,8 @@ impl Component for ConfirmDeleteComponent {
 }
 
 impl ConfirmDeleteComponent {
-    fn confirm_delete_status(&self, ctx: &Context<Self>) -> String {
-        match ctx.props().show {
+    fn confirm_delete_status(&self) -> String {
+        match self.show {
             true => "modal is-active".to_string(),
             false => "modal".to_string(),
         }

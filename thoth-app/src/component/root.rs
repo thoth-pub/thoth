@@ -170,7 +170,8 @@ impl Component for RootComponent {
         let callback_login = ctx.link().callback(Msg::Login);
         let callback_logout = ctx.link().callback(|_| Msg::Logout);
         let current_user = self.current_user.clone();
-        let render = Switch::render(move |r| switch_app(r, current_user.clone(), callback_login));
+        let render =
+            Switch::render(move |r| switch_app(r, current_user.clone(), callback_login.clone()));
 
         html! {
             <>
@@ -215,6 +216,5 @@ fn switch_app(
         AppRoute::Error => html! {
             "Page not found"
         },
-        _ => html! {},
     }
 }

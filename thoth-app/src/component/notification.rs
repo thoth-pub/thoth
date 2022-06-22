@@ -36,7 +36,7 @@ impl Component for NotificationComponent {
         }
     }
 
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Add(s) => {
                 let notification = Notification {

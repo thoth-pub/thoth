@@ -152,7 +152,7 @@ macro_rules! pagination_component {
                 let data = Default::default();
                 let fetch_data = Default::default();
                 let table_headers = $table_headers;
-                let resource_access = ctx.props().current_user.resource_access;
+                let resource_access = ctx.props().current_user.resource_access.clone();
 
                 ctx.link().send_message(Msg::PaginateData);
 
@@ -252,7 +252,7 @@ macro_rules! pagination_component {
 
             fn changed(&mut self, ctx: &Context<Self>) -> bool {
                 let updated_permissions =
-                    self.resource_access.neq_assign(ctx.props().current_user.resource_access);
+                    self.resource_access.neq_assign(ctx.props().current_user.resource_access.clone());
                 if updated_permissions {
                     ctx.link().send_message(Msg::PaginateData);
                 }

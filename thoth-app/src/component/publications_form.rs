@@ -57,7 +57,7 @@ impl Component for PublicationsFormComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(ctx: &Context<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
         let show_modal_form = false;
         let publication_under_edit = Default::default();
         let delete_publication = Default::default();

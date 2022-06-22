@@ -150,7 +150,7 @@ impl Component for NewWorkComponent {
         let fetch_imprints: FetchImprints = Default::default();
         let fetch_work_types: FetchWorkTypes = Default::default();
         let fetch_work_statuses: FetchWorkStatuses = Default::default();
-        let resource_access = ctx.props().current_user.resource_access;
+        let resource_access = ctx.props().current_user.resource_access.clone();
 
         ctx.link().send_message(Msg::GetImprints);
         ctx.link().send_message(Msg::GetWorkTypes);
@@ -428,7 +428,7 @@ impl Component for NewWorkComponent {
     fn changed(&mut self, ctx: &Context<Self>) -> bool {
         let updated_permissions = self
             .resource_access
-            .neq_assign(ctx.props().current_user.resource_access);
+            .neq_assign(ctx.props().current_user.resource_access.clone());
         if updated_permissions {
             ctx.link().send_message(Msg::GetImprints);
         }

@@ -102,7 +102,7 @@ impl Component for IssuesFormComponent {
         let push_issue = Default::default();
         let delete_issue = Default::default();
         let notification_bus = NotificationBus::dispatcher();
-        let resource_access = ctx.props().current_user.resource_access;
+        let resource_access = ctx.props().current_user.resource_access.clone();
 
         ctx.link().send_message(Msg::GetSerieses);
 
@@ -277,7 +277,7 @@ impl Component for IssuesFormComponent {
     fn changed(&mut self, ctx: &Context<Self>) -> bool {
         let updated_permissions = self
             .resource_access
-            .neq_assign(ctx.props().current_user.resource_access);
+            .neq_assign(ctx.props().current_user.resource_access.clone());
         if updated_permissions {
             ctx.link().send_message(Msg::GetSerieses);
         }

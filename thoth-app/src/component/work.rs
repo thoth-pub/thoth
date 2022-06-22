@@ -165,7 +165,7 @@ impl Component for WorkComponent {
         let imprint_id = work.imprint.imprint_id;
         let work_type = work.work_type.clone();
         let data: WorkFormData = Default::default();
-        let resource_access = ctx.props().current_user.resource_access;
+        let resource_access = ctx.props().current_user.resource_access.clone();
         let work_id = ctx.props().work_id;
 
         ctx.link().send_message(Msg::GetWork);
@@ -503,7 +503,7 @@ impl Component for WorkComponent {
     fn changed(&mut self, ctx: &Context<Self>) -> bool {
         let updated_permissions = self
             .resource_access
-            .neq_assign(ctx.props().current_user.resource_access);
+            .neq_assign(ctx.props().current_user.resource_access.clone());
         let updated_work = self.work_id.neq_assign(ctx.props().work_id);
         if updated_permissions || updated_work {
             // Required in order to retrieve updated list of imprints for dropdown

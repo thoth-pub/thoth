@@ -26,11 +26,11 @@ impl Component for MenuComponent {
     type Message = ();
     type Properties = Props;
 
-    fn create(ctx: &Context<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
         MenuComponent {}
     }
 
-    fn update(&mut self, ctx: &Context<Self>, _msg: Self::Message) -> bool {
+    fn update(&mut self, _ctx: &Context<Self>, _msg: Self::Message) -> bool {
         false
     }
 

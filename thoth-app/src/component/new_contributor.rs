@@ -67,7 +67,7 @@ impl Component for NewContributorComponent {
     type Message = Msg;
     type Properties = ();
 
-    fn create(ctx: &Context<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
         let push_contributor = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();

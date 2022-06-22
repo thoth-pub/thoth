@@ -485,7 +485,7 @@ impl Component for PublicationModalComponent {
                                                 <input
                                                     type="checkbox"
                                                     checked={ self.convert_dimensions }
-                                                    onchange={ ctx.link().callback(|e: Event| Msg::ToggleDimensionConversion) }
+                                                    onchange={ ctx.link().callback(|_: Event| Msg::ToggleDimensionConversion) }
                                                 />
                                                 { "Automatically convert dimension values" }
                                             </label>

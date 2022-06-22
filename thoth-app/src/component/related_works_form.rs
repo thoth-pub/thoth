@@ -119,7 +119,7 @@ impl Component for RelatedWorksFormComponent {
         let push_relation = Default::default();
         let delete_relation = Default::default();
         let notification_bus = NotificationBus::dispatcher();
-        let resource_access = ctx.props().current_user.resource_access;
+        let resource_access = ctx.props().current_user.resource_access.clone();
 
         ctx.link().send_message(Msg::GetWorks);
         ctx.link().send_message(Msg::GetRelationTypes);

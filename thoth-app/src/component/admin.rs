@@ -189,6 +189,5 @@ fn switch_admin(
         AdminRoute::Serieses => html! {<SeriesesComponent { current_user } />},
         AdminRoute::NewSeries => html! {<NewSeriesComponent { current_user } />},
         AdminRoute::Series { id } => html! {<SeriesComponent series_id={ *id } { current_user } />},
-        _ => html! {},
     }
 }

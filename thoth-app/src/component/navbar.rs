@@ -24,7 +24,7 @@ impl Component for NavbarComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(ctx: &Context<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
         NavbarComponent {}
     }
 

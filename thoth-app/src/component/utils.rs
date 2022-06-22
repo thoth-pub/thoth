@@ -41,7 +41,6 @@ use crate::string::NO;
 use crate::string::RELOAD_BUTTON;
 use crate::string::YES;
 
-
 #[derive(PartialEq, Properties)]
 pub struct FormInputProps {
     pub label: String,

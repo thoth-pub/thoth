@@ -80,7 +80,7 @@ impl Component for PublisherComponent {
         let delete_publisher = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let publisher: Publisher = Default::default();
-        let resource_access = ctx.props().current_user.resource_access;
+        let resource_access = ctx.props().current_user.resource_access.clone();
 
         ctx.link().send_message(Msg::GetPublisher);
 

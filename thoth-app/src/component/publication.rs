@@ -82,7 +82,7 @@ impl Component for PublicationComponent {
         let publication_under_edit = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let publication: PublicationWithRelations = Default::default();
-        let resource_access = ctx.props().current_user.resource_access;
+        let resource_access = ctx.props().current_user.resource_access.clone();
 
         ctx.link().send_message(Msg::GetPublication);
 

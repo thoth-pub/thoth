@@ -98,7 +98,7 @@ impl Component for ImprintComponent {
         let delete_imprint = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let imprint: ImprintWithPublisher = Default::default();
-        let resource_access = ctx.props().current_user.resource_access;
+        let resource_access = ctx.props().current_user.resource_access.clone();
 
         ctx.link().send_message(Msg::GetImprint);
         ctx.link().send_message(Msg::GetPublishers);
@@ -303,7 +303,7 @@ impl Component for ImprintComponent {
     fn changed(&mut self, ctx: &Context<Self>) -> bool {
         let updated_permissions = self
             .resource_access
-            .neq_assign(ctx.props().current_user.resource_access);
+            .neq_assign(ctx.props().current_user.resource_access.clone());
         if updated_permissions {
             ctx.link().send_message(Msg::GetPublishers);
         }

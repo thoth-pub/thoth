@@ -116,7 +116,7 @@ impl Component for SeriesComponent {
         let data: SeriesFormData = Default::default();
         let fetch_imprints: FetchImprints = Default::default();
         let fetch_series_types: FetchSeriesTypes = Default::default();
-        let resource_access = ctx.props().current_user.resource_access;
+        let resource_access = ctx.props().current_user.resource_access.clone();
 
         ctx.link().send_message(Msg::GetSeries);
         ctx.link().send_message(Msg::GetImprints);
@@ -347,7 +347,7 @@ impl Component for SeriesComponent {
     fn changed(&mut self, ctx: &Context<Self>) -> bool {
         let updated_permissions = self
             .resource_access
-            .neq_assign(ctx.props().current_user.resource_access);
+            .neq_assign(ctx.props().current_user.resource_access.clone());
         if updated_permissions {
             ctx.link().send_message(Msg::GetImprints);
         }
