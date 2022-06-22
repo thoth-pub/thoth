@@ -40,8 +40,6 @@ pub struct RootComponent {
     current_user_task: Option<FetchTask>,
     renew_token_task: Option<FetchTask>,
     renew_token_response: Callback<Result<AccountDetails, AccountError>>,
-    check_version_task: Option<FetchTask>,
-    check_version_response: Callback<Result<Version, ThothError>>,
     session_timer_agent: SessionTimerDispatcher,
     version_timer_agent: VersionTimerDispatcher,
     notification_bus: NotificationDispatcher,
@@ -75,8 +73,6 @@ impl Component for RootComponent {
             current_user_task: Default::default(),
             renew_token_task: Default::default(),
             renew_token_response: ctx.link().callback(Msg::RenewTokenResponse),
-            check_version_task: Default::default(),
-            check_version_response: ctx.link().callback(Msg::CheckVersionResponse),
             session_timer_agent,
             version_timer_agent,
             notification_bus,
@@ -110,8 +106,8 @@ impl Component for RootComponent {
                 self.renew_token_task = Some(task);
             }
             Msg::CheckVersion => {
-                let task = version::get_version(self.check_version_response.clone());
-                self.check_version_task = Some(task);
+                ctx.link()
+                    .send_future(async { Msg::CheckVersionResponse(version::get_version().await) });
             }
             Msg::CurrentUserResponse(Ok(account_details)) => {
                 ctx.link().send_message(Msg::Login(account_details));
@@ -140,12 +136,10 @@ impl Component for RootComponent {
                         self.version_timer_agent.send(VersionTimerRequest::Stop);
                     }
                 }
-                self.check_version_task = None;
             }
             Msg::CheckVersionResponse(Err(_)) => {
                 // Unable to determine if a new app version is available.
                 // Ignore and move on - not worth alerting the user.
-                self.check_version_task = None;
             }
             Msg::UpdateAccount(account_details) => {
                 self.current_user = Some(account_details);
