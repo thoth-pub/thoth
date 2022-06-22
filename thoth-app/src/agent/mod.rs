@@ -45,11 +45,12 @@ macro_rules! timer_agent {
             fn handle_input(&mut self, msg: Self::Input, _: HandlerId) {
                 match msg {
                     $agent_request::Start(callback) => {
-                        let timer_task = Some(Interval::new(60_000, callback));
+                        self.timer_task = Some(Interval::new(60_000, move || callback.emit(())));
                     }
                     $agent_request::Stop => {
-                        if self.timer_task.is_some() {
-                            self.timer_task.cancel();
+                        if let Some(timer_task) = self.timer_task.take() {
+                            // .take() sets self.timer_task to None so no need to do it explicitly
+                            timer_task.cancel();
                         }
                     }
                 }
