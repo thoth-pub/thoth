@@ -7,7 +7,7 @@ pub enum AppRoute {
     Login,
     #[at("/error")]
     Error,
-    #[at("/admin/:s")]
+    #[at("/admin/*")]
     Admin,
     #[at("/")]
     Home,
