@@ -43,7 +43,7 @@ impl AccountService {
 
     fn update_storage(&self, token: Option<String>) {
         if let Some(t) = token {
-            LocalStorage::set(SESSION_KEY, Ok::<String, AccountError>(t));
+            LocalStorage::set(SESSION_KEY, t);
         } else {
             LocalStorage::delete(SESSION_KEY);
         }
