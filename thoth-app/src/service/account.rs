@@ -1,19 +1,14 @@
 use gloo_storage::{LocalStorage, Storage};
 use serde::Deserialize;
 use serde::Serialize;
+use std::future::Future;
 use thiserror::Error;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::account::model::LoginCredentials;
-use yew::callback::Callback;
-use yew::format::Json;
-use yew::format::Nothing;
-use yew::format::Text;
-use yew::services::fetch::FetchService;
-use yew::services::fetch::FetchTask;
-use yew::services::fetch::Request;
-use yew::services::fetch::Response;
 
 use crate::SESSION_KEY;
+
+type HttpFuture = Result<reqwest::Response, reqwest::Error>;
 
 #[derive(Debug, Error, Serialize)]
 pub enum AccountError {
@@ -26,6 +21,7 @@ pub enum AccountError {
 const HTTP_UNAUTHORIZED: u16 = 401;
 const HTTP_FORBIDDEN: u16 = 403;
 
+#[derive(Clone)]
 pub struct AccountService {}
 
 impl AccountService {
@@ -61,110 +57,110 @@ impl AccountService {
         self.update_storage(None)
     }
 
-    pub fn login(
+    pub async fn login(
         &mut self,
         login_credentials: LoginCredentials,
-        callback: Callback<Result<AccountDetails, AccountError>>,
-    ) -> FetchTask {
+    ) -> Result<AccountDetails, AccountError> {
         self.post_request::<LoginCredentials, AccountDetails>(
             "/account/login".to_string(),
             login_credentials,
-            callback,
         )
+        .await
     }
 
-    pub fn renew_token(
-        &mut self,
-        callback: Callback<Result<AccountDetails, AccountError>>,
-    ) -> FetchTask {
-        self.bodyless_post_request::<AccountDetails>("/account/token/renew".to_string(), callback)
+    pub async fn renew_token(&mut self) -> Result<AccountDetails, AccountError> {
+        self.bodyless_post_request::<AccountDetails>("/account/token/renew".to_string())
+            .await
     }
 
-    pub fn account_details(
-        &mut self,
-        callback: Callback<Result<AccountDetails, AccountError>>,
-    ) -> FetchTask {
-        self.get_request::<AccountDetails>("/account".to_string(), callback)
+    pub async fn account_details(&mut self) -> Result<AccountDetails, AccountError> {
+        self.get_request::<AccountDetails>("/account".to_string())
+            .await
     }
 
-    fn request_builder<B, T>(
+    async fn request_builder<B, T>(
         &mut self,
         method: &str,
         url: String,
-        body: B,
-        callback: Callback<Result<T, AccountError>>,
-    ) -> FetchTask
+        body: Option<B>,
+    ) -> Result<T, AccountError>
     where
         for<'de> T: Deserialize<'de> + 'static + std::fmt::Debug,
-        B: Into<Text> + std::fmt::Debug,
+        B: Into<reqwest::Body> + std::fmt::Debug,
     {
-        let handler = move |response: Response<Text>| {
-            if let (meta, Ok(data)) = response.into_parts() {
-                if meta.status.is_success() {
-                    let data: Result<T, _> = serde_json::from_str(&data);
+        let res = self.send_request(method, url, body).await.await;
+        match res {
+            Ok(response) => {
+                if response.status().is_success() {
+                    let data: Result<T, _> = response.json().await;
                     if let Ok(data) = data {
-                        callback.emit(Ok(data))
+                        Ok(data)
                     } else {
-                        callback.emit(Err(AccountError::ResponseError))
+                        Err(AccountError::ResponseError)
                     }
                 } else {
-                    match meta.status.as_u16() {
-                        HTTP_UNAUTHORIZED => callback.emit(Err(AccountError::AuthenticationError)),
-                        HTTP_FORBIDDEN => callback.emit(Err(AccountError::AuthenticationError)),
-                        _ => callback.emit(Err(AccountError::ResponseError)),
+                    match response.status().as_u16() {
+                        HTTP_UNAUTHORIZED => Err(AccountError::AuthenticationError),
+                        HTTP_FORBIDDEN => Err(AccountError::AuthenticationError),
+                        _ => Err(AccountError::ResponseError),
                     }
                 }
-            } else {
-                callback.emit(Err(AccountError::ResponseError))
             }
-        };
+            Err(_) => {
+                Err(AccountError::ResponseError)
+            }
+        }
+    }
 
-        let url = format!("{}{}", crate::THOTH_GRAPHQL_API, url);
-        let mut builder = Request::builder()
-            .method(method)
-            .uri(url.as_str())
+    async fn send_request<B>(
+        &mut self,
+        method: &str,
+        url: String,
+        body: Option<B>,
+    ) -> impl Future<Output = HttpFuture>
+    where
+        B: Into<reqwest::Body> + std::fmt::Debug,
+    {
+        let uri = format!("{}{}", crate::THOTH_GRAPHQL_API, url);
+        let verb = match method {
+            "GET" => reqwest::Method::GET,
+            "POST" => reqwest::Method::POST,
+            _ => unimplemented!(),
+        };
+        let mut request = reqwest::Client::new()
+            .request(verb, uri)
             .header("Content-Type", "application/json");
         if let Some(token) = self.get_token() {
-            builder = builder.header("Authorization", format!("Bearer {}", token));
+            request = request.header("Authorization", format!("Bearer {}", token));
         }
-        let request = builder.body(body).unwrap();
-
-        FetchService::fetch(request, handler.into()).unwrap()
+        if let Some(content) = body {
+            request = request.body(content);
+        }
+        request.send()
     }
 
-    fn get_request<T>(
-        &mut self,
-        url: String,
-        callback: Callback<Result<T, AccountError>>,
-    ) -> FetchTask
+    async fn get_request<T>(&mut self, url: String) -> Result<T, AccountError>
     where
         for<'de> T: Deserialize<'de> + 'static + std::fmt::Debug,
     {
-        self.request_builder("GET", url, Nothing, callback)
+        self.request_builder("GET", url, None::<reqwest::Body>)
+            .await
     }
 
-    fn bodyless_post_request<T>(
-        &mut self,
-        url: String,
-        callback: Callback<Result<T, AccountError>>,
-    ) -> FetchTask
+    async fn bodyless_post_request<T>(&mut self, url: String) -> Result<T, AccountError>
     where
         for<'de> T: Deserialize<'de> + 'static + std::fmt::Debug,
     {
-        self.request_builder("POST", url, Nothing, callback)
+        self.request_builder("POST", url, None::<reqwest::Body>)
+            .await
     }
 
-    fn post_request<B, T>(
-        &mut self,
-        url: String,
-        body: B,
-        callback: Callback<Result<T, AccountError>>,
-    ) -> FetchTask
+    async fn post_request<B, T>(&mut self, url: String, body: B) -> Result<T, AccountError>
     where
         for<'de> T: Deserialize<'de> + 'static + std::fmt::Debug,
         B: Serialize,
     {
-        let body: Text = Json(&body).into();
-        self.request_builder("POST", url, body, callback)
+        let body = serde_json::to_string(&body).expect("Failed to serialise request body");
+        self.request_builder("POST", url, Some(body)).await
     }
 }

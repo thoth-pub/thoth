@@ -2,7 +2,6 @@ use thoth_api::account::model::AccountDetails;
 use thoth_api::account::model::LoginCredentials;
 use yew::html;
 use yew::prelude::*;
-use yew::services::fetch::FetchTask;
 use yew_agent::Dispatched;
 use yew_router::history::History;
 use yew_router::prelude::RouterScopeExt;
@@ -25,8 +24,6 @@ use super::ToElementValue;
 
 pub struct LoginComponent {
     request: LoginCredentials,
-    response: Callback<Result<AccountDetails, AccountError>>,
-    task: Option<FetchTask>,
     account_service: AccountService,
     notification_bus: NotificationDispatcher,
 }
@@ -52,8 +49,6 @@ impl Component for LoginComponent {
     fn create(ctx: &Context<Self>) -> Self {
         LoginComponent {
             request: Default::default(),
-            response: ctx.link().callback(Msg::Response),
-            task: None,
             account_service: AccountService::new(),
             notification_bus: NotificationBus::dispatcher(),
         }
@@ -80,17 +75,17 @@ impl Component for LoginComponent {
                 false
             }
             Msg::Request => {
-                self.task = Some(
-                    self.account_service
-                        .login(self.request.clone(), self.response.clone()),
-                );
+                let mut service = self.account_service.clone();
+                let request = self.request.clone();
+                ctx.link().send_future(async move {
+                    Msg::Response(service.login(request).await)
+                });
                 true
             }
             Msg::Response(Ok(account_details)) => {
                 let token = account_details.token.clone().unwrap();
                 self.account_service.set_token(token);
                 ctx.props().callback.emit(account_details);
-                self.task = None;
                 ctx.link().send_message(Msg::RedirectToAdmin);
                 true
             }
@@ -109,7 +104,6 @@ impl Component for LoginComponent {
                         )));
                     }
                 };
-                self.task = None;
                 true
             }
             Msg::ChangeEmail(email) => self.request.email.neq_assign(email),

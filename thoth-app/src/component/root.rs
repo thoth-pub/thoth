@@ -3,7 +3,6 @@ use thoth_api::account::model::AccountDetails;
 use thoth_errors::ThothError;
 use yew::html;
 use yew::prelude::*;
-use yew::services::fetch::FetchTask;
 use yew::virtual_dom::VNode;
 use yew::Callback;
 use yew_agent::Bridge;
@@ -36,10 +35,6 @@ use crate::string::NEW_VERSION_PROMPT;
 pub struct RootComponent {
     account_service: AccountService,
     current_user: Option<AccountDetails>,
-    current_user_response: Callback<Result<AccountDetails, AccountError>>,
-    current_user_task: Option<FetchTask>,
-    renew_token_task: Option<FetchTask>,
-    renew_token_response: Callback<Result<AccountDetails, AccountError>>,
     session_timer_agent: SessionTimerDispatcher,
     version_timer_agent: VersionTimerDispatcher,
     notification_bus: NotificationDispatcher,
@@ -69,10 +64,6 @@ impl Component for RootComponent {
         RootComponent {
             account_service: AccountService::new(),
             current_user: Default::default(),
-            current_user_response: ctx.link().callback(Msg::CurrentUserResponse),
-            current_user_task: Default::default(),
-            renew_token_task: Default::default(),
-            renew_token_response: ctx.link().callback(Msg::RenewTokenResponse),
             session_timer_agent,
             version_timer_agent,
             notification_bus,
@@ -94,16 +85,16 @@ impl Component for RootComponent {
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::FetchCurrentUser => {
-                let task = self
-                    .account_service
-                    .account_details(self.current_user_response.clone());
-                self.current_user_task = Some(task);
+                let mut service = self.account_service.clone();
+                ctx.link().send_future(async move {
+                    Msg::CurrentUserResponse(service.account_details().await)
+                });
             }
             Msg::RenewToken => {
-                let task = self
-                    .account_service
-                    .renew_token(self.renew_token_response.clone());
-                self.renew_token_task = Some(task);
+                let mut service = self.account_service.clone();
+                ctx.link().send_future(async move {
+                    Msg::RenewTokenResponse(service.renew_token().await)
+                });
             }
             Msg::CheckVersion => {
                 ctx.link()
@@ -111,19 +102,15 @@ impl Component for RootComponent {
             }
             Msg::CurrentUserResponse(Ok(account_details)) => {
                 ctx.link().send_message(Msg::Login(account_details));
-                self.current_user_task = None;
             }
             Msg::CurrentUserResponse(Err(_)) => {
                 ctx.link().send_message(Msg::Logout);
-                self.current_user_task = None;
             }
             Msg::RenewTokenResponse(Ok(account_details)) => {
                 ctx.link().send_message(Msg::UpdateAccount(account_details));
-                self.renew_token_task = None;
             }
             Msg::RenewTokenResponse(Err(_)) => {
                 ctx.link().send_message(Msg::Logout);
-                self.current_user_task = None;
             }
             Msg::CheckVersionResponse(Ok(server_version)) => {
                 if let Ok(app_version) = Version::parse(env!("CARGO_PKG_VERSION")) {
