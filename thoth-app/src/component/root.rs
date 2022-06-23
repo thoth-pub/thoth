@@ -5,8 +5,6 @@ use yew::html;
 use yew::prelude::*;
 use yew::virtual_dom::VNode;
 use yew::Callback;
-use yew_agent::Bridge;
-use yew_agent::Bridged;
 use yew_agent::Dispatched;
 use yew_router::prelude::*;
 
@@ -56,7 +54,7 @@ impl Component for RootComponent {
     type Message = Msg;
     type Properties = ();
 
-    fn create(ctx: &Context<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
         let session_timer_agent = SessionTimerAgent::dispatcher();
         let version_timer_agent = VersionTimerAgent::dispatcher();
         let notification_bus = NotificationBus::dispatcher();

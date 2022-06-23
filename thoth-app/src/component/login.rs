@@ -46,7 +46,7 @@ impl Component for LoginComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(ctx: &Context<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
         LoginComponent {
             request: Default::default(),
             account_service: AccountService::new(),

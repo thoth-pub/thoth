@@ -6,6 +6,7 @@ use thiserror::Error;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::account::model::LoginCredentials;
 
+use crate::string::STORAGE_ERROR;
 use crate::SESSION_KEY;
 
 type HttpFuture = Result<reqwest::Response, reqwest::Error>;
@@ -43,7 +44,7 @@ impl AccountService {
 
     fn update_storage(&self, token: Option<String>) {
         if let Some(t) = token {
-            LocalStorage::set(SESSION_KEY, t);
+            LocalStorage::set(SESSION_KEY, t).expect(STORAGE_ERROR);
         } else {
             LocalStorage::delete(SESSION_KEY);
         }
