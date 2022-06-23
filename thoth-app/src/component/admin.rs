@@ -131,9 +131,7 @@ impl Component for AdminComponent {
                     </div>
                     <div class="column is-four-fifths">
                         <div class="container">
-                            <BrowserRouter>
-                                <Switch<AdminRoute> { render } />
-                            </BrowserRouter>
+                            <Switch<AdminRoute> { render } />
                         </div>
                     </div>
                 </div>

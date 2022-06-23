@@ -153,17 +153,15 @@ impl Component for RootComponent {
             Switch::render(move |r| switch_app(r, current_user.clone(), callback_login.clone()));
 
         html! {
-            <>
+            <BrowserRouter>
                 <header>
                     <NavbarComponent current_user={ self.current_user.clone() } callback={ callback_logout }/>
                 </header>
                 <NotificationComponent />
                 <div class="main">
-                    <BrowserRouter>
-                        <Switch<AppRoute> { render } />
-                    </BrowserRouter>
+                    <Switch<AppRoute> { render } />
                 </div>
-            </>
+            </BrowserRouter>
         }
     }
 }
