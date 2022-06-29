@@ -11,7 +11,7 @@ use thoth_errors::{ThothError, ThothResult};
 use crate::bibtex::{BibtexSpecification, BibtexThoth};
 use crate::csv::{CsvSpecification, CsvThoth, KbartOclc};
 use crate::xml::{
-    DoiDepositCrossref, Onix21EbscoHost, Onix3GoogleBooks, Onix3Jstor, Onix3Oapen,
+    DoiDepositCrossref, Onix21EbscoHost, Onix3GoogleBooks, Onix3Jstor, Onix3Oapen, Onix3Overdrive,
     Onix3ProjectMuse, XmlSpecification,
 };
 
@@ -28,6 +28,7 @@ pub(crate) enum MetadataSpecification {
     Onix3Oapen(Onix3Oapen),
     Onix3Jstor(Onix3Jstor),
     Onix3GoogleBooks(Onix3GoogleBooks),
+    Onix3Overdrive(Onix3Overdrive),
     Onix21EbscoHost(Onix21EbscoHost),
     CsvThoth(CsvThoth),
     KbartOclc(KbartOclc),
@@ -68,6 +69,7 @@ where
             MetadataSpecification::Onix3Oapen(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Onix3Jstor(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Onix3GoogleBooks(_) => Self::XML_MIME_TYPE,
+            MetadataSpecification::Onix3Overdrive(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Onix21EbscoHost(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::CsvThoth(_) => Self::CSV_MIME_TYPE,
             MetadataSpecification::KbartOclc(_) => Self::TXT_MIME_TYPE,
@@ -82,6 +84,7 @@ where
             MetadataSpecification::Onix3Oapen(_) => self.xml_file_name(),
             MetadataSpecification::Onix3Jstor(_) => self.xml_file_name(),
             MetadataSpecification::Onix3GoogleBooks(_) => self.xml_file_name(),
+            MetadataSpecification::Onix3Overdrive(_) => self.xml_file_name(),
             MetadataSpecification::Onix21EbscoHost(_) => self.xml_file_name(),
             MetadataSpecification::CsvThoth(_) => self.csv_file_name(),
             MetadataSpecification::KbartOclc(_) => self.txt_file_name(),
@@ -134,6 +137,9 @@ impl MetadataRecord<Vec<Work>> {
             }
             MetadataSpecification::Onix3GoogleBooks(onix3_google_books) => {
                 onix3_google_books.generate(&self.data, None)
+            }
+            MetadataSpecification::Onix3Overdrive(onix3_overdrive) => {
+                onix3_overdrive.generate(&self.data, None)
             }
             MetadataSpecification::Onix21EbscoHost(onix21_ebsco_host) => {
                 onix21_ebsco_host.generate(&self.data, Some(DOCTYPE_ONIX21_REF))
@@ -198,6 +204,7 @@ impl FromStr for MetadataSpecification {
             "onix_3.0::google_books" => {
                 Ok(MetadataSpecification::Onix3GoogleBooks(Onix3GoogleBooks {}))
             }
+            "onix_3.0::overdrive" => Ok(MetadataSpecification::Onix3Overdrive(Onix3Overdrive {})),
             "onix_2.1::ebsco_host" => {
                 Ok(MetadataSpecification::Onix21EbscoHost(Onix21EbscoHost {}))
             }
@@ -219,6 +226,7 @@ impl ToString for MetadataSpecification {
             MetadataSpecification::Onix3Oapen(_) => "onix_3.0::oapen".to_string(),
             MetadataSpecification::Onix3Jstor(_) => "onix_3.0::jstor".to_string(),
             MetadataSpecification::Onix3GoogleBooks(_) => "onix_3.0::google_books".to_string(),
+            MetadataSpecification::Onix3Overdrive(_) => "onix_3.0::overdrive".to_string(),
             MetadataSpecification::Onix21EbscoHost(_) => "onix_2.1::ebsco_host".to_string(),
             MetadataSpecification::CsvThoth(_) => "csv::thoth".to_string(),
             MetadataSpecification::KbartOclc(_) => "kbart::oclc".to_string(),
@@ -287,6 +295,15 @@ mod tests {
         assert_eq!(
             to_test.file_name(),
             "onix_3.0__google_books__some_id.xml".to_string()
+        );
+        let to_test = MetadataRecord::new(
+            "some_id".to_string(),
+            MetadataSpecification::Onix3Overdrive(Onix3Overdrive {}),
+            vec![],
+        );
+        assert_eq!(
+            to_test.file_name(),
+            "onix_3.0__overdrive__some_id.xml".to_string()
         );
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
