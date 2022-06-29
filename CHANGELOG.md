@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [#390](https://github.com/thoth-pub/thoth/pull/390) - Implement OverDrive ONIX 3.0 specification
 
+### Fixed
+  - [#392](https://github.com/thoth-pub/thoth/issues/392) - Fix encoding of print ISBN in JSTOR ONIX output
+
 ## [[0.8.5]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.5) - 2022-05-30
 ### Added
   - [#287](https://github.com/thoth-pub/thoth/issues/287) - Allow editing contributions (and affiliations)
