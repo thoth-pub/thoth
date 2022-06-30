@@ -24,9 +24,9 @@ pub async fn get_version() -> Result<Version, ThothError> {
 }
 
 async fn get_request() -> impl Future<Output = HttpFuture> {
+    let base_url = web_sys::window().unwrap().origin();
     reqwest::Client::new()
-        // TODO remove this hard-coding (relative URLs without base are not permitted)
-        .get("http://localhost:8080/manifest.json")
+        .get(format!("{base_url}/manifest.json"))
         .header("Content-Type", "application/json")
         .send()
 }
