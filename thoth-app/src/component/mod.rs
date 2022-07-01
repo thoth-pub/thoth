@@ -1,8 +1,8 @@
 #[macro_export]
 macro_rules! pagination_helpers {
     ($component:ident, $pagination_text:ident, $search_text:ident) => {
-        use crate::string::$pagination_text;
-        use crate::string::$search_text;
+        use $crate::string::$pagination_text;
+        use $crate::string::$search_text;
 
         impl $component {
             fn search_text(&self) -> String {
@@ -36,11 +36,11 @@ macro_rules! pagination_helpers {
                         <a class="pagination-previous"
                             onclick=self.link.callback(|_| Msg::PreviousPage)
                             disabled=self.is_previous_disabled()
-                        >{ crate::string::PREVIOUS_PAGE_BUTTON }</a>
+                        >{ $crate::string::PREVIOUS_PAGE_BUTTON }</a>
                         <a class="pagination-next"
                             onclick=self.link.callback(|_| Msg::NextPage)
                             disabled=self.is_next_disabled()
-                        >{ crate::string::NEXT_PAGE_BUTTON }</a>
+                        >{ $crate::string::NEXT_PAGE_BUTTON }</a>
                         <div class="pagination-list">
                             <div class="field" style="width: 80%">
                                 <p class="control is-expanded has-icons-left">
@@ -102,10 +102,10 @@ macro_rules! pagination_component {
         use yewtil::future::LinkFuture;
         use yewtil::NeqAssign;
 
-        use crate::component::utils::Loader;
-        use crate::component::utils::Reloader;
-        use crate::models::{EditRoute, CreateRoute, MetadataTable};
-        use crate::route::AppRoute;
+        use $crate::component::utils::Loader;
+        use $crate::component::utils::Reloader;
+        use $crate::models::{EditRoute, CreateRoute, MetadataTable};
+        use $crate::route::AppRoute;
 
         pub struct $component {
             limit: i32,
