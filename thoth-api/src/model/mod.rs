@@ -411,7 +411,7 @@ macro_rules! crud_methods {
         /// history entity record.
         fn update(
             &self,
-            db: &crate::db::PgPool,
+            db: &$crate::db::PgPool,
             data: &Self::PatchEntity,
             account_id: &Uuid,
         ) -> ThothResult<Self> {
@@ -432,7 +432,7 @@ macro_rules! crud_methods {
             })
         }
 
-        fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self> {
+        fn delete(self, db: &$crate::db::PgPool) -> ThothResult<Self> {
             use diesel::{QueryDsl, RunQueryDsl};
 
             let connection = db.get().unwrap();
