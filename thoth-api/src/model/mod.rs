@@ -384,7 +384,7 @@ where
 #[macro_export]
 macro_rules! crud_methods {
     ($table_dsl:expr, $entity_dsl:expr) => {
-        fn from_id(db: &crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
+        fn from_id(db: &$crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
             use diesel::{QueryDsl, RunQueryDsl};
 
             let connection = db.get().unwrap();
@@ -394,7 +394,7 @@ macro_rules! crud_methods {
             }
         }
 
-        fn create(db: &crate::db::PgPool, data: &Self::NewEntity) -> ThothResult<Self> {
+        fn create(db: &$crate::db::PgPool, data: &Self::NewEntity) -> ThothResult<Self> {
             use diesel::RunQueryDsl;
 
             let connection = db.get().unwrap();

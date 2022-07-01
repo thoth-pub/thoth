@@ -1,8 +1,8 @@
 #[macro_export]
 macro_rules! pagination_helpers {
     ($component:ident, $pagination_text:ident, $search_text:ident) => {
-        use crate::string::$pagination_text;
-        use crate::string::$search_text;
+        use $crate::string::$pagination_text;
+        use $crate::string::$search_text;
 
         impl $component {
             fn search_text(&self) -> String {
@@ -102,8 +102,8 @@ macro_rules! pagination_component {
         use yewtil::future::LinkFuture;
         use yewtil::NeqAssign;
 
-        use crate::component::utils::Loader;
-        use crate::component::utils::Reloader;
+        use $crate::component::utils::Loader;
+        use $crate::component::utils::Reloader;
         use crate::models::{EditRoute, CreateRoute, MetadataTable};
         use crate::route::AppRoute;
 
