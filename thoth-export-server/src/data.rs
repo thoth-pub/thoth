@@ -38,6 +38,12 @@ lazy_static! {
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/google_books"),],
         },
         Specification {
+            id: "onix_3.0::overdrive",
+            name: "Google Books ONIX 3.0",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_3.0"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/overdrive"),],
+        },
+        Specification {
             id: "onix_2.1::ebsco_host",
             name: "EBSCO Host ONIX 2.1",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_2.1"),
@@ -127,6 +133,14 @@ lazy_static! {
             ),],
         },
         Platform {
+            id: "overdrive",
+            name: "OverDrive",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/onix_3.0::overdrive"
+            ),],
+        },
+        Platform {
             id: "ebsco_host",
             name: "EBSCO Host",
             accepts: vec![concat!(
@@ -206,6 +220,10 @@ lazy_static! {
                 concat!(
                     env!("THOTH_EXPORT_API"),
                     "/specifications/onix_3.0::google_books"
+                ),
+                concat!(
+                    env!("THOTH_EXPORT_API"),
+                    "/specifications/onix_3.0::overdrive"
                 ),
             ],
         },

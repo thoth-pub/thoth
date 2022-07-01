@@ -87,6 +87,8 @@ mod onix3_jstor;
 pub(crate) use onix3_jstor::Onix3Jstor;
 mod onix3_google_books;
 pub(crate) use onix3_google_books::Onix3GoogleBooks;
+mod onix3_overdrive;
+pub(crate) use onix3_overdrive::Onix3Overdrive;
 mod onix21_ebsco_host;
 pub(crate) use onix21_ebsco_host::Onix21EbscoHost;
 mod doideposit_crossref;

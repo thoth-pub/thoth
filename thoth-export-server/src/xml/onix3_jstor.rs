@@ -71,7 +71,7 @@ impl XmlElementBlock<Onix3Jstor> for Work {
             .and_then(|l| l.full_text_url.as_ref())
         {
             let work_id = format!("urn:uuid:{}", self.work_id);
-            let (main_isbn, isbns) = get_publications_data(&self.publications);
+            let (main_isbn, print_isbn) = get_publications_data(&self.publications);
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
                     w.write(XmlEvent::Characters(&work_id))
@@ -295,26 +295,25 @@ impl XmlElementBlock<Onix3Jstor> for Work {
                     }
                     Ok(())
                 })?;
-                if !isbns.is_empty() {
+                if !print_isbn.is_empty() {
                     write_element_block("RelatedMaterial", w, |w| {
-                        for isbn in &isbns {
-                            write_element_block("RelatedProduct", w, |w| {
-                                // 06 Alternative format
-                                write_element_block("ProductRelationCode", w, |w| {
-                                    w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("ProductIdentifier", w, |w| {
-                                    // 15 ISBN-13
-                                    write_element_block("ProductIDType", w, |w| {
-                                        w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("IDValue", w, |w| {
-                                        w.write(XmlEvent::Characters(isbn)).map_err(|e| e.into())
-                                    })
-                                })
+                        // The only RelatedProduct supported by JSTOR is the print ISBN (if any).
+                        write_element_block("RelatedProduct", w, |w| {
+                            // 13 Epublication based on (print product)
+                            write_element_block("ProductRelationCode", w, |w| {
+                                w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
                             })?;
-                        }
-                        Ok(())
+                            write_element_block("ProductIdentifier", w, |w| {
+                                // 15 ISBN-13
+                                write_element_block("ProductIDType", w, |w| {
+                                    w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("IDValue", w, |w| {
+                                    w.write(XmlEvent::Characters(&print_isbn))
+                                        .map_err(|e| e.into())
+                                })
+                            })
+                        })
                     })?;
                 }
                 write_element_block("ProductSupply", w, |w| {
@@ -385,26 +384,32 @@ impl XmlElementBlock<Onix3Jstor> for Work {
     }
 }
 
-fn get_publications_data(publications: &[WorkPublications]) -> (String, Vec<String>) {
-    let mut main_isbn = "".to_string();
-    let mut isbns: Vec<String> = Vec::new();
+fn get_publications_data(publications: &[WorkPublications]) -> (String, String) {
+    let pdf_isbn = publications
+        .iter()
+        .find(|p| p.publication_type.eq(&PublicationType::PDF))
+        .and_then(|p| p.isbn.as_ref());
+    let paperback_isbn = publications
+        .iter()
+        .find(|p| p.publication_type.eq(&PublicationType::PAPERBACK))
+        .and_then(|p| p.isbn.as_ref());
+    let hardback_isbn = publications
+        .iter()
+        .find(|p| p.publication_type.eq(&PublicationType::HARDBACK))
+        .and_then(|p| p.isbn.as_ref());
 
-    for publication in publications {
-        if let Some(isbn) = &publication.isbn.as_ref().map(|i| i.to_string()) {
-            isbns.push(isbn.replace('-', ""));
-            // The default product ISBN is the PDF's
-            if publication.publication_type.eq(&PublicationType::PDF) {
-                main_isbn = isbn.replace('-', "");
-            }
-            // Books that don't have a PDF ISBN will use the paperback's
-            if publication.publication_type.eq(&PublicationType::PAPERBACK) && main_isbn.is_empty()
-            {
-                main_isbn = isbn.replace('-', "");
-            }
-        }
-    }
+    // The default product ISBN is the PDF's
+    let main_isbn = pdf_isbn
+        // Books that don't have a PDF ISBN will use the paperback's
+        .or(paperback_isbn)
+        .map_or_else(|| "".to_string(), |i| i.to_string())
+        .replace('-', "");
+    let print_isbn = hardback_isbn
+        .or(paperback_isbn)
+        .map_or_else(|| "".to_string(), |i| i.to_string())
+        .replace('-', "");
 
-    (main_isbn, isbns)
+    (main_isbn, print_isbn)
 }
 
 impl XmlElement<Onix3Jstor> for WorkStatus {
@@ -657,6 +662,7 @@ mod tests {
 
         // Test standard output
         let output = generate_test_output(true, &test_language);
+        assert!(output.contains(r#"<Language>"#));
         assert!(output.contains(r#"  <LanguageRole>02</LanguageRole>"#));
         assert!(output.contains(r#"  <LanguageCode>spa</LanguageCode>"#));
 
@@ -668,6 +674,7 @@ mod tests {
         ] {
             test_language.language_relation = language_relation;
             let output = generate_test_output(true, &test_language);
+            assert!(output.contains(r#"<Language>"#));
             assert!(output.contains(r#"  <LanguageRole>01</LanguageRole>"#));
             assert!(output.contains(r#"  <LanguageCode>wel</LanguageCode>"#));
         }
@@ -727,29 +734,49 @@ mod tests {
             }],
             contributions: vec![],
             languages: vec![],
-            publications: vec![WorkPublications {
-                publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
-                publication_type: PublicationType::PDF,
-                isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
-                width_mm: None,
-                width_cm: None,
-                width_in: None,
-                height_mm: None,
-                height_cm: None,
-                height_in: None,
-                depth_mm: None,
-                depth_cm: None,
-                depth_in: None,
-                weight_g: None,
-                weight_oz: None,
-                prices: vec![],
-                locations: vec![WorkPublicationsLocations {
-                    landing_page: Some("https://www.book.com/pdf_landing".to_string()),
-                    full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
-                    location_platform: LocationPlatform::OTHER,
-                    canonical: true,
-                }],
-            }],
+            publications: vec![
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000003").unwrap(),
+                    publication_type: PublicationType::HARDBACK,
+                    isbn: Some(Isbn::from_str("978-1-4028-9462-6").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
+                    publication_type: PublicationType::PDF,
+                    isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![WorkPublicationsLocations {
+                        landing_page: Some("https://www.book.com/pdf_landing".to_string()),
+                        full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
+                        location_platform: LocationPlatform::OTHER,
+                        canonical: true,
+                    }],
+                },
+            ],
             subjects: vec![
                 WorkSubjects {
                     subject_code: "AAB".to_string(),
@@ -874,10 +901,10 @@ mod tests {
         assert!(output.contains(r#"      <PublishingDateRole>01</PublishingDateRole>"#));
         assert!(output.contains(r#"      <Date dateformat="00">19991231</Date>"#));
         assert!(output.contains(r#"    <RelatedProduct>"#));
-        assert!(output.contains(r#"      <ProductRelationCode>06</ProductRelationCode>"#));
+        assert!(output.contains(r#"      <ProductRelationCode>13</ProductRelationCode>"#));
         assert!(output.contains(r#"      <ProductIdentifier>"#));
         assert!(output.contains(r#"        <ProductIDType>15</ProductIDType>"#));
-        assert!(output.contains(r#"    <IDValue>9783161484100</IDValue>"#));
+        assert!(output.contains(r#"    <IDValue>9781402894626</IDValue>"#));
         assert!(output.contains(r#"  <ProductSupply>"#));
         assert!(output.contains(r#"    <SupplyDetail>"#));
         assert!(output.contains(r#"      <Supplier>"#));
@@ -930,6 +957,7 @@ mod tests {
         test_work.publication_date = None;
         test_work.landing_page = None;
         test_work.subjects.clear();
+        test_work.publications[0].publication_type = PublicationType::XML;
         let output = generate_test_output(true, &test_work);
         // No DOI supplied
         assert!(!output.contains(r#"    <ProductIDType>06</ProductIDType>"#));
@@ -985,10 +1013,16 @@ mod tests {
         assert!(!output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
         assert!(!output.contains(r#"      <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
         assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
+        // No print ISBN supplied
+        assert!(!output.contains(r#"    <RelatedProduct>"#));
+        assert!(!output.contains(r#"      <ProductRelationCode>13</ProductRelationCode>"#));
+        assert!(!output.contains(r#"      <ProductIdentifier>"#));
+        assert!(!output.contains(r#"        <ProductIDType>15</ProductIDType>"#));
+        assert!(!output.contains(r#"    <IDValue>9781402894626</IDValue>"#));
 
-        // Remove the only publication, which is the PDF
+        // Remove the last publication, which is the PDF
         // Result: error (can't generate OAPEN ONIX without PDF URL)
-        test_work.publications.clear();
+        test_work.publications.pop();
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
