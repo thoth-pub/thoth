@@ -71,7 +71,7 @@ impl Component for LoginComponent {
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::RedirectToAdmin => {
-                ctx.link().history().unwrap().push(AdminRoute::Admin);
+                ctx.link().history().unwrap().push(AdminRoute::Dashboard);
                 false
             }
             Msg::Request => {

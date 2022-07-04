@@ -9,6 +9,8 @@ pub enum AppRoute {
     Error,
     #[at("/admin/*")]
     Admin,
+    #[at("/admin")]
+    AdminHome,
     #[at("/")]
     Home,
 }
@@ -63,6 +65,4 @@ pub enum AdminRoute {
     Publication { id: Uuid },
     #[at("/admin/publication")]
     NewPublication,
-    #[at("/admin")]
-    Admin,
 }

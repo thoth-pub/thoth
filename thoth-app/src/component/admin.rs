@@ -148,7 +148,6 @@ fn switch_admin(
     previous_route: AdminRoute,
 ) -> Html {
     match route {
-        AdminRoute::Admin => html! {<DashboardComponent { current_user } />},
         AdminRoute::Dashboard => html! {<DashboardComponent { current_user } />},
         AdminRoute::Works => html! {<WorksComponent { current_user } />},
         AdminRoute::Books => html! {<BooksComponent { current_user } />},

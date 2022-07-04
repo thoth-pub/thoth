@@ -24,6 +24,7 @@ use crate::component::hero::HeroComponent;
 use crate::component::login::LoginComponent;
 use crate::component::navbar::NavbarComponent;
 use crate::component::notification::NotificationComponent;
+use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::service::account::AccountError;
 use crate::service::account::AccountService;
@@ -189,6 +190,9 @@ fn switch_app(
             <div class="section">
                 <AdminComponent current_user={ current_user.clone() }/>
             </div>
+        },
+        AppRoute::AdminHome => html! {
+            <Redirect<AdminRoute> to={ AdminRoute::Dashboard }/>
         },
         AppRoute::Error => html! {
             "Page not found"
