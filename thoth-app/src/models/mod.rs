@@ -16,7 +16,7 @@ macro_rules! graphql_query_builder {
         use yewtil::fetch::Json;
         use yewtil::fetch::MethodBody;
 
-        use crate::THOTH_GRAPHQL_API;
+        use $crate::THOTH_GRAPHQL_API;
 
         pub type $fetch = Fetch<$request, $response_body>;
         pub type $fetch_action = FetchAction<$response_body>;
@@ -51,7 +51,7 @@ macro_rules! graphql_query_builder {
             }
 
             fn headers(&self) -> Vec<(String, String)> {
-                use crate::service::account::AccountService;
+                use $crate::service::account::AccountService;
 
                 let account_service = AccountService::new();
                 let json = ("Content-Type".into(), "application/json".into());
