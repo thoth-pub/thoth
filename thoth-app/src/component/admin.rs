@@ -3,6 +3,7 @@ use yew::html;
 use yew::prelude::*;
 use yew_agent::Dispatched;
 use yew_router::prelude::*;
+use yew_router::scope_ext::HistoryHandle;
 use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
@@ -40,11 +41,14 @@ use crate::string::PERMISSIONS_ERROR;
 
 pub struct AdminComponent {
     notification_bus: NotificationDispatcher,
+    current_route: AdminRoute,
     previous_route: AdminRoute,
+    _listener: Option<HistoryHandle>,
 }
 
 pub enum Msg {
     RedirectToLogin,
+    RouteChanged,
 }
 
 #[derive(Clone, Properties, PartialEq)]
@@ -60,11 +64,19 @@ impl Component for AdminComponent {
         if !AccountService::new().is_loggedin() {
             ctx.link().send_message(Msg::RedirectToLogin);
         }
+        // Listen for when the route changes
+        let listener = ctx
+            .link()
+            .add_history_listener(ctx.link().callback(move |_| Msg::RouteChanged));
+        // Start tracking current and previous route (previous is unknown at this point)
+        let current_route = ctx.link().route().unwrap();
         let previous_route = ctx.link().route().unwrap();
 
         AdminComponent {
             notification_bus: NotificationBus::dispatcher(),
+            current_route,
             previous_route,
+            _listener: listener,
         }
     }
 
@@ -93,11 +105,22 @@ impl Component for AdminComponent {
                 ctx.link().history().unwrap().push(AppRoute::Login);
                 false
             }
+            Msg::RouteChanged => {
+                if let Some(route) = ctx.link().route() {
+                    // Route has changed - store it, and update the previous route value
+                    self.previous_route.neq_assign(self.current_route.clone());
+                    self.current_route.neq_assign(route);
+                    // Trigger a re-render to fire view() and update the copy of previous_route being
+                    // passed to switch_admin() (without this, only switch_admin() fires on route change)
+                    true
+                } else {
+                    false
+                }
+            }
         }
     }
 
     fn changed(&mut self, ctx: &Context<Self>) -> bool {
-        self.previous_route.neq_assign(ctx.link().route().unwrap());
         if ctx.props().current_user.is_none() {
             ctx.link().send_message(Msg::RedirectToLogin);
         }
