@@ -1,7 +1,9 @@
 use gloo_storage::{LocalStorage, Storage};
+use reqwest::{Body, Client, Method};
 use serde::Deserialize;
 use serde::Serialize;
 use std::future::Future;
+use std::str::FromStr;
 use thiserror::Error;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::account::model::LoginCredentials;
@@ -24,13 +26,13 @@ const HTTP_FORBIDDEN: u16 = 403;
 
 #[derive(Clone)]
 pub struct AccountService {
-    http_client: reqwest::Client,
+    http_client: Client,
 }
 
 impl AccountService {
     pub fn new() -> Self {
         Self {
-            http_client: reqwest::Client::new(),
+            http_client: Client::new(),
         }
     }
 
@@ -91,7 +93,7 @@ impl AccountService {
     ) -> Result<T, AccountError>
     where
         for<'de> T: Deserialize<'de> + 'static + std::fmt::Debug,
-        B: Into<reqwest::Body> + std::fmt::Debug,
+        B: Into<Body> + std::fmt::Debug,
     {
         let res = self.send_request(method, url, body).await.await;
         match res {
@@ -122,14 +124,10 @@ impl AccountService {
         body: Option<B>,
     ) -> impl Future<Output = HttpFuture>
     where
-        B: Into<reqwest::Body> + std::fmt::Debug,
+        B: Into<Body> + std::fmt::Debug,
     {
         let uri = format!("{}{}", crate::THOTH_GRAPHQL_API, url);
-        let verb = match method {
-            "GET" => reqwest::Method::GET,
-            "POST" => reqwest::Method::POST,
-            _ => unimplemented!(),
-        };
+        let verb = Method::from_str(method).unwrap();
         let mut request = self
             .http_client
             .request(verb, uri)
@@ -147,16 +145,14 @@ impl AccountService {
     where
         for<'de> T: Deserialize<'de> + 'static + std::fmt::Debug,
     {
-        self.request_builder("GET", url, None::<reqwest::Body>)
-            .await
+        self.request_builder("GET", url, None::<Body>).await
     }
 
     async fn bodyless_post_request<T>(&mut self, url: String) -> Result<T, AccountError>
     where
         for<'de> T: Deserialize<'de> + 'static + std::fmt::Debug,
     {
-        self.request_builder("POST", url, None::<reqwest::Body>)
-            .await
+        self.request_builder("POST", url, None::<Body>).await
     }
 
     async fn post_request<B, T>(&mut self, url: String, body: B) -> Result<T, AccountError>

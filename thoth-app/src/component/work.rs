@@ -412,6 +412,12 @@ impl Component for WorkComponent {
                     .find(|i| i.imprint_id == imprint_id)
                 {
                     self.work.imprint.neq_assign(imprint.clone())
+                } else if imprint_id.is_nil() {
+                    // ID may be nil if placeholder option was selected.
+                    // If the work has any issues, self.work.imprint will be used
+                    // as the basis of the dropdown list, so do not update it.
+                    // GUI restrictions will prevent save while placeholder option is selected.
+                    false
                 } else {
                     // Imprint not found: clear existing selection
                     self.work.imprint.neq_assign(Default::default())
