@@ -139,6 +139,7 @@ impl Component for AdminComponent {
                 != Some(vec![])
         {
             let current_user = ctx.props().current_user.clone().unwrap();
+            let route: AdminRoute = ctx.link().route().unwrap();
             let previous_route = self.previous_route.clone();
             let render = Switch::render(move |r| {
                 switch_admin(r, current_user.clone(), previous_route.clone())
@@ -148,7 +149,7 @@ impl Component for AdminComponent {
                 <div class="columns">
                     <div class="column">
                         <div class="container">
-                            <MenuComponent />
+                            <MenuComponent { route } />
                         </div>
                     </div>
                     <div class="column is-four-fifths">
