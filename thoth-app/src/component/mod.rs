@@ -381,11 +381,16 @@ pub trait ToElementValue {
 impl ToElementValue for yew::InputEvent {
     fn to_value(self) -> String {
         use wasm_bindgen::JsCast;
-        use web_sys::HtmlInputElement;
-        self.target()
-            .and_then(|t| t.dyn_into::<HtmlInputElement>().ok())
-            .map(|i| i.value())
-            .unwrap_or_default()
+        use web_sys::{HtmlInputElement, HtmlTextAreaElement};
+        let target = self.target().expect("Failed to get InputEvent target");
+        if target.has_type::<HtmlInputElement>() {
+            target.unchecked_into::<HtmlInputElement>().value()
+        } else if target.has_type::<HtmlTextAreaElement>() {
+            target.unchecked_into::<HtmlTextAreaElement>().value()
+        } else {
+            // We currently only expect to encounter Input and TextArea elements from InputEvents
+            unimplemented!()
+        }
     }
 }
 
@@ -393,10 +398,13 @@ impl ToElementValue for yew::Event {
     fn to_value(self) -> String {
         use wasm_bindgen::JsCast;
         use web_sys::HtmlSelectElement;
-        self.target()
-            .and_then(|t| t.dyn_into::<HtmlSelectElement>().ok())
-            .map(|i| i.value())
-            .unwrap_or_default()
+        let target = self.target().expect("Failed to get Event target");
+        if target.has_type::<HtmlSelectElement>() {
+            target.unchecked_into::<HtmlSelectElement>().value()
+        } else {
+            // We currently only expect to encounter Select elements from Events
+            unimplemented!()
+        }
     }
 }
 
