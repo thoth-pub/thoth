@@ -107,9 +107,7 @@ impl AccountService {
                     }
                 }
             }
-            Err(_) => {
-                Err(AccountError::ResponseError)
-            }
+            Err(_) => Err(AccountError::ResponseError),
         }
     }
 

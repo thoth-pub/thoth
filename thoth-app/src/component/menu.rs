@@ -14,6 +14,8 @@ pub struct Props {
 
 impl MenuComponent {
     fn is_active(&self, route: AdminRoute, ctx: &Context<Self>) -> Classes {
+        // This relies on the history listener in admin.rs triggering a props update
+        // on route change; changes of route do not otherwise re-render this component
         if ctx.props().route == route {
             "is-active".into()
         } else {
@@ -28,10 +30,6 @@ impl Component for MenuComponent {
 
     fn create(_ctx: &Context<Self>) -> Self {
         MenuComponent {}
-    }
-
-    fn update(&mut self, _ctx: &Context<Self>, _msg: Self::Message) -> bool {
-        false
     }
 
     fn view(&self, ctx: &Context<Self>) -> VNode {

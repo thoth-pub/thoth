@@ -112,6 +112,7 @@ impl Component for AdminComponent {
                     self.current_route.neq_assign(route);
                     // Trigger a re-render to fire view() and update the copy of previous_route being
                     // passed to switch_admin() (without this, only switch_admin() fires on route change)
+                    // This also ensures that menu.view() will be fired and update items' "is-active" classes
                     true
                 } else {
                     false
@@ -209,5 +210,8 @@ fn switch_admin(
         AdminRoute::Serieses => html! {<SeriesesComponent { current_user } />},
         AdminRoute::NewSeries => html! {<NewSeriesComponent { current_user } />},
         AdminRoute::Series { id } => html! {<SeriesComponent series_id={ *id } { current_user } />},
+        AdminRoute::Error => html! {
+            <Redirect<AppRoute> to={ AppRoute::Error }/>
+        },
     }
 }

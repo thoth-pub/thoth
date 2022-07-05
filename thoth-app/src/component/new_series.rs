@@ -123,7 +123,7 @@ impl Component for NewSeriesComponent {
             Msg::GetImprints => {
                 let body = ImprintsRequestBody {
                     variables: ImprintsVariables {
-                        publishers: self.resource_access.restricted_to(),
+                        publishers: ctx.props().current_user.resource_access.restricted_to(),
                         ..Default::default()
                     },
                     ..Default::default()

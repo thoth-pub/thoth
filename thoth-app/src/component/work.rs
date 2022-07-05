@@ -206,7 +206,9 @@ impl Component for WorkComponent {
                         self.data.work_statuses = body.data.work_statuses.enum_values.to_owned();
 
                         // If user doesn't have permission to edit this object, redirect to dashboard
-                        if let Some(publishers) = self.resource_access.restricted_to() {
+                        if let Some(publishers) =
+                            ctx.props().current_user.resource_access.restricted_to()
+                        {
                             if !publishers
                                 .contains(&self.work.imprint.publisher.publisher_id.to_string())
                             {
@@ -222,7 +224,7 @@ impl Component for WorkComponent {
                 let body = WorkRequestBody {
                     variables: Variables {
                         work_id: Some(ctx.props().work_id),
-                        publishers: self.resource_access.restricted_to(),
+                        publishers: ctx.props().current_user.resource_access.restricted_to(),
                     },
                     ..Default::default()
                 };

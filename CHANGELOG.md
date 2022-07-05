@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [#390](https://github.com/thoth-pub/thoth/pull/390) - Implement OverDrive ONIX 3.0 specification
 
+### Changed
+  - [#370](https://github.com/thoth-pub/thoth/issues/370) - Upgrade Yew to v0.19
+
 ### Fixed
   - [#392](https://github.com/thoth-pub/thoth/issues/392) - Fix encoding of print ISBN in JSTOR ONIX output
 

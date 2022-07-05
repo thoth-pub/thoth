@@ -1,4 +1,3 @@
-use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::publisher::Publisher;
 use uuid::Uuid;
@@ -47,8 +46,6 @@ pub struct PublisherComponent {
     push_publisher: PushUpdatePublisher,
     delete_publisher: PushDeletePublisher,
     notification_bus: NotificationDispatcher,
-    // Store props value locally in order to test whether it has been updated on props change
-    resource_access: AccountAccess,
 }
 
 pub enum Msg {
@@ -79,7 +76,6 @@ impl Component for PublisherComponent {
         let delete_publisher = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let publisher: Publisher = Default::default();
-        let resource_access = ctx.props().current_user.resource_access.clone();
 
         ctx.link().send_message(Msg::GetPublisher);
 
@@ -89,7 +85,6 @@ impl Component for PublisherComponent {
             push_publisher,
             delete_publisher,
             notification_bus,
-            resource_access,
         }
     }
 
@@ -106,7 +101,9 @@ impl Component for PublisherComponent {
                             None => Default::default(),
                         };
                         // If user doesn't have permission to edit this object, redirect to dashboard
-                        if let Some(publishers) = self.resource_access.restricted_to() {
+                        if let Some(publishers) =
+                            ctx.props().current_user.resource_access.restricted_to()
+                        {
                             if !publishers.contains(&self.publisher.publisher_id.to_string()) {
                                 ctx.link().history().unwrap().push(AdminRoute::Dashboard);
                             }

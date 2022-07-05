@@ -151,6 +151,7 @@ macro_rules! pagination_component {
                 let data = Default::default();
                 let fetch_data = Default::default();
                 let table_headers = $table_headers;
+                // Store props value locally in order to test whether it has been updated on props change
                 let resource_access = ctx.props().current_user.resource_access.clone();
 
                 ctx.link().send_message(Msg::PaginateData);
@@ -199,7 +200,7 @@ macro_rules! pagination_component {
                                 offset: Some(self.offset),
                                 filter: Some(filter),
                                 order: Some(order),
-                                publishers: self.resource_access.restricted_to(),
+                                publishers: ctx.props().current_user.resource_access.restricted_to(),
                             },
                             ..Default::default()
                         };
@@ -272,12 +273,12 @@ macro_rules! pagination_component {
                             </div>
                             <div class="level-right">
                                 <p class="level-item">
-                                        <Link<AdminRoute>
-                                            classes="button is-success"
-                                            to={route}
-                                        >
-                                            {"New"}
-                                        </Link<AdminRoute>>
+                                    <Link<AdminRoute>
+                                        classes="button is-success"
+                                        to={route}
+                                    >
+                                        {"New"}
+                                    </Link<AdminRoute>>
                                 </p>
                             </div>
                         </nav>

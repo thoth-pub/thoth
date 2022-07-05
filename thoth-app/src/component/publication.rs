@@ -1,4 +1,3 @@
-use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::location::Location;
 use thoth_api::model::price::Price;
@@ -47,8 +46,6 @@ pub struct PublicationComponent {
     show_modal_form: bool,
     publication_under_edit: Option<Publication>,
     notification_bus: NotificationDispatcher,
-    // Store props value locally in order to test whether it has been updated on props change
-    resource_access: AccountAccess,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -81,7 +78,6 @@ impl Component for PublicationComponent {
         let publication_under_edit = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let publication: PublicationWithRelations = Default::default();
-        let resource_access = ctx.props().current_user.resource_access.clone();
 
         ctx.link().send_message(Msg::GetPublication);
 
@@ -92,7 +88,6 @@ impl Component for PublicationComponent {
             show_modal_form,
             publication_under_edit,
             notification_bus,
-            resource_access,
         }
     }
 
@@ -181,7 +176,9 @@ impl Component for PublicationComponent {
                             None => Default::default(),
                         };
                         // If user doesn't have permission to edit this object, redirect to dashboard
-                        if let Some(publishers) = self.resource_access.restricted_to() {
+                        if let Some(publishers) =
+                            ctx.props().current_user.resource_access.restricted_to()
+                        {
                             if !publishers.contains(
                                 &self
                                     .publication

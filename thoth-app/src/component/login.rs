@@ -77,9 +77,8 @@ impl Component for LoginComponent {
             Msg::Request => {
                 let mut service = self.account_service.clone();
                 let request = self.request.clone();
-                ctx.link().send_future(async move {
-                    Msg::Response(service.login(request).await)
-                });
+                ctx.link()
+                    .send_future(async move { Msg::Response(service.login(request).await) });
                 true
             }
             Msg::Response(Ok(account_details)) => {

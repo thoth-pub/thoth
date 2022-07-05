@@ -294,7 +294,7 @@ impl Component for RelatedWorksFormComponent {
                     variables: Variables {
                         filter: Some(value),
                         limit: Some(9999),
-                        publishers: self.resource_access.restricted_to(),
+                        publishers: ctx.props().current_user.resource_access.restricted_to(),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -314,6 +314,29 @@ impl Component for RelatedWorksFormComponent {
                 ctx.link().history().unwrap().push(r);
                 false
             }
+        }
+    }
+
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+        let updated_permissions = self
+            .resource_access
+            .neq_assign(ctx.props().current_user.resource_access.clone());
+        if updated_permissions {
+            // Reload works list to reflect the user's access rights.
+            // This will override any search box filtering, but should only occur rarely.
+            let body = SlimWorksRequestBody {
+                variables: Variables {
+                    publishers: ctx.props().current_user.resource_access.restricted_to(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            let request = SlimWorksRequest { body };
+            self.fetch_works = Fetch::new(request);
+            ctx.link().send_message(Msg::GetWorks);
+            false
+        } else {
+            true
         }
     }
 

@@ -5,6 +5,7 @@ use yew_router::prelude::*;
 pub enum AppRoute {
     #[at("/login")]
     Login,
+    #[not_found]
     #[at("/error")]
     Error,
     #[at("/admin/*")]
@@ -65,4 +66,7 @@ pub enum AdminRoute {
     Publication { id: Uuid },
     #[at("/admin/publication")]
     NewPublication,
+    #[not_found]
+    #[at("/admin/error")]
+    Error,
 }

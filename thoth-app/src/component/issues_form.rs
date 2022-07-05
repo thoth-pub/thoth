@@ -255,7 +255,7 @@ impl Component for IssuesFormComponent {
                     variables: Variables {
                         filter: Some(value),
                         limit: Some(9999),
-                        publishers: self.resource_access.restricted_to(),
+                        publishers: ctx.props().current_user.resource_access.restricted_to(),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -279,8 +279,10 @@ impl Component for IssuesFormComponent {
             .neq_assign(ctx.props().current_user.resource_access.clone());
         if updated_permissions {
             ctx.link().send_message(Msg::GetSerieses);
+            false
+        } else {
+            true
         }
-        false
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {

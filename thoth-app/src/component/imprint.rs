@@ -129,7 +129,7 @@ impl Component for ImprintComponent {
             Msg::GetPublishers => {
                 let body = PublishersRequestBody {
                     variables: PublishersVariables {
-                        publishers: self.resource_access.restricted_to(),
+                        publishers: ctx.props().current_user.resource_access.restricted_to(),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -154,7 +154,9 @@ impl Component for ImprintComponent {
                             None => Default::default(),
                         };
                         // If user doesn't have permission to edit this object, redirect to dashboard
-                        if let Some(publishers) = self.resource_access.restricted_to() {
+                        if let Some(publishers) =
+                            ctx.props().current_user.resource_access.restricted_to()
+                        {
                             if !publishers
                                 .contains(&self.imprint.publisher.publisher_id.to_string())
                             {
