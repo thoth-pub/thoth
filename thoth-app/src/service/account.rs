@@ -23,11 +23,15 @@ const HTTP_UNAUTHORIZED: u16 = 401;
 const HTTP_FORBIDDEN: u16 = 403;
 
 #[derive(Clone)]
-pub struct AccountService {}
+pub struct AccountService {
+    http_client: reqwest::Client,
+}
 
 impl AccountService {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            http_client: reqwest::Client::new(),
+        }
     }
 
     pub fn get_token(&self) -> Option<String> {
@@ -126,7 +130,8 @@ impl AccountService {
             "POST" => reqwest::Method::POST,
             _ => unimplemented!(),
         };
-        let mut request = reqwest::Client::new()
+        let mut request = self
+            .http_client
             .request(verb, uri)
             .header("Content-Type", "application/json");
         if let Some(token) = self.get_token() {
