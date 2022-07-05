@@ -2,19 +2,21 @@ use yew::html;
 use yew::prelude::*;
 use yew::virtual_dom::VNode;
 use yew_router::prelude::*;
+use yew_router::scope_ext::HistoryHandle;
 
 use crate::route::AdminRoute;
 
-pub struct MenuComponent {}
+pub struct MenuComponent {
+    _listener: Option<HistoryHandle>,
+}
 
-#[derive(PartialEq, Properties)]
-pub struct Props {
-    pub route: AdminRoute,
+pub enum Msg {
+    RouteChanged,
 }
 
 impl MenuComponent {
     fn is_active(&self, route: AdminRoute, ctx: &Context<Self>) -> Classes {
-        if ctx.props().route == route {
+        if ctx.link().route::<AdminRoute>() == Some(route) {
             "is-active".into()
         } else {
             "".into()
@@ -23,15 +25,26 @@ impl MenuComponent {
 }
 
 impl Component for MenuComponent {
-    type Message = ();
-    type Properties = Props;
+    type Message = Msg;
+    type Properties = ();
 
-    fn create(_ctx: &Context<Self>) -> Self {
-        MenuComponent {}
+    fn create(ctx: &Context<Self>) -> Self {
+        // Listen for when the route changes, e.g. when user clicks on a menu item
+        let listener = ctx
+            .link()
+            .add_history_listener(ctx.link().callback(move |_| Msg::RouteChanged));
+        MenuComponent {
+            _listener: listener,
+        }
     }
 
-    fn update(&mut self, _ctx: &Context<Self>, _msg: Self::Message) -> bool {
-        false
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
+        match msg {
+            Msg::RouteChanged => {
+                // Trigger a re-render to update menu items' "is-active" classes
+                true
+            }
+        }
     }
 
     fn view(&self, ctx: &Context<Self>) -> VNode {
