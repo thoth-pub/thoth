@@ -245,13 +245,30 @@ fn work_metadata<W: Write>(
             })?;
         }
     } else {
-        let publications: Vec<WorkRelationsRelatedWorkPublications> = work
+        let mut publications: Vec<WorkRelationsRelatedWorkPublications> = work
             .publications
             .clone()
             .into_iter()
             .filter(|p| p.isbn.is_some())
             .collect();
         if !publications.is_empty() {
+            // Workaround for CrossRef's limit of 6 on the number of ISBNs permissible within a deposit file.
+            // We raised this with CrossRef and they believe they should be able to increase the limit.
+            // Remove this workaround once this is done (see https://github.com/thoth-pub/thoth/issues/379).
+            // In the meantime, this is only encountered with OBP works, which have 7 ISBNs as standard.
+            // The least important of these is the HTML ISBN, so omit it.
+            if publications.len() > 6 {
+                if let Some(html_index) = publications
+                    .iter()
+                    .position(|p| p.publication_type == PublicationType::HTML)
+                {
+                    publications.swap_remove(html_index);
+                }
+            }
+            // If there are still more than 6 ISBNs, assume they were added in decreasing order of importance.
+            while publications.len() > 6 {
+                publications.pop();
+            }
             for publication in &publications {
                 XmlElementBlock::<DoiDepositCrossref>::xml_element(publication, w)?;
             }
