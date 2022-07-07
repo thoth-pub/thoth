@@ -1191,4 +1191,206 @@ mod tests {
             "Could not generate doideposit::crossref: No ISBNs provided".to_string()
         );
     }
+
+    #[test]
+    // Test that no more than 6 ISBNs are ever output.
+    // Remove/change this test once the CrossRef 6-ISBN limit is removed/increased -
+    // at this point, we need to remove the workaround and ensure that all ISBNs are included.
+    fn test_doideposit_crossref_isbns_workaround() {
+        let mut test_work = Work {
+            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            work_status: WorkStatus::ACTIVE,
+            full_title: "Book Title: Book Subtitle".to_string(),
+            title: "Book Title".to_string(),
+            subtitle: Some("Book Subtitle".to_string()),
+            work_type: WorkType::MONOGRAPH,
+            edition: Some(100),
+            doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
+            publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
+            license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
+            copyright_holder: "Author 1; Author 2".to_string(),
+            short_abstract: None,
+            long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
+            general_note: None,
+            place: Some("León, Spain".to_string()),
+            page_count: None,
+            page_breakdown: None,
+            first_page: None,
+            last_page: None,
+            page_interval: None,
+            image_count: None,
+            table_count: None,
+            audio_count: None,
+            video_count: None,
+            landing_page: Some("https://www.book.com".to_string()),
+            toc: None,
+            lccn: None,
+            oclc: None,
+            cover_url: None,
+            cover_caption: None,
+            imprint: WorkImprint {
+                imprint_name: "OA Editions Imprint".to_string(),
+                publisher: WorkImprintPublisher {
+                    publisher_name: "OA Editions".to_string(),
+                    publisher_url: None,
+                },
+            },
+            issues: vec![],
+            contributions: vec![],
+            languages: vec![],
+            publications: vec![
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                    publication_type: PublicationType::HTML,
+                    isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
+                    publication_type: PublicationType::PAPERBACK,
+                    isbn: Some(Isbn::from_str("978-1-78839-908-1").unwrap()),
+                    width_mm: Some(156.0),
+                    width_cm: Some(15.6),
+                    width_in: Some(6.14),
+                    height_mm: Some(234.0),
+                    height_cm: Some(23.4),
+                    height_in: Some(9.21),
+                    depth_mm: Some(25.0),
+                    depth_cm: Some(2.5),
+                    depth_in: Some(1.0),
+                    weight_g: Some(152.0),
+                    weight_oz: Some(5.3616),
+                    prices: vec![],
+                    locations: vec![],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000003").unwrap(),
+                    publication_type: PublicationType::HARDBACK,
+                    isbn: Some(Isbn::from_str("978-1-7343145-0-2").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
+                    publication_type: PublicationType::PDF,
+                    isbn: Some(Isbn::from_str("978-0-07-063546-3").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-EEEE-000000000005").unwrap(),
+                    publication_type: PublicationType::EPUB,
+                    isbn: Some(Isbn::from_str("978-1-56619-909-4").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-FFFF-000000000006").unwrap(),
+                    publication_type: PublicationType::XML,
+                    isbn: Some(Isbn::from_str("978-92-95055-02-5").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-AAAB-000000000007").unwrap(),
+                    publication_type: PublicationType::DOCX,
+                    isbn: Some(Isbn::from_str("978-1-4028-9462-6").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![],
+                },
+            ],
+            subjects: vec![],
+            fundings: vec![],
+            relations: vec![],
+        };
+
+        // 7 ISBNs are present and one is HTML - confirm that it is omitted
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(r#"      <isbn media_type="print">978-1-78839-908-1</isbn>"#));
+        assert!(output.contains(r#"      <isbn media_type="print">978-1-7343145-0-2</isbn>"#));
+        assert!(output.contains(r#"      <isbn media_type="electronic">978-0-07-063546-3</isbn>"#));
+        assert!(output.contains(r#"      <isbn media_type="electronic">978-1-56619-909-4</isbn>"#));
+        assert!(output.contains(r#"      <isbn media_type="electronic">978-92-95055-02-5</isbn>"#));
+        assert!(output.contains(r#"      <isbn media_type="electronic">978-1-4028-9462-6</isbn>"#));
+        assert!(!output.contains(r#"      <isbn media_type="electronic">978-3-16-148410-0</isbn>"#));
+
+        // Change the HTML publication to a different format
+        test_work.publications[0].publication_type = PublicationType::MOBI;
+        // 7 ISBNs are present and none are HTML - confirm that the last one is omitted
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(r#"      <isbn media_type="electronic">978-3-16-148410-0</isbn>"#));
+        assert!(output.contains(r#"      <isbn media_type="print">978-1-78839-908-1</isbn>"#));
+        assert!(output.contains(r#"      <isbn media_type="print">978-1-7343145-0-2</isbn>"#));
+        assert!(output.contains(r#"      <isbn media_type="electronic">978-0-07-063546-3</isbn>"#));
+        assert!(output.contains(r#"      <isbn media_type="electronic">978-1-56619-909-4</isbn>"#));
+        assert!(output.contains(r#"      <isbn media_type="electronic">978-92-95055-02-5</isbn>"#));
+        assert!(!output.contains(r#"      <isbn media_type="electronic">978-1-4028-9462-6</isbn>"#));
+    }
 }
