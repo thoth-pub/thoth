@@ -17,3 +17,4 @@ pub struct RelationTypeValues {
 pub mod create_work_relation_mutation;
 pub mod delete_work_relation_mutation;
 pub mod relation_types_query;
+pub mod update_work_relation_mutation;
