@@ -816,9 +816,9 @@ impl Component for WorkComponent {
                             update_relations=self.link.callback(Msg::UpdateRelatedWorks)
                         />
                         {
-                            if self.work.work_type == WorkType::Monograph
-                                || self.work.work_type == WorkType::EditedBook
-                                || self.work.work_type == WorkType::Textbook {
+                            if self.work_type == WorkType::Monograph
+                                || self.work_type == WorkType::EditedBook
+                                || self.work_type == WorkType::Textbook {
                                 html! {
                                     // Convenience button for adding Chapter relations with inherited values
                                     <NewChapterComponent

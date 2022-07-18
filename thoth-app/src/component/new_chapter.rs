@@ -87,6 +87,21 @@ impl Component for NewChapterComponent {
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::ToggleAddFormDisplay(value) => {
+                if value {
+                    // On opening form, set chapter number to one higher than the current maximum
+                    // (may not be the most appropriate value if user has left gaps in numbering)
+                    let max_chapter_num = self
+                        .props
+                        .relations
+                        .clone()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .filter(|r| r.relation_type == RelationType::HasChild)
+                        .max_by_key(|r| r.relation_ordinal)
+                        .map(|r| r.relation_ordinal)
+                        .unwrap_or(0);
+                    self.new_relation.relation_ordinal = max_chapter_num + 1;
+                }
                 self.show_add_form = value;
                 true
             }
@@ -97,13 +112,6 @@ impl Component for NewChapterComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.create_work_relation {
                         Some(r) => {
-                            self.notification_bus.send(Request::NotificationBusMsg((
-                                format!(
-                                    "Added new work to Related Works list as Chapter {}",
-                                    self.new_relation.relation_ordinal
-                                ),
-                                NotificationStatus::Success,
-                            )));
                             let relation = r.clone();
                             let mut relations: Vec<WorkRelationWithRelatedWork> =
                                 self.props.relations.clone().unwrap_or_default();
@@ -115,18 +123,23 @@ impl Component for NewChapterComponent {
                         None => {
                             self.link.send_message(Msg::ToggleAddFormDisplay(false));
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                "Failed to save relation between current work and new work"
-                                    .to_string(),
-                                NotificationStatus::Danger,
+                                format!(
+                                    "Created new work with title {}, but failed to add it to Related Works list",
+                                    self.new_chapter_title
+                                ),
+                                NotificationStatus::Warning,
                             )));
                             false
                         }
                     },
-                    FetchState::Failed(_, err) => {
+                    FetchState::Failed(_, _err) => {
                         self.link.send_message(Msg::ToggleAddFormDisplay(false));
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            format!("Failed to add new work to Related Works list: {}", err),
-                            NotificationStatus::Danger,
+                            format!(
+                                "Created new work with title {}, but failed to add it to Related Works list",
+                                self.new_chapter_title
+                            ),
+                            NotificationStatus::Warning,
                         )));
                         false
                     }
@@ -157,17 +170,15 @@ impl Component for NewChapterComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.create_work {
                         Some(w) => {
+                            // New Book Chapter successfully created.
+                            // Now add a new Work Relation linking it to the parent.
                             self.link.send_message(Msg::CreateWorkRelation(w.work_id));
-                            self.notification_bus.send(Request::NotificationBusMsg((
-                                format!("Created new work with title {}", w.title),
-                                NotificationStatus::Success,
-                            )));
                             true
                         }
                         None => {
                             self.link.send_message(Msg::ToggleAddFormDisplay(false));
                             self.notification_bus.send(Request::NotificationBusMsg((
-                                "Failed to save new work".to_string(),
+                                "Failed to create new chapter".to_string(),
                                 NotificationStatus::Danger,
                             )));
                             false
@@ -176,7 +187,7 @@ impl Component for NewChapterComponent {
                     FetchState::Failed(_, err) => {
                         self.link.send_message(Msg::ToggleAddFormDisplay(false));
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            format!("Failed to create new work: {}", err),
+                            format!("Failed to create new chapter: {}", err),
                             NotificationStatus::Danger,
                         )));
                         false
@@ -184,6 +195,7 @@ impl Component for NewChapterComponent {
                 }
             }
             Msg::CreateWork => {
+                // First, create a new Book Chapter with values inherited from current Work.
                 let body = CreateWorkRequestBody {
                     variables: Variables {
                         work_type: WorkType::BookChapter,
@@ -230,7 +242,7 @@ impl Component for NewChapterComponent {
         });
         html! {
             <>
-                <div class="control">
+                <div class="control" style="margin-bottom: 1em">
                     <a
                         class="button is-success"
                         onclick=self.link.callback(move |_| Msg::ToggleAddFormDisplay(true))
