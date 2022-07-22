@@ -16,7 +16,7 @@ uuid = { version = "0.7", features = ["serde", "v4"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 actix-web = "4.0.1"
-diesel = "1.4.0"
+diesel = "1.4.8"
 csv = "1.1.6"
 juniper = "0.14.2"
 xml-rs = "0.8.0"
