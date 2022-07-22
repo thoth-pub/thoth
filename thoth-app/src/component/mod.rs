@@ -30,16 +30,16 @@ macro_rules! pagination_helpers {
             }
 
             #[allow(dead_code)]
-            fn pagination_controls(&self) -> Html {
+            fn pagination_controls(&self, ctx: &Context<Self>) -> Html {
                 html! {
                     <nav class="pagination is-centered" role="navigation" aria-label="pagination">
                         <a class="pagination-previous"
-                            onclick=self.link.callback(|_| Msg::PreviousPage)
-                            disabled=self.is_previous_disabled()
+                            onclick={ ctx.link().callback(|_| Msg::PreviousPage) }
+                            disabled={ self.is_previous_disabled() }
                         >{ $crate::string::PREVIOUS_PAGE_BUTTON }</a>
                         <a class="pagination-next"
-                            onclick=self.link.callback(|_| Msg::NextPage)
-                            disabled=self.is_next_disabled()
+                            onclick={ ctx.link().callback(|_| Msg::NextPage) }
+                            disabled={ self.is_next_disabled() }
                         >{ $crate::string::NEXT_PAGE_BUTTON }</a>
                         <div class="pagination-list">
                             <div class="field" style="width: 80%">
@@ -47,9 +47,9 @@ macro_rules! pagination_helpers {
                                     <input
                                         class="input"
                                         type="search"
-                                        value=self.search_term.clone()
-                                        placeholder=self.search_text()
-                                        oninput=self.link.callback(|e: InputData| Msg::Search(e.value))
+                                        value={ self.search_term.clone() }
+                                        placeholder={ self.search_text() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::Search(e.to_value())) }
                                     />
                                     <span class="icon is-left">
                                         <i class="fas fa-search" aria-hidden="true"></i>
@@ -83,29 +83,27 @@ macro_rules! pagination_component {
         $order_field:ty,
     ) => {
         use std::str::FromStr;
+        use thoth_api::account::model::AccountAccess;
         use thoth_api::account::model::AccountDetails;
         use thoth_api::graphql::utils::Direction::*;
         use yew::html;
         use yew::prelude::Component;
+        use yew::prelude::Context;
         use yew::prelude::Html;
-        use yew::prelude::InputData;
+        use yew::prelude::InputEvent;
         use yew::prelude::Properties;
-        use yew::prelude::ShouldRender;
-        use yew::ComponentLink;
-        use yew_router::agent::RouteAgentDispatcher;
-        use yew_router::agent::RouteRequest;
-        use yew_router::prelude::RouterAnchor;
-        use yew_router::route::Route;
+        use yew_router::history::History;
+        use yew_router::prelude::Link;
+        use yew_router::prelude::RouterScopeExt;
         use yewtil::fetch::Fetch;
         use yewtil::fetch::FetchAction;
         use yewtil::fetch::FetchState;
-        use yewtil::future::LinkFuture;
         use yewtil::NeqAssign;
 
         use $crate::component::utils::Loader;
         use $crate::component::utils::Reloader;
         use $crate::models::{EditRoute, CreateRoute, MetadataTable};
-        use $crate::route::AppRoute;
+        use $crate::route::AdminRoute;
 
         pub struct $component {
             limit: i32,
@@ -117,9 +115,8 @@ macro_rules! pagination_component {
             table_headers: Vec<String>,
             result_count: i32,
             fetch_data: $fetch_data,
-            link: ComponentLink<Self>,
-            router: RouteAgentDispatcher<()>,
-            props: Props,
+            // Store props value locally in order to test whether it has been updated on props change
+            resource_access: AccountAccess,
         }
 
         pagination_helpers! {$component, $pagination_text, $search_text}
@@ -131,11 +128,11 @@ macro_rules! pagination_component {
             Search(String),
             NextPage,
             PreviousPage,
-            ChangeRoute(AppRoute),
+            ChangeRoute(AdminRoute),
             SortColumn($order_field),
         }
 
-        #[derive(Clone, Properties)]
+        #[derive(PartialEq, Properties)]
         pub struct Props {
             pub current_user: AccountDetails,
         }
@@ -144,8 +141,7 @@ macro_rules! pagination_component {
             type Message = Msg;
             type Properties = Props;
 
-            fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-                let router = RouteAgentDispatcher::new();
+            fn create(ctx: &Context<Self>) -> Self {
                 let offset: i32 = Default::default();
                 let page_size: i32 = 20;
                 let limit: i32 = page_size;
@@ -155,8 +151,10 @@ macro_rules! pagination_component {
                 let data = Default::default();
                 let fetch_data = Default::default();
                 let table_headers = $table_headers;
+                // Store props value locally in order to test whether it has been updated on props change
+                let resource_access = ctx.props().current_user.resource_access.clone();
 
-                link.send_message(Msg::PaginateData);
+                ctx.link().send_message(Msg::PaginateData);
 
                 $component {
                     limit,
@@ -168,13 +166,11 @@ macro_rules! pagination_component {
                     table_headers,
                     result_count,
                     fetch_data,
-                    link,
-                    router,
-                    props,
+                    resource_access,
                 }
             }
 
-            fn update(&mut self, msg: Self::Message) -> ShouldRender {
+            fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
                 match msg {
                     Msg::SetFetchState(fetch_state) => {
                         self.fetch_data.apply(fetch_state);
@@ -189,9 +185,9 @@ macro_rules! pagination_component {
                         true
                     }
                     Msg::GetData => {
-                        self.link
+                        ctx.link()
                             .send_future(self.fetch_data.fetch(Msg::SetFetchState));
-                        self.link
+                        ctx.link()
                             .send_message(Msg::SetFetchState(FetchAction::Fetching));
                         false
                     }
@@ -204,38 +200,37 @@ macro_rules! pagination_component {
                                 offset: Some(self.offset),
                                 filter: Some(filter),
                                 order: Some(order),
-                                publishers: self.props.current_user.resource_access.restricted_to(),
+                                publishers: ctx.props().current_user.resource_access.restricted_to(),
                             },
                             ..Default::default()
                         };
                         let request = $request { body };
                         self.fetch_data = Fetch::new(request);
-                        self.link.send_message(Msg::GetData);
+                        ctx.link().send_message(Msg::GetData);
                         false
                     }
                     Msg::Search(term) => {
                         self.offset = 0;
                         self.search_term = term;
-                        self.link.send_message(Msg::PaginateData);
+                        ctx.link().send_message(Msg::PaginateData);
                         false
                     }
                     Msg::NextPage => {
                         if self.limit < self.result_count && !self.is_next_disabled() {
                             self.offset += self.page_size;
-                            self.link.send_message(Msg::PaginateData);
+                            ctx.link().send_message(Msg::PaginateData);
                         }
                         false
                     }
                     Msg::PreviousPage => {
                         if self.offset > 0 && !self.is_previous_disabled() {
                             self.offset -= self.page_size;
-                            self.link.send_message(Msg::PaginateData);
+                            ctx.link().send_message(Msg::PaginateData);
                         }
                         false
                     }
                     Msg::ChangeRoute(r) => {
-                        let route = Route::from(r);
-                        self.router.send(RouteRequest::ChangeRoute(route));
+                        ctx.link().history().unwrap().push(r);
                         false
                     }
                     Msg::SortColumn(header) => {
@@ -249,23 +244,22 @@ macro_rules! pagination_component {
                             },
                         };
                         self.offset = 0;
-                        self.link.send_message(Msg::PaginateData);
+                        ctx.link().send_message(Msg::PaginateData);
                         false
                     }
                 }
             }
 
-            fn change(&mut self, props: Self::Properties) -> ShouldRender {
+            fn changed(&mut self, ctx: &Context<Self>) -> bool {
                 let updated_permissions =
-                    self.props.current_user.resource_access != props.current_user.resource_access;
-                self.props = props;
+                    self.resource_access.neq_assign(ctx.props().current_user.resource_access.clone());
                 if updated_permissions {
-                    self.link.send_message(Msg::PaginateData);
+                    ctx.link().send_message(Msg::PaginateData);
                 }
                 false
             }
 
-            fn view(&self) -> Html {
+            fn view(&self, ctx: &Context<Self>) -> Html {
                 let route = <$entity>::create_route();
                 html! {
                     <>
@@ -279,20 +273,20 @@ macro_rules! pagination_component {
                             </div>
                             <div class="level-right">
                                 <p class="level-item">
-                                        <RouterAnchor<AppRoute>
-                                            classes="button is-success"
-                                            route={route}
-                                        >
-                                            {"New"}
-                                        </  RouterAnchor<AppRoute>>
+                                    <Link<AdminRoute>
+                                        classes="button is-success"
+                                        to={route}
+                                    >
+                                        {"New"}
+                                    </Link<AdminRoute>>
                                 </p>
                             </div>
                         </nav>
-                        { self.pagination_controls() }
+                        { self.pagination_controls(ctx) }
                         {
                             match self.fetch_data.as_ref().state() {
                                 FetchState::NotFetching(_) => {
-                                    html! {<Reloader onclick=self.link.callback(|_| Msg::GetData)/>}
+                                    html! {<Reloader onclick={ ctx.link().callback(|_| Msg::GetData) }/>}
                                 },
                                 FetchState::Fetching(_) => html! {<Loader/>},
                                 FetchState::Fetched(_body) => html! {
@@ -307,9 +301,9 @@ macro_rules! pagination_component {
                                                                 Ok(header) => {
                                                                     html! {
                                                                         <th class="th is-clickable"
-                                                                            onclick=self.link.callback(move |_| {
+                                                                            onclick={ ctx.link().callback(move |_| {
                                                                                 Msg::SortColumn(header.clone())
-                                                                            })
+                                                                            }) }
                                                                         >
                                                                             {h}
                                                                         </th>
@@ -330,7 +324,7 @@ macro_rules! pagination_component {
                                                 for self.data.iter().map(|r| {
                                                     let route = r.edit_route().clone();
                                                     r.as_table_row(
-                                                        self.link.callback(move |_| {
+                                                        ctx.link().callback(move |_| {
                                                             Msg::ChangeRoute(route.clone())
                                                         })
                                                     )
@@ -376,6 +370,40 @@ impl ToOption for String {
         match value == 0 {
             true => None,
             false => Some(value),
+        }
+    }
+}
+
+pub trait ToElementValue {
+    fn to_value(self) -> String;
+}
+
+impl ToElementValue for yew::InputEvent {
+    fn to_value(self) -> String {
+        use wasm_bindgen::JsCast;
+        use web_sys::{HtmlInputElement, HtmlTextAreaElement};
+        let target = self.target().expect("Failed to get InputEvent target");
+        if target.has_type::<HtmlInputElement>() {
+            target.unchecked_into::<HtmlInputElement>().value()
+        } else if target.has_type::<HtmlTextAreaElement>() {
+            target.unchecked_into::<HtmlTextAreaElement>().value()
+        } else {
+            // We currently only expect to encounter Input and TextArea elements from InputEvents
+            unimplemented!()
+        }
+    }
+}
+
+impl ToElementValue for yew::Event {
+    fn to_value(self) -> String {
+        use wasm_bindgen::JsCast;
+        use web_sys::HtmlSelectElement;
+        let target = self.target().expect("Failed to get Event target");
+        if target.has_type::<HtmlSelectElement>() {
+            target.unchecked_into::<HtmlSelectElement>().value()
+        } else {
+            // We currently only expect to encounter Select elements from Events
+            unimplemented!()
         }
     }
 }

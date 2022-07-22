@@ -7,6 +7,8 @@ use thoth_api::model::publication::PublicationField;
 use thoth_api::model::publication::PublicationOrderBy;
 use thoth_api::model::publication::PublicationWithRelations;
 
+use super::ToElementValue;
+
 pagination_component! {
     PublicationsComponent,
     PublicationWithRelations,

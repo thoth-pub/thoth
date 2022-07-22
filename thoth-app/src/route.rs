@@ -1,69 +1,72 @@
 use uuid::Uuid;
 use yew_router::prelude::*;
-use yew_router::switch::Permissive;
 
-#[derive(Switch, Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Routable)]
 pub enum AppRoute {
-    #[to = "/login"]
+    #[at("/login")]
     Login,
-    #[to = "/error"]
-    Error(Permissive<String>),
-    #[to = "/admin{*:rest}"]
-    Admin(AdminRoute),
-    #[to = "/"]
+    #[not_found]
+    #[at("/error")]
+    Error,
+    #[at("/admin/*")]
+    Admin,
+    #[at("/admin")]
+    AdminHome,
+    #[at("/")]
     Home,
 }
 
-#[derive(Switch, Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Routable)]
 pub enum AdminRoute {
-    #[to = "/dashboard"]
+    #[at("/admin/dashboard")]
     Dashboard,
-    #[to = "/works"]
+    #[at("/admin/works")]
     Works,
-    #[to = "/books"]
+    #[at("/admin/books")]
     Books,
-    #[to = "/chapters"]
+    #[at("/admin/chapters")]
     Chapters,
-    #[to = "/work/{id}"]
-    Work(Uuid),
-    #[to = "/work"]
+    #[at("/admin/work/:id")]
+    Work { id: Uuid },
+    #[at("/admin/work")]
     NewWork,
-    #[to = "/publishers"]
+    #[at("/admin/publishers")]
     Publishers,
-    #[to = "/publisher/{id}"]
-    Publisher(Uuid),
-    #[to = "/publisher"]
+    #[at("/admin/publisher/:id")]
+    Publisher { id: Uuid },
+    #[at("/admin/publisher")]
     NewPublisher,
-    #[to = "/institutions"]
+    #[at("/admin/institutions")]
     Institutions,
-    #[to = "/institution/{id}"]
-    Institution(Uuid),
-    #[to = "/institution"]
+    #[at("/admin/institution/:id")]
+    Institution { id: Uuid },
+    #[at("/admin/institution")]
     NewInstitution,
-    #[to = "/imprints"]
+    #[at("/admin/imprints")]
     Imprints,
-    #[to = "/imprint/{id}"]
-    Imprint(Uuid),
-    #[to = "/imprint"]
+    #[at("/admin/imprint/:id")]
+    Imprint { id: Uuid },
+    #[at("/admin/imprint")]
     NewImprint,
-    #[to = "/contributors"]
+    #[at("/admin/contributors")]
     Contributors,
-    #[to = "/contributor/{id}"]
-    Contributor(Uuid),
-    #[to = "/contributor"]
+    #[at("/admin/contributor/:id")]
+    Contributor { id: Uuid },
+    #[at("/admin/contributor")]
     NewContributor,
-    #[to = "/serieses"]
+    #[at("/admin/serieses")]
     Serieses,
-    #[to = "/series/{id}"]
-    Series(Uuid),
-    #[to = "/series"]
+    #[at("/admin/series/:id")]
+    Series { id: Uuid },
+    #[at("/admin/series")]
     NewSeries,
-    #[to = "/publications"]
+    #[at("/admin/publications")]
     Publications,
-    #[to = "/publication/{id}"]
-    Publication(Uuid),
-    #[to = "/publication"]
+    #[at("/admin/publication/:id")]
+    Publication { id: Uuid },
+    #[at("/admin/publication")]
     NewPublication,
-    #[to = ""]
-    Admin,
+    #[not_found]
+    #[at("/admin/error")]
+    Error,
 }

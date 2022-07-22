@@ -8,16 +8,13 @@ use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::{THOTH_EXPORT_API, THOTH_GRAPHQL_API};
 
-pub struct NavbarComponent {
-    props: Props,
-    link: ComponentLink<Self>,
-}
+pub struct NavbarComponent {}
 
 pub enum Msg {
     Logout,
 }
 
-#[derive(Properties, Clone)]
+#[derive(PartialEq, Properties)]
 pub struct Props {
     pub current_user: Option<AccountDetails>,
     pub callback: Callback<()>,
@@ -27,26 +24,21 @@ impl Component for NavbarComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        NavbarComponent { props, link }
+    fn create(_ctx: &Context<Self>) -> Self {
+        NavbarComponent {}
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        self.props = props;
-        true
-    }
-
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Logout => {
-                self.props.callback.emit(());
+                ctx.props().callback.emit(());
                 true
             }
         }
     }
 
-    fn view(&self) -> VNode {
-        let logout = self.link.callback(|e: MouseEvent| {
+    fn view(&self, ctx: &Context<Self>) -> VNode {
+        let logout = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::Logout
         });
@@ -67,12 +59,12 @@ impl Component for NavbarComponent {
 
                 <div id="thothNavbar" class="navbar-menu">
                     <div class="navbar-start">
-                        <RouterAnchor<AppRoute>
+                        <Link<AppRoute>
                             classes="navbar-item"
-                            route=AppRoute::Home
+                            to={ AppRoute::Home }
                         >
                             {"Catalogue"}
-                        </  RouterAnchor<AppRoute>>
+                        </Link<AppRoute>>
 
                         <div class="navbar-item has-dropdown is-hoverable">
                             <a class="navbar-link">
@@ -102,12 +94,12 @@ impl Component for NavbarComponent {
                             </div>
                         </div>
 
-                        <RouterAnchor<AppRoute>
+                        <Link<AdminRoute>
                             classes="navbar-item"
-                            route=AppRoute::Admin(AdminRoute::Dashboard)
+                            to={ AdminRoute::Dashboard }
                         >
                             {"Admin"}
-                        </  RouterAnchor<AppRoute>>
+                        </Link<AdminRoute>>
                     </div>
                 </div>
 
@@ -118,17 +110,17 @@ impl Component for NavbarComponent {
                                 {"v"}{ env!("CARGO_PKG_VERSION") }
                             </a>
                             {
-                                if self.props.current_user.is_some() {
+                                if ctx.props().current_user.is_some() {
                                     html! {
-                                        <button class="button is-light" onclick=logout>
+                                        <button class="button is-light" onclick={ logout }>
                                             { "Logout" }
                                         </button>
                                     }
                                 } else {
                                     html! {
-                                        <RouterAnchor<AppRoute> classes="button is-light" route=AppRoute::Login>
+                                        <Link<AppRoute> classes="button is-light" to={ AppRoute::Login }>
                                             {"Login"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AppRoute>>
                                     }
                                 }
                             }

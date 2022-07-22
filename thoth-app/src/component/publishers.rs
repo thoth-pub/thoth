@@ -7,6 +7,8 @@ use thoth_api::model::publisher::Publisher;
 use thoth_api::model::publisher::PublisherField;
 use thoth_api::model::publisher::PublisherOrderBy;
 
+use super::ToElementValue;
+
 pagination_component! {
     PublishersComponent,
     Publisher,

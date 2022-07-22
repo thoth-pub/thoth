@@ -1,14 +1,14 @@
+use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::issue::IssueWithSeries;
 use thoth_api::model::series::SeriesWithImprint;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
+use yew_agent::Dispatched;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
-use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
@@ -36,8 +36,9 @@ use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_ISSUES;
 use crate::string::REMOVE_BUTTON;
 
+use super::ToElementValue;
+
 pub struct IssuesFormComponent {
-    props: Props,
     data: IssuesFormData,
     new_issue: IssueWithSeries,
     show_add_form: bool,
@@ -45,8 +46,9 @@ pub struct IssuesFormComponent {
     fetch_serieses: FetchSerieses,
     push_issue: PushCreateIssue,
     delete_issue: PushDeleteIssue,
-    link: ComponentLink<Self>,
     notification_bus: NotificationDispatcher,
+    // Store props value locally in order to test whether it has been updated on props change
+    resource_access: AccountAccess,
 }
 
 #[derive(Default)]
@@ -82,14 +84,14 @@ impl Component for IssuesFormComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let data: IssuesFormData = Default::default();
         let new_issue: IssueWithSeries = Default::default();
         let show_add_form = false;
         let show_results = false;
         let body = SeriesesRequestBody {
             variables: Variables {
-                publishers: props.current_user.resource_access.restricted_to(),
+                publishers: ctx.props().current_user.resource_access.restricted_to(),
                 ..Default::default()
             },
             ..Default::default()
@@ -99,11 +101,11 @@ impl Component for IssuesFormComponent {
         let push_issue = Default::default();
         let delete_issue = Default::default();
         let notification_bus = NotificationBus::dispatcher();
+        let resource_access = ctx.props().current_user.resource_access.clone();
 
-        link.send_message(Msg::GetSerieses);
+        ctx.link().send_message(Msg::GetSerieses);
 
         IssuesFormComponent {
-            props,
             data,
             new_issue,
             show_add_form,
@@ -111,12 +113,12 @@ impl Component for IssuesFormComponent {
             fetch_serieses,
             push_issue,
             delete_issue,
-            link,
             notification_bus,
+            resource_access,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleAddFormDisplay(value) => {
                 self.show_add_form = value;
@@ -133,9 +135,9 @@ impl Component for IssuesFormComponent {
                 true
             }
             Msg::GetSerieses => {
-                self.link
+                ctx.link()
                     .send_future(self.fetch_serieses.fetch(Msg::SetSeriesesFetchState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetSeriesesFetchState(FetchAction::Fetching));
                 false
             }
@@ -148,14 +150,14 @@ impl Component for IssuesFormComponent {
                         Some(i) => {
                             let issue = i.clone();
                             let mut issues: Vec<IssueWithSeries> =
-                                self.props.issues.clone().unwrap_or_default();
+                                ctx.props().issues.clone().unwrap_or_default();
                             issues.push(issue);
-                            self.props.update_issues.emit(Some(issues));
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.props().update_issues.emit(Some(issues));
+                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                             true
                         }
                         None => {
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -164,7 +166,7 @@ impl Component for IssuesFormComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                        ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
                             NotificationStatus::Danger,
@@ -176,7 +178,7 @@ impl Component for IssuesFormComponent {
             Msg::CreateIssue => {
                 let body = CreateIssueRequestBody {
                     variables: CreateVariables {
-                        work_id: self.props.work_id,
+                        work_id: ctx.props().work_id,
                         series_id: self.new_issue.series_id,
                         issue_ordinal: self.new_issue.issue_ordinal,
                     },
@@ -184,9 +186,9 @@ impl Component for IssuesFormComponent {
                 };
                 let request = CreateIssueRequest { body };
                 self.push_issue = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_issue.fetch(Msg::SetIssuePushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetIssuePushState(FetchAction::Fetching));
                 false
             }
@@ -197,15 +199,15 @@ impl Component for IssuesFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_issue {
                         Some(issue) => {
-                            let to_keep: Vec<IssueWithSeries> = self
-                                .props
+                            let to_keep: Vec<IssueWithSeries> = ctx
+                                .props()
                                 .issues
                                 .clone()
                                 .unwrap_or_default()
                                 .into_iter()
                                 .filter(|i| i.issue_id != issue.issue_id)
                                 .collect();
-                            self.props.update_issues.emit(Some(to_keep));
+                            ctx.props().update_issues.emit(Some(to_keep));
                             true
                         }
                         None => {
@@ -232,16 +234,16 @@ impl Component for IssuesFormComponent {
                 };
                 let request = DeleteIssueRequest { body };
                 self.delete_issue = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.delete_issue.fetch(Msg::SetIssueDeleteState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetIssueDeleteState(FetchAction::Fetching));
                 false
             }
             Msg::AddIssue(series) => {
                 self.new_issue.series_id = series.series_id;
                 self.new_issue.series = series;
-                self.link.send_message(Msg::ToggleAddFormDisplay(true));
+                ctx.link().send_message(Msg::ToggleAddFormDisplay(true));
                 true
             }
             Msg::ToggleSearchResultDisplay(value) => {
@@ -253,14 +255,14 @@ impl Component for IssuesFormComponent {
                     variables: Variables {
                         filter: Some(value),
                         limit: Some(9999),
-                        publishers: self.props.current_user.resource_access.restricted_to(),
+                        publishers: ctx.props().current_user.resource_access.restricted_to(),
                         ..Default::default()
                     },
                     ..Default::default()
                 };
                 let request = SeriesesRequest { body };
                 self.fetch_serieses = Fetch::new(request);
-                self.link.send_message(Msg::GetSerieses);
+                ctx.link().send_message(Msg::GetSerieses);
                 false
             }
             Msg::ChangeOrdinal(ordinal) => {
@@ -271,21 +273,21 @@ impl Component for IssuesFormComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        let updated_permissions =
-            self.props.current_user.resource_access != props.current_user.resource_access;
-        let should_render = self.props.neq_assign(props);
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+        let updated_permissions = self
+            .resource_access
+            .neq_assign(ctx.props().current_user.resource_access.clone());
         if updated_permissions {
-            self.link.send_message(Msg::GetSerieses);
+            ctx.link().send_message(Msg::GetSerieses);
+            false
+        } else {
+            true
         }
-        // Don't need to re-render if permissions props changed, as another re-render
-        // will be triggered when the message query response is received.
-        should_render && !updated_permissions
     }
 
-    fn view(&self) -> Html {
-        let issues = self.props.issues.clone().unwrap_or_default();
-        let close_modal = self.link.callback(|e: MouseEvent| {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let issues = ctx.props().issues.clone().unwrap_or_default();
+        let close_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(false)
         });
@@ -295,7 +297,7 @@ impl Component for IssuesFormComponent {
                     { "Issues" }
                 </p>
                 <div class="panel-block">
-                    <div class=self.search_dropdown_status() style="width: 100%">
+                    <div class={ self.search_dropdown_status() } style="width: 100%">
                         <div class="dropdown-trigger" style="width: 100%">
                             <div class="field">
                                 <p class="control is-expanded has-icons-left">
@@ -305,9 +307,9 @@ impl Component for IssuesFormComponent {
                                         placeholder="Search Series"
                                         aria-haspopup="true"
                                         aria-controls="serieses-menu"
-                                        oninput=self.link.callback(|e: InputData| Msg::SearchSeries(e.value))
-                                        onfocus=self.link.callback(|_| Msg::ToggleSearchResultDisplay(true))
-                                        onblur=self.link.callback(|_| Msg::ToggleSearchResultDisplay(false))
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchSeries(e.to_value())) }
+                                        onfocus={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(true)) }
+                                        onblur={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                     />
                                     <span class="icon is-left">
                                         <i class="fas fa-search" aria-hidden="true"></i>
@@ -321,18 +323,18 @@ impl Component for IssuesFormComponent {
                                     for self.data.serieses.iter().map(|s| {
                                         let series = s.clone();
                                         // avoid listing series already present in issues list
-                                        if self.props.issues
+                                        if ctx.props().issues
                                             .as_ref()
                                             .unwrap()
                                             .iter()
                                             .any(|ser| ser.series_id == series.series_id)
                                             // avoid listing series whose imprint doesn't match work
-                                            || series.imprint.imprint_id != self.props.imprint_id
+                                            || series.imprint.imprint_id != ctx.props().imprint_id
                                         {
                                             html! {}
                                         } else {
                                             s.as_dropdown_item(
-                                                self.link.callback(move |_| {
+                                                ctx.link().callback(move |_| {
                                                     Msg::AddIssue(series.clone())
                                                 })
                                             )
@@ -343,22 +345,22 @@ impl Component for IssuesFormComponent {
                         </div>
                     </div>
                 </div>
-                <div class=self.add_form_status()>
-                    <div class="modal-background" onclick=&close_modal></div>
+                <div class={ self.add_form_status() }>
+                    <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
                             <p class="modal-card-title">{ "New Issue" }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="issues-form" onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="issues-form" onsubmit={ ctx.link().callback(|e: FocusEvent| {
                                 e.prevent_default();
                                 Msg::CreateIssue
-                            })
+                            }) }
                             >
                                 <div class="field">
                                     <label class="label">{ "Series" }</label>
@@ -368,10 +370,10 @@ impl Component for IssuesFormComponent {
                                 </div>
                                 <FormNumberInput
                                     label="Issue Ordinal"
-                                    value=self.new_issue.issue_ordinal
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
+                                    value={ self.new_issue.issue_ordinal }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeOrdinal(e.to_value())) }
                                     required = true
-                                    min = "1".to_string()
+                                    min={ "1".to_string() }
                                 />
                             </form>
                         </section>
@@ -385,7 +387,7 @@ impl Component for IssuesFormComponent {
                             </button>
                             <button
                                 class="button"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             >
                                 { CANCEL_BUTTON }
                             </button>
@@ -394,7 +396,7 @@ impl Component for IssuesFormComponent {
                 </div>
                 {
                     if !issues.is_empty() {
-                        html!{{for issues.iter().map(|i| self.render_issue(i))}}
+                        html!{{for issues.iter().map(|i| self.render_issue(ctx, i))}}
                     } else {
                         html! {
                             <div class="notification is-info is-light">
@@ -423,7 +425,7 @@ impl IssuesFormComponent {
         }
     }
 
-    fn render_issue(&self, i: &IssueWithSeries) -> Html {
+    fn render_issue(&self, ctx: &Context<Self>, i: &IssueWithSeries) -> Html {
         let issue_id = i.issue_id;
         html! {
             <div class="panel-block field is-horizontal">
@@ -471,7 +473,7 @@ impl IssuesFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteIssue(issue_id))
+                                onclick={ ctx.link().callback(move |_| Msg::DeleteIssue(issue_id)) }
                             >
                                 { REMOVE_BUTTON }
                             </a>

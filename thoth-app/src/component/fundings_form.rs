@@ -3,11 +3,10 @@ use thoth_api::model::institution::Institution;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
+use yew_agent::Dispatched;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
-use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
@@ -35,10 +34,10 @@ use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_FUNDINGS;
 use crate::string::REMOVE_BUTTON;
 
+use super::ToElementValue;
 use super::ToOption;
 
 pub struct FundingsFormComponent {
-    props: Props,
     data: FundingsFormData,
     new_funding: FundingWithInstitution,
     show_add_form: bool,
@@ -46,7 +45,6 @@ pub struct FundingsFormComponent {
     fetch_institutions: FetchInstitutions,
     push_funding: PushCreateFunding,
     delete_funding: PushDeleteFunding,
-    link: ComponentLink<Self>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -85,7 +83,7 @@ impl Component for FundingsFormComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let data: FundingsFormData = Default::default();
         let new_funding: FundingWithInstitution = Default::default();
         let show_add_form = false;
@@ -95,10 +93,9 @@ impl Component for FundingsFormComponent {
         let delete_funding = Default::default();
         let notification_bus = NotificationBus::dispatcher();
 
-        link.send_message(Msg::GetInstitutions);
+        ctx.link().send_message(Msg::GetInstitutions);
 
         FundingsFormComponent {
-            props,
             data,
             new_funding,
             show_add_form,
@@ -106,12 +103,11 @@ impl Component for FundingsFormComponent {
             fetch_institutions,
             push_funding,
             delete_funding,
-            link,
             notification_bus,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleAddFormDisplay(value) => {
                 self.show_add_form = value;
@@ -128,11 +124,11 @@ impl Component for FundingsFormComponent {
                 true
             }
             Msg::GetInstitutions => {
-                self.link.send_future(
+                ctx.link().send_future(
                     self.fetch_institutions
                         .fetch(Msg::SetInstitutionsFetchState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetInstitutionsFetchState(FetchAction::Fetching));
                 false
             }
@@ -145,14 +141,14 @@ impl Component for FundingsFormComponent {
                         Some(i) => {
                             let funding = i.clone();
                             let mut fundings: Vec<FundingWithInstitution> =
-                                self.props.fundings.clone().unwrap_or_default();
+                                ctx.props().fundings.clone().unwrap_or_default();
                             fundings.push(funding);
-                            self.props.update_fundings.emit(Some(fundings));
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.props().update_fundings.emit(Some(fundings));
+                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                             true
                         }
                         None => {
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -161,7 +157,7 @@ impl Component for FundingsFormComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                        ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
                             NotificationStatus::Danger,
@@ -173,7 +169,7 @@ impl Component for FundingsFormComponent {
             Msg::CreateFunding => {
                 let body = CreateFundingRequestBody {
                     variables: CreateVariables {
-                        work_id: self.props.work_id,
+                        work_id: ctx.props().work_id,
                         institution_id: self.new_funding.institution_id,
                         program: self.new_funding.program.clone(),
                         project_name: self.new_funding.project_name.clone(),
@@ -185,9 +181,9 @@ impl Component for FundingsFormComponent {
                 };
                 let request = CreateFundingRequest { body };
                 self.push_funding = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_funding.fetch(Msg::SetFundingPushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetFundingPushState(FetchAction::Fetching));
                 false
             }
@@ -198,15 +194,15 @@ impl Component for FundingsFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_funding {
                         Some(funding) => {
-                            let to_keep: Vec<FundingWithInstitution> = self
-                                .props
+                            let to_keep: Vec<FundingWithInstitution> = ctx
+                                .props()
                                 .fundings
                                 .clone()
                                 .unwrap_or_default()
                                 .into_iter()
                                 .filter(|f| f.funding_id != funding.funding_id)
                                 .collect();
-                            self.props.update_fundings.emit(Some(to_keep));
+                            ctx.props().update_fundings.emit(Some(to_keep));
                             true
                         }
                         None => {
@@ -233,16 +229,16 @@ impl Component for FundingsFormComponent {
                 };
                 let request = DeleteFundingRequest { body };
                 self.delete_funding = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.delete_funding.fetch(Msg::SetFundingDeleteState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetFundingDeleteState(FetchAction::Fetching));
                 false
             }
             Msg::AddFunding(institution) => {
                 self.new_funding.institution_id = institution.institution_id;
                 self.new_funding.institution = institution;
-                self.link.send_message(Msg::ToggleAddFormDisplay(true));
+                ctx.link().send_message(Msg::ToggleAddFormDisplay(true));
                 true
             }
             Msg::ToggleSearchResultDisplay(value) => {
@@ -260,7 +256,7 @@ impl Component for FundingsFormComponent {
                 };
                 let request = InstitutionsRequest { body };
                 self.fetch_institutions = Fetch::new(request);
-                self.link.send_message(Msg::GetInstitutions);
+                ctx.link().send_message(Msg::GetInstitutions);
                 false
             }
             Msg::ChangeProgram(val) => self.new_funding.program.neq_assign(val.to_opt_string()),
@@ -283,13 +279,9 @@ impl Component for FundingsFormComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        self.props.neq_assign(props)
-    }
-
-    fn view(&self) -> Html {
-        let fundings = self.props.fundings.clone().unwrap_or_default();
-        let close_modal = self.link.callback(|e: MouseEvent| {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let fundings = ctx.props().fundings.clone().unwrap_or_default();
+        let close_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(false)
         });
@@ -299,7 +291,7 @@ impl Component for FundingsFormComponent {
                     { "Funding" }
                 </p>
                 <div class="panel-block">
-                    <div class=self.search_dropdown_status() style="width: 100%">
+                    <div class={ self.search_dropdown_status() } style="width: 100%">
                         <div class="dropdown-trigger" style="width: 100%">
                             <div class="field">
                                 <p class="control is-expanded has-icons-left">
@@ -309,9 +301,9 @@ impl Component for FundingsFormComponent {
                                         placeholder="Search Institution"
                                         aria-haspopup="true"
                                         aria-controls="institutions-menu"
-                                        oninput=self.link.callback(|e: InputData| Msg::SearchInstitution(e.value))
-                                        onfocus=self.link.callback(|_| Msg::ToggleSearchResultDisplay(true))
-                                        onblur=self.link.callback(|_| Msg::ToggleSearchResultDisplay(false))
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchInstitution(e.to_value())) }
+                                        onfocus={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(true)) }
+                                        onblur={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                     />
                                     <span class="icon is-left">
                                         <i class="fas fa-search" aria-hidden="true"></i>
@@ -325,7 +317,7 @@ impl Component for FundingsFormComponent {
                                     for self.data.institutions.iter().map(|f| {
                                         let institution = f.clone();
                                         f.as_dropdown_item(
-                                            self.link.callback(move |_| {
+                                            ctx.link().callback(move |_| {
                                                 Msg::AddFunding(institution.clone())
                                             })
                                         )
@@ -335,22 +327,22 @@ impl Component for FundingsFormComponent {
                         </div>
                     </div>
                 </div>
-                <div class=self.add_form_status()>
-                    <div class="modal-background" onclick=&close_modal></div>
+                <div class={ self.add_form_status() }>
+                    <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
                             <p class="modal-card-title">{ "New Funding" }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="fundings-form" onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="fundings-form" onsubmit={ ctx.link().callback(|e: FocusEvent| {
                                 e.prevent_default();
                                 Msg::CreateFunding
-                            })
+                            }) }
                             >
                                 <div class="field">
                                     <label class="label">{ "Institution" }</label>
@@ -360,28 +352,28 @@ impl Component for FundingsFormComponent {
                                 </div>
                                 <FormTextInput
                                     label="Program"
-                                    value=self.new_funding.program.clone().unwrap_or_else(|| "".to_string())
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeProgram(e.value))
+                                    value={ self.new_funding.program.clone().unwrap_or_else(|| "".to_string()) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeProgram(e.to_value())) }
                                 />
                                 <FormTextInput
                                     label="Project Name"
-                                    value=self.new_funding.project_name.clone().unwrap_or_else(|| "".to_string())
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeProjectName(e.value))
+                                    value={ self.new_funding.project_name.clone().unwrap_or_else(|| "".to_string()) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeProjectName(e.to_value())) }
                                 />
                                 <FormTextInput
                                     label="Project Short Name"
-                                    value=self.new_funding.project_shortname.clone().unwrap_or_else(|| "".to_string())
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeProjectShortname(e.value))
+                                    value={ self.new_funding.project_shortname.clone().unwrap_or_else(|| "".to_string()) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeProjectShortname(e.to_value())) }
                                 />
                                 <FormTextInput
                                     label="Grant Number"
-                                    value=self.new_funding.grant_number.clone().unwrap_or_else(|| "".to_string())
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeGrant(e.value))
+                                    value={ self.new_funding.grant_number.clone().unwrap_or_else(|| "".to_string()) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeGrant(e.to_value())) }
                                 />
                                 <FormTextInput
                                     label="Jurisdiction"
-                                    value=self.new_funding.jurisdiction.clone().unwrap_or_else(|| "".to_string())
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeJurisdiction(e.value))
+                                    value={ self.new_funding.jurisdiction.clone().unwrap_or_else(|| "".to_string()) }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeJurisdiction(e.to_value())) }
                                 />
 
                             </form>
@@ -396,7 +388,7 @@ impl Component for FundingsFormComponent {
                             </button>
                             <button
                                 class="button"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             >
                                 { CANCEL_BUTTON }
                             </button>
@@ -405,7 +397,7 @@ impl Component for FundingsFormComponent {
                 </div>
                 {
                     if !fundings.is_empty() {
-                        html!{{for fundings.iter().map(|c| self.render_funding(c))}}
+                        html!{{for fundings.iter().map(|f| self.render_funding(ctx, f))}}
                     } else {
                         html! {
                             <div class="notification is-info is-light">
@@ -434,7 +426,7 @@ impl FundingsFormComponent {
         }
     }
 
-    fn render_funding(&self, f: &FundingWithInstitution) -> Html {
+    fn render_funding(&self, ctx: &Context<Self>, f: &FundingWithInstitution) -> Html {
         let funding_id = f.funding_id;
         html! {
             <div class="panel-block field is-horizontal">
@@ -483,7 +475,7 @@ impl FundingsFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteFunding(funding_id))
+                                onclick={ ctx.link().callback(move |_| Msg::DeleteFunding(funding_id)) }
                             >
                                 { REMOVE_BUTTON }
                             </a>

@@ -92,7 +92,7 @@ use yew::prelude::Html;
 use yew::Callback;
 use yew::MouseEvent;
 
-use crate::route::AppRoute;
+use crate::route::AdminRoute;
 
 pub trait Dropdown {
     fn as_dropdown_item(&self, callback: Callback<MouseEvent>) -> Html
@@ -103,7 +103,7 @@ pub trait Dropdown {
         // onclick. This is not ideal, but it seems to be the only event that'd do the callback
         // without disabling onblur so that onclick can take effect
         html! {
-            <div onmousedown=callback class="dropdown-item">
+            <div onmousedown={ callback } class="dropdown-item">
                 { self }
             </div>
         }
@@ -126,11 +126,11 @@ pub trait ListString {
 }
 
 pub trait CreateRoute {
-    fn create_route() -> AppRoute;
+    fn create_route() -> AdminRoute;
 }
 
 pub trait EditRoute {
-    fn edit_route(&self) -> AppRoute;
+    fn edit_route(&self) -> AdminRoute;
 }
 
 pub trait MetadataTable {

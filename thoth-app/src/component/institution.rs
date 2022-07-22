@@ -7,15 +7,15 @@ use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::prelude::RouterAnchor;
-use yew_router::route::Route;
+use yew_agent::Bridge;
+use yew_agent::Bridged;
+use yew_agent::Dispatched;
+use yew_router::history::History;
+use yew_router::prelude::Link;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
-use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
 use crate::agent::institution_activity_checker::InstitutionActivityChecker;
@@ -50,8 +50,9 @@ use crate::models::institution::update_institution_mutation::Variables as Update
 use crate::models::institution::CountryCodeValues;
 use crate::models::EditRoute;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
+
+use super::ToElementValue;
 
 pub struct InstitutionComponent {
     institution: Institution,
@@ -66,8 +67,6 @@ pub struct InstitutionComponent {
     push_institution: PushUpdateInstitution,
     delete_institution: PushDeleteInstitution,
     data: InstitutionFormData,
-    link: ComponentLink<Self>,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     _institution_activity_checker: Box<dyn Bridge<InstitutionActivityChecker>>,
     funded_works: Vec<WorkWithRelations>,
@@ -93,10 +92,9 @@ pub enum Msg {
     ChangeInstitutionDoi(String),
     ChangeRor(String),
     ChangeCountryCode(String),
-    ChangeRoute(AppRoute),
 }
 
-#[derive(Clone, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct Props {
     pub institution_id: Uuid,
 }
@@ -105,10 +103,10 @@ impl Component for InstitutionComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let body = InstitutionRequestBody {
             variables: Variables {
-                institution_id: Some(props.institution_id),
+                institution_id: Some(ctx.props().institution_id),
             },
             ..Default::default()
         };
@@ -124,16 +122,15 @@ impl Component for InstitutionComponent {
         let institution_doi_warning = Default::default();
         let ror = Default::default();
         let ror_warning = Default::default();
-        let router = RouteAgentDispatcher::new();
         let mut _institution_activity_checker =
-            InstitutionActivityChecker::bridge(link.callback(Msg::GetInstitutionActivity));
+            InstitutionActivityChecker::bridge(ctx.link().callback(Msg::GetInstitutionActivity));
         let funded_works = Default::default();
         let affiliated_works = Default::default();
 
-        link.send_message(Msg::GetInstitution);
-        link.send_message(Msg::GetCountryCodes);
+        ctx.link().send_message(Msg::GetInstitution);
+        ctx.link().send_message(Msg::GetCountryCodes);
         _institution_activity_checker.send(
-            InstitutionActivityRequest::RetrieveInstitutionActivity(props.institution_id),
+            InstitutionActivityRequest::RetrieveInstitutionActivity(ctx.props().institution_id),
         );
 
         InstitutionComponent {
@@ -147,8 +144,6 @@ impl Component for InstitutionComponent {
             push_institution,
             delete_institution,
             data,
-            link,
-            router,
             notification_bus,
             _institution_activity_checker,
             funded_works,
@@ -156,7 +151,7 @@ impl Component for InstitutionComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::SetCountryCodesFetchState(fetch_state) => {
                 self.fetch_country_codes.apply(fetch_state);
@@ -169,11 +164,11 @@ impl Component for InstitutionComponent {
                 true
             }
             Msg::GetCountryCodes => {
-                self.link.send_future(
+                ctx.link().send_future(
                     self.fetch_country_codes
                         .fetch(Msg::SetCountryCodesFetchState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetCountryCodesFetchState(FetchAction::Fetching));
                 false
             }
@@ -227,9 +222,9 @@ impl Component for InstitutionComponent {
                 }
             }
             Msg::GetInstitution => {
-                self.link
+                ctx.link()
                     .send_future(self.fetch_institution.fetch(Msg::SetInstitutionFetchState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetInstitutionFetchState(FetchAction::Fetching));
                 false
             }
@@ -303,9 +298,9 @@ impl Component for InstitutionComponent {
                 };
                 let request = UpdateInstitutionRequest { body };
                 self.push_institution = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_institution.fetch(Msg::SetInstitutionPushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetInstitutionPushState(FetchAction::Fetching));
                 false
             }
@@ -320,9 +315,7 @@ impl Component for InstitutionComponent {
                                 format!("Deleted {}", i.institution_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Institutions,
-                            )));
+                            ctx.link().history().unwrap().push(AdminRoute::Institutions);
                             true
                         }
                         None => {
@@ -351,11 +344,11 @@ impl Component for InstitutionComponent {
                 };
                 let request = DeleteInstitutionRequest { body };
                 self.delete_institution = Fetch::new(request);
-                self.link.send_future(
+                ctx.link().send_future(
                     self.delete_institution
                         .fetch(Msg::SetInstitutionDeleteState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetInstitutionDeleteState(FetchAction::Fetching));
                 false
             }
@@ -409,24 +402,15 @@ impl Component for InstitutionComponent {
                 .institution
                 .country_code
                 .neq_assign(CountryCode::from_str(&value).ok()),
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
-            }
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        false
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         match self.fetch_institution.as_ref().state() {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(_body) => {
-                let callback = self.link.callback(|event: FocusEvent| {
+                let callback = ctx.link().callback(|event: FocusEvent| {
                     event.prevent_default();
                     Msg::UpdateInstitution
                 });
@@ -441,8 +425,8 @@ impl Component for InstitutionComponent {
                             <div class="level-right">
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
-                                        onclick=self.link.callback(|_| Msg::DeleteInstitution)
-                                        object_name=self.institution.institution_name.clone()
+                                        onclick={ ctx.link().callback(|_| Msg::DeleteInstitution) }
+                                        object_name={ self.institution.institution_name.clone() }
                                     />
                                 </p>
                             </div>
@@ -452,37 +436,32 @@ impl Component for InstitutionComponent {
 
                         { self.render_associated_works(&self.affiliated_works, "Member(s) contributed to: ") }
 
-                        <form onsubmit=callback>
+                        <form onsubmit={ callback }>
                             <FormTextInput
                                 label = "Institution Name"
-                                value=self.institution.institution_name.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeInstitutionName(e.value))
-                                required=true
+                                value={ self.institution.institution_name.clone() }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeInstitutionName(e.to_value())) }
+                                required = true
                             />
                             <FormTextInputExtended
                                 label = "Institution DOI"
-                                statictext = DOI_DOMAIN
-                                value=self.institution_doi.clone()
-                                tooltip=self.institution_doi_warning.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeInstitutionDoi(e.value))
+                                statictext={ DOI_DOMAIN }
+                                value={ self.institution_doi.clone() }
+                                tooltip={ self.institution_doi_warning.clone() }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeInstitutionDoi(e.to_value())) }
                             />
                             <FormTextInputExtended
                                 label = "ROR ID"
-                                statictext = ROR_DOMAIN
-                                value=self.ror.clone()
-                                tooltip=self.ror_warning.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeRor(e.value))
+                                statictext={ ROR_DOMAIN }
+                                value={ self.ror.clone() }
+                                tooltip={ self.ror_warning.clone() }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeRor(e.to_value())) }
                             />
                             <FormCountryCodeSelect
                                 label = "Country"
-                                value=self.institution.country_code.clone()
-                                data=self.data.country_codes.clone()
-                                onchange=self.link.callback(|event| match event {
-                                    ChangeData::Select(elem) => {
-                                        Msg::ChangeCountryCode(elem.value())
-                                    }
-                                    _ => unreachable!(),
-                                })
+                                value={ self.institution.country_code.clone() }
+                                data={ self.data.country_codes.clone() }
+                                onchange={ ctx.link().callback(|e: Event| Msg::ChangeCountryCode(e.to_value())) }
                             />
 
                             <div class="field">
@@ -512,11 +491,11 @@ impl InstitutionComponent {
                             html! {
                                 <p>
                                     { explanatory_text }
-                                    <RouterAnchor<AppRoute>
-                                        route=work.edit_route()
+                                    <Link<AdminRoute>
+                                        to={ work.edit_route() }
                                     >
                                         { &work.title }
-                                    </  RouterAnchor<AppRoute>>
+                                    </Link<AdminRoute>>
                                     { format!(", from: {}", work.imprint.publisher.publisher_name) }
                                 </p>
                             }

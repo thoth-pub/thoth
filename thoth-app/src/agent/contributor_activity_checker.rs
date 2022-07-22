@@ -1,11 +1,9 @@
 use std::collections::HashSet;
 use uuid::Uuid;
-use yew::prelude::worker::*;
-use yew::Dispatched;
+use yew_agent::{Agent, AgentLink, Context, Dispatched, HandlerId};
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
-use yewtil::future::LinkFuture;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;

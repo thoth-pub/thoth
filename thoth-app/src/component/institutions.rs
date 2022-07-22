@@ -7,6 +7,8 @@ use thoth_api::model::institution::Institution;
 use thoth_api::model::institution::InstitutionField;
 use thoth_api::model::institution::InstitutionOrderBy;
 
+use super::ToElementValue;
+
 pagination_component! {
     InstitutionsComponent,
     Institution,
