@@ -1,0 +1,47 @@
+name: test-and-check
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  THOTH_GRAPHQL_API: https://api.thoth.pub
+  THOTH_EXPORT_API: https://export.thoth.pub
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: ./.github/workflows/build.yml
+    - name: Run tests
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --workspace --verbose
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: ./.github/workflows/build.yml
+    - name: Run linting
+      uses: actions-rs/cargo@v1
+      with:
+        command: clippy
+        args: --all --all-targets --all-features -- -D warnings
+  format_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+            toolchain: stable
+            components: rustfmt
+            override: true
+      - name: Run format
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
