@@ -16,21 +16,23 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: ./.github/workflows/build.yml
-    - name: Run tests
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --workspace --verbose
+      - uses: actions/checkout@v2
+      - uses: ./.github/workflows/build.yml
+      - name: Run tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace --verbose
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: ./.github/workflows/build.yml
-    - name: Run linting
-      uses: actions-rs/cargo@v1
-      with:
-        command: clippy
-        args: --all --all-targets --all-features -- -D warnings
+      - uses: actions/checkout@v2
+      - uses: ./.github/workflows/build.yml
+      - name: Run linting
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all --all-targets --all-features -- -D warnings
   format_check:
     runs-on: ubuntu-latest
     steps:
