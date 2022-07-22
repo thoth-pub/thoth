@@ -10,7 +10,6 @@ use yew::MouseEvent;
 
 use super::{CreateRoute, Dropdown, EditRoute, MetadataTable};
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -25,22 +24,22 @@ pub struct SeriesTypeValues {
 }
 
 impl EditRoute for Series {
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Series(self.series_id))
+    fn edit_route(&self) -> AdminRoute {
+        AdminRoute::Series { id: self.series_id }
     }
 }
 
 impl Dropdown for SeriesWithImprint {}
 
 impl CreateRoute for SeriesWithImprint {
-    fn create_route() -> AppRoute {
-        AppRoute::Admin(AdminRoute::NewSeries)
+    fn create_route() -> AdminRoute {
+        AdminRoute::NewSeries
     }
 }
 
 impl EditRoute for SeriesWithImprint {
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Series(self.series_id))
+    fn edit_route(&self) -> AdminRoute {
+        AdminRoute::Series { id: self.series_id }
     }
 }
 
@@ -49,7 +48,7 @@ impl MetadataTable for SeriesWithImprint {
         html! {
             <tr
                 class="row"
-                onclick=callback
+                onclick={ callback }
             >
                 <td>{&self.series_id}</td>
                 <td>{&self.series_name}</td>

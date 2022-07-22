@@ -1,14 +1,12 @@
 use thoth_api::model::publisher::Publisher;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_agent::Dispatched;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
-use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
@@ -23,16 +21,14 @@ use crate::models::publisher::create_publisher_mutation::PushActionCreatePublish
 use crate::models::publisher::create_publisher_mutation::PushCreatePublisher;
 use crate::models::publisher::create_publisher_mutation::Variables;
 use crate::models::EditRoute;
-use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+use super::ToElementValue;
 use super::ToOption;
 
 pub struct NewPublisherComponent {
     publisher: Publisher,
     push_publisher: PushCreatePublisher,
-    link: ComponentLink<Self>,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -42,29 +38,25 @@ pub enum Msg {
     ChangePublisherName(String),
     ChangePublisherShortname(String),
     ChangePublisherUrl(String),
-    ChangeRoute(AppRoute),
 }
 
 impl Component for NewPublisherComponent {
     type Message = Msg;
     type Properties = ();
 
-    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
         let push_publisher = Default::default();
-        let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let publisher: Publisher = Default::default();
 
         NewPublisherComponent {
             publisher,
             push_publisher,
-            link,
-            router,
             notification_bus,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::SetPublisherPushState(fetch_state) => {
                 self.push_publisher.apply(fetch_state);
@@ -77,7 +69,7 @@ impl Component for NewPublisherComponent {
                                 format!("Saved {}", p.publisher_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(p.edit_route()));
+                            ctx.link().history().unwrap().push(p.edit_route());
                             true
                         }
                         None => {
@@ -108,9 +100,9 @@ impl Component for NewPublisherComponent {
                 };
                 let request = CreatePublisherRequest { body };
                 self.push_publisher = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_publisher.fetch(Msg::SetPublisherPushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetPublisherPushState(FetchAction::Fetching));
                 false
             }
@@ -126,20 +118,11 @@ impl Component for NewPublisherComponent {
                 .publisher
                 .publisher_url
                 .neq_assign(value.to_opt_string()),
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
-            }
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        false
-    }
-
-    fn view(&self) -> Html {
-        let callback = self.link.callback(|event: FocusEvent| {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let callback = ctx.link().callback(|event: FocusEvent| {
             event.prevent_default();
             Msg::CreatePublisher
         });
@@ -154,22 +137,22 @@ impl Component for NewPublisherComponent {
                     <div class="level-right" />
                 </nav>
 
-                <form onsubmit=callback>
+                <form onsubmit={ callback }>
                     <FormTextInput
                         label = "Publisher Name"
-                        value=self.publisher.publisher_name.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangePublisherName(e.value))
-                        required=true
+                        value={ self.publisher.publisher_name.clone() }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePublisherName(e.to_value())) }
+                        required = true
                     />
                     <FormTextInput
                         label = "Publisher Short Name"
-                        value=self.publisher.publisher_shortname.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangePublisherShortname(e.value))
+                        value={ self.publisher.publisher_shortname.clone() }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePublisherShortname(e.to_value())) }
                     />
                     <FormUrlInput
                         label = "Publisher URL"
-                        value=self.publisher.publisher_url.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangePublisherUrl(e.value))
+                        value={ self.publisher.publisher_url.clone() }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePublisherUrl(e.to_value())) }
                     />
 
                     <div class="field">

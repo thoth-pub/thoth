@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::imprint::ImprintWithPublisher;
 use thoth_api::model::series::SeriesType;
@@ -6,14 +7,12 @@ use thoth_api::model::series::SeriesWithImprint;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_agent::Dispatched;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
-use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
@@ -51,9 +50,9 @@ use crate::models::series::update_series_mutation::UpdateSeriesRequestBody;
 use crate::models::series::update_series_mutation::Variables as UpdateVariables;
 use crate::models::series::SeriesTypeValues;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+use super::ToElementValue;
 use super::ToOption;
 
 pub struct SeriesComponent {
@@ -64,10 +63,9 @@ pub struct SeriesComponent {
     fetch_imprints: FetchImprints,
     fetch_series_types: FetchSeriesTypes,
     delete_series: PushDeleteSeries,
-    link: ComponentLink<Self>,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
-    props: Props,
+    // Store props value locally in order to test whether it has been updated on props change
+    resource_access: AccountAccess,
 }
 
 #[derive(Default)]
@@ -96,10 +94,9 @@ pub enum Msg {
     ChangeSeriesUrl(String),
     ChangeSeriesDescription(String),
     ChangeSeriesCfpUrl(String),
-    ChangeRoute(AppRoute),
 }
 
-#[derive(Clone, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct Props {
     pub series_id: Uuid,
     pub current_user: AccountDetails,
@@ -109,7 +106,7 @@ impl Component for SeriesComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let fetch_series: FetchSeries = Default::default();
         let push_series = Default::default();
         let delete_series = Default::default();
@@ -118,11 +115,11 @@ impl Component for SeriesComponent {
         let data: SeriesFormData = Default::default();
         let fetch_imprints: FetchImprints = Default::default();
         let fetch_series_types: FetchSeriesTypes = Default::default();
-        let router = RouteAgentDispatcher::new();
+        let resource_access = ctx.props().current_user.resource_access.clone();
 
-        link.send_message(Msg::GetSeries);
-        link.send_message(Msg::GetImprints);
-        link.send_message(Msg::GetSeriesTypes);
+        ctx.link().send_message(Msg::GetSeries);
+        ctx.link().send_message(Msg::GetImprints);
+        ctx.link().send_message(Msg::GetSeriesTypes);
 
         SeriesComponent {
             series,
@@ -132,14 +129,12 @@ impl Component for SeriesComponent {
             fetch_imprints,
             fetch_series_types,
             delete_series,
-            link,
-            router,
             notification_bus,
-            props,
+            resource_access,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::SetImprintsFetchState(fetch_state) => {
                 self.fetch_imprints.apply(fetch_state);
@@ -154,7 +149,7 @@ impl Component for SeriesComponent {
             Msg::GetImprints => {
                 let body = ImprintsRequestBody {
                     variables: ImprintsVariables {
-                        publishers: self.props.current_user.resource_access.restricted_to(),
+                        publishers: ctx.props().current_user.resource_access.restricted_to(),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -162,9 +157,9 @@ impl Component for SeriesComponent {
                 let request = ImprintsRequest { body };
                 self.fetch_imprints = Fetch::new(request);
 
-                self.link
+                ctx.link()
                     .send_future(self.fetch_imprints.fetch(Msg::SetImprintsFetchState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetImprintsFetchState(FetchAction::Fetching));
                 false
             }
@@ -179,9 +174,9 @@ impl Component for SeriesComponent {
                 true
             }
             Msg::GetSeriesTypes => {
-                self.link
+                ctx.link()
                     .send_future(self.fetch_series_types.fetch(Msg::SetSeriesTypesFetchState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetSeriesTypesFetchState(FetchAction::Fetching));
                 false
             }
@@ -197,14 +192,12 @@ impl Component for SeriesComponent {
                         };
                         // If user doesn't have permission to edit this object, redirect to dashboard
                         if let Some(publishers) =
-                            self.props.current_user.resource_access.restricted_to()
+                            ctx.props().current_user.resource_access.restricted_to()
                         {
                             if !publishers
                                 .contains(&self.series.imprint.publisher.publisher_id.to_string())
                             {
-                                self.router.send(RouteRequest::ChangeRoute(Route::from(
-                                    AppRoute::Admin(AdminRoute::Dashboard),
-                                )));
+                                ctx.link().history().unwrap().push(AdminRoute::Dashboard);
                             }
                         }
                         true
@@ -215,16 +208,16 @@ impl Component for SeriesComponent {
             Msg::GetSeries => {
                 let body = SeriesRequestBody {
                     variables: Variables {
-                        series_id: Some(self.props.series_id),
+                        series_id: Some(ctx.props().series_id),
                     },
                     ..Default::default()
                 };
                 let request = SeriesRequest { body };
                 self.fetch_series = Fetch::new(request);
 
-                self.link
+                ctx.link()
                     .send_future(self.fetch_series.fetch(Msg::SetSeriesFetchState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetSeriesFetchState(FetchAction::Fetching));
                 false
             }
@@ -275,9 +268,9 @@ impl Component for SeriesComponent {
                 };
                 let request = UpdateSeriesRequest { body };
                 self.push_series = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_series.fetch(Msg::SetSeriesPushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetSeriesPushState(FetchAction::Fetching));
                 false
             }
@@ -292,9 +285,7 @@ impl Component for SeriesComponent {
                                 format!("Deleted {}", s.series_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Serieses,
-                            )));
+                            ctx.link().history().unwrap().push(AdminRoute::Serieses);
                             true
                         }
                         None => {
@@ -323,9 +314,9 @@ impl Component for SeriesComponent {
                 };
                 let request = DeleteSeriesRequest { body };
                 self.delete_series = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.delete_series.fetch(Msg::SetSeriesDeleteState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetSeriesDeleteState(FetchAction::Fetching));
                 false
             }
@@ -351,30 +342,25 @@ impl Component for SeriesComponent {
             Msg::ChangeSeriesCfpUrl(value) => {
                 self.series.series_cfp_url.neq_assign(value.to_opt_string())
             }
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
-            }
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        let updated_permissions =
-            self.props.current_user.resource_access != props.current_user.resource_access;
-        self.props = props;
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+        let updated_permissions = self
+            .resource_access
+            .neq_assign(ctx.props().current_user.resource_access.clone());
         if updated_permissions {
-            self.link.send_message(Msg::GetImprints);
+            ctx.link().send_message(Msg::GetImprints);
         }
         false
     }
 
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         match self.fetch_series.as_ref().state() {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(_body) => {
-                let callback = self.link.callback(|event: FocusEvent| {
+                let callback = ctx.link().callback(|event: FocusEvent| {
                     event.prevent_default();
                     Msg::UpdateSeries
                 });
@@ -389,71 +375,63 @@ impl Component for SeriesComponent {
                             <div class="level-right">
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
-                                        onclick=self.link.callback(|_| Msg::DeleteSeries)
-                                        object_name=self.series.series_name.clone()
+                                        onclick={ ctx.link().callback(|_| Msg::DeleteSeries) }
+                                        object_name={ self.series.series_name.clone() }
                                     />
                                 </p>
                             </div>
                         </nav>
-                        <form onsubmit=callback>
+                        <form onsubmit={ callback }>
                             <FormSeriesTypeSelect
                                 label = "Series Type"
-                                value=self.series.series_type.clone()
-                                onchange=self.link.callback(|event| match event {
-                                    ChangeData::Select(elem) => {
-                                        let value = elem.value();
-                                        Msg::ChangeSeriesType(SeriesType::from_str(&value).unwrap())
-                                    }
-                                    _ => unreachable!(),
-                                })
-                                data=self.data.series_types.clone()
+                                value={ self.series.series_type.clone() }
+                                onchange={ ctx.link().callback(|e: Event|
+                                    Msg::ChangeSeriesType(SeriesType::from_str(&e.to_value()).unwrap())
+                                ) }
+                                data={ self.data.series_types.clone() }
                                 required = true
                             />
                             <FormImprintSelect
                                 label = "Imprint"
-                                value=self.series.imprint.imprint_id
-                                data=self.data.imprints.clone()
-                                onchange=self.link.callback(|event| match event {
-                                    ChangeData::Select(elem) => {
-                                        let value = elem.value();
-                                        Msg::ChangeImprint(Uuid::parse_str(&value).unwrap_or_default())
-                                    }
-                                    _ => unreachable!(),
-                                })
+                                value={ self.series.imprint.imprint_id }
+                                data={ self.data.imprints.clone() }
+                                onchange={ ctx.link().callback(|e: Event|
+                                    Msg::ChangeImprint(Uuid::parse_str(&e.to_value()).unwrap_or_default())
+                                ) }
                                 required = true
                             />
                             <FormTextInput
                                 label = "Series Name"
-                                value=self.series.series_name.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesName(e.value))
-                                required=true
+                                value={ self.series.series_name.clone() }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeSeriesName(e.to_value())) }
+                                required = true
                             />
                             <FormTextInput
                                 label = "ISSN Print"
-                                value=self.series.issn_print.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeIssnPrint(e.value))
-                                required=true
+                                value={ self.series.issn_print.clone() }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIssnPrint(e.to_value())) }
+                                required = true
                             />
                             <FormTextInput
                                 label = "ISSN Digital"
-                                value=self.series.issn_digital.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeIssnDigital(e.value))
-                                required=true
+                                value={ self.series.issn_digital.clone() }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIssnDigital(e.to_value())) }
+                                required = true
                             />
                             <FormUrlInput
                                 label = "Series URL"
-                                value=self.series.series_url.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesUrl(e.value))
+                                value={ self.series.series_url.clone() }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeSeriesUrl(e.to_value())) }
                             />
                             <FormUrlInput
                                 label = "Series Call for Proposals URL"
-                                value=self.series.series_cfp_url.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesCfpUrl(e.value))
+                                value={ self.series.series_cfp_url.clone() }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeSeriesCfpUrl(e.to_value())) }
                             />
                             <FormTextarea
                                 label = "Series Description"
-                                value=self.series.series_description.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeSeriesDescription(e.value))
+                                value={ self.series.series_description.clone() }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeSeriesDescription(e.to_value())) }
                             />
 
                             <div class="field">

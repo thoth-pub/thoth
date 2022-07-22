@@ -2,14 +2,11 @@ use semver::Version;
 use thoth_api::account::model::AccountDetails;
 use thoth_errors::ThothError;
 use yew::html;
-use yew::prelude::worker::*;
 use yew::prelude::*;
-use yew::services::fetch::FetchTask;
 use yew::virtual_dom::VNode;
 use yew::Callback;
+use yew_agent::Dispatched;
 use yew_router::prelude::*;
-use yew_router::route::Route;
-use yew_router::switch::Permissive;
 
 use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
@@ -27,6 +24,7 @@ use crate::component::hero::HeroComponent;
 use crate::component::login::LoginComponent;
 use crate::component::navbar::NavbarComponent;
 use crate::component::notification::NotificationComponent;
+use crate::route::AdminRoute;
 use crate::route::AppRoute;
 use crate::service::account::AccountError;
 use crate::service::account::AccountService;
@@ -34,20 +32,11 @@ use crate::service::version;
 use crate::string::NEW_VERSION_PROMPT;
 
 pub struct RootComponent {
-    current_route: Option<AppRoute>,
     account_service: AccountService,
     current_user: Option<AccountDetails>,
-    current_user_response: Callback<Result<AccountDetails, AccountError>>,
-    current_user_task: Option<FetchTask>,
-    renew_token_task: Option<FetchTask>,
-    renew_token_response: Callback<Result<AccountDetails, AccountError>>,
-    check_version_task: Option<FetchTask>,
-    check_version_response: Callback<Result<Version, ThothError>>,
-    _router_agent: Box<dyn Bridge<RouteAgent>>,
     session_timer_agent: SessionTimerDispatcher,
     version_timer_agent: VersionTimerDispatcher,
     notification_bus: NotificationDispatcher,
-    link: ComponentLink<Self>,
 }
 
 pub enum Msg {
@@ -57,7 +46,6 @@ pub enum Msg {
     RenewTokenResponse(Result<AccountDetails, AccountError>),
     CheckVersion,
     CheckVersionResponse(Result<Version, ThothError>),
-    Route(Route),
     UpdateAccount(AccountDetails),
     Login(AccountDetails),
     Logout,
@@ -67,77 +55,61 @@ impl Component for RootComponent {
     type Message = Msg;
     type Properties = ();
 
-    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
         let session_timer_agent = SessionTimerAgent::dispatcher();
         let version_timer_agent = VersionTimerAgent::dispatcher();
-        let _router_agent = RouteAgent::bridge(link.callback(Msg::Route));
-        let route_service: RouteService = RouteService::new();
-        let route = route_service.get_route();
         let notification_bus = NotificationBus::dispatcher();
 
         RootComponent {
-            current_route: AppRoute::switch(route),
             account_service: AccountService::new(),
             current_user: Default::default(),
-            current_user_response: link.callback(Msg::CurrentUserResponse),
-            current_user_task: Default::default(),
-            renew_token_task: Default::default(),
-            renew_token_response: link.callback(Msg::RenewTokenResponse),
-            check_version_task: Default::default(),
-            check_version_response: link.callback(Msg::CheckVersionResponse),
-            _router_agent,
             session_timer_agent,
             version_timer_agent,
             notification_bus,
-            link,
         }
     }
 
-    fn rendered(&mut self, first_render: bool) {
+    fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         if first_render {
             // Start timer to check for updated app version
             self.version_timer_agent.send(VersionTimerRequest::Start(
-                self.link.callback(|_| Msg::CheckVersion),
+                ctx.link().callback(|_| Msg::CheckVersion),
             ));
             if self.account_service.is_loggedin() {
-                self.link.send_message(Msg::FetchCurrentUser);
+                ctx.link().send_message(Msg::FetchCurrentUser);
             }
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::FetchCurrentUser => {
-                let task = self
-                    .account_service
-                    .account_details(self.current_user_response.clone());
-                self.current_user_task = Some(task);
+                let mut service = self.account_service.clone();
+                ctx.link().send_future(async move {
+                    Msg::CurrentUserResponse(service.account_details().await)
+                });
             }
             Msg::RenewToken => {
-                let task = self
-                    .account_service
-                    .renew_token(self.renew_token_response.clone());
-                self.renew_token_task = Some(task);
+                let mut service = self.account_service.clone();
+                ctx.link().send_future(async move {
+                    Msg::RenewTokenResponse(service.renew_token().await)
+                });
             }
             Msg::CheckVersion => {
-                let task = version::get_version(self.check_version_response.clone());
-                self.check_version_task = Some(task);
+                ctx.link()
+                    .send_future(async { Msg::CheckVersionResponse(version::get_version().await) });
             }
             Msg::CurrentUserResponse(Ok(account_details)) => {
-                self.link.send_message(Msg::Login(account_details));
-                self.current_user_task = None;
+                ctx.link().send_message(Msg::Login(account_details));
             }
             Msg::CurrentUserResponse(Err(_)) => {
-                self.link.send_message(Msg::Logout);
-                self.current_user_task = None;
+                ctx.link().send_message(Msg::Logout);
             }
             Msg::RenewTokenResponse(Ok(account_details)) => {
-                self.link.send_message(Msg::UpdateAccount(account_details));
-                self.renew_token_task = None;
+                ctx.link().send_message(Msg::UpdateAccount(account_details));
             }
             Msg::RenewTokenResponse(Err(_)) => {
-                self.link.send_message(Msg::Logout);
-                self.current_user_task = None;
+                ctx.link().send_message(Msg::Logout);
             }
             Msg::CheckVersionResponse(Ok(server_version)) => {
                 if let Ok(app_version) = Version::parse(env!("CARGO_PKG_VERSION")) {
@@ -150,23 +122,20 @@ impl Component for RootComponent {
                         self.version_timer_agent.send(VersionTimerRequest::Stop);
                     }
                 }
-                self.check_version_task = None;
             }
             Msg::CheckVersionResponse(Err(_)) => {
                 // Unable to determine if a new app version is available.
                 // Ignore and move on - not worth alerting the user.
-                self.check_version_task = None;
             }
-            Msg::Route(route) => self.current_route = AppRoute::switch(route),
             Msg::UpdateAccount(account_details) => {
                 self.current_user = Some(account_details);
             }
             Msg::Login(account_details) => {
                 // start session timer
                 self.session_timer_agent.send(SessionTimerRequest::Start(
-                    self.link.callback(|_| Msg::RenewToken),
+                    ctx.link().callback(|_| Msg::RenewToken),
                 ));
-                self.link.send_message(Msg::UpdateAccount(account_details));
+                ctx.link().send_message(Msg::UpdateAccount(account_details));
             }
             Msg::Logout => {
                 self.account_service.logout();
@@ -177,55 +146,56 @@ impl Component for RootComponent {
         true
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        false
-    }
-
-    fn view(&self) -> VNode {
-        let callback_login = self.link.callback(Msg::Login);
-        let callback_logout = self.link.callback(|_| Msg::Logout);
+    fn view(&self, ctx: &Context<Self>) -> VNode {
+        let callback_login = ctx.link().callback(Msg::Login);
+        let callback_logout = ctx.link().callback(|_| Msg::Logout);
+        let current_user = self.current_user.clone();
+        let render =
+            Switch::render(move |r| switch_app(r, current_user.clone(), callback_login.clone()));
 
         html! {
-            <>
+            <BrowserRouter>
                 <header>
-                    <NavbarComponent current_user=self.current_user.clone() callback=callback_logout/>
+                    <NavbarComponent current_user={ self.current_user.clone() } callback={ callback_logout }/>
                 </header>
                 <NotificationComponent />
                 <div class="main">
-                {
-                    if let Some(route) = &self.current_route {
-                        match route {
-                            AppRoute::Home => html! {
-                                <>
-                                    <HeroComponent />
-                                    <div class="section">
-                                        <CatalogueComponent />
-                                    </div>
-                                </>
-                            },
-                            AppRoute::Login => html! {
-                                <div class="section">
-                                    <LoginComponent current_user=self.current_user.clone() callback=callback_login/>
-                                </div>
-                            },
-                            AppRoute::Admin(admin_route) => html! {
-                                <div class="section">
-                                    <AdminComponent route={admin_route.clone()} current_user=self.current_user.clone()/>
-                                </div>
-                            },
-                            AppRoute::Error(Permissive(None)) => html! {
-                                <div class="uk-position-center"></div>
-                            },
-                            AppRoute::Error(Permissive(Some(missed_route))) => html!{
-                                format!("Page '{}' not found", missed_route)
-                            }
-                        }
-                    } else {
-                        html! {}
-                    }
-                }
+                    <Switch<AppRoute> { render } />
+                </div>
+            </BrowserRouter>
+        }
+    }
+}
+
+fn switch_app(
+    route: &AppRoute,
+    current_user: Option<AccountDetails>,
+    callback_login: Callback<AccountDetails>,
+) -> Html {
+    match route {
+        AppRoute::Home => html! {
+            <>
+                <HeroComponent />
+                <div class="section">
+                    <CatalogueComponent />
                 </div>
             </>
-        }
+        },
+        AppRoute::Login => html! {
+            <div class="section">
+                <LoginComponent current_user={ current_user.clone() } callback={ callback_login }/>
+            </div>
+        },
+        AppRoute::Admin => html! {
+            <div class="section">
+                <AdminComponent current_user={ current_user.clone() }/>
+            </div>
+        },
+        AppRoute::AdminHome => html! {
+            <Redirect<AdminRoute> to={ AdminRoute::Dashboard }/>
+        },
+        AppRoute::Error => html! {
+            "Page not found"
+        },
     }
 }

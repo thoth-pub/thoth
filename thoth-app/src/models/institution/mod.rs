@@ -8,7 +8,6 @@ use yew::MouseEvent;
 
 use super::{CreateRoute, Dropdown, EditRoute, MetadataTable};
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -25,14 +24,16 @@ pub struct CountryCodeValues {
 impl Dropdown for Institution {}
 
 impl CreateRoute for Institution {
-    fn create_route() -> AppRoute {
-        AppRoute::Admin(AdminRoute::NewInstitution)
+    fn create_route() -> AdminRoute {
+        AdminRoute::NewInstitution
     }
 }
 
 impl EditRoute for Institution {
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Institution(self.institution_id))
+    fn edit_route(&self) -> AdminRoute {
+        AdminRoute::Institution {
+            id: self.institution_id,
+        }
     }
 }
 
@@ -56,7 +57,7 @@ impl MetadataTable for Institution {
         html! {
             <tr
                 class="row"
-                onclick=callback
+                onclick={ callback }
             >
                 <td>{&self.institution_id}</td>
                 <td>{&self.institution_name}</td>

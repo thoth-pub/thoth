@@ -8,14 +8,12 @@ use thoth_api::model::work::WorkType;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_agent::Dispatched;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
-use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
@@ -38,7 +36,6 @@ use crate::models::publication::publication_query::PublicationRequest;
 use crate::models::publication::publication_query::PublicationRequestBody;
 use crate::models::publication::publication_query::Variables;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use crate::string::EDIT_BUTTON;
 use crate::string::RELATIONS_INFO;
 
@@ -48,10 +45,7 @@ pub struct PublicationComponent {
     delete_publication: PushDeletePublication,
     show_modal_form: bool,
     publication_under_edit: Option<Publication>,
-    link: ComponentLink<Self>,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
-    props: Props,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -65,10 +59,9 @@ pub enum Msg {
     DeletePublication,
     UpdateLocations(Option<Vec<Location>>),
     UpdatePrices(Option<Vec<Price>>),
-    ChangeRoute(AppRoute),
 }
 
-#[derive(Clone, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct Props {
     pub publication_id: Uuid,
     pub current_user: AccountDetails,
@@ -78,16 +71,15 @@ impl Component for PublicationComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let fetch_publication: FetchPublication = Default::default();
         let delete_publication = Default::default();
         let show_modal_form = false;
         let publication_under_edit = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let publication: PublicationWithRelations = Default::default();
-        let router = RouteAgentDispatcher::new();
 
-        link.send_message(Msg::GetPublication);
+        ctx.link().send_message(Msg::GetPublication);
 
         PublicationComponent {
             publication,
@@ -95,14 +87,11 @@ impl Component for PublicationComponent {
             delete_publication,
             show_modal_form,
             publication_under_edit,
-            link,
-            router,
             notification_bus,
-            props,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleModalFormDisplay(show_form) => {
                 self.show_modal_form = show_form;
@@ -173,7 +162,7 @@ impl Component for PublicationComponent {
                     )));
                 }
                 // Close child form
-                self.link.send_message(Msg::ToggleModalFormDisplay(false));
+                ctx.link().send_message(Msg::ToggleModalFormDisplay(false));
                 true
             }
             Msg::SetPublicationFetchState(fetch_state) => {
@@ -188,7 +177,7 @@ impl Component for PublicationComponent {
                         };
                         // If user doesn't have permission to edit this object, redirect to dashboard
                         if let Some(publishers) =
-                            self.props.current_user.resource_access.restricted_to()
+                            ctx.props().current_user.resource_access.restricted_to()
                         {
                             if !publishers.contains(
                                 &self
@@ -199,9 +188,7 @@ impl Component for PublicationComponent {
                                     .publisher_id
                                     .to_string(),
                             ) {
-                                self.router.send(RouteRequest::ChangeRoute(Route::from(
-                                    AppRoute::Admin(AdminRoute::Dashboard),
-                                )));
+                                ctx.link().history().unwrap().push(AdminRoute::Dashboard);
                             }
                         }
                         true
@@ -212,16 +199,16 @@ impl Component for PublicationComponent {
             Msg::GetPublication => {
                 let body = PublicationRequestBody {
                     variables: Variables {
-                        publication_id: Some(self.props.publication_id),
+                        publication_id: Some(ctx.props().publication_id),
                     },
                     ..Default::default()
                 };
                 let request = PublicationRequest { body };
                 self.fetch_publication = Fetch::new(request);
 
-                self.link
+                ctx.link()
                     .send_future(self.fetch_publication.fetch(Msg::SetPublicationFetchState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetPublicationFetchState(FetchAction::Fetching));
                 false
             }
@@ -242,9 +229,7 @@ impl Component for PublicationComponent {
                                 ),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(AppRoute::Admin(
-                                AdminRoute::Publications,
-                            )));
+                            ctx.link().history().unwrap().push(AdminRoute::Publications);
                             true
                         }
                         None => {
@@ -273,30 +258,20 @@ impl Component for PublicationComponent {
                 };
                 let request = DeletePublicationRequest { body };
                 self.delete_publication = Fetch::new(request);
-                self.link.send_future(
+                ctx.link().send_future(
                     self.delete_publication
                         .fetch(Msg::SetPublicationDeleteState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetPublicationDeleteState(FetchAction::Fetching));
                 false
             }
             Msg::UpdateLocations(locations) => self.publication.locations.neq_assign(locations),
             Msg::UpdatePrices(prices) => self.publication.prices.neq_assign(prices),
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
-            }
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        self.props = props;
-        true
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         match self.fetch_publication.as_ref().state() {
             FetchState::NotFetching(_) => html! {<Loader/>},
             FetchState::Fetching(_) => html! {<Loader/>},
@@ -313,29 +288,30 @@ impl Component for PublicationComponent {
                                 <p class="level-item">
                                     <a
                                         class="button is-success"
-                                        onclick=self.link.callback(move |_| Msg::ToggleModalFormDisplay(true))
+                                        onclick={ ctx.link().callback(move |_| Msg::ToggleModalFormDisplay(true)) }
                                     >
                                         { EDIT_BUTTON }
                                     </a>
                                 </p>
                                 <PublicationModalComponent
-                                    publication_under_edit=self.publication_under_edit.clone()
-                                    work_id=self.publication.work.work_id
-                                    work_type=self.publication.work.work_type.clone()
-                                    show_modal_form=self.show_modal_form
-                                    add_publication=self.link.callback(Msg::AddPublication)
-                                    update_publication=self.link.callback(Msg::UpdatePublication)
-                                    close_modal_form=self.link.callback(move |_| Msg::ToggleModalFormDisplay(false))
+                                    publication_under_edit={ self.publication_under_edit.clone() }
+                                    work_id={ self.publication.work.work_id }
+                                    work_type={ self.publication.work.work_type.clone() }
+                                    show_modal_form={ self.show_modal_form }
+                                    add_publication={ ctx.link().callback(Msg::AddPublication) }
+                                    update_publication={ ctx.link().callback(Msg::UpdatePublication) }
+                                    close_modal_form={ ctx.link().callback(move |_| Msg::ToggleModalFormDisplay(false)) }
                                 />
                                 <p class="level-item">
                                     <ConfirmDeleteComponent
-                                        onclick=self.link.callback(|_| Msg::DeletePublication)
-                                        object_name=self
+                                        onclick={ ctx.link().callback(|_| Msg::DeletePublication) }
+                                        object_name={ self
                                             .publication.isbn
                                             .as_ref()
                                             .map(|s| s.to_string())
                                             .unwrap_or_else(|| self.publication.publication_id.to_string())
                                             .clone()
+                                        }
                                     />
                                 </p>
                             </div>
@@ -437,15 +413,15 @@ impl Component for PublicationComponent {
                         </article>
 
                         <LocationsFormComponent
-                            locations=self.publication.locations.clone()
-                            publication_id=self.publication.publication_id
-                            update_locations=self.link.callback(Msg::UpdateLocations)
+                            locations={ self.publication.locations.clone() }
+                            publication_id={ self.publication.publication_id }
+                            update_locations={ ctx.link().callback(Msg::UpdateLocations) }
                         />
 
                         <PricesFormComponent
-                            prices=self.publication.prices.clone()
-                            publication_id=self.publication.publication_id
-                            update_prices=self.link.callback(Msg::UpdatePrices)
+                            prices={ self.publication.prices.clone() }
+                            publication_id={ self.publication.publication_id }
+                            update_prices={ ctx.link().callback(Msg::UpdatePrices) }
                         />
                     </>
                 }

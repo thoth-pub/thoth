@@ -8,11 +8,10 @@ use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
+use yew_agent::Dispatched;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
-use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
@@ -37,10 +36,10 @@ use crate::models::publication::update_publication_mutation::Variables as Update
 use crate::models::publication::PublicationTypeValues;
 use crate::string::CANCEL_BUTTON;
 
+use super::ToElementValue;
 use super::ToOption;
 
 pub struct PublicationModalComponent {
-    props: Props,
     data: PublicationModalData,
     publication: Publication,
     // Track the user-entered ISBN string, which may not be validly formatted
@@ -51,8 +50,9 @@ pub struct PublicationModalComponent {
     fetch_publication_types: FetchPublicationTypes,
     create_publication: PushCreatePublication,
     update_publication: PushUpdatePublication,
-    link: ComponentLink<Self>,
     notification_bus: NotificationDispatcher,
+    // Store props value locally in order to test whether it has been updated on props change
+    show_modal_form: bool,
 }
 
 #[derive(Default)]
@@ -97,7 +97,7 @@ impl Component for PublicationModalComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let data: PublicationModalData = Default::default();
         let in_edit_mode = false;
         let convert_dimensions = true;
@@ -107,11 +107,11 @@ impl Component for PublicationModalComponent {
         let create_publication = Default::default();
         let update_publication = Default::default();
         let notification_bus = NotificationBus::dispatcher();
+        let show_modal_form = ctx.props().show_modal_form;
 
-        link.send_message(Msg::GetPublicationTypes);
+        ctx.link().send_message(Msg::GetPublicationTypes);
 
         PublicationModalComponent {
-            props,
             data,
             publication,
             isbn,
@@ -121,23 +121,23 @@ impl Component for PublicationModalComponent {
             fetch_publication_types: Default::default(),
             create_publication,
             update_publication,
-            link,
             notification_bus,
+            show_modal_form,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::CloseModalForm => {
                 // Prompt parent form to close this form by updating the props
                 // (this will eventually cause this form to re-render)
-                self.props.close_modal_form.emit(());
+                ctx.props().close_modal_form.emit(());
                 false
             }
             Msg::ToggleModalFormDisplay => {
-                self.in_edit_mode = self.props.publication_under_edit.is_some();
-                if self.props.show_modal_form {
-                    if let Some(publication) = self.props.publication_under_edit.clone() {
+                self.in_edit_mode = ctx.props().publication_under_edit.is_some();
+                if ctx.props().show_modal_form {
+                    if let Some(publication) = ctx.props().publication_under_edit.clone() {
                         // Editing existing publication: load its current values.
                         self.publication = publication;
                     }
@@ -169,11 +169,11 @@ impl Component for PublicationModalComponent {
                 true
             }
             Msg::GetPublicationTypes => {
-                self.link.send_future(
+                ctx.link().send_future(
                     self.fetch_publication_types
                         .fetch(Msg::SetPublicationTypesFetchState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetPublicationTypesFetchState(FetchAction::Fetching));
                 false
             }
@@ -186,11 +186,11 @@ impl Component for PublicationModalComponent {
                         Some(p) => {
                             // Send newly-created publication to parent form to process
                             // (parent form is responsible for closing modal)
-                            self.props.add_publication.emit(p.clone());
+                            ctx.props().add_publication.emit(p.clone());
                             true
                         }
                         None => {
-                            self.link.send_message(Msg::CloseModalForm);
+                            ctx.link().send_message(Msg::CloseModalForm);
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -199,7 +199,7 @@ impl Component for PublicationModalComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        self.link.send_message(Msg::CloseModalForm);
+                        ctx.link().send_message(Msg::CloseModalForm);
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
                             NotificationStatus::Danger,
@@ -210,10 +210,10 @@ impl Component for PublicationModalComponent {
             }
             Msg::CreatePublication => {
                 // Update publication object with common field-specific logic before saving
-                self.prepare_for_submission();
+                self.prepare_for_submission(ctx);
                 let body = CreatePublicationRequestBody {
                     variables: Variables {
-                        work_id: self.props.work_id,
+                        work_id: ctx.props().work_id,
                         publication_type: self.publication.publication_type.clone(),
                         isbn: self.publication.isbn.clone(),
                         width_mm: self.publication.width_mm,
@@ -229,11 +229,11 @@ impl Component for PublicationModalComponent {
                 };
                 let request = CreatePublicationRequest { body };
                 self.create_publication = Fetch::new(request);
-                self.link.send_future(
+                ctx.link().send_future(
                     self.create_publication
                         .fetch(Msg::SetPublicationCreateState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetPublicationCreateState(FetchAction::Fetching));
                 false
             }
@@ -246,11 +246,11 @@ impl Component for PublicationModalComponent {
                         Some(p) => {
                             // Send newly-created publication to parent form to process
                             // (parent form is responsible for closing modal)
-                            self.props.update_publication.emit(p.clone());
+                            ctx.props().update_publication.emit(p.clone());
                             true
                         }
                         None => {
-                            self.link.send_message(Msg::CloseModalForm);
+                            ctx.link().send_message(Msg::CloseModalForm);
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -259,7 +259,7 @@ impl Component for PublicationModalComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        self.link.send_message(Msg::CloseModalForm);
+                        ctx.link().send_message(Msg::CloseModalForm);
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
                             NotificationStatus::Danger,
@@ -270,11 +270,11 @@ impl Component for PublicationModalComponent {
             }
             Msg::UpdatePublication => {
                 // Update publication object with common field-specific logic before saving
-                self.prepare_for_submission();
+                self.prepare_for_submission(ctx);
                 let body = UpdatePublicationRequestBody {
                     variables: UpdateVariables {
                         publication_id: self.publication.publication_id,
-                        work_id: self.props.work_id,
+                        work_id: ctx.props().work_id,
                         publication_type: self.publication.publication_type.clone(),
                         isbn: self.publication.isbn.clone(),
                         width_mm: self.publication.width_mm,
@@ -290,11 +290,11 @@ impl Component for PublicationModalComponent {
                 };
                 let request = UpdatePublicationRequest { body };
                 self.update_publication = Fetch::new(request);
-                self.link.send_future(
+                ctx.link().send_future(
                     self.update_publication
                         .fetch(Msg::SetPublicationUpdateState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetPublicationUpdateState(FetchAction::Fetching));
                 false
             }
@@ -429,72 +429,62 @@ impl Component for PublicationModalComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        let updated_show_modal_form = self.props.show_modal_form != props.show_modal_form;
-        self.props = props;
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+        let updated_show_modal_form = self.show_modal_form.neq_assign(ctx.props().show_modal_form);
         if updated_show_modal_form {
-            self.link.send_message(Msg::ToggleModalFormDisplay)
+            ctx.link().send_message(Msg::ToggleModalFormDisplay)
         }
         // Re-render only required if show_modal_form has changed,
         // in which case ToggleModalFormDisplay will trigger it
         false
     }
 
-    fn view(&self) -> Html {
-        let close_modal = self.link.callback(|e: MouseEvent| {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let close_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::CloseModalForm
         });
         html! {
-            <div class=self.modal_form_status()>
-                <div class="modal-background" onclick=&close_modal></div>
+            <div class={ self.modal_form_status(ctx) }>
+                <div class="modal-background" onclick={ &close_modal }></div>
                 <div class="modal-card">
                     <header class="modal-card-head">
                         <p class="modal-card-title">{ self.modal_form_title() }</p>
                         <button
                             class="delete"
                             aria-label="close"
-                            onclick=&close_modal
+                            onclick={ &close_modal }
                         ></button>
                     </header>
                     <section class="modal-card-body">
-                        <form id="publication-modal" onsubmit=self.modal_form_action()>
+                        <form id="publication-modal" onsubmit={ self.modal_form_action(ctx) }>
                             <FormPublicationTypeSelect
                                 label = "Publication Type"
-                                value=self.publication.publication_type.clone()
-                                data=self.data.publication_types.clone()
-                                onchange=self.link.callback(|event| match event {
-                                    ChangeData::Select(elem) => {
-                                        let value = elem.value();
-                                        Msg::ChangePublicationType(
-                                            PublicationType::from_str(&value).unwrap()
-                                        )
-                                    }
-                                    _ => unreachable!(),
-                                })
+                                value={ self.publication.publication_type.clone() }
+                                data={ self.data.publication_types.clone() }
+                                onchange={ ctx.link().callback(|e: Event|
+                                    Msg::ChangePublicationType(PublicationType::from_str(&e.to_value()).unwrap())
+                                ) }
                                 required = true
                             />
                             <FormTextInputExtended
                                 label = "ISBN"
-                                value=self.isbn.clone()
-                                tooltip=self.isbn_warning.clone()
-                                oninput=self.link.callback(|e: InputData| Msg::ChangeIsbn(e.value))
+                                value={ self.isbn.clone() }
+                                tooltip={ self.isbn_warning.clone() }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIsbn(e.to_value())) }
                                 // ISBNs cannot be added for publications whose work type is Book Chapter.
-                                deactivated=self.props.work_type == WorkType::BookChapter
+                                deactivated={ ctx.props().work_type == WorkType::BookChapter }
                             />
                             {
                                 // Dimensions can only be added for physical (Paperback/Hardback) non-Chapter publications.
-                                if self.publication.is_physical() && self.props.work_type != WorkType::BookChapter {
+                                if self.publication.is_physical() && ctx.props().work_type != WorkType::BookChapter {
                                     html! {
                                         <>
                                             <label class="checkbox">
                                                 <input
                                                     type="checkbox"
-                                                    checked=self.convert_dimensions
-                                                    onchange=self.link.callback(|event| match event {
-                                                        ChangeData::Value(_) => Msg::ToggleDimensionConversion,
-                                                        _ => unreachable!(),
-                                                    })
+                                                    checked={ self.convert_dimensions }
+                                                    onchange={ ctx.link().callback(|_: Event| Msg::ToggleDimensionConversion) }
                                                 />
                                                 { "Automatically convert dimension values" }
                                             </label>
@@ -502,15 +492,15 @@ impl Component for PublicationModalComponent {
                                                 <div class="field-body">
                                                     <FormFloatInput
                                                         label = "Width (mm)"
-                                                        value=self.publication.width_mm
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeWidthMm(e.value))
-                                                        step="1".to_string()
+                                                        value={ self.publication.width_mm }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWidthMm(e.to_value())) }
+                                                        step={ "1".to_string() }
                                                     />
                                                     <FormFloatInput
                                                         label = "Width (in)"
-                                                        value=self.publication.width_in
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeWidthIn(e.value))
-                                                        step="0.01".to_string()
+                                                        value={ self.publication.width_in }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWidthIn(e.to_value())) }
+                                                        step={ "0.01".to_string() }
                                                     />
                                                 </div>
                                             </div>
@@ -518,15 +508,15 @@ impl Component for PublicationModalComponent {
                                                 <div class="field-body">
                                                     <FormFloatInput
                                                         label = "Height (mm)"
-                                                        value=self.publication.height_mm
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeHeightMm(e.value))
-                                                        step="1".to_string()
+                                                        value={ self.publication.height_mm }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeHeightMm(e.to_value())) }
+                                                        step={ "1".to_string() }
                                                     />
                                                     <FormFloatInput
                                                         label = "Height (in)"
-                                                        value=self.publication.height_in
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeHeightIn(e.value))
-                                                        step="0.01".to_string()
+                                                        value={ self.publication.height_in }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeHeightIn(e.to_value())) }
+                                                        step={ "0.01".to_string() }
                                                     />
                                                 </div>
                                             </div>
@@ -534,15 +524,15 @@ impl Component for PublicationModalComponent {
                                                 <div class="field-body">
                                                     <FormFloatInput
                                                         label = "Depth (mm)"
-                                                        value=self.publication.depth_mm
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeDepthMm(e.value))
-                                                        step="1".to_string()
+                                                        value={ self.publication.depth_mm }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDepthMm(e.to_value())) }
+                                                        step={ "1".to_string() }
                                                     />
                                                     <FormFloatInput
                                                         label = "Depth (in)"
-                                                        value=self.publication.depth_in
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeDepthIn(e.value))
-                                                        step="0.01".to_string()
+                                                        value={ self.publication.depth_in }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDepthIn(e.to_value())) }
+                                                        step={ "0.01".to_string() }
                                                     />
                                                 </div>
                                             </div>
@@ -550,15 +540,15 @@ impl Component for PublicationModalComponent {
                                                 <div class="field-body">
                                                     <FormFloatInput
                                                         label = "Weight (g)"
-                                                        value=self.publication.weight_g
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeWeightG(e.value))
-                                                        step="1".to_string()
+                                                        value={ self.publication.weight_g }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWeightG(e.to_value())) }
+                                                        step={ "1".to_string() }
                                                     />
                                                     <FormFloatInput
                                                         label = "Weight (oz)"
-                                                        value=self.publication.weight_oz
-                                                        oninput=self.link.callback(|e: InputData| Msg::ChangeWeightOz(e.value))
-                                                        step="0.0001".to_string()
+                                                        value={ self.publication.weight_oz }
+                                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWeightOz(e.to_value())) }
+                                                        step={ "0.0001".to_string() }
                                                     />
                                                 </div>
                                             </div>
@@ -580,7 +570,7 @@ impl Component for PublicationModalComponent {
                         </button>
                         <button
                             class="button"
-                            onclick=&close_modal
+                            onclick={ &close_modal }
                         >
                             { CANCEL_BUTTON }
                         </button>
@@ -592,8 +582,8 @@ impl Component for PublicationModalComponent {
 }
 
 impl PublicationModalComponent {
-    fn modal_form_status(&self) -> String {
-        match self.props.show_modal_form {
+    fn modal_form_status(&self, ctx: &Context<Self>) -> String {
+        match ctx.props().show_modal_form {
             true => "modal is-active".to_string(),
             false => "modal".to_string(),
         }
@@ -613,20 +603,20 @@ impl PublicationModalComponent {
         }
     }
 
-    fn modal_form_action(&self) -> Callback<FocusEvent> {
+    fn modal_form_action(&self, ctx: &Context<Self>) -> Callback<FocusEvent> {
         match self.in_edit_mode {
-            true => self.link.callback(|e: FocusEvent| {
+            true => ctx.link().callback(|e: FocusEvent| {
                 e.prevent_default();
                 Msg::UpdatePublication
             }),
-            false => self.link.callback(|e: FocusEvent| {
+            false => ctx.link().callback(|e: FocusEvent| {
                 e.prevent_default();
                 Msg::CreatePublication
             }),
         }
     }
 
-    fn prepare_for_submission(&mut self) {
+    fn prepare_for_submission(&mut self, ctx: &Context<Self>) {
         // Only update the ISBN value with the current user-entered string
         // if it is validly formatted - otherwise keep the default.
         // If no ISBN was provided, no format check is required.
@@ -637,7 +627,7 @@ impl PublicationModalComponent {
         }
         // Clear any fields which are not applicable to the currently selected work/publication type.
         // (Do not clear them before the save point as the user may change the type again.)
-        if self.publication.is_digital() || self.props.work_type == WorkType::BookChapter {
+        if self.publication.is_digital() || ctx.props().work_type == WorkType::BookChapter {
             self.publication.width_mm = None;
             self.publication.width_in = None;
             self.publication.height_mm = None;

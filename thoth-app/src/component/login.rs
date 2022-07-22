@@ -2,11 +2,9 @@ use thoth_api::account::model::AccountDetails;
 use thoth_api::account::model::LoginCredentials;
 use yew::html;
 use yew::prelude::*;
-use yew::services::fetch::FetchTask;
-use yew::ComponentLink;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_agent::Dispatched;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
@@ -14,7 +12,6 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 use crate::service::account::AccountError;
 use crate::service::account::AccountService;
 use crate::string::AUTHENTICATION_ERROR;
@@ -23,18 +20,15 @@ use crate::string::INPUT_PASSWORD;
 use crate::string::RESPONSE_ERROR;
 use crate::string::TEXT_LOGIN;
 
+use super::ToElementValue;
+
 pub struct LoginComponent {
     request: LoginCredentials,
-    response: Callback<Result<AccountDetails, AccountError>>,
-    task: Option<FetchTask>,
-    link: ComponentLink<Self>,
     account_service: AccountService,
     notification_bus: NotificationDispatcher,
-    router: RouteAgentDispatcher<()>,
-    props: Props,
 }
 
-#[derive(Properties, Clone)]
+#[derive(PartialEq, Properties)]
 pub struct Props {
     pub callback: Callback<AccountDetails>,
     pub current_user: Option<AccountDetails>,
@@ -52,56 +46,46 @@ impl Component for LoginComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
         LoginComponent {
             request: Default::default(),
-            response: link.callback(Msg::Response),
-            task: None,
-            link,
             account_service: AccountService::new(),
             notification_bus: NotificationBus::dispatcher(),
-            router: RouteAgentDispatcher::new(),
-            props,
         }
     }
 
-    fn rendered(&mut self, first_render: bool) {
+    fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         // if user is logged in there's no point in seeing the login page
-        if first_render && self.props.current_user.is_some() {
-            self.link.send_message(Msg::RedirectToAdmin);
+        if first_render && ctx.props().current_user.is_some() {
+            ctx.link().send_message(Msg::RedirectToAdmin);
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        self.props = props;
-        if self.props.current_user.is_some() {
-            self.link.send_message(Msg::RedirectToAdmin);
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+        if ctx.props().current_user.is_some() {
+            ctx.link().send_message(Msg::RedirectToAdmin);
         }
         true
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::RedirectToAdmin => {
-                self.router
-                    .send(RouteRequest::ChangeRoute(Route::from(AppRoute::Admin(
-                        AdminRoute::Admin,
-                    ))));
+                ctx.link().history().unwrap().push(AdminRoute::Dashboard);
                 false
             }
             Msg::Request => {
-                self.task = Some(
-                    self.account_service
-                        .login(self.request.clone(), self.response.clone()),
-                );
+                let mut service = self.account_service.clone();
+                let request = self.request.clone();
+                ctx.link()
+                    .send_future(async move { Msg::Response(service.login(request).await) });
                 true
             }
             Msg::Response(Ok(account_details)) => {
                 let token = account_details.token.clone().unwrap();
                 self.account_service.set_token(token);
-                self.props.callback.emit(account_details);
-                self.task = None;
-                self.link.send_message(Msg::RedirectToAdmin);
+                ctx.props().callback.emit(account_details);
+                ctx.link().send_message(Msg::RedirectToAdmin);
                 true
             }
             Msg::Response(Err(err)) => {
@@ -119,7 +103,6 @@ impl Component for LoginComponent {
                         )));
                     }
                 };
-                self.task = None;
                 true
             }
             Msg::ChangeEmail(email) => self.request.email.neq_assign(email),
@@ -127,7 +110,7 @@ impl Component for LoginComponent {
         }
     }
 
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
             <div class="columns is-mobile is-centered">
                 <div class="column is-3">
@@ -137,9 +120,9 @@ impl Component for LoginComponent {
                                 <input
                                     class="input"
                                     type="email"
-                                    value=self.request.email.clone()
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeEmail(e.value))
-                                    placeholder=INPUT_EMAIL
+                                    value={ self.request.email.clone() }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeEmail(e.to_value())) }
+                                    placeholder={ INPUT_EMAIL }
                                 />
                                 <span class="icon is-small is-left">
                                     <i class="fas fa-envelope"></i>
@@ -151,9 +134,9 @@ impl Component for LoginComponent {
                                 <input
                                     class="input"
                                     type="password"
-                                    value=self.request.password.clone()
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangePassword(e.value))
-                                    placeholder=INPUT_PASSWORD
+                                    value={ self.request.password.clone() }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePassword(e.to_value())) }
+                                    placeholder={ INPUT_PASSWORD }
                                 />
                                 <span class="icon is-small is-left">
                                     <i class="fas fa-lock"></i>
@@ -164,7 +147,7 @@ impl Component for LoginComponent {
                             <p class="control">
                                 <button
                                     class="button is-success"
-                                    onclick=self.link.callback(|_| Msg::Request)
+                                    onclick={ ctx.link().callback(|_| Msg::Request) }
                                 >
                                     { TEXT_LOGIN }
                                 </button>

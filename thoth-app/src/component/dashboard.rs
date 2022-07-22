@@ -1,12 +1,12 @@
+use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
-use yew_router::prelude::RouterAnchor;
+use yew_router::prelude::Link;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
-use yewtil::future::LinkFuture;
+use yewtil::NeqAssign;
 
 use crate::component::utils::Loader;
 use crate::component::utils::Reloader;
@@ -16,19 +16,19 @@ use crate::models::stats::stats_query::StatsRequest;
 use crate::models::stats::stats_query::StatsRequestBody;
 use crate::models::stats::stats_query::Variables;
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 
 pub struct DashboardComponent {
     get_stats: FetchStats,
-    link: ComponentLink<Self>,
-    props: Props,
+    // Store props value locally in order to test whether it has been updated on props change
+    resource_access: AccountAccess,
 }
 
 pub enum Msg {
     SetStatsFetchState(FetchActionStats),
     GetStats,
 }
-#[derive(Clone, Properties)]
+
+#[derive(PartialEq, Properties)]
 pub struct Props {
     pub current_user: AccountDetails,
 }
@@ -37,17 +37,16 @@ impl Component for DashboardComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        link.send_message(Msg::GetStats);
+    fn create(ctx: &Context<Self>) -> Self {
+        ctx.link().send_message(Msg::GetStats);
 
         DashboardComponent {
             get_stats: Default::default(),
-            link,
-            props,
+            resource_access: ctx.props().current_user.resource_access.clone(),
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::SetStatsFetchState(fetch_state) => {
                 self.get_stats.apply(fetch_state);
@@ -56,36 +55,36 @@ impl Component for DashboardComponent {
             Msg::GetStats => {
                 let body = StatsRequestBody {
                     variables: Variables {
-                        publishers: self.props.current_user.resource_access.restricted_to(),
+                        publishers: ctx.props().current_user.resource_access.restricted_to(),
                     },
                     ..Default::default()
                 };
                 let request = StatsRequest { body };
                 self.get_stats = Fetch::new(request);
 
-                self.link
+                ctx.link()
                     .send_future(self.get_stats.fetch(Msg::SetStatsFetchState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetStatsFetchState(FetchAction::Fetching));
                 false
             }
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        let updated_permissions =
-            self.props.current_user.resource_access != props.current_user.resource_access;
-        self.props = props;
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+        let updated_permissions = self
+            .resource_access
+            .neq_assign(ctx.props().current_user.resource_access.clone());
         if updated_permissions {
-            self.link.send_message(Msg::GetStats);
+            ctx.link().send_message(Msg::GetStats);
         }
         false
     }
 
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         match self.get_stats.as_ref().state() {
             FetchState::NotFetching(_) => {
-                html! {<Reloader onclick=self.link.callback(|_| Msg::GetStats)/>}
+                html! {<Reloader onclick={ ctx.link().callback(|_| Msg::GetStats) }/>}
             }
             FetchState::Fetching(_) => html! {<Loader/>},
             FetchState::Fetched(body) => html! {
@@ -98,11 +97,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Works", body.data.work_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Works)
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Works }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                                 <article class="tile is-child notification is-info">
@@ -110,11 +109,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Books", body.data.book_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Books)
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Books }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                                 <article class="tile is-child notification is-danger">
@@ -122,11 +121,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Chapters", body.data.chapter_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Chapters)
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Chapters }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                             </div>
@@ -138,11 +137,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Publications", body.data.publication_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Publications)
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Publications }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                                 <article class="tile is-child notification is-warning">
@@ -150,11 +149,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Contributors", body.data.contributor_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Contributors)
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Contributors }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                                 <article class="tile is-child notification is-info">
@@ -162,11 +161,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Publishers", body.data.publisher_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Publishers)
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Publishers }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                             </div>
@@ -178,11 +177,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Series", body.data.series_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Serieses)
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Serieses }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                                 <article class="tile is-child notification is-success">
@@ -190,11 +189,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Imprints", body.data.imprint_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Imprints)
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Imprints }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                                 <article class="tile is-child notification is-warning">
@@ -202,11 +201,11 @@ impl Component for DashboardComponent {
                                         <p class="title">
                                             {format!("{} Institutions", body.data.institution_count)}
                                         </p>
-                                        <RouterAnchor<AppRoute>
-                                            route=AppRoute::Admin(AdminRoute::Institutions)
+                                        <Link<AdminRoute>
+                                            to={ AdminRoute::Institutions }
                                         >
                                             {"See all"}
-                                        </  RouterAnchor<AppRoute>>
+                                        </Link<AdminRoute>>
                                     </div>
                                 </article>
                             </div>

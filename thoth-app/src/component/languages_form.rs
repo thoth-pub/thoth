@@ -5,11 +5,10 @@ use thoth_api::model::language::LanguageRelation;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
+use yew_agent::Dispatched;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
-use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
@@ -41,8 +40,9 @@ use crate::string::NO;
 use crate::string::REMOVE_BUTTON;
 use crate::string::YES;
 
+use super::ToElementValue;
+
 pub struct LanguagesFormComponent {
-    props: Props,
     data: LanguagesFormData,
     new_language: Language,
     show_add_form: bool,
@@ -50,7 +50,6 @@ pub struct LanguagesFormComponent {
     fetch_language_relations: FetchLanguageRelations,
     push_language: PushCreateLanguage,
     delete_language: PushDeleteLanguage,
-    link: ComponentLink<Self>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -86,7 +85,7 @@ impl Component for LanguagesFormComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let data: LanguagesFormData = Default::default();
         let show_add_form = false;
         let new_language: Language = Default::default();
@@ -96,11 +95,10 @@ impl Component for LanguagesFormComponent {
         let delete_language = Default::default();
         let notification_bus = NotificationBus::dispatcher();
 
-        link.send_message(Msg::GetLanguageCodes);
-        link.send_message(Msg::GetLanguageRelations);
+        ctx.link().send_message(Msg::GetLanguageCodes);
+        ctx.link().send_message(Msg::GetLanguageRelations);
 
         LanguagesFormComponent {
-            props,
             data,
             new_language,
             show_add_form,
@@ -108,12 +106,11 @@ impl Component for LanguagesFormComponent {
             fetch_language_relations,
             push_language,
             delete_language,
-            link,
             notification_bus,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleAddFormDisplay(value) => {
                 self.show_add_form = value;
@@ -130,11 +127,11 @@ impl Component for LanguagesFormComponent {
                 true
             }
             Msg::GetLanguageCodes => {
-                self.link.send_future(
+                ctx.link().send_future(
                     self.fetch_language_codes
                         .fetch(Msg::SetLanguageCodesFetchState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetLanguageCodesFetchState(FetchAction::Fetching));
                 false
             }
@@ -150,11 +147,11 @@ impl Component for LanguagesFormComponent {
                 true
             }
             Msg::GetLanguageRelations => {
-                self.link.send_future(
+                ctx.link().send_future(
                     self.fetch_language_relations
                         .fetch(Msg::SetLanguageRelationsFetchState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetLanguageRelationsFetchState(FetchAction::Fetching));
                 false
             }
@@ -167,14 +164,14 @@ impl Component for LanguagesFormComponent {
                         Some(l) => {
                             let language = l.clone();
                             let mut languages: Vec<Language> =
-                                self.props.languages.clone().unwrap_or_default();
+                                ctx.props().languages.clone().unwrap_or_default();
                             languages.push(language);
-                            self.props.update_languages.emit(Some(languages));
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.props().update_languages.emit(Some(languages));
+                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                             true
                         }
                         None => {
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -183,7 +180,7 @@ impl Component for LanguagesFormComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                        ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
                             NotificationStatus::Danger,
@@ -195,7 +192,7 @@ impl Component for LanguagesFormComponent {
             Msg::CreateLanguage => {
                 let body = CreateLanguageRequestBody {
                     variables: Variables {
-                        work_id: self.props.work_id,
+                        work_id: ctx.props().work_id,
                         language_relation: self.new_language.language_relation.clone(),
                         language_code: self.new_language.language_code.clone(),
                         main_language: self.new_language.main_language,
@@ -204,9 +201,9 @@ impl Component for LanguagesFormComponent {
                 };
                 let request = CreateLanguageRequest { body };
                 self.push_language = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_language.fetch(Msg::SetLanguagePushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetLanguagePushState(FetchAction::Fetching));
                 false
             }
@@ -217,15 +214,15 @@ impl Component for LanguagesFormComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.delete_language {
                         Some(language) => {
-                            let to_keep: Vec<Language> = self
-                                .props
+                            let to_keep: Vec<Language> = ctx
+                                .props()
                                 .languages
                                 .clone()
                                 .unwrap_or_default()
                                 .into_iter()
                                 .filter(|l| l.language_id != language.language_id)
                                 .collect();
-                            self.props.update_languages.emit(Some(to_keep));
+                            ctx.props().update_languages.emit(Some(to_keep));
                             true
                         }
                         None => {
@@ -252,9 +249,9 @@ impl Component for LanguagesFormComponent {
                 };
                 let request = DeleteLanguageRequest { body };
                 self.delete_language = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.delete_language.fetch(Msg::SetLanguageDeleteState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetLanguageDeleteState(FetchAction::Fetching));
                 false
             }
@@ -264,17 +261,13 @@ impl Component for LanguagesFormComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        self.props.neq_assign(props)
-    }
-
-    fn view(&self) -> Html {
-        let languages = self.props.languages.clone().unwrap_or_default();
-        let open_modal = self.link.callback(|e: MouseEvent| {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let languages = ctx.props().languages.clone().unwrap_or_default();
+        let open_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(true)
         });
-        let close_modal = self.link.callback(|e: MouseEvent| {
+        let close_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(false)
         });
@@ -286,69 +279,52 @@ impl Component for LanguagesFormComponent {
                 <div class="panel-block">
                     <button
                         class="button is-link is-outlined is-success is-fullwidth"
-                        onclick=open_modal
+                        onclick={ open_modal }
                     >
                         { "Add Language" }
                     </button>
                 </div>
-                <div class=self.add_form_status()>
-                    <div class="modal-background" onclick=&close_modal></div>
+                <div class={ self.add_form_status() }>
+                    <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
                             <p class="modal-card-title">{ "New Language" }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="languages-form" onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="languages-form" onsubmit={ ctx.link().callback(|e: FocusEvent| {
                                 e.prevent_default();
                                 Msg::CreateLanguage
-                            })
+                            }) }
                             >
                                 <FormLanguageCodeSelect
                                     label = "Language Code"
-                                    value=self.new_language.language_code.clone()
-                                    data=self.data.language_codes.clone()
-                                    onchange=self.link.callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            Msg::ChangeLanguageCode(
-                                                LanguageCode::from_str(&value).unwrap()
-                                            )
-                                        }
-                                        _ => unreachable!(),
-                                    })
+                                    value={ self.new_language.language_code.clone() }
+                                    data={ self.data.language_codes.clone() }
+                                    onchange={ ctx.link().callback(|e: Event|
+                                        Msg::ChangeLanguageCode(LanguageCode::from_str(&e.to_value()).unwrap())
+                                    ) }
                                     required = true
                                 />
                                 <FormLanguageRelationSelect
                                     label = "Language Relation"
-                                    value=self.new_language.language_relation.clone()
-                                    data=self.data.language_relations.clone()
-                                    onchange=self.link.callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            Msg::ChangeLanguageRelation(
-                                                LanguageRelation::from_str(&value).unwrap()
-                                            )
-                                        }
-                                        _ => unreachable!(),
-                                    })
+                                    value={ self.new_language.language_relation.clone() }
+                                    data={ self.data.language_relations.clone() }
+                                    onchange={ ctx.link().callback(|e: Event|
+                                        Msg::ChangeLanguageRelation(LanguageRelation::from_str(&e.to_value()).unwrap())
+                                    ) }
                                     required = true
                                 />
                                 <FormBooleanSelect
                                     label = "Main"
-                                    value=self.new_language.main_language
-                                    onchange=self.link.callback(|event| match event {
-                                        ChangeData::Select(elem) => {
-                                            let value = elem.value();
-                                            let boolean = value == "true";
-                                            Msg::ChangeMainLanguage(boolean)
-                                        }
-                                        _ => unreachable!(),
-                                    })
+                                    value={ self.new_language.main_language }
+                                    onchange={ ctx.link().callback(|e: Event|
+                                        Msg::ChangeMainLanguage(e.to_value() == "true")
+                                    ) }
                                     required = true
                                 />
                             </form>
@@ -363,7 +339,7 @@ impl Component for LanguagesFormComponent {
                             </button>
                             <button
                                 class="button"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             >
                                 { CANCEL_BUTTON }
                             </button>
@@ -372,7 +348,7 @@ impl Component for LanguagesFormComponent {
                 </div>
                 {
                     if !languages.is_empty() {
-                        html!{{for languages.iter().map(|p| self.render_language(p))}}
+                        html!{{for languages.iter().map(|p| self.render_language(ctx, p))}}
                     } else {
                         html! {
                             <div class="notification is-warning is-light">
@@ -394,7 +370,7 @@ impl LanguagesFormComponent {
         }
     }
 
-    fn render_language(&self, l: &Language) -> Html {
+    fn render_language(&self, ctx: &Context<Self>, l: &Language) -> Html {
         let language_id = l.language_id;
         html! {
             <div class="panel-block field is-horizontal">
@@ -433,7 +409,7 @@ impl LanguagesFormComponent {
                         <div class="control is-expanded">
                             <a
                                 class="button is-danger"
-                                onclick=self.link.callback(move |_| Msg::DeleteLanguage(language_id))
+                                onclick={ ctx.link().callback(move |_| Msg::DeleteLanguage(language_id)) }
                             >
                                 { REMOVE_BUTTON }
                             </a>

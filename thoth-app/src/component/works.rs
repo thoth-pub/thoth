@@ -7,6 +7,8 @@ use thoth_api::model::work::WorkField;
 use thoth_api::model::work::WorkOrderBy;
 use thoth_api::model::work::WorkWithRelations;
 
+use super::ToElementValue;
+
 pagination_component! {
     WorksComponent,
     WorkWithRelations,

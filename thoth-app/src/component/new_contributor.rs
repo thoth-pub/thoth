@@ -3,14 +3,12 @@ use thoth_api::model::{Orcid, ORCID_DOMAIN};
 use thoth_errors::ThothError;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_agent::Dispatched;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
-use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
@@ -31,9 +29,9 @@ use crate::models::contributor::create_contributor_mutation::PushActionCreateCon
 use crate::models::contributor::create_contributor_mutation::PushCreateContributor;
 use crate::models::contributor::create_contributor_mutation::Variables;
 use crate::models::EditRoute;
-use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
 
+use super::ToElementValue;
 use super::ToOption;
 
 // Account for possibility of e.g. Chinese full names with only 2 characters.
@@ -45,8 +43,6 @@ pub struct NewContributorComponent {
     orcid: String,
     orcid_warning: String,
     push_contributor: PushCreateContributor,
-    link: ComponentLink<Self>,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
     show_duplicate_tooltip: bool,
     fetch_contributors: FetchContributors,
@@ -63,7 +59,6 @@ pub enum Msg {
     ChangeFullName(String),
     ChangeOrcid(String),
     ChangeWebsite(String),
-    ChangeRoute(AppRoute),
     ToggleDuplicateTooltip(bool),
 }
 
@@ -71,9 +66,8 @@ impl Component for NewContributorComponent {
     type Message = Msg;
     type Properties = ();
 
-    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
         let push_contributor = Default::default();
-        let router = RouteAgentDispatcher::new();
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
         let orcid = Default::default();
@@ -87,8 +81,6 @@ impl Component for NewContributorComponent {
             orcid,
             orcid_warning,
             push_contributor,
-            link,
-            router,
             notification_bus,
             show_duplicate_tooltip,
             fetch_contributors,
@@ -96,7 +88,7 @@ impl Component for NewContributorComponent {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::SetContributorPushState(fetch_state) => {
                 self.push_contributor.apply(fetch_state);
@@ -109,7 +101,7 @@ impl Component for NewContributorComponent {
                                 format!("Saved {}", c.full_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(c.edit_route()));
+                            ctx.link().history().unwrap().push(c.edit_route());
                             true
                         }
                         None => {
@@ -150,9 +142,9 @@ impl Component for NewContributorComponent {
                 };
                 let request = CreateContributorRequest { body };
                 self.push_contributor = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_contributor.fetch(Msg::SetContributorPushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetContributorPushState(FetchAction::Fetching));
                 false
             }
@@ -167,11 +159,11 @@ impl Component for NewContributorComponent {
                 true
             }
             Msg::GetContributors => {
-                self.link.send_future(
+                ctx.link().send_future(
                     self.fetch_contributors
                         .fetch(Msg::SetContributorsFetchState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetContributorsFetchState(FetchAction::Fetching));
                 false
             }
@@ -205,7 +197,7 @@ impl Component for NewContributorComponent {
                         };
                         let request = ContributorsRequest { body };
                         self.fetch_contributors = Fetch::new(request);
-                        self.link.send_message(Msg::GetContributors);
+                        ctx.link().send_message(Msg::GetContributors);
                         // Don't need to re-render here, as another re-render will be
                         // triggered when the message query response is received.
                         false
@@ -236,11 +228,6 @@ impl Component for NewContributorComponent {
                 }
             }
             Msg::ChangeWebsite(value) => self.contributor.website.neq_assign(value.to_opt_string()),
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
-            }
             Msg::ToggleDuplicateTooltip(value) => {
                 self.show_duplicate_tooltip = value;
                 true
@@ -248,12 +235,8 @@ impl Component for NewContributorComponent {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        false
-    }
-
-    fn view(&self) -> Html {
-        let callback = self.link.callback(|event: FocusEvent| {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let callback = ctx.link().callback(|event: FocusEvent| {
             event.prevent_default();
             Msg::CreateContributor
         });
@@ -275,38 +258,38 @@ impl Component for NewContributorComponent {
                     <div class="level-right" />
                 </nav>
 
-                <form onsubmit=callback>
+                <form onsubmit={ callback }>
                     <FormTextInput
                         label = "Given Name"
-                        value=self.contributor.first_name.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeFirstName(e.value))
+                        value={ self.contributor.first_name.clone() }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeFirstName(e.to_value())) }
                     />
                     <FormTextInput
                         label = "Family Name"
-                        value=self.contributor.last_name.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeLastName(e.value))
-                        required=true
+                        value={ self.contributor.last_name.clone() }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeLastName(e.to_value())) }
+                        required = true
                     />
                     <FormTextInputExtended
                         label = "Full Name"
-                        value=self.contributor.full_name.clone()
-                        tooltip=tooltip
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeFullName(e.value))
-                        onfocus=self.link.callback(|_| Msg::ToggleDuplicateTooltip(true))
-                        onblur=self.link.callback(|_| Msg::ToggleDuplicateTooltip(false))
-                        required=true
+                        value={ self.contributor.full_name.clone() }
+                        tooltip={ tooltip }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeFullName(e.to_value())) }
+                        onfocus={ ctx.link().callback(|_| Msg::ToggleDuplicateTooltip(true)) }
+                        onblur={ ctx.link().callback(|_| Msg::ToggleDuplicateTooltip(false)) }
+                        required = true
                     />
                     <FormTextInputExtended
                         label = "ORCID"
-                        statictext = ORCID_DOMAIN
-                        value=self.orcid.clone()
-                        tooltip=self.orcid_warning.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeOrcid(e.value))
+                        statictext={ ORCID_DOMAIN }
+                        value={ self.orcid.clone() }
+                        tooltip={ self.orcid_warning.clone() }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeOrcid(e.to_value())) }
                     />
                     <FormUrlInput
                         label = "Website"
-                        value=self.contributor.website.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeWebsite(e.value))
+                        value={ self.contributor.website.clone() }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWebsite(e.to_value())) }
                     />
 
                     <div class="field">
