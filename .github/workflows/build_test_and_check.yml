@@ -43,6 +43,12 @@ jobs:
         name: target
         path: target
         retention-days: 1
+    - name: Archive wasm artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: wasm
+        path: thoth-app/pkg
+        retention-days: 1
   test:
     needs: build
     runs-on: ubuntu-latest
@@ -52,6 +58,11 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: target
+    - name: Download wasm artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: wasm
+        path: thoth-app/pkg
     - name: Run tests
       uses: actions-rs/cargo@v1
       with:
@@ -66,6 +77,11 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: target
+    - name: Download wasm artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: wasm
+        path: thoth-app/pkg
     - name: Run linting
       uses: actions-rs/cargo@v1
       with:
