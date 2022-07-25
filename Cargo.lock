@@ -3957,10 +3957,10 @@ dependencies = [
  "actix-web",
  "csv",
  "diesel",
- "failure",
  "juniper",
  "reqwest 0.11.9",
  "serde",
+ "thiserror",
  "uuid 0.7.4",
  "xml-rs",
 ]
