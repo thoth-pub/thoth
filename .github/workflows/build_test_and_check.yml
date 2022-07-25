@@ -13,7 +13,7 @@ env:
   THOTH_EXPORT_API: https://export.thoth.pub
 
 jobs:
-  build_test_and_lint:
+  build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -37,11 +37,51 @@ jobs:
       with:
         command: build
         args: --verbose
+    - name: Archive production artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: target
+        path: target
+        retention-days: 1
+    - name: Archive wasm artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: wasm
+        path: thoth-app/pkg
+        retention-days: 1
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download production target
+      uses: actions/download-artifact@v3
+      with:
+        name: target
+    - name: Download wasm artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: wasm
+        path: thoth-app/pkg
     - name: Run tests
       uses: actions-rs/cargo@v1
       with:
         command: test
         args: --workspace --verbose
+  lint:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download production target
+      uses: actions/download-artifact@v3
+      with:
+        name: target
+    - name: Download wasm artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: wasm
+        path: thoth-app/pkg
     - name: Run linting
       uses: actions-rs/cargo@v1
       with:
