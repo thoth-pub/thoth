@@ -1,3 +1,5 @@
+#![allow(clippy::extra_unused_lifetimes)]
+
 #[cfg(feature = "backend")]
 #[macro_use]
 extern crate diesel;
