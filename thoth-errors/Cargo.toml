@@ -12,7 +12,8 @@ readme = "README.md"
 thiserror = "1.0"
 reqwest = { version = "0.11", features = ["json"] }
 serde = "1.0.115"
-uuid = { version = "0.7", features = ["serde", "v4"] }
+uuid-07 = { package = "uuid", version = "0.7", features = ["serde", "v4"] }
+uuid-08 = { package = "uuid", version = "0.8.2", features = ["serde"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 actix-web = "4.0.1"

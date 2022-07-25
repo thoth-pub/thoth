@@ -3953,6 +3953,7 @@ dependencies = [
  "serde",
  "thiserror",
  "uuid 0.7.4",
+ "uuid 0.8.2",
  "xml-rs",
 ]
 
