@@ -44,7 +44,6 @@ pub const PUBLICATION_QUERY: &str = "
                 fullTitle
                 title
                 edition
-                copyrightHolder
                 updatedAt
                 imprint {
                     imprintId

@@ -31,7 +31,6 @@ const CREATE_WORK_RELATION_MUTATION: &str = "
                 fullTitle
                 title
                 imprintId
-                copyrightHolder
                 createdAt
                 updatedAt
             }
