@@ -6,19 +6,20 @@ use yew::MouseEvent;
 
 use super::{CreateRoute, Dropdown, EditRoute, MetadataTable};
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 
 impl Dropdown for Contributor {}
 
 impl CreateRoute for Contributor {
-    fn create_route() -> AppRoute {
-        AppRoute::Admin(AdminRoute::NewContributor)
+    fn create_route() -> AdminRoute {
+        AdminRoute::NewContributor
     }
 }
 
 impl EditRoute for Contributor {
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Contributor(self.contributor_id))
+    fn edit_route(&self) -> AdminRoute {
+        AdminRoute::Contributor {
+            id: self.contributor_id,
+        }
     }
 }
 
@@ -32,7 +33,7 @@ impl MetadataTable for Contributor {
         html! {
             <tr
                 class="row"
-                onclick=callback
+                onclick={ callback }
             >
                 <td>{&self.contributor_id}</td>
                 <td>{&self.full_name}</td>

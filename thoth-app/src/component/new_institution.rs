@@ -5,14 +5,12 @@ use thoth_api::model::{Doi, Ror, DOI_DOMAIN, ROR_DOMAIN};
 use thoth_errors::ThothError;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
-use yew_router::agent::RouteAgentDispatcher;
-use yew_router::agent::RouteRequest;
-use yew_router::route::Route;
+use yew_agent::Dispatched;
+use yew_router::history::History;
+use yew_router::prelude::RouterScopeExt;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
-use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
@@ -31,8 +29,9 @@ use crate::models::institution::create_institution_mutation::PushCreateInstituti
 use crate::models::institution::create_institution_mutation::Variables;
 use crate::models::institution::CountryCodeValues;
 use crate::models::EditRoute;
-use crate::route::AppRoute;
 use crate::string::SAVE_BUTTON;
+
+use super::ToElementValue;
 
 pub struct NewInstitutionComponent {
     institution: Institution,
@@ -45,8 +44,6 @@ pub struct NewInstitutionComponent {
     ror_warning: String,
     push_institution: PushCreateInstitution,
     data: InstitutionFormData,
-    link: ComponentLink<Self>,
-    router: RouteAgentDispatcher<()>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -64,14 +61,13 @@ pub enum Msg {
     ChangeInstitutionDoi(String),
     ChangeRor(String),
     ChangeCountryCode(String),
-    ChangeRoute(AppRoute),
 }
 
 impl Component for NewInstitutionComponent {
     type Message = Msg;
     type Properties = ();
 
-    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let push_institution = Default::default();
         let data: InstitutionFormData = Default::default();
         let notification_bus = NotificationBus::dispatcher();
@@ -81,9 +77,8 @@ impl Component for NewInstitutionComponent {
         let institution_doi_warning = Default::default();
         let ror = Default::default();
         let ror_warning = Default::default();
-        let router = RouteAgentDispatcher::new();
 
-        link.send_message(Msg::GetCountryCodes);
+        ctx.link().send_message(Msg::GetCountryCodes);
 
         NewInstitutionComponent {
             institution,
@@ -94,13 +89,11 @@ impl Component for NewInstitutionComponent {
             ror_warning,
             push_institution,
             data,
-            link,
-            router,
             notification_bus,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::SetCountryCodesFetchState(fetch_state) => {
                 self.fetch_country_codes.apply(fetch_state);
@@ -113,11 +106,11 @@ impl Component for NewInstitutionComponent {
                 true
             }
             Msg::GetCountryCodes => {
-                self.link.send_future(
+                ctx.link().send_future(
                     self.fetch_country_codes
                         .fetch(Msg::SetCountryCodesFetchState),
                 );
-                self.link
+                ctx.link()
                     .send_message(Msg::SetCountryCodesFetchState(FetchAction::Fetching));
                 false
             }
@@ -132,7 +125,7 @@ impl Component for NewInstitutionComponent {
                                 format!("Saved {}", i.institution_name),
                                 NotificationStatus::Success,
                             )));
-                            self.link.send_message(Msg::ChangeRoute(i.edit_route()));
+                            ctx.link().history().unwrap().push(i.edit_route());
                             true
                         }
                         None => {
@@ -180,9 +173,9 @@ impl Component for NewInstitutionComponent {
                 };
                 let request = CreateInstitutionRequest { body };
                 self.push_institution = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_institution.fetch(Msg::SetInstitutionPushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetInstitutionPushState(FetchAction::Fetching));
                 false
             }
@@ -236,20 +229,11 @@ impl Component for NewInstitutionComponent {
                 .institution
                 .country_code
                 .neq_assign(CountryCode::from_str(&value).ok()),
-            Msg::ChangeRoute(r) => {
-                let route = Route::from(r);
-                self.router.send(RouteRequest::ChangeRoute(route));
-                false
-            }
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        false
-    }
-
-    fn view(&self) -> Html {
-        let callback = self.link.callback(|event: FocusEvent| {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let callback = ctx.link().callback(|event: FocusEvent| {
             event.prevent_default();
             Msg::CreateInstitution
         });
@@ -264,37 +248,32 @@ impl Component for NewInstitutionComponent {
                     <div class="level-right" />
                 </nav>
 
-                <form onsubmit=callback>
+                <form onsubmit={ callback }>
                     <FormTextInput
                         label = "Institution Name"
-                        value=self.institution.institution_name.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeInstitutionName(e.value))
-                        required=true
+                        value={ self.institution.institution_name.clone() }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeInstitutionName(e.to_value())) }
+                        required = true
                     />
                     <FormTextInputExtended
                         label = "Institution DOI"
-                        statictext = DOI_DOMAIN
-                        value=self.institution_doi.clone()
-                        tooltip=self.institution_doi_warning.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeInstitutionDoi(e.value))
+                        statictext={ DOI_DOMAIN }
+                        value={ self.institution_doi.clone() }
+                        tooltip={ self.institution_doi_warning.clone() }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeInstitutionDoi(e.to_value())) }
                     />
                     <FormTextInputExtended
                         label = "ROR ID"
-                        statictext = ROR_DOMAIN
-                        value=self.ror.clone()
-                        tooltip=self.ror_warning.clone()
-                        oninput=self.link.callback(|e: InputData| Msg::ChangeRor(e.value))
+                        statictext={ ROR_DOMAIN }
+                        value={ self.ror.clone() }
+                        tooltip={ self.ror_warning.clone() }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeRor(e.to_value())) }
                     />
                     <FormCountryCodeSelect
                         label = "Country"
-                        value=self.institution.country_code.clone()
-                        data=self.data.country_codes.clone()
-                        onchange=self.link.callback(|event| match event {
-                            ChangeData::Select(elem) => {
-                                Msg::ChangeCountryCode(elem.value())
-                            }
-                            _ => unreachable!(),
-                        })
+                        value={ self.institution.country_code.clone() }
+                        data={ self.data.country_codes.clone() }
+                        onchange={ ctx.link().callback(|e: Event| Msg::ChangeCountryCode(e.to_value())) }
                     />
 
                     <div class="field">

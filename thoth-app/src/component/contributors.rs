@@ -7,6 +7,8 @@ use thoth_api::model::contributor::Contributor;
 use thoth_api::model::contributor::ContributorField;
 use thoth_api::model::contributor::ContributorOrderBy;
 
+use super::ToElementValue;
+
 pagination_component! {
     ContributorsComponent,
     Contributor,

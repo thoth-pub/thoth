@@ -1,91 +1,79 @@
 use core::convert::From;
-use failure::Fail;
+use thiserror::Error;
 
 /// A specialised result type for returning Thoth data
 pub type ThothResult<T> = std::result::Result<T, ThothError>;
 
-#[derive(Fail, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq)]
 /// Represents anything that can go wrong in Thoth
 ///
 /// This type is not intended to be exhaustively matched, and new variants may
 /// be added in the future without a major version bump.
 pub enum ThothError {
-    #[fail(display = "{} is not a valid {} code", _0, _1)]
+    #[error("{0} is not a valid {1} code")]
     InvalidSubjectCode(String, String),
-    #[fail(display = "Database error: {}", _0)]
+    #[error("Database error: {0}")]
     DatabaseError(String),
-    #[fail(display = "Internal error: {}", _0)]
+    #[error("Internal error: {0}")]
     InternalError(String),
-    #[fail(display = "Invalid credentials.")]
+    #[error("Invalid credentials.")]
     Unauthorised,
-    #[fail(display = "Failed to validate token.")]
+    #[error("Failed to validate token.")]
     InvalidToken,
-    #[fail(display = "No record was found for the given ID.")]
+    #[error("No record was found for the given ID.")]
     EntityNotFound,
-    #[fail(display = "Issue's Work and Series cannot have different Imprints.")]
+    #[error("Issue's Work and Series cannot have different Imprints.")]
     IssueImprintsError,
-    #[fail(display = "{} is not a valid metadata specification", _0)]
+    #[error("{0} is not a valid metadata specification")]
     InvalidMetadataSpecification(String),
-    #[fail(display = "Invalid UUID supplied.")]
+    #[error("Invalid UUID supplied.")]
     InvalidUuid,
-    #[fail(display = "CSV Error: {}", _0)]
+    #[error("CSV Error: {0}")]
     CsvError(String),
-    #[fail(display = "Could not generate {}: {}", _0, _1)]
+    #[error("Could not generate {0}: {1}")]
     IncompleteMetadataRecord(String, String),
-    #[fail(
-        display = "{} is not a validly formatted ORCID and will not be saved",
-        _0
-    )]
+    #[error("{0} is not a validly formatted ORCID and will not be saved")]
     OrcidParseError(String),
-    #[fail(
-        display = "{} is not a validly formatted DOI and will not be saved",
-        _0
-    )]
+    #[error("{0} is not a validly formatted DOI and will not be saved")]
     DoiParseError(String),
-    #[fail(
-        display = "{} is not a validly formatted ISBN and will not be saved",
-        _0
-    )]
+    #[error("{0} is not a validly formatted ISBN and will not be saved")]
     IsbnParseError(String),
-    #[fail(
-        display = "{} is not a validly formatted ROR ID and will not be saved",
-        _0
-    )]
+    #[error("{0} is not a validly formatted ROR ID and will not be saved")]
     RorParseError(String),
-    #[fail(display = "Cannot parse ORCID: no value provided")]
+    #[error("Cannot parse ORCID: no value provided")]
     OrcidEmptyError,
-    #[fail(display = "Cannot parse DOI: no value provided")]
+    #[error("Cannot parse DOI: no value provided")]
     DoiEmptyError,
-    #[fail(display = "Cannot parse ISBN: no value provided")]
+    #[error("Cannot parse ISBN: no value provided")]
     IsbnEmptyError,
-    #[fail(display = "Cannot parse ROR ID: no value provided")]
+    #[error("Cannot parse ROR ID: no value provided")]
     RorEmptyError,
-    #[fail(display = "Works of type Book Chapter cannot have ISBNs in their Publications.")]
+    #[error("Works of type Book Chapter cannot have ISBNs in their Publications.")]
     ChapterIsbnError,
-    #[fail(
-        display = "Works of type Book Chapter cannot have Width, Height, Depth or Weight in their Publications."
+    #[error(
+        "Works of type Book Chapter cannot have Width, Height, Depth or Weight in their Publications."
     )]
     ChapterDimensionError,
-    #[fail(display = "Each Publication must have exactly one canonical Location.")]
+    #[error("Each Publication must have exactly one canonical Location.")]
     CanonicalLocationError,
-    #[fail(
-        display = "Canonical Locations for digital Publications must have both a Landing Page and a Full Text URL."
+    #[error(
+        "Canonical Locations for digital Publications must have both a Landing Page and a Full Text URL."
     )]
     LocationUrlError,
-    #[fail(display = "When specifying Weight, both values (g and oz) must be supplied.")]
+    #[error("When specifying Weight, both values (g and oz) must be supplied.")]
     WeightEmptyError,
-    #[fail(display = "When specifying Width, both values (mm and in) must be supplied.")]
+    #[error("When specifying Width, both values (mm and in) must be supplied.")]
     WidthEmptyError,
-    #[fail(display = "When specifying Height, both values (mm and in) must be supplied.")]
+    #[error("When specifying Height, both values (mm and in) must be supplied.")]
     HeightEmptyError,
-    #[fail(display = "When specifying Depth, both values (mm and in) must be supplied.")]
+    #[error("When specifying Depth, both values (mm and in) must be supplied.")]
     DepthEmptyError,
-    #[fail(
-        display = "Width/Height/Depth/Weight are only applicable to physical (Paperback/Hardback) Publications."
+    #[error(
+        "Width/Height/Depth/Weight are only applicable to physical (Paperback/Hardback) Publications."
     )]
     DimensionDigitalError,
-    #[fail(
-        display = "Price values must be greater than zero. To indicate an unpriced Publication, omit all Prices."
+    #[error(
+        "Price values must be greater than zero. To indicate an unpriced Publication, omit all Prices."
     )]
     PriceZeroError,
 }
@@ -180,15 +168,6 @@ impl From<reqwest::Error> for ThothError {
 #[cfg(not(target_arch = "wasm32"))]
 impl From<xml::writer::Error> for ThothError {
     fn from(error: xml::writer::Error) -> ThothError {
-        ThothError::InternalError(error.to_string())
-    }
-}
-
-impl From<failure::Error> for ThothError {
-    fn from(error: failure::Error) -> ThothError {
-        if error.downcast_ref::<ThothError>().is_some() {
-            return error.downcast::<ThothError>().unwrap();
-        }
         ThothError::InternalError(error.to_string())
     }
 }

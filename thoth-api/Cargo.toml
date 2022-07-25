@@ -1,6 +1,6 @@
 [package]
 name = "thoth-api"
-version = "0.8.6"
+version = "0.8.7"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -16,23 +16,23 @@ maintenance = { status = "actively-developed" }
 backend = ["diesel", "diesel-derive-enum", "diesel_migrations", "futures", "actix-web"]
 
 [dependencies]
-thoth-errors = { version = "0.8.6", path = "../thoth-errors" }
+thoth-errors = { version = "0.8.7", path = "../thoth-errors" }
 actix-web = { version = "4.0.1", optional = true }
 argon2rs = "0.2.5"
 isbn2 = "0.4.0"
 chrono = { version = "0.4", features = ["serde"] }
-diesel = { version = "1.4.0", features = ["postgres", "uuidv07", "chrono", "r2d2", "64-column-tables", "serde_json"], optional = true }
+diesel = { version = "1.4.8", features = ["postgres", "uuidv07", "chrono", "r2d2", "64-column-tables", "serde_json"], optional = true }
 diesel-derive-enum = { version = "1.1.0", features = ["postgres"], optional = true }
 diesel-derive-newtype = "0.1"
 diesel_migrations = { version = "1.4.0", features = ["postgres"], optional = true }
-dotenv = "0.9.0"
+dotenv = "0.15.0"
 futures = { version  = "0.3.5", optional = true }
 jsonwebtoken = "7.2.0"
 juniper = "0.14.2"
 lazy_static = "1.4.0"
 phf = { version = "0.8", features = ["macros"] }
 rand = "0.7.3"
-regex = "1.4.1"
+regex = "1.6.0"
 serde = { version = "1.0.115", features = ["derive"] }
 serde_derive = "1.0"
 serde_json = "1.0"

@@ -5,11 +5,10 @@ use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
-use yew::ComponentLink;
+use yew_agent::Dispatched;
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
 use yewtil::fetch::FetchState;
-use yewtil::future::LinkFuture;
 use yewtil::NeqAssign;
 
 use crate::agent::notification_bus::NotificationBus;
@@ -31,14 +30,14 @@ use crate::models::work_relation::create_work_relation_mutation::Variables as Cr
 use crate::string::CANCEL_BUTTON;
 use crate::string::NEW_CHAPTER_INFO;
 
+use super::ToElementValue;
+
 pub struct NewChapterComponent {
-    props: Props,
     new_chapter_title: String,
     new_relation: WorkRelationWithRelatedWork,
     show_add_form: bool,
     push_work: PushCreateWork,
     push_relation: PushCreateWorkRelation,
-    link: ComponentLink<Self>,
     notification_bus: NotificationDispatcher,
 }
 
@@ -64,7 +63,7 @@ impl Component for NewChapterComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
         let new_relation: WorkRelationWithRelatedWork = Default::default();
         let new_chapter_title = Default::default();
         let show_add_form = false;
@@ -73,25 +72,23 @@ impl Component for NewChapterComponent {
         let notification_bus = NotificationBus::dispatcher();
 
         NewChapterComponent {
-            props,
             new_relation,
             new_chapter_title,
             show_add_form,
             push_relation,
             push_work,
-            link,
             notification_bus,
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::ToggleAddFormDisplay(value) => {
                 if value {
                     // On opening form, set chapter number to one higher than the current maximum
                     // (may not be the most appropriate value if user has left gaps in numbering)
-                    let max_chapter_num = self
-                        .props
+                    let max_chapter_num = ctx
+                        .props()
                         .relations
                         .clone()
                         .unwrap_or_default()
@@ -114,14 +111,14 @@ impl Component for NewChapterComponent {
                         Some(r) => {
                             let relation = r.clone();
                             let mut relations: Vec<WorkRelationWithRelatedWork> =
-                                self.props.relations.clone().unwrap_or_default();
+                                ctx.props().relations.clone().unwrap_or_default();
                             relations.push(relation);
-                            self.props.update_relations.emit(Some(relations));
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.props().update_relations.emit(Some(relations));
+                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                             true
                         }
                         None => {
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!(
                                     "Created new work with title {}, but failed to add it to Related Works list",
@@ -133,7 +130,7 @@ impl Component for NewChapterComponent {
                         }
                     },
                     FetchState::Failed(_, _err) => {
-                        self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                        ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             format!(
                                 "Created new work with title {}, but failed to add it to Related Works list",
@@ -148,7 +145,7 @@ impl Component for NewChapterComponent {
             Msg::CreateWorkRelation(new_chapter_id) => {
                 let body = CreateWorkRelationRequestBody {
                     variables: CreateVariables {
-                        relator_work_id: self.props.work.work_id,
+                        relator_work_id: ctx.props().work.work_id,
                         related_work_id: new_chapter_id,
                         relation_type: RelationType::HasChild,
                         relation_ordinal: self.new_relation.relation_ordinal,
@@ -157,9 +154,9 @@ impl Component for NewChapterComponent {
                 };
                 let request = CreateWorkRelationRequest { body };
                 self.push_relation = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_relation.fetch(Msg::SetRelationPushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetRelationPushState(FetchAction::Fetching));
                 false
             }
@@ -172,11 +169,11 @@ impl Component for NewChapterComponent {
                         Some(w) => {
                             // New Book Chapter successfully created.
                             // Now add a new Work Relation linking it to the parent.
-                            self.link.send_message(Msg::CreateWorkRelation(w.work_id));
+                            ctx.link().send_message(Msg::CreateWorkRelation(w.work_id));
                             true
                         }
                         None => {
-                            self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to create new chapter".to_string(),
                                 NotificationStatus::Danger,
@@ -185,7 +182,7 @@ impl Component for NewChapterComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        self.link.send_message(Msg::ToggleAddFormDisplay(false));
+                        ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             format!("Failed to create new chapter: {}", err),
                             NotificationStatus::Danger,
@@ -199,16 +196,16 @@ impl Component for NewChapterComponent {
                 let body = CreateWorkRequestBody {
                     variables: Variables {
                         work_type: WorkType::BookChapter,
-                        work_status: self.props.work.work_status.clone(),
+                        work_status: ctx.props().work.work_status.clone(),
                         full_title: self.new_chapter_title.clone(),
                         title: self.new_chapter_title.clone(),
-                        publication_date: self.props.work.publication_date.clone(),
-                        place: self.props.work.place.clone(),
-                        license: self.props.work.license.clone(),
+                        publication_date: ctx.props().work.publication_date.clone(),
+                        place: ctx.props().work.place.clone(),
+                        license: ctx.props().work.license.clone(),
                         // Copyright Holder is a mandatory field so must be inherited
                         // even though it may not be the same for edited books.
-                        copyright_holder: self.props.work.copyright_holder.clone(),
-                        imprint_id: self.props.work.imprint.imprint_id,
+                        copyright_holder: ctx.props().work.copyright_holder.clone(),
+                        imprint_id: ctx.props().work.imprint.imprint_id,
                         // All others can be set to None/blank/default
                         ..Default::default()
                     },
@@ -216,9 +213,9 @@ impl Component for NewChapterComponent {
                 };
                 let request = CreateWorkRequest { body };
                 self.push_work = Fetch::new(request);
-                self.link
+                ctx.link()
                     .send_future(self.push_work.fetch(Msg::SetWorkPushState));
-                self.link
+                ctx.link()
                     .send_message(Msg::SetWorkPushState(FetchAction::Fetching));
                 false
             }
@@ -231,12 +228,8 @@ impl Component for NewChapterComponent {
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        self.props.neq_assign(props)
-    }
-
-    fn view(&self) -> Html {
-        let close_modal = self.link.callback(|e: MouseEvent| {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let close_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(false)
         });
@@ -245,39 +238,39 @@ impl Component for NewChapterComponent {
                 <div class="control" style="margin-bottom: 1em">
                     <a
                         class="button is-success"
-                        onclick=self.link.callback(move |_| Msg::ToggleAddFormDisplay(true))
+                        onclick={ ctx.link().callback(move |_| Msg::ToggleAddFormDisplay(true)) }
                     >
                         { "Add new Chapter" }
                     </a>
                 </div>
-                <div class=self.add_form_status()>
-                    <div class="modal-background" onclick=&close_modal></div>
+                <div class={ self.add_form_status() }>
+                    <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
                             <p class="modal-card-title">{ "New Chapter" }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="chapter-form" onsubmit=self.link.callback(|e: FocusEvent| {
+                            <form id="chapter-form" onsubmit={ ctx.link().callback(|e: FocusEvent| {
                                 e.prevent_default();
                                 Msg::CreateWork
-                            })
+                            }) }
                             >
                                 <FormNumberInput
                                     label = "Chapter Number"
-                                    value=self.new_relation.relation_ordinal
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeOrdinal(e.value))
+                                    value={ self.new_relation.relation_ordinal }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeOrdinal(e.to_value())) }
                                     required = true
-                                    min = "1".to_string()
+                                    min={ "1".to_string() }
                                 />
                                 <FormTextInput
                                     label = "Chapter Title"
-                                    value=self.new_chapter_title.clone()
-                                    oninput=self.link.callback(|e: InputData| Msg::ChangeTitle(e.value))
+                                    value={ self.new_chapter_title.clone() }
+                                    oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeTitle(e.to_value())) }
                                     required = true
                                 />
                                 <article class="message is-info">
@@ -300,17 +293,17 @@ impl Component for NewChapterComponent {
                                 <div class="field">
                                     <label class="label">{ "Chapter Work Status" }</label>
                                     <div class="control is-expanded">
-                                        { &self.props.work.work_status }
+                                        { &ctx.props().work.work_status }
                                     </div>
                                 </div>
                                 <div class="field">
                                     <label class="label">{ "Chapter Imprint" }</label>
                                     <div class="control is-expanded">
-                                        { &self.props.work.imprint.imprint_name }
+                                        { &ctx.props().work.imprint.imprint_name }
                                     </div>
                                 </div>
                                 {
-                                    if let Some(date) = &self.props.work.publication_date {
+                                    if let Some(date) = &ctx.props().work.publication_date {
                                         html! {
                                             <div class="field">
                                                 <label class="label">{ "Chapter Publication Date" }</label>
@@ -324,7 +317,7 @@ impl Component for NewChapterComponent {
                                     }
                                 }
                                 {
-                                    if let Some(place) = &self.props.work.place {
+                                    if let Some(place) = &ctx.props().work.place {
                                         html! {
                                             <div class="field">
                                                 <label class="label">{ "Chapter Place of Publicatio" }</label>
@@ -338,7 +331,7 @@ impl Component for NewChapterComponent {
                                     }
                                 }
                                 {
-                                    if let Some(license) = &self.props.work.license {
+                                    if let Some(license) = &ctx.props().work.license {
                                         html! {
                                             <div class="field">
                                                 <label class="label">{ "Chapter License" }</label>
@@ -354,7 +347,7 @@ impl Component for NewChapterComponent {
                                 <div class="field">
                                     <label class="label">{ "Chapter Copyright Holder" }</label>
                                     <div class="control is-expanded">
-                                        { &self.props.work.copyright_holder }
+                                        { &ctx.props().work.copyright_holder }
                                     </div>
                                 </div>
                             </form>
@@ -369,7 +362,7 @@ impl Component for NewChapterComponent {
                             </button>
                             <button
                                 class="button"
-                                onclick=&close_modal
+                                onclick={ &close_modal }
                             >
                                 { CANCEL_BUTTON }
                             </button>

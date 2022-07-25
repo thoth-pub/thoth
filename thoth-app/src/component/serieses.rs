@@ -7,6 +7,8 @@ use thoth_api::model::series::SeriesField;
 use thoth_api::model::series::SeriesOrderBy;
 use thoth_api::model::series::SeriesWithImprint;
 
+use super::ToElementValue;
+
 pagination_component! {
     SeriesesComponent,
     SeriesWithImprint,

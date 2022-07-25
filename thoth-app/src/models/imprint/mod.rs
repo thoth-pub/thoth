@@ -7,23 +7,26 @@ use yew::MouseEvent;
 
 use super::{CreateRoute, EditRoute, MetadataTable};
 use crate::route::AdminRoute;
-use crate::route::AppRoute;
 
 impl EditRoute for Imprint {
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Imprint(self.imprint_id))
+    fn edit_route(&self) -> AdminRoute {
+        AdminRoute::Imprint {
+            id: self.imprint_id,
+        }
     }
 }
 
 impl CreateRoute for ImprintWithPublisher {
-    fn create_route() -> AppRoute {
-        AppRoute::Admin(AdminRoute::NewImprint)
+    fn create_route() -> AdminRoute {
+        AdminRoute::NewImprint
     }
 }
 
 impl EditRoute for ImprintWithPublisher {
-    fn edit_route(&self) -> AppRoute {
-        AppRoute::Admin(AdminRoute::Imprint(self.imprint_id))
+    fn edit_route(&self) -> AdminRoute {
+        AdminRoute::Imprint {
+            id: self.imprint_id,
+        }
     }
 }
 
@@ -33,7 +36,7 @@ impl MetadataTable for ImprintWithPublisher {
         html! {
             <tr
                 class="row"
-                onclick=callback
+                onclick={ callback }
             >
                 <td>{&self.imprint_id}</td>
                 <td>{&self.imprint_name}</td>
