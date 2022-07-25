@@ -320,7 +320,7 @@ impl Component for NewChapterComponent {
                                     if let Some(place) = &ctx.props().work.place {
                                         html! {
                                             <div class="field">
-                                                <label class="label">{ "Chapter Place of Publicatio" }</label>
+                                                <label class="label">{ "Chapter Place of Publication" }</label>
                                                 <div class="control is-expanded">
                                                     { place }
                                                 </div>
