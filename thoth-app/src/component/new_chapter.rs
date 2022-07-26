@@ -202,9 +202,6 @@ impl Component for NewChapterComponent {
                         publication_date: ctx.props().work.publication_date.clone(),
                         place: ctx.props().work.place.clone(),
                         license: ctx.props().work.license.clone(),
-                        // Copyright Holder is a mandatory field so must be inherited
-                        // even though it may not be the same for edited books.
-                        copyright_holder: ctx.props().work.copyright_holder.clone(),
                         imprint_id: ctx.props().work.imprint.imprint_id,
                         // All others can be set to None/blank/default
                         ..Default::default()
@@ -344,12 +341,6 @@ impl Component for NewChapterComponent {
                                         html!{}
                                     }
                                 }
-                                <div class="field">
-                                    <label class="label">{ "Chapter Copyright Holder" }</label>
-                                    <div class="control is-expanded">
-                                        { &ctx.props().work.copyright_holder }
-                                    </div>
-                                </div>
                             </form>
                         </section>
                         <footer class="modal-card-foot">
