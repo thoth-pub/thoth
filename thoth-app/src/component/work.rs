@@ -475,7 +475,7 @@ impl Component for WorkComponent {
             Msg::ChangeCopyright(copyright) => self
                 .work
                 .copyright_holder
-                .neq_assign(copyright.trim().to_owned()),
+                .neq_assign(copyright.to_opt_string()),
             Msg::ChangeLandingPage(value) => {
                 self.work.landing_page.neq_assign(value.to_opt_string())
             }
@@ -746,7 +746,6 @@ impl Component for WorkComponent {
                                 label = "Copyright Holder"
                                 value={ self.work.copyright_holder.clone() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeCopyright(e.to_value())) }
-                                required = true
                             />
                             <FormUrlInput
                                 label = "Landing Page"

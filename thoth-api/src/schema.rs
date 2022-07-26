@@ -444,7 +444,7 @@ table! {
         audio_count -> Nullable<Int4>,
         video_count -> Nullable<Int4>,
         license -> Nullable<Text>,
-        copyright_holder -> Text,
+        copyright_holder -> Nullable<Text>,
         landing_page -> Nullable<Text>,
         lccn -> Nullable<Text>,
         oclc -> Nullable<Text>,

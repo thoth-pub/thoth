@@ -2057,8 +2057,8 @@ impl Work {
         self.license.as_ref()
     }
 
-    pub fn copyright_holder(&self) -> &str {
-        self.copyright_holder.as_str()
+    pub fn copyright_holder(&self) -> Option<&String> {
+        self.copyright_holder.as_ref()
     }
 
     pub fn landing_page(&self) -> Option<&String> {
