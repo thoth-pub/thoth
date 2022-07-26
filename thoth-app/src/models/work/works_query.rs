@@ -15,7 +15,6 @@ pub const WORKS_QUERY_BODY: &str = "
             workStatus
             fullTitle
             title
-            copyrightHolder
             landingPage
             doi
             coverUrl

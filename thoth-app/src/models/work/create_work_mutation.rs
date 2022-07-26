@@ -26,7 +26,7 @@ const CREATE_WORK_MUTATION: &str = "
         $audioCount: Int,
         $videoCount: Int,
         $license: String,
-        $copyrightHolder: String!,
+        $copyrightHolder: String,
         $landingPage: String,
         $lccn: String,
         $oclc: String,
@@ -80,7 +80,6 @@ const CREATE_WORK_MUTATION: &str = "
             fullTitle
             title
             imprintId
-            copyrightHolder
             createdAt
             updatedAt
         }
@@ -118,7 +117,7 @@ pub struct Variables {
     pub audio_count: Option<i32>,
     pub video_count: Option<i32>,
     pub license: Option<String>,
-    pub copyright_holder: String,
+    pub copyright_holder: Option<String>,
     pub landing_page: Option<String>,
     pub lccn: Option<String>,
     pub oclc: Option<String>,

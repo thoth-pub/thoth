@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [#389](https://github.com/thoth-pub/thoth/issues/389) - Streamline chapter (child work) creation process
 
+### Changed
+  - [#411](https://github.com/thoth-pub/thoth/issues/411) - Make `copyright_holder` optional
 
 ## [[0.8.7]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.7) - 2022-07-22
 ### Fixed
@@ -16,7 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
   - [#370](https://github.com/thoth-pub/thoth/issues/370) - Upgrade Yew to v0.19
-
 
 ## [[0.8.6]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.6) - 2022-07-01
 ### Added
