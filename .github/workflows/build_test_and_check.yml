@@ -38,7 +38,6 @@ jobs:
         command: build
         args: --verbose
   test:
-    needs: build
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -68,7 +67,6 @@ jobs:
         command: test
         args: --workspace --verbose
   lint:
-    needs: build
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
