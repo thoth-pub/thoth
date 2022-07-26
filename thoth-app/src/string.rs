@@ -50,4 +50,5 @@ strings! {
     PERMISSIONS_ERROR => "This account is not permitted to access any data",
     NEW_VERSION_PROMPT => "A new version of Thoth is available. Refresh your browser to update.",
     RELATIONS_INFO => "Relations below are saved automatically upon change.",
+    NEW_CHAPTER_INFO => "Fields below are set automatically based on the current Work. Remaining fields are left as default.",
 }

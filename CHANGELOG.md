@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+  - [#389](https://github.com/thoth-pub/thoth/issues/389) - Streamline chapter (child work) creation process
+
 ### Changed
   - [#411](https://github.com/thoth-pub/thoth/issues/411) - Make `copyright_holder` optional
 

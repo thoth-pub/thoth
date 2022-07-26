@@ -430,6 +430,7 @@ pub mod locations_form;
 pub mod login;
 pub mod menu;
 pub mod navbar;
+pub mod new_chapter;
 pub mod new_contributor;
 pub mod new_imprint;
 pub mod new_institution;
