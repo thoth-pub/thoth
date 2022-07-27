@@ -18,7 +18,7 @@ macro_rules! pagination_helpers {
                     true => self.result_count,
                     false => self.limit + self.offset,
                 };
-                format!("{} {}-{} of {}", $pagination_text, offset_display, limit_display, self.result_count)
+                format!("{} {}–{} of {}", $pagination_text, offset_display, limit_display, self.result_count)
             }
 
             fn is_previous_disabled(&self) -> bool {

@@ -330,7 +330,7 @@ impl WorkWithRelations {
 
     pub fn compile_page_interval(&self) -> Option<String> {
         if let (Some(first), Some(last)) = (&self.first_page.clone(), &self.last_page.clone()) {
-            Some(format!("{}-{}", first, last))
+            Some(format!("{}–{}", first, last))
         } else {
             None
         }
