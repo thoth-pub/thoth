@@ -4,14 +4,16 @@ use thoth_api::model::work_relation::RelationType;
 use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
 use uuid::Uuid;
 
-const CREATE_WORK_RELATION_MUTATION: &str = "
-    mutation CreateWorkRelation(
+const UPDATE_WORK_RELATION_MUTATION: &str = "
+    mutation UpdateWorkRelation(
+        $workRelationId: Uuid!,
         $relatorWorkId: Uuid!,
         $relatedWorkId: Uuid!,
         $relationType: RelationType!,
         $relationOrdinal: Int!
     ) {
-        createWorkRelation(data: {
+        updateWorkRelation(data: {
+            workRelationId: $workRelationId
             relatorWorkId: $relatorWorkId
             relatedWorkId: $relatedWorkId
             relationType: $relationType
@@ -31,6 +33,7 @@ const CREATE_WORK_RELATION_MUTATION: &str = "
                 fullTitle
                 title
                 imprintId
+                copyrightHolder
                 createdAt
                 updatedAt
             }
@@ -39,19 +42,20 @@ const CREATE_WORK_RELATION_MUTATION: &str = "
 ";
 
 graphql_query_builder! {
-    CreateWorkRelationRequest,
-    CreateWorkRelationRequestBody,
+    UpdateWorkRelationRequest,
+    UpdateWorkRelationRequestBody,
     Variables,
-    CREATE_WORK_RELATION_MUTATION,
-    CreateWorkRelationResponseBody,
-    CreateWorkRelationResponseData,
-    PushCreateWorkRelation,
-    PushActionCreateWorkRelation
+    UPDATE_WORK_RELATION_MUTATION,
+    UpdateWorkRelationResponseBody,
+    UpdateWorkRelationResponseData,
+    PushUpdateWorkRelation,
+    PushActionUpdateWorkRelation
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
+    pub work_relation_id: Uuid,
     pub relator_work_id: Uuid,
     pub related_work_id: Uuid,
     pub relation_type: RelationType,
@@ -60,6 +64,6 @@ pub struct Variables {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct CreateWorkRelationResponseData {
-    pub create_work_relation: Option<WorkRelationWithRelatedWork>,
+pub struct UpdateWorkRelationResponseData {
+    pub update_work_relation: Option<WorkRelationWithRelatedWork>,
 }

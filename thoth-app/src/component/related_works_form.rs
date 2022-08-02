@@ -38,11 +38,17 @@ use crate::models::work_relation::delete_work_relation_mutation::PushDeleteWorkR
 use crate::models::work_relation::delete_work_relation_mutation::Variables as DeleteVariables;
 use crate::models::work_relation::relation_types_query::FetchActionRelationTypes;
 use crate::models::work_relation::relation_types_query::FetchRelationTypes;
+use crate::models::work_relation::update_work_relation_mutation::PushActionUpdateWorkRelation;
+use crate::models::work_relation::update_work_relation_mutation::PushUpdateWorkRelation;
+use crate::models::work_relation::update_work_relation_mutation::UpdateWorkRelationRequest;
+use crate::models::work_relation::update_work_relation_mutation::UpdateWorkRelationRequestBody;
+use crate::models::work_relation::update_work_relation_mutation::Variables as UpdateVariables;
 use crate::models::work_relation::RelationTypeValues;
 use crate::models::Dropdown;
 use crate::models::EditRoute;
 use crate::route::AdminRoute;
 use crate::string::CANCEL_BUTTON;
+use crate::string::EDIT_BUTTON;
 use crate::string::EMPTY_RELATIONS;
 use crate::string::REMOVE_BUTTON;
 use crate::string::VIEW_BUTTON;
@@ -51,13 +57,15 @@ use super::ToElementValue;
 
 pub struct RelatedWorksFormComponent {
     data: RelatedWorksFormData,
-    new_relation: WorkRelationWithRelatedWork,
-    show_add_form: bool,
+    relation: WorkRelationWithRelatedWork,
+    show_modal_form: bool,
+    in_edit_mode: bool,
     show_results: bool,
     fetch_works: FetchSlimWorks,
     fetch_relation_types: FetchRelationTypes,
-    push_relation: PushCreateWorkRelation,
+    create_relation: PushCreateWorkRelation,
     delete_relation: PushDeleteWorkRelation,
+    update_relation: PushUpdateWorkRelation,
     notification_bus: NotificationDispatcher,
     // Store props value locally in order to test whether it has been updated on props change
     resource_access: AccountAccess,
@@ -71,15 +79,17 @@ struct RelatedWorksFormData {
 
 #[allow(clippy::large_enum_variant)]
 pub enum Msg {
-    ToggleAddFormDisplay(bool),
+    ToggleModalFormDisplay(bool, Option<WorkRelationWithRelatedWork>),
     SetWorksFetchState(FetchActionSlimWorks),
     GetWorks,
     SetRelationTypesFetchState(FetchActionRelationTypes),
     GetRelationTypes,
     ToggleSearchResultDisplay(bool),
     SearchWork(String),
-    SetRelationPushState(PushActionCreateWorkRelation),
+    SetRelationCreateState(PushActionCreateWorkRelation),
     CreateWorkRelation,
+    SetRelationUpdateState(PushActionUpdateWorkRelation),
+    UpdateWorkRelation,
     SetRelationDeleteState(PushActionDeleteWorkRelation),
     DeleteWorkRelation(Uuid),
     AddRelation(Work),
@@ -102,8 +112,9 @@ impl Component for RelatedWorksFormComponent {
 
     fn create(ctx: &Context<Self>) -> Self {
         let data: RelatedWorksFormData = Default::default();
-        let new_relation: WorkRelationWithRelatedWork = Default::default();
-        let show_add_form = false;
+        let relation: WorkRelationWithRelatedWork = Default::default();
+        let show_modal_form = false;
+        let in_edit_mode = false;
         let show_results = false;
         let body = SlimWorksRequestBody {
             variables: Variables {
@@ -115,8 +126,9 @@ impl Component for RelatedWorksFormComponent {
         let request = SlimWorksRequest { body };
         let fetch_works = Fetch::new(request);
         let fetch_relation_types = Default::default();
-        let push_relation = Default::default();
+        let create_relation = Default::default();
         let delete_relation = Default::default();
+        let update_relation = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let resource_access = ctx.props().current_user.resource_access.clone();
 
@@ -125,13 +137,15 @@ impl Component for RelatedWorksFormComponent {
 
         RelatedWorksFormComponent {
             data,
-            new_relation,
-            show_add_form,
+            relation,
+            show_modal_form,
+            in_edit_mode,
             show_results,
             fetch_works,
             fetch_relation_types,
-            push_relation,
+            create_relation,
             delete_relation,
+            update_relation,
             notification_bus,
             resource_access,
         }
@@ -139,8 +153,15 @@ impl Component for RelatedWorksFormComponent {
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::ToggleAddFormDisplay(value) => {
-                self.show_add_form = value;
+            Msg::ToggleModalFormDisplay(show_form, r) => {
+                self.show_modal_form = show_form;
+                self.in_edit_mode = r.is_some();
+                if show_form {
+                    if let Some(relation) = r {
+                        // Editing existing relation: load its current values.
+                        self.relation = relation;
+                    }
+                }
                 true
             }
             Msg::SetWorksFetchState(fetch_state) => {
@@ -179,9 +200,9 @@ impl Component for RelatedWorksFormComponent {
                     .send_message(Msg::SetRelationTypesFetchState(FetchAction::Fetching));
                 false
             }
-            Msg::SetRelationPushState(fetch_state) => {
-                self.push_relation.apply(fetch_state);
-                match self.push_relation.clone().state() {
+            Msg::SetRelationCreateState(fetch_state) => {
+                self.create_relation.apply(fetch_state);
+                match self.create_relation.clone().state() {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.create_work_relation {
@@ -191,11 +212,13 @@ impl Component for RelatedWorksFormComponent {
                                 ctx.props().relations.clone().unwrap_or_default();
                             relations.push(relation);
                             ctx.props().update_relations.emit(Some(relations));
-                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.link()
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
                             true
                         }
                         None => {
-                            ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
+                            ctx.link()
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 "Failed to save".to_string(),
                                 NotificationStatus::Danger,
@@ -204,7 +227,8 @@ impl Component for RelatedWorksFormComponent {
                         }
                     },
                     FetchState::Failed(_, err) => {
-                        ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
+                        ctx.link()
+                            .send_message(Msg::ToggleModalFormDisplay(false, None));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             err.to_string(),
                             NotificationStatus::Danger,
@@ -217,18 +241,86 @@ impl Component for RelatedWorksFormComponent {
                 let body = CreateWorkRelationRequestBody {
                     variables: CreateVariables {
                         relator_work_id: ctx.props().work_id,
-                        related_work_id: self.new_relation.related_work_id,
-                        relation_type: self.new_relation.relation_type,
-                        relation_ordinal: self.new_relation.relation_ordinal,
+                        related_work_id: self.relation.related_work_id,
+                        relation_type: self.relation.relation_type,
+                        relation_ordinal: self.relation.relation_ordinal,
                     },
                     ..Default::default()
                 };
                 let request = CreateWorkRelationRequest { body };
-                self.push_relation = Fetch::new(request);
+                self.create_relation = Fetch::new(request);
                 ctx.link()
-                    .send_future(self.push_relation.fetch(Msg::SetRelationPushState));
+                    .send_future(self.create_relation.fetch(Msg::SetRelationCreateState));
                 ctx.link()
-                    .send_message(Msg::SetRelationPushState(FetchAction::Fetching));
+                    .send_message(Msg::SetRelationCreateState(FetchAction::Fetching));
+                false
+            }
+            Msg::SetRelationUpdateState(fetch_state) => {
+                self.update_relation.apply(fetch_state);
+                match self.update_relation.clone().state() {
+                    FetchState::NotFetching(_) => false,
+                    FetchState::Fetching(_) => false,
+                    FetchState::Fetched(body) => match &body.data.update_work_relation {
+                        Some(r) => {
+                            let mut relations: Vec<WorkRelationWithRelatedWork> =
+                                ctx.props().relations.clone().unwrap_or_default();
+                            if let Some(relation) = relations
+                                .iter_mut()
+                                .find(|rn| rn.work_relation_id == r.work_relation_id)
+                            {
+                                *relation = r.clone();
+                                ctx.props().update_relations.emit(Some(relations));
+                            } else {
+                                // This should not be possible: the updated relation returned from the
+                                // database does not match any of the locally-stored relation data.
+                                // Refreshing the page will reload the local data from the database.
+                                self.notification_bus.send(Request::NotificationBusMsg((
+                                    "Changes were saved but display failed to update. Refresh your browser to view current data.".to_string(),
+                                    NotificationStatus::Warning,
+                                )));
+                            }
+                            ctx.link()
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
+                            true
+                        }
+                        None => {
+                            ctx.link()
+                                .send_message(Msg::ToggleModalFormDisplay(false, None));
+                            self.notification_bus.send(Request::NotificationBusMsg((
+                                "Failed to save".to_string(),
+                                NotificationStatus::Danger,
+                            )));
+                            false
+                        }
+                    },
+                    FetchState::Failed(_, err) => {
+                        ctx.link()
+                            .send_message(Msg::ToggleModalFormDisplay(false, None));
+                        self.notification_bus.send(Request::NotificationBusMsg((
+                            err.to_string(),
+                            NotificationStatus::Danger,
+                        )));
+                        false
+                    }
+                }
+            }
+            Msg::UpdateWorkRelation => {
+                let body = UpdateWorkRelationRequestBody {
+                    variables: UpdateVariables {
+                        work_relation_id: self.relation.work_relation_id,
+                        relator_work_id: ctx.props().work_id,
+                        related_work_id: self.relation.related_work_id,
+                        relation_type: self.relation.relation_type,
+                        relation_ordinal: self.relation.relation_ordinal,
+                    },
+                    ..Default::default()
+                };
+                let request = UpdateWorkRelationRequest { body };
+                self.update_relation = Fetch::new(request);
+                ctx.link()
+                    .send_future(self.update_relation.fetch(Msg::SetRelationUpdateState));
+                ctx.link()
+                    .send_message(Msg::SetRelationUpdateState(FetchAction::Fetching));
                 false
             }
             Msg::SetRelationDeleteState(fetch_state) => {
@@ -280,9 +372,10 @@ impl Component for RelatedWorksFormComponent {
                 false
             }
             Msg::AddRelation(work) => {
-                self.new_relation.related_work_id = work.work_id;
-                self.new_relation.related_work = work;
-                ctx.link().send_message(Msg::ToggleAddFormDisplay(true));
+                self.relation.related_work_id = work.work_id;
+                self.relation.related_work = work;
+                ctx.link()
+                    .send_message(Msg::ToggleModalFormDisplay(true, None));
                 true
             }
             Msg::ToggleSearchResultDisplay(value) => {
@@ -304,10 +397,10 @@ impl Component for RelatedWorksFormComponent {
                 ctx.link().send_message(Msg::GetWorks);
                 false
             }
-            Msg::ChangeRelationtype(val) => self.new_relation.relation_type.neq_assign(val),
+            Msg::ChangeRelationtype(val) => self.relation.relation_type.neq_assign(val),
             Msg::ChangeOrdinal(ordinal) => {
                 let ordinal = ordinal.parse::<i32>().unwrap_or(0);
-                self.new_relation.relation_ordinal.neq_assign(ordinal);
+                self.relation.relation_ordinal.neq_assign(ordinal);
                 false // otherwise we re-render the component and reset the value
             }
             Msg::ChangeRoute(r) => {
@@ -344,7 +437,7 @@ impl Component for RelatedWorksFormComponent {
         let relations = ctx.props().relations.clone().unwrap_or_default();
         let close_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
-            Msg::ToggleAddFormDisplay(false)
+            Msg::ToggleModalFormDisplay(false, None)
         });
         html! {
             <nav class="panel">
@@ -399,11 +492,11 @@ impl Component for RelatedWorksFormComponent {
                         </div>
                     </div>
                 </div>
-                <div class={ self.add_form_status() }>
+                <div class={ self.modal_form_status() }>
                     <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
-                            <p class="modal-card-title">{ "New Related Work" }</p>
+                            <p class="modal-card-title">{ self.modal_form_title() }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
@@ -411,14 +504,10 @@ impl Component for RelatedWorksFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="relations-form" onsubmit={ ctx.link().callback(|e: FocusEvent| {
-                                e.prevent_default();
-                                Msg::CreateWorkRelation
-                            }) }
-                            >
+                            <form id="relations-form" onsubmit={ self.modal_form_action(ctx) }>
                                 <FormRelationTypeSelect
                                     label = "Relation Type"
-                                    value={ self.new_relation.relation_type }
+                                    value={ self.relation.relation_type }
                                     onchange={ ctx.link().callback(|e: Event|
                                         Msg::ChangeRelationtype(RelationType::from_str(&e.to_value()).unwrap())
                                     ) }
@@ -428,12 +517,12 @@ impl Component for RelatedWorksFormComponent {
                                 <div class="field">
                                     <label class="label">{ "Work" }</label>
                                     <div class="control is-expanded">
-                                        {&self.new_relation.related_work.full_title}
+                                        {&self.relation.related_work.full_title}
                                     </div>
                                 </div>
                                 <FormNumberInput
                                     label = "Relation Ordinal"
-                                    value={ self.new_relation.relation_ordinal }
+                                    value={ self.relation.relation_ordinal }
                                     oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeOrdinal(e.to_value())) }
                                     required = true
                                     min={ "1".to_string() }
@@ -446,7 +535,7 @@ impl Component for RelatedWorksFormComponent {
                                 type="submit"
                                 form="relations-form"
                             >
-                                { "Add Related Work" }
+                                { self.modal_form_button() }
                             </button>
                             <button
                                 class="button"
@@ -474,10 +563,37 @@ impl Component for RelatedWorksFormComponent {
 }
 
 impl RelatedWorksFormComponent {
-    fn add_form_status(&self) -> String {
-        match self.show_add_form {
+    fn modal_form_status(&self) -> String {
+        match self.show_modal_form {
             true => "modal is-active".to_string(),
             false => "modal".to_string(),
+        }
+    }
+
+    fn modal_form_title(&self) -> String {
+        match self.in_edit_mode {
+            true => "Edit Related Work".to_string(),
+            false => "New Related Work".to_string(),
+        }
+    }
+
+    fn modal_form_button(&self) -> String {
+        match self.in_edit_mode {
+            true => "Save Related Work".to_string(),
+            false => "Add Related Work".to_string(),
+        }
+    }
+
+    fn modal_form_action(&self, ctx: &Context<Self>) -> Callback<FocusEvent> {
+        match self.in_edit_mode {
+            true => ctx.link().callback(|e: FocusEvent| {
+                e.prevent_default();
+                Msg::UpdateWorkRelation
+            }),
+            false => ctx.link().callback(|e: FocusEvent| {
+                e.prevent_default();
+                Msg::CreateWorkRelation
+            }),
         }
     }
 
@@ -489,6 +605,7 @@ impl RelatedWorksFormComponent {
     }
 
     fn render_relation(&self, ctx: &Context<Self>, r: &WorkRelationWithRelatedWork) -> Html {
+        let relation = r.clone();
         let relation_id = r.work_relation_id;
         let route = r.related_work.edit_route();
         html! {
@@ -523,6 +640,14 @@ impl RelatedWorksFormComponent {
                                 onclick={ ctx.link().callback(move |_| Msg::ChangeRoute(route.clone())) }
                             >
                                 { VIEW_BUTTON }
+                            </a>
+                        </div>
+                        <div class="control">
+                            <a
+                                class="button is-success"
+                                onclick={ ctx.link().callback(move |_| Msg::ToggleModalFormDisplay(true, Some(relation.clone()))) }
+                            >
+                                { EDIT_BUTTON }
                             </a>
                         </div>
                         <div class="control">

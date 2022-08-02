@@ -140,7 +140,7 @@ pub struct Work {
     pub audio_count: Option<i32>,
     pub video_count: Option<i32>,
     pub license: Option<String>,
-    pub copyright_holder: String,
+    pub copyright_holder: Option<String>,
     pub landing_page: Option<String>,
     pub lccn: Option<String>,
     pub oclc: Option<String>,
@@ -178,7 +178,7 @@ pub struct WorkWithRelations {
     pub audio_count: Option<i32>,
     pub video_count: Option<i32>,
     pub license: Option<String>,
-    pub copyright_holder: String,
+    pub copyright_holder: Option<String>,
     pub landing_page: Option<String>,
     pub lccn: Option<String>,
     pub oclc: Option<String>,
@@ -226,7 +226,7 @@ pub struct NewWork {
     pub audio_count: Option<i32>,
     pub video_count: Option<i32>,
     pub license: Option<String>,
-    pub copyright_holder: String,
+    pub copyright_holder: Option<String>,
     pub landing_page: Option<String>,
     pub lccn: Option<String>,
     pub oclc: Option<String>,
@@ -267,7 +267,7 @@ pub struct PatchWork {
     pub audio_count: Option<i32>,
     pub video_count: Option<i32>,
     pub license: Option<String>,
-    pub copyright_holder: String,
+    pub copyright_holder: Option<String>,
     pub landing_page: Option<String>,
     pub lccn: Option<String>,
     pub oclc: Option<String>,
@@ -330,7 +330,7 @@ impl WorkWithRelations {
 
     pub fn compile_page_interval(&self) -> Option<String> {
         if let (Some(first), Some(last)) = (&self.first_page.clone(), &self.last_page.clone()) {
-            Some(format!("{}-{}", first, last))
+            Some(format!("{}–{}", first, last))
         } else {
             None
         }

@@ -1108,12 +1108,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "doc-comment"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "923dea538cea0aa3025e8685b20d6ee21ef99c4f77e954a30febbaac5ec73a97"
-
-[[package]]
 name = "dotenv"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1593,30 +1587,29 @@ dependencies = [
 
 [[package]]
 name = "graphql-introspection-query"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "610aac641dbd2a457ad4cef34aa2827dae3f035fd214cb38c2d62d8543f3973f"
+checksum = "7f2a4732cf5140bd6c082434494f785a19cfb566ab07d1382c3671f5812fed6d"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "graphql-parser"
-version = "0.2.3"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5613c31f18676f164112732202124f373bb2103ff017b3b85ca954ea6a66ada"
+checksum = "d2ebc8013b4426d5b81a4364c419a95ed0b404af2b82e2457de52d9348f0e474"
 dependencies = [
  "combine",
- "failure",
+ "thiserror",
 ]
 
 [[package]]
 name = "graphql_client"
-version = "0.9.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0bb4f09181e4f80018d01c612125b07e0156f3753bfac37055fe2a25e031ca8"
+checksum = "7fc16d75d169fddb720d8f1c7aed6413e329e1584079b9734ff07266a193f5bc"
 dependencies = [
- "doc-comment",
  "graphql_query_derive",
  "serde",
  "serde_json",
@@ -1624,14 +1617,13 @@ dependencies = [
 
 [[package]]
 name = "graphql_client_codegen"
-version = "0.9.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e304c223c809b3bff4614018f8e6d9edb176b31d64ed9ea48b6ae8b1a03abb9"
+checksum = "f290ecfa3bea3e8a157899dc8a1d96ee7dd6405c18c8ddd213fc58939d18a0e9"
 dependencies = [
- "failure",
  "graphql-introspection-query",
  "graphql-parser",
- "heck 0.3.1",
+ "heck 0.4.0",
  "lazy_static 1.4.0",
  "proc-macro2 1.0.36",
  "quote 1.0.15",
@@ -1642,11 +1634,10 @@ dependencies = [
 
 [[package]]
 name = "graphql_query_derive"
-version = "0.9.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1f6b14d5ce549227aa9e649cd9d36d008b91021275a8e0a67d71cef815adc2f"
+checksum = "a755cc59cda2641ea3037b4f9f7ef40471c329f55c1fa2db6fa0bb7ae6c1f7ce"
 dependencies = [
- "failure",
  "graphql_client_codegen",
  "proc-macro2 1.0.36",
  "syn 1.0.72",
@@ -2513,7 +2504,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "thiserror",
- "uuid 0.7.4",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -3842,7 +3833,7 @@ dependencies = [
 
 [[package]]
 name = "thoth"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "cargo-husky",
  "clap",
@@ -3857,7 +3848,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "actix-web",
  "argon2rs",
@@ -3886,7 +3877,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api-server"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "actix-cors",
  "actix-identity",
@@ -3901,7 +3892,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3929,7 +3920,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app-server"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -3938,7 +3929,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-client"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "chrono",
  "graphql_client",
@@ -3947,27 +3938,28 @@ dependencies = [
  "serde_json",
  "thoth-api",
  "thoth-errors",
- "uuid 0.7.4",
+ "uuid 0.8.2",
 ]
 
 [[package]]
 name = "thoth-errors"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "actix-web",
  "csv",
  "diesel",
- "failure",
  "juniper",
  "reqwest 0.11.9",
  "serde",
+ "thiserror",
  "uuid 0.7.4",
+ "uuid 0.8.2",
  "xml-rs",
 ]
 
 [[package]]
 name = "thoth-export-server"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -3982,7 +3974,7 @@ dependencies = [
  "thoth-api",
  "thoth-client",
  "thoth-errors",
- "uuid 0.7.4",
+ "uuid 0.8.2",
  "xml-rs",
 ]
 
@@ -4391,6 +4383,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
 dependencies = [
  "getrandom 0.2.2",
+ "serde",
 ]
 
 [[package]]

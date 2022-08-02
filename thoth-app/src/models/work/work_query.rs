@@ -57,7 +57,6 @@ pub const WORK_QUERY: &str = "
                     fullTitle
                     title
                     imprintId
-                    copyrightHolder
                     createdAt
                     updatedAt
                 }

@@ -34,6 +34,7 @@ use crate::component::delete_dialogue::ConfirmDeleteComponent;
 use crate::component::fundings_form::FundingsFormComponent;
 use crate::component::issues_form::IssuesFormComponent;
 use crate::component::languages_form::LanguagesFormComponent;
+use crate::component::new_chapter::NewChapterComponent;
 use crate::component::publications_form::PublicationsFormComponent;
 use crate::component::related_works_form::RelatedWorksFormComponent;
 use crate::component::subjects_form::SubjectsFormComponent;
@@ -475,7 +476,7 @@ impl Component for WorkComponent {
             Msg::ChangeCopyright(copyright) => self
                 .work
                 .copyright_holder
-                .neq_assign(copyright.trim().to_owned()),
+                .neq_assign(copyright.to_opt_string()),
             Msg::ChangeLandingPage(value) => {
                 self.work.landing_page.neq_assign(value.to_opt_string())
             }
@@ -746,7 +747,6 @@ impl Component for WorkComponent {
                                 label = "Copyright Holder"
                                 value={ self.work.copyright_holder.clone() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeCopyright(e.to_value())) }
-                                required = true
                             />
                             <FormUrlInput
                                 label = "Landing Page"
@@ -798,6 +798,22 @@ impl Component for WorkComponent {
                             current_user={ ctx.props().current_user.clone() }
                             update_relations={ ctx.link().callback(Msg::UpdateRelatedWorks) }
                         />
+                        {
+                            if self.work_type == WorkType::Monograph
+                                || self.work_type == WorkType::EditedBook
+                                || self.work_type == WorkType::Textbook {
+                                html! {
+                                    // Convenience button for adding Chapter relations with inherited values
+                                    <NewChapterComponent
+                                        work={ self.work.clone() }
+                                        relations={ self.work.relations.clone() }
+                                        update_relations={ ctx.link().callback(Msg::UpdateRelatedWorks) }
+                                    />
+                                }
+                            } else {
+                                html! {}
+                            }
+                        }
                         <ContributionsFormComponent
                             contributions={ self.work.contributions.clone() }
                             work_id={ self.work.work_id }
