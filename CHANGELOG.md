@@ -5,11 +5,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[0.8.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.8) - 2022-08-02
 ### Added
   - [#389](https://github.com/thoth-pub/thoth/issues/389) - Streamline chapter (child work) creation process
 
 ### Changed
   - [#411](https://github.com/thoth-pub/thoth/issues/411) - Make `copyright_holder` optional
+  - [#393](https://github.com/thoth-pub/thoth/issues/393) - Use en-dash in `page_interval` instead of hyphen
+  - Ignore `extra_unused_lifetimes` warning until [clippy's fix](https://github.com/rust-lang/rust-clippy/issues/9014) for the false positive is live
+  - Split build, test, and lint workflow job into separate jobs
 
 ## [[0.8.7]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.7) - 2022-07-22
 ### Fixed
