@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - 'Dockerfile.dev'
-  pull_requesth:
+  pull_request:
     paths:
       - 'Dockerfile.dev'
   workflow_dispatch:
