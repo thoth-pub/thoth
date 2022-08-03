@@ -5,7 +5,7 @@ services:
     image: postgres:12
     container_name: "thoth_db"
     volumes:
-      - ./db:/var/lib/postgresql/data
+      - ./db/_data:/var/lib/postgresql/data
       - /etc/localtime:/etc/localtime:ro
     env_file:
       - .env
