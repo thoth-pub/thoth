@@ -42,13 +42,12 @@ COPY thoth-app-server/Cargo.toml thoth-app-server/Cargo.toml
 COPY thoth-client/Cargo.toml thoth-client/Cargo.toml
 COPY thoth-errors/Cargo.toml thoth-errors/Cargo.toml
 COPY thoth-export-server/Cargo.toml thoth-export-server/Cargo.toml
-RUN mkdir thoth-api/src && touch thoth-api/src/lib.rs
-RUN mkdir thoth-api-server/src && touch thoth-api-server/src/lib.rs
-RUN mkdir thoth-app/src && touch thoth-app/src/lib.rs
-RUN mkdir thoth-app-server/src && touch thoth-app-server/src/lib.rs
-RUN mkdir thoth-client/src && touch thoth-client/src/lib.rs
-RUN mkdir thoth-errors/src && touch thoth-errors/src/lib.rs
-RUN mkdir thoth-export-server/src && touch thoth-export-server/src/lib.rs
+RUN mkdir thoth-api/src thoth-api-server/src thoth-app/src \
+    thoth-app-server/src thoth-client/src thoth-errors/src \
+    thoth-export-server/src
+RUN touch thoth-api/src/lib.rs thoth-api-server/src/lib.rs \
+    thoth-app/src/lib.rs thoth-app-server/src/lib.rs thoth-client/src/lib.rs \
+    thoth-errors/src/lib.rs thoth-export-server/src/lib.rs
 RUN wasm-pack build thoth-app/ \
   --target web \
   --debug
