@@ -2,6 +2,9 @@ name: build-dev-docker-image
 
 on:
   push:
+    branches:
+      - master
+      - develop
     paths:
       - 'Dockerfile.dev'
   pull_request:

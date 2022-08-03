@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - 'release/**'
+  pull_request:
+    paths:
+      - 'Dockerfile'
   workflow_dispatch:
 
 jobs:
