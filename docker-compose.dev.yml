@@ -1,0 +1,58 @@
+version: "3.5"
+
+services:
+  db:
+    image: postgres:12
+    container_name: "thoth_db"
+    restart: unless-stopped
+    volumes:
+      - ./db:/var/lib/postgresql/data
+      - /etc/localtime:/etc/localtime:ro
+    env_file:
+      - .env
+
+  graphql-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: "thoth_graphql_api"
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    command: ["cargo", "run", "init"]
+    env_file:
+      - .env
+    depends_on:
+      - db
+
+  export-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: "thoth_export_api"
+    restart: unless-stopped
+    ports:
+      - "8181:8181"
+    command: ["cargo", "run", "start", "export-api"]
+    env_file:
+      - .env
+    depends_on:
+      - graphql-api
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: "thoth_app"
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    command: ["cargo", "run", "start", "app"]
+    env_file:
+      - .env
+    depends_on:
+      - graphql-api
+      - export-api
+
+volumes:
+  db:
