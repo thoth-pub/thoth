@@ -61,13 +61,9 @@ COPY . .
 
 # Change access and modified times of previously-defined-as-dummy files to let cargo know
 # it needs to (re)compile these modules
-RUN touch -a -m thoth-api/src/lib.rs
-RUN touch -a -m thoth-api-server/src/lib.rs
-RUN touch -a -m thoth-app/src/lib.rs
-RUN touch -a -m thoth-app-server/src/lib.rs
-RUN touch -a -m thoth-client/src/lib.rs
-RUN touch -a -m thoth-errors/src/lib.rs
-RUN touch -a -m thoth-export-server/src/lib.rs
+RUN touch -a -m thoth-api/src/lib.rs thoth-api-server/src/lib.rs \
+    thoth-app/src/lib.rs thoth-app-server/src/lib.rs thoth-client/src/lib.rs \
+    thoth-errors/src/lib.rs thoth-export-server/src/lib.rs
 
 # Compile WASM for debug
 RUN wasm-pack build thoth-app/ \
