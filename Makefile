@@ -8,6 +8,9 @@ THOTH_EXPORT_API ?= http://localhost:8181
 	run-app \
 	run-graphql-api \
 	run-export-api \
+	docker-dev \
+	docker-dev-build \
+	docker-dev-run \
 	test \
 	clippy \
 	format \
@@ -26,6 +29,14 @@ run-graphql-api: build-graphql-api
 
 run-export-api: build-export-api
 	RUST_BACKTRACE=1 cargo run start export-api
+
+docker-dev: docker-dev-build docker-dev-run
+
+docker-dev-build:
+	docker-compose -f docker-compose.dev.yml build
+
+docker-dev-run:
+	docker-compose -f docker-compose.dev.yml up
 
 cargo-build:
 	cargo build

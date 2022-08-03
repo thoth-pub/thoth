@@ -1,0 +1,76 @@
+ARG RUST_VERSION=1.62.1
+
+FROM rust:${RUST_VERSION}
+
+ENV NPM_VERSION=6.14.8
+ENV N_VERSION=6.7.0
+ENV NODE_VERSION=12.19.0
+ENV ROLLUP_VERSION=2.28.2
+ENV WASM_PACK_VERSION=0.9.1
+
+ARG THOTH_GRAPHQL_API=http://localhost:8000
+ARG THOTH_EXPORT_API=http://localhost:8181
+ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
+ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
+
+WORKDIR /usr/src/thoth
+
+# Expose thoth's default ports
+EXPOSE 8080
+EXPOSE 8000
+EXPOSE 8181
+
+# Install build dependencies
+RUN apt-get update && apt-get -y install pkg-config npm
+RUN npm install -g npm@${NPM_VERSION}
+RUN npm install -g n@${N_VERSION}
+RUN n ${NODE_VERSION}
+RUN npm install -g rollup@${ROLLUP_VERSION}
+RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
+
+# Use dummy file to force cargo to install dependencies without compiling code.
+# We need to get dummy lib files for all members of the workspace, and their cargo files,
+# then we run wasm-pack and cargo build to download and compile all project dependencies.
+RUN mkdir src
+RUN echo "fn main() {}" > src/main.rs
+COPY Cargo.lock .
+COPY Cargo.toml .
+COPY thoth-api/Cargo.toml thoth-api/Cargo.toml
+COPY thoth-api-server/Cargo.toml thoth-api-server/Cargo.toml
+COPY thoth-app/Cargo.toml thoth-app/Cargo.toml
+COPY thoth-app-server/Cargo.toml thoth-app-server/Cargo.toml
+COPY thoth-client/Cargo.toml thoth-client/Cargo.toml
+COPY thoth-errors/Cargo.toml thoth-errors/Cargo.toml
+COPY thoth-export-server/Cargo.toml thoth-export-server/Cargo.toml
+RUN mkdir thoth-api/src thoth-api-server/src thoth-app/src \
+    thoth-app-server/src thoth-client/src thoth-errors/src \
+    thoth-export-server/src
+RUN touch thoth-api/src/lib.rs thoth-api-server/src/lib.rs \
+    thoth-app/src/lib.rs thoth-app-server/src/lib.rs thoth-client/src/lib.rs \
+    thoth-errors/src/lib.rs thoth-export-server/src/lib.rs
+RUN wasm-pack build thoth-app/ \
+  --target web \
+  --debug
+RUN cargo build
+RUN rm -rf src thoth-api thoth-api-server thoth-app thoth-app-server thoth-client \
+    thoth-errors thoth-export-server Cargo.toml Cargo.lock
+
+# Get the actual source
+COPY . .
+
+# Change access and modified times of previously-defined-as-dummy files to let cargo know
+# it needs to (re)compile these modules
+RUN touch -a -m thoth-api/src/lib.rs thoth-api-server/src/lib.rs \
+    thoth-app/src/lib.rs thoth-app-server/src/lib.rs thoth-client/src/lib.rs \
+    thoth-errors/src/lib.rs thoth-export-server/src/lib.rs
+
+# Compile WASM for debug
+RUN wasm-pack build thoth-app/ \
+  --target web \
+  --debug
+RUN rollup thoth-app/main.js \
+  --format iife \
+  --file thoth-app/pkg/thoth_app.js
+
+# Build Thoth for debug
+RUN cargo build
