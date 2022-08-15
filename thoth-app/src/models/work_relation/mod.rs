@@ -2,13 +2,13 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::model::work_relation::RelationType;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct RelationTypeDefinition {
     pub enum_values: Vec<RelationTypeValues>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct RelationTypeValues {
     pub name: RelationType,

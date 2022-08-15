@@ -51,7 +51,7 @@ graphql_query_builder! {
     FetchActionPublications
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub limit: Option<i32>,

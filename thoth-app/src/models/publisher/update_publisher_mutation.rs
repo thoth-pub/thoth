@@ -35,7 +35,7 @@ graphql_query_builder! {
     PushActionUpdatePublisher
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub publisher_id: Uuid,
@@ -44,7 +44,7 @@ pub struct Variables {
     pub publisher_url: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdatePublisherResponseData {
     pub update_publisher: Option<Publisher>,

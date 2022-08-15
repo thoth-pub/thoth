@@ -23,7 +23,7 @@ pub enum IssueField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Issue {
     pub issue_id: Uuid,
@@ -34,7 +34,7 @@ pub struct Issue {
     pub updated_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct IssueWithSeries {
     pub issue_id: Uuid,

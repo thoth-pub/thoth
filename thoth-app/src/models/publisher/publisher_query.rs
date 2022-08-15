@@ -27,13 +27,13 @@ graphql_query_builder! {
     FetchActionPublisher
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub publisher_id: Option<Uuid>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PublisherResponseData {
     pub publisher: Option<Publisher>,
 }

@@ -24,10 +24,10 @@ graphql_query_builder! {
     FetchActionLocationPlatforms
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Variables {}
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct LocationPlatformsResponseData {
     pub location_platforms: LocationPlatformDefinition,
 }

@@ -42,7 +42,7 @@ graphql_query_builder! {
     PushActionCreateAffiliation
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub contribution_id: Uuid,
@@ -51,7 +51,7 @@ pub struct Variables {
     pub position: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateAffiliationResponseData {
     pub create_affiliation: Option<AffiliationWithInstitution>,

@@ -89,7 +89,7 @@ pub enum Msg {
     ChangeOrdinal(String),
 }
 
-#[derive(Clone, Properties, PartialEq)]
+#[derive(Clone, Properties, PartialEq, Eq)]
 pub struct Props {
     pub contribution_id: Uuid,
 }

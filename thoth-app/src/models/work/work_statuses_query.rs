@@ -24,10 +24,10 @@ graphql_query_builder! {
     FetchActionWorkStatuses
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Variables {}
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WorkStatusesResponseData {
     pub work_statuses: WorkStatusDefinition,
 }

@@ -10,7 +10,7 @@ use thoth_errors::ThothError;
 use thoth_errors::ThothResult;
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Account {
     pub account_id: Uuid,
     pub name: String,
@@ -65,7 +65,7 @@ pub struct NewPublisherAccount {
     pub is_admin: bool,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountAccess {
     pub is_superuser: bool,
@@ -73,7 +73,7 @@ pub struct AccountAccess {
     pub linked_publishers: Vec<LinkedPublisher>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LinkedPublisher {
     pub publisher_id: Uuid,
@@ -90,7 +90,7 @@ pub struct Token {
     pub namespace: AccountAccess,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountDetails {
     pub account_id: Uuid,
@@ -108,7 +108,7 @@ pub struct DecodedToken {
     pub jwt: Option<Token>,
 }
 
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize, Default)]
 pub struct LoginCredentials {
     pub email: String,
     pub password: String,

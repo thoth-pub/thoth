@@ -144,7 +144,7 @@ pub enum Msg {
     UpdateIssues(Option<Vec<IssueWithSeries>>),
 }
 
-#[derive(PartialEq, Properties)]
+#[derive(PartialEq, Eq, Properties)]
 pub struct Props {
     pub work_id: Uuid,
     pub current_user: AccountDetails,

@@ -51,7 +51,7 @@ graphql_query_builder! {
     PushActionCreateFunding
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub work_id: Uuid,
@@ -63,7 +63,7 @@ pub struct Variables {
     pub jurisdiction: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateFundingResponseData {
     pub create_funding: Option<FundingWithInstitution>,

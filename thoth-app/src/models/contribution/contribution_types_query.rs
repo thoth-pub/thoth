@@ -24,10 +24,10 @@ graphql_query_builder! {
     FetchActionContributionTypes
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Variables {}
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ContributionTypesResponseData {
     pub contribution_types: ContributionTypeDefinition,
 }

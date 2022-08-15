@@ -78,7 +78,7 @@ pub enum Msg {
     ChangeWebsite(String),
 }
 
-#[derive(PartialEq, Properties)]
+#[derive(PartialEq, Eq, Properties)]
 pub struct Props {
     pub contributor_id: Uuid,
 }

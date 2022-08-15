@@ -13,7 +13,7 @@ use crate::schema::contribution_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Contribution_type")]
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum ContributionType {
@@ -55,7 +55,7 @@ pub enum ContributionField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contribution {
     pub contribution_id: Uuid,
@@ -72,7 +72,7 @@ pub struct Contribution {
     pub contribution_ordinal: i32,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ContributionWithAffiliations {
     pub affiliations: Option<Vec<AffiliationWithInstitution>>,

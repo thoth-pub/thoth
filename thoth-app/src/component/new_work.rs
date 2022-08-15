@@ -118,7 +118,7 @@ pub enum Msg {
     ChangeCoverUrl(String),
     ChangeCoverCaption(String),
 }
-#[derive(PartialEq, Properties)]
+#[derive(PartialEq, Eq, Properties)]
 pub struct Props {
     pub current_user: AccountDetails,
     pub previous_route: AdminRoute,

@@ -41,7 +41,7 @@ graphql_query_builder! {
     PushActionUpdateContributor
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub contributor_id: Uuid,
@@ -52,7 +52,7 @@ pub struct Variables {
     pub website: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateContributorResponseData {
     pub update_contributor: Option<Contributor>,

@@ -18,7 +18,7 @@ pub const ROR_DOMAIN: &str = "https://ror.org/";
     derive(juniper::GraphQLEnum),
     graphql(description = "Unit of measurement for physical Work dimensions (mm, cm or in)")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase")]
 pub enum LengthUnit {
@@ -32,7 +32,7 @@ pub enum LengthUnit {
     derive(juniper::GraphQLEnum),
     graphql(description = "Unit of measurement for physical Work weight (grams or ounces)")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase")]
 pub enum WeightUnit {
@@ -47,7 +47,7 @@ pub enum WeightUnit {
         description = r#"Digital Object Identifier. Expressed as `^https:\/\/doi\.org\/10\.\d{4,9}\/[-._\;\(\)\/:a-zA-Z0-9]+$`"#
     )
 )]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Doi(String);
 
 #[cfg_attr(
@@ -57,7 +57,7 @@ pub struct Doi(String);
         description = "13-digit International Standard Book Number, with its parts separated by hyphens"
     )
 )]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Isbn(String);
 
 #[cfg_attr(
@@ -67,7 +67,7 @@ pub struct Isbn(String);
         description = r#"ORCID (Open Researcher and Contributor ID) identifier. Expressed as `^https:\/\/orcid\.org\/0000-000(1-[5-9]|2-[0-9]|3-[0-4])\d{3}-\d{3}[\dX]$`"#
     )
 )]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Orcid(String);
 
 #[cfg_attr(
@@ -77,7 +77,7 @@ pub struct Orcid(String);
         description = r#"ROR (Research Organization Registry) identifier. Expressed as `^https:\/\/ror\.org\/0[a-hjkmnp-z0-9]{6}\d{2}$`"#
     )
 )]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Ror(String);
 
 #[cfg_attr(
@@ -85,7 +85,7 @@ pub struct Ror(String);
     derive(DieselNewType, juniper::GraphQLScalarValue),
     graphql(description = "RFC 3339 combined date and time in UTC time zone")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Timestamp(DateTime<Utc>);
 
 impl Default for LengthUnit {

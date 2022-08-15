@@ -4,7 +4,7 @@ use thiserror::Error;
 /// A specialised result type for returning Thoth data
 pub type ThothResult<T> = std::result::Result<T, ThothError>;
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq, Eq)]
 /// Represents anything that can go wrong in Thoth
 ///
 /// This type is not intended to be exhaustively matched, and new variants may

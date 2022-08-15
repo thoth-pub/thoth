@@ -17,7 +17,7 @@ use crate::schema::imprint_history;
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting imprints list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ImprintField {
     #[strum(serialize = "ID")]
@@ -31,7 +31,7 @@ pub enum ImprintField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Imprint {
     pub imprint_id: Uuid,
@@ -42,7 +42,7 @@ pub struct Imprint {
     pub updated_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ImprintWithPublisher {
     pub imprint_id: Uuid,
@@ -101,7 +101,7 @@ pub struct NewImprintHistory {
     derive(juniper::GraphQLInputObject),
     graphql(description = "Field and order to use when sorting imprints list")
 )]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ImprintOrderBy {
     pub field: ImprintField,
     pub direction: Direction,

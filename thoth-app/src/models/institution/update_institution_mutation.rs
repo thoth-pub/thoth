@@ -40,7 +40,7 @@ graphql_query_builder! {
     PushActionUpdateInstitution
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub institution_id: Uuid,
@@ -50,7 +50,7 @@ pub struct Variables {
     pub country_code: Option<CountryCode>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateInstitutionResponseData {
     pub update_institution: Option<Institution>,

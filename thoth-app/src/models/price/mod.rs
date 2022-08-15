@@ -2,13 +2,13 @@ use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::model::price::CurrencyCode;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CurrencyCodeDefinition {
     pub enum_values: Vec<CurrencyCodeValues>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CurrencyCodeValues {
     pub name: CurrencyCode,
