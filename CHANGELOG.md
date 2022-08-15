@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Development workflow in docker
 
+### Changed
+  - Added derives for `Eq` alongside `PartialEq` to comply with [`rustc 1.63.0`](https://github.com/rust-lang/rust/releases/tag/1.63.0)
+
 ## [[0.8.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.8) - 2022-08-02
 ### Added
   - [#389](https://github.com/thoth-pub/thoth/issues/389) - Streamline chapter (child work) creation process
