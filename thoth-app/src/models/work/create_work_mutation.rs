@@ -97,7 +97,7 @@ graphql_query_builder! {
     PushActionCreateWork
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub work_type: WorkType,
@@ -133,7 +133,7 @@ pub struct Variables {
     pub page_interval: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateWorkResponseData {
     pub create_work: Option<Work>,

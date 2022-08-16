@@ -14,7 +14,7 @@ use crate::schema::series_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Series_type")]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum SeriesType {
@@ -28,7 +28,7 @@ pub enum SeriesType {
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting series list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SeriesField {
     #[strum(serialize = "ID")]
@@ -50,7 +50,7 @@ pub enum SeriesField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Series {
     pub series_id: Uuid,
@@ -66,7 +66,7 @@ pub struct Series {
     pub series_cfp_url: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SeriesWithImprint {
     pub series_id: Uuid,
@@ -136,7 +136,7 @@ pub struct NewSeriesHistory {
     derive(juniper::GraphQLInputObject),
     graphql(description = "Field and order to use when sorting seriess list")
 )]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SeriesOrderBy {
     pub field: SeriesField,
     pub direction: Direction,

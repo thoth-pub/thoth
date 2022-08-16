@@ -13,7 +13,7 @@ use crate::schema::work_relation_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Relation_type")]
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum RelationType {
@@ -39,7 +39,7 @@ pub enum RelationType {
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting work relations list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum WorkRelationField {
     WorkRelationId,
@@ -52,7 +52,7 @@ pub enum WorkRelationField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkRelation {
     pub work_relation_id: Uuid,
@@ -64,7 +64,7 @@ pub struct WorkRelation {
     pub updated_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkRelationWithRelatedWork {
     pub work_relation_id: Uuid,
@@ -126,7 +126,7 @@ pub struct NewWorkRelationHistory {
     derive(juniper::GraphQLInputObject),
     graphql(description = "Field and order to use when sorting work relations list")
 )]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WorkRelationOrderBy {
     pub field: WorkRelationField,
     pub direction: Direction,

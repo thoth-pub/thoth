@@ -51,7 +51,7 @@ pub enum Msg {
     RouteChanged,
 }
 
-#[derive(Clone, Properties, PartialEq)]
+#[derive(Clone, Properties, PartialEq, Eq)]
 pub struct Props {
     pub current_user: Option<AccountDetails>,
 }

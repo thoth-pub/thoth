@@ -49,7 +49,7 @@ graphql_query_builder! {
     PushActionCreateWorkRelation
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub relator_work_id: Uuid,
@@ -58,7 +58,7 @@ pub struct Variables {
     pub relation_ordinal: i32,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateWorkRelationResponseData {
     pub create_work_relation: Option<WorkRelationWithRelatedWork>,

@@ -55,7 +55,7 @@ graphql_query_builder! {
     PushActionCreateIssue
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub work_id: Uuid,
@@ -63,7 +63,7 @@ pub struct Variables {
     pub issue_ordinal: i32,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateIssueResponseData {
     pub create_issue: Option<IssueWithSeries>,

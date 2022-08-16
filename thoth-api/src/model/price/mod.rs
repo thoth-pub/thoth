@@ -61,7 +61,7 @@ pub struct PatchPrice {
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Currency_code")]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "UPPERCASE")]
 pub enum CurrencyCode {

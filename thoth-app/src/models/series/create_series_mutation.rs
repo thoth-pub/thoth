@@ -48,7 +48,7 @@ graphql_query_builder! {
     PushActionCreateSeries
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub series_type: SeriesType,
@@ -61,7 +61,7 @@ pub struct Variables {
     pub imprint_id: Uuid,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSeriesResponseData {
     pub create_series: Option<Series>,

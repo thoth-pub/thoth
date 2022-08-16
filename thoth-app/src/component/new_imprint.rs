@@ -61,7 +61,7 @@ pub enum Msg {
     ChangeImprintName(String),
     ChangeImprintUrl(String),
 }
-#[derive(PartialEq, Properties)]
+#[derive(PartialEq, Eq, Properties)]
 pub struct Props {
     pub current_user: AccountDetails,
 }

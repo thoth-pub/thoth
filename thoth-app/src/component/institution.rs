@@ -94,7 +94,7 @@ pub enum Msg {
     ChangeCountryCode(String),
 }
 
-#[derive(PartialEq, Properties)]
+#[derive(PartialEq, Eq, Properties)]
 pub struct Props {
     pub institution_id: Uuid,
 }

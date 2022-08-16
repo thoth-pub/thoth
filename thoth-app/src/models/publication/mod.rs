@@ -11,13 +11,13 @@ use yew::MouseEvent;
 use super::{CreateRoute, EditRoute, MetadataTable};
 use crate::route::AdminRoute;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicationTypeDefinition {
     pub enum_values: Vec<PublicationTypeValues>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicationTypeValues {
     pub name: PublicationType,

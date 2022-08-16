@@ -11,7 +11,7 @@ use crate::schema::language_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Language_relation")]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum LanguageRelation {
@@ -38,7 +38,7 @@ pub enum LanguageField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Language {
     pub language_id: Uuid,
@@ -78,7 +78,7 @@ pub struct PatchLanguage {
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Language_code")]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "UPPERCASE")]
 pub enum LanguageCode {

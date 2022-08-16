@@ -12,7 +12,7 @@ use crate::schema::location_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Location_platform")]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum LocationPlatform {
     #[cfg_attr(feature = "backend", db_rename = "Project MUSE")]
@@ -66,7 +66,7 @@ pub enum LocationField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Location {
     pub location_id: Uuid,

@@ -36,7 +36,7 @@ graphql_query_builder! {
     PushActionUpdateImprint
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub imprint_id: Uuid,
@@ -45,7 +45,7 @@ pub struct Variables {
     pub publisher_id: Uuid,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateImprintResponseData {
     pub update_imprint: Option<Imprint>,

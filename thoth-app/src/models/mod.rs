@@ -26,12 +26,18 @@ macro_rules! graphql_query_builder {
             pub body: $request_body,
         }
 
+        // Some of the variable sets passed in to this macro can derive Eq,
+        // but others can't (e.g. ones with members of type f64)
+        #[allow(clippy::derive_partial_eq_without_eq)]
         #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
         pub struct $request_body {
             pub query: String,
             pub variables: $variables,
         }
 
+        // Some of the data structs passed in to this macro can derive Eq,
+        // but others can't (e.g. ones with members of type f64)
+        #[allow(clippy::derive_partial_eq_without_eq)]
         #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
         pub struct $response_body {
             pub data: $response_data,

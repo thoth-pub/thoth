@@ -61,7 +61,7 @@ pub enum Msg {
     UpdatePrices(Option<Vec<Price>>),
 }
 
-#[derive(PartialEq, Properties)]
+#[derive(PartialEq, Eq, Properties)]
 pub struct Props {
     pub publication_id: Uuid,
     pub current_user: AccountDetails,

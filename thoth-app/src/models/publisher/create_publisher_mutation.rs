@@ -32,7 +32,7 @@ graphql_query_builder! {
     PushActionCreatePublisher
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub publisher_name: String,
@@ -40,7 +40,7 @@ pub struct Variables {
     pub publisher_url: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatePublisherResponseData {
     pub create_publisher: Option<Publisher>,
