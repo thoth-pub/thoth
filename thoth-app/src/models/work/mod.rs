@@ -123,6 +123,7 @@ pub trait DisplayWork {
     fn onix_google_books_endpoint(&self) -> String;
     fn onix_overdrive_endpoint(&self) -> String;
     fn onix_ebsco_host_endpoint(&self) -> String;
+    fn onix_proquest_ebrary_endpoint(&self) -> String;
     fn csv_endpoint(&self) -> String;
     fn kbart_endpoint(&self) -> String;
     fn bibtex_endpoint(&self) -> String;
@@ -172,6 +173,13 @@ impl DisplayWork for WorkWithRelations {
     fn onix_ebsco_host_endpoint(&self) -> String {
         format!(
             "{}/specifications/onix_2.1::ebsco_host/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
+    fn onix_proquest_ebrary_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/onix_2.1::proquest_ebrary/work/{}",
             THOTH_EXPORT_API, &self.work_id
         )
     }
@@ -428,6 +436,12 @@ impl DisplayWork for WorkWithRelations {
                                                 class="dropdown-item"
                                             >
                                             {"ONIX 2.1 (EBSCO Host)"}
+                                            </a>
+                                            <a
+                                                href={self.onix_proquest_ebrary_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"ONIX 2.1 (ProQuest Ebrary)"}
                                             </a>
                                             <a
                                                 href={self.csv_endpoint()}

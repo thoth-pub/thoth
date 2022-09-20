@@ -47,7 +47,10 @@ lazy_static! {
             id: "onix_2.1::ebsco_host",
             name: "EBSCO Host ONIX 2.1",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_2.1"),
-            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/ebsco_host"),],
+            accepted_by: vec![
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/ebsco_host"),
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/rnib_bookshare"),
+            ],
         },
         Specification {
             id: "csv::thoth",
@@ -78,6 +81,15 @@ lazy_static! {
             name: "CrossRef DOI deposit",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/doideposit"),
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/crossref"),],
+        },
+        Specification {
+            id: "onix_2.1::proquest_ebrary",
+            name: "ProQuest Ebrary ONIX 2.1",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_2.1"),
+            accepted_by: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/platforms/proquest_ebrary"
+            )],
         },
     ];
     pub(crate) static ref ALL_PLATFORMS: Vec<Platform<'static>> = vec![
@@ -204,6 +216,22 @@ lazy_static! {
                 "/specifications/doideposit::crossref"
             ),],
         },
+        Platform {
+            id: "rnib_bookshare",
+            name: "RNIB Bookshare",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/onix_2.1::ebsco_host"
+            ),],
+        },
+        Platform {
+            id: "proquest_ebrary",
+            name: "ProQuest Ebrary",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/onix_2.1::proquest_ebrary"
+            ),],
+        },
     ];
     pub(crate) static ref ALL_FORMATS: Vec<Format<'static>> = vec![
         Format {
@@ -231,10 +259,16 @@ lazy_static! {
             id: "onix_2.1",
             name: "ONIX",
             version: Some("2.1"),
-            specifications: vec![concat!(
-                env!("THOTH_EXPORT_API"),
-                "/specifications/onix_2.1::ebsco_host"
-            ),],
+            specifications: vec![
+                concat!(
+                    env!("THOTH_EXPORT_API"),
+                    "/specifications/onix_2.1::ebsco_host"
+                ),
+                concat!(
+                    env!("THOTH_EXPORT_API"),
+                    "/specifications/onix_2.1::proquest_ebrary"
+                ),
+            ],
         },
         Format {
             id: "csv",
