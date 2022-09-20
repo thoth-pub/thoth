@@ -84,6 +84,9 @@ impl Component for NavbarComponent {
                                 <a class="navbar-item"  href="https://doi.org/10.21428/785a6451.939caeab" title="Scoping Report">
                                     { "Scoping Report" }
                                 </a>
+                                <a class="navbar-item"  href="https://github.com/thoth-pub/thoth/wiki/Thoth-User-Manual" title="User Manual">
+                                    { "User Manual" }
+                                </a>
                                 <hr class="navbar-divider" />
                                 <a class="navbar-item" href={graphiql} title="GraphiQL">
                                     { "GraphiQL" }
