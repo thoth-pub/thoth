@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [#426](https://github.com/thoth-pub/thoth/issues/426) - Add ProQuest Ebrary ONIX 2.1 specification
   - [#420](https://github.com/thoth-pub/thoth/issues/420) - Add RNIB Bookshare to the list of supported platforms for ONIX 2.1
+  - [#423](https://github.com/thoth-pub/thoth/issues/423) - Add a link to the Thoth user manual under "Docs" tab of navbar
   - Development workflow in docker
 
 ### Changed
