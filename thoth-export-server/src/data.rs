@@ -47,7 +47,10 @@ lazy_static! {
             id: "onix_2.1::ebsco_host",
             name: "EBSCO Host ONIX 2.1",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_2.1"),
-            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/ebsco_host"),],
+            accepted_by: vec![
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/ebsco_host"),
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/rnib_bookshare"),
+            ],
         },
         Specification {
             id: "csv::thoth",
@@ -202,6 +205,14 @@ lazy_static! {
             accepts: vec![concat!(
                 env!("THOTH_EXPORT_API"),
                 "/specifications/doideposit::crossref"
+            ),],
+        },
+        Platform {
+            id: "rnib_bookshare",
+            name: "RNIB Bookshare",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/onix_2.1::ebsco_host"
             ),],
         },
     ];
