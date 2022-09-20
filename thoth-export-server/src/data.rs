@@ -262,6 +262,9 @@ lazy_static! {
             specifications: vec![concat!(
                 env!("THOTH_EXPORT_API"),
                 "/specifications/onix_2.1::ebsco_host"
+            ),concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/onix_2.1::proquest_ebrary"
             ),],
         },
         Format {
