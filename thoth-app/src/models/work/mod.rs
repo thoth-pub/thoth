@@ -289,7 +289,7 @@ impl DisplayWork for WorkWithRelations {
             WorkStatus::NoLongerOurProduct => html! {},
             WorkStatus::OutOfStockIndefinitely => html! {},
             WorkStatus::OutOfPrint => html! {<span class="tag is-danger">{ "Out of print" }</span>},
-            WorkStatus::Inactive => html! {<span class="tag is-danger">{ "" }</span>},
+            WorkStatus::Inactive => html! {<span class="tag is-danger">{ "Inactive" }</span>},
             WorkStatus::Unknown => html! {},
             WorkStatus::Remaindered => html! {},
             WorkStatus::WithdrawnFromSale => {

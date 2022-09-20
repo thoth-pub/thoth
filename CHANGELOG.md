@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
   - [#425](https://github.com/thoth-pub/thoth/issues/425) - Fix typo in contribution type illustrator
+  - [#424](https://github.com/thoth-pub/thoth/issues/424) - Fix inactive tag on catalogue
   - Added derives for `Eq` alongside `PartialEq` to comply with [`rustc 1.63.0`](https://github.com/rust-lang/rust/releases/tag/1.63.0)
   - Upgrade rust to `1.63.0` in development `Dockerfile`
 
