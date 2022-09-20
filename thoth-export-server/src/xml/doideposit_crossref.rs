@@ -277,7 +277,7 @@ fn work_metadata<W: Write>(
             // element with a `reason` attribute - assume missing ISBNs are erroneous
             return Err(ThothError::IncompleteMetadataRecord(
                 "doideposit::crossref".to_string(),
-                "No ISBNs provided".to_string(),
+                "Missing ISBNs".to_string(),
             ));
         }
         write_element_block("publisher", w, |w| {
@@ -1188,7 +1188,7 @@ mod tests {
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
-            "Could not generate doideposit::crossref: No ISBNs provided".to_string()
+            "Could not generate doideposit::crossref: Missing ISBNs".to_string()
         );
     }
 
