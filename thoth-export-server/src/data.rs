@@ -85,7 +85,7 @@ lazy_static! {
         Specification {
             id: "onix_2.1::proquest_ebrary",
             name: "ProQuest Ebrary",
-            name: "EBSCO Host ONIX 2.1",
+            name: "ProQuest Ebrary ONIX 2.1",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_2.1"),
             accepted_by: vec![concat!(
                 env!("THOTH_EXPORT_API"),
