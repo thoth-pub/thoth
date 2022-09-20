@@ -8,11 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [#426](https://github.com/thoth-pub/thoth/issues/426) - Add ProQuest Ebrary ONIX 2.1 specification
   - [#420](https://github.com/thoth-pub/thoth/issues/420) - Add RNIB Bookshare to the list of supported platforms for ONIX 2.1
+  - [#423](https://github.com/thoth-pub/thoth/issues/423) - Add a link to the Thoth user manual under "Docs" tab of navbar
   - Development workflow in docker
 
 ### Changed
   - [#425](https://github.com/thoth-pub/thoth/issues/425) - Fix typo in contribution type illustrator
   - [#429](https://github.com/thoth-pub/thoth/issues/429) - Incomplete metadata record errors are now returned as a 404 instead of 500
+  - [#424](https://github.com/thoth-pub/thoth/issues/424) - Fix inactive tag on catalogue
   - Added derives for `Eq` alongside `PartialEq` to comply with [`rustc 1.63.0`](https://github.com/rust-lang/rust/releases/tag/1.63.0)
   - Upgrade rust to `1.63.0` in development `Dockerfile`
 
