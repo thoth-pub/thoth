@@ -237,7 +237,9 @@ impl ToString for MetadataSpecification {
             MetadataSpecification::Onix3GoogleBooks(_) => "onix_3.0::google_books".to_string(),
             MetadataSpecification::Onix3Overdrive(_) => "onix_3.0::overdrive".to_string(),
             MetadataSpecification::Onix21EbscoHost(_) => "onix_2.1::ebsco_host".to_string(),
-            MetadataSpecification::Onix21ProquestEbrary(_) => "onix_2.1::proquest_ebrary".to_string(),
+            MetadataSpecification::Onix21ProquestEbrary(_) => {
+                "onix_2.1::proquest_ebrary".to_string()
+            }
             MetadataSpecification::CsvThoth(_) => "csv::thoth".to_string(),
             MetadataSpecification::KbartOclc(_) => "kbart::oclc".to_string(),
             MetadataSpecification::BibtexThoth(_) => "bibtex::thoth".to_string(),
