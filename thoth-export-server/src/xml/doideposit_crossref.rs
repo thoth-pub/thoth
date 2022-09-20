@@ -483,7 +483,7 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributio
             ContributionType::TRANSLATOR => "translator",
             // Only the above roles are supported by this format.
             ContributionType::PHOTOGRAPHER
-            | ContributionType::ILUSTRATOR
+            | ContributionType::ILLUSTRATOR
             | ContributionType::MUSIC_EDITOR
             | ContributionType::FOREWORD_BY
             | ContributionType::INTRODUCTION_BY
