@@ -259,13 +259,16 @@ lazy_static! {
             id: "onix_2.1",
             name: "ONIX",
             version: Some("2.1"),
-            specifications: vec![concat!(
-                env!("THOTH_EXPORT_API"),
-                "/specifications/onix_2.1::ebsco_host"
-            ),concat!(
-                env!("THOTH_EXPORT_API"),
-                "/specifications/onix_2.1::proquest_ebrary"
-            ),],
+            specifications: vec![
+                concat!(
+                    env!("THOTH_EXPORT_API"),
+                    "/specifications/onix_2.1::ebsco_host"
+                ),
+                concat!(
+                    env!("THOTH_EXPORT_API"),
+                    "/specifications/onix_2.1::proquest_ebrary"
+                ),
+            ],
         },
         Format {
             id: "csv",
