@@ -11,8 +11,8 @@ use thoth_errors::{ThothError, ThothResult};
 use crate::bibtex::{BibtexSpecification, BibtexThoth};
 use crate::csv::{CsvSpecification, CsvThoth, KbartOclc};
 use crate::xml::{
-    DoiDepositCrossref, Onix21EbscoHost, Onix3GoogleBooks, Onix3Jstor, Onix3Oapen, Onix3Overdrive,
-    Onix3ProjectMuse, XmlSpecification, Onix21ProquestEbrary,
+    DoiDepositCrossref, Onix21EbscoHost, Onix21ProquestEbrary, Onix3GoogleBooks, Onix3Jstor,
+    Onix3Oapen, Onix3Overdrive, Onix3ProjectMuse, XmlSpecification,
 };
 
 pub(crate) trait AsRecord {}
@@ -214,9 +214,9 @@ impl FromStr for MetadataSpecification {
             "onix_2.1::ebsco_host" => {
                 Ok(MetadataSpecification::Onix21EbscoHost(Onix21EbscoHost {}))
             }
-            "onix_2.1::proquest_ebrary" => {
-                Ok(MetadataSpecification::Onix21ProquestEbrary(Onix21ProquestEbrary {}))
-            }
+            "onix_2.1::proquest_ebrary" => Ok(MetadataSpecification::Onix21ProquestEbrary(
+                Onix21ProquestEbrary {},
+            )),
             "csv::thoth" => Ok(MetadataSpecification::CsvThoth(CsvThoth {})),
             "kbart::oclc" => Ok(MetadataSpecification::KbartOclc(KbartOclc {})),
             "bibtex::thoth" => Ok(MetadataSpecification::BibtexThoth(BibtexThoth {})),

@@ -87,7 +87,10 @@ lazy_static! {
             name: "ProQuest Ebrary",
             name: "EBSCO Host ONIX 2.1",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_2.1"),
-            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/proquest_ebrary"),],
+            accepted_by: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/platforms/proquest_ebrary"
+            )],
         },
     ];
     pub(crate) static ref ALL_PLATFORMS: Vec<Platform<'static>> = vec![
