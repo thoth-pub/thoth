@@ -477,7 +477,7 @@ impl XmlElement<Onix3Oapen> for ContributionType {
             ContributionType::EDITOR => "B01",
             ContributionType::TRANSLATOR
             | ContributionType::PHOTOGRAPHER
-            | ContributionType::ILUSTRATOR
+            | ContributionType::ILLUSTRATOR
             | ContributionType::MUSIC_EDITOR
             | ContributionType::FOREWORD_BY
             | ContributionType::INTRODUCTION_BY
@@ -733,7 +733,7 @@ mod tests {
         for contribution_type in [
             ContributionType::TRANSLATOR,
             ContributionType::PHOTOGRAPHER,
-            ContributionType::ILUSTRATOR,
+            ContributionType::ILLUSTRATOR,
             ContributionType::MUSIC_EDITOR,
             ContributionType::FOREWORD_BY,
             ContributionType::INTRODUCTION_BY,

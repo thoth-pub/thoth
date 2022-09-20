@@ -506,7 +506,7 @@ impl XmlElement<Onix21EbscoHost> for ContributionType {
             ContributionType::EDITOR => "B01",
             ContributionType::TRANSLATOR => "B06",
             ContributionType::PHOTOGRAPHER => "A13",
-            ContributionType::ILUSTRATOR => "A12",
+            ContributionType::ILLUSTRATOR => "A12",
             ContributionType::MUSIC_EDITOR => "B25",
             ContributionType::FOREWORD_BY => "A23",
             ContributionType::INTRODUCTION_BY => "A24",
@@ -709,7 +709,7 @@ mod tests {
         test_contribution.contribution_type = ContributionType::PHOTOGRAPHER;
         let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A13</ContributorRole>"#));
-        test_contribution.contribution_type = ContributionType::ILUSTRATOR;
+        test_contribution.contribution_type = ContributionType::ILLUSTRATOR;
         let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A12</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::MUSIC_EDITOR;

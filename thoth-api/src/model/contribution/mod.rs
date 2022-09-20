@@ -21,7 +21,7 @@ pub enum ContributionType {
     Editor,
     Translator,
     Photographer,
-    Ilustrator,
+    Illustrator,
     #[cfg_attr(feature = "backend", db_rename = "music-editor")]
     MusicEditor,
     #[cfg_attr(feature = "backend", db_rename = "foreword-by")]
@@ -180,7 +180,7 @@ fn test_contributiontype_display() {
         format!("{}", ContributionType::Photographer),
         "Photographer"
     );
-    assert_eq!(format!("{}", ContributionType::Ilustrator), "Ilustrator");
+    assert_eq!(format!("{}", ContributionType::Illustrator), "Illustrator");
     assert_eq!(format!("{}", ContributionType::MusicEditor), "Music Editor");
     assert_eq!(format!("{}", ContributionType::ForewordBy), "Foreword By");
     assert_eq!(
@@ -211,8 +211,8 @@ fn test_contributiontype_fromstr() {
         ContributionType::Photographer
     );
     assert_eq!(
-        ContributionType::from_str("Ilustrator").unwrap(),
-        ContributionType::Ilustrator
+        ContributionType::from_str("Illustrator").unwrap(),
+        ContributionType::Illustrator
     );
     assert_eq!(
         ContributionType::from_str("Music Editor").unwrap(),
