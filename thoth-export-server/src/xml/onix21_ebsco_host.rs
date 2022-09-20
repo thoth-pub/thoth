@@ -399,14 +399,14 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
                         w.write(XmlEvent::Characters("Open access"))
                             .map_err(|e| e.into())
                     })?;
-                    // EBSCO Host require the price point for Open Access titles to be listed as "0.01 USD".
+                    // EBSCO Host require the price point for Open Access titles to be listed as "0.00 USD".
                     write_element_block("Price", w, |w| {
                         // 02 RRP including tax
                         write_element_block("PriceTypeCode", w, |w| {
                             w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
                         })?;
                         write_element_block("PriceAmount", w, |w| {
-                            w.write(XmlEvent::Characters("0.01")).map_err(|e| e.into())
+                            w.write(XmlEvent::Characters("0.00")).map_err(|e| e.into())
                         })?;
                         write_element_block("CurrencyCode", w, |w| {
                             w.write(XmlEvent::Characters("USD")).map_err(|e| e.into())
@@ -1058,7 +1058,7 @@ mod tests {
             .contains(r#"    <AudienceRestrictionNote>Open access</AudienceRestrictionNote>"#));
         assert!(output.contains(r#"    <Price>"#));
         assert!(output.contains(r#"      <PriceTypeCode>02</PriceTypeCode>"#));
-        assert!(output.contains(r#"      <PriceAmount>0.01</PriceAmount>"#));
+        assert!(output.contains(r#"      <PriceAmount>0.00</PriceAmount>"#));
         assert!(output.contains(r#"      <CurrencyCode>USD</CurrencyCode>"#));
 
         // Remove some values to test non-output of optional blocks
