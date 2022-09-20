@@ -39,7 +39,9 @@ impl XmlSpecification for Onix21ProquestEbrary {
                     "onix_2.1::proquest_ebrary".to_string(),
                     "Not enough data".to_string(),
                 )),
-                1 => XmlElementBlock::<Onix21ProquestEbrary>::xml_element(works.first().unwrap(), w),
+                1 => {
+                    XmlElementBlock::<Onix21ProquestEbrary>::xml_element(works.first().unwrap(), w)
+                }
                 _ => {
                     for work in works.iter() {
                         // Do not include Chapters in full publisher metadata record
@@ -637,12 +639,13 @@ mod tests {
         let mut writer = xml::writer::EmitterConfig::new()
             .perform_indent(true)
             .create_writer(&mut buffer);
-        let wrapped_output = XmlElementBlock::<Onix21ProquestEbrary>::xml_element(input, &mut writer)
-            .map(|_| buffer)
-            .and_then(|xml| {
-                String::from_utf8(xml)
-                    .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
-            });
+        let wrapped_output =
+            XmlElementBlock::<Onix21ProquestEbrary>::xml_element(input, &mut writer)
+                .map(|_| buffer)
+                .and_then(|xml| {
+                    String::from_utf8(xml)
+                        .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
+                });
         if expect_ok {
             assert!(wrapped_output.is_ok());
             wrapped_output.unwrap()
