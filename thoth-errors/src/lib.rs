@@ -120,6 +120,9 @@ impl actix_web::error::ResponseError for ThothError {
             ThothError::DatabaseError { .. } => {
                 HttpResponse::InternalServerError().json("DB error")
             }
+            ThothError::IncompleteMetadataRecord(_, _) => {
+                HttpResponse::NotFound().json(self.to_string())
+            }
             _ => HttpResponse::InternalServerError().json(self.to_string()),
         }
     }
