@@ -1,6 +1,6 @@
 [package]
 name = "thoth"
-version = "0.8.8"
+version = "0.8.9"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -16,11 +16,11 @@ maintenance = { status = "actively-developed" }
 members = ["thoth-api", "thoth-api-server", "thoth-app", "thoth-app-server", "thoth-client", "thoth-errors", "thoth-export-server"]
 
 [dependencies]
-thoth-api = { version = "0.8.8", path = "thoth-api", features = ["backend"] }
-thoth-api-server = { version = "0.8.8", path = "thoth-api-server" }
-thoth-app-server = { version = "0.8.8", path = "thoth-app-server" }
-thoth-errors = { version = "0.8.8", path = "thoth-errors" }
-thoth-export-server = { version = "0.8.8", path = "thoth-export-server" }
+thoth-api = { version = "0.8.9", path = "thoth-api", features = ["backend"] }
+thoth-api-server = { version = "0.8.9", path = "thoth-api-server" }
+thoth-app-server = { version = "0.8.9", path = "thoth-app-server" }
+thoth-errors = { version = "0.8.9", path = "thoth-errors" }
+thoth-export-server = { version = "0.8.9", path = "thoth-export-server" }
 clap = "2.33.3"
 dialoguer = "0.7.1"
 dotenv = "0.15.0"
