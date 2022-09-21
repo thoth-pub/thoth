@@ -107,7 +107,7 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                 // Google Books requires at least one ProductIdentifier block with an ISBN type
                 return Err(ThothError::IncompleteMetadataRecord(
                     "onix_3.0::google_books".to_string(),
-                    "No ISBN supplied".to_string(),
+                    "This work does not have a PDF, EPUB or paperback ISBN".to_string(),
                 ));
             }
             write_element_block("Product", w, |w| {
@@ -526,7 +526,7 @@ impl XmlElement<Onix3GoogleBooks> for ContributionType {
             ContributionType::EDITOR => "B01",
             ContributionType::TRANSLATOR => "B06",
             ContributionType::PHOTOGRAPHER => "A13",
-            ContributionType::ILUSTRATOR => "A12",
+            ContributionType::ILLUSTRATOR => "A12",
             ContributionType::FOREWORD_BY => "A23",
             ContributionType::INTRODUCTION_BY => "A24",
             ContributionType::AFTERWORD_BY => "A19",
@@ -704,7 +704,7 @@ mod tests {
         test_contribution.contribution_type = ContributionType::PHOTOGRAPHER;
         let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A13</ContributorRole>"#));
-        test_contribution.contribution_type = ContributionType::ILUSTRATOR;
+        test_contribution.contribution_type = ContributionType::ILLUSTRATOR;
         let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A12</ContributorRole>"#));
         test_contribution.contribution_type = ContributionType::FOREWORD_BY;
@@ -1128,7 +1128,7 @@ mod tests {
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
-            "Could not generate onix_3.0::google_books: No ISBN supplied".to_string()
+            "Could not generate onix_3.0::google_books: This work does not have a PDF, EPUB or paperback ISBN".to_string()
         );
 
         // Replace ISBN but remove all contributors: result is error

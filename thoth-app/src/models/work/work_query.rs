@@ -42,7 +42,7 @@ pub const WORK_QUERY: &str = "
             firstPage
             lastPage
             pageInterval
-            relations {
+            relations(order: {field: RELATION_ORDINAL, direction: ASC}) {
                 workRelationId
                 relatorWorkId
                 relatedWorkId
@@ -61,7 +61,7 @@ pub const WORK_QUERY: &str = "
                     updatedAt
                 }
             }
-            contributions {
+            contributions(order: {field: CONTRIBUTION_ORDINAL, direction: ASC}) {
                 contributionId
                 workId
                 contributorId
@@ -204,7 +204,7 @@ graphql_query_builder! {
     FetchActionWork
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub work_id: Option<Uuid>,

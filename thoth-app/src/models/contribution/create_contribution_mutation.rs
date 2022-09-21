@@ -54,7 +54,7 @@ graphql_query_builder! {
     PushActionCreateContribution
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub work_id: Uuid,
@@ -68,7 +68,7 @@ pub struct Variables {
     pub contribution_ordinal: i32,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateContributionResponseData {
     pub create_contribution: Option<Contribution>,

@@ -60,7 +60,7 @@ pub enum Msg {
     ChangePublisherUrl(String),
 }
 
-#[derive(PartialEq, Properties)]
+#[derive(PartialEq, Eq, Properties)]
 pub struct Props {
     pub publisher_id: Uuid,
     pub current_user: AccountDetails,

@@ -42,7 +42,7 @@ graphql_query_builder! {
     PushActionCreateLocation
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub publication_id: Uuid,
@@ -52,7 +52,7 @@ pub struct Variables {
     pub canonical: bool,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateLocationResponseData {
     pub create_location: Option<Location>,

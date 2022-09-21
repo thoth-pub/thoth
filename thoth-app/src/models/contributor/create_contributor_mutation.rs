@@ -38,7 +38,7 @@ graphql_query_builder! {
     PushActionCreateContributor
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub first_name: Option<String>,
@@ -48,7 +48,7 @@ pub struct Variables {
     pub website: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateContributorResponseData {
     pub create_contributor: Option<Contributor>,

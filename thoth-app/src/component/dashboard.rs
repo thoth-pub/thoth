@@ -28,7 +28,7 @@ pub enum Msg {
     GetStats,
 }
 
-#[derive(PartialEq, Properties)]
+#[derive(PartialEq, Eq, Properties)]
 pub struct Props {
     pub current_user: AccountDetails,
 }

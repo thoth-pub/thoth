@@ -1,7 +1,7 @@
 use uuid::Uuid;
 use yew_router::prelude::*;
 
-#[derive(Debug, Clone, PartialEq, Routable)]
+#[derive(Debug, Clone, PartialEq, Eq, Routable)]
 pub enum AppRoute {
     #[at("/login")]
     Login,
@@ -16,7 +16,7 @@ pub enum AppRoute {
     Home,
 }
 
-#[derive(Debug, Clone, PartialEq, Routable)]
+#[derive(Debug, Clone, PartialEq, Eq, Routable)]
 pub enum AdminRoute {
     #[at("/admin/dashboard")]
     Dashboard,

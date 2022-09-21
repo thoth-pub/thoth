@@ -277,7 +277,7 @@ fn work_metadata<W: Write>(
             // element with a `reason` attribute - assume missing ISBNs are erroneous
             return Err(ThothError::IncompleteMetadataRecord(
                 "doideposit::crossref".to_string(),
-                "No ISBNs provided".to_string(),
+                "This work does not have any ISBNs".to_string(),
             ));
         }
         write_element_block("publisher", w, |w| {
@@ -483,7 +483,7 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributio
             ContributionType::TRANSLATOR => "translator",
             // Only the above roles are supported by this format.
             ContributionType::PHOTOGRAPHER
-            | ContributionType::ILUSTRATOR
+            | ContributionType::ILLUSTRATOR
             | ContributionType::MUSIC_EDITOR
             | ContributionType::FOREWORD_BY
             | ContributionType::INTRODUCTION_BY
@@ -1188,7 +1188,8 @@ mod tests {
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
-            "Could not generate doideposit::crossref: No ISBNs provided".to_string()
+            "Could not generate doideposit::crossref: This work does not have any ISBNs"
+                .to_string()
         );
     }
 

@@ -35,8 +35,25 @@ For more information about Thoth, its data and metadata formats, and more, see t
 - A PostgreSQL database (included in docker-compose.yml if ran using docker)
 - `libssl-dev`
 
-### Running with docker
+### Running with docker (development)
 
+#### Config
+```sh
+git clone https://github.com/thoth-pub/thoth.git
+cd thoth
+cp .env.example .env  # Edit the credentials in .env
+```
+#### Run
+```sh
+make docker-dev
+```
+or
+```sh
+docker-compose -f docker-compose.dev.yml build
+docker-compose -f docker-compose.dev.yml up 
+```
+
+### Running with docker (production)
 
 ```sh
 git clone https://github.com/thoth-pub/thoth.git

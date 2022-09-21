@@ -42,7 +42,7 @@ graphql_query_builder! {
     FetchActionSerieses
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub limit: Option<i32>,
@@ -52,7 +52,7 @@ pub struct Variables {
     pub publishers: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SeriesesResponseData {
     pub serieses: Vec<SeriesWithImprint>,

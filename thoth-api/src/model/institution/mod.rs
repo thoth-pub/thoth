@@ -19,7 +19,7 @@ use crate::schema::institution_history;
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting institutions list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum InstitutionField {
     #[strum(serialize = "ID")]
@@ -37,7 +37,7 @@ pub enum InstitutionField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Institution {
     pub institution_id: Uuid,
@@ -77,7 +77,7 @@ pub struct PatchInstitution {
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Country_code")]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CountryCode {
     #[strum(serialize = "Afghanistan")]
@@ -605,7 +605,7 @@ pub struct NewInstitutionHistory {
     derive(juniper::GraphQLInputObject),
     graphql(description = "Field and order to use when sorting institutions list")
 )]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct InstitutionOrderBy {
     pub field: InstitutionField,
     pub direction: Direction,

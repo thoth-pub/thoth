@@ -11,8 +11,8 @@ use thoth_errors::{ThothError, ThothResult};
 use crate::bibtex::{BibtexSpecification, BibtexThoth};
 use crate::csv::{CsvSpecification, CsvThoth, KbartOclc};
 use crate::xml::{
-    DoiDepositCrossref, Onix21EbscoHost, Onix3GoogleBooks, Onix3Jstor, Onix3Oapen, Onix3Overdrive,
-    Onix3ProjectMuse, XmlSpecification,
+    DoiDepositCrossref, Onix21EbscoHost, Onix21ProquestEbrary, Onix3GoogleBooks, Onix3Jstor,
+    Onix3Oapen, Onix3Overdrive, Onix3ProjectMuse, XmlSpecification,
 };
 
 pub(crate) trait AsRecord {}
@@ -30,6 +30,7 @@ pub(crate) enum MetadataSpecification {
     Onix3GoogleBooks(Onix3GoogleBooks),
     Onix3Overdrive(Onix3Overdrive),
     Onix21EbscoHost(Onix21EbscoHost),
+    Onix21ProquestEbrary(Onix21ProquestEbrary),
     CsvThoth(CsvThoth),
     KbartOclc(KbartOclc),
     BibtexThoth(BibtexThoth),
@@ -71,6 +72,7 @@ where
             MetadataSpecification::Onix3GoogleBooks(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Onix3Overdrive(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Onix21EbscoHost(_) => Self::XML_MIME_TYPE,
+            MetadataSpecification::Onix21ProquestEbrary(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::CsvThoth(_) => Self::CSV_MIME_TYPE,
             MetadataSpecification::KbartOclc(_) => Self::TXT_MIME_TYPE,
             MetadataSpecification::BibtexThoth(_) => Self::BIB_MIME_TYPE,
@@ -86,6 +88,7 @@ where
             MetadataSpecification::Onix3GoogleBooks(_) => self.xml_file_name(),
             MetadataSpecification::Onix3Overdrive(_) => self.xml_file_name(),
             MetadataSpecification::Onix21EbscoHost(_) => self.xml_file_name(),
+            MetadataSpecification::Onix21ProquestEbrary(_) => self.xml_file_name(),
             MetadataSpecification::CsvThoth(_) => self.csv_file_name(),
             MetadataSpecification::KbartOclc(_) => self.txt_file_name(),
             MetadataSpecification::BibtexThoth(_) => self.bib_file_name(),
@@ -143,6 +146,9 @@ impl MetadataRecord<Vec<Work>> {
             }
             MetadataSpecification::Onix21EbscoHost(onix21_ebsco_host) => {
                 onix21_ebsco_host.generate(&self.data, Some(DOCTYPE_ONIX21_REF))
+            }
+            MetadataSpecification::Onix21ProquestEbrary(onix21_proquest_ebrary) => {
+                onix21_proquest_ebrary.generate(&self.data, Some(DOCTYPE_ONIX21_REF))
             }
             MetadataSpecification::CsvThoth(csv_thoth) => {
                 csv_thoth.generate(&self.data, QuoteStyle::Always, DELIMITER_COMMA)
@@ -208,6 +214,9 @@ impl FromStr for MetadataSpecification {
             "onix_2.1::ebsco_host" => {
                 Ok(MetadataSpecification::Onix21EbscoHost(Onix21EbscoHost {}))
             }
+            "onix_2.1::proquest_ebrary" => Ok(MetadataSpecification::Onix21ProquestEbrary(
+                Onix21ProquestEbrary {},
+            )),
             "csv::thoth" => Ok(MetadataSpecification::CsvThoth(CsvThoth {})),
             "kbart::oclc" => Ok(MetadataSpecification::KbartOclc(KbartOclc {})),
             "bibtex::thoth" => Ok(MetadataSpecification::BibtexThoth(BibtexThoth {})),
@@ -228,6 +237,9 @@ impl ToString for MetadataSpecification {
             MetadataSpecification::Onix3GoogleBooks(_) => "onix_3.0::google_books".to_string(),
             MetadataSpecification::Onix3Overdrive(_) => "onix_3.0::overdrive".to_string(),
             MetadataSpecification::Onix21EbscoHost(_) => "onix_2.1::ebsco_host".to_string(),
+            MetadataSpecification::Onix21ProquestEbrary(_) => {
+                "onix_2.1::proquest_ebrary".to_string()
+            }
             MetadataSpecification::CsvThoth(_) => "csv::thoth".to_string(),
             MetadataSpecification::KbartOclc(_) => "kbart::oclc".to_string(),
             MetadataSpecification::BibtexThoth(_) => "bibtex::thoth".to_string(),
@@ -313,6 +325,15 @@ mod tests {
         assert_eq!(
             to_test.file_name(),
             "onix_2.1__ebsco_host__some_id.xml".to_string()
+        );
+        let to_test = MetadataRecord::new(
+            "some_id".to_string(),
+            MetadataSpecification::Onix21ProquestEbrary(Onix21ProquestEbrary {}),
+            vec![],
+        );
+        assert_eq!(
+            to_test.file_name(),
+            "onix_2.1__proquest_ebrary__some_id.xml".to_string()
         );
         let to_test = MetadataRecord::new(
             "some_id".to_string(),

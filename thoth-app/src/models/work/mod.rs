@@ -16,7 +16,7 @@ use super::{CreateRoute, Dropdown, EditRoute, ListString, MetadataTable};
 use crate::route::AdminRoute;
 use crate::THOTH_EXPORT_API;
 
-#[derive(Clone, Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub enum License {
     By,
     BySa,
@@ -28,37 +28,37 @@ pub enum License {
     Undefined,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LengthUnitDefinition {
     pub enum_values: Vec<LengthUnitValues>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkTypeDefinition {
     pub enum_values: Vec<WorkTypeValues>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkStatusDefinition {
     pub enum_values: Vec<WorkStatusValues>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LengthUnitValues {
     pub name: LengthUnit,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkTypeValues {
     pub name: WorkType,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkStatusValues {
     pub name: WorkStatus,
@@ -123,6 +123,7 @@ pub trait DisplayWork {
     fn onix_google_books_endpoint(&self) -> String;
     fn onix_overdrive_endpoint(&self) -> String;
     fn onix_ebsco_host_endpoint(&self) -> String;
+    fn onix_proquest_ebrary_endpoint(&self) -> String;
     fn csv_endpoint(&self) -> String;
     fn kbart_endpoint(&self) -> String;
     fn bibtex_endpoint(&self) -> String;
@@ -172,6 +173,13 @@ impl DisplayWork for WorkWithRelations {
     fn onix_ebsco_host_endpoint(&self) -> String {
         format!(
             "{}/specifications/onix_2.1::ebsco_host/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
+    fn onix_proquest_ebrary_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/onix_2.1::proquest_ebrary/work/{}",
             THOTH_EXPORT_API, &self.work_id
         )
     }
@@ -281,7 +289,7 @@ impl DisplayWork for WorkWithRelations {
             WorkStatus::NoLongerOurProduct => html! {},
             WorkStatus::OutOfStockIndefinitely => html! {},
             WorkStatus::OutOfPrint => html! {<span class="tag is-danger">{ "Out of print" }</span>},
-            WorkStatus::Inactive => html! {<span class="tag is-danger">{ "" }</span>},
+            WorkStatus::Inactive => html! {<span class="tag is-danger">{ "Inactive" }</span>},
             WorkStatus::Unknown => html! {},
             WorkStatus::Remaindered => html! {},
             WorkStatus::WithdrawnFromSale => {
@@ -428,6 +436,12 @@ impl DisplayWork for WorkWithRelations {
                                                 class="dropdown-item"
                                             >
                                             {"ONIX 2.1 (EBSCO Host)"}
+                                            </a>
+                                            <a
+                                                href={self.onix_proquest_ebrary_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"ONIX 2.1 (ProQuest Ebrary)"}
                                             </a>
                                             <a
                                                 href={self.csv_endpoint()}

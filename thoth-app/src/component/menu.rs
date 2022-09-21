@@ -7,7 +7,7 @@ use crate::route::AdminRoute;
 
 pub struct MenuComponent {}
 
-#[derive(PartialEq, Properties)]
+#[derive(PartialEq, Eq, Properties)]
 pub struct Props {
     pub route: AdminRoute,
 }

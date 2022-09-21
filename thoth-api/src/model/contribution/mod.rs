@@ -13,7 +13,7 @@ use crate::schema::contribution_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Contribution_type")]
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum ContributionType {
@@ -21,7 +21,7 @@ pub enum ContributionType {
     Editor,
     Translator,
     Photographer,
-    Ilustrator,
+    Illustrator,
     #[cfg_attr(feature = "backend", db_rename = "music-editor")]
     MusicEditor,
     #[cfg_attr(feature = "backend", db_rename = "foreword-by")]
@@ -55,7 +55,7 @@ pub enum ContributionField {
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Contribution {
     pub contribution_id: Uuid,
@@ -72,7 +72,7 @@ pub struct Contribution {
     pub contribution_ordinal: i32,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ContributionWithAffiliations {
     pub affiliations: Option<Vec<AffiliationWithInstitution>>,
@@ -180,7 +180,7 @@ fn test_contributiontype_display() {
         format!("{}", ContributionType::Photographer),
         "Photographer"
     );
-    assert_eq!(format!("{}", ContributionType::Ilustrator), "Ilustrator");
+    assert_eq!(format!("{}", ContributionType::Illustrator), "Illustrator");
     assert_eq!(format!("{}", ContributionType::MusicEditor), "Music Editor");
     assert_eq!(format!("{}", ContributionType::ForewordBy), "Foreword By");
     assert_eq!(
@@ -211,8 +211,8 @@ fn test_contributiontype_fromstr() {
         ContributionType::Photographer
     );
     assert_eq!(
-        ContributionType::from_str("Ilustrator").unwrap(),
-        ContributionType::Ilustrator
+        ContributionType::from_str("Illustrator").unwrap(),
+        ContributionType::Illustrator
     );
     assert_eq!(
         ContributionType::from_str("Music Editor").unwrap(),

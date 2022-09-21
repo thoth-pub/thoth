@@ -17,7 +17,7 @@ use crate::schema::publication_history;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Publication_type")]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublicationType {
     #[cfg_attr(feature = "backend", db_rename = "Paperback")]
@@ -52,7 +52,7 @@ pub enum PublicationType {
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting publications list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublicationField {
     #[strum(serialize = "ID")]
@@ -181,7 +181,7 @@ pub struct NewPublicationHistory {
     derive(juniper::GraphQLInputObject),
     graphql(description = "Field and order to use when sorting publications list")
 )]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PublicationOrderBy {
     pub field: PublicationField,
     pub direction: Direction,

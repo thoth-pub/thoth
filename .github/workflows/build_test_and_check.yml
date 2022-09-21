@@ -5,7 +5,23 @@ on:
     branches:
       - master
       - develop
+    paths:
+      - '**.rs'
+      - '**.js'
+      - '**.json'
+      - '**.html'
+      - 'Cargo.lock'
+      - '**Cargo.toml'
+      - 'diesel.toml'
   pull_request:
+    paths:
+      - '**.rs'
+      - '**.js'
+      - '**.json'
+      - '**.html'
+      - 'Cargo.lock'
+      - '**Cargo.toml'
+      - 'diesel.toml'
 
 env:
   CARGO_TERM_COLOR: always

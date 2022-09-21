@@ -235,7 +235,7 @@ impl Component for SubjectsFormComponent {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let subjects = ctx.props().subjects.clone().unwrap_or_default();
+        let mut subjects = ctx.props().subjects.clone().unwrap_or_default();
         let open_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(true)
@@ -243,6 +243,13 @@ impl Component for SubjectsFormComponent {
         let close_modal = ctx.link().callback(|e: MouseEvent| {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(false)
+        });
+        subjects.sort_by(|a, b| {
+            if a.subject_type == b.subject_type {
+                a.subject_ordinal.partial_cmp(&b.subject_ordinal).unwrap()
+            } else {
+                a.subject_type.partial_cmp(&b.subject_type).unwrap()
+            }
         });
         html! {
             <nav class="panel">

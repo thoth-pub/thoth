@@ -39,7 +39,7 @@ graphql_query_builder! {
     PushActionCreateInstitution
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub institution_name: String,
@@ -48,7 +48,7 @@ pub struct Variables {
     pub country_code: Option<CountryCode>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateInstitutionResponseData {
     pub create_institution: Option<Institution>,

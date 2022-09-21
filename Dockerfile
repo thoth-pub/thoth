@@ -3,6 +3,12 @@ ARG MUSL_IMAGE=ekidd/rust-musl-builder:1.57.0
 
 FROM ${RUST_IMAGE} as wasm
 
+ENV NPM_VERSION=8.15.1
+ENV N_VERSION=9.0.0
+ENV NODE_VERSION=16.16.0
+ENV ROLLUP_VERSION=2.77.2
+ENV WASM_PACK_VERSION=0.10.3
+
 ARG THOTH_GRAPHQL_API=https://api.thoth.pub
 ARG THOTH_EXPORT_API=https://export.thoth.pub
 ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
@@ -12,11 +18,11 @@ WORKDIR /wasm
 
 # Install build dependencies
 RUN apt-get update && apt-get -y install pkg-config npm
-RUN npm install -g npm@6.14.8
-RUN npm install -g n@6.7.0
-RUN n 12.19.0
-RUN npm install -g rollup@2.28.2
-RUN cargo install wasm-pack --version 0.9.1
+RUN npm install -g npm@${NPM_VERSION}
+RUN npm install -g n@${N_VERSION}
+RUN n ${NODE_VERSION}
+RUN npm install -g rollup@${ROLLUP_VERSION}
+RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
 
 # Get source
 COPY . .
