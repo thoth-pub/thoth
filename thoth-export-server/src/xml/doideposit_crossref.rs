@@ -1188,7 +1188,8 @@ mod tests {
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
-            "Could not generate doideposit::crossref: This work does not have any ISBNs".to_string()
+            "Could not generate doideposit::crossref: This work does not have any ISBNs"
+                .to_string()
         );
     }
 
