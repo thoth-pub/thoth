@@ -15,7 +15,9 @@ use thoth_errors::ThothResult;
 
 #[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
 #[cfg_attr(feature = "backend", DieselType = "Subject_type")]
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Deserialize, Serialize, EnumString, Display)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Deserialize, Serialize, EnumString, Display,
+)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SubjectType {
     #[strum(serialize = "BIC")]
