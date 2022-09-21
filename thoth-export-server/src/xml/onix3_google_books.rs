@@ -107,7 +107,7 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                 // Google Books requires at least one ProductIdentifier block with an ISBN type
                 return Err(ThothError::IncompleteMetadataRecord(
                     "onix_3.0::google_books".to_string(),
-                    "Missing ISBN".to_string(),
+                    "This work does not have a PDF, EPUB or paperback ISBN".to_string(),
                 ));
             }
             write_element_block("Product", w, |w| {
@@ -1128,7 +1128,7 @@ mod tests {
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
-            "Could not generate onix_3.0::google_books: Missing ISBN".to_string()
+            "Could not generate onix_3.0::google_books: This work does not have a PDF, EPUB or paperback ISBN".to_string()
         );
 
         // Replace ISBN but remove all contributors: result is error
