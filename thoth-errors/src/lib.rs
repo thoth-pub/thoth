@@ -190,7 +190,7 @@ impl From<yewtil::fetch::FetchError> for ThothError {
                 let message: Result<GrqphqlErrorMessage> = serde_json::from_str(&content);
                 match message {
                     Ok(m) => ThothError::GraphqlError(m.to_string()),
-                    Err(_) => ThothError::GraphqlError(content.to_string()),
+                    Err(_) => ThothError::RequestError(content.to_string()),
                 }
             }
             _ => ThothError::RequestError(error.to_string()),
@@ -270,5 +270,16 @@ mod tests {
             ThothError::from(uuid_08::Uuid::parse_str("not-a-uuid").unwrap_err()),
             ThothError::InvalidUuid
         );
+    }
+
+    #[test]
+    fn test_fetch_error() {
+        use yewtil::fetch::FetchError;
+        let error = "{\"data\":null,\"errors\":[{\"message\":\"A relation with this ordinal already exists.\",\"locations\":[{\"line\":8,\"column\":9}],\"path\":[\"createWorkRelation\"]}]}";
+        let fetch_error = FetchError::DeserializeError { error: "".to_string(), content: error.to_string() };
+        assert_eq!(
+            ThothError::from(fetch_error),
+            ThothError::GraphqlError("A relation with this ordinal already exists.".to_string())
+        )
     }
 }
