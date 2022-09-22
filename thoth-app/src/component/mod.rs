@@ -1,3 +1,5 @@
+#![allow(clippy::let_unit_value)]
+
 #[macro_export]
 macro_rules! pagination_helpers {
     ($component:ident, $pagination_text:ident, $search_text:ident) => {
