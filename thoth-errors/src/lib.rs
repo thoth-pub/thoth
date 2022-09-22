@@ -276,7 +276,10 @@ mod tests {
     fn test_fetch_error() {
         use yewtil::fetch::FetchError;
         let error = "{\"data\":null,\"errors\":[{\"message\":\"A relation with this ordinal already exists.\",\"locations\":[{\"line\":8,\"column\":9}],\"path\":[\"createWorkRelation\"]}]}";
-        let fetch_error = FetchError::DeserializeError { error: "".to_string(), content: error.to_string() };
+        let fetch_error = FetchError::DeserializeError {
+            error: "".to_string(),
+            content: error.to_string(),
+        };
         assert_eq!(
             ThothError::from(fetch_error),
             ThothError::GraphqlError("A relation with this ordinal already exists.".to_string())
