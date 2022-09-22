@@ -193,6 +193,9 @@ impl From<yewtil::fetch::FetchError> for ThothError {
                     Err(_) => ThothError::RequestError(content.to_string()),
                 }
             }
+            FetchError::CouldNotCreateFetchFuture => {
+                ThothError::RequestError("Could not connect to the API.".to_string())
+            }
             _ => ThothError::RequestError(error.to_string()),
         }
     }
