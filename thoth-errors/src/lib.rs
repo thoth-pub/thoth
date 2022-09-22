@@ -190,7 +190,7 @@ impl From<yewtil::fetch::FetchError> for ThothError {
                 let message: Result<GrqphqlErrorMessage> = serde_json::from_str(&content);
                 match message {
                     Ok(m) => ThothError::GraphqlError(m.to_string()),
-                    Err(_) => ThothError::RequestError(content.to_string()),
+                    Err(_) => ThothError::RequestError(content),
                 }
             }
             FetchError::CouldNotCreateFetchFuture => {
