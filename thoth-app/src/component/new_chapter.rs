@@ -136,7 +136,7 @@ impl Component for NewChapterComponent {
                             format!(
                                 "Created new work with title {}, but failed to add it to Related Works list: {}",
                                 self.new_chapter_title,
-                                ThothError::from(err).to_string(),
+                                ThothError::from(err),
                             ),
                             NotificationStatus::Warning,
                         )));
