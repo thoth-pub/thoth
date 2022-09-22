@@ -1,4 +1,6 @@
 use core::convert::From;
+use std::fmt;
+use serde::Deserialize;
 use thiserror::Error;
 
 /// A specialised result type for returning Thoth data
@@ -76,6 +78,14 @@ pub enum ThothError {
         "Price values must be greater than zero. To indicate an unpriced Publication, omit all Prices."
     )]
     PriceZeroError,
+    #[error("{0}")]
+    RequestError(String),
+    #[error("{0}")]
+    GraphqlError(String),
+    #[error("A contribution with this ordinal number already exists.")]
+    DuplicateContributionOrdinalError,
+    #[error("A relation with this ordinal number already exists.")]
+    DuplicateRelationOrdinalError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -134,11 +144,56 @@ impl From<diesel::result::Error> for ThothError {
         use diesel::result::Error;
         match error {
             Error::DatabaseError(_kind, info) => {
-                let message = info.details().unwrap_or_else(|| info.message()).to_string();
-                ThothError::DatabaseError(message)
+                match info.message() {
+                    "duplicate key value violates unique constraint \"contribution_contribution_ordinal_work_id_uniq\"" => ThothError::DuplicateContributionOrdinalError,
+                    "duplicate key value violates unique constraint \"work_relation_ordinal_type_uniq\"" => ThothError::DuplicateRelationOrdinalError,
+                    _ => ThothError::DatabaseError(info.message().to_string())
+                }
             }
             Error::NotFound => ThothError::EntityNotFound,
             _ => ThothError::InternalError("".into()),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphqlError {
+    message: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GrqphqlErrorMessage {
+    errors: Vec<GraphqlError>,
+}
+
+impl fmt::Display for GraphqlError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl fmt::Display for GrqphqlErrorMessage {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for error in &self.errors {
+            write!(f, "{}", error)?;
+        }
+        Ok(())
+    }
+}
+
+impl From<yewtil::fetch::FetchError> for ThothError {
+    fn from(error: yewtil::fetch::FetchError) -> Self {
+        use yewtil::fetch::FetchError;
+        use serde_json::error::Result;
+        match error {
+            FetchError::DeserializeError{ error: _, content } => {
+                let message: Result<GrqphqlErrorMessage> = serde_json::from_str(&content);
+                match message {
+                    Ok(m) => ThothError::GraphqlError(m.to_string()),
+                    Err(_) => ThothError::GraphqlError(content.to_string()),
+                }
+            }
+            _ => ThothError::RequestError(error.to_string())
         }
     }
 }

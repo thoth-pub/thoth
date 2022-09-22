@@ -3952,10 +3952,12 @@ dependencies = [
  "juniper",
  "reqwest 0.11.9",
  "serde",
+ "serde_json",
  "thiserror",
  "uuid 0.7.4",
  "uuid 0.8.2",
  "xml-rs",
+ "yewtil",
 ]
 
 [[package]]
