@@ -1,6 +1,6 @@
 use std::collections::HashSet;
-use uuid::Uuid;
 use thoth_errors::ThothError;
+use uuid::Uuid;
 use yew_agent::{Agent, AgentLink, Context, Dispatched, HandlerId};
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
