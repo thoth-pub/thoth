@@ -1,6 +1,6 @@
 use core::convert::From;
-use std::fmt;
 use serde::Deserialize;
+use std::fmt;
 use thiserror::Error;
 
 /// A specialised result type for returning Thoth data
@@ -183,17 +183,17 @@ impl fmt::Display for GrqphqlErrorMessage {
 
 impl From<yewtil::fetch::FetchError> for ThothError {
     fn from(error: yewtil::fetch::FetchError) -> Self {
-        use yewtil::fetch::FetchError;
         use serde_json::error::Result;
+        use yewtil::fetch::FetchError;
         match error {
-            FetchError::DeserializeError{ error: _, content } => {
+            FetchError::DeserializeError { error: _, content } => {
                 let message: Result<GrqphqlErrorMessage> = serde_json::from_str(&content);
                 match message {
                     Ok(m) => ThothError::GraphqlError(m.to_string()),
                     Err(_) => ThothError::GraphqlError(content.to_string()),
                 }
             }
-            _ => ThothError::RequestError(error.to_string())
+            _ => ThothError::RequestError(error.to_string()),
         }
     }
 }
