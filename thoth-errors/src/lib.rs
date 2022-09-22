@@ -82,10 +82,8 @@ pub enum ThothError {
     RequestError(String),
     #[error("{0}")]
     GraphqlError(String),
-    #[error("A contribution with this ordinal number already exists.")]
-    DuplicateContributionOrdinalError,
-    #[error("A relation with this ordinal number already exists.")]
-    DuplicateRelationOrdinalError,
+    #[error("A {0} with this ordinal number already exists.")]
+    DuplicateOrdinalError(&'static str),
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -145,8 +143,9 @@ impl From<diesel::result::Error> for ThothError {
         match error {
             Error::DatabaseError(_kind, info) => {
                 match info.message() {
-                    "duplicate key value violates unique constraint \"contribution_contribution_ordinal_work_id_uniq\"" => ThothError::DuplicateContributionOrdinalError,
-                    "duplicate key value violates unique constraint \"work_relation_ordinal_type_uniq\"" => ThothError::DuplicateRelationOrdinalError,
+                    "duplicate key value violates unique constraint \"contribution_contribution_ordinal_work_id_uniq\"" => ThothError::DuplicateOrdinalError("contribution"),
+                    "duplicate key value violates unique constraint \"work_relation_ordinal_type_uniq\"" => ThothError::DuplicateOrdinalError("relation"),
+                    "duplicate key value violates unique constraint \"affiliation_uniq_ord_in_contribution_idx\"" => ThothError::DuplicateOrdinalError("affiliation"),
                     _ => ThothError::DatabaseError(info.message().to_string())
                 }
             }
