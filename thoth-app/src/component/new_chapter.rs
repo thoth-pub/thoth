@@ -2,6 +2,7 @@ use thoth_api::model::work::WorkType;
 use thoth_api::model::work::WorkWithRelations;
 use thoth_api::model::work_relation::RelationType;
 use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
+use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -129,12 +130,13 @@ impl Component for NewChapterComponent {
                             false
                         }
                     },
-                    FetchState::Failed(_, _err) => {
+                    FetchState::Failed(_, err) => {
                         ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                         self.notification_bus.send(Request::NotificationBusMsg((
                             format!(
-                                "Created new work with title {}, but failed to add it to Related Works list",
-                                self.new_chapter_title
+                                "Created new work with title {}, but failed to add it to Related Works list: {}",
+                                self.new_chapter_title,
+                                ThothError::from(err).to_string(),
                             ),
                             NotificationStatus::Warning,
                         )));
@@ -184,7 +186,7 @@ impl Component for NewChapterComponent {
                     FetchState::Failed(_, err) => {
                         ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            format!("Failed to create new chapter: {}", err),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false

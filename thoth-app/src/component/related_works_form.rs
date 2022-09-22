@@ -4,6 +4,7 @@ use thoth_api::account::model::AccountDetails;
 use thoth_api::model::work::Work;
 use thoth_api::model::work_relation::RelationType;
 use thoth_api::model::work_relation::WorkRelationWithRelatedWork;
+use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -230,7 +231,7 @@ impl Component for RelatedWorksFormComponent {
                         ctx.link()
                             .send_message(Msg::ToggleModalFormDisplay(false, None));
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false
@@ -297,7 +298,7 @@ impl Component for RelatedWorksFormComponent {
                         ctx.link()
                             .send_message(Msg::ToggleModalFormDisplay(false, None));
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false
@@ -351,7 +352,7 @@ impl Component for RelatedWorksFormComponent {
                     },
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false

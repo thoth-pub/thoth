@@ -262,7 +262,7 @@ impl Component for InstitutionComponent {
                     },
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false
@@ -328,7 +328,7 @@ impl Component for InstitutionComponent {
                     },
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false

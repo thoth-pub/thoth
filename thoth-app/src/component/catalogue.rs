@@ -1,4 +1,5 @@
 use thoth_api::model::work::WorkWithRelations;
+use thoth_errors::ThothError;
 use yew::html;
 use yew::prelude::Component;
 use yew::prelude::Context;
@@ -203,7 +204,9 @@ impl Component for CatalogueComponent {
                         FetchState::Fetched(_body) => html! {
                             { for self.data.iter().map(|w| w.as_catalogue_box()) }
                         },
-                        FetchState::Failed(_, err) => html! {&err},
+                        FetchState::Failed(_, err) => html! {
+                            { ThothError::from(err).to_string() }
+                        },
                     }
                 }
             </div>

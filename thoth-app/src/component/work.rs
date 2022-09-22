@@ -266,7 +266,7 @@ impl Component for WorkComponent {
                     },
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false
@@ -363,7 +363,7 @@ impl Component for WorkComponent {
                     },
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false

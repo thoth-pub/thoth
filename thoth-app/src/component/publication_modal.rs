@@ -201,7 +201,7 @@ impl Component for PublicationModalComponent {
                     FetchState::Failed(_, err) => {
                         ctx.link().send_message(Msg::CloseModalForm);
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false
@@ -261,7 +261,7 @@ impl Component for PublicationModalComponent {
                     FetchState::Failed(_, err) => {
                         ctx.link().send_message(Msg::CloseModalForm);
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false

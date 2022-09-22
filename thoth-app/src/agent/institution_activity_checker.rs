@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use uuid::Uuid;
+use thoth_errors::ThothError;
 use yew_agent::{Agent, AgentLink, Context, Dispatched, HandlerId};
 use yewtil::fetch::Fetch;
 use yewtil::fetch::FetchAction;
@@ -62,7 +63,7 @@ impl Agent for InstitutionActivityChecker {
                     FetchState::Failed(_, err) => {
                         self.notification_bus
                             .send(NotificationRequest::NotificationBusMsg((
-                                err.to_string(),
+                                ThothError::from(err).to_string(),
                                 NotificationStatus::Danger,
                             )));
                     }

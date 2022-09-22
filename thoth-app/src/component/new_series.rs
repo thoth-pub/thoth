@@ -4,6 +4,7 @@ use thoth_api::account::model::AccountDetails;
 use thoth_api::model::imprint::ImprintWithPublisher;
 use thoth_api::model::series::Series;
 use thoth_api::model::series::SeriesType;
+use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -178,7 +179,7 @@ impl Component for NewSeriesComponent {
                     },
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false

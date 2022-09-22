@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use thoth_api::model::location::Location;
 use thoth_api::model::location::LocationPlatform;
+use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -159,7 +160,7 @@ impl Component for LocationsFormComponent {
                     FetchState::Failed(_, err) => {
                         ctx.link().send_message(Msg::ToggleAddFormDisplay(false));
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false
