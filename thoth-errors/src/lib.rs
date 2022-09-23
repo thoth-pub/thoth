@@ -150,15 +150,15 @@ impl actix_web::error::ResponseError for ThothError {
 const DATABASE_CONSTRAINT_ERRORS: [(&str, &str); 3] = [
     (
         "contribution_contribution_ordinal_work_id_uniq",
-        "A contribution with this ordinal number already exists."
+        "A contribution with this ordinal number already exists.",
     ),
     (
         "work_relation_ordinal_type_uniq",
-        "A relation with this ordinal number already exists."
+        "A relation with this ordinal number already exists.",
     ),
     (
         "affiliation_uniq_ord_in_contribution_idx",
-        "An affiliation with this ordinal number already exists."
+        "An affiliation with this ordinal number already exists.",
     ),
 ];
 
