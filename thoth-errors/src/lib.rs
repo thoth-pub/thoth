@@ -82,8 +82,6 @@ pub enum ThothError {
     RequestError(String),
     #[error("{0}")]
     GraphqlError(String),
-    #[error("A {0} with this ordinal number already exists.")]
-    DuplicateOrdinalError(&'static str),
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -149,10 +147,19 @@ impl actix_web::error::ResponseError for ThothError {
 /// WHERE nsp.nspname = 'public'
 /// AND contype in ('u', 'c');
 /// ```
-const DATABASE_CONSTRAINT_ERRORS: [(&'static str, ThothError); 3] = [
-    ("contribution_contribution_ordinal_work_id_uniq", ThothError::DuplicateOrdinalError("contribution")),
-    ("work_relation_ordinal_type_uniq", ThothError::DuplicateOrdinalError("relation")),
-    ("affiliation_uniq_ord_in_contribution_idx", ThothError::DuplicateOrdinalError("affiliation")),
+const DATABASE_CONSTRAINT_ERRORS: [(&str, &str); 3] = [
+    (
+        "contribution_contribution_ordinal_work_id_uniq",
+        "A contribution with this ordinal number already exists."
+    ),
+    (
+        "work_relation_ordinal_type_uniq",
+        "A relation with this ordinal number already exists."
+    ),
+    (
+        "affiliation_uniq_ord_in_contribution_idx",
+        "An affiliation with this ordinal number already exists."
+    ),
 ];
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -161,15 +168,14 @@ impl From<diesel::result::Error> for ThothError {
         use diesel::result::Error;
         match error {
             Error::DatabaseError(_kind, info) => {
-                if info.message().contains("contribution_contribution_ordinal_work_id_uniq") {
-                    return ThothError::DuplicateOrdinalError("contribution");
-                }
+                let mut message = info.message();
                 for (constranint, error) in DATABASE_CONSTRAINT_ERRORS {
-                    if info.message().contains(constranint) {
-                        return error;
+                    if message.contains(constranint) {
+                        message = error;
+                        break;
                     }
                 }
-                ThothError::DatabaseError(info.message().to_string())
+                ThothError::DatabaseError(message.to_string())
             }
             Error::NotFound => ThothError::EntityNotFound,
             _ => ThothError::InternalError("".into()),
