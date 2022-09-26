@@ -111,7 +111,7 @@ mod tests {
         );
         let error = ThothError::from(Error::DatabaseError(
             DatabaseErrorKind::UniqueViolation,
-            error_information
+            error_information,
         ));
         assert_eq!(
             format!("{}", error),
@@ -121,10 +121,7 @@ mod tests {
 
     #[test]
     fn test_non_constraint_error() {
-        let error_information = error_information(
-            "Some error happened",
-            None
-        );
+        let error_information = error_information("Some error happened", None);
         assert_eq!(
             ThothError::from(Error::DatabaseError(
                 DatabaseErrorKind::__Unknown,
@@ -136,18 +133,12 @@ mod tests {
 
     #[test]
     fn test_non_constraint_error_display() {
-        let error_information = error_information(
-            "Some error happened",
-            None
-        );
+        let error_information = error_information("Some error happened", None);
         let error = ThothError::from(Error::DatabaseError(
             DatabaseErrorKind::__Unknown,
-            error_information
+            error_information,
         ));
-        assert_eq!(
-            format!("{}", error),
-            "Database error: Some error happened",
-        )
+        assert_eq!(format!("{}", error), "Database error: Some error happened")
     }
 
     #[test]
