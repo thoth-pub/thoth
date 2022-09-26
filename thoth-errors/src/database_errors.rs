@@ -12,14 +12,30 @@ use crate::ThothError;
 /// WHERE nsp.nspname = 'public'
 /// AND contype in ('u', 'c');
 /// ```
-pub(crate) const DATABASE_CONSTRAINT_ERRORS: [(&str, &str); 3] = [
+pub(crate) const DATABASE_CONSTRAINT_ERRORS: [(&str, &str); 7] = [
     (
         "contribution_contribution_ordinal_work_id_uniq",
         "A contribution with this ordinal number already exists.",
     ),
     (
+        "contribution_work_id_contributor_id_contribution_type_uniq",
+        "A contribution of this type already exists for this contributor.",
+    ),
+    (
+        "issue_series_id_work_id_uniq",
+        "An issue on the selected series already exists for the this work.",
+    ),
+    (
+        "publication_publication_type_work_id_uniq",
+        "A publication with the selected type already exists for this work.",
+    ),
+    (
         "work_relation_ordinal_type_uniq",
         "A relation with this ordinal number already exists.",
+    ),
+    (
+        "work_relation_relator_related_uniq",
+        "A relation between these two works already exists.",
     ),
     (
         "affiliation_uniq_ord_in_contribution_idx",
