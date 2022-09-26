@@ -1,3 +1,6 @@
+#[cfg(not(target_arch = "wasm32"))]
+mod database_errors;
+
 use core::convert::From;
 use serde::Deserialize;
 use std::fmt;
@@ -14,7 +17,7 @@ pub type ThothResult<T> = std::result::Result<T, ThothError>;
 pub enum ThothError {
     #[error("{0} is not a valid {1} code")]
     InvalidSubjectCode(String, String),
-    #[error("Database error: {0}")]
+    #[error("{0}")]
     DatabaseError(String),
     #[error("Internal error: {0}")]
     InternalError(String),
@@ -130,55 +133,6 @@ impl actix_web::error::ResponseError for ThothError {
                 HttpResponse::NotFound().json(self.to_string())
             }
             _ => HttpResponse::InternalServerError().json(self.to_string()),
-        }
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-/// An array of tuples containing a database constraint name and a corresponding error to output
-/// when the constraint is violated.
-///
-/// To obtain a list of unique and check constraints:
-/// ```sql
-/// SELECT conname
-/// FROM pg_catalog.pg_constraint con
-/// INNER JOIN pg_catalog.pg_class rel ON rel.oid = con.conrelid
-/// INNER JOIN pg_catalog.pg_namespace nsp ON nsp.oid = connamespace
-/// WHERE nsp.nspname = 'public'
-/// AND contype in ('u', 'c');
-/// ```
-const DATABASE_CONSTRAINT_ERRORS: [(&str, &str); 3] = [
-    (
-        "contribution_contribution_ordinal_work_id_uniq",
-        "A contribution with this ordinal number already exists.",
-    ),
-    (
-        "work_relation_ordinal_type_uniq",
-        "A relation with this ordinal number already exists.",
-    ),
-    (
-        "affiliation_uniq_ord_in_contribution_idx",
-        "An affiliation with this ordinal number already exists.",
-    ),
-];
-
-#[cfg(not(target_arch = "wasm32"))]
-impl From<diesel::result::Error> for ThothError {
-    fn from(error: diesel::result::Error) -> ThothError {
-        use diesel::result::Error;
-        match error {
-            Error::DatabaseError(_kind, info) => {
-                let mut message = info.message();
-                for (constranint, error) in DATABASE_CONSTRAINT_ERRORS {
-                    if message.contains(constranint) {
-                        message = error;
-                        break;
-                    }
-                }
-                ThothError::DatabaseError(message.to_string())
-            }
-            Error::NotFound => ThothError::EntityNotFound,
-            _ => ThothError::InternalError("".into()),
         }
     }
 }
