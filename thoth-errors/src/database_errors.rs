@@ -240,13 +240,13 @@ mod tests {
     #[test]
     fn test_constraint_error_consistency() {
         fn is_snake_case_character(c: u8) -> bool {
-            b'a' <= c && c <= b'z' || b'0' <= c && c <= b'9' || c == b'_'
+            (b'a'..=b'z').contains(&c) || (b'0'..=b'9').contains(&c) || c == b'_'
         }
 
         for (constraint, error) in DATABASE_CONSTRAINT_ERRORS.entries() {
             // check that the constraint name is in snake_case
             for character in constraint.as_bytes().iter() {
-                assert!(is_snake_case_character(character.clone()));
+                assert!(is_snake_case_character(*character));
             }
             // All error messages must start with a capital letter
             assert!(error.chars().next().unwrap().is_uppercase());
