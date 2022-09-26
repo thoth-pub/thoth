@@ -32,14 +32,14 @@ impl From<diesel::result::Error> for ThothError {
         use diesel::result::Error;
         match error {
             Error::DatabaseError(_kind, info) => {
-                let mut message = info.message();
-                for (constranint, error) in DATABASE_CONSTRAINT_ERRORS {
-                    if message.contains(constranint) {
-                        message = error;
-                        break;
+                if let Some(constraint_name) = info.constraint_name() {
+                    for (constranint, error) in DATABASE_CONSTRAINT_ERRORS {
+                        if constraint_name == constranint {
+                            return ThothError::DatabaseConstraintError(error);
+                        }
                     }
                 }
-                ThothError::DatabaseError(message.to_string())
+                ThothError::DatabaseError(info.message().to_string())
             }
             Error::NotFound => ThothError::EntityNotFound,
             _ => ThothError::InternalError("".into()),
@@ -50,7 +50,7 @@ impl From<diesel::result::Error> for ThothError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use diesel::result::{Error, DatabaseErrorKind};
+    use diesel::result::{DatabaseErrorKind, Error};
 
     struct TestDatabaseError {
         message: &'static str,
@@ -77,7 +77,10 @@ mod tests {
         }
     }
 
-    fn error_information(message: &'static str, constraint: Option<&'static str>) -> Box<TestDatabaseError> {
+    fn error_information(
+        message: &'static str,
+        constraint: Option<&'static str>,
+    ) -> Box<TestDatabaseError> {
         Box::new(TestDatabaseError {
             message,
             constraint,
@@ -91,8 +94,28 @@ mod tests {
             Some("contribution_contribution_ordinal_work_id_uniq")
         );
         assert_eq!(
-            ThothError::from(Error::DatabaseError(DatabaseErrorKind::UniqueViolation, error_information)),
-            ThothError::DatabaseError("A contribution with this ordinal already exists.".to_string())
+            ThothError::from(Error::DatabaseError(
+                DatabaseErrorKind::UniqueViolation,
+                error_information
+            )),
+            ThothError::DatabaseConstraintError(
+                "A contribution with this ordinal already exists."
+            )
+        )
+    }
+    #[test]
+    fn test_unique_contribution_error_display() {
+        let error_information = error_information(
+            "duplicate key value violates unique constraint \"contribution_contribution_ordinal_work_id_uniq\"",
+            Some("contribution_contribution_ordinal_work_id_uniq")
+        );
+        let error = ThothError::from(Error::DatabaseError(
+            DatabaseErrorKind::UniqueViolation,
+            error_information
+        ));
+        assert_eq!(
+            format!("{}", error),
+            "A contribution with this ordinal number already exists.",
         )
     }
 
@@ -103,8 +126,27 @@ mod tests {
             None
         );
         assert_eq!(
-            ThothError::from(Error::DatabaseError(DatabaseErrorKind::__Unknown, error_information)),
+            ThothError::from(Error::DatabaseError(
+                DatabaseErrorKind::__Unknown,
+                error_information
+            )),
             ThothError::DatabaseError("Some error happened".to_string())
+        )
+    }
+
+    #[test]
+    fn test_non_constraint_error_display() {
+        let error_information = error_information(
+            "Some error happened",
+            None
+        );
+        let error = ThothError::from(Error::DatabaseError(
+            DatabaseErrorKind::__Unknown,
+            error_information
+        ));
+        assert_eq!(
+            format!("{}", error),
+            "Database error: Some error happened",
         )
     }
 

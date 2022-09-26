@@ -17,8 +17,10 @@ pub type ThothResult<T> = std::result::Result<T, ThothError>;
 pub enum ThothError {
     #[error("{0} is not a valid {1} code")]
     InvalidSubjectCode(String, String),
-    #[error("{0}")]
+    #[error("Database error: {0}")]
     DatabaseError(String),
+    #[error("{0}")]
+    DatabaseConstraintError(&'static str),
     #[error("Internal error: {0}")]
     InternalError(String),
     #[error("Invalid credentials.")]
