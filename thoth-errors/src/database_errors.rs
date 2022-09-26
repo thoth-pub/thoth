@@ -31,9 +31,8 @@ impl From<diesel::result::Error> for ThothError {
         match error {
             Error::DatabaseError(_kind, info) => {
                 if let Some(constraint_name) = info.constraint_name() {
-                    match DATABASE_CONSTRAINT_ERRORS.get(constraint_name) {
-                        Some(error) => return ThothError::DatabaseConstraintError(error),
-                        None => {}
+                    if let Some(error) = DATABASE_CONSTRAINT_ERRORS.get(constraint_name) {
+                        return ThothError::DatabaseConstraintError(error);
                     }
                 }
                 ThothError::DatabaseError(info.message().to_string())
