@@ -1,6 +1,9 @@
+use phf::phf_map;
+use phf::Map;
+
 use crate::ThothError;
 
-/// An array of tuples containing a database constraint name and a corresponding error to output
+/// A map of database constraint name and a corresponding error to output
 /// when the constraint is violated.
 ///
 /// To obtain a list of unique and check constraints:
@@ -12,36 +15,15 @@ use crate::ThothError;
 /// WHERE nsp.nspname = 'public'
 /// AND contype in ('u', 'c');
 /// ```
-pub(crate) const DATABASE_CONSTRAINT_ERRORS: [(&str, &str); 7] = [
-    (
-        "contribution_contribution_ordinal_work_id_uniq",
-        "A contribution with this ordinal number already exists.",
-    ),
-    (
-        "contribution_work_id_contributor_id_contribution_type_uniq",
-        "A contribution of this type already exists for this contributor.",
-    ),
-    (
-        "issue_series_id_work_id_uniq",
-        "An issue on the selected series already exists for the this work.",
-    ),
-    (
-        "publication_publication_type_work_id_uniq",
-        "A publication with the selected type already exists for this work.",
-    ),
-    (
-        "work_relation_ordinal_type_uniq",
-        "A relation with this ordinal number already exists.",
-    ),
-    (
-        "work_relation_relator_related_uniq",
-        "A relation between these two works already exists.",
-    ),
-    (
-        "affiliation_uniq_ord_in_contribution_idx",
-        "An affiliation with this ordinal number already exists.",
-    ),
-];
+static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
+    "contribution_contribution_ordinal_work_id_uniq" => "A contribution with this ordinal number already exists.",
+    "contribution_work_id_contributor_id_contribution_type_uniq" => "A contribution of this type already exists for this contributor.",
+    "issue_series_id_work_id_uniq" => "An issue on the selected series already exists for the this work.",
+    "publication_publication_type_work_id_uniq" => "A publication with the selected type already exists.",
+    "work_relation_ordinal_type_uniq" => "A relation with this ordinal number already exists.",
+    "work_relation_relator_related_uniq" => "A relation between these two works already exists.",
+    "affiliation_uniq_ord_in_contribution_idx" => "An affiliation with this ordinal number already exists.",
+};
 
 impl From<diesel::result::Error> for ThothError {
     fn from(error: diesel::result::Error) -> ThothError {
@@ -49,10 +31,9 @@ impl From<diesel::result::Error> for ThothError {
         match error {
             Error::DatabaseError(_kind, info) => {
                 if let Some(constraint_name) = info.constraint_name() {
-                    for (constranint, error) in DATABASE_CONSTRAINT_ERRORS {
-                        if constraint_name == constranint {
-                            return ThothError::DatabaseConstraintError(error);
-                        }
+                    match DATABASE_CONSTRAINT_ERRORS.get(constraint_name) {
+                        Some(error) => return ThothError::DatabaseConstraintError(error),
+                        None => {}
                     }
                 }
                 ThothError::DatabaseError(info.message().to_string())
