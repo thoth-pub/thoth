@@ -99,7 +99,7 @@ mod tests {
                 error_information
             )),
             ThothError::DatabaseConstraintError(
-                "A contribution with this ordinal already exists."
+                "A contribution with this ordinal number already exists."
             )
         )
     }
