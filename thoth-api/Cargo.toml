@@ -30,7 +30,7 @@ futures = { version  = "0.3.5", optional = true }
 jsonwebtoken = "7.2.0"
 juniper = "0.14.2"
 lazy_static = "1.4.0"
-phf = { version = "0.8", features = ["macros"] }
+phf = { version = "0.11", features = ["macros"] }
 rand = "0.7.3"
 regex = "1.6.0"
 serde = { version = "1.0.115", features = ["derive"] }

@@ -21,6 +21,6 @@ actix-web = "4.0.1"
 diesel = "1.4.8"
 csv = "1.1.6"
 juniper = "0.14.2"
-phf = { version = "0.8", features = ["macros"] }
+phf = { version = "0.11", features = ["macros"] }
 xml-rs = "0.8.0"
 uuid-08 = { package = "uuid", version = "0.8.2", features = ["serde"] }
