@@ -61,7 +61,10 @@ impl ThothClient {
     /// # }
     /// ```
     pub async fn get_work(&self, work_id: Uuid, with_relations: bool) -> ThothResult<Work> {
-        let request_body = WorkQuery::build_query(work_query::Variables { work_id, with_relations });
+        let request_body = WorkQuery::build_query(work_query::Variables {
+            work_id,
+            with_relations,
+        });
         let res = self.post_request(&request_body).await.await?;
         let response_body: Response<work_query::ResponseData> = res.json().await?;
         match response_body.data {
@@ -95,7 +98,10 @@ impl ThothClient {
         publishers: Option<Vec<Uuid>>,
         with_relations: bool,
     ) -> ThothResult<Vec<Work>> {
-        let request_body = WorksQuery::build_query(works_query::Variables { publishers, with_relations });
+        let request_body = WorksQuery::build_query(works_query::Variables {
+            publishers,
+            with_relations,
+        });
         let res = self.post_request(&request_body).await.await?;
         let response_body: Response<works_query::ResponseData> = res.json().await?;
         match response_body.data {
