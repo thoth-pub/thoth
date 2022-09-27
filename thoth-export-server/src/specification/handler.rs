@@ -45,7 +45,7 @@ pub(crate) async fn by_work(
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
     let (specification_id, work_id) = path.into_inner();
     thoth_client
-        .get_work(work_id)
+        .get_work(work_id, true)
         .await
         .and_then(|data| {
             specification_id.parse().map(|specification| {
@@ -75,7 +75,7 @@ pub(crate) async fn by_publisher(
         .into());
     }
     thoth_client
-        .get_works(Some(vec![publisher_id]))
+        .get_works(Some(vec![publisher_id]), true)
         .await
         .and_then(|data| {
             specification_id.parse().map(|specification| {

@@ -56,12 +56,12 @@ impl ThothClient {
     /// # async fn run() -> ThothResult<Work> {
     /// let thoth_client = ThothClient::new("https://api.thoth.pub/graphql".to_string());
     /// let work_id = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001")?;
-    /// let work = thoth_client.get_work(work_id).await?;
+    /// let work = thoth_client.get_work(work_id, false).await?;
     /// # Ok(work)
     /// # }
     /// ```
-    pub async fn get_work(&self, work_id: Uuid) -> ThothResult<Work> {
-        let request_body = WorkQuery::build_query(work_query::Variables { work_id });
+    pub async fn get_work(&self, work_id: Uuid, with_relations: bool) -> ThothResult<Work> {
+        let request_body = WorkQuery::build_query(work_query::Variables { work_id, with_relations });
         let res = self.post_request(&request_body).await.await?;
         let response_body: Response<work_query::ResponseData> = res.json().await?;
         match response_body.data {
@@ -86,12 +86,16 @@ impl ThothClient {
     /// # async fn run() -> ThothResult<Vec<Work>> {
     /// let thoth_client = ThothClient::new("https://api.thoth.pub/graphql".to_string());
     /// let publisher_id = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001")?;
-    /// let works = thoth_client.get_works(Some(vec![publisher_id])).await?;
+    /// let works = thoth_client.get_works(Some(vec![publisher_id]), false).await?;
     /// # Ok(works)
     /// # }
     /// ```
-    pub async fn get_works(&self, publishers: Option<Vec<Uuid>>) -> ThothResult<Vec<Work>> {
-        let request_body = WorksQuery::build_query(works_query::Variables { publishers });
+    pub async fn get_works(
+        &self,
+        publishers: Option<Vec<Uuid>>,
+        with_relations: bool,
+    ) -> ThothResult<Vec<Work>> {
+        let request_body = WorksQuery::build_query(works_query::Variables { publishers, with_relations });
         let res = self.post_request(&request_body).await.await?;
         let response_body: Response<works_query::ResponseData> = res.json().await?;
         match response_body.data {

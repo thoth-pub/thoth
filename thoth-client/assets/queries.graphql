@@ -116,7 +116,7 @@ fragment Work on Work {
             countryCode
         }
     }
-    relations {
+    relations @include(if: $withRelations) {
         relationType
         relationOrdinal
         relatedWork {
@@ -157,12 +157,12 @@ fragment Work on Work {
     }
 }
 
-query WorkQuery($workId: Uuid!) {
+query WorkQuery($workId: Uuid!, $withRelations: Boolean!) {
     work(workId: $workId) {
         ...Work
     }
 }
-query WorksQuery($publishers: [Uuid!]) {
+query WorksQuery($publishers: [Uuid!], $withRelations: Boolean!) {
     works(limit: 99999, publishers: $publishers) {
         ...Work
     }
