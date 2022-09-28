@@ -1,8 +1,8 @@
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
-use uuid::Uuid;
 use thoth_client::{QueryParameters, ThothClient, Work};
 use thoth_errors::{ThothError, ThothResult};
+use uuid::Uuid;
 
 use crate::record::MetadataSpecification;
 
@@ -38,7 +38,9 @@ impl SpecificationQuery {
             request: SpecificationRequest::ByPublisher,
             specification,
         };
-        thoth_client.get_works(Some(vec![publisher_id]), query.try_into()?).await
+        thoth_client
+            .get_works(Some(vec![publisher_id]), query.try_into()?)
+            .await
     }
 }
 
