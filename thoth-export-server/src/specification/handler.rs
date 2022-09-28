@@ -3,8 +3,8 @@ use paperclip::actix::{
     api_v2_operation,
     web::{self, Json},
 };
+use std::convert::TryInto;
 use thoth_client::{QueryParameters, ThothClient, Work};
-use thoth_errors::ThothError;
 use uuid::Uuid;
 
 use super::model::Specification;
@@ -46,7 +46,7 @@ pub(crate) async fn by_work(
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
     let (specification_id, work_id) = path.into_inner();
     let specification: MetadataSpecification = specification_id.parse()?;
-    let parameters: QueryParameters = SpecificationQuery::by_work(specification).into();
+    let parameters: QueryParameters = SpecificationQuery::by_work(specification).try_into()?;
 
     thoth_client
         .get_work(work_id, parameters)
@@ -66,17 +66,8 @@ pub(crate) async fn by_publisher(
     thoth_client: web::Data<ThothClient>,
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
     let (specification_id, publisher_id) = path.into_inner();
-    if specification_id.eq("doideposit::crossref") {
-        // Full publisher record is not supported for this specification
-        return Err(ThothError::IncompleteMetadataRecord(
-            "doideposit::crossref".to_string(),
-            "Output can only be generated for one work at a time".to_string(),
-        )
-        .into());
-    }
     let specification: MetadataSpecification = specification_id.parse()?;
-    let parameters: QueryParameters =
-        SpecificationQuery::by_publisher(specification).into();
+    let parameters: QueryParameters = SpecificationQuery::by_publisher(specification).try_into()?;
 
     thoth_client
         .get_works(Some(vec![publisher_id]), parameters)
