@@ -59,7 +59,7 @@ impl ThothClient {
     /// # async fn run() -> ThothResult<Work> {
     /// let thoth_client = ThothClient::new("https://api.thoth.pub/graphql".to_string());
     /// let work_id = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001")?;
-    /// let work = thoth_client.get_work(work_id, QueryParameters::all_on()).await?;
+    /// let work = thoth_client.get_work(work_id, QueryParameters::new()).await?;
     /// # Ok(work)
     /// # }
     /// ```
@@ -90,7 +90,7 @@ impl ThothClient {
     /// # async fn run() -> ThothResult<Vec<Work>> {
     /// let thoth_client = ThothClient::new("https://api.thoth.pub/graphql".to_string());
     /// let publisher_id = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001")?;
-    /// let works = thoth_client.get_works(Some(vec![publisher_id]), QueryParameters::all_off()).await?;
+    /// let works = thoth_client.get_works(Some(vec![publisher_id]), QueryParameters::new()).await?;
     /// # Ok(works)
     /// # }
     /// ```

@@ -3,7 +3,8 @@ use paperclip::actix::{
     api_v2_operation,
     web::{self, Json},
 };
-use thoth_client::{ThothClient, Work};
+use thoth_api::model::language::LanguageCode::Que;
+use thoth_client::{QueryParameters, ThothClient, Work};
 use thoth_errors::ThothError;
 use uuid::Uuid;
 
@@ -44,8 +45,9 @@ pub(crate) async fn by_work(
     thoth_client: web::Data<ThothClient>,
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
     let (specification_id, work_id) = path.into_inner();
+    let parameters = QueryParameters::new().with_all();
     thoth_client
-        .get_work(work_id, true)
+        .get_work(work_id, parameters)
         .await
         .and_then(|data| {
             specification_id.parse().map(|specification| {
@@ -74,8 +76,9 @@ pub(crate) async fn by_publisher(
         )
         .into());
     }
+    let parameters = QueryParameters::new().with_all().without_relations();
     thoth_client
-        .get_works(Some(vec![publisher_id]), true)
+        .get_works(Some(vec![publisher_id]), parameters)
         .await
         .and_then(|data| {
             specification_id.parse().map(|specification| {

@@ -2,13 +2,14 @@ use crate::queries::{work_query, works_query};
 use uuid::Uuid;
 
 /// A set of booleans to toggle directives in the GraphQL queries
+#[derive(Default)]
 pub struct QueryParameters {
-    pub with_issues: bool,
-    pub with_languages: bool,
-    pub with_publications: bool,
-    pub with_subjects: bool,
-    pub with_fundings: bool,
-    pub with_relations: bool,
+    with_issues: bool,
+    with_languages: bool,
+    with_publications: bool,
+    with_subjects: bool,
+    with_fundings: bool,
+    with_relations: bool,
 }
 
 /// An intermediate struct to parse QueryParameters into work_query::Variables
@@ -41,51 +42,90 @@ impl WorksQueryVariables {
     }
 }
 
+/// Implement builder pattern for `QueryParameters`
+///
+/// # Example
+///
+/// ```
+/// # use thoth_client::{QueryParameters};
+///
+/// # async fn run() -> QueryParameters {
+/// let parameters = QueryParameters::new().with_series().with_languages();
+/// # parameters
+/// # }
+/// ```
 impl QueryParameters {
-    /// Get a `QueryParameters` with all its attributes set to `true`
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use thoth_client::{QueryParameters};
-    ///
-    /// # async fn run() -> QueryParameters {
-    /// let parameters = QueryParameters::all_on();
-    /// # parameters
-    /// # }
-    /// ```
-    pub fn all_on() -> Self {
-        QueryParameters {
-            with_issues: true,
-            with_languages: true,
-            with_publications: true,
-            with_subjects: true,
-            with_fundings: true,
-            with_relations: true,
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    /// Get a `QueryParameters` with all its attributes set to `false`
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use thoth_client::{QueryParameters};
-    ///
-    /// # async fn run() -> QueryParameters {
-    /// let parameters = QueryParameters::all_off();
-    /// # parameters
-    /// # }
-    /// ```
-    pub fn all_off() -> Self {
-        QueryParameters {
-            with_issues: false,
-            with_languages: false,
-            with_publications: false,
-            with_subjects: false,
-            with_fundings: false,
-            with_relations: false,
-        }
+    pub fn with_all(self) -> Self {
+        self.with_issues()
+            .with_languages()
+            .with_publications()
+            .with_subjects()
+            .with_fundings()
+            .with_relations()
+    }
+
+    pub fn with_issues(mut self) -> Self {
+        self.with_issues = true;
+        self
+    }
+
+    pub fn with_languages(mut self) -> Self {
+        self.with_languages = true;
+        self
+    }
+
+    pub fn with_publications(mut self) -> Self {
+        self.with_publications = true;
+        self
+    }
+
+    pub fn with_subjects(mut self) -> Self {
+        self.with_subjects = true;
+        self
+    }
+
+    pub fn with_fundings(mut self) -> Self {
+        self.with_fundings = true;
+        self
+    }
+
+    pub fn with_relations(mut self) -> Self {
+        self.with_relations = true;
+        self
+    }
+
+    pub fn without_issues(mut self) -> Self {
+        self.with_issues = false;
+        self
+    }
+
+    pub fn without_languages(mut self) -> Self {
+        self.with_languages = false;
+        self
+    }
+
+    pub fn without_publications(mut self) -> Self {
+        self.with_publications = false;
+        self
+    }
+
+    pub fn without_subjects(mut self) -> Self {
+        self.with_subjects = false;
+        self
+    }
+
+    pub fn without_fundings(mut self) -> Self {
+        self.with_fundings = false;
+        self
+    }
+
+    pub fn without_relations(mut self) -> Self {
+        self.with_relations = false;
+        self
     }
 }
 
@@ -138,5 +178,74 @@ impl From<WorksQueryVariables> for works_query::Variables {
                 0
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_query_parameters() {
+        let to_test = QueryParameters {
+            with_issues: false,
+            with_languages: false,
+            with_publications: false,
+            with_subjects: false,
+            with_fundings: false,
+            with_relations: false,
+        };
+        assert_eq!(to_test, QueryParameters::default());
+        assert_eq!(to_test, QueryParameters::new())
+    }
+
+    #[test]
+    fn test_query_parameters_builder() {
+        assert_eq!(
+            QueryParameters::new().with_all(),
+            QueryParameters {
+                with_issues: true,
+                with_languages: true,
+                with_publications: true,
+                with_subjects: true,
+                with_fundings: true,
+                with_relations: true
+            },
+        );
+        assert_eq!(
+            QueryParameters::new()
+                .with_all()
+                .without_issues()
+                .without_languages()
+                .without_publications()
+                .without_subjects()
+                .without_fundings()
+                .without_relations(),
+            QueryParameters {
+                with_issues: false,
+                with_languages: false,
+                with_publications: false,
+                with_subjects: false,
+                with_fundings: false,
+                with_relations: false
+            },
+        );
+        assert_eq!(
+            QueryParameters::new()
+                .with_issues()
+                .with_languages()
+                .with_publications()
+                .with_subjects()
+                .with_fundings()
+                .with_relations(),
+            QueryParameters {
+                with_issues: true,
+                with_languages: true,
+                with_publications: true,
+                with_subjects: true,
+                with_fundings: true,
+                with_relations: true
+            },
+        );
     }
 }
