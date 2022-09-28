@@ -46,7 +46,8 @@ pub(crate) async fn by_work(
     let (specification_id, work_id) = path.into_inner();
     let specification: MetadataSpecification = specification_id.parse()?;
 
-    SpecificationQuery::by_work(thoth_client.into_inner(), specification, work_id)
+    SpecificationQuery::new(thoth_client.into_inner(), specification)
+        .by_work(work_id)
         .await
         .map(|data| MetadataRecord::new(work_id.to_string(), specification, vec![data]))
         .map_err(|e| e.into())
@@ -65,7 +66,8 @@ pub(crate) async fn by_publisher(
     let (specification_id, publisher_id) = path.into_inner();
     let specification: MetadataSpecification = specification_id.parse()?;
 
-    SpecificationQuery::by_publisher(thoth_client.into_inner(), specification, publisher_id)
+    SpecificationQuery::new(thoth_client.into_inner(), specification)
+        .by_publisher(publisher_id)
         .await
         .map(|data| MetadataRecord::new(publisher_id.to_string(), specification, data))
         .map_err(|e| e.into())

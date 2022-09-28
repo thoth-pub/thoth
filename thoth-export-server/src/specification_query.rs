@@ -1,3 +1,4 @@
+use actix_web::web::Query;
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
 use thoth_client::{QueryParameters, ThothClient, Work};
@@ -12,42 +13,61 @@ enum SpecificationRequest {
 }
 
 pub(crate) struct SpecificationQuery {
+    thoth_client: Arc<ThothClient>,
+    specification: MetadataSpecification,
+}
+
+struct QueryConfiguration {
     request: SpecificationRequest,
     specification: MetadataSpecification,
 }
 
 impl SpecificationQuery {
-    pub(crate) async fn by_work(
+    pub(crate) fn new(
         thoth_client: Arc<ThothClient>,
         specification: MetadataSpecification,
-        work_id: Uuid,
-    ) -> ThothResult<Work> {
-        let query = SpecificationQuery {
-            request: SpecificationRequest::ByWork,
+    ) -> Self {
+        Self {
+            thoth_client,
             specification,
-        };
-        thoth_client.get_work(work_id, query.try_into()?).await
+        }
     }
 
-    pub(crate) async fn by_publisher(
-        thoth_client: Arc<ThothClient>,
-        specification: MetadataSpecification,
-        publisher_id: Uuid,
-    ) -> ThothResult<Vec<Work>> {
-        let query = SpecificationQuery {
-            request: SpecificationRequest::ByPublisher,
-            specification,
-        };
-        thoth_client
-            .get_works(Some(vec![publisher_id]), query.try_into()?)
+    pub(crate) async fn by_work(self, work_id: Uuid) -> ThothResult<Work> {
+        let parameters: QueryParameters =
+            QueryConfiguration::by_work(self.specification).try_into()?;
+        self.thoth_client.get_work(work_id, parameters).await
+    }
+
+    pub(crate) async fn by_publisher(self, publisher_id: Uuid) -> ThothResult<Vec<Work>> {
+        let parameters: QueryParameters =
+            QueryConfiguration::by_publisher(self.specification).try_into()?;
+        self.thoth_client
+            .get_works(Some(vec![publisher_id]), parameters)
             .await
     }
 }
 
-impl TryFrom<SpecificationQuery> for QueryParameters {
+impl QueryConfiguration {
+    fn by_work(specification: MetadataSpecification) -> Self {
+        Self {
+            request: SpecificationRequest::ByWork,
+            specification,
+        }
+    }
+
+    fn by_publisher(specification: MetadataSpecification) -> Self {
+        Self {
+            request: SpecificationRequest::ByPublisher,
+            specification,
+        }
+    }
+}
+
+impl TryFrom<QueryConfiguration> for QueryParameters {
     type Error = ThothError;
 
-    fn try_from(q: SpecificationQuery) -> ThothResult<Self> {
+    fn try_from(q: QueryConfiguration) -> ThothResult<Self> {
         match q.specification {
             MetadataSpecification::Onix3ProjectMuse(_) => match q.request {
                 SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
