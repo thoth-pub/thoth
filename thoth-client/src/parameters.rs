@@ -186,7 +186,6 @@ impl From<WorksQueryVariables> for works_query::Variables {
 mod tests {
     use super::*;
     use crate::queries::{work_query, works_query};
-    use thoth_api::model::language::LanguageCode::Que;
 
     const work_id: Uuid = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap();
     const publishers: Option<Vec<Uuid>> = Some(vec![work_id]);
