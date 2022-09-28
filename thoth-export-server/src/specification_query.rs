@@ -68,34 +68,27 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
 
     fn try_from(q: QueryConfiguration) -> ThothResult<Self> {
         match q.specification {
-            MetadataSpecification::Onix3ProjectMuse(_) => match q.request {
-                SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
-                SpecificationRequest::ByPublisher => Ok(QueryParameters::new().with_all()),
-            },
-            MetadataSpecification::Onix3Oapen(_) => match q.request {
-                SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
-                SpecificationRequest::ByPublisher => Ok(QueryParameters::new().with_all()),
-            },
-            MetadataSpecification::Onix3Jstor(_) => match q.request {
-                SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
-                SpecificationRequest::ByPublisher => Ok(QueryParameters::new().with_all()),
-            },
-            MetadataSpecification::Onix3GoogleBooks(_) => match q.request {
-                SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
-                SpecificationRequest::ByPublisher => Ok(QueryParameters::new().with_all()),
-            },
-            MetadataSpecification::Onix3Overdrive(_) => match q.request {
-                SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
-                SpecificationRequest::ByPublisher => Ok(QueryParameters::new().with_all()),
-            },
-            MetadataSpecification::Onix21EbscoHost(_) => match q.request {
-                SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
-                SpecificationRequest::ByPublisher => Ok(QueryParameters::new().with_all()),
-            },
-            MetadataSpecification::Onix21ProquestEbrary(_) => match q.request {
-                SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
-                SpecificationRequest::ByPublisher => Ok(QueryParameters::new().with_all()),
-            },
+            MetadataSpecification::Onix3ProjectMuse(_) => {
+                Ok(QueryParameters::new().with_all().without_relations())
+            }
+            MetadataSpecification::Onix3Oapen(_) => {
+                Ok(QueryParameters::new().with_all().without_relations())
+            }
+            MetadataSpecification::Onix3Jstor(_) => {
+                Ok(QueryParameters::new().with_all().without_relations())
+            }
+            MetadataSpecification::Onix3GoogleBooks(_) => {
+                Ok(QueryParameters::new().with_all().without_relations())
+            }
+            MetadataSpecification::Onix3Overdrive(_) => {
+                Ok(QueryParameters::new().with_all().without_relations())
+            }
+            MetadataSpecification::Onix21EbscoHost(_) => {
+                Ok(QueryParameters::new().with_all().without_relations())
+            }
+            MetadataSpecification::Onix21ProquestEbrary(_) => {
+                Ok(QueryParameters::new().with_all().without_relations())
+            }
             MetadataSpecification::CsvThoth(_) => match q.request {
                 SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
                 SpecificationRequest::ByPublisher => {
@@ -104,7 +97,7 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
             },
             MetadataSpecification::KbartOclc(_) => {
                 Ok(QueryParameters::new().with_issues().with_publications())
-            },
+            }
             MetadataSpecification::BibtexThoth(_) => match q.request {
                 SpecificationRequest::ByWork => Ok(QueryParameters::new()
                     .with_issues()
