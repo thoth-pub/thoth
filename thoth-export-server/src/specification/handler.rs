@@ -3,8 +3,7 @@ use paperclip::actix::{
     api_v2_operation,
     web::{self, Json},
 };
-use std::convert::TryInto;
-use thoth_client::{QueryParameters, ThothClient, Work};
+use thoth_client::{ThothClient, Work};
 use uuid::Uuid;
 
 use super::model::Specification;
@@ -46,10 +45,8 @@ pub(crate) async fn by_work(
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
     let (specification_id, work_id) = path.into_inner();
     let specification: MetadataSpecification = specification_id.parse()?;
-    let parameters: QueryParameters = SpecificationQuery::by_work(specification).try_into()?;
 
-    thoth_client
-        .get_work(work_id, parameters)
+    SpecificationQuery::by_work(thoth_client.into_inner(), specification, work_id)
         .await
         .map(|data| MetadataRecord::new(work_id.to_string(), specification, vec![data]))
         .map_err(|e| e.into())
@@ -67,10 +64,8 @@ pub(crate) async fn by_publisher(
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
     let (specification_id, publisher_id) = path.into_inner();
     let specification: MetadataSpecification = specification_id.parse()?;
-    let parameters: QueryParameters = SpecificationQuery::by_publisher(specification).try_into()?;
 
-    thoth_client
-        .get_works(Some(vec![publisher_id]), parameters)
+    SpecificationQuery::by_publisher(thoth_client.into_inner(), specification, publisher_id)
         .await
         .map(|data| MetadataRecord::new(publisher_id.to_string(), specification, data))
         .map_err(|e| e.into())

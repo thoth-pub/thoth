@@ -1,5 +1,7 @@
-use std::convert::TryFrom;
-use thoth_client::QueryParameters;
+use std::convert::{TryFrom, TryInto};
+use std::sync::Arc;
+use uuid::Uuid;
+use thoth_client::{QueryParameters, ThothClient, Work};
 use thoth_errors::{ThothError, ThothResult};
 
 use crate::record::MetadataSpecification;
@@ -15,18 +17,28 @@ pub(crate) struct SpecificationQuery {
 }
 
 impl SpecificationQuery {
-    pub(crate) fn by_work(specification: MetadataSpecification) -> Self {
-        Self {
+    pub(crate) async fn by_work(
+        thoth_client: Arc<ThothClient>,
+        specification: MetadataSpecification,
+        work_id: Uuid,
+    ) -> ThothResult<Work> {
+        let query = SpecificationQuery {
             request: SpecificationRequest::ByWork,
             specification,
-        }
+        };
+        thoth_client.get_work(work_id, query.try_into()?).await
     }
 
-    pub(crate) fn by_publisher(specification: MetadataSpecification) -> Self {
-        Self {
+    pub(crate) async fn by_publisher(
+        thoth_client: Arc<ThothClient>,
+        specification: MetadataSpecification,
+        publisher_id: Uuid,
+    ) -> ThothResult<Vec<Work>> {
+        let query = SpecificationQuery {
             request: SpecificationRequest::ByPublisher,
             specification,
-        }
+        };
+        thoth_client.get_works(Some(vec![publisher_id]), query.try_into()?).await
     }
 }
 
