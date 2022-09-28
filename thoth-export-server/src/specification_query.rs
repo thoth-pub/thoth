@@ -1,4 +1,3 @@
-use actix_web::web::Query;
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
 use thoth_client::{QueryParameters, ThothClient, Work};
@@ -99,7 +98,9 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
             },
             MetadataSpecification::CsvThoth(_) => match q.request {
                 SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
-                SpecificationRequest::ByPublisher => Ok(QueryParameters::new().with_all()),
+                SpecificationRequest::ByPublisher => {
+                    Ok(QueryParameters::new().with_all().without_relations())
+                }
             },
             MetadataSpecification::KbartOclc(_) => match q.request {
                 SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
