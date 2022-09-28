@@ -116,7 +116,10 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                 }
             },
             MetadataSpecification::DoiDepositCrossref(_) => match q.request {
-                SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
+                SpecificationRequest::ByWork => Ok(QueryParameters::new()
+                    .with_issues()
+                    .with_publications()
+                    .with_relations()),
                 SpecificationRequest::ByPublisher => Err(ThothError::IncompleteMetadataRecord(
                     "doideposit::crossref".to_string(),
                     "Output can only be generated for one work at a time".to_string(),
