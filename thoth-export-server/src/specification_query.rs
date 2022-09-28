@@ -107,8 +107,13 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                 SpecificationRequest::ByPublisher => Ok(QueryParameters::new().with_all()),
             },
             MetadataSpecification::BibtexThoth(_) => match q.request {
-                SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
-                SpecificationRequest::ByPublisher => Ok(QueryParameters::new().with_all()),
+                SpecificationRequest::ByWork => Ok(QueryParameters::new()
+                    .with_issues()
+                    .with_publications()
+                    .with_relations()),
+                SpecificationRequest::ByPublisher => {
+                    Ok(QueryParameters::new().with_issues().with_publications())
+                }
             },
             MetadataSpecification::DoiDepositCrossref(_) => match q.request {
                 SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
