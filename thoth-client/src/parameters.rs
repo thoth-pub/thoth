@@ -334,7 +334,7 @@ mod tests {
             }
         );
         parameters = QueryParameters::new().with_all().without_relations();
-        variables = WorskQueryVariables::new(publishers, parameters).into();
+        variables = WorksQueryVariables::new(publishers, parameters).into();
         assert_eq!(
             variables,
             works_query::Variables {
