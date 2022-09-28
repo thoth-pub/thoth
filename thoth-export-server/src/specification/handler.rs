@@ -3,14 +3,14 @@ use paperclip::actix::{
     api_v2_operation,
     web::{self, Json},
 };
-use thoth_api::model::language::LanguageCode::Que;
 use thoth_client::{QueryParameters, ThothClient, Work};
 use thoth_errors::ThothError;
 use uuid::Uuid;
 
 use super::model::Specification;
 use crate::data::{find_specification, ALL_SPECIFICATIONS};
-use crate::record::MetadataRecord;
+use crate::record::{MetadataRecord, MetadataSpecification};
+use crate::specification_query::SpecificationQuery;
 
 #[api_v2_operation(
     summary = "List supported specifications",
@@ -45,15 +45,13 @@ pub(crate) async fn by_work(
     thoth_client: web::Data<ThothClient>,
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
     let (specification_id, work_id) = path.into_inner();
-    let parameters = QueryParameters::new().with_all();
+    let specification: MetadataSpecification = specification_id.parse()?;
+    let parameters: QueryParameters = SpecificationQuery::by_work(specification).into();
+
     thoth_client
         .get_work(work_id, parameters)
         .await
-        .and_then(|data| {
-            specification_id.parse().map(|specification| {
-                MetadataRecord::new(work_id.to_string(), specification, vec![data])
-            })
-        })
+        .map(|data| MetadataRecord::new(work_id.to_string(), specification, vec![data]))
         .map_err(|e| e.into())
 }
 
@@ -76,14 +74,13 @@ pub(crate) async fn by_publisher(
         )
         .into());
     }
-    let parameters = QueryParameters::new().with_all().without_relations();
+    let specification: MetadataSpecification = specification_id.parse()?;
+    let parameters: QueryParameters =
+        SpecificationQuery::by_publisher(specification).into();
+
     thoth_client
         .get_works(Some(vec![publisher_id]), parameters)
         .await
-        .and_then(|data| {
-            specification_id.parse().map(|specification| {
-                MetadataRecord::new(publisher_id.to_string(), specification, data)
-            })
-        })
+        .map(|data| MetadataRecord::new(publisher_id.to_string(), specification, data))
         .map_err(|e| e.into())
 }

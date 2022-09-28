@@ -11,6 +11,7 @@ use super::{write_element_block, XmlElement, XmlSpecification};
 use crate::xml::{write_full_element_block, XmlElementBlock};
 use thoth_errors::{ThothError, ThothResult};
 
+#[derive(Copy, Clone)]
 pub struct Onix3ProjectMuse {}
 
 impl XmlSpecification for Onix3ProjectMuse {
