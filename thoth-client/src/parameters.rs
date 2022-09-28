@@ -187,9 +187,6 @@ mod tests {
     use super::*;
     use crate::queries::{work_query, works_query};
 
-    const work_id: Uuid = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap();
-    const publishers: Option<Vec<Uuid>> = Some(vec![work_id]);
-
     #[test]
     fn test_default_query_parameters() {
         let to_test = QueryParameters {
@@ -256,6 +253,7 @@ mod tests {
 
     #[test]
     fn test_convert_parameters_to_work_query_variables() {
+        let work_id: Uuid = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap();
         let mut parameters = QueryParameters::new().with_all();
         let mut variables: work_query::Variables =
             WorkQueryVariables::new(work_id, parameters).into();
@@ -303,9 +301,10 @@ mod tests {
 
     #[test]
     fn test_convert_parameters_to_works_query_variables() {
+        let publisher_id: Uuid = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap();
         let mut parameters = QueryParameters::new().with_all();
         let mut variables: works_query::Variables =
-            WorksQueryVariables::new(publishers, parameters).into();
+            WorksQueryVariables::new(Some(vec![publisher_id]), parameters).into();
         assert_eq!(
             variables,
             works_query::Variables {
@@ -319,7 +318,7 @@ mod tests {
             }
         );
         parameters = QueryParameters::new();
-        variables = WorksQueryVariables::new(publishers, parameters).into();
+        variables = WorksQueryVariables::new(Some(vec![publisher_id]), parameters).into();
         assert_eq!(
             variables,
             works_query::Variables {
@@ -333,7 +332,7 @@ mod tests {
             }
         );
         parameters = QueryParameters::new().with_all().without_relations();
-        variables = WorksQueryVariables::new(publishers, parameters).into();
+        variables = WorksQueryVariables::new(Some(vec![publisher_id]), parameters).into();
         assert_eq!(
             variables,
             works_query::Variables {
