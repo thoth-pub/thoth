@@ -184,6 +184,11 @@ impl From<WorksQueryVariables> for works_query::Variables {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::queries::{work_query, works_query};
+    use thoth_api::model::language::LanguageCode::Que;
+
+    const work_id: Uuid = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001")?;
+    const publishers: Option<Vec<Uuid>> = Some(vec![work_id]);
 
     #[test]
     fn test_default_query_parameters() {
@@ -246,6 +251,100 @@ mod tests {
                 with_fundings: true,
                 with_relations: true
             },
+        );
+    }
+
+    #[test]
+    fn test_convert_parameters_to_work_query_variables() {
+        let mut parameters = QueryParameters::new().with_all();
+        let mut variables: work_query::Variables =
+            WorkQueryVariables::new(work_id, parameters).into();
+        assert_eq!(
+            variables,
+            work_query::Variables {
+                work_id,
+                issues_limit: 99999,
+                languages_limit: 99999,
+                publications_limit: 99999,
+                subjects_limit: 99999,
+                fundings_limit: 99999,
+                relations_limit: 99999,
+            }
+        );
+        parameters = QueryParameters::new();
+        variables = WorkQueryVariables::new(work_id, parameters).into();
+        assert_eq!(
+            variables,
+            work_query::Variables {
+                work_id,
+                issues_limit: 0,
+                languages_limit: 0,
+                publications_limit: 0,
+                subjects_limit: 0,
+                fundings_limit: 0,
+                relations_limit: 0,
+            }
+        );
+        parameters = QueryParameters::new().with_all().without_relations();
+        variables = WorkQueryVariables::new(work_id, parameters).into();
+        assert_eq!(
+            variables,
+            work_query::Variables {
+                work_id,
+                issues_limit: 99999,
+                languages_limit: 99999,
+                publications_limit: 99999,
+                subjects_limit: 99999,
+                fundings_limit: 99999,
+                relations_limit: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn test_convert_parameters_to_works_query_variables() {
+        let mut parameters = QueryParameters::new().with_all();
+        let mut variables: works_query::Variables =
+            WorksQueryVariables::new(publishers, parameters).into();
+        assert_eq!(
+            variables,
+            works_query::Variables {
+                publishers,
+                issues_limit: 99999,
+                languages_limit: 99999,
+                publications_limit: 99999,
+                subjects_limit: 99999,
+                fundings_limit: 99999,
+                relations_limit: 99999,
+            }
+        );
+        parameters = QueryParameters::new();
+        variables = WorksQueryVariables::new(publishers, parameters).into();
+        assert_eq!(
+            variables,
+            works_query::Variables {
+                publishers,
+                issues_limit: 0,
+                languages_limit: 0,
+                publications_limit: 0,
+                subjects_limit: 0,
+                fundings_limit: 0,
+                relations_limit: 0,
+            }
+        );
+        parameters = QueryParameters::new().with_all().without_relations();
+        variables = WorskQueryVariables::new(publishers, parameters).into();
+        assert_eq!(
+            variables,
+            works_query::Variables {
+                publishers,
+                issues_limit: 99999,
+                languages_limit: 99999,
+                publications_limit: 99999,
+                subjects_limit: 99999,
+                fundings_limit: 99999,
+                relations_limit: 0,
+            }
         );
     }
 }
