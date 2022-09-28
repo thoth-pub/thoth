@@ -302,13 +302,14 @@ mod tests {
     #[test]
     fn test_convert_parameters_to_works_query_variables() {
         let publisher_id: Uuid = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap();
+        let publishers = Some(vec![publisher_id]);
         let mut parameters = QueryParameters::new().with_all();
         let mut variables: works_query::Variables =
-            WorksQueryVariables::new(Some(vec![publisher_id]), parameters).into();
+            WorksQueryVariables::new(publishers, parameters).into();
         assert_eq!(
             variables,
             works_query::Variables {
-                publishers,
+                publishers: publishers.clone(),
                 issues_limit: 99999,
                 languages_limit: 99999,
                 publications_limit: 99999,
@@ -318,11 +319,11 @@ mod tests {
             }
         );
         parameters = QueryParameters::new();
-        variables = WorksQueryVariables::new(Some(vec![publisher_id]), parameters).into();
+        variables = WorksQueryVariables::new(publishers.clone(), parameters).into();
         assert_eq!(
             variables,
             works_query::Variables {
-                publishers,
+                publishers: publishers.clone(),
                 issues_limit: 0,
                 languages_limit: 0,
                 publications_limit: 0,
@@ -332,11 +333,11 @@ mod tests {
             }
         );
         parameters = QueryParameters::new().with_all().without_relations();
-        variables = WorksQueryVariables::new(Some(vec![publisher_id]), parameters).into();
+        variables = WorksQueryVariables::new(publishers.clone(), parameters).into();
         assert_eq!(
             variables,
             works_query::Variables {
-                publishers,
+                publishers: publishers.clone(),
                 issues_limit: 99999,
                 languages_limit: 99999,
                 publications_limit: 99999,
