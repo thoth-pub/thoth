@@ -305,7 +305,7 @@ mod tests {
         let publishers = Some(vec![publisher_id]);
         let mut parameters = QueryParameters::new().with_all();
         let mut variables: works_query::Variables =
-            WorksQueryVariables::new(publishers, parameters).into();
+            WorksQueryVariables::new(publishers.clone(), parameters).into();
         assert_eq!(
             variables,
             works_query::Variables {
