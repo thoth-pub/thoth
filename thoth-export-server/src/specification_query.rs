@@ -102,9 +102,8 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                     Ok(QueryParameters::new().with_all().without_relations())
                 }
             },
-            MetadataSpecification::KbartOclc(_) => match q.request {
-                SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
-                SpecificationRequest::ByPublisher => Ok(QueryParameters::new().with_all()),
+            MetadataSpecification::KbartOclc(_) => {
+                Ok(QueryParameters::new().with_issues().with_publications())
             },
             MetadataSpecification::BibtexThoth(_) => match q.request {
                 SpecificationRequest::ByWork => Ok(QueryParameters::new()
