@@ -1,5 +1,5 @@
-use uuid::Uuid;
 use crate::queries::{work_query, works_query};
+use uuid::Uuid;
 
 /// A set of booleans to toggle directives in the GraphQL queries
 pub struct QueryParameters {
@@ -27,7 +27,7 @@ impl WorkQueryVariables {
     pub(crate) fn new(work_id: Uuid, parameters: QueryParameters) -> Self {
         WorkQueryVariables {
             work_id,
-            parameters
+            parameters,
         }
     }
 }
@@ -36,7 +36,7 @@ impl WorksQueryVariables {
     pub(crate) fn new(publishers: Option<Vec<Uuid>>, parameters: QueryParameters) -> Self {
         WorksQueryVariables {
             publishers,
-            parameters
+            parameters,
         }
     }
 }
@@ -94,11 +94,23 @@ impl From<WorkQueryVariables> for work_query::Variables {
         work_query::Variables {
             work_id: v.work_id,
             issues_limit: if v.parameters.with_issues { 99999 } else { 0 },
-            languages_limit: if v.parameters.with_languages { 99999 } else { 0 },
-            publications_limit: if v.parameters.with_publications { 99999 } else { 0 },
+            languages_limit: if v.parameters.with_languages {
+                99999
+            } else {
+                0
+            },
+            publications_limit: if v.parameters.with_publications {
+                99999
+            } else {
+                0
+            },
             subjects_limit: if v.parameters.with_subjects { 99999 } else { 0 },
             fundings_limit: if v.parameters.with_fundings { 99999 } else { 0 },
-            relations_limit: if v.parameters.with_relations { 99999 } else { 0 },
+            relations_limit: if v.parameters.with_relations {
+                99999
+            } else {
+                0
+            },
         }
     }
 }
@@ -108,11 +120,23 @@ impl From<WorksQueryVariables> for works_query::Variables {
         works_query::Variables {
             publishers: v.publishers,
             issues_limit: if v.parameters.with_issues { 99999 } else { 0 },
-            languages_limit: if v.parameters.with_languages { 99999 } else { 0 },
-            publications_limit: if v.parameters.with_publications { 99999 } else { 0 },
+            languages_limit: if v.parameters.with_languages {
+                99999
+            } else {
+                0
+            },
+            publications_limit: if v.parameters.with_publications {
+                99999
+            } else {
+                0
+            },
             subjects_limit: if v.parameters.with_subjects { 99999 } else { 0 },
             fundings_limit: if v.parameters.with_fundings { 99999 } else { 0 },
-            relations_limit: if v.parameters.with_relations { 99999 } else { 0 },
+            relations_limit: if v.parameters.with_relations {
+                99999
+            } else {
+                0
+            },
         }
     }
 }

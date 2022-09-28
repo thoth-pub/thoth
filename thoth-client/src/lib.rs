@@ -1,7 +1,7 @@
+mod parameters;
 // GraphQLQuery derive macro breaks this linting rule - ignore while awaiting fix
 #[allow(clippy::derive_partial_eq_without_eq)]
 mod queries;
-mod parameters;
 
 use graphql_client::GraphQLQuery;
 use graphql_client::Response;
@@ -10,10 +10,10 @@ use std::future::Future;
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
+pub use crate::parameters::QueryParameters;
+use crate::parameters::{WorkQueryVariables, WorksQueryVariables};
 pub use crate::queries::work_query::*;
 use crate::queries::{work_query, works_query, WorkQuery, WorksQuery};
-pub use crate::parameters::QueryParameters;
-use crate::parameters::{WorksQueryVariables, WorkQueryVariables};
 
 type HttpFuture = Result<reqwest::Response, reqwest::Error>;
 
@@ -99,7 +99,8 @@ impl ThothClient {
         publishers: Option<Vec<Uuid>>,
         parameters: QueryParameters,
     ) -> ThothResult<Vec<Work>> {
-        let variables: works_query::Variables = WorksQueryVariables::new(publishers, parameters).into();
+        let variables: works_query::Variables =
+            WorksQueryVariables::new(publishers, parameters).into();
         let request_body = WorksQuery::build_query(variables);
         let res = self.post_request(&request_body).await.await?;
         let response_body: Response<works_query::ResponseData> = res.json().await?;
