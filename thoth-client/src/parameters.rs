@@ -51,7 +51,7 @@ impl WorksQueryVariables {
 /// # use thoth_client::{QueryParameters};
 ///
 /// # async fn run() -> QueryParameters {
-/// let parameters = QueryParameters::new().with_series().with_languages();
+/// let parameters = QueryParameters::new().with_issues().with_languages();
 /// # parameters
 /// # }
 /// ```
