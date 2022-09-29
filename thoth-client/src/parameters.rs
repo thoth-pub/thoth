@@ -2,7 +2,7 @@ use crate::queries::{work_query, works_query};
 use uuid::Uuid;
 
 /// A set of booleans to toggle directives in the GraphQL queries
-#[cfg_attr(test, derive(Debug, PartialEq))]
+#[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 #[derive(Default)]
 pub struct QueryParameters {
     with_issues: bool,
@@ -337,7 +337,7 @@ mod tests {
         assert_eq!(
             variables,
             works_query::Variables {
-                publishers: publishers.clone(),
+                publishers,
                 issues_limit: 99999,
                 languages_limit: 99999,
                 publications_limit: 99999,
