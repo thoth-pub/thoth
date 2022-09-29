@@ -130,27 +130,42 @@ impl QueryParameters {
     }
 }
 
+const FILTER_INCLUDE_ALL: i64 = 99999;
+const FILTER_INCLUDE_NONE: i64 = 0;
+
 impl From<WorkQueryVariables> for work_query::Variables {
     fn from(v: WorkQueryVariables) -> Self {
         work_query::Variables {
             work_id: v.work_id,
-            issues_limit: if v.parameters.with_issues { 99999 } else { 0 },
-            languages_limit: if v.parameters.with_languages {
-                99999
+            issues_limit: if v.parameters.with_issues {
+                FILTER_INCLUDE_ALL
             } else {
-                0
+                FILTER_INCLUDE_NONE
+            },
+            languages_limit: if v.parameters.with_languages {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
             },
             publications_limit: if v.parameters.with_publications {
-                99999
+                FILTER_INCLUDE_ALL
             } else {
-                0
+                FILTER_INCLUDE_NONE
             },
-            subjects_limit: if v.parameters.with_subjects { 99999 } else { 0 },
-            fundings_limit: if v.parameters.with_fundings { 99999 } else { 0 },
-            relations_limit: if v.parameters.with_relations {
-                99999
+            subjects_limit: if v.parameters.with_subjects {
+                FILTER_INCLUDE_ALL
             } else {
-                0
+                FILTER_INCLUDE_NONE
+            },
+            fundings_limit: if v.parameters.with_fundings {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            relations_limit: if v.parameters.with_relations {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
             },
         }
     }
@@ -160,23 +175,35 @@ impl From<WorksQueryVariables> for works_query::Variables {
     fn from(v: WorksQueryVariables) -> Self {
         works_query::Variables {
             publishers: v.publishers,
-            issues_limit: if v.parameters.with_issues { 99999 } else { 0 },
-            languages_limit: if v.parameters.with_languages {
-                99999
+            issues_limit: if v.parameters.with_issues {
+                FILTER_INCLUDE_ALL
             } else {
-                0
+                FILTER_INCLUDE_NONE
+            },
+            languages_limit: if v.parameters.with_languages {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
             },
             publications_limit: if v.parameters.with_publications {
-                99999
+                FILTER_INCLUDE_ALL
             } else {
-                0
+                FILTER_INCLUDE_NONE
             },
-            subjects_limit: if v.parameters.with_subjects { 99999 } else { 0 },
-            fundings_limit: if v.parameters.with_fundings { 99999 } else { 0 },
-            relations_limit: if v.parameters.with_relations {
-                99999
+            subjects_limit: if v.parameters.with_subjects {
+                FILTER_INCLUDE_ALL
             } else {
-                0
+                FILTER_INCLUDE_NONE
+            },
+            fundings_limit: if v.parameters.with_fundings {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            relations_limit: if v.parameters.with_relations {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
             },
         }
     }
@@ -261,12 +288,12 @@ mod tests {
             variables,
             work_query::Variables {
                 work_id,
-                issues_limit: 99999,
-                languages_limit: 99999,
-                publications_limit: 99999,
-                subjects_limit: 99999,
-                fundings_limit: 99999,
-                relations_limit: 99999,
+                issues_limit: FILTER_INCLUDE_ALL,
+                languages_limit: FILTER_INCLUDE_ALL,
+                publications_limit: FILTER_INCLUDE_ALL,
+                subjects_limit: FILTER_INCLUDE_ALL,
+                fundings_limit: FILTER_INCLUDE_ALL,
+                relations_limit: FILTER_INCLUDE_ALL,
             }
         );
         parameters = QueryParameters::new();
@@ -275,12 +302,12 @@ mod tests {
             variables,
             work_query::Variables {
                 work_id,
-                issues_limit: 0,
-                languages_limit: 0,
-                publications_limit: 0,
-                subjects_limit: 0,
-                fundings_limit: 0,
-                relations_limit: 0,
+                issues_limit: FILTER_INCLUDE_NONE,
+                languages_limit: FILTER_INCLUDE_NONE,
+                publications_limit: FILTER_INCLUDE_NONE,
+                subjects_limit: FILTER_INCLUDE_NONE,
+                fundings_limit: FILTER_INCLUDE_NONE,
+                relations_limit: FILTER_INCLUDE_NONE,
             }
         );
         parameters = QueryParameters::new().with_all().without_relations();
@@ -289,12 +316,12 @@ mod tests {
             variables,
             work_query::Variables {
                 work_id,
-                issues_limit: 99999,
-                languages_limit: 99999,
-                publications_limit: 99999,
-                subjects_limit: 99999,
-                fundings_limit: 99999,
-                relations_limit: 0,
+                issues_limit: FILTER_INCLUDE_ALL,
+                languages_limit: FILTER_INCLUDE_ALL,
+                publications_limit: FILTER_INCLUDE_ALL,
+                subjects_limit: FILTER_INCLUDE_ALL,
+                fundings_limit: FILTER_INCLUDE_ALL,
+                relations_limit: FILTER_INCLUDE_NONE,
             }
         );
     }
@@ -310,12 +337,12 @@ mod tests {
             variables,
             works_query::Variables {
                 publishers: publishers.clone(),
-                issues_limit: 99999,
-                languages_limit: 99999,
-                publications_limit: 99999,
-                subjects_limit: 99999,
-                fundings_limit: 99999,
-                relations_limit: 99999,
+                issues_limit: FILTER_INCLUDE_ALL,
+                languages_limit: FILTER_INCLUDE_ALL,
+                publications_limit: FILTER_INCLUDE_ALL,
+                subjects_limit: FILTER_INCLUDE_ALL,
+                fundings_limit: FILTER_INCLUDE_ALL,
+                relations_limit: FILTER_INCLUDE_ALL,
             }
         );
         parameters = QueryParameters::new();
@@ -324,12 +351,12 @@ mod tests {
             variables,
             works_query::Variables {
                 publishers: publishers.clone(),
-                issues_limit: 0,
-                languages_limit: 0,
-                publications_limit: 0,
-                subjects_limit: 0,
-                fundings_limit: 0,
-                relations_limit: 0,
+                issues_limit: FILTER_INCLUDE_NONE,
+                languages_limit: FILTER_INCLUDE_NONE,
+                publications_limit: FILTER_INCLUDE_NONE,
+                subjects_limit: FILTER_INCLUDE_NONE,
+                fundings_limit: FILTER_INCLUDE_NONE,
+                relations_limit: FILTER_INCLUDE_NONE,
             }
         );
         parameters = QueryParameters::new().with_all().without_relations();
@@ -338,12 +365,12 @@ mod tests {
             variables,
             works_query::Variables {
                 publishers,
-                issues_limit: 99999,
-                languages_limit: 99999,
-                publications_limit: 99999,
-                subjects_limit: 99999,
-                fundings_limit: 99999,
-                relations_limit: 0,
+                issues_limit: FILTER_INCLUDE_ALL,
+                languages_limit: FILTER_INCLUDE_ALL,
+                publications_limit: FILTER_INCLUDE_ALL,
+                subjects_limit: FILTER_INCLUDE_ALL,
+                fundings_limit: FILTER_INCLUDE_ALL,
+                relations_limit: FILTER_INCLUDE_NONE,
             }
         );
     }
