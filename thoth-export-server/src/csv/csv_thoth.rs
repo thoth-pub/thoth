@@ -10,6 +10,7 @@ use thoth_errors::ThothResult;
 
 use super::{CsvCell, CsvRow, CsvSpecification};
 
+#[derive(Copy, Clone)]
 pub(crate) struct CsvThoth;
 
 #[derive(Debug, Serialize)]

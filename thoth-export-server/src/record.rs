@@ -23,6 +23,7 @@ pub const DELIMITER_TAB: u8 = b'\t';
 pub const XML_DECLARATION: &str = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
 pub const DOCTYPE_ONIX21_REF: &str = "<!DOCTYPE ONIXMessage SYSTEM \"http://www.editeur.org/onix/2.1/reference/onix-international.dtd\">\n";
 
+#[derive(Copy, Clone)]
 pub(crate) enum MetadataSpecification {
     Onix3ProjectMuse(Onix3ProjectMuse),
     Onix3Oapen(Onix3Oapen),

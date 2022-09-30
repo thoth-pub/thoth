@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
   - [#298](https://github.com/thoth-pub/thoth/issues/298) - Make database constraint errors more user-friendly in API output and APP notifications
 
+## [[0.8.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.10) - 2022-09-30
+  - [#438](https://github.com/thoth-pub/thoth/issues/438) - Allow specifying query parameters based on the requested specification
+  - Upgrade rust to `1.64.0` in development `Dockerfile`
+
 ## [[0.8.9]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.9) - 2022-09-21
 ### Added
   - [#426](https://github.com/thoth-pub/thoth/issues/426) - Add ProQuest Ebrary ONIX 2.1 specification

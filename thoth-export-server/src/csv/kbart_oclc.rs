@@ -7,6 +7,7 @@ use thoth_errors::{ThothError, ThothResult};
 
 use super::{CsvRow, CsvSpecification};
 
+#[derive(Copy, Clone)]
 pub(crate) struct KbartOclc;
 
 #[derive(Debug, Serialize)]
