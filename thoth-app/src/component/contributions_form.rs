@@ -309,7 +309,7 @@ impl Component for ContributionsFormComponent {
                         ctx.link()
                             .send_message(Msg::ToggleModalFormDisplay(false, None));
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false
@@ -370,7 +370,7 @@ impl Component for ContributionsFormComponent {
                     },
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false

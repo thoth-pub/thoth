@@ -850,7 +850,9 @@ impl Component for WorkComponent {
                     </>
                 }
             }
-            FetchState::Failed(_, err) => html! {&err},
+            FetchState::Failed(_, err) => html! {
+                { ThothError::from(err).to_string() }
+            },
         }
     }
 }

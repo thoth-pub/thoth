@@ -295,7 +295,9 @@ impl Component for PublisherComponent {
                     </>
                 }
             }
-            FetchState::Failed(_, err) => html! {&err},
+            FetchState::Failed(_, err) => html! {
+                { ThothError::from(err).to_string() }
+            },
         }
     }
 }

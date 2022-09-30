@@ -446,7 +446,9 @@ impl Component for SeriesComponent {
                     </>
                 }
             }
-            FetchState::Failed(_, err) => html! {&err},
+            FetchState::Failed(_, err) => html! {
+                { ThothError::from(err).to_string() }
+            },
         }
     }
 }
