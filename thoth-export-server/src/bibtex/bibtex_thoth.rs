@@ -6,6 +6,7 @@ use thoth_errors::{ThothError, ThothResult};
 
 use super::{BibtexEntry, BibtexSpecification};
 
+#[derive(Copy, Clone)]
 pub(crate) struct BibtexThoth;
 
 #[derive(Debug)]

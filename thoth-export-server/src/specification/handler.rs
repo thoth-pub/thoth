@@ -4,12 +4,12 @@ use paperclip::actix::{
     web::{self, Json},
 };
 use thoth_client::{ThothClient, Work};
-use thoth_errors::ThothError;
 use uuid::Uuid;
 
 use super::model::Specification;
 use crate::data::{find_specification, ALL_SPECIFICATIONS};
-use crate::record::MetadataRecord;
+use crate::record::{MetadataRecord, MetadataSpecification};
+use crate::specification_query::SpecificationQuery;
 
 #[api_v2_operation(
     summary = "List supported specifications",
@@ -44,14 +44,12 @@ pub(crate) async fn by_work(
     thoth_client: web::Data<ThothClient>,
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
     let (specification_id, work_id) = path.into_inner();
-    thoth_client
-        .get_work(work_id)
+    let specification: MetadataSpecification = specification_id.parse()?;
+
+    SpecificationQuery::new(thoth_client.into_inner(), specification)
+        .by_work(work_id)
         .await
-        .and_then(|data| {
-            specification_id.parse().map(|specification| {
-                MetadataRecord::new(work_id.to_string(), specification, vec![data])
-            })
-        })
+        .map(|data| MetadataRecord::new(work_id.to_string(), specification, vec![data]))
         .map_err(|e| e.into())
 }
 
@@ -66,21 +64,11 @@ pub(crate) async fn by_publisher(
     thoth_client: web::Data<ThothClient>,
 ) -> Result<MetadataRecord<Vec<Work>>, Error> {
     let (specification_id, publisher_id) = path.into_inner();
-    if specification_id.eq("doideposit::crossref") {
-        // Full publisher record is not supported for this specification
-        return Err(ThothError::IncompleteMetadataRecord(
-            "doideposit::crossref".to_string(),
-            "Output can only be generated for one work at a time".to_string(),
-        )
-        .into());
-    }
-    thoth_client
-        .get_works(Some(vec![publisher_id]))
+    let specification: MetadataSpecification = specification_id.parse()?;
+
+    SpecificationQuery::new(thoth_client.into_inner(), specification)
+        .by_publisher(publisher_id)
         .await
-        .and_then(|data| {
-            specification_id.parse().map(|specification| {
-                MetadataRecord::new(publisher_id.to_string(), specification, data)
-            })
-        })
+        .map(|data| MetadataRecord::new(publisher_id.to_string(), specification, data))
         .map_err(|e| e.into())
 }

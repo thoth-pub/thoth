@@ -1,3 +1,4 @@
+mod parameters;
 // GraphQLQuery derive macro breaks this linting rule - ignore while awaiting fix
 #[allow(clippy::derive_partial_eq_without_eq)]
 mod queries;
@@ -9,6 +10,8 @@ use std::future::Future;
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
+pub use crate::parameters::QueryParameters;
+use crate::parameters::{WorkQueryVariables, WorksQueryVariables};
 pub use crate::queries::work_query::*;
 use crate::queries::{work_query, works_query, WorkQuery, WorksQuery};
 
@@ -50,18 +53,19 @@ impl ThothClient {
     ///
     /// ```no_run
     /// # use thoth_errors::ThothResult;
-    /// # use thoth_client::{ThothClient, Work};
+    /// # use thoth_client::{QueryParameters, ThothClient, Work};
     /// # use uuid::Uuid;
     ///
     /// # async fn run() -> ThothResult<Work> {
     /// let thoth_client = ThothClient::new("https://api.thoth.pub/graphql".to_string());
     /// let work_id = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001")?;
-    /// let work = thoth_client.get_work(work_id).await?;
+    /// let work = thoth_client.get_work(work_id, QueryParameters::new()).await?;
     /// # Ok(work)
     /// # }
     /// ```
-    pub async fn get_work(&self, work_id: Uuid) -> ThothResult<Work> {
-        let request_body = WorkQuery::build_query(work_query::Variables { work_id });
+    pub async fn get_work(&self, work_id: Uuid, parameters: QueryParameters) -> ThothResult<Work> {
+        let variables: work_query::Variables = WorkQueryVariables::new(work_id, parameters).into();
+        let request_body = WorkQuery::build_query(variables);
         let res = self.post_request(&request_body).await.await?;
         let response_body: Response<work_query::ResponseData> = res.json().await?;
         match response_body.data {
@@ -80,18 +84,24 @@ impl ThothClient {
     ///
     /// ```no_run
     /// # use thoth_errors::ThothResult;
-    /// # use thoth_client::{ThothClient, Work};
+    /// # use thoth_client::{QueryParameters, ThothClient, Work};
     /// # use uuid::Uuid;
     ///
     /// # async fn run() -> ThothResult<Vec<Work>> {
     /// let thoth_client = ThothClient::new("https://api.thoth.pub/graphql".to_string());
     /// let publisher_id = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001")?;
-    /// let works = thoth_client.get_works(Some(vec![publisher_id])).await?;
+    /// let works = thoth_client.get_works(Some(vec![publisher_id]), QueryParameters::new()).await?;
     /// # Ok(works)
     /// # }
     /// ```
-    pub async fn get_works(&self, publishers: Option<Vec<Uuid>>) -> ThothResult<Vec<Work>> {
-        let request_body = WorksQuery::build_query(works_query::Variables { publishers });
+    pub async fn get_works(
+        &self,
+        publishers: Option<Vec<Uuid>>,
+        parameters: QueryParameters,
+    ) -> ThothResult<Vec<Work>> {
+        let variables: works_query::Variables =
+            WorksQueryVariables::new(publishers, parameters).into();
+        let request_body = WorksQuery::build_query(variables);
         let res = self.post_request(&request_body).await.await?;
         let response_body: Response<works_query::ResponseData> = res.json().await?;
         match response_body.data {

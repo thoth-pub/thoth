@@ -12,7 +12,8 @@ use uuid::Uuid;
 #[graphql(
     schema_path = "assets/schema.json",
     query_path = "assets/queries.graphql",
-    response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq"
+    response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq",
+    variables_derives = "Debug,PartialEq"
 )]
 pub struct WorkQuery;
 
@@ -26,7 +27,8 @@ impl fmt::Display for work_query::LanguageCode {
 #[graphql(
     schema_path = "assets/schema.json",
     query_path = "assets/queries.graphql",
-    response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq"
+    response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq",
+    variables_derives = "Debug,PartialEq"
 )]
 pub struct WorksQuery;
 
