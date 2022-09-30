@@ -145,7 +145,7 @@ struct GraphqlError {
 }
 
 #[derive(Debug, Deserialize)]
-struct GrqphqlErrorMessage {
+struct GraqphqlErrorMessage {
     errors: Vec<GraphqlError>,
 }
 
@@ -155,7 +155,7 @@ impl fmt::Display for GraphqlError {
     }
 }
 
-impl fmt::Display for GrqphqlErrorMessage {
+impl fmt::Display for GraqphqlErrorMessage {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for error in &self.errors {
             write!(f, "{}", error)?;
@@ -170,7 +170,7 @@ impl From<yewtil::fetch::FetchError> for ThothError {
         use yewtil::fetch::FetchError;
         match error {
             FetchError::DeserializeError { error: _, content } => {
-                let message: Result<GrqphqlErrorMessage> = serde_json::from_str(&content);
+                let message: Result<GraqphqlErrorMessage> = serde_json::from_str(&content);
                 match message {
                     Ok(m) => ThothError::GraphqlError(m.to_string()),
                     Err(_) => ThothError::RequestError(content),
