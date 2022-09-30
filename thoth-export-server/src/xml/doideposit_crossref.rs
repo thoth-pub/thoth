@@ -12,6 +12,7 @@ use super::{write_element_block, XmlSpecification};
 use crate::xml::{write_full_element_block, XmlElementBlock};
 use thoth_errors::{ThothError, ThothResult};
 
+#[derive(Copy, Clone)]
 pub struct DoiDepositCrossref {}
 
 // Output format based on schema documentation at https://data.crossref.org/reports/help/schema_doc/5.3.1/index.html

@@ -36,7 +36,7 @@ fragment Work on Work {
             publisherUrl
         }
     }
-    issues {
+    issues(limit: $issuesLimit) {
         issueOrdinal
         series {
             seriesType
@@ -67,12 +67,12 @@ fragment Work on Work {
             }
         }
     }
-    languages {
+    languages(limit: $languagesLimit) {
         languageCode
         languageRelation
         mainLanguage
     }
-    publications {
+    publications(limit: $publicationsLimit) {
         publicationId
         publicationType
         isbn
@@ -98,12 +98,12 @@ fragment Work on Work {
             canonical
         }
     }
-    subjects {
+    subjects(limit: $subjectsLimit) {
         subjectCode
         subjectType
         subjectOrdinal
     }
-    fundings {
+    fundings(limit: $fundingsLimit) {
         program
         projectName
         projectShortname
@@ -116,7 +116,7 @@ fragment Work on Work {
             countryCode
         }
     }
-    relations {
+    relations(limit: $relationsLimit) {
         relationType
         relationOrdinal
         relatedWork {
@@ -157,12 +157,28 @@ fragment Work on Work {
     }
 }
 
-query WorkQuery($workId: Uuid!) {
+query WorkQuery(
+    $workId: Uuid!,
+    $issuesLimit: Int!,
+    $languagesLimit: Int!,
+    $publicationsLimit: Int!,
+    $subjectsLimit: Int!,
+    $fundingsLimit: Int!,
+    $relationsLimit: Int!
+) {
     work(workId: $workId) {
         ...Work
     }
 }
-query WorksQuery($publishers: [Uuid!]) {
+query WorksQuery(
+    $publishers: [Uuid!],
+    $issuesLimit: Int!,
+    $languagesLimit: Int!,
+    $publicationsLimit: Int!,
+    $subjectsLimit: Int!,
+    $fundingsLimit: Int!,
+    $relationsLimit: Int!
+) {
     works(limit: 99999, publishers: $publishers) {
         ...Work
     }

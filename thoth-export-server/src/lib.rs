@@ -14,6 +14,7 @@ mod platform;
 mod rapidoc;
 mod record;
 mod specification;
+mod specification_query;
 mod xml;
 
 use crate::rapidoc::rapidoc_source;
