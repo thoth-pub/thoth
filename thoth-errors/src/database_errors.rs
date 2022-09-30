@@ -14,23 +14,33 @@ use crate::ThothError;
 /// WHERE nsp.nspname = 'public'
 /// AND contype in ('u', 'c');
 /// ```
+///
+/// To obtain a list of non-primary-key indeces:
+/// ```sql
+/// SELECT indexname
+/// FROM pg_indexes
+/// WHERE schemaname = 'public'
+/// AND indexname NOT LIKE '%_pkey';
+/// ```
 static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
-    "publisher_uniq_idx" => "A publisher with this name already exists.",
-    "imprint_uniq_idx" => "An imprint with this name already exists.",
-    "doi_uniq_idx" => "A work with this DOI already exists.",
-    "language_uniq_work_idx" => "Duplicate language code.",
-    "series_issn_print_idx" => "A series with this print ISSN already exists.",
-    "series_issn_digital_idx" => "A series with this digital ISSN already exists.",
-    "issue_uniq_ord_in_series_idx" => "An issue with this ordinal number already exists.",
-    "orcid_uniq_idx" => "A contributor with this ORCID ID already exists.",
-    "location_uniq_canonical_true_idx" => "A canonical location for this publication already exists.",
-    "location_uniq_platform_idx" => "A location on the selected platform already exists.",
-    "email_uniq_idx" => "An account with this email already exists.",
     "affiliation_uniq_ord_in_contribution_idx" => "An affiliation with this ordinal number already exists.",
     "contribution_contribution_ordinal_work_id_uniq" => "A contribution with this ordinal number already exists.",
     "contribution_work_id_contributor_id_contribution_type_uniq" => "A contribution of this type already exists for this contributor.",
+    "orcid_uniq_idx" => "A contributor with this ORCID ID already exists.",
+    "imprint_uniq_idx" => "An imprint with this name already exists.",
+    "institution_doi_uniq_idx" => "An institution with this DOI already exists.",
     "issue_series_id_work_id_uniq" => "An issue on the selected series already exists for the this work.",
+    "issue_uniq_ord_in_series_idx" => "An issue with this ordinal number already exists.",
+    "email_uniq_idx" => "An account with this email already exists.",
+    "doi_uniq_idx" => "A work with this DOI already exists.",
+    "publisher_uniq_idx" => "A publisher with this name already exists.",
+    "language_uniq_work_idx" => "Duplicate language code.",
     "publication_publication_type_work_id_uniq" => "A publication with the selected type already exists.",
+    "publication_isbn_idx" => "A publication with this ISBN already exists.",
+    "location_uniq_canonical_true_idx" => "A canonical location for this publication already exists.",
+    "location_uniq_platform_idx" => "A location on the selected platform already exists.",
+    "series_issn_digital_idx" => "A series with this digital ISSN already exists.",
+    "series_issn_print_idx" => "A series with this print ISSN already exists.",
     "work_relation_ordinal_type_uniq" => "A relation with this ordinal number already exists.",
     "work_relation_relator_related_uniq" => "A relation between these two works already exists.",
     "affiliation_affiliation_ordinal_check" => "An affiliation ordinal number must be greater than 0.",
