@@ -1,5 +1,6 @@
 use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
+use thoth_errors::ThothError;
 use yew::html;
 use yew::prelude::*;
 use yew_router::prelude::Link;
@@ -213,7 +214,9 @@ impl Component for DashboardComponent {
                     </div>
                 </div>
             },
-            FetchState::Failed(_, err) => html! {&err},
+            FetchState::Failed(_, err) => html! {
+                { ThothError::from(err).to_string() }
+            },
         }
     }
 }

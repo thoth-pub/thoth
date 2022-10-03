@@ -1,4 +1,9 @@
+#[cfg(not(target_arch = "wasm32"))]
+mod database_errors;
+
 use core::convert::From;
+use serde::Deserialize;
+use std::fmt;
 use thiserror::Error;
 
 /// A specialised result type for returning Thoth data
@@ -14,6 +19,8 @@ pub enum ThothError {
     InvalidSubjectCode(String, String),
     #[error("Database error: {0}")]
     DatabaseError(String),
+    #[error("{0}")]
+    DatabaseConstraintError(&'static str),
     #[error("Internal error: {0}")]
     InternalError(String),
     #[error("Invalid credentials.")]
@@ -76,6 +83,10 @@ pub enum ThothError {
         "Price values must be greater than zero. To indicate an unpriced Publication, omit all Prices."
     )]
     PriceZeroError,
+    #[error("{0}")]
+    RequestError(String),
+    #[error("{0}")]
+    GraphqlError(String),
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -128,17 +139,47 @@ impl actix_web::error::ResponseError for ThothError {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-impl From<diesel::result::Error> for ThothError {
-    fn from(error: diesel::result::Error) -> ThothError {
-        use diesel::result::Error;
+#[derive(Debug, Deserialize)]
+struct GraphqlError {
+    message: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraqphqlErrorMessage {
+    errors: Vec<GraphqlError>,
+}
+
+impl fmt::Display for GraphqlError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl fmt::Display for GraqphqlErrorMessage {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for error in &self.errors {
+            write!(f, "{}", error)?;
+        }
+        Ok(())
+    }
+}
+
+impl From<yewtil::fetch::FetchError> for ThothError {
+    fn from(error: yewtil::fetch::FetchError) -> Self {
+        use serde_json::error::Result;
+        use yewtil::fetch::FetchError;
         match error {
-            Error::DatabaseError(_kind, info) => {
-                let message = info.details().unwrap_or_else(|| info.message()).to_string();
-                ThothError::DatabaseError(message)
+            FetchError::DeserializeError { error: _, content } => {
+                let message: Result<GraqphqlErrorMessage> = serde_json::from_str(&content);
+                match message {
+                    Ok(m) => ThothError::GraphqlError(m.to_string()),
+                    Err(_) => ThothError::RequestError(content),
+                }
             }
-            Error::NotFound => ThothError::EntityNotFound,
-            _ => ThothError::InternalError("".into()),
+            FetchError::CouldNotCreateFetchFuture => {
+                ThothError::RequestError("Could not connect to the API.".to_string())
+            }
+            _ => ThothError::RequestError(error.to_string()),
         }
     }
 }
@@ -215,5 +256,19 @@ mod tests {
             ThothError::from(uuid_08::Uuid::parse_str("not-a-uuid").unwrap_err()),
             ThothError::InvalidUuid
         );
+    }
+
+    #[test]
+    fn test_fetch_error() {
+        use yewtil::fetch::FetchError;
+        let error = "{\"data\":null,\"errors\":[{\"message\":\"A relation with this ordinal already exists.\",\"locations\":[{\"line\":8,\"column\":9}],\"path\":[\"createWorkRelation\"]}]}";
+        let fetch_error = FetchError::DeserializeError {
+            error: "".to_string(),
+            content: error.to_string(),
+        };
+        assert_eq!(
+            ThothError::from(fetch_error),
+            ThothError::GraphqlError("A relation with this ordinal already exists.".to_string())
+        )
     }
 }

@@ -5,6 +5,7 @@ use thoth_api::model::publication::Publication;
 use thoth_api::model::publication::PublicationProperties;
 use thoth_api::model::publication::PublicationWithRelations;
 use thoth_api::model::work::WorkType;
+use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -242,7 +243,7 @@ impl Component for PublicationComponent {
                     },
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false
@@ -426,7 +427,9 @@ impl Component for PublicationComponent {
                     </>
                 }
             }
-            FetchState::Failed(_, err) => html! {&err},
+            FetchState::Failed(_, err) => html! {
+                { ThothError::from(err).to_string() }
+            },
         }
     }
 }

@@ -88,6 +88,7 @@ macro_rules! pagination_component {
         use thoth_api::account::model::AccountAccess;
         use thoth_api::account::model::AccountDetails;
         use thoth_api::graphql::utils::Direction::*;
+        use thoth_errors::ThothError;
         use yew::html;
         use yew::prelude::Component;
         use yew::prelude::Context;
@@ -335,7 +336,9 @@ macro_rules! pagination_component {
                                         </tbody>
                                     </table>
                                 },
-                                FetchState::Failed(_, err) => html! {&err},
+                                FetchState::Failed(_, err) => html! {
+                                    { ThothError::from(err).to_string() }
+                                },
                             }
                         }
                     </>

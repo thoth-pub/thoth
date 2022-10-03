@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew_agent::{Agent, AgentLink, Context, Dispatched, HandlerId};
 use yewtil::fetch::Fetch;
@@ -62,7 +63,7 @@ impl Agent for ContributorActivityChecker {
                     FetchState::Failed(_, err) => {
                         self.notification_bus
                             .send(NotificationRequest::NotificationBusMsg((
-                                err.to_string(),
+                                ThothError::from(err).to_string(),
                                 NotificationStatus::Danger,
                             )));
                     }
