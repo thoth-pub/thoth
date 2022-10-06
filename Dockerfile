@@ -26,7 +26,7 @@ ENV STATIC_DIR=/static
 WORKDIR $STATIC_DIR
 RUN curl -fLsS "https://github.com/richfelker/musl-cross-make/archive/${MUSL_CROSS_VERSION}.tar.gz" | tar xz
 WORKDIR "${STATIC_DIR}/musl-cross-make-${MUSL_CROSS_VERSION}"
-RUN make install TARGET=${TARGET}-linux-musl OUTPUT=/usr/local/musl > /dev/null
+RUN make install TARGET=${TARGET}-linux-musl OUTPUT=/usr/local/musl
 ENV CC_x86_64_unknown_linux_musl=/usr/local/musl/bin/x86_64-linux-musl-gcc
 
 # Build zlib
