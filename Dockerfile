@@ -1,5 +1,5 @@
-ARG RUST_IMAGE=rust:1.59.0
-ARG MUSL_IMAGE=ekidd/rust-musl-builder:1.57.0
+ARG RUST_IMAGE=rust:1.64.0
+ARG MUSL_IMAGE=clux/muslrust:1.63.0-stable
 
 FROM ${RUST_IMAGE} as wasm
 
@@ -46,7 +46,7 @@ ARG THOTH_EXPORT_API=https://export.thoth.pub
 ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
 ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
 
-COPY --from=wasm --chown=rust:rust /wasm/ /home/rust/src/
+COPY --from=wasm /wasm/ /volume/
 # Build Thoth for release
 RUN cargo build --release
 
@@ -55,7 +55,7 @@ FROM scratch
 
 # Get thoth and diesel binaries
 COPY --from=build \
-    /home/rust/src/target/x86_64-unknown-linux-musl/release/thoth /
+    /volume/target/x86_64-unknown-linux-musl/release/thoth /
 
 # Get CA certificates
 COPY --from=build \
