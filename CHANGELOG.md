@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [[0.8.11]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.11) - 2022-10-06
+## [[0.8.11]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.11) - 2022-10-07
 ### Changed
   - [#298](https://github.com/thoth-pub/thoth/issues/298) - Make database constraint errors more user-friendly in API output and APP notifications
   - Replaced docker musl image (no longer maintained) with official images, installing requirements needed for static compilation
