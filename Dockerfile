@@ -55,7 +55,7 @@ FROM scratch
 
 # Get thoth and diesel binaries
 COPY --from=build \
-    /home/rust/src/target/x86_64-unknown-linux-musl/release/thoth /
+    /volume/target/x86_64-unknown-linux-musl/release/thoth /
 
 # Get CA certificates
 COPY --from=build \
