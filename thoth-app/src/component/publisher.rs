@@ -1,5 +1,6 @@
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::publisher::Publisher;
+use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -152,7 +153,7 @@ impl Component for PublisherComponent {
                     },
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false
@@ -201,7 +202,7 @@ impl Component for PublisherComponent {
                     },
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false
@@ -294,7 +295,9 @@ impl Component for PublisherComponent {
                     </>
                 }
             }
-            FetchState::Failed(_, err) => html! {&err},
+            FetchState::Failed(_, err) => html! {
+                { ThothError::from(err).to_string() }
+            },
         }
     }
 }

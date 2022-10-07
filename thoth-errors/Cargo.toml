@@ -1,6 +1,6 @@
 [package]
 name = "thoth-errors"
-version = "0.8.10"
+version = "0.8.11"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -12,13 +12,15 @@ readme = "README.md"
 thiserror = "1.0"
 reqwest = { version = "0.11", features = ["json"] }
 serde = "1.0.115"
+serde_json = "1.0"
 uuid-07 = { package = "uuid", version = "0.7", features = ["serde", "v4"] }
+yewtil = { version = "0.4.0", features = ["fetch"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 actix-web = "4.0.1"
 diesel = "1.4.8"
 csv = "1.1.6"
 juniper = "0.14.2"
+phf = { version = "0.11", features = ["macros"] }
 xml-rs = "0.8.0"
 uuid-08 = { package = "uuid", version = "0.8.2", features = ["serde"] }
-

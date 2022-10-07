@@ -5,7 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[0.8.11]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.11) - 2022-10-07
 ### Changed
+  - [#298](https://github.com/thoth-pub/thoth/issues/298) - Make database constraint errors more user-friendly in API output and APP notifications
+  - Replaced docker musl image (no longer maintained) with official images, installing requirements needed for static compilation
+
+## [[0.8.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.10) - 2022-09-30
   - [#438](https://github.com/thoth-pub/thoth/issues/438) - Allow specifying query parameters based on the requested specification
   - Upgrade rust to `1.64.0` in development `Dockerfile`
 
@@ -17,12 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Development workflow in docker
 
 ### Changed
-  - [#425](https://github.com/thoth-pub/thoth/issues/425) - Fix typo in contribution type illustrator
   - [#429](https://github.com/thoth-pub/thoth/issues/429) - Incomplete metadata record errors are now returned as a 404 instead of 500
-  - [#424](https://github.com/thoth-pub/thoth/issues/424) - Fix inactive tag on catalogue
   - Added derives for `Eq` alongside `PartialEq` to comply with [`rustc 1.63.0`](https://github.com/rust-lang/rust/releases/tag/1.63.0)
   - Upgrade rust to `1.63.0` in development `Dockerfile`
   - Order contributions and relations by ordinal, and subjects by type and ordinal
+
+### Fixed
+  - [#425](https://github.com/thoth-pub/thoth/issues/425) - Fix typo in contribution type illustrator
+  - [#424](https://github.com/thoth-pub/thoth/issues/424) - Fix inactive tag on catalogue
 
 ## [[0.8.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.8.8) - 2022-08-02
 ### Added

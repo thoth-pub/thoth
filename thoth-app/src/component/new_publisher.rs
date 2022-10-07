@@ -1,4 +1,5 @@
 use thoth_api::model::publisher::Publisher;
+use thoth_errors::ThothError;
 use yew::html;
 use yew::prelude::*;
 use yew_agent::Dispatched;
@@ -82,7 +83,7 @@ impl Component for NewPublisherComponent {
                     },
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false

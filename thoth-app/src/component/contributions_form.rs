@@ -2,6 +2,7 @@ use std::str::FromStr;
 use thoth_api::model::contribution::Contribution;
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::contributor::Contributor;
+use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
 use yew::prelude::*;
@@ -234,7 +235,7 @@ impl Component for ContributionsFormComponent {
                         ctx.link()
                             .send_message(Msg::ToggleModalFormDisplay(false, None));
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false
@@ -308,7 +309,7 @@ impl Component for ContributionsFormComponent {
                         ctx.link()
                             .send_message(Msg::ToggleModalFormDisplay(false, None));
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false
@@ -369,7 +370,7 @@ impl Component for ContributionsFormComponent {
                     },
                     FetchState::Failed(_, err) => {
                         self.notification_bus.send(Request::NotificationBusMsg((
-                            err.to_string(),
+                            ThothError::from(err).to_string(),
                             NotificationStatus::Danger,
                         )));
                         false
