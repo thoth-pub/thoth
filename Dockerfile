@@ -46,7 +46,7 @@ ARG THOTH_EXPORT_API=https://export.thoth.pub
 ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
 ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
 
-COPY --from=wasm --chown=rust:rust /wasm/ /volume/
+COPY --from=wasm /wasm/ /volume/
 # Build Thoth for release
 RUN cargo build --release
 
