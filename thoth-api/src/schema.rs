@@ -582,6 +582,9 @@ joinable!(publisher_account -> account (account_id));
 joinable!(publisher_account -> publisher (publisher_id));
 joinable!(publisher_history -> account (account_id));
 joinable!(publisher_history -> publisher (publisher_id));
+joinable!(reference -> work (work_id));
+joinable!(reference_history -> account (account_id));
+joinable!(reference_history -> reference (reference_id));
 joinable!(series -> imprint (imprint_id));
 joinable!(series_history -> account (account_id));
 joinable!(series_history -> series (series_id));
@@ -622,6 +625,8 @@ allow_tables_to_appear_in_same_query!(
     publisher,
     publisher_account,
     publisher_history,
+    reference,
+    reference_history,
     series,
     series_history,
     subject,
