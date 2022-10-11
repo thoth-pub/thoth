@@ -363,6 +363,48 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+
+    reference (reference_id) {
+        reference_id -> Uuid,
+        work_id -> Uuid,
+        reference_ordinal -> Int4,
+        doi -> Nullable<Text>,
+        unstructured_citation -> Nullable<Text>,
+        issn -> Nullable<Text>,
+        isbn -> Nullable<Text>,
+        journal_title -> Nullable<Text>,
+        article_title -> Nullable<Text>,
+        series_title -> Nullable<Text>,
+        volume_title -> Nullable<Text>,
+        edition -> Nullable<Int4>,
+        author -> Nullable<Text>,
+        volume -> Nullable<Text>,
+        issue -> Nullable<Text>,
+        first_page -> Nullable<Text>,
+        component_number -> Nullable<Text>,
+        standard_designator -> Nullable<Text>,
+        standards_body_name -> Nullable<Text>,
+        standards_body_acronym -> Nullable<Text>,
+        publication_date -> Nullable<Date>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    reference_history (reference_history_id) {
+        reference_history_id -> Uuid,
+        reference_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use crate::model::series::Series_type;
 
     series (series_id) {
