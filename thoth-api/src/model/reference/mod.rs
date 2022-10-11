@@ -1,6 +1,5 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
@@ -15,7 +14,7 @@ use crate::schema::reference_history;
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting references list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ReferenceField {
     ReferenceId,
