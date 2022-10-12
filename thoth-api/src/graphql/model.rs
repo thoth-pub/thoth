@@ -3600,7 +3600,7 @@ impl Reference {
 
     #[graphql(description = "Number used to order references within a work's bibliography.")]
     pub fn reference_ordinal(&self) -> &i32 {
-        self.reference_ordinal.as_ref()
+        &self.reference_ordinal
     }
 
     #[graphql(description = "Digital Object Identifier of the cited work as full URL.")]
