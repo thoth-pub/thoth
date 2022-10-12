@@ -21,10 +21,9 @@ use crate::model::price::*;
 use crate::model::publication::crud::PublicationValidation;
 use crate::model::publication::*;
 use crate::model::publisher::*;
-use crate::model::reference::{Reference, ReferenceOrderBy};
+use crate::model::reference::*;
 use crate::model::series::*;
 use crate::model::subject::*;
-use crate::model::work::WorkField::Reference;
 use crate::model::work::*;
 use crate::model::work_relation::*;
 use crate::model::Convert;
@@ -1481,6 +1480,15 @@ impl MutationRoot {
         WorkRelation::create(&context.db, &data).map_err(|e| e.into())
     }
 
+    fn create_reference(context: &Context, data: NewReference) -> FieldResult<Reference> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        context
+            .account_access
+            .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+
+        Reference::create(&context.db, &data).map_err(|e| e.into())
+    }
+
     fn update_work(context: &Context, data: PatchWork) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let work = Work::from_id(&context.db, &data.work_id).unwrap();
@@ -1809,6 +1817,25 @@ impl MutationRoot {
             .map_err(|e| e.into())
     }
 
+    fn update_reference(context: &Context, data: PatchReference) -> FieldResult<Reference> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let reference = Reference::from_id(&context.db, &data.reference_id).unwrap();
+        context
+            .account_access
+            .can_edit(reference.publisher_id(&context.db)?)?;
+
+        if data.work_id != reference.work_id {
+            context
+                .account_access
+                .can_edit(publisher_id_from_work_id(&context.db, data.work_id)?)?;
+        }
+
+        let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
+        reference
+            .update(&context.db, &data, &account_id)
+            .map_err(|e| e.into())
+    }
+
     fn delete_work(context: &Context, work_id: Uuid) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let work = Work::from_id(&context.db, &work_id).unwrap();
@@ -1971,6 +1998,16 @@ impl MutationRoot {
         )?)?;
 
         work_relation.delete(&context.db).map_err(|e| e.into())
+    }
+
+    fn delete_reference(context: &Context, reference_id: Uuid) -> FieldResult<Reference> {
+        context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
+        let reference = Reference::from_id(&context.db, &reference_id).unwrap();
+        context
+            .account_access
+            .can_edit(reference.publisher_id(&context.db)?)?;
+
+        reference.delete(&context.db).map_err(|e| e.into())
     }
 }
 
