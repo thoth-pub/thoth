@@ -1,6 +1,7 @@
 use chrono::naive::NaiveDate;
 use juniper::FieldResult;
 use juniper::RootNode;
+use std::cell::Ref;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -20,8 +21,10 @@ use crate::model::price::*;
 use crate::model::publication::crud::PublicationValidation;
 use crate::model::publication::*;
 use crate::model::publisher::*;
+use crate::model::reference::{Reference, ReferenceOrderBy};
 use crate::model::series::*;
 use crate::model::subject::*;
+use crate::model::work::WorkField::Reference;
 use crate::model::work::*;
 use crate::model::work_relation::*;
 use crate::model::Convert;
@@ -2429,6 +2432,42 @@ impl Work {
         )
         .map_err(|e| e.into())
     }
+    #[graphql(
+        description = "Get references cited by this work",
+        arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
+            filter(
+                default = "".to_string(),
+                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on doi, unstructured_citation, issn, isbn, journal_title, article_title, series_title, volume_title, author, standard_designator, standards_body_name, and standards_body_acronym",
+            ),
+            order(
+                default = ReferenceOrderBy::default(),
+                description = "The order in which to sort the results",
+            ),
+        )
+    )]
+    pub fn references(
+        &self,
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: ReferenceOrderBy,
+    ) -> FieldResult<Vec<Reference>> {
+        Reference::all(
+            &context.db,
+            limit,
+            offset,
+            Some(filter),
+            order,
+            publishers,
+            None,
+            None,
+            None,
+            None,
+        )
+        .map_err(|e| e.into())
+    }
 }
 
 #[juniper::object(Context = Context, description = "A manifestation of a written text")]
@@ -3453,6 +3492,156 @@ impl WorkRelation {
 
     pub fn related_work(&self, context: &Context) -> FieldResult<Work> {
         Work::from_id(&context.db, &self.related_work_id).map_err(|e| e.into())
+    }
+}
+
+#[juniper::object(
+    Context = Context,
+    description = "A citation to a written text. References must always include the DOI of the cited work, the unstructured citation, or both.",
+)]
+impl Reference {
+    #[graphql(description = "UUID of the reference.")]
+    pub fn reference_id(&self) -> Uuid {
+        self.reference_id
+    }
+
+    #[graphql(description = "UUID of the citing work.")]
+    pub fn work_id(&self) -> Uuid {
+        self.work_id
+    }
+
+    #[graphql(description = "Number used to order references within a work's bibliography.")]
+    pub fn reference_ordinal(&self) -> &i32 {
+        self.reference_ordinal
+    }
+
+    #[graphql(description = "Digital Object Identifier of the cited work as full URL.")]
+    pub fn doi(&self) -> Option<&Doi> {
+        self.doi.as_ref()
+    }
+
+    #[graphql(
+        description = "Full reference text. When the DOI of the cited work is not known this field is required, and may be used in conjunction with other structured data to help identify the cited work."
+    )]
+    pub fn unstructured_citation(&self) -> Option<&String> {
+        self.unstructured_citation.as_ref()
+    }
+
+    #[graphql(description = "ISSN of a series.")]
+    pub fn issn(&self) -> Option<&String> {
+        self.issn.as_ref()
+    }
+
+    #[graphql(description = "Book ISBN, when the cited work is a book or a chapter.")]
+    pub fn isbn(&self) -> Option<&Isbn> {
+        self.isbn.as_ref()
+    }
+
+    #[graphql(description = "Title of a journal, when the cited work is an article.")]
+    pub fn journal_title(&self) -> Option<&String> {
+        self.journal_title.as_ref()
+    }
+
+    #[graphql(description = "Journal article, conference paper, or book chapter title.")]
+    pub fn article_title(&self) -> Option<&String> {
+        self.article_title.as_ref()
+    }
+
+    #[graphql(description = "Title of a book or conference series.")]
+    pub fn series_title(&self) -> Option<&String> {
+        self.series_title.as_ref()
+    }
+
+    #[graphql(description = "Title of a book or conference proceeding.")]
+    pub fn volume_title(&self) -> Option<&String> {
+        self.volume_title.as_ref()
+    }
+
+    #[graphql(description = "Book edition number.")]
+    pub fn edition(&self) -> Option<&i32> {
+        self.edition.as_ref()
+    }
+
+    #[graphql(description = "First author of the cited work.")]
+    pub fn author(&self) -> Option<&String> {
+        self.author.as_ref()
+    }
+
+    #[graphql(description = "Volume number of a journal or book set.")]
+    pub fn volume(&self) -> Option<&String> {
+        self.volume.as_ref()
+    }
+
+    #[graphql(description = "Journal issue, when the cited work is an article.")]
+    pub fn issue(&self) -> Option<&String> {
+        self.issue.as_ref()
+    }
+
+    #[graphql(description = "First page of the cited page range.")]
+    pub fn first_page(&self) -> Option<&String> {
+        self.first_page.as_ref()
+    }
+
+    #[graphql(
+        description = "The chapter, section or part number, when the cited work is a component of a book."
+    )]
+    pub fn component_number(&self) -> Option<&String> {
+        self.component_number.as_ref()
+    }
+
+    #[graphql(
+        description = "Standard identifier (e.g. \"14064-1\"), when the cited work is a standard."
+    )]
+    pub fn standard_designator(&self) -> Option<&String> {
+        self.standard_designator.as_ref()
+    }
+
+    #[graphql(
+        description = "Full name of the standards organisation (e.g. \"International Organization for Standardization\"), when the cited work is a standard."
+    )]
+    pub fn standards_body_name(&self) -> Option<&String> {
+        self.standards_body_name.as_ref()
+    }
+
+    #[graphql(
+        description = "Acronym of the standards organisation (e.g. \"ISO\"), when the cited work is a standard."
+    )]
+    pub fn standards_body_acronym(&self) -> Option<&String> {
+        self.standards_body_acronym.as_ref()
+    }
+
+    #[graphql(description = "URL of the cited work.")]
+    pub fn reference_url(&self) -> Option<&String> {
+        self.reference_url.as_ref()
+    }
+
+    #[graphql(
+        description = "Publication date of the cited work. Day and month should be set to \"01\" when only the publication year is known."
+    )]
+    pub fn publication_date(&self) -> Option<NaiveDate> {
+        self.publication_date
+    }
+
+    #[graphql(
+        description = "Date the cited work was accessed, when citing a website or online article."
+    )]
+    pub fn retrieval_date(&self) -> Option<NaiveDate> {
+        self.retrieval_date
+    }
+
+    #[graphql(description = "Timestamp of the creation of this record within Thoth.")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at.clone()
+    }
+
+    #[graphql(description = "Timestamp of the last update to this record within Thoth.")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at.clone()
+    }
+
+    #[graphql(description = "The citing work.")]
+    pub fn work(&self, context: &Context) -> FieldResult<Work> {
+        Work::from_id(&context.db, &self.work_id).map_err(|e| e.into())
     }
 }
 
