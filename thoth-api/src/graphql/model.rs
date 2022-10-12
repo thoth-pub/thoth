@@ -1,7 +1,6 @@
 use chrono::naive::NaiveDate;
 use juniper::FieldResult;
 use juniper::RootNode;
-use std::cell::Ref;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -1314,7 +1313,7 @@ impl QueryRoot {
             offset(default = 0, description = "The number of items to skip"),
             order(
                 default = {
-                    AffiliationOrderBy {
+                    ReferenceOrderBy {
                         field: ReferenceField::ReferenceOrdinal,
                         direction: Direction::Asc,
                     }
@@ -2547,12 +2546,12 @@ impl Work {
             &context.db,
             limit,
             offset,
-            Some(filter),
+            None,
             order,
-            publishers,
+            vec![],
+            Some(self.work_id),
             None,
-            None,
-            None,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -3601,7 +3600,7 @@ impl Reference {
 
     #[graphql(description = "Number used to order references within a work's bibliography.")]
     pub fn reference_ordinal(&self) -> &i32 {
-        self.reference_ordinal
+        self.reference_ordinal.as_ref()
     }
 
     #[graphql(description = "Digital Object Identifier of the cited work as full URL.")]
@@ -3700,8 +3699,8 @@ impl Reference {
     }
 
     #[graphql(description = "URL of the cited work.")]
-    pub fn reference_url(&self) -> Option<&String> {
-        self.reference_url.as_ref()
+    pub fn url(&self) -> Option<&String> {
+        self.url.as_ref()
     }
 
     #[graphql(

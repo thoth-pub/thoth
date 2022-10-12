@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
-use crate::model::{Doi, Timestamp};
+use crate::model::{Doi, Isbn, Timestamp};
 #[cfg(feature = "backend")]
 use crate::schema::reference;
 #[cfg(feature = "backend")]
@@ -54,7 +54,7 @@ pub struct Reference {
     pub doi: Option<Doi>,
     pub unstructured_citation: Option<String>,
     pub issn: Option<String>,
-    pub isbn: Option<String>,
+    pub isbn: Option<Isbn>,
     pub journal_title: Option<String>,
     pub article_title: Option<String>,
     pub series_title: Option<String>,
@@ -86,7 +86,7 @@ pub struct NewReference {
     pub doi: Option<Doi>,
     pub unstructured_citation: Option<String>,
     pub issn: Option<String>,
-    pub isbn: Option<String>,
+    pub isbn: Option<Isbn>,
     pub journal_title: Option<String>,
     pub article_title: Option<String>,
     pub series_title: Option<String>,
@@ -118,7 +118,7 @@ pub struct PatchReference {
     pub doi: Option<Doi>,
     pub unstructured_citation: Option<String>,
     pub issn: Option<String>,
-    pub isbn: Option<String>,
+    pub isbn: Option<Isbn>,
     pub journal_title: Option<String>,
     pub article_title: Option<String>,
     pub series_title: Option<String>,

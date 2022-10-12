@@ -40,7 +40,7 @@ impl Crud for Reference {
         let connection = db.get().unwrap();
         let mut query = reference
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
-            .select(reference.all_columns())
+            .select(crate::schema::reference::all_columns)
             .into_boxed();
 
         query = match order.field {
@@ -146,7 +146,7 @@ impl Crud for Reference {
             },
         };
         if !publishers.is_empty() {
-            query = query.filter(create::schema::imprint::publisher_id.eq(any(publishers)));
+            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(work_id.eq(pid));
