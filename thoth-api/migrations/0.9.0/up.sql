@@ -19,7 +19,7 @@ CREATE TABLE reference (
     standard_designator     TEXT CHECK (octet_length(standard_designator) => 1),
     standards_body_name     TEXT CHECK (octet_length(standards_body_name) => 1),
     standards_body_acronym  TEXT CHECK (octet_length(standards_body_acronym) => 1),
-    reference_url           TEXT CHECK (reference_url ~ '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'),
+    url                     TEXT CHECK (url ~ '^[^:]*:\/\/(?:[^\/:]*:[^\/@]*@)?(?:[^\/:.]*\.)+([^:\/]+)'),
     publication_date        DATE,
     retrieval_date          DATE,
     created_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
