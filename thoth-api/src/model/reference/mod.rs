@@ -37,7 +37,9 @@ pub enum ReferenceField {
     StandardDesignator,
     StandardsBodyName,
     StandardsBodyAcronym,
+    Url,
     PublicationDate,
+    RetrievalDate,
     CreatedAt,
     UpdatedAt,
 }
@@ -66,7 +68,9 @@ pub struct Reference {
     pub standard_designator: Option<String>,
     pub standards_body_name: Option<String>,
     pub standards_body_acronym: Option<String>,
+    pub url: Option<String>,
     pub publication_date: Option<NaiveDate>,
+    pub retrieval_date: Option<NaiveDate>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
 }
@@ -96,7 +100,9 @@ pub struct NewReference {
     pub standard_designator: Option<String>,
     pub standards_body_name: Option<String>,
     pub standards_body_acronym: Option<String>,
+    pub url: Option<String>,
     pub publication_date: Option<NaiveDate>,
+    pub retrieval_date: Option<NaiveDate>,
 }
 
 #[cfg_attr(
@@ -126,7 +132,9 @@ pub struct PatchReference {
     pub standard_designator: Option<String>,
     pub standards_body_name: Option<String>,
     pub standards_body_acronym: Option<String>,
+    pub url: Option<String>,
     pub publication_date: Option<NaiveDate>,
+    pub retrieval_date: Option<NaiveDate>,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]

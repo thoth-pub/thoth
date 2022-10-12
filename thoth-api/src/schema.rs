@@ -385,7 +385,9 @@ table! {
         standard_designator -> Nullable<Text>,
         standards_body_name -> Nullable<Text>,
         standards_body_acronym -> Nullable<Text>,
+        url -> Nullable<Text>,
         publication_date -> Nullable<Date>,
+        retrieval_date -> Nullable<Date>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }

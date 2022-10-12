@@ -124,9 +124,17 @@ impl Crud for Reference {
                 Direction::Asc => query.order(standards_body_acronym.asc()),
                 Direction::Desc => query.order(standards_body_acronym.desc()),
             },
+            ReferenceField::Url => match order.direction {
+                Direction::Asc => query.order(url.asc()),
+                Direction::Desc => query.order(url.desc()),
+            },
             ReferenceField::PublicationDate => match order.direction {
                 Direction::Asc => query.order(publication_date.asc()),
                 Direction::Desc => query.order(publication_date.desc()),
+            },
+            ReferenceField::RetrievalDate => match order.direction {
+                Direction::Asc => query.order(retrieval_date.asc()),
+                Direction::Desc => query.order(retrieval_date.desc()),
             },
             ReferenceField::CreatedAt => match order.direction {
                 Direction::Asc => query.order(created_at.asc()),
@@ -158,6 +166,7 @@ impl Crud for Reference {
                         .or(author.ilike(format!("%{}%", filter)))
                         .or(standard_designator.ilike(format!("%{}%", filter)))
                         .or(standards_body_name.ilike(format!("%{}%", filter)))
+                        .or(url.ilike(format!("%{}%", filter)))
                         .or(standards_body_acronym.ilike(format!("%{}%", filter))),
                 );
             }
@@ -202,6 +211,7 @@ impl Crud for Reference {
                         .or(author.ilike(format!("%{}%", filter)))
                         .or(standard_designator.ilike(format!("%{}%", filter)))
                         .or(standards_body_name.ilike(format!("%{}%", filter)))
+                        .or(url.ilike(format!("%{}%", filter)))
                         .or(standards_body_acronym.ilike(format!("%{}%", filter))),
                 );
             }
