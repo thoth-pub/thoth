@@ -1306,6 +1306,58 @@ impl QueryRoot {
     fn affiliation_count(context: &Context) -> FieldResult<i32> {
         Affiliation::count(&context.db, None, vec![], vec![], None).map_err(|e| e.into())
     }
+
+    #[graphql(
+        description = "Query the full list of references",
+        arguments(
+            limit(default = 100, description = "The number of items to return"),
+            offset(default = 0, description = "The number of items to skip"),
+            order(
+                default = {
+                    AffiliationOrderBy {
+                        field: ReferenceField::ReferenceOrdinal,
+                        direction: Direction::Asc,
+                    }
+                },
+                description = "The order in which to sort the results",
+            ),
+            publishers(
+                default = vec![],
+                description = "If set, only shows results connected to publishers with these IDs",
+            ),
+        )
+    )]
+    fn references(
+        context: &Context,
+        limit: i32,
+        offset: i32,
+        order: ReferenceOrderBy,
+        publishers: Vec<Uuid>,
+    ) -> FieldResult<Vec<Reference>> {
+        Reference::all(
+            &context.db,
+            limit,
+            offset,
+            None,
+            order,
+            publishers,
+            None,
+            None,
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Query a single reference using its id")]
+    fn reference(context: &Context, reference_id: Uuid) -> FieldResult<Reference> {
+        Reference::from_id(&context.db, &reference_id).map_err(|e| e.into())
+    }
+
+    #[graphql(description = "Get the total number of references")]
+    fn reference_count(context: &Context) -> FieldResult<i32> {
+        Reference::count(&context.db, None, vec![], vec![], None).map_err(|e| e.into())
+    }
 }
 
 pub struct MutationRoot;
