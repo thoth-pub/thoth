@@ -6,7 +6,6 @@ services:
     container_name: "thoth_db"
     volumes:
       - ./db/_data:/var/lib/postgresql/data
-      - /etc/localtime:/etc/localtime:ro
     env_file:
       - .env
 
