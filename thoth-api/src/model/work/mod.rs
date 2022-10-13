@@ -12,10 +12,10 @@ use crate::model::imprint::ImprintWithPublisher;
 use crate::model::issue::IssueWithSeries;
 use crate::model::language::Language;
 use crate::model::publication::Publication;
+use crate::model::reference::Reference;
 use crate::model::subject::Subject;
 use crate::model::work_relation::WorkRelationWithRelatedWork;
 use crate::model::Doi;
-use crate::model::reference::Reference;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::work;
