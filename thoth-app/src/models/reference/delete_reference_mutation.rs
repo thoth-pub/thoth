@@ -56,7 +56,7 @@ pub struct Variables {
     pub reference_id: Uuid,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct DeleteReferenceResponseData {
     pub delete_reference: Option<Reference>,

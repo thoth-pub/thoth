@@ -96,7 +96,7 @@ graphql_query_builder! {
     PushActionCreateReference
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Variables {
     pub work_id: Uuid,
@@ -123,7 +123,7 @@ pub struct Variables {
     pub retrieval_date: Option<NaiveDate>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateReferenceResponseData {
     pub create_reference: Option<Reference>,
