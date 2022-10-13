@@ -352,6 +352,7 @@ pub trait ToOption {
     fn to_opt_string(self) -> Option<String>;
     fn to_opt_float(self) -> Option<f64>;
     fn to_opt_int(self) -> Option<i32>;
+    fn to_opt_date(self) -> Option<chrono::NaiveDate>;
 }
 
 impl ToOption for String {
@@ -375,6 +376,13 @@ impl ToOption for String {
         match value == 0 {
             true => None,
             false => Some(value),
+        }
+    }
+
+    fn to_opt_date(self) -> Option<chrono::NaiveDate> {
+        match chrono::NaiveDate::parse_from_str(&self, "%Y-%m-%d") {
+            Ok(date) => Some(date),
+            Err(_) => None,
         }
     }
 }
@@ -409,6 +417,15 @@ impl ToElementValue for yew::Event {
         } else {
             // We currently only expect to encounter Select elements from Events
             unimplemented!()
+        }
+    }
+}
+
+impl ToElementValue for Option<chrono::NaiveDate> {
+    fn to_value(self) -> String {
+        match self {
+            None => "".to_string(),
+            Some(date) => date.format("%Y-%m-%d").to_string(),
         }
     }
 }
@@ -450,6 +467,8 @@ pub mod publications;
 pub mod publications_form;
 pub mod publisher;
 pub mod publishers;
+pub mod reference_modal;
+pub mod references_form;
 pub mod related_works_form;
 pub mod root;
 pub mod series;

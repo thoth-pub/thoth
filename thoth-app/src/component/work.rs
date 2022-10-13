@@ -7,6 +7,7 @@ use thoth_api::model::imprint::ImprintWithPublisher;
 use thoth_api::model::issue::IssueWithSeries;
 use thoth_api::model::language::Language;
 use thoth_api::model::publication::Publication;
+use thoth_api::model::reference::Reference;
 use thoth_api::model::subject::Subject;
 use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
@@ -36,6 +37,7 @@ use crate::component::issues_form::IssuesFormComponent;
 use crate::component::languages_form::LanguagesFormComponent;
 use crate::component::new_chapter::NewChapterComponent;
 use crate::component::publications_form::PublicationsFormComponent;
+use crate::component::references_form::ReferencesFormComponent;
 use crate::component::related_works_form::RelatedWorksFormComponent;
 use crate::component::subjects_form::SubjectsFormComponent;
 use crate::component::utils::FormDateInput;
@@ -142,6 +144,7 @@ pub enum Msg {
     UpdateLanguages(Option<Vec<Language>>),
     UpdateSubjects(Option<Vec<Subject>>),
     UpdateIssues(Option<Vec<IssueWithSeries>>),
+    UpdateReferences(Option<Vec<Reference>>),
 }
 
 #[derive(PartialEq, Eq, Properties)]
@@ -505,6 +508,7 @@ impl Component for WorkComponent {
             Msg::UpdateLanguages(languages) => self.work.languages.neq_assign(languages),
             Msg::UpdateSubjects(subjects) => self.work.subjects.neq_assign(subjects),
             Msg::UpdateIssues(issues) => self.work.issues.neq_assign(issues),
+            Msg::UpdateReferences(references) => self.work.references.neq_assign(references),
         }
     }
 
@@ -846,6 +850,11 @@ impl Component for WorkComponent {
                             fundings={ self.work.fundings.clone() }
                             work_id={ self.work.work_id }
                             update_fundings={ ctx.link().callback(Msg::UpdateFundings) }
+                        />
+                        <ReferencesFormComponent
+                            references={ self.work.references.clone() }
+                            work_id={ self.work.work_id }
+                            update_references={ ctx.link().callback(Msg::UpdateReferences) }
                         />
                     </>
                 }

@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::model::reference::Reference;
@@ -78,6 +79,8 @@ const CREATE_REFERENCE_MUTATION: &str = "
             url
             publicationDate
             retrievalDate
+            createdAt
+            updatedAt
         }
     }
 ";
@@ -116,8 +119,8 @@ pub struct Variables {
     pub standards_body_name: Option<String>,
     pub standards_body_acronym: Option<String>,
     pub url: Option<String>,
-    pub publication_date: Option<String>,
-    pub retrieval_date: Option<String>,
+    pub publication_date: Option<NaiveDate>,
+    pub retrieval_date: Option<NaiveDate>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
