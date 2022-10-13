@@ -15,6 +15,7 @@ use crate::model::publication::Publication;
 use crate::model::subject::Subject;
 use crate::model::work_relation::WorkRelationWithRelatedWork;
 use crate::model::Doi;
+use crate::model::reference::Reference;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
 use crate::schema::work;
@@ -200,6 +201,7 @@ pub struct WorkWithRelations {
     pub issues: Option<Vec<IssueWithSeries>>,
     pub imprint: ImprintWithPublisher,
     pub relations: Option<Vec<WorkRelationWithRelatedWork>>,
+    pub references: Option<Vec<Reference>>,
 }
 
 #[cfg_attr(
