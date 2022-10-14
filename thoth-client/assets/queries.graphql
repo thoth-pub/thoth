@@ -155,6 +155,27 @@ fragment Work on Work {
             }
         }
     }
+    references(limit: $referencesLimit, order: {field: REFERENCE_ORDINAL, direction: ASC}) {
+        referenceOrdinal
+        doi
+        unstructuredCitation
+        issn
+        isbn
+        journalTitle
+        articleTitle
+        seriesTitle
+        volumeTitle
+        edition
+        author
+        volume
+        issue
+        firstPage
+        componentNumber
+        standardDesignator
+        standardsBodyName
+        standardsBodyAcronym
+        publicationDate
+    }
 }
 
 query WorkQuery(
@@ -164,7 +185,8 @@ query WorkQuery(
     $publicationsLimit: Int!,
     $subjectsLimit: Int!,
     $fundingsLimit: Int!,
-    $relationsLimit: Int!
+    $relationsLimit: Int!,
+    $referencesLimit: Int!
 ) {
     work(workId: $workId) {
         ...Work
@@ -177,7 +199,8 @@ query WorksQuery(
     $publicationsLimit: Int!,
     $subjectsLimit: Int!,
     $fundingsLimit: Int!,
-    $relationsLimit: Int!
+    $relationsLimit: Int!,
+    $referencesLimit: Int!
 ) {
     works(limit: 99999, publishers: $publishers) {
         ...Work

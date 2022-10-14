@@ -11,6 +11,7 @@ pub struct QueryParameters {
     with_subjects: bool,
     with_fundings: bool,
     with_relations: bool,
+    with_references: bool,
 }
 
 /// An intermediate struct to parse QueryParameters into work_query::Variables
@@ -67,6 +68,7 @@ impl QueryParameters {
             .with_subjects()
             .with_fundings()
             .with_relations()
+            .with_references()
     }
 
     pub fn with_issues(mut self) -> Self {
@@ -99,6 +101,11 @@ impl QueryParameters {
         self
     }
 
+    pub fn with_references(mut self) -> Self {
+        self.with_references = true;
+        self
+    }
+
     pub fn without_issues(mut self) -> Self {
         self.with_issues = false;
         self
@@ -126,6 +133,11 @@ impl QueryParameters {
 
     pub fn without_relations(mut self) -> Self {
         self.with_relations = false;
+        self
+    }
+
+    pub fn without_references(mut self) -> Self {
+        self.with_references = false;
         self
     }
 }
@@ -163,6 +175,11 @@ impl From<WorkQueryVariables> for work_query::Variables {
                 FILTER_INCLUDE_NONE
             },
             relations_limit: if v.parameters.with_relations {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
+            references_limit: if v.parameters.with_references {
                 FILTER_INCLUDE_ALL
             } else {
                 FILTER_INCLUDE_NONE
@@ -205,6 +222,11 @@ impl From<WorksQueryVariables> for works_query::Variables {
             } else {
                 FILTER_INCLUDE_NONE
             },
+            references_limit: if v.parameters.with_references {
+                FILTER_INCLUDE_ALL
+            } else {
+                FILTER_INCLUDE_NONE
+            },
         }
     }
 }
@@ -223,6 +245,7 @@ mod tests {
             with_subjects: false,
             with_fundings: false,
             with_relations: false,
+            with_references: false,
         };
         assert_eq!(to_test, QueryParameters::default());
         assert_eq!(to_test, QueryParameters::new())
@@ -238,7 +261,8 @@ mod tests {
                 with_publications: true,
                 with_subjects: true,
                 with_fundings: true,
-                with_relations: true
+                with_relations: true,
+                with_references: true,
             },
         );
         assert_eq!(
@@ -249,14 +273,16 @@ mod tests {
                 .without_publications()
                 .without_subjects()
                 .without_fundings()
-                .without_relations(),
+                .without_relations()
+                .without_references(),
             QueryParameters {
                 with_issues: false,
                 with_languages: false,
                 with_publications: false,
                 with_subjects: false,
                 with_fundings: false,
-                with_relations: false
+                with_relations: false,
+                with_references: false,
             },
         );
         assert_eq!(
@@ -266,14 +292,16 @@ mod tests {
                 .with_publications()
                 .with_subjects()
                 .with_fundings()
-                .with_relations(),
+                .with_relations()
+                .with_references(),
             QueryParameters {
                 with_issues: true,
                 with_languages: true,
                 with_publications: true,
                 with_subjects: true,
                 with_fundings: true,
-                with_relations: true
+                with_relations: true,
+                with_references: true,
             },
         );
     }
@@ -294,6 +322,7 @@ mod tests {
                 subjects_limit: FILTER_INCLUDE_ALL,
                 fundings_limit: FILTER_INCLUDE_ALL,
                 relations_limit: FILTER_INCLUDE_ALL,
+                references_limit: FILTER_INCLUDE_ALL,
             }
         );
         parameters = QueryParameters::new();
@@ -308,6 +337,7 @@ mod tests {
                 subjects_limit: FILTER_INCLUDE_NONE,
                 fundings_limit: FILTER_INCLUDE_NONE,
                 relations_limit: FILTER_INCLUDE_NONE,
+                references_limit: FILTER_INCLUDE_NONE,
             }
         );
         parameters = QueryParameters::new().with_all().without_relations();
@@ -322,6 +352,7 @@ mod tests {
                 subjects_limit: FILTER_INCLUDE_ALL,
                 fundings_limit: FILTER_INCLUDE_ALL,
                 relations_limit: FILTER_INCLUDE_NONE,
+                references_limit: FILTER_INCLUDE_ALL,
             }
         );
     }
@@ -343,6 +374,7 @@ mod tests {
                 subjects_limit: FILTER_INCLUDE_ALL,
                 fundings_limit: FILTER_INCLUDE_ALL,
                 relations_limit: FILTER_INCLUDE_ALL,
+                references_limit: FILTER_INCLUDE_ALL,
             }
         );
         parameters = QueryParameters::new();
@@ -357,9 +389,13 @@ mod tests {
                 subjects_limit: FILTER_INCLUDE_NONE,
                 fundings_limit: FILTER_INCLUDE_NONE,
                 relations_limit: FILTER_INCLUDE_NONE,
+                references_limit: FILTER_INCLUDE_NONE,
             }
         );
-        parameters = QueryParameters::new().with_all().without_relations();
+        parameters = QueryParameters::new()
+            .with_all()
+            .without_relations()
+            .without_references();
         variables = WorksQueryVariables::new(publishers.clone(), parameters).into();
         assert_eq!(
             variables,
@@ -371,6 +407,7 @@ mod tests {
                 subjects_limit: FILTER_INCLUDE_ALL,
                 fundings_limit: FILTER_INCLUDE_ALL,
                 relations_limit: FILTER_INCLUDE_NONE,
+                references_limit: FILTER_INCLUDE_NONE,
             }
         );
     }
