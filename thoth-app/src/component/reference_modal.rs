@@ -25,12 +25,16 @@ use crate::models::reference::create_reference_mutation::CreateReferenceRequestB
 use crate::models::reference::create_reference_mutation::PushActionCreateReference;
 use crate::models::reference::create_reference_mutation::PushCreateReference;
 use crate::models::reference::create_reference_mutation::Variables;
+use crate::models::reference::reference_fields_query::FetchActionReferenceFields;
+use crate::models::reference::reference_fields_query::FetchReferenceFields;
 use crate::models::reference::update_reference_mutation::PushActionUpdateReference;
 use crate::models::reference::update_reference_mutation::PushUpdateReference;
 use crate::models::reference::update_reference_mutation::UpdateReferenceRequest;
 use crate::models::reference::update_reference_mutation::UpdateReferenceRequestBody;
 use crate::models::reference::update_reference_mutation::Variables as UpdateVariables;
+use crate::models::GraphqlFieldList;
 use crate::string::CANCEL_BUTTON;
+use crate::string::REFERENCES_INFO;
 
 use super::ToElementValue;
 use super::ToOption;
@@ -49,6 +53,8 @@ pub struct ReferenceModalComponent {
     notification_bus: NotificationDispatcher,
     // Store props value locally in order to test whether it has been updated on props change
     show_modal_form: bool,
+    fetch_reference_fields: FetchReferenceFields,
+    reference_fields: GraphqlFieldList,
 }
 
 pub enum Msg {
@@ -58,6 +64,8 @@ pub enum Msg {
     CreateReference,
     SetReferenceUpdateState(PushActionUpdateReference),
     UpdateReference,
+    SetReferenceFieldsFetchState(FetchActionReferenceFields),
+    GetReferenceFields,
     ChangeOrdinal(String),
     ChangeDoi(String),
     ChangeUnstructuredCitation(String),
@@ -106,6 +114,10 @@ impl Component for ReferenceModalComponent {
         let update_reference = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let show_modal_form = ctx.props().show_modal_form;
+        let fetch_reference_fields = Default::default();
+        let reference_fields = Default::default();
+
+        ctx.link().send_message(Msg::GetReferenceFields);
 
         ReferenceModalComponent {
             reference,
@@ -118,6 +130,8 @@ impl Component for ReferenceModalComponent {
             update_reference,
             notification_bus,
             show_modal_form,
+            fetch_reference_fields,
+            reference_fields,
         }
     }
 
@@ -286,6 +300,23 @@ impl Component for ReferenceModalComponent {
                     .send_message(Msg::SetReferenceUpdateState(FetchAction::Fetching));
                 false
             }
+            Msg::SetReferenceFieldsFetchState(fetch_state) => {
+                self.fetch_reference_fields.apply(fetch_state);
+                self.reference_fields = match self.fetch_reference_fields.as_ref().state() {
+                    FetchState::Fetched(body) => body.data.reference_fields.clone(),
+                    _ => GraphqlFieldList::default(),
+                };
+                true
+            }
+            Msg::GetReferenceFields => {
+                ctx.link().send_future(
+                    self.fetch_reference_fields
+                        .fetch(Msg::SetReferenceFieldsFetchState),
+                );
+                ctx.link()
+                    .send_message(Msg::SetReferenceFieldsFetchState(FetchAction::Fetching));
+                false
+            }
             Msg::ChangeOrdinal(value) => {
                 let ordinal = value.parse::<i32>().unwrap_or(0);
                 self.reference.reference_ordinal.neq_assign(ordinal);
@@ -427,7 +458,7 @@ impl Component for ReferenceModalComponent {
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeOrdinal(e.to_value())) }
                                         required = true
                                         min={ "1".to_string() }
-                                        help_text={ "Number used to order references within a work's bibliography.".to_string() }
+                                        help_text={ self.reference_fields.get_description("referenceOrdinal") }
                                     />
                                     <FormTextInputExtended
                                         label = "DOI"
@@ -435,7 +466,7 @@ impl Component for ReferenceModalComponent {
                                         value={ self.doi.clone() }
                                         tooltip={ self.doi_warning.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDoi(e.to_value())) }
-                                        help_text={ "Digital Object Identifier of the cited work as full URL.".to_string() }
+                                        help_text={ self.reference_fields.get_description("doi") }
                                     />
                                 </div>
                             </div>
@@ -443,27 +474,36 @@ impl Component for ReferenceModalComponent {
                                 label = "Unstructured Citation"
                                 value={ self.reference.unstructured_citation.clone() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeUnstructuredCitation(e.to_value())) }
-                                help_text={ "Full reference text. When the DOI of the cited work is not known this field is required, and may be used in conjunction with other structured data to help identify the cited work.".to_string() }
+                                help_text={ self.reference_fields.get_description("unstructuredCitation") }
                             />
+
+                            <hr/>
+
+                            <article class="message is-info is-small">
+                                <div class="message-body">
+                                    { REFERENCES_INFO }
+                                </div>
+                            </article>
+
                             <div class="field is-horizontal">
                                 <div class="field-body">
                                     <FormTextInput
                                         label = "Article Title"
                                         value={ self.reference.article_title.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeArticleTitle(e.to_value())) }
-                                        help_text={ "Journal article, conference paper, or book chapter title.".to_string() }
+                                        help_text={ self.reference_fields.get_description("articleTitle") }
                                     />
                                     <FormTextInput
                                         label = "Journal Title"
                                         value={ self.reference.journal_title.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeJournalTitle(e.to_value())) }
-                                        help_text={ "Title of a journal, when the cited work is an article.".to_string() }
+                                        help_text={ self.reference_fields.get_description("journalTitle") }
                                     />
                                     <FormTextInput
                                         label = "ISSN"
                                         value={ self.reference.issn.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIssn(e.to_value())) }
-                                        help_text={ "ISSN of a series.".to_string() }
+                                        help_text={ self.reference_fields.get_description("issn") }
                                     />
                                 </div>
                             </div>
@@ -473,20 +513,20 @@ impl Component for ReferenceModalComponent {
                                         label = "Volume Title"
                                         value={ self.reference.volume_title.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeVolumeTitle(e.to_value())) }
-                                        help_text={ "Title of a book or conference proceeding.".to_string() }
+                                        help_text={ self.reference_fields.get_description("volumeTitle") }
                                     />
                                     <FormNumberInput
                                         label = "Edition"
                                         value={ self.reference.edition }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeEdition(e.to_value())) }
-                                        help_text={ "Book edition number.".to_string() }
+                                        help_text={ self.reference_fields.get_description("edition") }
                                     />
                                     <FormTextInputExtended
                                         label = "ISBN"
                                         value={ self.isbn.clone() }
                                         tooltip={ self.isbn_warning.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIsbn(e.to_value())) }
-                                        help_text={ "Book ISBN, when the cited work is a book or a chapter.".to_string() }
+                                        help_text={ self.reference_fields.get_description("isbn") }
                                     />
                                 </div>
                             </div>
@@ -496,25 +536,25 @@ impl Component for ReferenceModalComponent {
                                         label = "Author"
                                         value={ self.reference.author.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeAuthor(e.to_value())) }
-                                        help_text={ "First author of the cited work.".to_string() }
+                                        help_text={ self.reference_fields.get_description("author") }
                                     />
                                     <FormTextInput
                                         label = "First Page"
                                         value={ self.reference.first_page.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeFirstPage(e.to_value())) }
-                                        help_text={ "First page of the cited page range.".to_string() }
+                                        help_text={ self.reference_fields.get_description("firstPage") }
                                     />
                                     <FormTextInput
                                         label = "Component Number"
                                         value={ self.reference.component_number.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeComponentNumber(e.to_value())) }
-                                        help_text={ "The chapter, section or part number, when the cited work is a component of a book.".to_string() }
+                                        help_text={ self.reference_fields.get_description("componentNumber") }
                                     />
                                     <FormDateInput
                                         label = "Publication Date"
                                         value={ self.reference.publication_date.to_value() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePublicationDate(e.to_value())) }
-                                        help_text={ "Publication date of the cited work. Day and month should be set to \"01\" when only the publication year is known.".to_string() }
+                                        help_text={ self.reference_fields.get_description("publicationDate") }
                                     />
                                 </div>
                             </div>
@@ -524,19 +564,19 @@ impl Component for ReferenceModalComponent {
                                         label = "Series Title"
                                         value={ self.reference.series_title.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeSeriesTitle(e.to_value())) }
-                                        help_text={ "Title of a book or conference series.".to_string() }
+                                        help_text={ self.reference_fields.get_description("seriesTitle") }
                                     />
                                     <FormTextInput
                                         label = "Volume"
                                         value={ self.reference.volume.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeVolume(e.to_value())) }
-                                        help_text={ "Volume number of a journal or book set.".to_string() }
+                                        help_text={ self.reference_fields.get_description("volume") }
                                     />
                                     <FormTextInput
                                         label = "Issue"
                                         value={ self.reference.issue.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIssue(e.to_value())) }
-                                        help_text={ "Journal issue, when the cited work is an article.".to_string() }
+                                        help_text={ self.reference_fields.get_description("issue") }
                                     />
                                 </div>
                             </div>
@@ -546,13 +586,13 @@ impl Component for ReferenceModalComponent {
                                         label = "URL"
                                         value={ self.reference.url.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeUrl(e.to_value())) }
-                                        help_text={ "URL of the cited work.".to_string() }
+                                        help_text={ self.reference_fields.get_description("url") }
                                     />
                                     <FormDateInput
                                         label = "Retrieval Date"
                                         value={ self.reference.retrieval_date.to_value() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeRetrievalDate(e.to_value())) }
-                                        help_text={ "Date the cited work was accessed, when citing a website or online article.".to_string() }
+                                        help_text={ self.reference_fields.get_description("retrievalDate") }
                                     />
                                 </div>
                             </div>
@@ -562,19 +602,19 @@ impl Component for ReferenceModalComponent {
                                         label = "Standard Designator"
                                         value={ self.reference.standard_designator.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeStandardDesignator(e.to_value())) }
-                                        help_text={ "Standard identifier (e.g. \"14064-1\"), when the cited work is a standard.".to_string() }
+                                        help_text={ self.reference_fields.get_description("standardDesignator") }
                                     />
                                     <FormTextInput
                                         label = "Standards Body Name"
                                         value={ self.reference.standards_body_name.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeStandardsBodyName(e.to_value())) }
-                                        help_text={ "Full name of the standards organisation (e.g. \"International Organization for Standardization\"), when the cited work is a standard.".to_string() }
+                                        help_text={ self.reference_fields.get_description("standardsBodyName") }
                                     />
                                     <FormTextInput
                                         label = "Stds Body Acronym"
                                         value={ self.reference.standards_body_acronym.clone() }
                                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeStandardsBodyAcronym(e.to_value())) }
-                                        help_text={ "Acronym of the standards organisation (e.g. \"ISO\"), when the cited work is a standard.".to_string() }
+                                        help_text={ self.reference_fields.get_description("standardsBodyAcronym") }
                                     />
                                 </div>
                             </div>
