@@ -1372,6 +1372,7 @@ mod tests {
             subjects: vec![],
             fundings: vec![],
             relations: vec![],
+            references: vec![],
         };
 
         // 7 ISBNs are present and one is HTML - confirm that it is omitted
