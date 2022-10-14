@@ -93,6 +93,7 @@ macro_rules! graphql_query_builder {
     };
 }
 
+use serde::{Deserialize, Serialize};
 use yew::html;
 use yew::prelude::Html;
 use yew::Callback;
@@ -141,6 +142,42 @@ pub trait EditRoute {
 
 pub trait MetadataTable {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html;
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+/// Structure representing a GraphQL type query, in combination with `GraphqlFieldDefinition`, e.g.
+///
+/// ```graphql
+/// {
+///   fields: __type(name: "Reference") {
+///     fields {
+///       name
+///       description
+///     }
+///   }
+/// }
+pub struct GraphqlFieldList {
+    pub fields: Vec<GraphqlFieldDefinition>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphqlFieldDefinition {
+    pub name: String,
+    pub description: Option<String>,
+}
+
+impl GraphqlFieldList {
+    /// Get a GraphQL field's description.
+    ///
+    /// If no description is found, an empty String will be returned.
+    pub fn get_description(&self, field_name: &str) -> String {
+        match self.fields.iter().find(|f| f.name == field_name) {
+            None => Default::default(),
+            Some(definition) => definition.description.clone().unwrap_or_default(),
+        }
+    }
 }
 
 pub mod affiliation;
