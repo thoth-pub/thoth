@@ -769,7 +769,8 @@ mod tests {
                     contributions: vec![],
                     publications: vec![],
                 },
-            }]
+            }],
+            references: vec![]
         };
     }
 

@@ -963,6 +963,7 @@ mod tests {
                     publications: vec![],
                 },
             }],
+            references: vec![],
         };
 
         // Test standard output

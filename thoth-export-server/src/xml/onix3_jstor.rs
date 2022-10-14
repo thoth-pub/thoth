@@ -824,6 +824,7 @@ mod tests {
                 },
             }],
             relations: vec![],
+            references: vec![],
         };
 
         // Test standard output

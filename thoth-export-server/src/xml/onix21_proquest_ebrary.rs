@@ -970,6 +970,7 @@ mod tests {
             subjects: vec![],
             fundings: vec![],
             relations: vec![],
+            references: vec![],
         };
 
         // Test standard output

@@ -486,7 +486,8 @@ mod tests {
                     contributions: vec![],
                     publications: vec![],
                 },
-            }]
+            }],
+            references: vec![]
         };
 
         let to_test = BibtexThoth.generate(&[test_work.clone()]);
