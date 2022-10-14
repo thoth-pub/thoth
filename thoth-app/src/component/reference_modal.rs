@@ -127,16 +127,15 @@ impl Component for ReferenceModalComponent {
                 // Prompt parent form to close this form by updating the props
                 // (this will eventually cause this form to re-render)
                 ctx.props().close_modal_form.emit(());
-                self.reference = Default::default();
                 false
             }
             Msg::ToggleModalFormDisplay => {
                 self.in_edit_mode = ctx.props().reference_under_edit.is_some();
                 if ctx.props().show_modal_form {
-                    if let Some(reference) = ctx.props().reference_under_edit.clone() {
-                        // Editing existing reference: load its current values.
-                        self.reference = reference;
-                    }
+                    self.reference = match ctx.props().reference_under_edit.clone() {
+                        None => Default::default(),
+                        Some(reference) => reference,
+                    };
                     // Ensure DOI variable value is kept in sync with reference object.
                     self.doi = self.reference.doi.clone().unwrap_or_default().to_string();
                     // Clear DOI warning as the variable value is now valid by definition
@@ -521,12 +520,12 @@ impl Component for ReferenceModalComponent {
                             />
                             <FormDateInput
                                 label = "Publication Date"
-                                value={ self.reference.publication_date.clone().to_value() }
+                                value={ self.reference.publication_date.to_value() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePublicationDate(e.to_value())) }
                             />
                             <FormDateInput
                                 label = "Publication Date"
-                                value={ self.reference.retrieval_date.clone().to_value() }
+                                value={ self.reference.retrieval_date.to_value() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeRetrievalDate(e.to_value())) }
                             />
                         </form>
