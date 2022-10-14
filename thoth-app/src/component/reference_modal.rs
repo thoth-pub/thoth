@@ -407,7 +407,7 @@ impl Component for ReferenceModalComponent {
         html! {
             <div class={ self.modal_form_status(ctx) }>
                 <div class="modal-background" onclick={ &close_modal }></div>
-                <div class="modal-card">
+                <div class="modal-card" style="width: 840px;">
                     <header class="modal-card-head">
                         <p class="modal-card-title">{ self.modal_form_title() }</p>
                         <button
@@ -418,116 +418,166 @@ impl Component for ReferenceModalComponent {
                     </header>
                     <section class="modal-card-body">
                         <form id="reference-modal" onsubmit={ self.modal_form_action(ctx) }>
-                            <FormNumberInput
-                                label = "Reference Number"
-                                value={ self.reference.reference_ordinal }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeOrdinal(e.to_value())) }
-                                required = true
-                                min={ "1".to_string() }
-                            />
-                            <FormTextInputExtended
-                                label = "DOI"
-                                statictext={ DOI_DOMAIN }
-                                value={ self.doi.clone() }
-                                tooltip={ self.doi_warning.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDoi(e.to_value())) }
-                            />
+
+                            <div class="field is-horizontal">
+                                <div class="field-body">
+                                    <FormNumberInput
+                                        label = "Reference Number"
+                                        value={ self.reference.reference_ordinal }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeOrdinal(e.to_value())) }
+                                        required = true
+                                        min={ "1".to_string() }
+                                        help_text={ "Number used to order references within a work's bibliography.".to_string() }
+                                    />
+                                    <FormTextInputExtended
+                                        label = "DOI"
+                                        statictext={ DOI_DOMAIN }
+                                        value={ self.doi.clone() }
+                                        tooltip={ self.doi_warning.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDoi(e.to_value())) }
+                                        help_text={ "Digital Object Identifier of the cited work as full URL.".to_string() }
+                                    />
+                                </div>
+                            </div>
                             <FormTextarea
                                 label = "Unstructured Citation"
                                 value={ self.reference.unstructured_citation.clone() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeUnstructuredCitation(e.to_value())) }
+                                help_text={ "Full reference text. When the DOI of the cited work is not known this field is required, and may be used in conjunction with other structured data to help identify the cited work.".to_string() }
                             />
-                            <FormTextInput
-                                label = "ISSN"
-                                value={ self.reference.issn.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIssn(e.to_value())) }
-                            />
-                            <FormTextInputExtended
-                                label = "ISBN"
-                                value={ self.isbn.clone() }
-                                tooltip={ self.isbn_warning.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIsbn(e.to_value())) }
-                            />
-                            <FormTextInput
-                                label = "Journal Title"
-                                value={ self.reference.journal_title.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeJournalTitle(e.to_value())) }
-                            />
-                            <FormTextInput
-                                label = "Article Title"
-                                value={ self.reference.article_title.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeArticleTitle(e.to_value())) }
-                            />
-                            <FormTextInput
-                                label = "Series Title"
-                                value={ self.reference.series_title.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeSeriesTitle(e.to_value())) }
-                            />
-                            <FormTextInput
-                                label = "Volume Title"
-                                value={ self.reference.volume_title.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeVolumeTitle(e.to_value())) }
-                            />
-                            <FormNumberInput
-                                label = "Edition"
-                                value={ self.reference.edition }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeEdition(e.to_value())) }
-                            />
-                            <FormTextInput
-                                label = "Author"
-                                value={ self.reference.author.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeAuthor(e.to_value())) }
-                            />
-                            <FormTextInput
-                                label = "Volume"
-                                value={ self.reference.volume.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeVolume(e.to_value())) }
-                            />
-                            <FormTextInput
-                                label = "Issue"
-                                value={ self.reference.issue.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIssue(e.to_value())) }
-                            />
-                            <FormTextInput
-                                label = "First Page"
-                                value={ self.reference.first_page.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeFirstPage(e.to_value())) }
-                            />
-                            <FormTextInput
-                                label = "Component Number"
-                                value={ self.reference.component_number.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeComponentNumber(e.to_value())) }
-                            />
-                            <FormTextInput
-                                label = "Standard Designator"
-                                value={ self.reference.standard_designator.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeStandardDesignator(e.to_value())) }
-                            />
-                            <FormTextInput
-                                label = "Standards Body Name"
-                                value={ self.reference.standards_body_name.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeStandardsBodyName(e.to_value())) }
-                            />
-                            <FormTextInput
-                                label = "Standards Body Acronym"
-                                value={ self.reference.standards_body_acronym.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeStandardsBodyAcronym(e.to_value())) }
-                            />
-                            <FormUrlInput
-                                label = "URL"
-                                value={ self.reference.url.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeUrl(e.to_value())) }
-                            />
-                            <FormDateInput
-                                label = "Publication Date"
-                                value={ self.reference.publication_date.to_value() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePublicationDate(e.to_value())) }
-                            />
-                            <FormDateInput
-                                label = "Publication Date"
-                                value={ self.reference.retrieval_date.to_value() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeRetrievalDate(e.to_value())) }
-                            />
+                            <div class="field is-horizontal">
+                                <div class="field-body">
+                                    <FormTextInput
+                                        label = "Article Title"
+                                        value={ self.reference.article_title.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeArticleTitle(e.to_value())) }
+                                        help_text={ "Journal article, conference paper, or book chapter title.".to_string() }
+                                    />
+                                    <FormTextInput
+                                        label = "Journal Title"
+                                        value={ self.reference.journal_title.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeJournalTitle(e.to_value())) }
+                                        help_text={ "Title of a journal, when the cited work is an article.".to_string() }
+                                    />
+                                    <FormTextInput
+                                        label = "ISSN"
+                                        value={ self.reference.issn.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIssn(e.to_value())) }
+                                        help_text={ "ISSN of a series.".to_string() }
+                                    />
+                                </div>
+                            </div>
+                            <div class="field is-horizontal">
+                                <div class="field-body">
+                                    <FormTextInput
+                                        label = "Volume Title"
+                                        value={ self.reference.volume_title.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeVolumeTitle(e.to_value())) }
+                                        help_text={ "Title of a book or conference proceeding.".to_string() }
+                                    />
+                                    <FormNumberInput
+                                        label = "Edition"
+                                        value={ self.reference.edition }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeEdition(e.to_value())) }
+                                        help_text={ "Book edition number.".to_string() }
+                                    />
+                                    <FormTextInputExtended
+                                        label = "ISBN"
+                                        value={ self.isbn.clone() }
+                                        tooltip={ self.isbn_warning.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIsbn(e.to_value())) }
+                                        help_text={ "Book ISBN, when the cited work is a book or a chapter.".to_string() }
+                                    />
+                                </div>
+                            </div>
+                            <div class="field is-horizontal">
+                                <div class="field-body">
+                                    <FormTextInput
+                                        label = "Author"
+                                        value={ self.reference.author.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeAuthor(e.to_value())) }
+                                        help_text={ "First author of the cited work.".to_string() }
+                                    />
+                                    <FormTextInput
+                                        label = "First Page"
+                                        value={ self.reference.first_page.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeFirstPage(e.to_value())) }
+                                        help_text={ "First page of the cited page range.".to_string() }
+                                    />
+                                    <FormTextInput
+                                        label = "Component Number"
+                                        value={ self.reference.component_number.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeComponentNumber(e.to_value())) }
+                                        help_text={ "The chapter, section or part number, when the cited work is a component of a book.".to_string() }
+                                    />
+                                    <FormDateInput
+                                        label = "Publication Date"
+                                        value={ self.reference.publication_date.to_value() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePublicationDate(e.to_value())) }
+                                        help_text={ "Publication date of the cited work. Day and month should be set to \"01\" when only the publication year is known.".to_string() }
+                                    />
+                                </div>
+                            </div>
+                            <div class="field is-horizontal">
+                                <div class="field-body">
+                                    <FormTextInput
+                                        label = "Series Title"
+                                        value={ self.reference.series_title.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeSeriesTitle(e.to_value())) }
+                                        help_text={ "Title of a book or conference series.".to_string() }
+                                    />
+                                    <FormTextInput
+                                        label = "Volume"
+                                        value={ self.reference.volume.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeVolume(e.to_value())) }
+                                        help_text={ "Volume number of a journal or book set.".to_string() }
+                                    />
+                                    <FormTextInput
+                                        label = "Issue"
+                                        value={ self.reference.issue.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIssue(e.to_value())) }
+                                        help_text={ "Journal issue, when the cited work is an article.".to_string() }
+                                    />
+                                </div>
+                            </div>
+                            <div class="field is-horizontal">
+                                <div class="field-body">
+                                    <FormUrlInput
+                                        label = "URL"
+                                        value={ self.reference.url.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeUrl(e.to_value())) }
+                                        help_text={ "URL of the cited work.".to_string() }
+                                    />
+                                    <FormDateInput
+                                        label = "Retrieval Date"
+                                        value={ self.reference.retrieval_date.to_value() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeRetrievalDate(e.to_value())) }
+                                        help_text={ "Date the cited work was accessed, when citing a website or online article.".to_string() }
+                                    />
+                                </div>
+                            </div>
+                            <div class="field is-horizontal">
+                                <div class="field-body">
+                                    <FormTextInput
+                                        label = "Standard Designator"
+                                        value={ self.reference.standard_designator.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeStandardDesignator(e.to_value())) }
+                                        help_text={ "Standard identifier (e.g. \"14064-1\"), when the cited work is a standard.".to_string() }
+                                    />
+                                    <FormTextInput
+                                        label = "Standards Body Name"
+                                        value={ self.reference.standards_body_name.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeStandardsBodyName(e.to_value())) }
+                                        help_text={ "Full name of the standards organisation (e.g. \"International Organization for Standardization\"), when the cited work is a standard.".to_string() }
+                                    />
+                                    <FormTextInput
+                                        label = "Stds Body Acronym"
+                                        value={ self.reference.standards_body_acronym.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeStandardsBodyAcronym(e.to_value())) }
+                                        help_text={ "Acronym of the standards organisation (e.g. \"ISO\"), when the cited work is a standard.".to_string() }
+                                    />
+                                </div>
+                            </div>
                         </form>
                     </section>
                     <footer class="modal-card-foot">
