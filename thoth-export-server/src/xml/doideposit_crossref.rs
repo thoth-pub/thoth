@@ -4,7 +4,7 @@ use std::io::Write;
 use thoth_client::{
     ContributionType, PublicationType, RelationType, Work, WorkIssuesSeries, WorkRelations,
     WorkRelationsRelatedWork, WorkRelationsRelatedWorkContributions,
-    WorkRelationsRelatedWorkPublications, WorkType,
+    WorkRelationsRelatedWorkPublications, WorkRelationsRelatedWorkReferences, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -400,6 +400,16 @@ fn work_metadata<W: Write>(
             "Missing chapter DOI".to_string(),
         ));
     }
+
+    if !work.references.is_empty() {
+        write_element_block("citation_list", w, |w| {
+            for reference in &work.references {
+                XmlElementBlock::<DoiDepositCrossref>::xml_element(reference, w)?;
+            }
+            Ok(())
+        })?;
+    }
+
     Ok(())
 }
 
@@ -528,6 +538,133 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributio
                 Ok(())
                 // Affiliation information can also optionally be provided here.
                 // Omitted at present but could be considered as a future enhancement.
+            },
+        )
+    }
+}
+
+impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkReferences {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        let key = format!("ref{}", &self.reference_ordinal);
+        write_full_element_block(
+            "citation",
+            None,
+            Some(HashMap::from([("key", key.as_ref())])),
+            w,
+            |w| {
+                if let Some(doi) = &self.doi {
+                    write_element_block("doi", w, |w| {
+                        w.write(XmlEvent::Characters(&doi.to_string()))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                if let Some(unstructured_citation) = &self.unstructured_citation {
+                    write_element_block("unstructured_citation", w, |w| {
+                        w.write(XmlEvent::Characters(unstructured_citation))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                if let Some(issn) = &self.issn {
+                    write_element_block("issn", w, |w| {
+                        w.write(XmlEvent::Characters(issn)).map_err(|e| e.into())
+                    })?;
+                }
+                if let Some(isbn) = &self.isbn {
+                    write_element_block("isbn", w, |w| {
+                        w.write(XmlEvent::Characters(&isbn.to_string()))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                if let Some(journal_title) = &self.journal_title {
+                    write_element_block("journal_title", w, |w| {
+                        w.write(XmlEvent::Characters(journal_title))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                if let Some(article_title) = &self.article_title {
+                    write_element_block("article_title", w, |w| {
+                        w.write(XmlEvent::Characters(article_title))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                if let Some(series_title) = &self.series_title {
+                    write_element_block("series_title", w, |w| {
+                        w.write(XmlEvent::Characters(series_title))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                if let Some(volume_title) = &self.volume_title {
+                    write_element_block("volume_title", w, |w| {
+                        w.write(XmlEvent::Characters(volume_title))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                if let Some(edition) = &self.edition {
+                    write_element_block("edition_number", w, |w| {
+                        w.write(XmlEvent::Characters(&edition.to_string()))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                if let Some(author) = &self.author {
+                    write_element_block("author", w, |w| {
+                        w.write(XmlEvent::Characters(author)).map_err(|e| e.into())
+                    })?;
+                }
+                if let Some(volume) = &self.volume {
+                    write_element_block("volume", w, |w| {
+                        w.write(XmlEvent::Characters(volume)).map_err(|e| e.into())
+                    })?;
+                }
+                if let Some(issue) = &self.issue {
+                    write_element_block("issue", w, |w| {
+                        w.write(XmlEvent::Characters(issue)).map_err(|e| e.into())
+                    })?;
+                }
+                if let Some(first_page) = &self.first_page {
+                    write_element_block("first_page", w, |w| {
+                        w.write(XmlEvent::Characters(first_page))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                if let Some(component_number) = &self.component_number {
+                    write_element_block("component_number", w, |w| {
+                        w.write(XmlEvent::Characters(component_number))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                // a citation for a standard must contain all three fields
+                if self.standard_designator.is_some()
+                    && self.standards_body_name.is_some()
+                    && self.standards_body_acronym.is_some()
+                {
+                    write_element_block("std_designator", w, |w| {
+                        w.write(XmlEvent::Characters(
+                            &self.standard_designator.as_ref().unwrap(),
+                        ))
+                        .map_err(|e| e.into())
+                    })?;
+                    write_element_block("standards_body", w, |w| {
+                        write_element_block("standards_body_name", w, |w| {
+                            w.write(XmlEvent::Characters(
+                                &self.standards_body_name.as_ref().unwrap(),
+                            ))
+                            .map_err(|e| e.into())
+                        })?;
+                        write_element_block("standards_body_acronym", w, |w| {
+                            w.write(XmlEvent::Characters(
+                                &self.standards_body_acronym.as_ref().unwrap(),
+                            ))
+                            .map_err(|e| e.into())
+                        })
+                    })?;
+                }
+                if let Some(date) = &self.publication_date {
+                    write_element_block("cYear", w, |w| {
+                        w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                Ok(())
             },
         )
     }
