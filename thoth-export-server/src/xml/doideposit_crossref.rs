@@ -680,10 +680,11 @@ mod tests {
     use thoth_client::{
         ContributionType, LocationPlatform, PublicationType, SeriesType, WorkContributions,
         WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssues,
-        WorkIssuesSeries, WorkPublications, WorkPublicationsLocations, WorkRelations,
-        WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkContributionsContributor,
-        WorkRelationsRelatedWorkImprint, WorkRelationsRelatedWorkImprintPublisher,
-        WorkRelationsRelatedWorkPublicationsLocations, WorkStatus, WorkType,
+        WorkIssuesSeries, WorkPublications, WorkPublicationsLocations, WorkReferences,
+        WorkRelations, WorkRelationsRelatedWorkContributions,
+        WorkRelationsRelatedWorkContributionsContributor, WorkRelationsRelatedWorkImprint,
+        WorkRelationsRelatedWorkImprintPublisher, WorkRelationsRelatedWorkPublicationsLocations,
+        WorkStatus, WorkType,
     };
     use uuid::Uuid;
 
@@ -1100,7 +1101,12 @@ mod tests {
                     publications: vec![],
                 },
             }],
-            references: vec![],
+            references: vec![WorkRelations {
+                reference_ordinal: 1,
+                doi: Some(Doi::from_str("https://doi.org/10.00001/reference").unwrap()),
+                unstructured_citation: Some("Author, A. (2022) Article, Journal.".to_string()),
+                ..Default::default()
+            }],
         };
 
         // Test standard output
@@ -1173,6 +1179,10 @@ mod tests {
         assert!(output.contains(
             r#"      <ai:license_ref>https://creativecommons.org/licenses/by/4.0/</ai:license_ref>"#
         ));
+        assert!(output.contains(r#"      <citation_list>"#));
+        assert!(output.contains(r#"         <citation key="ref1">"#));
+        assert!(output.contains(r#"             <doi>10.00001/reference</doi>"#));
+        assert!(output.contains(r#"             <unstructured_citation>Author, A. (2022) Article, Journal.</unstructured_citation>"#));
         assert!(output.contains(r#"      <doi_data>"#));
         assert!(output.contains(r#"        <doi>10.00001/BOOK.0001</doi>"#));
         assert!(output.contains(r#"        <resource>https://www.book.com</resource>"#));
