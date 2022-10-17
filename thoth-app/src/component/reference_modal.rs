@@ -146,10 +146,10 @@ impl Component for ReferenceModalComponent {
             Msg::ToggleModalFormDisplay => {
                 self.in_edit_mode = ctx.props().reference_under_edit.is_some();
                 if ctx.props().show_modal_form {
-                    self.reference = match ctx.props().reference_under_edit.clone() {
-                        None => Default::default(),
-                        Some(reference) => reference,
-                    };
+                    if let Some(reference) = ctx.props().reference_under_edit.clone() {
+                        // editing an existing reference
+                        self.reference = reference;
+                    }
                     // Ensure DOI variable value is kept in sync with reference object.
                     self.doi = self.reference.doi.clone().unwrap_or_default().to_string();
                     // Clear DOI warning as the variable value is now valid by definition
@@ -171,6 +171,7 @@ impl Component for ReferenceModalComponent {
                             // Send newly-created reference to parent form to process
                             // (parent form is responsible for closing modal)
                             ctx.props().add_reference.emit(p.clone());
+                            self.reference = Default::default(); // reset form
                             true
                         }
                         None => {
@@ -240,6 +241,7 @@ impl Component for ReferenceModalComponent {
                             // Send newly-created reference to parent form to process
                             // (parent form is responsible for closing modal)
                             ctx.props().update_reference.emit(p.clone());
+                            self.reference = Default::default(); // reset form
                             true
                         }
                         None => {
