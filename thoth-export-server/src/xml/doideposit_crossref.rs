@@ -1197,9 +1197,9 @@ mod tests {
             r#"      <ai:license_ref>https://creativecommons.org/licenses/by/4.0/</ai:license_ref>"#
         ));
         assert!(output.contains(r#"      <citation_list>"#));
-        assert!(output.contains(r#"         <citation key="ref1">"#));
-        assert!(output.contains(r#"             <doi>10.00001/reference</doi>"#));
-        assert!(output.contains(r#"             <unstructured_citation>Author, A. (2022) Article, Journal.</unstructured_citation>"#));
+        assert!(output.contains(r#"        <citation key="ref1">"#));
+        assert!(output.contains(r#"          <doi>10.00001/reference</doi>"#));
+        assert!(output.contains(r#"          <unstructured_citation>Author, A. (2022) Article, Journal.</unstructured_citation>"#));
         assert!(output.contains(r#"      <doi_data>"#));
         assert!(output.contains(r#"        <doi>10.00001/BOOK.0001</doi>"#));
         assert!(output.contains(r#"        <resource>https://www.book.com</resource>"#));
