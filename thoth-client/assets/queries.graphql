@@ -1,3 +1,25 @@
+fragment Reference on Reference {
+    referenceOrdinal
+    doi
+    unstructuredCitation
+    issn
+    isbn
+    journalTitle
+    articleTitle
+    seriesTitle
+    volumeTitle
+    edition
+    author
+    volume
+    issue
+    firstPage
+    componentNumber
+    standardDesignator
+    standardsBodyName
+    standardsBodyAcronym
+    publicationDate
+}
+
 fragment Work on Work {
     workId
     workStatus
@@ -153,28 +175,13 @@ fragment Work on Work {
                     canonical
                 }
             }
+            references(limit: $referencesLimit, order: {field: REFERENCE_ORDINAL, direction: ASC}) {
+                ...Reference
+            }
         }
     }
     references(limit: $referencesLimit, order: {field: REFERENCE_ORDINAL, direction: ASC}) {
-        referenceOrdinal
-        doi
-        unstructuredCitation
-        issn
-        isbn
-        journalTitle
-        articleTitle
-        seriesTitle
-        volumeTitle
-        edition
-        author
-        volume
-        issue
-        firstPage
-        componentNumber
-        standardDesignator
-        standardsBodyName
-        standardsBodyAcronym
-        publicationDate
+        ...Reference
     }
 }
 
