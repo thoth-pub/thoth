@@ -639,20 +639,20 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkReferences 
                 {
                     write_element_block("std_designator", w, |w| {
                         w.write(XmlEvent::Characters(
-                            &self.standard_designator.as_ref().unwrap(),
+                            self.standard_designator.as_ref().unwrap(),
                         ))
                         .map_err(|e| e.into())
                     })?;
                     write_element_block("standards_body", w, |w| {
                         write_element_block("standards_body_name", w, |w| {
                             w.write(XmlEvent::Characters(
-                                &self.standards_body_name.as_ref().unwrap(),
+                                self.standards_body_name.as_ref().unwrap(),
                             ))
                             .map_err(|e| e.into())
                         })?;
                         write_element_block("standards_body_acronym", w, |w| {
                             w.write(XmlEvent::Characters(
-                                &self.standards_body_acronym.as_ref().unwrap(),
+                                self.standards_body_acronym.as_ref().unwrap(),
                             ))
                             .map_err(|e| e.into())
                         })
@@ -1099,9 +1099,10 @@ mod tests {
                     },
                     contributions: vec![],
                     publications: vec![],
+                    references: vec![],
                 },
             }],
-            references: vec![WorkRelations {
+            references: vec![WorkReferences {
                 reference_ordinal: 1,
                 doi: Some(Doi::from_str("https://doi.org/10.00001/reference").unwrap()),
                 unstructured_citation: Some("Author, A. (2022) Article, Journal.".to_string()),
