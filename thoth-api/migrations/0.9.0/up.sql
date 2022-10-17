@@ -26,7 +26,11 @@ CREATE TABLE reference (
     updated_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT reference_reference_ordinal_work_id_uniq UNIQUE (work_id, reference_ordinal),
     CONSTRAINT reference_doi_andor_unstructured_citation CHECK
-        (doi IS NOT NULL OR unstructured_citation IS NOT NULL)
+        (doi IS NOT NULL OR unstructured_citation IS NOT NULL),
+    CONSTRAINT reference_standard_citation_required_fields CHECK
+        ((standard_designator IS NOT NULL AND standards_body_name IS NOT NULL AND standards_body_acronym IS NOT NULL)
+          OR
+        (standard_designator IS NULL AND standards_body_name IS NULL AND standards_body_acronym IS NULL))
 );
 SELECT diesel_manage_updated_at('reference');
 

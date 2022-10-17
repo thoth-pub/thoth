@@ -101,6 +101,7 @@ static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "reference_reference_ordinal_check" => "A reference ordinal number must be greater than 0.",
     "reference_reference_ordinal_work_id_uniq" => "A reference with this ordinal number already exists.",
     "reference_series_title_check" => "Series title must not be an empty string.",
+    "reference_standard_citation_required_fields" => "A citation for a standard must include a standard designator as well as the name and acronym of a standards body.",
     "reference_standard_designator_check" => "Standard designator must not be an empty string.",
     "reference_standards_body_acronym_check" => "Standards body acronym must not be an empty string.",
     "reference_standards_body_name_check" => "Standatds body name must not be an empty string.",
