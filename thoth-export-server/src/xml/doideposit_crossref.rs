@@ -753,6 +753,7 @@ mod tests {
                         canonical: true,
                     }],
                 }],
+                references: vec![],
             },
         };
 
@@ -1106,7 +1107,22 @@ mod tests {
                 reference_ordinal: 1,
                 doi: Some(Doi::from_str("https://doi.org/10.00001/reference").unwrap()),
                 unstructured_citation: Some("Author, A. (2022) Article, Journal.".to_string()),
-                ..Default::default()
+                issn: None,
+                isbn: None,
+                journal_title: None,
+                article_title: None,
+                series_title: None,
+                volume_title: None,
+                edition: None,
+                author: None,
+                volume: None,
+                issue: None,
+                first_page: None,
+                component_number: None,
+                standard_designator: None,
+                standards_body_name: None,
+                standards_body_acronym: None,
+                publication_date: None,
             }],
         };
 
