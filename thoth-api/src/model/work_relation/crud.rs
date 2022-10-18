@@ -110,12 +110,6 @@ impl Crud for WorkRelation {
         }
     }
 
-    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        Err(ThothError::InternalError(
-            "Method publisher_id() is not supported for Work Relation objects".to_string(),
-        ))
-    }
-
     // `crud_methods!` cannot be used for create(), update() or delete()
     // as we need to execute multiple statements in the same transaction.
     // This function recreates the `crud_methods!` from_id() logic.
@@ -221,6 +215,12 @@ impl Crud for WorkRelation {
                 Err(e) => Err(ThothError::from(e)),
             }
         })
+    }
+
+    fn publisher_id(&self, _db: &crate::db::PgPool) -> ThothResult<Uuid> {
+        Err(ThothError::InternalError(
+            "Method publisher_id() is not supported for Work Relation objects".to_string(),
+        ))
     }
 }
 
