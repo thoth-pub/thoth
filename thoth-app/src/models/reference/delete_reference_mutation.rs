@@ -13,26 +13,6 @@ const DELETE_REFERENCE_MUTATION: &str = "
             referenceId
             workId
             referenceOrdinal
-            doi
-            unstructuredCitation
-            issn
-            isbn
-            journalTitle
-            articleTitle
-            seriesTitle
-            volumeTitle
-            edition
-            author
-            volume
-            issue
-            firstPage
-            componentNumber
-            standardDesignator
-            standardsBodyName
-            standardsBodyAcronym
-            url
-            publicationDate
-            retrievalDate
             createdAt
             updatedAt
         }
