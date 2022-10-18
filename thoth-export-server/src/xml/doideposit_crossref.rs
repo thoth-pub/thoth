@@ -1122,7 +1122,7 @@ mod tests {
                 standard_designator: None,
                 standards_body_name: None,
                 standards_body_acronym: None,
-                publication_date: Some(chrono::NaiveDate::from_ymd(2022, 01, 01)),
+                publication_date: Some(chrono::NaiveDate::from_ymd(2022, 1, 1)),
             }],
         };
 
