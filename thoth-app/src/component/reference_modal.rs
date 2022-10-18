@@ -327,7 +327,7 @@ impl Component for ReferenceModalComponent {
             Msg::ChangeDoi(value) => {
                 if self.doi.neq_assign(value.trim().to_owned()) {
                     // If DOI is not correctly formatted, display a warning.
-                    // Don't update self.work.doi yet, as user may later
+                    // Don't update self.reference.doi yet, as user may later
                     // overwrite a new valid value with an invalid one.
                     self.doi_warning.clear();
                     match self.doi.parse::<Doi>() {
