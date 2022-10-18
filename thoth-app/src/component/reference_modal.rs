@@ -167,10 +167,10 @@ impl Component for ReferenceModalComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.create_reference {
-                        Some(p) => {
+                        Some(r) => {
                             // Send newly-created reference to parent form to process
                             // (parent form is responsible for closing modal)
-                            ctx.props().add_reference.emit(p.clone());
+                            ctx.props().add_reference.emit(r.clone());
                             self.reference = Default::default(); // reset form
                             true
                         }
@@ -237,10 +237,10 @@ impl Component for ReferenceModalComponent {
                     FetchState::NotFetching(_) => false,
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.update_reference {
-                        Some(p) => {
+                        Some(r) => {
                             // Send newly-created reference to parent form to process
                             // (parent form is responsible for closing modal)
-                            ctx.props().update_reference.emit(p.clone());
+                            ctx.props().update_reference.emit(r.clone());
                             self.reference = Default::default(); // reset form
                             true
                         }
