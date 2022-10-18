@@ -2540,13 +2540,14 @@ impl Work {
         context: &Context,
         limit: i32,
         offset: i32,
+        filter: String,
         order: ReferenceOrderBy,
     ) -> FieldResult<Vec<Reference>> {
         Reference::all(
             &context.db,
             limit,
             offset,
-            None,
+            Some(filter),
             order,
             vec![],
             Some(self.work_id),
