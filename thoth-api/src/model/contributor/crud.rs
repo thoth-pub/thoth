@@ -39,40 +39,40 @@ impl Crud for Contributor {
         let connection = db.get().unwrap();
         let mut query = contributor.into_boxed();
 
-        match order.field {
+        query = match order.field {
             ContributorField::ContributorId => match order.direction {
-                Direction::Asc => query = query.order(contributor_id.asc()),
-                Direction::Desc => query = query.order(contributor_id.desc()),
+                Direction::Asc => query.order(contributor_id.asc()),
+                Direction::Desc => query.order(contributor_id.desc()),
             },
             ContributorField::FirstName => match order.direction {
-                Direction::Asc => query = query.order(first_name.asc()),
-                Direction::Desc => query = query.order(first_name.desc()),
+                Direction::Asc => query.order(first_name.asc()),
+                Direction::Desc => query.order(first_name.desc()),
             },
             ContributorField::LastName => match order.direction {
-                Direction::Asc => query = query.order(last_name.asc()),
-                Direction::Desc => query = query.order(last_name.desc()),
+                Direction::Asc => query.order(last_name.asc()),
+                Direction::Desc => query.order(last_name.desc()),
             },
             ContributorField::FullName => match order.direction {
-                Direction::Asc => query = query.order(full_name.asc()),
-                Direction::Desc => query = query.order(full_name.desc()),
+                Direction::Asc => query.order(full_name.asc()),
+                Direction::Desc => query.order(full_name.desc()),
             },
             ContributorField::Orcid => match order.direction {
-                Direction::Asc => query = query.order(orcid.asc()),
-                Direction::Desc => query = query.order(orcid.desc()),
+                Direction::Asc => query.order(orcid.asc()),
+                Direction::Desc => query.order(orcid.desc()),
             },
             ContributorField::Website => match order.direction {
-                Direction::Asc => query = query.order(website.asc()),
-                Direction::Desc => query = query.order(website.desc()),
+                Direction::Asc => query.order(website.asc()),
+                Direction::Desc => query.order(website.desc()),
             },
             ContributorField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
+                Direction::Asc => query.order(created_at.asc()),
+                Direction::Desc => query.order(created_at.desc()),
             },
             ContributorField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
+                Direction::Asc => query.order(updated_at.asc()),
+                Direction::Desc => query.order(updated_at.desc()),
             },
-        }
+        };
         if let Some(filter) = filter {
             query = query.filter(
                 full_name

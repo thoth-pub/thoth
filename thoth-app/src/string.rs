@@ -39,6 +39,7 @@ strings! {
     EMPTY_SUBJECTS => "This work does not have any subjects. Click above to add associated subjects",
     EMPTY_FUNDINGS => "This work does not have any funding. Click above to add associated funding",
     EMPTY_PRICES => "This publication does not have any pricing information. Click above to add prices.",
+    EMPTY_REFERENCES => "This work does not have any references. Click above to add references.",
     SEARCH_INSTITUTIONS => "Search by name, ROR ID or DOI",
     SEARCH_WORKS => "Search by title, DOI, internal reference, abstract or landing page",
     SEARCH_SERIESES => "Search by series name, ISSN, URL or description",
@@ -51,4 +52,5 @@ strings! {
     NEW_VERSION_PROMPT => "A new version of Thoth is available. Refresh your browser to update.",
     RELATIONS_INFO => "Relations below are saved automatically upon change.",
     NEW_CHAPTER_INFO => "Fields below are set automatically based on the current Work. Remaining fields are left as default.",
+    REFERENCES_INFO => "Fields below are optional, but filling them helps produce better open citations data. Certain fields are only relevant to a particular type of citation (e.g. ISBN only applies to book or book chapter citations).",
 }

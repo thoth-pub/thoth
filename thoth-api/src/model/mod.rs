@@ -952,6 +952,7 @@ pub mod location;
 pub mod price;
 pub mod publication;
 pub mod publisher;
+pub mod reference;
 pub mod series;
 pub mod subject;
 pub mod work;

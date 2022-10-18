@@ -88,3 +88,10 @@
 .home-icons-item:nth-child(5) figure {
     color: #7E308E;
 }
+
+.truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+}

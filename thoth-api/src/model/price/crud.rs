@@ -39,42 +39,35 @@ impl Crud for Price {
                 .inner_join(crate::schema::publication::table.inner_join(
                     crate::schema::work::table.inner_join(crate::schema::imprint::table),
                 ))
-                .select((
-                    price_id,
-                    publication_id,
-                    currency_code,
-                    unit_price,
-                    created_at,
-                    updated_at,
-                ))
+                .select(crate::schema::price::all_columns)
                 .into_boxed();
 
-        match order.field {
+        query = match order.field {
             PriceField::PriceId => match order.direction {
-                Direction::Asc => query = query.order(price_id.asc()),
-                Direction::Desc => query = query.order(price_id.desc()),
+                Direction::Asc => query.order(price_id.asc()),
+                Direction::Desc => query.order(price_id.desc()),
             },
             PriceField::PublicationId => match order.direction {
-                Direction::Asc => query = query.order(publication_id.asc()),
-                Direction::Desc => query = query.order(publication_id.desc()),
+                Direction::Asc => query.order(publication_id.asc()),
+                Direction::Desc => query.order(publication_id.desc()),
             },
             PriceField::CurrencyCode => match order.direction {
-                Direction::Asc => query = query.order(currency_code.asc()),
-                Direction::Desc => query = query.order(currency_code.desc()),
+                Direction::Asc => query.order(currency_code.asc()),
+                Direction::Desc => query.order(currency_code.desc()),
             },
             PriceField::UnitPrice => match order.direction {
-                Direction::Asc => query = query.order(unit_price.asc()),
-                Direction::Desc => query = query.order(unit_price.desc()),
+                Direction::Asc => query.order(unit_price.asc()),
+                Direction::Desc => query.order(unit_price.desc()),
             },
             PriceField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
+                Direction::Asc => query.order(created_at.asc()),
+                Direction::Desc => query.order(created_at.desc()),
             },
             PriceField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
+                Direction::Asc => query.order(updated_at.asc()),
+                Direction::Desc => query.order(updated_at.desc()),
             },
-        }
+        };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }

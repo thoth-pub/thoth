@@ -41,52 +41,43 @@ impl Crud for Location {
                 .inner_join(crate::schema::publication::table.inner_join(
                     crate::schema::work::table.inner_join(crate::schema::imprint::table),
                 ))
-                .select((
-                    location_id,
-                    publication_id,
-                    landing_page,
-                    full_text_url,
-                    location_platform,
-                    canonical,
-                    created_at,
-                    updated_at,
-                ))
+                .select(crate::schema::location::all_columns)
                 .into_boxed();
 
-        match order.field {
+        query = match order.field {
             LocationField::LocationId => match order.direction {
-                Direction::Asc => query = query.order(location_id.asc()),
-                Direction::Desc => query = query.order(location_id.desc()),
+                Direction::Asc => query.order(location_id.asc()),
+                Direction::Desc => query.order(location_id.desc()),
             },
             LocationField::PublicationId => match order.direction {
-                Direction::Asc => query = query.order(publication_id.asc()),
-                Direction::Desc => query = query.order(publication_id.desc()),
+                Direction::Asc => query.order(publication_id.asc()),
+                Direction::Desc => query.order(publication_id.desc()),
             },
             LocationField::LandingPage => match order.direction {
-                Direction::Asc => query = query.order(landing_page.asc()),
-                Direction::Desc => query = query.order(landing_page.desc()),
+                Direction::Asc => query.order(landing_page.asc()),
+                Direction::Desc => query.order(landing_page.desc()),
             },
             LocationField::FullTextUrl => match order.direction {
-                Direction::Asc => query = query.order(full_text_url.asc()),
-                Direction::Desc => query = query.order(full_text_url.desc()),
+                Direction::Asc => query.order(full_text_url.asc()),
+                Direction::Desc => query.order(full_text_url.desc()),
             },
             LocationField::LocationPlatform => match order.direction {
-                Direction::Asc => query = query.order(location_platform.asc()),
-                Direction::Desc => query = query.order(location_platform.desc()),
+                Direction::Asc => query.order(location_platform.asc()),
+                Direction::Desc => query.order(location_platform.desc()),
             },
             LocationField::Canonical => match order.direction {
-                Direction::Asc => query = query.order(canonical.asc()),
-                Direction::Desc => query = query.order(canonical.desc()),
+                Direction::Asc => query.order(canonical.asc()),
+                Direction::Desc => query.order(canonical.desc()),
             },
             LocationField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
+                Direction::Asc => query.order(created_at.asc()),
+                Direction::Desc => query.order(created_at.desc()),
             },
             LocationField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
+                Direction::Asc => query.order(updated_at.asc()),
+                Direction::Desc => query.order(updated_at.desc()),
             },
-        }
+        };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }

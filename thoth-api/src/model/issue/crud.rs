@@ -36,42 +36,35 @@ impl Crud for Issue {
         let connection = db.get().unwrap();
         let mut query = issue
             .inner_join(crate::schema::series::table.inner_join(crate::schema::imprint::table))
-            .select((
-                issue_id,
-                series_id,
-                work_id,
-                issue_ordinal,
-                created_at,
-                updated_at,
-            ))
+            .select(crate::schema::issue::all_columns)
             .into_boxed();
 
-        match order.field {
+        query = match order.field {
             IssueField::IssueId => match order.direction {
-                Direction::Asc => query = query.order(issue_id.asc()),
-                Direction::Desc => query = query.order(issue_id.desc()),
+                Direction::Asc => query.order(issue_id.asc()),
+                Direction::Desc => query.order(issue_id.desc()),
             },
             IssueField::SeriesId => match order.direction {
-                Direction::Asc => query = query.order(series_id.asc()),
-                Direction::Desc => query = query.order(series_id.desc()),
+                Direction::Asc => query.order(series_id.asc()),
+                Direction::Desc => query.order(series_id.desc()),
             },
             IssueField::WorkId => match order.direction {
-                Direction::Asc => query = query.order(work_id.asc()),
-                Direction::Desc => query = query.order(work_id.desc()),
+                Direction::Asc => query.order(work_id.asc()),
+                Direction::Desc => query.order(work_id.desc()),
             },
             IssueField::IssueOrdinal => match order.direction {
-                Direction::Asc => query = query.order(issue_ordinal.asc()),
-                Direction::Desc => query = query.order(issue_ordinal.desc()),
+                Direction::Asc => query.order(issue_ordinal.asc()),
+                Direction::Desc => query.order(issue_ordinal.desc()),
             },
             IssueField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
+                Direction::Asc => query.order(created_at.asc()),
+                Direction::Desc => query.order(created_at.desc()),
             },
             IssueField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
+                Direction::Asc => query.order(updated_at.asc()),
+                Direction::Desc => query.order(updated_at.desc()),
             },
-        }
+        };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }

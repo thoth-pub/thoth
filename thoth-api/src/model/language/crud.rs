@@ -39,47 +39,39 @@ impl Crud for Language {
         let connection = db.get().unwrap();
         let mut query = dsl::language
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
-            .select((
-                dsl::language_id,
-                dsl::work_id,
-                dsl::language_code,
-                dsl::language_relation,
-                dsl::main_language,
-                dsl::created_at,
-                dsl::updated_at,
-            ))
+            .select(crate::schema::language::all_columns)
             .into_boxed();
 
-        match order.field {
+        query = match order.field {
             LanguageField::LanguageId => match order.direction {
-                Direction::Asc => query = query.order(dsl::language_id.asc()),
-                Direction::Desc => query = query.order(dsl::language_id.desc()),
+                Direction::Asc => query.order(dsl::language_id.asc()),
+                Direction::Desc => query.order(dsl::language_id.desc()),
             },
             LanguageField::WorkId => match order.direction {
-                Direction::Asc => query = query.order(dsl::work_id.asc()),
-                Direction::Desc => query = query.order(dsl::work_id.desc()),
+                Direction::Asc => query.order(dsl::work_id.asc()),
+                Direction::Desc => query.order(dsl::work_id.desc()),
             },
             LanguageField::LanguageCode => match order.direction {
-                Direction::Asc => query = query.order(dsl::language_code.asc()),
-                Direction::Desc => query = query.order(dsl::language_code.desc()),
+                Direction::Asc => query.order(dsl::language_code.asc()),
+                Direction::Desc => query.order(dsl::language_code.desc()),
             },
             LanguageField::LanguageRelation => match order.direction {
-                Direction::Asc => query = query.order(dsl::language_relation.asc()),
-                Direction::Desc => query = query.order(dsl::language_relation.desc()),
+                Direction::Asc => query.order(dsl::language_relation.asc()),
+                Direction::Desc => query.order(dsl::language_relation.desc()),
             },
             LanguageField::MainLanguage => match order.direction {
-                Direction::Asc => query = query.order(dsl::main_language.asc()),
-                Direction::Desc => query = query.order(dsl::main_language.desc()),
+                Direction::Asc => query.order(dsl::main_language.asc()),
+                Direction::Desc => query.order(dsl::main_language.desc()),
             },
             LanguageField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::created_at.asc()),
-                Direction::Desc => query = query.order(dsl::created_at.desc()),
+                Direction::Asc => query.order(dsl::created_at.asc()),
+                Direction::Desc => query.order(dsl::created_at.desc()),
             },
             LanguageField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(dsl::updated_at.asc()),
-                Direction::Desc => query = query.order(dsl::updated_at.desc()),
+                Direction::Asc => query.order(dsl::updated_at.asc()),
+                Direction::Desc => query.order(dsl::updated_at.desc()),
             },
-        }
+        };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }

@@ -461,6 +461,7 @@ mod tests {
                     },
                     contributions: vec![],
                     publications: vec![],
+                    references: vec![],
                 },
             },
             WorkRelations {
@@ -485,8 +486,10 @@ mod tests {
                     },
                     contributions: vec![],
                     publications: vec![],
+                    references: vec![],
                 },
-            }]
+            }],
+            references: vec![]
         };
 
         let to_test = BibtexThoth.generate(&[test_work.clone()]);

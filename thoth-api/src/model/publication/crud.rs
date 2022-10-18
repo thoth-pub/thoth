@@ -39,82 +39,67 @@ impl Crud for Publication {
         let connection = db.get().unwrap();
         let mut query = publication
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
-            .select((
-                publication_id,
-                publication_type,
-                work_id,
-                isbn,
-                created_at,
-                updated_at,
-                width_mm,
-                width_in,
-                height_mm,
-                height_in,
-                depth_mm,
-                depth_in,
-                weight_g,
-                weight_oz,
-            ))
+            .select(crate::schema::publication::all_columns)
             .into_boxed();
 
-        match order.field {
+        query = match order.field {
             PublicationField::PublicationId => match order.direction {
-                Direction::Asc => query = query.order(publication_id.asc()),
-                Direction::Desc => query = query.order(publication_id.desc()),
+                Direction::Asc => query.order(publication_id.asc()),
+                Direction::Desc => query.order(publication_id.desc()),
             },
             PublicationField::PublicationType => match order.direction {
-                Direction::Asc => query = query.order(publication_type.asc()),
-                Direction::Desc => query = query.order(publication_type.desc()),
+                Direction::Asc => query.order(publication_type.asc()),
+                Direction::Desc => query.order(publication_type.desc()),
             },
             PublicationField::WorkId => match order.direction {
-                Direction::Asc => query = query.order(work_id.asc()),
-                Direction::Desc => query = query.order(work_id.desc()),
+                Direction::Asc => query.order(work_id.asc()),
+                Direction::Desc => query.order(work_id.desc()),
             },
             PublicationField::Isbn => match order.direction {
-                Direction::Asc => query = query.order(isbn.asc()),
-                Direction::Desc => query = query.order(isbn.desc()),
+                Direction::Asc => query.order(isbn.asc()),
+                Direction::Desc => query.order(isbn.desc()),
             },
             PublicationField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
+                Direction::Asc => query.order(created_at.asc()),
+                Direction::Desc => query.order(created_at.desc()),
             },
             PublicationField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
+                Direction::Asc => query.order(updated_at.asc()),
+                Direction::Desc => query.order(updated_at.desc()),
             },
             PublicationField::WidthMm => match order.direction {
-                Direction::Asc => query = query.order(width_mm.asc()),
-                Direction::Desc => query = query.order(width_mm.desc()),
+                Direction::Asc => query.order(width_mm.asc()),
+                Direction::Desc => query.order(width_mm.desc()),
             },
             PublicationField::WidthIn => match order.direction {
-                Direction::Asc => query = query.order(width_in.asc()),
-                Direction::Desc => query = query.order(width_in.desc()),
+                Direction::Asc => query.order(width_in.asc()),
+                Direction::Desc => query.order(width_in.desc()),
             },
             PublicationField::HeightMm => match order.direction {
-                Direction::Asc => query = query.order(height_mm.asc()),
-                Direction::Desc => query = query.order(height_mm.desc()),
+                Direction::Asc => query.order(height_mm.asc()),
+                Direction::Desc => query.order(height_mm.desc()),
             },
             PublicationField::HeightIn => match order.direction {
-                Direction::Asc => query = query.order(height_in.asc()),
-                Direction::Desc => query = query.order(height_in.desc()),
+                Direction::Asc => query.order(height_in.asc()),
+                Direction::Desc => query.order(height_in.desc()),
             },
             PublicationField::DepthMm => match order.direction {
-                Direction::Asc => query = query.order(depth_mm.asc()),
-                Direction::Desc => query = query.order(depth_mm.desc()),
+                Direction::Asc => query.order(depth_mm.asc()),
+                Direction::Desc => query.order(depth_mm.desc()),
             },
             PublicationField::DepthIn => match order.direction {
-                Direction::Asc => query = query.order(depth_in.asc()),
-                Direction::Desc => query = query.order(depth_in.desc()),
+                Direction::Asc => query.order(depth_in.asc()),
+                Direction::Desc => query.order(depth_in.desc()),
             },
             PublicationField::WeightG => match order.direction {
-                Direction::Asc => query = query.order(weight_g.asc()),
-                Direction::Desc => query = query.order(weight_g.desc()),
+                Direction::Asc => query.order(weight_g.asc()),
+                Direction::Desc => query.order(weight_g.desc()),
             },
             PublicationField::WeightOz => match order.direction {
-                Direction::Asc => query = query.order(weight_oz.asc()),
-                Direction::Desc => query = query.order(weight_oz.desc()),
+                Direction::Asc => query.order(weight_oz.asc()),
+                Direction::Desc => query.order(weight_oz.desc()),
             },
-        }
+        };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }

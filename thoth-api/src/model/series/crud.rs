@@ -40,63 +40,51 @@ impl Crud for Series {
         let connection = db.get().unwrap();
         let mut query = series
             .inner_join(crate::schema::imprint::table)
-            .select((
-                series_id,
-                series_type,
-                series_name,
-                issn_print,
-                issn_digital,
-                series_url,
-                imprint_id,
-                created_at,
-                updated_at,
-                series_description,
-                series_cfp_url,
-            ))
+            .select(crate::schema::series::all_columns)
             .into_boxed();
 
-        match order.field {
+        query = match order.field {
             SeriesField::SeriesId => match order.direction {
-                Direction::Asc => query = query.order(series_id.asc()),
-                Direction::Desc => query = query.order(series_id.desc()),
+                Direction::Asc => query.order(series_id.asc()),
+                Direction::Desc => query.order(series_id.desc()),
             },
             SeriesField::SeriesType => match order.direction {
-                Direction::Asc => query = query.order(series_type.asc()),
-                Direction::Desc => query = query.order(series_type.desc()),
+                Direction::Asc => query.order(series_type.asc()),
+                Direction::Desc => query.order(series_type.desc()),
             },
             SeriesField::SeriesName => match order.direction {
-                Direction::Asc => query = query.order(series_name.asc()),
-                Direction::Desc => query = query.order(series_name.desc()),
+                Direction::Asc => query.order(series_name.asc()),
+                Direction::Desc => query.order(series_name.desc()),
             },
             SeriesField::IssnPrint => match order.direction {
-                Direction::Asc => query = query.order(issn_print.asc()),
-                Direction::Desc => query = query.order(issn_print.desc()),
+                Direction::Asc => query.order(issn_print.asc()),
+                Direction::Desc => query.order(issn_print.desc()),
             },
             SeriesField::IssnDigital => match order.direction {
-                Direction::Asc => query = query.order(issn_digital.asc()),
-                Direction::Desc => query = query.order(issn_digital.desc()),
+                Direction::Asc => query.order(issn_digital.asc()),
+                Direction::Desc => query.order(issn_digital.desc()),
             },
             SeriesField::SeriesUrl => match order.direction {
-                Direction::Asc => query = query.order(series_url.asc()),
-                Direction::Desc => query = query.order(series_url.desc()),
+                Direction::Asc => query.order(series_url.asc()),
+                Direction::Desc => query.order(series_url.desc()),
             },
             SeriesField::SeriesDescription => match order.direction {
-                Direction::Asc => query = query.order(series_description.asc()),
-                Direction::Desc => query = query.order(series_description.desc()),
+                Direction::Asc => query.order(series_description.asc()),
+                Direction::Desc => query.order(series_description.desc()),
             },
             SeriesField::SeriesCfpUrl => match order.direction {
-                Direction::Asc => query = query.order(series_cfp_url.asc()),
-                Direction::Desc => query = query.order(series_cfp_url.desc()),
+                Direction::Asc => query.order(series_cfp_url.asc()),
+                Direction::Desc => query.order(series_cfp_url.desc()),
             },
             SeriesField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
+                Direction::Asc => query.order(created_at.asc()),
+                Direction::Desc => query.order(created_at.desc()),
             },
             SeriesField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
+                Direction::Asc => query.order(updated_at.asc()),
+                Direction::Desc => query.order(updated_at.desc()),
             },
-        }
+        };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }

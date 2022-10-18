@@ -36,62 +36,51 @@ impl Crud for Funding {
         let connection = db.get().unwrap();
         let mut query = funding
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
-            .select((
-                funding_id,
-                work_id,
-                institution_id,
-                program,
-                project_name,
-                project_shortname,
-                grant_number,
-                jurisdiction,
-                created_at,
-                updated_at,
-            ))
+            .select(crate::schema::funding::all_columns)
             .into_boxed();
 
-        match order.field {
+        query = match order.field {
             FundingField::FundingId => match order.direction {
-                Direction::Asc => query = query.order(funding_id.asc()),
-                Direction::Desc => query = query.order(funding_id.desc()),
+                Direction::Asc => query.order(funding_id.asc()),
+                Direction::Desc => query.order(funding_id.desc()),
             },
             FundingField::WorkId => match order.direction {
-                Direction::Asc => query = query.order(work_id.asc()),
-                Direction::Desc => query = query.order(work_id.desc()),
+                Direction::Asc => query.order(work_id.asc()),
+                Direction::Desc => query.order(work_id.desc()),
             },
             FundingField::InstitutionId => match order.direction {
-                Direction::Asc => query = query.order(institution_id.asc()),
-                Direction::Desc => query = query.order(institution_id.desc()),
+                Direction::Asc => query.order(institution_id.asc()),
+                Direction::Desc => query.order(institution_id.desc()),
             },
             FundingField::Program => match order.direction {
-                Direction::Asc => query = query.order(program.asc()),
-                Direction::Desc => query = query.order(program.desc()),
+                Direction::Asc => query.order(program.asc()),
+                Direction::Desc => query.order(program.desc()),
             },
             FundingField::ProjectName => match order.direction {
-                Direction::Asc => query = query.order(project_name.asc()),
-                Direction::Desc => query = query.order(project_name.desc()),
+                Direction::Asc => query.order(project_name.asc()),
+                Direction::Desc => query.order(project_name.desc()),
             },
             FundingField::ProjectShortname => match order.direction {
-                Direction::Asc => query = query.order(project_shortname.asc()),
-                Direction::Desc => query = query.order(project_shortname.desc()),
+                Direction::Asc => query.order(project_shortname.asc()),
+                Direction::Desc => query.order(project_shortname.desc()),
             },
             FundingField::GrantNumber => match order.direction {
-                Direction::Asc => query = query.order(grant_number.asc()),
-                Direction::Desc => query = query.order(grant_number.desc()),
+                Direction::Asc => query.order(grant_number.asc()),
+                Direction::Desc => query.order(grant_number.desc()),
             },
             FundingField::Jurisdiction => match order.direction {
-                Direction::Asc => query = query.order(jurisdiction.asc()),
-                Direction::Desc => query = query.order(jurisdiction.desc()),
+                Direction::Asc => query.order(jurisdiction.asc()),
+                Direction::Desc => query.order(jurisdiction.desc()),
             },
             FundingField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
+                Direction::Asc => query.order(created_at.asc()),
+                Direction::Desc => query.order(created_at.desc()),
             },
             FundingField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
+                Direction::Asc => query.order(updated_at.asc()),
+                Direction::Desc => query.order(updated_at.desc()),
             },
-        }
+        };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }
