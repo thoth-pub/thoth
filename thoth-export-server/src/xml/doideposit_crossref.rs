@@ -1107,22 +1107,22 @@ mod tests {
                 reference_ordinal: 1,
                 doi: Some(Doi::from_str("https://doi.org/10.00001/reference").unwrap()),
                 unstructured_citation: Some("Author, A. (2022) Article, Journal.".to_string()),
-                issn: None,
+                issn: Some("1111-2222".to_string()),
                 isbn: None,
-                journal_title: None,
-                article_title: None,
+                journal_title: Some("Journal".to_string()),
+                article_title: Some("Article".to_string()),
                 series_title: None,
                 volume_title: None,
                 edition: None,
-                author: None,
+                author: Some("Author, A".to_string()),
                 volume: None,
                 issue: None,
-                first_page: None,
+                first_page: Some("3".to_string()),
                 component_number: None,
                 standard_designator: None,
                 standards_body_name: None,
                 standards_body_acronym: None,
-                publication_date: None,
+                publication_date: Some(chrono::NaiveDate::from_ymd(2022, 01, 01)),
             }],
         };
 
@@ -1200,6 +1200,12 @@ mod tests {
         assert!(output.contains(r#"        <citation key="ref1">"#));
         assert!(output.contains(r#"          <doi>10.00001/reference</doi>"#));
         assert!(output.contains(r#"          <unstructured_citation>Author, A. (2022) Article, Journal.</unstructured_citation>"#));
+        assert!(output.contains(r#"          <issn>1111-2222</issn>"#));
+        assert!(output.contains(r#"          <journal_title>Journal</journal_title>"#));
+        assert!(output.contains(r#"          <article_title>Article</article_title>"#));
+        assert!(output.contains(r#"          <author>Author, A</author>"#));
+        assert!(output.contains(r#"          <first_page>3</first_page>"#));
+        assert!(output.contains(r#"          <cYear>2022</cYear>"#));
         assert!(output.contains(r#"      <doi_data>"#));
         assert!(output.contains(r#"        <doi>10.00001/BOOK.0001</doi>"#));
         assert!(output.contains(r#"        <resource>https://www.book.com</resource>"#));
