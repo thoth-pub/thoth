@@ -38,47 +38,39 @@ impl Crud for Subject {
         let connection = db.get().unwrap();
         let mut query = subject
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
-            .select((
-                subject_id,
-                work_id,
-                subject_type,
-                subject_code,
-                subject_ordinal,
-                created_at,
-                updated_at,
-            ))
+            .select(crate::schema::subject::all_columns)
             .into_boxed();
 
-        match order.field {
+        query = match order.field {
             SubjectField::SubjectId => match order.direction {
-                Direction::Asc => query = query.order(subject_id.asc()),
-                Direction::Desc => query = query.order(subject_id.desc()),
+                Direction::Asc => query.order(subject_id.asc()),
+                Direction::Desc => query.order(subject_id.desc()),
             },
             SubjectField::WorkId => match order.direction {
-                Direction::Asc => query = query.order(work_id.asc()),
-                Direction::Desc => query = query.order(work_id.desc()),
+                Direction::Asc => query.order(work_id.asc()),
+                Direction::Desc => query.order(work_id.desc()),
             },
             SubjectField::SubjectType => match order.direction {
-                Direction::Asc => query = query.order(subject_type.asc()),
-                Direction::Desc => query = query.order(subject_type.desc()),
+                Direction::Asc => query.order(subject_type.asc()),
+                Direction::Desc => query.order(subject_type.desc()),
             },
             SubjectField::SubjectCode => match order.direction {
-                Direction::Asc => query = query.order(subject_code.asc()),
-                Direction::Desc => query = query.order(subject_code.desc()),
+                Direction::Asc => query.order(subject_code.asc()),
+                Direction::Desc => query.order(subject_code.desc()),
             },
             SubjectField::SubjectOrdinal => match order.direction {
-                Direction::Asc => query = query.order(subject_ordinal.asc()),
-                Direction::Desc => query = query.order(subject_ordinal.desc()),
+                Direction::Asc => query.order(subject_ordinal.asc()),
+                Direction::Desc => query.order(subject_ordinal.desc()),
             },
             SubjectField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
+                Direction::Asc => query.order(created_at.asc()),
+                Direction::Desc => query.order(created_at.desc()),
             },
             SubjectField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
+                Direction::Asc => query.order(updated_at.asc()),
+                Direction::Desc => query.order(updated_at.desc()),
             },
-        }
+        };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }

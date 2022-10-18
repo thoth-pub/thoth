@@ -41,47 +41,39 @@ impl Crud for Affiliation {
                 .inner_join(crate::schema::contribution::table.inner_join(
                     crate::schema::work::table.inner_join(crate::schema::imprint::table),
                 ))
-                .select((
-                    affiliation_id,
-                    contribution_id,
-                    institution_id,
-                    affiliation_ordinal,
-                    position,
-                    created_at,
-                    updated_at,
-                ))
+                .select(crate::schema::affiliation::all_columns)
                 .into_boxed();
 
-        match order.field {
+        query = match order.field {
             AffiliationField::AffiliationId => match order.direction {
-                Direction::Asc => query = query.order(affiliation_id.asc()),
-                Direction::Desc => query = query.order(affiliation_id.desc()),
+                Direction::Asc => query.order(affiliation_id.asc()),
+                Direction::Desc => query.order(affiliation_id.desc()),
             },
             AffiliationField::ContributionId => match order.direction {
-                Direction::Asc => query = query.order(contribution_id.asc()),
-                Direction::Desc => query = query.order(contribution_id.desc()),
+                Direction::Asc => query.order(contribution_id.asc()),
+                Direction::Desc => query.order(contribution_id.desc()),
             },
             AffiliationField::InstitutionId => match order.direction {
-                Direction::Asc => query = query.order(institution_id.asc()),
-                Direction::Desc => query = query.order(institution_id.desc()),
+                Direction::Asc => query.order(institution_id.asc()),
+                Direction::Desc => query.order(institution_id.desc()),
             },
             AffiliationField::AffiliationOrdinal => match order.direction {
-                Direction::Asc => query = query.order(affiliation_ordinal.asc()),
-                Direction::Desc => query = query.order(affiliation_ordinal.desc()),
+                Direction::Asc => query.order(affiliation_ordinal.asc()),
+                Direction::Desc => query.order(affiliation_ordinal.desc()),
             },
             AffiliationField::Position => match order.direction {
-                Direction::Asc => query = query.order(position.asc()),
-                Direction::Desc => query = query.order(position.desc()),
+                Direction::Asc => query.order(position.asc()),
+                Direction::Desc => query.order(position.desc()),
             },
             AffiliationField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
+                Direction::Asc => query.order(created_at.asc()),
+                Direction::Desc => query.order(created_at.desc()),
             },
             AffiliationField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
+                Direction::Asc => query.order(updated_at.asc()),
+                Direction::Desc => query.order(updated_at.desc()),
             },
-        }
+        };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }

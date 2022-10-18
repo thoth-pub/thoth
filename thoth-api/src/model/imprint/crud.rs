@@ -40,28 +40,28 @@ impl Crud for Imprint {
         let connection = db.get().unwrap();
         let mut query = imprint.into_boxed();
 
-        match order.field {
+        query = match order.field {
             ImprintField::ImprintId => match order.direction {
-                Direction::Asc => query = query.order(imprint_id.asc()),
-                Direction::Desc => query = query.order(imprint_id.desc()),
+                Direction::Asc => query.order(imprint_id.asc()),
+                Direction::Desc => query.order(imprint_id.desc()),
             },
             ImprintField::ImprintName => match order.direction {
-                Direction::Asc => query = query.order(imprint_name.asc()),
-                Direction::Desc => query = query.order(imprint_name.desc()),
+                Direction::Asc => query.order(imprint_name.asc()),
+                Direction::Desc => query.order(imprint_name.desc()),
             },
             ImprintField::ImprintUrl => match order.direction {
-                Direction::Asc => query = query.order(imprint_url.asc()),
-                Direction::Desc => query = query.order(imprint_url.desc()),
+                Direction::Asc => query.order(imprint_url.asc()),
+                Direction::Desc => query.order(imprint_url.desc()),
             },
             ImprintField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
+                Direction::Asc => query.order(created_at.asc()),
+                Direction::Desc => query.order(created_at.desc()),
             },
             ImprintField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
+                Direction::Asc => query.order(updated_at.asc()),
+                Direction::Desc => query.order(updated_at.desc()),
             },
-        }
+        };
         if !publishers.is_empty() {
             query = query.filter(publisher_id.eq(any(publishers)));
         }

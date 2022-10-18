@@ -39,36 +39,36 @@ impl Crud for Institution {
         let connection = db.get().unwrap();
         let mut query = institution.into_boxed();
 
-        match order.field {
+        query = match order.field {
             InstitutionField::InstitutionId => match order.direction {
-                Direction::Asc => query = query.order(institution_id.asc()),
-                Direction::Desc => query = query.order(institution_id.desc()),
+                Direction::Asc => query.order(institution_id.asc()),
+                Direction::Desc => query.order(institution_id.desc()),
             },
             InstitutionField::InstitutionName => match order.direction {
-                Direction::Asc => query = query.order(institution_name.asc()),
-                Direction::Desc => query = query.order(institution_name.desc()),
+                Direction::Asc => query.order(institution_name.asc()),
+                Direction::Desc => query.order(institution_name.desc()),
             },
             InstitutionField::InstitutionDoi => match order.direction {
-                Direction::Asc => query = query.order(institution_doi.asc()),
-                Direction::Desc => query = query.order(institution_doi.desc()),
+                Direction::Asc => query.order(institution_doi.asc()),
+                Direction::Desc => query.order(institution_doi.desc()),
             },
             InstitutionField::Ror => match order.direction {
-                Direction::Asc => query = query.order(ror.asc()),
-                Direction::Desc => query = query.order(ror.desc()),
+                Direction::Asc => query.order(ror.asc()),
+                Direction::Desc => query.order(ror.desc()),
             },
             InstitutionField::CountryCode => match order.direction {
-                Direction::Asc => query = query.order(country_code.asc()),
-                Direction::Desc => query = query.order(country_code.desc()),
+                Direction::Asc => query.order(country_code.asc()),
+                Direction::Desc => query.order(country_code.desc()),
             },
             InstitutionField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
+                Direction::Asc => query.order(created_at.asc()),
+                Direction::Desc => query.order(created_at.desc()),
             },
             InstitutionField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
+                Direction::Asc => query.order(updated_at.asc()),
+                Direction::Desc => query.order(updated_at.desc()),
             },
-        }
+        };
         if let Some(filter) = filter {
             query = query.filter(
                 institution_name

@@ -40,32 +40,32 @@ impl Crud for Publisher {
         let connection = db.get().unwrap();
         let mut query = publisher.into_boxed();
 
-        match order.field {
+        query = match order.field {
             PublisherField::PublisherId => match order.direction {
-                Direction::Asc => query = query.order(publisher_id.asc()),
-                Direction::Desc => query = query.order(publisher_id.desc()),
+                Direction::Asc => query.order(publisher_id.asc()),
+                Direction::Desc => query.order(publisher_id.desc()),
             },
             PublisherField::PublisherName => match order.direction {
-                Direction::Asc => query = query.order(publisher_name.asc()),
-                Direction::Desc => query = query.order(publisher_name.desc()),
+                Direction::Asc => query.order(publisher_name.asc()),
+                Direction::Desc => query.order(publisher_name.desc()),
             },
             PublisherField::PublisherShortname => match order.direction {
-                Direction::Asc => query = query.order(publisher_shortname.asc()),
-                Direction::Desc => query = query.order(publisher_shortname.desc()),
+                Direction::Asc => query.order(publisher_shortname.asc()),
+                Direction::Desc => query.order(publisher_shortname.desc()),
             },
             PublisherField::PublisherUrl => match order.direction {
-                Direction::Asc => query = query.order(publisher_url.asc()),
-                Direction::Desc => query = query.order(publisher_url.desc()),
+                Direction::Asc => query.order(publisher_url.asc()),
+                Direction::Desc => query.order(publisher_url.desc()),
             },
             PublisherField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
+                Direction::Asc => query.order(created_at.asc()),
+                Direction::Desc => query.order(created_at.desc()),
             },
             PublisherField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
+                Direction::Asc => query.order(updated_at.asc()),
+                Direction::Desc => query.order(updated_at.desc()),
             },
-        }
+        };
         if !publishers.is_empty() {
             query = query.filter(publisher_id.eq(any(publishers)));
         }
