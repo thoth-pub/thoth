@@ -1,9 +1,11 @@
 use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
+use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
     ContributionType, PublicationType, RelationType, Work, WorkIssuesSeries, WorkRelations,
     WorkRelationsRelatedWork, WorkRelationsRelatedWorkContributions,
+    WorkRelationsRelatedWorkContributionsAffiliationsInstitution,
     WorkRelationsRelatedWorkPublications, WorkRelationsRelatedWorkReferences, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
@@ -541,18 +543,46 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributio
                 if let Some(orcid) = &self.contributor.orcid {
                     write_element_block("ORCID", w, |w| {
                         // Leading `https://orcid.org` is required, and omitted by orcid.to_string()
-                        w.write(XmlEvent::Characters(&format!(
-                            "https://orcid.org/{}",
-                            orcid
-                        )))
-                        .map_err(|e| e.into())
+                        w.write(XmlEvent::Characters(&orcid.with_domain()))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                if !self.affiliations.is_empty() {
+                    write_element_block("affiliations", w, |w| {
+                        for affiliation in &self.affiliations {
+                            XmlElementBlock::<DoiDepositCrossref>::xml_element(
+                                &affiliation.institution,
+                                w,
+                            )?;
+                        }
+                        Ok(())
                     })?;
                 }
                 Ok(())
-                // Affiliation information can also optionally be provided here.
-                // Omitted at present but could be considered as a future enhancement.
             },
         )
+    }
+}
+
+impl XmlElementBlock<DoiDepositCrossref>
+    for WorkRelationsRelatedWorkContributionsAffiliationsInstitution
+{
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_element_block("institution", w, |w| {
+            write_element_block("institution_name", w, |w| {
+                w.write(XmlEvent::Characters(&self.institution_name))
+                    .map_err(|e| e.into())
+            })?;
+            if let Some(ror) = &self.ror {
+                let mut id_type: HashMap<&str, &str> = HashMap::new();
+                id_type.insert("type", "ror");
+                write_full_element_block("institution_id", None, Some(id_type), w, |w| {
+                    w.write(XmlEvent::Characters(&ror.with_domain()))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            Ok(())
+        })
     }
 }
 
@@ -689,12 +719,15 @@ mod tests {
     // We therefore rely on `assert!(contains)` rather than `assert_eq!`
     use super::*;
     use std::str::FromStr;
-    use thoth_api::model::{Doi, Isbn, Orcid};
+    use thoth_api::model::{Doi, Isbn, Orcid, Ror};
     use thoth_client::{
         ContributionType, LocationPlatform, PublicationType, SeriesType, WorkContributions,
+        WorkContributionsAffiliations, WorkContributionsAffiliationsInstitution,
         WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssues,
         WorkIssuesSeries, WorkPublications, WorkPublicationsLocations, WorkReferences,
         WorkRelations, WorkRelationsRelatedWorkContributions,
+        WorkRelationsRelatedWorkContributionsAffiliations,
+        WorkRelationsRelatedWorkContributionsAffiliationsInstitution,
         WorkRelationsRelatedWorkContributionsContributor, WorkRelationsRelatedWorkImprint,
         WorkRelationsRelatedWorkImprintPublisher, WorkRelationsRelatedWorkPublicationsLocations,
         WorkStatus, WorkType,
@@ -758,6 +791,14 @@ mod tests {
                             Orcid::from_str("https://orcid.org/0000-0002-0000-0011").unwrap(),
                         ),
                     },
+                    affiliations: vec![WorkRelationsRelatedWorkContributionsAffiliations {
+                        position: None,
+                        affiliation_ordinal: 1,
+                        institution: WorkRelationsRelatedWorkContributionsAffiliationsInstitution {
+                            institution_name: "Thoth University".to_string(),
+                            ror: Some(Ror::from_str("https://ror.org/0abcdef12").unwrap()),
+                        },
+                    }],
                 }],
                 publications: vec![WorkRelationsRelatedWorkPublications {
                     publication_type: PublicationType::PDF,
@@ -782,6 +823,14 @@ mod tests {
         assert!(output.contains(r#"      <given_name>Chapter One</given_name>"#));
         assert!(output.contains(r#"      <surname>Author</surname>"#));
         assert!(output.contains(r#"      <ORCID>https://orcid.org/0000-0002-0000-0011</ORCID>"#));
+        assert!(output.contains(r#"      <affiliations>"#));
+        assert!(output.contains(r#"        <institution>"#));
+        assert!(
+            output.contains(r#"          <institution_name>Thoth University</institution_name>"#)
+        );
+        assert!(output.contains(
+            r#"          <institution_id type="ror">https://ror.org/0abcdef12</institution_id>"#
+        ));
         assert!(output.contains(r#"  <titles>"#));
         assert!(output.contains(r#"    <title>Chapter</title>"#));
         assert!(output.contains(r#"    <subtitle>One</subtitle>"#));
@@ -998,7 +1047,14 @@ mod tests {
                             Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap(),
                         ),
                     },
-                    affiliations: vec![],
+                    affiliations: vec![WorkContributionsAffiliations {
+                        position: None,
+                        affiliation_ordinal: 1,
+                        institution: WorkContributionsAffiliationsInstitution {
+                            institution_name: "Thoth University".to_string(),
+                            ror: Some(Ror::from_str("https://ror.org/0abcdef12").unwrap()),
+                        },
+                    }],
                 },
                 WorkContributions {
                     contribution_type: ContributionType::EDITOR,
@@ -1024,7 +1080,14 @@ mod tests {
                     biography: None,
                     contribution_ordinal: 3,
                     contributor: WorkContributionsContributor { orcid: None },
-                    affiliations: vec![],
+                    affiliations: vec![WorkContributionsAffiliations {
+                        position: None,
+                        affiliation_ordinal: 1,
+                        institution: WorkContributionsAffiliationsInstitution {
+                            institution_name: "COMPIM".to_string(),
+                            ror: None,
+                        },
+                    }],
                 },
             ],
             languages: vec![],
@@ -1169,6 +1232,14 @@ mod tests {
         assert!(
             output.contains(r#"          <ORCID>https://orcid.org/0000-0002-0000-0001</ORCID>"#)
         );
+        assert!(output.contains(r#"      <affiliations>"#));
+        assert!(output.contains(r#"        <institution>"#));
+        assert!(
+            output.contains(r#"          <institution_name>Thoth University</institution_name>"#)
+        );
+        assert!(output.contains(
+            r#"          <institution_id type="ror">https://ror.org/0abcdef12</institution_id>"#
+        ));
         assert!(
             output.contains(
                 r#"        <person_name contributor_role="editor" sequence="additional">"#
@@ -1195,6 +1266,9 @@ mod tests {
         assert!(
             !output.contains(r#"          <ORCID>https://orcid.org/0000-0002-0000-0004</ORCID>"#)
         );
+        assert!(output.contains(r#"      <affiliations>"#));
+        assert!(output.contains(r#"        <institution>"#));
+        assert!(output.contains(r#"          <institution_name>COPIM</institution_name>"#));
         assert!(output.contains(r#"      <titles>"#));
         assert!(output.contains(r#"        <title>Book Title</title>"#));
         assert!(output.contains(r#"        <subtitle>Book Subtitle</subtitle>"#));
