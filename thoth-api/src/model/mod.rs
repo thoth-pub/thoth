@@ -547,20 +547,21 @@ impl UrlIdentifier for Doi {
         DOI_DOMAIN
     }
 }
-impl IdentifierWithDomain for Doi {}
 
 impl UrlIdentifier for Orcid {
     fn domain() -> &str {
         ORCID_DOMAIN
     }
 }
-impl IdentifierWithDomain for Orcid {}
 
 impl UrlIdentifier for Ror {
     fn domain() -> &str {
         ROR_DOMAIN
     }
 }
+
+impl IdentifierWithDomain for Doi {}
+impl IdentifierWithDomain for Orcid {}
 impl IdentifierWithDomain for Ror {}
 
 #[test]
