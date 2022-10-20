@@ -81,11 +81,12 @@ fragment Work on Work {
         contributor {
             orcid
         }
-        affiliations {
+        affiliations(order: {field: AFFILIATION_ORDINAL, direction: ASC}) {
             position
             affiliationOrdinal
             institution {
                 institutionName
+                ror
             }
         }
     }
@@ -166,6 +167,14 @@ fragment Work on Work {
                 contributionOrdinal
                 contributor {
                     orcid
+                }
+                affiliations(order: {field: AFFILIATION_ORDINAL, direction: ASC}) {
+                    position
+                    affiliationOrdinal
+                    institution {
+                        institutionName
+                        ror
+                    }
                 }
             }
             publications {
