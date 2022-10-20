@@ -1084,7 +1084,7 @@ mod tests {
                         position: None,
                         affiliation_ordinal: 1,
                         institution: WorkContributionsAffiliationsInstitution {
-                            institution_name: "COMPIM".to_string(),
+                            institution_name: "COPIM".to_string(),
                             ror: None,
                         },
                     }],
