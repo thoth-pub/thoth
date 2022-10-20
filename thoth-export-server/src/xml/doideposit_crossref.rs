@@ -37,6 +37,7 @@ impl XmlSpecification for DoiDepositCrossref {
                 attr_map.insert("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
                 attr_map.insert("xsi:schemaLocation", "http://www.crossref.org/schema/5.3.1 http://www.crossref.org/schemas/crossref5.3.1.xsd");
                 attr_map.insert("xmlns:ai", "http://www.crossref.org/AccessIndicators.xsd");
+                attr_map.insert("xmlns:jats", "http://www.ncbi.nlm.nih.gov/JATS1");
 
                 write_full_element_block("doi_batch", None, Some(attr_map), w, |w| {
                     write_element_block("head", w, |w| {
@@ -191,8 +192,20 @@ fn work_metadata<W: Write>(
                 .map_err(|e| e.into())
         })?;
     }
-    // Abstract can also optionally be provided here, but only in JATS format.
-    // Omitted at present but could be considered as a future enhancement.
+    // Convert abstract into JATS by extracting its paragraphs and tagging them with <jats:p>
+    if let Some(long_abstract) = &work.long_abstract {
+        write_element_block("jats:abstract", w, |w| {
+            for paragraph in long_abstract.lines() {
+                if !paragraph.is_empty() {
+                    write_element_block("jats:p", w, |w| {
+                        w.write(XmlEvent::Characters(paragraph))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+            }
+            Ok(())
+        })?;
+    }
     if let Some(edition) = work.edition {
         if is_chapter {
             // `edition_number` is not supported for chapters,
@@ -725,6 +738,7 @@ mod tests {
                 doi: Some(Doi::from_str("https://doi.org/10.00001/CHAPTER.0001").unwrap()),
                 publication_date: Some(chrono::NaiveDate::from_ymd(2000, 2, 28)),
                 license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
+                long_abstract: Some("First paragraph.\n\nSecond paragraph.".to_string()),
                 place: Some("Other Place".to_string()),
                 first_page: Some("10".to_string()),
                 last_page: Some("20".to_string()),
@@ -773,6 +787,10 @@ mod tests {
         assert!(output.contains(r#"    <subtitle>One</subtitle>"#));
         assert!(output.contains(r#"  </titles>"#));
         assert!(output.contains(r#"  <component_number>1</component_number>"#));
+        assert!(output.contains(r#"  <jats:abstract>"#));
+        assert!(output.contains(r#"    <jats:p>First paragraph.</jats:p>"#));
+        assert!(output.contains(r#"    <jats:p>Second paragraph.</jats:p>"#));
+        assert!(!output.contains(r#"    <jats:p></jats:p>"#));
         assert!(output.contains(r#"  <publication_date>"#));
         assert!(output.contains(r#"    <month>02</month>"#));
         assert!(output.contains(r#"    <day>28</day>"#));
@@ -1089,6 +1107,7 @@ mod tests {
                     doi: Some(Doi::from_str("https://doi.org/10.00001/PART.0001").unwrap()),
                     publication_date: Some(chrono::NaiveDate::from_ymd(2000, 2, 28)),
                     license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
+                    long_abstract: None,
                     place: Some("Other Place".to_string()),
                     first_page: Some("10".to_string()),
                     last_page: Some("20".to_string()),
@@ -1179,6 +1198,8 @@ mod tests {
         assert!(output.contains(r#"      <titles>"#));
         assert!(output.contains(r#"        <title>Book Title</title>"#));
         assert!(output.contains(r#"        <subtitle>Book Subtitle</subtitle>"#));
+        assert!(output.contains(r#"      <jats:abstract>"#));
+        assert!(output.contains(r#"        <jats:p>Lorem ipsum dolor sit amet</jats:p>"#));
         assert!(output.contains(r#"      <volume>11</volume>"#));
         assert!(output.contains(r#"      <edition_number>100</edition_number>"#));
         assert!(output.contains(r#"      <publication_date>"#));
