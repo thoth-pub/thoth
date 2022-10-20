@@ -3,7 +3,6 @@ use isbn2::Isbn13;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
-use diesel::dsl::Or;
 use strum::Display;
 use strum::EnumString;
 use thoth_errors::{ThothError, ThothResult};
@@ -531,31 +530,31 @@ impl Convert for f64 {
 
 /// Assign the leading domain of an identifier
 pub trait UrlIdentifier {
-    fn domain() -> &str;
+    fn domain(&self) -> &'static str;
 }
 
 /// Output an identifier with its leading domain
 pub trait IdentifierWithDomain
-where Self: UrlIdentifier {
+where Self: UrlIdentifier + fmt::Display {
     fn with_domain(&self) -> String {
-        format!(self.domain(), self)
+        format!("{}{}", self.domain(), self)
     }
 }
 
 impl UrlIdentifier for Doi {
-    fn domain() -> &str {
+    fn domain(&self) -> &'static str {
         DOI_DOMAIN
     }
 }
 
 impl UrlIdentifier for Orcid {
-    fn domain() -> &str {
+    fn domain(&self) -> &'static str {
         ORCID_DOMAIN
     }
 }
 
 impl UrlIdentifier for Ror {
-    fn domain() -> &str {
+    fn domain(&self) -> &'static str {
         ROR_DOMAIN
     }
 }
