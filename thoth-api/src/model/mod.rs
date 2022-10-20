@@ -529,32 +529,39 @@ impl Convert for f64 {
     }
 }
 
-/// Output an identifier with its leading domain
-pub trait IdentifierWithDomain {
+/// Assign the leading domain of an identifier
+pub trait UrlIdentifier {
     fn domain() -> &str;
+}
 
+/// Output an identifier with its leading domain
+pub trait IdentifierWithDomain
+where Self: UrlIdentifier {
     fn with_domain(&self) -> String {
         format!(self.domain(), self)
     }
 }
 
-impl IdentifierWithDomain for Doi {
+impl UrlIdentifier for Doi {
     fn domain() -> &str {
         DOI_DOMAIN
     }
 }
+impl IdentifierWithDomain for Doi {}
 
-impl IdentifierWithDomain for Orcid {
+impl UrlIdentifier for Orcid {
     fn domain() -> &str {
         ORCID_DOMAIN
     }
 }
+impl IdentifierWithDomain for Orcid {}
 
-impl IdentifierWithDomain for Ror {
+impl UrlIdentifier for Ror {
     fn domain() -> &str {
         ROR_DOMAIN
     }
 }
+impl IdentifierWithDomain for Ror {}
 
 #[test]
 fn test_doi_default() {
