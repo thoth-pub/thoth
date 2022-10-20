@@ -535,7 +535,9 @@ pub trait UrlIdentifier {
 
 /// Output an identifier with its leading domain
 pub trait IdentifierWithDomain
-where Self: UrlIdentifier + fmt::Display {
+where
+    Self: UrlIdentifier + fmt::Display,
+{
     fn with_domain(&self) -> String {
         format!("{}{}", self.domain(), self)
     }
