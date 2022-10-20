@@ -3,6 +3,7 @@ use isbn2::Isbn13;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
+use diesel::dsl::Or;
 use strum::Display;
 use strum::EnumString;
 use thoth_errors::{ThothError, ThothResult};
@@ -528,6 +529,33 @@ impl Convert for f64 {
     }
 }
 
+/// Output an identifier with its leading domain
+pub trait IdentifierWithDomain {
+    fn domain() -> &str;
+
+    fn with_domain(&self) -> String {
+        format!(self.domain(), self)
+    }
+}
+
+impl IdentifierWithDomain for Doi {
+    fn domain() -> &str {
+        DOI_DOMAIN
+    }
+}
+
+impl IdentifierWithDomain for Orcid {
+    fn domain() -> &str {
+        ORCID_DOMAIN
+    }
+}
+
+impl IdentifierWithDomain for Ror {
+    fn domain() -> &str {
+        ROR_DOMAIN
+    }
+}
+
 #[test]
 fn test_doi_default() {
     let doi: Doi = Default::default();
@@ -938,6 +966,24 @@ fn test_convert_weight_from_to() {
             .convert_weight_from_to(&Oz, &G),
         190.0
     );
+}
+
+#[test]
+fn test_doi_with_domain() {
+    let doi = "https://doi.org/10.12345/Test-Suffix.01";
+    assert_eq!(format!("{}", Doi(doi.to_string()).with_domain()), doi);
+}
+
+#[test]
+fn test_orcid_with_domain() {
+    let orcid = "https://orcid.org/0000-0002-1234-5678";
+    assert_eq!(format!("{}", Orcid(orcid.to_string()).with_domain()), orcid);
+}
+
+#[test]
+fn test_ror_with_domain() {
+    let ror = "https://ror.org/0abcdef12";
+    assert_eq!(format!("{}", Ror(ror.to_string()).with_domain()), ror);
 }
 
 pub mod affiliation;
