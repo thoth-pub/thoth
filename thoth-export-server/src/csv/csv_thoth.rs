@@ -520,6 +520,7 @@ mod tests {
                             affiliation_ordinal: 1,
                             institution: WorkContributionsAffiliationsInstitution {
                                 institution_name: "University of Life".to_string(),
+                                ror: None,
                             },
                         },
                     ],
@@ -886,6 +887,7 @@ mod tests {
             affiliation_ordinal: 1,
             institution: WorkContributionsAffiliationsInstitution {
                 institution_name: "University of Life".to_string(),
+                ror: None,
             },
         };
         assert_eq!(
