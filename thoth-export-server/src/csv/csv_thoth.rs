@@ -441,10 +441,10 @@ mod tests {
     use thoth_api::model::Orcid;
     use thoth_api::model::Ror;
     use thoth_client::{
-        ContributionType, CountryCode, CurrencyCode, LanguageCode, LanguageRelation,
-        LocationPlatform, PublicationType, RelationType, SeriesType, WorkContributionsAffiliations,
-        WorkContributionsAffiliationsInstitution, WorkContributionsContributor,
-        FundingInstitution, WorkImprint, WorkImprintPublisher, WorkIssuesSeries,
+        ContributionType, CountryCode, CurrencyCode, FundingInstitution, LanguageCode,
+        LanguageRelation, LocationPlatform, PublicationType, RelationType, SeriesType,
+        WorkContributionsAffiliations, WorkContributionsAffiliationsInstitution,
+        WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssuesSeries,
         WorkPublicationsLocations, WorkPublicationsPrices, WorkRelationsRelatedWork,
         WorkRelationsRelatedWorkImprint, WorkRelationsRelatedWorkImprintPublisher, WorkStatus,
         WorkType,
