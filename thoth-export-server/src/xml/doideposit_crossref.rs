@@ -181,19 +181,7 @@ fn work_metadata<W: Write>(
         }
         Ok(())
     })?;
-    if let Some(chapter) = chapter_number {
-        // If the work is a chapter of another work, caller should have passed in its chapter number
-        write_element_block("component_number", w, |w| {
-            w.write(XmlEvent::Characters(&chapter.to_string()))
-                .map_err(|e| e.into())
-        })?;
-    } else if let Some(volume) = volume_number {
-        // If the work is part of a series, caller should have passed in its issue number
-        write_element_block("volume", w, |w| {
-            w.write(XmlEvent::Characters(&volume.to_string()))
-                .map_err(|e| e.into())
-        })?;
-    }
+
     // Convert abstract into JATS by extracting its paragraphs and tagging them with <jats:p>
     if let Some(long_abstract) = &work.long_abstract {
         write_element_block("jats:abstract", w, |w| {
@@ -206,6 +194,20 @@ fn work_metadata<W: Write>(
                 }
             }
             Ok(())
+        })?;
+    }
+
+    if let Some(chapter) = chapter_number {
+        // If the work is a chapter of another work, caller should have passed in its chapter number
+        write_element_block("component_number", w, |w| {
+            w.write(XmlEvent::Characters(&chapter.to_string()))
+                .map_err(|e| e.into())
+        })?;
+    } else if let Some(volume) = volume_number {
+        // If the work is part of a series, caller should have passed in its issue number
+        write_element_block("volume", w, |w| {
+            w.write(XmlEvent::Characters(&volume.to_string()))
+                .map_err(|e| e.into())
         })?;
     }
     if let Some(edition) = work.edition {
@@ -540,13 +542,6 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributio
                     w.write(XmlEvent::Characters(&self.last_name))
                         .map_err(|e| e.into())
                 })?;
-                if let Some(orcid) = &self.contributor.orcid {
-                    write_element_block("ORCID", w, |w| {
-                        // Leading `https://orcid.org` is required, and omitted by orcid.to_string()
-                        w.write(XmlEvent::Characters(&orcid.with_domain()))
-                            .map_err(|e| e.into())
-                    })?;
-                }
                 if !self.affiliations.is_empty() {
                     write_element_block("affiliations", w, |w| {
                         for affiliation in &self.affiliations {
@@ -556,6 +551,13 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributio
                             )?;
                         }
                         Ok(())
+                    })?;
+                }
+                if let Some(orcid) = &self.contributor.orcid {
+                    write_element_block("ORCID", w, |w| {
+                        // Leading `https://orcid.org` is required, and omitted by orcid.to_string()
+                        w.write(XmlEvent::Characters(&orcid.with_domain()))
+                            .map_err(|e| e.into())
                     })?;
                 }
                 Ok(())
