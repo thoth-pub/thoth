@@ -119,6 +119,7 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                 SpecificationRequest::ByWork => Ok(QueryParameters::new()
                     .with_issues()
                     .with_publications()
+                    .with_fundings()
                     .with_relations()
                     .with_references()),
                 SpecificationRequest::ByPublisher => Err(ThothError::IncompleteMetadataRecord(

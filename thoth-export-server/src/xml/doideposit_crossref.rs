@@ -5,7 +5,7 @@ use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
     ContributionType, PublicationType, RelationType, Work, WorkIssuesSeries, WorkRelations,
     WorkRelationsRelatedWork, WorkRelationsRelatedWorkContributions,
-    WorkRelationsRelatedWorkContributionsAffiliationsInstitution,
+    WorkRelationsRelatedWorkContributionsAffiliationsInstitution, WorkRelationsRelatedWorkFundings,
     WorkRelationsRelatedWorkPublications, WorkRelationsRelatedWorkReferences, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
@@ -40,6 +40,7 @@ impl XmlSpecification for DoiDepositCrossref {
                 attr_map.insert("xsi:schemaLocation", "http://www.crossref.org/schema/5.3.1 http://www.crossref.org/schemas/crossref5.3.1.xsd");
                 attr_map.insert("xmlns:ai", "http://www.crossref.org/AccessIndicators.xsd");
                 attr_map.insert("xmlns:jats", "http://www.ncbi.nlm.nih.gov/JATS1");
+                attr_map.insert("xmlns:fr", "http://www.crossref.org/fundref.xsd");
 
                 write_full_element_block("doi_batch", None, Some(attr_map), w, |w| {
                     write_element_block("head", w, |w| {
@@ -310,6 +311,20 @@ fn work_metadata<W: Write>(
             }
             Ok(())
         })?;
+    }
+    if !work.fundings.is_empty() {
+        write_full_element_block(
+            "fr:program",
+            None,
+            Some(HashMap::from([("name", "fundref")])),
+            w,
+            |w| {
+                for funding in &work.fundings {
+                    XmlElementBlock::<DoiDepositCrossref>::xml_element(funding, w)?;
+                }
+                Ok(())
+            },
+        )?;
     }
     write_full_element_block(
         "ai:program",
@@ -588,6 +603,54 @@ impl XmlElementBlock<DoiDepositCrossref>
     }
 }
 
+impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkFundings {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_full_element_block(
+            "fr:assertion",
+            None,
+            Some(HashMap::from([("name", "fundgroup")])),
+            w,
+            |w| {
+                write_full_element_block(
+                    "fr:assertion",
+                    None,
+                    Some(HashMap::from([("name", "funder_name")])),
+                    w,
+                    |w| {
+                        w.write(XmlEvent::Characters(&self.institution.institution_name))?;
+                        if let Some(doi) = &self.institution.institution_doi {
+                            write_full_element_block(
+                                "fr:assertion",
+                                None,
+                                Some(HashMap::from([("name", "funder_identifier")])),
+                                w,
+                                |w| {
+                                    w.write(XmlEvent::Characters(&doi.with_domain()))
+                                        .map_err(|e| e.into())
+                                },
+                            )?;
+                        }
+                        Ok(())
+                    },
+                )?;
+                if let Some(grant_number) = &self.grant_number {
+                    write_full_element_block(
+                        "fr:assertion",
+                        None,
+                        Some(HashMap::from([("name", "award_number")])),
+                        w,
+                        |w| {
+                            w.write(XmlEvent::Characters(grant_number))
+                                .map_err(|e| e.into())
+                        },
+                    )?;
+                }
+                Ok(())
+            },
+        )
+    }
+}
+
 impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkReferences {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         let key = format!("ref{}", &self.reference_ordinal);
@@ -723,9 +786,9 @@ mod tests {
     use std::str::FromStr;
     use thoth_api::model::{Doi, Isbn, Orcid, Ror};
     use thoth_client::{
-        ContributionType, LocationPlatform, PublicationType, SeriesType, WorkContributions,
-        WorkContributionsAffiliations, WorkContributionsAffiliationsInstitution,
-        WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssues,
+        ContributionType, FundingInstitution, LocationPlatform, PublicationType, SeriesType,
+        WorkContributions, WorkContributionsAffiliations, WorkContributionsAffiliationsInstitution,
+        WorkContributionsContributor, WorkFundings, WorkImprint, WorkImprintPublisher, WorkIssues,
         WorkIssuesSeries, WorkPublications, WorkPublicationsLocations, WorkReferences,
         WorkRelations, WorkRelationsRelatedWorkContributions,
         WorkRelationsRelatedWorkContributionsAffiliations,
@@ -811,6 +874,7 @@ mod tests {
                     }],
                 }],
                 references: vec![],
+                fundings: vec![],
             },
         };
 
@@ -1160,7 +1224,36 @@ mod tests {
                 },
             ],
             subjects: vec![],
-            fundings: vec![],
+            fundings: vec![
+                WorkFundings {
+                    program: None,
+                    project_name: None,
+                    project_shortname: None,
+                    grant_number: Some("12345".to_string()),
+                    jurisdiction: None,
+                    institution: FundingInstitution {
+                        institution_name: "Funding Body".to_string(),
+                        institution_doi: None,
+                        ror: None,
+                        country_code: None,
+                    },
+                },
+                WorkFundings {
+                    program: None,
+                    project_name: None,
+                    project_shortname: None,
+                    grant_number: None,
+                    jurisdiction: None,
+                    institution: FundingInstitution {
+                        institution_name: "Some Funder".to_string(),
+                        institution_doi: Some(
+                            Doi::from_str("https://doi.org/10.00001/funder").unwrap(),
+                        ),
+                        ror: None,
+                        country_code: None,
+                    },
+                },
+            ],
             relations: vec![WorkRelations {
                 relation_type: RelationType::HAS_PART,
                 relation_ordinal: 1,
@@ -1185,6 +1278,7 @@ mod tests {
                     contributions: vec![],
                     publications: vec![],
                     references: vec![],
+                    fundings: vec![],
                 },
             }],
             references: vec![WorkReferences {
@@ -1288,6 +1382,14 @@ mod tests {
         assert!(output.contains(r#"      <publisher>"#));
         assert!(output.contains(r#"        <publisher_name>OA Editions</publisher_name>"#));
         assert!(output.contains(r#"        <publisher_place>León, Spain</publisher_place>"#));
+        assert!(output.contains(r#"      <fr:program name="fundref">"#));
+        assert!(output.contains(r#"        <fr:assertion name="fundgroup">"#));
+        assert!(output
+            .contains(r#"          <fr:assertion name="funder_name">Funding Body</fr:assertion>"#));
+        assert!(
+            output.contains(r#"          <fr:assertion name="award_number">12345</fr:assertion>"#)
+        );
+        assert!(output.contains(r#"          <fr:assertion name="funder_name">Some Funder<fr:assertion name="funder_identifier">https://doi.org/10.00001/funder</fr:assertion>"#));
         assert!(output.contains(r#"      <ai:program name="AccessIndicators">"#));
         assert!(output.contains(r#"        <ai:free_to_read />"#));
         assert!(output.contains(
