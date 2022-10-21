@@ -771,6 +771,7 @@ mod tests {
                     contributions: vec![],
                     publications: vec![],
                     references: vec![],
+                    fundings: vec![],
                 },
             }],
             references: vec![]
@@ -1059,6 +1060,7 @@ mod tests {
                 contributions: vec![],
                 publications: vec![],
                 references: vec![],
+                fundings: vec![],
             },
         };
         assert_eq!(
