@@ -450,6 +450,7 @@ mod tests {
                     doi: None,
                     publication_date: None,
                     license: None,
+                    long_abstract: None,
                     place: None,
                     first_page: None,
                     last_page: None,
@@ -462,6 +463,7 @@ mod tests {
                     contributions: vec![],
                     publications: vec![],
                     references: vec![],
+                    fundings: vec![],
                 },
             },
             WorkRelations {
@@ -475,6 +477,7 @@ mod tests {
                     doi: None,
                     publication_date: None,
                     license: None,
+                    long_abstract: None,
                     place: None,
                     first_page: None,
                     last_page: None,
@@ -487,6 +490,7 @@ mod tests {
                     contributions: vec![],
                     publications: vec![],
                     references: vec![],
+                    fundings: vec![],
                 },
             }],
             references: vec![]

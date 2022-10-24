@@ -1,9 +1,11 @@
 use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
+use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
     ContributionType, PublicationType, RelationType, Work, WorkIssuesSeries, WorkRelations,
     WorkRelationsRelatedWork, WorkRelationsRelatedWorkContributions,
+    WorkRelationsRelatedWorkContributionsAffiliationsInstitution, WorkRelationsRelatedWorkFundings,
     WorkRelationsRelatedWorkPublications, WorkRelationsRelatedWorkReferences, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
@@ -37,6 +39,8 @@ impl XmlSpecification for DoiDepositCrossref {
                 attr_map.insert("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
                 attr_map.insert("xsi:schemaLocation", "http://www.crossref.org/schema/5.3.1 http://www.crossref.org/schemas/crossref5.3.1.xsd");
                 attr_map.insert("xmlns:ai", "http://www.crossref.org/AccessIndicators.xsd");
+                attr_map.insert("xmlns:jats", "http://www.ncbi.nlm.nih.gov/JATS1");
+                attr_map.insert("xmlns:fr", "http://www.crossref.org/fundref.xsd");
 
                 write_full_element_block("doi_batch", None, Some(attr_map), w, |w| {
                     write_element_block("head", w, |w| {
@@ -178,6 +182,22 @@ fn work_metadata<W: Write>(
         }
         Ok(())
     })?;
+
+    // Convert abstract into JATS by extracting its paragraphs and tagging them with <jats:p>
+    if let Some(long_abstract) = &work.long_abstract {
+        write_element_block("jats:abstract", w, |w| {
+            for paragraph in long_abstract.lines() {
+                if !paragraph.is_empty() {
+                    write_element_block("jats:p", w, |w| {
+                        w.write(XmlEvent::Characters(paragraph))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+            }
+            Ok(())
+        })?;
+    }
+
     if let Some(chapter) = chapter_number {
         // If the work is a chapter of another work, caller should have passed in its chapter number
         write_element_block("component_number", w, |w| {
@@ -191,8 +211,6 @@ fn work_metadata<W: Write>(
                 .map_err(|e| e.into())
         })?;
     }
-    // Abstract can also optionally be provided here, but only in JATS format.
-    // Omitted at present but could be considered as a future enhancement.
     if let Some(edition) = work.edition {
         if is_chapter {
             // `edition_number` is not supported for chapters,
@@ -293,6 +311,20 @@ fn work_metadata<W: Write>(
             }
             Ok(())
         })?;
+    }
+    if !work.fundings.is_empty() {
+        write_full_element_block(
+            "fr:program",
+            None,
+            Some(HashMap::from([("name", "fundref")])),
+            w,
+            |w| {
+                for funding in &work.fundings {
+                    XmlElementBlock::<DoiDepositCrossref>::xml_element(funding, w)?;
+                }
+                Ok(())
+            },
+        )?;
     }
     write_full_element_block(
         "ai:program",
@@ -525,19 +557,95 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributio
                     w.write(XmlEvent::Characters(&self.last_name))
                         .map_err(|e| e.into())
                 })?;
+                if !self.affiliations.is_empty() {
+                    write_element_block("affiliations", w, |w| {
+                        for affiliation in &self.affiliations {
+                            XmlElementBlock::<DoiDepositCrossref>::xml_element(
+                                &affiliation.institution,
+                                w,
+                            )?;
+                        }
+                        Ok(())
+                    })?;
+                }
                 if let Some(orcid) = &self.contributor.orcid {
                     write_element_block("ORCID", w, |w| {
                         // Leading `https://orcid.org` is required, and omitted by orcid.to_string()
-                        w.write(XmlEvent::Characters(&format!(
-                            "https://orcid.org/{}",
-                            orcid
-                        )))
-                        .map_err(|e| e.into())
+                        w.write(XmlEvent::Characters(&orcid.with_domain()))
+                            .map_err(|e| e.into())
                     })?;
                 }
                 Ok(())
-                // Affiliation information can also optionally be provided here.
-                // Omitted at present but could be considered as a future enhancement.
+            },
+        )
+    }
+}
+
+impl XmlElementBlock<DoiDepositCrossref>
+    for WorkRelationsRelatedWorkContributionsAffiliationsInstitution
+{
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_element_block("institution", w, |w| {
+            write_element_block("institution_name", w, |w| {
+                w.write(XmlEvent::Characters(&self.institution_name))
+                    .map_err(|e| e.into())
+            })?;
+            if let Some(ror) = &self.ror {
+                let mut id_type: HashMap<&str, &str> = HashMap::new();
+                id_type.insert("type", "ror");
+                write_full_element_block("institution_id", None, Some(id_type), w, |w| {
+                    w.write(XmlEvent::Characters(&ror.with_domain()))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            Ok(())
+        })
+    }
+}
+
+impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkFundings {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_full_element_block(
+            "fr:assertion",
+            None,
+            Some(HashMap::from([("name", "fundgroup")])),
+            w,
+            |w| {
+                write_full_element_block(
+                    "fr:assertion",
+                    None,
+                    Some(HashMap::from([("name", "funder_name")])),
+                    w,
+                    |w| {
+                        w.write(XmlEvent::Characters(&self.institution.institution_name))?;
+                        if let Some(doi) = &self.institution.institution_doi {
+                            write_full_element_block(
+                                "fr:assertion",
+                                None,
+                                Some(HashMap::from([("name", "funder_identifier")])),
+                                w,
+                                |w| {
+                                    w.write(XmlEvent::Characters(&doi.with_domain()))
+                                        .map_err(|e| e.into())
+                                },
+                            )?;
+                        }
+                        Ok(())
+                    },
+                )?;
+                if let Some(grant_number) = &self.grant_number {
+                    write_full_element_block(
+                        "fr:assertion",
+                        None,
+                        Some(HashMap::from([("name", "award_number")])),
+                        w,
+                        |w| {
+                            w.write(XmlEvent::Characters(grant_number))
+                                .map_err(|e| e.into())
+                        },
+                    )?;
+                }
+                Ok(())
             },
         )
     }
@@ -676,12 +784,15 @@ mod tests {
     // We therefore rely on `assert!(contains)` rather than `assert_eq!`
     use super::*;
     use std::str::FromStr;
-    use thoth_api::model::{Doi, Isbn, Orcid};
+    use thoth_api::model::{Doi, Isbn, Orcid, Ror};
     use thoth_client::{
-        ContributionType, LocationPlatform, PublicationType, SeriesType, WorkContributions,
-        WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssues,
+        ContributionType, FundingInstitution, LocationPlatform, PublicationType, SeriesType,
+        WorkContributions, WorkContributionsAffiliations, WorkContributionsAffiliationsInstitution,
+        WorkContributionsContributor, WorkFundings, WorkImprint, WorkImprintPublisher, WorkIssues,
         WorkIssuesSeries, WorkPublications, WorkPublicationsLocations, WorkReferences,
         WorkRelations, WorkRelationsRelatedWorkContributions,
+        WorkRelationsRelatedWorkContributionsAffiliations,
+        WorkRelationsRelatedWorkContributionsAffiliationsInstitution,
         WorkRelationsRelatedWorkContributionsContributor, WorkRelationsRelatedWorkImprint,
         WorkRelationsRelatedWorkImprintPublisher, WorkRelationsRelatedWorkPublicationsLocations,
         WorkStatus, WorkType,
@@ -725,6 +836,7 @@ mod tests {
                 doi: Some(Doi::from_str("https://doi.org/10.00001/CHAPTER.0001").unwrap()),
                 publication_date: Some(chrono::NaiveDate::from_ymd(2000, 2, 28)),
                 license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
+                long_abstract: Some("First paragraph.\n\nSecond paragraph.".to_string()),
                 place: Some("Other Place".to_string()),
                 first_page: Some("10".to_string()),
                 last_page: Some("20".to_string()),
@@ -744,6 +856,14 @@ mod tests {
                             Orcid::from_str("https://orcid.org/0000-0002-0000-0011").unwrap(),
                         ),
                     },
+                    affiliations: vec![WorkRelationsRelatedWorkContributionsAffiliations {
+                        position: None,
+                        affiliation_ordinal: 1,
+                        institution: WorkRelationsRelatedWorkContributionsAffiliationsInstitution {
+                            institution_name: "Thoth University".to_string(),
+                            ror: Some(Ror::from_str("https://ror.org/0abcdef12").unwrap()),
+                        },
+                    }],
                 }],
                 publications: vec![WorkRelationsRelatedWorkPublications {
                     publication_type: PublicationType::PDF,
@@ -754,6 +874,7 @@ mod tests {
                     }],
                 }],
                 references: vec![],
+                fundings: vec![],
             },
         };
 
@@ -768,11 +889,23 @@ mod tests {
         assert!(output.contains(r#"      <given_name>Chapter One</given_name>"#));
         assert!(output.contains(r#"      <surname>Author</surname>"#));
         assert!(output.contains(r#"      <ORCID>https://orcid.org/0000-0002-0000-0011</ORCID>"#));
+        assert!(output.contains(r#"      <affiliations>"#));
+        assert!(output.contains(r#"        <institution>"#));
+        assert!(
+            output.contains(r#"          <institution_name>Thoth University</institution_name>"#)
+        );
+        assert!(output.contains(
+            r#"          <institution_id type="ror">https://ror.org/0abcdef12</institution_id>"#
+        ));
         assert!(output.contains(r#"  <titles>"#));
         assert!(output.contains(r#"    <title>Chapter</title>"#));
         assert!(output.contains(r#"    <subtitle>One</subtitle>"#));
         assert!(output.contains(r#"  </titles>"#));
         assert!(output.contains(r#"  <component_number>1</component_number>"#));
+        assert!(output.contains(r#"  <jats:abstract>"#));
+        assert!(output.contains(r#"    <jats:p>First paragraph.</jats:p>"#));
+        assert!(output.contains(r#"    <jats:p>Second paragraph.</jats:p>"#));
+        assert!(!output.contains(r#"    <jats:p></jats:p>"#));
         assert!(output.contains(r#"  <publication_date>"#));
         assert!(output.contains(r#"    <month>02</month>"#));
         assert!(output.contains(r#"    <day>28</day>"#));
@@ -980,7 +1113,14 @@ mod tests {
                             Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap(),
                         ),
                     },
-                    affiliations: vec![],
+                    affiliations: vec![WorkContributionsAffiliations {
+                        position: None,
+                        affiliation_ordinal: 1,
+                        institution: WorkContributionsAffiliationsInstitution {
+                            institution_name: "Thoth University".to_string(),
+                            ror: Some(Ror::from_str("https://ror.org/0abcdef12").unwrap()),
+                        },
+                    }],
                 },
                 WorkContributions {
                     contribution_type: ContributionType::EDITOR,
@@ -1006,7 +1146,14 @@ mod tests {
                     biography: None,
                     contribution_ordinal: 3,
                     contributor: WorkContributionsContributor { orcid: None },
-                    affiliations: vec![],
+                    affiliations: vec![WorkContributionsAffiliations {
+                        position: None,
+                        affiliation_ordinal: 1,
+                        institution: WorkContributionsAffiliationsInstitution {
+                            institution_name: "COPIM".to_string(),
+                            ror: None,
+                        },
+                    }],
                 },
             ],
             languages: vec![],
@@ -1077,7 +1224,36 @@ mod tests {
                 },
             ],
             subjects: vec![],
-            fundings: vec![],
+            fundings: vec![
+                WorkFundings {
+                    program: None,
+                    project_name: None,
+                    project_shortname: None,
+                    grant_number: Some("12345".to_string()),
+                    jurisdiction: None,
+                    institution: FundingInstitution {
+                        institution_name: "Funding Body".to_string(),
+                        institution_doi: None,
+                        ror: None,
+                        country_code: None,
+                    },
+                },
+                WorkFundings {
+                    program: None,
+                    project_name: None,
+                    project_shortname: None,
+                    grant_number: None,
+                    jurisdiction: None,
+                    institution: FundingInstitution {
+                        institution_name: "Some Funder".to_string(),
+                        institution_doi: Some(
+                            Doi::from_str("https://doi.org/10.00001/funder").unwrap(),
+                        ),
+                        ror: None,
+                        country_code: None,
+                    },
+                },
+            ],
             relations: vec![WorkRelations {
                 relation_type: RelationType::HAS_PART,
                 relation_ordinal: 1,
@@ -1089,6 +1265,7 @@ mod tests {
                     doi: Some(Doi::from_str("https://doi.org/10.00001/PART.0001").unwrap()),
                     publication_date: Some(chrono::NaiveDate::from_ymd(2000, 2, 28)),
                     license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
+                    long_abstract: None,
                     place: Some("Other Place".to_string()),
                     first_page: Some("10".to_string()),
                     last_page: Some("20".to_string()),
@@ -1101,6 +1278,7 @@ mod tests {
                     contributions: vec![],
                     publications: vec![],
                     references: vec![],
+                    fundings: vec![],
                 },
             }],
             references: vec![WorkReferences {
@@ -1150,6 +1328,14 @@ mod tests {
         assert!(
             output.contains(r#"          <ORCID>https://orcid.org/0000-0002-0000-0001</ORCID>"#)
         );
+        assert!(output.contains(r#"      <affiliations>"#));
+        assert!(output.contains(r#"        <institution>"#));
+        assert!(
+            output.contains(r#"          <institution_name>Thoth University</institution_name>"#)
+        );
+        assert!(output.contains(
+            r#"          <institution_id type="ror">https://ror.org/0abcdef12</institution_id>"#
+        ));
         assert!(
             output.contains(
                 r#"        <person_name contributor_role="editor" sequence="additional">"#
@@ -1176,9 +1362,14 @@ mod tests {
         assert!(
             !output.contains(r#"          <ORCID>https://orcid.org/0000-0002-0000-0004</ORCID>"#)
         );
+        assert!(output.contains(r#"      <affiliations>"#));
+        assert!(output.contains(r#"        <institution>"#));
+        assert!(output.contains(r#"          <institution_name>COPIM</institution_name>"#));
         assert!(output.contains(r#"      <titles>"#));
         assert!(output.contains(r#"        <title>Book Title</title>"#));
         assert!(output.contains(r#"        <subtitle>Book Subtitle</subtitle>"#));
+        assert!(output.contains(r#"      <jats:abstract>"#));
+        assert!(output.contains(r#"        <jats:p>Lorem ipsum dolor sit amet</jats:p>"#));
         assert!(output.contains(r#"      <volume>11</volume>"#));
         assert!(output.contains(r#"      <edition_number>100</edition_number>"#));
         assert!(output.contains(r#"      <publication_date>"#));
@@ -1191,6 +1382,14 @@ mod tests {
         assert!(output.contains(r#"      <publisher>"#));
         assert!(output.contains(r#"        <publisher_name>OA Editions</publisher_name>"#));
         assert!(output.contains(r#"        <publisher_place>León, Spain</publisher_place>"#));
+        assert!(output.contains(r#"      <fr:program name="fundref">"#));
+        assert!(output.contains(r#"        <fr:assertion name="fundgroup">"#));
+        assert!(output
+            .contains(r#"          <fr:assertion name="funder_name">Funding Body</fr:assertion>"#));
+        assert!(
+            output.contains(r#"          <fr:assertion name="award_number">12345</fr:assertion>"#)
+        );
+        assert!(output.contains(r#"          <fr:assertion name="funder_name">Some Funder<fr:assertion name="funder_identifier">https://doi.org/10.00001/funder</fr:assertion>"#));
         assert!(output.contains(r#"      <ai:program name="AccessIndicators">"#));
         assert!(output.contains(r#"        <ai:free_to_read />"#));
         assert!(output.contains(

@@ -20,6 +20,20 @@ fragment Reference on Reference {
     publicationDate
 }
 
+fragment Funding on Funding {
+    program
+    projectName
+    projectShortname
+    grantNumber
+    jurisdiction
+    institution {
+        institutionName
+        institutionDoi
+        ror
+        countryCode
+    }
+}
+
 fragment Work on Work {
     workId
     workStatus
@@ -81,11 +95,12 @@ fragment Work on Work {
         contributor {
             orcid
         }
-        affiliations {
+        affiliations(order: {field: AFFILIATION_ORDINAL, direction: ASC}) {
             position
             affiliationOrdinal
             institution {
                 institutionName
+                ror
             }
         }
     }
@@ -126,17 +141,7 @@ fragment Work on Work {
         subjectOrdinal
     }
     fundings(limit: $fundingsLimit) {
-        program
-        projectName
-        projectShortname
-        grantNumber
-        jurisdiction
-        institution {
-            institutionName
-            institutionDoi
-            ror
-            countryCode
-        }
+        ...Funding
     }
     relations(limit: $relationsLimit) {
         relationType
@@ -149,6 +154,7 @@ fragment Work on Work {
             doi
             publicationDate
             license
+            longAbstract
             place
             firstPage
             lastPage
@@ -166,6 +172,14 @@ fragment Work on Work {
                 contributor {
                     orcid
                 }
+                affiliations(order: {field: AFFILIATION_ORDINAL, direction: ASC}) {
+                    position
+                    affiliationOrdinal
+                    institution {
+                        institutionName
+                        ror
+                    }
+                }
             }
             publications {
                 publicationType
@@ -174,6 +188,9 @@ fragment Work on Work {
                     fullTextUrl
                     canonical
                 }
+            }
+            fundings(limit: $fundingsLimit) {
+                ...Funding
             }
             references(limit: $referencesLimit, order: {field: REFERENCE_ORDINAL, direction: ASC}) {
                 ...Reference

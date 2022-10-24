@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [#333](https://github.com/thoth-pub/thoth/issues/333) - Add references to schema
   - Output references in Crossref DOI deposit
+  - [#444](https://github.com/thoth-pub/thoth/issues/444) - Output abstracts in Crossref DOI deposit
+  - [#443](https://github.com/thoth-pub/thoth/issues/443) - Output affiliations in Crossref DOI deposit
+  - [#446](https://github.com/thoth-pub/thoth/issues/446) - Output fundings in Crossref DOI deposit
 
 ### Changed
   - Simplify syntax in CRUD methods

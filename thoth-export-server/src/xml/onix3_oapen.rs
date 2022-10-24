@@ -823,7 +823,7 @@ mod tests {
             project_shortname: None,
             grant_number: Some("Number of grant".to_string()),
             jurisdiction: None,
-            institution: thoth_client::WorkFundingsInstitution {
+            institution: thoth_client::FundingInstitution {
                 institution_name: "Name of institution".to_string(),
                 institution_doi: None,
                 ror: None,
