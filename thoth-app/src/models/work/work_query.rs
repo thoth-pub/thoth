@@ -166,6 +166,33 @@ pub const WORK_QUERY: &str = "
                     updatedAt
                 }
             }
+            references(order: {field: REFERENCE_ORDINAL, direction: ASC}) {
+                referenceId
+                workId
+                referenceOrdinal
+                doi
+                unstructuredCitation
+                issn
+                isbn
+                journalTitle
+                articleTitle
+                seriesTitle
+                volumeTitle
+                edition
+                author
+                volume
+                issue
+                firstPage
+                componentNumber
+                standardDesignator
+                standardsBodyName
+                standardsBodyAcronym
+                url
+                publicationDate
+                retrievalDate
+                createdAt
+                updatedAt
+            }
         }
         imprints(limit: 9999, publishers: $publishers) {
             imprintId

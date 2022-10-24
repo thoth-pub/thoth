@@ -363,6 +363,50 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+
+    reference (reference_id) {
+        reference_id -> Uuid,
+        work_id -> Uuid,
+        reference_ordinal -> Int4,
+        doi -> Nullable<Text>,
+        unstructured_citation -> Nullable<Text>,
+        issn -> Nullable<Text>,
+        isbn -> Nullable<Text>,
+        journal_title -> Nullable<Text>,
+        article_title -> Nullable<Text>,
+        series_title -> Nullable<Text>,
+        volume_title -> Nullable<Text>,
+        edition -> Nullable<Int4>,
+        author -> Nullable<Text>,
+        volume -> Nullable<Text>,
+        issue -> Nullable<Text>,
+        first_page -> Nullable<Text>,
+        component_number -> Nullable<Text>,
+        standard_designator -> Nullable<Text>,
+        standards_body_name -> Nullable<Text>,
+        standards_body_acronym -> Nullable<Text>,
+        url -> Nullable<Text>,
+        publication_date -> Nullable<Date>,
+        retrieval_date -> Nullable<Date>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    reference_history (reference_history_id) {
+        reference_history_id -> Uuid,
+        reference_id -> Uuid,
+        account_id -> Uuid,
+        data -> Jsonb,
+        timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use crate::model::series::Series_type;
 
     series (series_id) {
@@ -540,6 +584,9 @@ joinable!(publisher_account -> account (account_id));
 joinable!(publisher_account -> publisher (publisher_id));
 joinable!(publisher_history -> account (account_id));
 joinable!(publisher_history -> publisher (publisher_id));
+joinable!(reference -> work (work_id));
+joinable!(reference_history -> account (account_id));
+joinable!(reference_history -> reference (reference_id));
 joinable!(series -> imprint (imprint_id));
 joinable!(series_history -> account (account_id));
 joinable!(series_history -> series (series_id));
@@ -580,6 +627,8 @@ allow_tables_to_appear_in_same_query!(
     publisher,
     publisher_account,
     publisher_history,
+    reference,
+    reference_history,
     series,
     series_history,
     subject,

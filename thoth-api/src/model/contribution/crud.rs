@@ -39,72 +39,59 @@ impl Crud for Contribution {
         let connection = db.get().unwrap();
         let mut query = contribution
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
-            .select((
-                contribution_id,
-                work_id,
-                contributor_id,
-                contribution_type,
-                main_contribution,
-                biography,
-                created_at,
-                updated_at,
-                first_name,
-                last_name,
-                full_name,
-                contribution_ordinal,
-            ))
+            .select(crate::schema::contribution::all_columns)
             .into_boxed();
 
-        match order.field {
+        query = match order.field {
             ContributionField::ContributionId => match order.direction {
-                Direction::Asc => query = query.order(contribution_id.asc()),
-                Direction::Desc => query = query.order(contribution_id.desc()),
+                Direction::Asc => query.order(contribution_id.asc()),
+                Direction::Desc => query.order(contribution_id.desc()),
             },
             ContributionField::WorkId => match order.direction {
-                Direction::Asc => query = query.order(work_id.asc()),
-                Direction::Desc => query = query.order(work_id.desc()),
+                Direction::Asc => query.order(work_id.asc()),
+                Direction::Desc => query.order(work_id.desc()),
             },
             ContributionField::ContributorId => match order.direction {
-                Direction::Asc => query = query.order(contributor_id.asc()),
-                Direction::Desc => query = query.order(contributor_id.desc()),
+                Direction::Asc => query.order(contributor_id.asc()),
+                Direction::Desc => query.order(contributor_id.desc()),
             },
             ContributionField::ContributionType => match order.direction {
-                Direction::Asc => query = query.order(contribution_type.asc()),
-                Direction::Desc => query = query.order(contribution_type.desc()),
+                Direction::Asc => query.order(contribution_type.asc()),
+                Direction::Desc => query.order(contribution_type.desc()),
             },
             ContributionField::MainContribution => match order.direction {
-                Direction::Asc => query = query.order(main_contribution.asc()),
-                Direction::Desc => query = query.order(main_contribution.desc()),
+                Direction::Asc => query.order(main_contribution.asc()),
+                Direction::Desc => query.order(main_contribution.desc()),
             },
             ContributionField::Biography => match order.direction {
-                Direction::Asc => query = query.order(biography.asc()),
-                Direction::Desc => query = query.order(biography.desc()),
+                Direction::Asc => query.order(biography.asc()),
+                Direction::Desc => query.order(biography.desc()),
             },
             ContributionField::CreatedAt => match order.direction {
-                Direction::Asc => query = query.order(created_at.asc()),
-                Direction::Desc => query = query.order(created_at.desc()),
+                Direction::Asc => query.order(created_at.asc()),
+                Direction::Desc => query.order(created_at.desc()),
             },
             ContributionField::UpdatedAt => match order.direction {
-                Direction::Asc => query = query.order(updated_at.asc()),
-                Direction::Desc => query = query.order(updated_at.desc()),
+                Direction::Asc => query.order(updated_at.asc()),
+                Direction::Desc => query.order(updated_at.desc()),
             },
             ContributionField::FirstName => match order.direction {
-                Direction::Asc => query = query.order(first_name.asc()),
-                Direction::Desc => query = query.order(first_name.desc()),
+                Direction::Asc => query.order(first_name.asc()),
+                Direction::Desc => query.order(first_name.desc()),
             },
             ContributionField::LastName => match order.direction {
-                Direction::Asc => query = query.order(last_name.asc()),
-                Direction::Desc => query = query.order(last_name.desc()),
+                Direction::Asc => query.order(last_name.asc()),
+                Direction::Desc => query.order(last_name.desc()),
             },
             ContributionField::FullName => match order.direction {
-                Direction::Asc => query = query.order(full_name.asc()),
-                Direction::Desc => query = query.order(full_name.desc()),
+                Direction::Asc => query.order(full_name.asc()),
+                Direction::Desc => query.order(full_name.desc()),
             },
             ContributionField::ContributionOrdinal => match order.direction {
-                Direction::Asc => query = query.order(contribution_ordinal.asc()),
-                Direction::Desc => query = query.order(contribution_ordinal.desc()),
+                Direction::Asc => query.order(contribution_ordinal.asc()),
+                Direction::Desc => query.order(contribution_ordinal.desc()),
             },
-        }
+        };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
         }

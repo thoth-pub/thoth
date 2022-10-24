@@ -935,6 +935,7 @@ mod tests {
             ],
             fundings: vec![],
             relations: vec![],
+            references: vec![],
         };
 
         // Test standard output

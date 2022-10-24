@@ -441,10 +441,10 @@ mod tests {
     use thoth_api::model::Orcid;
     use thoth_api::model::Ror;
     use thoth_client::{
-        ContributionType, CountryCode, CurrencyCode, LanguageCode, LanguageRelation,
-        LocationPlatform, PublicationType, RelationType, SeriesType, WorkContributionsAffiliations,
-        WorkContributionsAffiliationsInstitution, WorkContributionsContributor,
-        WorkFundingsInstitution, WorkImprint, WorkImprintPublisher, WorkIssuesSeries,
+        ContributionType, CountryCode, CurrencyCode, FundingInstitution, LanguageCode,
+        LanguageRelation, LocationPlatform, PublicationType, RelationType, SeriesType,
+        WorkContributionsAffiliations, WorkContributionsAffiliationsInstitution,
+        WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssuesSeries,
         WorkPublicationsLocations, WorkPublicationsPrices, WorkRelationsRelatedWork,
         WorkRelationsRelatedWorkImprint, WorkRelationsRelatedWorkImprintPublisher, WorkStatus,
         WorkType,
@@ -520,6 +520,7 @@ mod tests {
                             affiliation_ordinal: 1,
                             institution: WorkContributionsAffiliationsInstitution {
                                 institution_name: "University of Life".to_string(),
+                                ror: None,
                             },
                         },
                     ],
@@ -739,7 +740,7 @@ mod tests {
                 project_shortname: None,
                 grant_number: Some("Number of grant".to_string()),
                 jurisdiction: Some("Funding jurisdiction".to_string()),
-                institution: WorkFundingsInstitution {
+                institution: FundingInstitution {
                     institution_name: "Name of institution".to_string(),
                     institution_doi: Some(Doi::from_str("https://doi.org/10.00001/INSTITUTION.0001").unwrap()),
                     ror: Some(Ror::from_str("https://ror.org/0aaaaaa00").unwrap()),
@@ -757,6 +758,7 @@ mod tests {
                     doi: None,
                     publication_date: None,
                     license: None,
+                    long_abstract: None,
                     place: None,
                     first_page: None,
                     last_page: None,
@@ -768,8 +770,11 @@ mod tests {
                     },
                     contributions: vec![],
                     publications: vec![],
+                    references: vec![],
+                    fundings: vec![],
                 },
-            }]
+            }],
+            references: vec![]
         };
     }
 
@@ -883,6 +888,7 @@ mod tests {
             affiliation_ordinal: 1,
             institution: WorkContributionsAffiliationsInstitution {
                 institution_name: "University of Life".to_string(),
+                ror: None,
             },
         };
         assert_eq!(
@@ -1004,7 +1010,7 @@ mod tests {
             project_shortname: None,
             grant_number: Some("Number of grant".to_string()),
             jurisdiction: Some("Funding jurisdiction".to_string()),
-            institution: WorkFundingsInstitution {
+            institution: FundingInstitution {
                 institution_name: "Name of institution".to_string(),
                 institution_doi: Some(
                     Doi::from_str("https://doi.org/10.00001/INSTITUTION.0001").unwrap(),
@@ -1041,6 +1047,7 @@ mod tests {
                 doi: None,
                 publication_date: None,
                 license: None,
+                long_abstract: None,
                 place: None,
                 first_page: None,
                 last_page: None,
@@ -1052,6 +1059,8 @@ mod tests {
                 },
                 contributions: vec![],
                 publications: vec![],
+                references: vec![],
+                fundings: vec![],
             },
         };
         assert_eq!(

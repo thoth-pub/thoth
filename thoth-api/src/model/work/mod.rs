@@ -12,6 +12,7 @@ use crate::model::imprint::ImprintWithPublisher;
 use crate::model::issue::IssueWithSeries;
 use crate::model::language::Language;
 use crate::model::publication::Publication;
+use crate::model::reference::Reference;
 use crate::model::subject::Subject;
 use crate::model::work_relation::WorkRelationWithRelatedWork;
 use crate::model::Doi;
@@ -200,6 +201,7 @@ pub struct WorkWithRelations {
     pub issues: Option<Vec<IssueWithSeries>>,
     pub imprint: ImprintWithPublisher,
     pub relations: Option<Vec<WorkRelationWithRelatedWork>>,
+    pub references: Option<Vec<Reference>>,
 }
 
 #[cfg_attr(

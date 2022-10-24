@@ -1,3 +1,39 @@
+fragment Reference on Reference {
+    referenceOrdinal
+    doi
+    unstructuredCitation
+    issn
+    isbn
+    journalTitle
+    articleTitle
+    seriesTitle
+    volumeTitle
+    edition
+    author
+    volume
+    issue
+    firstPage
+    componentNumber
+    standardDesignator
+    standardsBodyName
+    standardsBodyAcronym
+    publicationDate
+}
+
+fragment Funding on Funding {
+    program
+    projectName
+    projectShortname
+    grantNumber
+    jurisdiction
+    institution {
+        institutionName
+        institutionDoi
+        ror
+        countryCode
+    }
+}
+
 fragment Work on Work {
     workId
     workStatus
@@ -59,11 +95,12 @@ fragment Work on Work {
         contributor {
             orcid
         }
-        affiliations {
+        affiliations(order: {field: AFFILIATION_ORDINAL, direction: ASC}) {
             position
             affiliationOrdinal
             institution {
                 institutionName
+                ror
             }
         }
     }
@@ -104,17 +141,7 @@ fragment Work on Work {
         subjectOrdinal
     }
     fundings(limit: $fundingsLimit) {
-        program
-        projectName
-        projectShortname
-        grantNumber
-        jurisdiction
-        institution {
-            institutionName
-            institutionDoi
-            ror
-            countryCode
-        }
+        ...Funding
     }
     relations(limit: $relationsLimit) {
         relationType
@@ -127,6 +154,7 @@ fragment Work on Work {
             doi
             publicationDate
             license
+            longAbstract
             place
             firstPage
             lastPage
@@ -144,6 +172,14 @@ fragment Work on Work {
                 contributor {
                     orcid
                 }
+                affiliations(order: {field: AFFILIATION_ORDINAL, direction: ASC}) {
+                    position
+                    affiliationOrdinal
+                    institution {
+                        institutionName
+                        ror
+                    }
+                }
             }
             publications {
                 publicationType
@@ -153,7 +189,16 @@ fragment Work on Work {
                     canonical
                 }
             }
+            fundings(limit: $fundingsLimit) {
+                ...Funding
+            }
+            references(limit: $referencesLimit, order: {field: REFERENCE_ORDINAL, direction: ASC}) {
+                ...Reference
+            }
         }
+    }
+    references(limit: $referencesLimit, order: {field: REFERENCE_ORDINAL, direction: ASC}) {
+        ...Reference
     }
 }
 
@@ -164,7 +209,8 @@ query WorkQuery(
     $publicationsLimit: Int!,
     $subjectsLimit: Int!,
     $fundingsLimit: Int!,
-    $relationsLimit: Int!
+    $relationsLimit: Int!,
+    $referencesLimit: Int!
 ) {
     work(workId: $workId) {
         ...Work
@@ -177,7 +223,8 @@ query WorksQuery(
     $publicationsLimit: Int!,
     $subjectsLimit: Int!,
     $fundingsLimit: Int!,
-    $relationsLimit: Int!
+    $relationsLimit: Int!,
+    $referencesLimit: Int!
 ) {
     works(limit: 99999, publishers: $publishers) {
         ...Work

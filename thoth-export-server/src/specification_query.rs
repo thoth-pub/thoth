@@ -68,32 +68,40 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
 
     fn try_from(q: QueryConfiguration) -> ThothResult<Self> {
         match q.specification {
-            MetadataSpecification::Onix3ProjectMuse(_) => {
-                Ok(QueryParameters::new().with_all().without_relations())
-            }
-            MetadataSpecification::Onix3Oapen(_) => {
-                Ok(QueryParameters::new().with_all().without_relations())
-            }
-            MetadataSpecification::Onix3Jstor(_) => {
-                Ok(QueryParameters::new().with_all().without_relations())
-            }
-            MetadataSpecification::Onix3GoogleBooks(_) => {
-                Ok(QueryParameters::new().with_all().without_relations())
-            }
-            MetadataSpecification::Onix3Overdrive(_) => {
-                Ok(QueryParameters::new().with_all().without_relations())
-            }
-            MetadataSpecification::Onix21EbscoHost(_) => {
-                Ok(QueryParameters::new().with_all().without_relations())
-            }
-            MetadataSpecification::Onix21ProquestEbrary(_) => {
-                Ok(QueryParameters::new().with_all().without_relations())
-            }
+            MetadataSpecification::Onix3ProjectMuse(_) => Ok(QueryParameters::new()
+                .with_all()
+                .without_relations()
+                .without_references()),
+            MetadataSpecification::Onix3Oapen(_) => Ok(QueryParameters::new()
+                .with_all()
+                .without_relations()
+                .without_references()),
+            MetadataSpecification::Onix3Jstor(_) => Ok(QueryParameters::new()
+                .with_all()
+                .without_relations()
+                .without_references()),
+            MetadataSpecification::Onix3GoogleBooks(_) => Ok(QueryParameters::new()
+                .with_all()
+                .without_relations()
+                .without_references()),
+            MetadataSpecification::Onix3Overdrive(_) => Ok(QueryParameters::new()
+                .with_all()
+                .without_relations()
+                .without_references()),
+            MetadataSpecification::Onix21EbscoHost(_) => Ok(QueryParameters::new()
+                .with_all()
+                .without_relations()
+                .without_references()),
+            MetadataSpecification::Onix21ProquestEbrary(_) => Ok(QueryParameters::new()
+                .with_all()
+                .without_relations()
+                .without_references()),
             MetadataSpecification::CsvThoth(_) => match q.request {
                 SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
-                SpecificationRequest::ByPublisher => {
-                    Ok(QueryParameters::new().with_all().without_relations())
-                }
+                SpecificationRequest::ByPublisher => Ok(QueryParameters::new()
+                    .with_all()
+                    .without_relations()
+                    .without_references()),
             },
             MetadataSpecification::KbartOclc(_) => {
                 Ok(QueryParameters::new().with_issues().with_publications())
@@ -111,7 +119,9 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                 SpecificationRequest::ByWork => Ok(QueryParameters::new()
                     .with_issues()
                     .with_publications()
-                    .with_relations()),
+                    .with_fundings()
+                    .with_relations()
+                    .with_references()),
                 SpecificationRequest::ByPublisher => Err(ThothError::IncompleteMetadataRecord(
                     "doideposit::crossref".to_string(),
                     "Output can only be generated for one work at a time".to_string(),

@@ -528,6 +528,43 @@ impl Convert for f64 {
     }
 }
 
+/// Assign the leading domain of an identifier
+pub trait UrlIdentifier {
+    fn domain(&self) -> &'static str;
+}
+
+/// Output an identifier with its leading domain
+pub trait IdentifierWithDomain
+where
+    Self: UrlIdentifier + fmt::Display,
+{
+    fn with_domain(&self) -> String {
+        format!("{}{}", self.domain(), self)
+    }
+}
+
+impl UrlIdentifier for Doi {
+    fn domain(&self) -> &'static str {
+        DOI_DOMAIN
+    }
+}
+
+impl UrlIdentifier for Orcid {
+    fn domain(&self) -> &'static str {
+        ORCID_DOMAIN
+    }
+}
+
+impl UrlIdentifier for Ror {
+    fn domain(&self) -> &'static str {
+        ROR_DOMAIN
+    }
+}
+
+impl IdentifierWithDomain for Doi {}
+impl IdentifierWithDomain for Orcid {}
+impl IdentifierWithDomain for Ror {}
+
 #[test]
 fn test_doi_default() {
     let doi: Doi = Default::default();
@@ -940,6 +977,24 @@ fn test_convert_weight_from_to() {
     );
 }
 
+#[test]
+fn test_doi_with_domain() {
+    let doi = "https://doi.org/10.12345/Test-Suffix.01";
+    assert_eq!(format!("{}", Doi(doi.to_string()).with_domain()), doi);
+}
+
+#[test]
+fn test_orcid_with_domain() {
+    let orcid = "https://orcid.org/0000-0002-1234-5678";
+    assert_eq!(format!("{}", Orcid(orcid.to_string()).with_domain()), orcid);
+}
+
+#[test]
+fn test_ror_with_domain() {
+    let ror = "https://ror.org/0abcdef12";
+    assert_eq!(format!("{}", Ror(ror.to_string()).with_domain()), ror);
+}
+
 pub mod affiliation;
 pub mod contribution;
 pub mod contributor;
@@ -952,6 +1007,7 @@ pub mod location;
 pub mod price;
 pub mod publication;
 pub mod publisher;
+pub mod reference;
 pub mod series;
 pub mod subject;
 pub mod work;

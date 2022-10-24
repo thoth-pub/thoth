@@ -58,6 +58,8 @@ pub struct FormInputProps {
     pub min: Option<String>,
     #[prop_or(false)]
     pub deactivated: bool,
+    #[prop_or_default]
+    pub help_text: String,
 }
 
 #[derive(PartialEq, Properties)]
@@ -70,6 +72,8 @@ pub struct FormTextareaProps {
     pub required: bool,
     #[prop_or(false)]
     pub deactivated: bool,
+    #[prop_or_default]
+    pub help_text: String,
 }
 
 // Variant of FormTextInput which supports tooltips,
@@ -93,6 +97,8 @@ pub struct FormTextInputExtendedProps {
     pub required: bool,
     #[prop_or(false)]
     pub deactivated: bool,
+    #[prop_or_default]
+    pub help_text: String,
 }
 
 #[derive(PartialEq, Properties)]
@@ -107,6 +113,8 @@ pub struct FormTextInputProps {
     pub required: bool,
     #[prop_or(false)]
     pub deactivated: bool,
+    #[prop_or_default]
+    pub help_text: String,
 }
 
 #[derive(PartialEq, Properties)]
@@ -119,6 +127,8 @@ pub struct FormUrlInputProps {
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
+    #[prop_or_default]
+    pub help_text: String,
 }
 
 #[derive(PartialEq, Properties)]
@@ -131,6 +141,8 @@ pub struct FormDateInputProps {
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
+    #[prop_or_default]
+    pub help_text: String,
 }
 
 #[derive(PartialEq, Properties)]
@@ -149,6 +161,8 @@ pub struct FormFloatInputProps {
     pub min: String,
     #[prop_or(false)]
     pub deactivated: bool,
+    #[prop_or_default]
+    pub help_text: String,
 }
 
 #[derive(PartialEq, Properties)]
@@ -165,6 +179,8 @@ pub struct FormNumberInputProps {
     pub min: String,
     #[prop_or(false)]
     pub deactivated: bool,
+    #[prop_or_default]
+    pub help_text: String,
 }
 
 #[derive(PartialEq, Properties)]
@@ -365,6 +381,15 @@ pub fn form_input(props: &FormInputProps) -> VNode {
                     disabled={ props.deactivated }
                 />
             </div>
+            {
+                if !props.help_text.is_empty() {
+                    html! {
+                        <p class="help">{ props.help_text.clone() }</p>
+                    }
+                } else {
+                    html! {}
+                }
+            }
         </div>
     }
 }
@@ -384,6 +409,15 @@ pub fn form_textarea(props: &FormTextareaProps) -> VNode {
                     disabled={ props.deactivated }
                 />
             </div>
+            {
+                if !props.help_text.is_empty() {
+                    html! {
+                        <p class="help">{ props.help_text.clone() }</p>
+                    }
+                } else {
+                    html! {}
+                }
+            }
         </div>
     }
 }
@@ -424,6 +458,15 @@ pub fn form_text_input_extended(props: &FormTextInputExtendedProps) -> VNode {
                     disabled={ props.deactivated }
                 />
             </div>
+            {
+                if !props.help_text.is_empty() {
+                    html! {
+                        <p class="help">{ props.help_text.clone() }</p>
+                    }
+                } else {
+                    html! {}
+                }
+            }
         </div>
     }
 }
@@ -439,6 +482,7 @@ pub fn form_text_input(props: &FormTextInputProps) -> VNode {
             onblur={ props.onblur.clone() }
             required={ props.required }
             deactivated={ props.deactivated }
+            help_text={ props.help_text.clone() }
         />
     }
 }
@@ -453,6 +497,7 @@ pub fn form_url_input(props: &FormUrlInputProps) -> VNode {
             oninput={ props.oninput.clone() }
             onblur={ props.onblur.clone() }
             required={ props.required }
+            help_text={ props.help_text.clone() }
         />
     }
 }
@@ -467,6 +512,7 @@ pub fn form_date_input(props: &FormDateInputProps) -> VNode {
             oninput={ props.oninput.clone() }
             onblur={ props.onblur.clone() }
             required={ props.required }
+            help_text={ props.help_text.clone() }
         />
     }
 }
@@ -483,6 +529,7 @@ pub fn form_number_input(props: &FormNumberInputProps) -> VNode {
             required={ props.required }
             min={ props.min.clone() }
             deactivated={ props.deactivated }
+            help_text={ props.help_text.clone() }
         />
     }
 }
@@ -500,6 +547,7 @@ pub fn form_float_input(props: &FormFloatInputProps) -> VNode {
             step={ props.step.clone() }
             min={ props.min.clone() }
             deactivated={ props.deactivated }
+            help_text={ props.help_text.clone() }
         />
     }
 }
