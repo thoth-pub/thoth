@@ -43,7 +43,7 @@ jobs:
       with:
         version: 'v0.10.3'
     - name: Install rollup
-      run: sudo npm install -g rollup@2.28.2
+      run: sudo npm install -g rollup@2.77.2
     - name: Compile WASM
       run: wasm-pack build thoth-app/ --target web --release
     - name: Pack APP
@@ -67,7 +67,7 @@ jobs:
       with:
         version: 'v0.10.3'
     - name: Install rollup
-      run: sudo npm install -g rollup@2.28.2
+      run: sudo npm install -g rollup@2.77.2
     - name: Compile WASM
       run: wasm-pack build thoth-app/ --target web --release
     - name: Pack APP
@@ -96,7 +96,7 @@ jobs:
       with:
         version: 'v0.10.3'
     - name: Install rollup
-      run: sudo npm install -g rollup@2.28.2
+      run: sudo npm install -g rollup@2.77.2
     - name: Compile WASM
       run: wasm-pack build thoth-app/ --target web --release
     - name: Pack APP
