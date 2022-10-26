@@ -402,9 +402,9 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
                     })?;
                     // EBSCO Host require the price point for Open Access titles to be listed as "0.01 USD".
                     write_element_block("Price", w, |w| {
-                        // 02 RRP including tax
+                        // 01 RRP excluding tax (price code requested by EBSCO)
                         write_element_block("PriceTypeCode", w, |w| {
-                            w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                            w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                         })?;
                         write_element_block("PriceAmount", w, |w| {
                             w.write(XmlEvent::Characters("0.01")).map_err(|e| e.into())
@@ -1059,7 +1059,7 @@ mod tests {
         assert!(output
             .contains(r#"    <AudienceRestrictionNote>Open access</AudienceRestrictionNote>"#));
         assert!(output.contains(r#"    <Price>"#));
-        assert!(output.contains(r#"      <PriceTypeCode>02</PriceTypeCode>"#));
+        assert!(output.contains(r#"      <PriceTypeCode>01</PriceTypeCode>"#));
         assert!(output.contains(r#"      <PriceAmount>0.01</PriceAmount>"#));
         assert!(output.contains(r#"      <CurrencyCode>USD</CurrencyCode>"#));
 
