@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-  - [#xxx](https://github.com/thoth-pub/thoth/pull/xxx) - Update EBSCO Host ONIX price type code
+  - [#449](https://github.com/thoth-pub/thoth/pull/449) - Update EBSCO Host ONIX price type code
 
 ## [[0.9.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.0) - 2022-10-24
 ### Added
