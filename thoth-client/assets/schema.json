@@ -8040,92 +8040,92 @@
         {
           "kind": "ENUM",
           "name": "ContributionType",
-          "description": null,
+          "description": "Role describing the type of contribution to the work",
           "fields": null,
           "inputFields": null,
           "interfaces": null,
           "enumValues": [
             {
               "name": "AUTHOR",
-              "description": null,
+              "description": "Author of the work",
               "isDeprecated": false,
               "deprecationReason": null
             },
             {
               "name": "EDITOR",
-              "description": null,
+              "description": "Editor of the work",
               "isDeprecated": false,
               "deprecationReason": null
             },
             {
               "name": "TRANSLATOR",
-              "description": null,
+              "description": "Translator of the work",
               "isDeprecated": false,
               "deprecationReason": null
             },
             {
               "name": "PHOTOGRAPHER",
-              "description": null,
+              "description": "Photographer when named as the primary creator of, eg, a book of photographs",
               "isDeprecated": false,
               "deprecationReason": null
             },
             {
               "name": "ILLUSTRATOR",
-              "description": null,
+              "description": "Artist when named as the creator of artwork which illustrates a work",
               "isDeprecated": false,
               "deprecationReason": null
             },
             {
               "name": "MUSIC_EDITOR",
-              "description": null,
+              "description": "Person responsible for editing any piece of music referenced in the work",
               "isDeprecated": false,
               "deprecationReason": null
             },
             {
               "name": "FOREWORD_BY",
-              "description": null,
+              "description": "Author of foreword",
               "isDeprecated": false,
               "deprecationReason": null
             },
             {
               "name": "INTRODUCTION_BY",
-              "description": null,
+              "description": "Author of introduction",
               "isDeprecated": false,
               "deprecationReason": null
             },
             {
               "name": "AFTERWORD_BY",
-              "description": null,
+              "description": "Author of afterword",
               "isDeprecated": false,
               "deprecationReason": null
             },
             {
               "name": "PREFACE_BY",
-              "description": null,
+              "description": "Author of preface",
               "isDeprecated": false,
               "deprecationReason": null
             },
             {
               "name": "SOFTWARE_BY",
-              "description": null,
+              "description": "Writer of computer programs ancillary to the work",
               "isDeprecated": false,
               "deprecationReason": null
             },
             {
               "name": "RESEARCH_BY",
-              "description": null,
+              "description": "Person responsible for performing research on which the work is based",
               "isDeprecated": false,
               "deprecationReason": null
             },
             {
               "name": "CONTRIBUTIONS_BY",
-              "description": null,
+              "description": "Author of additional contributions to the work",
               "isDeprecated": false,
               "deprecationReason": null
             },
             {
               "name": "INDEXER",
-              "description": null,
+              "description": "Compiler of index",
               "isDeprecated": false,
               "deprecationReason": null
             }
