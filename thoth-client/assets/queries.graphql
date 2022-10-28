@@ -154,6 +154,7 @@ fragment Work on Work {
             doi
             publicationDate
             license
+            shortAbstract
             longAbstract
             place
             firstPage
