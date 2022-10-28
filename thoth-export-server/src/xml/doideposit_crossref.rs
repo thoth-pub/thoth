@@ -183,19 +183,47 @@ fn work_metadata<W: Write>(
         Ok(())
     })?;
 
-    // Convert abstract into JATS by extracting its paragraphs and tagging them with <jats:p>
+    // Crossref supports multiple abstracts when tagged with the "abstract-type" attribute,
+    // which can be set to any value. In our case we use "long" or "short".
+    // Abstracts must be output in JATS, we simply convert them into JATS by extracting its
+    // paragraphs and tagging them with <jats:p>
     if let Some(long_abstract) = &work.long_abstract {
-        write_element_block("jats:abstract", w, |w| {
-            for paragraph in long_abstract.lines() {
-                if !paragraph.is_empty() {
-                    write_element_block("jats:p", w, |w| {
-                        w.write(XmlEvent::Characters(paragraph))
-                            .map_err(|e| e.into())
-                    })?;
+        write_full_element_block(
+            "jats:abstract",
+            None,
+            Some(HashMap::from([("abstract-type", "long")])),
+            w,
+            |w| {
+                for paragraph in long_abstract.lines() {
+                    if !paragraph.is_empty() {
+                        write_element_block("jats:p", w, |w| {
+                            w.write(XmlEvent::Characters(paragraph))
+                                .map_err(|e| e.into())
+                        })?;
+                    }
                 }
-            }
-            Ok(())
-        })?;
+                Ok(())
+            },
+        )?;
+    }
+    if let Some(short_abstract) = &work.short_abstract {
+        write_full_element_block(
+            "jats:abstract",
+            None,
+            Some(HashMap::from([("abstract-type", "short")])),
+            w,
+            |w| {
+                for paragraph in short_abstract.lines() {
+                    if !paragraph.is_empty() {
+                        write_element_block("jats:p", w, |w| {
+                            w.write(XmlEvent::Characters(paragraph))
+                                .map_err(|e| e.into())
+                        })?;
+                    }
+                }
+                Ok(())
+            },
+        )?;
     }
 
     if let Some(chapter) = chapter_number {
@@ -836,6 +864,7 @@ mod tests {
                 doi: Some(Doi::from_str("https://doi.org/10.00001/CHAPTER.0001").unwrap()),
                 publication_date: Some(chrono::NaiveDate::from_ymd(2000, 2, 28)),
                 license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
+                short_abstract: Some("A shorter abstract".to_string()),
                 long_abstract: Some("First paragraph.\n\nSecond paragraph.".to_string()),
                 place: Some("Other Place".to_string()),
                 first_page: Some("10".to_string()),
@@ -902,9 +931,11 @@ mod tests {
         assert!(output.contains(r#"    <subtitle>One</subtitle>"#));
         assert!(output.contains(r#"  </titles>"#));
         assert!(output.contains(r#"  <component_number>1</component_number>"#));
-        assert!(output.contains(r#"  <jats:abstract>"#));
+        assert!(output.contains(r#"  <jats:abstract abstract-type="long">"#));
         assert!(output.contains(r#"    <jats:p>First paragraph.</jats:p>"#));
         assert!(output.contains(r#"    <jats:p>Second paragraph.</jats:p>"#));
+        assert!(output.contains(r#"  <jats:abstract abstract-type="short">"#));
+        assert!(output.contains(r#"    <jats:p>A shorter abstract</jats:p>"#));
         assert!(!output.contains(r#"    <jats:p></jats:p>"#));
         assert!(output.contains(r#"  <publication_date>"#));
         assert!(output.contains(r#"    <month>02</month>"#));
@@ -1265,6 +1296,7 @@ mod tests {
                     doi: Some(Doi::from_str("https://doi.org/10.00001/PART.0001").unwrap()),
                     publication_date: Some(chrono::NaiveDate::from_ymd(2000, 2, 28)),
                     license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
+                    short_abstract: None,
                     long_abstract: None,
                     place: Some("Other Place".to_string()),
                     first_page: Some("10".to_string()),
@@ -1368,7 +1400,7 @@ mod tests {
         assert!(output.contains(r#"      <titles>"#));
         assert!(output.contains(r#"        <title>Book Title</title>"#));
         assert!(output.contains(r#"        <subtitle>Book Subtitle</subtitle>"#));
-        assert!(output.contains(r#"      <jats:abstract>"#));
+        assert!(output.contains(r#"      <jats:abstract abstract-type="long">"#));
         assert!(output.contains(r#"        <jats:p>Lorem ipsum dolor sit amet</jats:p>"#));
         assert!(output.contains(r#"      <volume>11</volume>"#));
         assert!(output.contains(r#"      <edition_number>100</edition_number>"#));
