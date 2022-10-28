@@ -32,6 +32,13 @@ pub enum ContributionType {
     AfterwordBy,
     #[cfg_attr(feature = "backend", db_rename = "preface-by")]
     PrefaceBy,
+    #[cfg_attr(feature = "backend", db_rename = "software-by")]
+    SoftwareBy,
+    #[cfg_attr(feature = "backend", db_rename = "research-by")]
+    ResearchBy,
+    #[cfg_attr(feature = "backend", db_rename = "contributions-by")]
+    ContributionsBy,
+    Indexer,
 }
 
 #[cfg_attr(
@@ -189,6 +196,13 @@ fn test_contributiontype_display() {
     );
     assert_eq!(format!("{}", ContributionType::AfterwordBy), "Afterword By");
     assert_eq!(format!("{}", ContributionType::PrefaceBy), "Preface By");
+    assert_eq!(format!("{}", ContributionType::SoftwareBy), "Software By");
+    assert_eq!(format!("{}", ContributionType::ResearchBy), "Research By");
+    assert_eq!(
+        format!("{}", ContributionType::ContributionsBy),
+        "Contributions By"
+    );
+    assert_eq!(format!("{}", ContributionType::Indexer), "Indexer");
 }
 
 #[test]
@@ -233,6 +247,22 @@ fn test_contributiontype_fromstr() {
     assert_eq!(
         ContributionType::from_str("Preface By").unwrap(),
         ContributionType::PrefaceBy
+    );
+    assert_eq!(
+        ContributionType::from_str("Software By").unwrap(),
+        ContributionType::SoftwareBy
+    );
+    assert_eq!(
+        ContributionType::from_str("Research By").unwrap(),
+        ContributionType::ResearchBy
+    );
+    assert_eq!(
+        ContributionType::from_str("Contributions By").unwrap(),
+        ContributionType::ContributionsBy
+    );
+    assert_eq!(
+        ContributionType::from_str("Indexer").unwrap(),
+        ContributionType::Indexer
     );
 
     assert!(ContributionType::from_str("Juggler").is_err());
