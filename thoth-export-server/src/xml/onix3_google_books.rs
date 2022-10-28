@@ -532,6 +532,10 @@ impl XmlElement<Onix3GoogleBooks> for ContributionType {
             ContributionType::INTRODUCTION_BY => "A24",
             ContributionType::AFTERWORD_BY => "A19",
             ContributionType::PREFACE_BY => "A15",
+            ContributionType::SOFTWARE_BY => "A30",
+            ContributionType::RESEARCH_BY => "A51",
+            ContributionType::CONTRIBUTIONS_BY => "A32",
+            ContributionType::INDEXER => "A34",
             // Music editors are not output for Google Books
             ContributionType::MUSIC_EDITOR | ContributionType::Other(_) => unreachable!(),
         }

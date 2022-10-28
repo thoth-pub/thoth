@@ -221,7 +221,10 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
                     })?;
                 }
                 for contribution in &self.contributions {
-                    XmlElementBlock::<Onix21EbscoHost>::xml_element(contribution, w).ok();
+                    // A51 Research by is not supported in ONIX 2
+                    if contribution.contribution_type != ContributionType::RESEARCH_BY {
+                        XmlElementBlock::<Onix21EbscoHost>::xml_element(contribution, w).ok();
+                    }
                 }
                 for language in &self.languages {
                     XmlElementBlock::<Onix21EbscoHost>::xml_element(language, w).ok();
@@ -513,7 +516,10 @@ impl XmlElement<Onix21EbscoHost> for ContributionType {
             ContributionType::INTRODUCTION_BY => "A24",
             ContributionType::AFTERWORD_BY => "A19",
             ContributionType::PREFACE_BY => "A15",
-            ContributionType::Other(_) => unreachable!(),
+            ContributionType::SOFTWARE_BY => "A30",
+            ContributionType::CONTRIBUTIONS_BY => "A32",
+            ContributionType::INDEXER => "A34",
+            ContributionType::RESEARCH_BY | ContributionType::Other(_) => unreachable!(),
         }
     }
 }

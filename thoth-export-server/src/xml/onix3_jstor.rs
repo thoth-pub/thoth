@@ -480,6 +480,10 @@ impl XmlElement<Onix3Jstor> for ContributionType {
             ContributionType::INTRODUCTION_BY => "A24",
             ContributionType::AFTERWORD_BY => "A19",
             ContributionType::PREFACE_BY => "A15",
+            ContributionType::SOFTWARE_BY => "A30",
+            ContributionType::RESEARCH_BY => "A51",
+            ContributionType::CONTRIBUTIONS_BY => "A32",
+            ContributionType::INDEXER => "A34",
             ContributionType::Other(_) => unreachable!(),
         }
     }
