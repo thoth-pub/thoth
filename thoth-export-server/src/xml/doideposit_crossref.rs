@@ -560,6 +560,10 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributio
             | ContributionType::INTRODUCTION_BY
             | ContributionType::AFTERWORD_BY
             | ContributionType::PREFACE_BY
+            | ContributionType::SOFTWARE_BY
+            | ContributionType::RESEARCH_BY
+            | ContributionType::CONTRIBUTIONS_BY
+            | ContributionType::INDEXER
             | ContributionType::Other(_) => unreachable!(),
         };
         let ordinal = match &self.contribution_ordinal {

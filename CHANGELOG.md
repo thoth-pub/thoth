@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
+  - [#396](https://github.com/thoth-pub/thoth/pull/396) - Expand the list of contribution types with: SoftwareBy, ResearchBy, ContributionsBy, Indexer
   - [#451](https://github.com/thoth-pub/thoth/pull/451) - Output both short and long abstracts in Crossref DOI deposit
 
 ## [[0.9.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.1) - 2022-10-27
