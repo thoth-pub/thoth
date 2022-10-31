@@ -193,8 +193,16 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                     for contribution in &contributions {
                         // Google Books doesn't support B25 Music Editor code
                         // (or any appropriate "Other" code)
-                        if contribution.contribution_type != ContributionType::MUSIC_EDITOR {
-                            XmlElementBlock::<Onix3GoogleBooks>::xml_element(contribution, w).ok();
+                        match contribution.contribution_type {
+                            // B25, A30, A34, and A51 are not output for Google Books
+                            ContributionType::SOFTWARE_BY
+                            | ContributionType::RESEARCH_BY
+                            | ContributionType::INDEXER
+                            | ContributionType::MUSIC_EDITOR => (),
+                            _ => {
+                                XmlElementBlock::<Onix3GoogleBooks>::xml_element(contribution, w)
+                                    .ok();
+                            }
                         }
                     }
                     for language in &self.languages {
@@ -532,12 +540,13 @@ impl XmlElement<Onix3GoogleBooks> for ContributionType {
             ContributionType::INTRODUCTION_BY => "A24",
             ContributionType::AFTERWORD_BY => "A19",
             ContributionType::PREFACE_BY => "A15",
-            ContributionType::SOFTWARE_BY => "A30",
-            ContributionType::RESEARCH_BY => "A51",
             ContributionType::CONTRIBUTIONS_BY => "A32",
-            ContributionType::INDEXER => "A34",
-            // Music editors are not output for Google Books
-            ContributionType::MUSIC_EDITOR | ContributionType::Other(_) => unreachable!(),
+            // B25, A30, A34, and A51 are not output for Google Books
+            ContributionType::SOFTWARE_BY
+            | ContributionType::RESEARCH_BY
+            | ContributionType::INDEXER
+            | ContributionType::MUSIC_EDITOR
+            | ContributionType::Other(_) => unreachable!(),
         }
     }
 }
