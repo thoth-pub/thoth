@@ -1402,6 +1402,7 @@ mod tests {
         assert!(output.contains(r#"        <subtitle>Book Subtitle</subtitle>"#));
         assert!(output.contains(r#"      <jats:abstract abstract-type="long">"#));
         assert!(output.contains(r#"        <jats:p>Lorem ipsum dolor sit amet</jats:p>"#));
+        assert!(!output.contains(r#"      <jats:abstract abstract-type="short">"#));
         assert!(output.contains(r#"      <volume>11</volume>"#));
         assert!(output.contains(r#"      <edition_number>100</edition_number>"#));
         assert!(output.contains(r#"      <publication_date>"#));
