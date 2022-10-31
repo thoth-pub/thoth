@@ -191,10 +191,9 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                         contributions[0].contribution_type = ContributionType::AUTHOR;
                     }
                     for contribution in &contributions {
-                        // Google Books doesn't support B25 Music Editor code
+                        // Google Books doesn't support B25, A30, A34 or A51 codes
                         // (or any appropriate "Other" code)
                         match contribution.contribution_type {
-                            // B25, A30, A34, and A51 are not output for Google Books
                             ContributionType::SOFTWARE_BY
                             | ContributionType::RESEARCH_BY
                             | ContributionType::INDEXER
