@@ -14,7 +14,7 @@ CREATE TYPE contribution_type AS ENUM (
     'editor',
     'translator',
     'photographer',
-    'ilustrator',
+    'illustrator',
     'music-editor',
     'foreword-by',
     'introduction-by',
