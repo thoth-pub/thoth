@@ -483,7 +483,11 @@ impl XmlElement<Onix3Oapen> for ContributionType {
             | ContributionType::FOREWORD_BY
             | ContributionType::INTRODUCTION_BY
             | ContributionType::AFTERWORD_BY
-            | ContributionType::PREFACE_BY => "Z01",
+            | ContributionType::PREFACE_BY
+            | ContributionType::SOFTWARE_BY
+            | ContributionType::RESEARCH_BY
+            | ContributionType::CONTRIBUTIONS_BY
+            | ContributionType::INDEXER => "Z01",
             ContributionType::Other(_) => unreachable!(),
         }
     }

@@ -191,10 +191,17 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                         contributions[0].contribution_type = ContributionType::AUTHOR;
                     }
                     for contribution in &contributions {
-                        // Google Books doesn't support B25 Music Editor code
+                        // Google Books doesn't support B25, A30, A34 or A51 codes
                         // (or any appropriate "Other" code)
-                        if contribution.contribution_type != ContributionType::MUSIC_EDITOR {
-                            XmlElementBlock::<Onix3GoogleBooks>::xml_element(contribution, w).ok();
+                        match contribution.contribution_type {
+                            ContributionType::SOFTWARE_BY
+                            | ContributionType::RESEARCH_BY
+                            | ContributionType::INDEXER
+                            | ContributionType::MUSIC_EDITOR => (),
+                            _ => {
+                                XmlElementBlock::<Onix3GoogleBooks>::xml_element(contribution, w)
+                                    .ok();
+                            }
                         }
                     }
                     for language in &self.languages {
@@ -532,8 +539,13 @@ impl XmlElement<Onix3GoogleBooks> for ContributionType {
             ContributionType::INTRODUCTION_BY => "A24",
             ContributionType::AFTERWORD_BY => "A19",
             ContributionType::PREFACE_BY => "A15",
-            // Music editors are not output for Google Books
-            ContributionType::MUSIC_EDITOR | ContributionType::Other(_) => unreachable!(),
+            ContributionType::CONTRIBUTIONS_BY => "A32",
+            // B25, A30, A34, and A51 are not output for Google Books
+            ContributionType::SOFTWARE_BY
+            | ContributionType::RESEARCH_BY
+            | ContributionType::INDEXER
+            | ContributionType::MUSIC_EDITOR
+            | ContributionType::Other(_) => unreachable!(),
         }
     }
 }

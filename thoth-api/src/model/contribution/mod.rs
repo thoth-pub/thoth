@@ -11,27 +11,90 @@ use crate::schema::contribution;
 #[cfg(feature = "backend")]
 use crate::schema::contribution_history;
 
-#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
-#[cfg_attr(feature = "backend", DieselType = "Contribution_type")]
+#[cfg_attr(
+    feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Role describing the type of contribution to the work"),
+    DieselType = "Contribution_type"
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum ContributionType {
+    #[cfg_attr(feature = "backend", graphql(description = "Author of the work"))]
     Author,
+    #[cfg_attr(feature = "backend", graphql(description = "Editor of the work"))]
     Editor,
+    #[cfg_attr(feature = "backend", graphql(description = "Translator of the work"))]
     Translator,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "Photographer when named as the primary creator of, eg, a book of photographs"
+        )
+    )]
     Photographer,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "Artist when named as the creator of artwork which illustrates a work"
+        )
+    )]
     Illustrator,
-    #[cfg_attr(feature = "backend", db_rename = "music-editor")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "music-editor",
+        graphql(
+            description = "Person responsible for editing any piece of music referenced in the work"
+        )
+    )]
     MusicEditor,
-    #[cfg_attr(feature = "backend", db_rename = "foreword-by")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "foreword-by",
+        graphql(description = "Author of foreword")
+    )]
     ForewordBy,
-    #[cfg_attr(feature = "backend", db_rename = "introduction-by")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "introduction-by",
+        graphql(description = "Author of introduction")
+    )]
     IntroductionBy,
-    #[cfg_attr(feature = "backend", db_rename = "afterword-by")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "afterword-by",
+        graphql(description = "Author of afterword")
+    )]
     AfterwordBy,
-    #[cfg_attr(feature = "backend", db_rename = "preface-by")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "preface-by",
+        graphql(description = "Author of preface")
+    )]
     PrefaceBy,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "software-by",
+        graphql(description = "Writer of computer programs ancillary to the work")
+    )]
+    SoftwareBy,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "research-by",
+        graphql(
+            description = "Person responsible for performing research on which the work is based"
+        )
+    )]
+    ResearchBy,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "contributions-by",
+        graphql(description = "Author of additional contributions to the work")
+    )]
+    ContributionsBy,
+    #[cfg_attr(feature = "backend", graphql(description = "Compiler of index"))]
+    Indexer,
 }
 
 #[cfg_attr(
@@ -189,6 +252,13 @@ fn test_contributiontype_display() {
     );
     assert_eq!(format!("{}", ContributionType::AfterwordBy), "Afterword By");
     assert_eq!(format!("{}", ContributionType::PrefaceBy), "Preface By");
+    assert_eq!(format!("{}", ContributionType::SoftwareBy), "Software By");
+    assert_eq!(format!("{}", ContributionType::ResearchBy), "Research By");
+    assert_eq!(
+        format!("{}", ContributionType::ContributionsBy),
+        "Contributions By"
+    );
+    assert_eq!(format!("{}", ContributionType::Indexer), "Indexer");
 }
 
 #[test]
@@ -233,6 +303,22 @@ fn test_contributiontype_fromstr() {
     assert_eq!(
         ContributionType::from_str("Preface By").unwrap(),
         ContributionType::PrefaceBy
+    );
+    assert_eq!(
+        ContributionType::from_str("Software By").unwrap(),
+        ContributionType::SoftwareBy
+    );
+    assert_eq!(
+        ContributionType::from_str("Research By").unwrap(),
+        ContributionType::ResearchBy
+    );
+    assert_eq!(
+        ContributionType::from_str("Contributions By").unwrap(),
+        ContributionType::ContributionsBy
+    );
+    assert_eq!(
+        ContributionType::from_str("Indexer").unwrap(),
+        ContributionType::Indexer
     );
 
     assert!(ContributionType::from_str("Juggler").is_err());
