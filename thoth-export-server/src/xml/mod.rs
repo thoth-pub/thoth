@@ -31,7 +31,7 @@ pub(crate) fn write_full_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> T
 
     if let Some(attr) = attr {
         for (k, v) in attr.iter() {
-            event_builder = event_builder.attr(*k, *v);
+            event_builder = event_builder.attr(*k, v);
         }
     }
 

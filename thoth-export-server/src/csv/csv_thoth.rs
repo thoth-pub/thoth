@@ -236,51 +236,51 @@ impl CsvCell<CsvThoth> for WorkPublications {
             self.isbn
                 .as_ref()
                 .map(|i| i.to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             self.width_mm
                 .as_ref()
                 .map(|w| w.to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             self.width_cm
                 .as_ref()
                 .map(|w| w.to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             self.width_in
                 .as_ref()
                 .map(|w| w.to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             self.height_mm
                 .as_ref()
                 .map(|h| h.to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             self.height_cm
                 .as_ref()
                 .map(|h| h.to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             self.height_in
                 .as_ref()
                 .map(|h| h.to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             self.depth_mm
                 .as_ref()
                 .map(|d| d.to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             self.depth_cm
                 .as_ref()
                 .map(|d| d.to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             self.depth_in
                 .as_ref()
                 .map(|d| d.to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             self.weight_g
                 .as_ref()
                 .map(|w| w.to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             self.weight_oz
                 .as_ref()
                 .map(|w| w.to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             CsvCell::<CsvThoth>::csv_cell(
                 &self
                     .prices
@@ -304,14 +304,14 @@ impl CsvCell<CsvThoth> for WorkContributions {
         format!(
             "(\"{:?}\", \"{}\", \"{}\", \"{}\", \"{}\", {})",
             self.contribution_type,
-            self.first_name.clone().unwrap_or_else(|| "".to_string()),
+            self.first_name.clone().unwrap_or_default(),
             self.last_name,
             self.full_name,
             self.contributor
                 .orcid
                 .as_ref()
                 .map(|o| o.to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             CsvCell::<CsvThoth>::csv_cell(
                 &self
                     .affiliations
@@ -333,8 +333,8 @@ impl CsvCell<CsvThoth> for WorkPublicationsLocations {
     fn csv_cell(&self) -> String {
         format!(
             "(\"{}\", \"{}\", \"{:?}\", \"{}\")",
-            self.landing_page.clone().unwrap_or_else(|| "".to_string()),
-            self.full_text_url.clone().unwrap_or_else(|| "".to_string()),
+            self.landing_page.clone().unwrap_or_default(),
+            self.full_text_url.clone().unwrap_or_default(),
             self.location_platform,
             self.canonical,
         )
@@ -345,7 +345,7 @@ impl CsvCell<CsvThoth> for WorkContributionsAffiliations {
     fn csv_cell(&self) -> String {
         format!(
             "(\"{}\", \"{}\", \"{}\")",
-            self.position.clone().unwrap_or_else(|| "".to_string()),
+            self.position.clone().unwrap_or_default(),
             self.affiliation_ordinal,
             self.institution.institution_name,
         )
@@ -360,18 +360,9 @@ impl CsvCell<CsvThoth> for WorkIssues {
             self.series.series_name,
             self.series.issn_print,
             self.series.issn_digital,
-            self.series
-                .series_url
-                .clone()
-                .unwrap_or_else(|| "".to_string()),
-            self.series
-                .series_cfp_url
-                .clone()
-                .unwrap_or_else(|| "".to_string()),
-            self.series
-                .series_description
-                .clone()
-                .unwrap_or_else(|| "".to_string()),
+            self.series.series_url.clone().unwrap_or_default(),
+            self.series.series_cfp_url.clone().unwrap_or_default(),
+            self.series.series_description.clone().unwrap_or_default(),
             self.issue_ordinal,
         )
     }
@@ -401,21 +392,21 @@ impl CsvCell<CsvThoth> for WorkFundings {
                 .institution_doi
                 .as_ref()
                 .map(|d| d.to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             self.institution
                 .ror
                 .as_ref()
                 .map(|r| r.to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             self.institution
                 .country_code
                 .as_ref()
                 .map(|c| format!("{:?}", c))
-                .unwrap_or_else(|| "".to_string()),
-            self.program.clone().unwrap_or_else(|| "".to_string()),
-            self.project_name.clone().unwrap_or_else(|| "".to_string()),
-            self.grant_number.clone().unwrap_or_else(|| "".to_string()),
-            self.jurisdiction.clone().unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
+            self.program.clone().unwrap_or_default(),
+            self.project_name.clone().unwrap_or_default(),
+            self.grant_number.clone().unwrap_or_default(),
+            self.jurisdiction.clone().unwrap_or_default(),
         )
     }
 }

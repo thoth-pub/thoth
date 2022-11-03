@@ -353,27 +353,27 @@ impl Component for FundingsFormComponent {
                                 </div>
                                 <FormTextInput
                                     label="Program"
-                                    value={ self.new_funding.program.clone().unwrap_or_else(|| "".to_string()) }
+                                    value={ self.new_funding.program.clone().unwrap_or_default() }
                                     oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeProgram(e.to_value())) }
                                 />
                                 <FormTextInput
                                     label="Project Name"
-                                    value={ self.new_funding.project_name.clone().unwrap_or_else(|| "".to_string()) }
+                                    value={ self.new_funding.project_name.clone().unwrap_or_default() }
                                     oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeProjectName(e.to_value())) }
                                 />
                                 <FormTextInput
                                     label="Project Short Name"
-                                    value={ self.new_funding.project_shortname.clone().unwrap_or_else(|| "".to_string()) }
+                                    value={ self.new_funding.project_shortname.clone().unwrap_or_default() }
                                     oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeProjectShortname(e.to_value())) }
                                 />
                                 <FormTextInput
                                     label="Grant Number"
-                                    value={ self.new_funding.grant_number.clone().unwrap_or_else(|| "".to_string()) }
+                                    value={ self.new_funding.grant_number.clone().unwrap_or_default() }
                                     oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeGrant(e.to_value())) }
                                 />
                                 <FormTextInput
                                     label="Jurisdiction"
-                                    value={ self.new_funding.jurisdiction.clone().unwrap_or_else(|| "".to_string()) }
+                                    value={ self.new_funding.jurisdiction.clone().unwrap_or_default() }
                                     oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeJurisdiction(e.to_value())) }
                                 />
 
@@ -444,31 +444,31 @@ impl FundingsFormComponent {
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "Program" }</label>
                         <div class="control is-expanded">
-                            {&f.program.clone().unwrap_or_else(|| "".to_string())}
+                            {&f.program.clone().unwrap_or_default()}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "Project Name" }</label>
                         <div class="control is-expanded">
-                            {&f.project_name.clone().unwrap_or_else(|| "".to_string())}
+                            {&f.project_name.clone().unwrap_or_default()}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "Project Short Name" }</label>
                         <div class="control is-expanded">
-                            {&f.project_shortname.clone().unwrap_or_else(|| "".to_string())}
+                            {&f.project_shortname.clone().unwrap_or_default()}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "Grant Number" }</label>
                         <div class="control is-expanded">
-                            {&f.grant_number.clone().unwrap_or_else(|| "".to_string())}
+                            {&f.grant_number.clone().unwrap_or_default()}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "Jurisdiction" }</label>
                         <div class="control is-expanded">
-                            {&f.jurisdiction.clone().unwrap_or_else(|| "".to_string())}
+                            {&f.jurisdiction.clone().unwrap_or_default()}
                         </div>
                     </div>
                     <div class="field">

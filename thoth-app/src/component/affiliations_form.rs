@@ -472,7 +472,7 @@ impl Component for AffiliationsFormComponent {
                                 />
                                 <FormTextInput
                                     label="Position"
-                                    value={ self.affiliation.position.clone().unwrap_or_else(|| "".to_string()) }
+                                    value={ self.affiliation.position.clone().unwrap_or_default() }
                                     oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangePosition(e.to_value())) }
                                 />
                                 <FormNumberInput
@@ -612,7 +612,7 @@ impl AffiliationsFormComponent {
         html! {
             <tr class="row">
                 <td>{&a.institution.institution_name}</td>
-                <td>{&a.position.clone().unwrap_or_else(|| "".to_string())}</td>
+                <td>{&a.position.clone().unwrap_or_default()}</td>
                 <td>{&a.affiliation_ordinal.clone()}</td>
                 <td>
                     <a

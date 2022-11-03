@@ -329,7 +329,7 @@ impl Component for PublicationComponent {
                             <div class="field">
                                 <label class="label">{ "ISBN" }</label>
                                 <div class="control is-expanded">
-                                    {&self.publication.isbn.as_ref().map(|s| s.to_string()).unwrap_or_else(|| "".to_string())}
+                                    {&self.publication.isbn.as_ref().map(|s| s.to_string()).unwrap_or_default()}
                                 </div>
                             </div>
                         </form>
@@ -343,28 +343,28 @@ impl Component for PublicationComponent {
                                             <div class="field" style="width: 8em;">
                                                 <label class="label">{ "Width (mm)" }</label>
                                                 <div class="control is-expanded">
-                                                    {&self.publication.width_mm.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                    {&self.publication.width_mm.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                                 </div>
                                             </div>
 
                                             <div class="field" style="width: 8em;">
                                                 <label class="label">{ "Height (mm)" }</label>
                                                 <div class="control is-expanded">
-                                                    {&self.publication.height_mm.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                    {&self.publication.height_mm.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                                 </div>
                                             </div>
 
                                             <div class="field" style="width: 8em;">
                                                 <label class="label">{ "Depth (mm)" }</label>
                                                 <div class="control is-expanded">
-                                                    {&self.publication.depth_mm.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                    {&self.publication.depth_mm.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                                 </div>
                                             </div>
 
                                             <div class="field" style="width: 8em;">
                                                 <label class="label">{ "Weight (g)" }</label>
                                                 <div class="control is-expanded">
-                                                    {&self.publication.weight_g.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                    {&self.publication.weight_g.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                                 </div>
                                             </div>
                                         </div>
@@ -373,28 +373,28 @@ impl Component for PublicationComponent {
                                             <div class="field" style="width: 8em;">
                                                 <label class="label">{ "Width (in)" }</label>
                                                 <div class="control is-expanded">
-                                                    {&self.publication.width_in.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                    {&self.publication.width_in.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                                 </div>
                                             </div>
 
                                             <div class="field" style="width: 8em;">
                                                 <label class="label">{ "Height (in)" }</label>
                                                 <div class="control is-expanded">
-                                                    {&self.publication.height_in.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                    {&self.publication.height_in.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                                 </div>
                                             </div>
 
                                             <div class="field" style="width: 8em;">
                                                 <label class="label">{ "Depth (in)" }</label>
                                                 <div class="control is-expanded">
-                                                    {&self.publication.depth_in.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                    {&self.publication.depth_in.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                                 </div>
                                             </div>
 
                                             <div class="field" style="width: 8em;">
                                                 <label class="label">{ "Weight (oz)" }</label>
                                                 <div class="control is-expanded">
-                                                    {&self.publication.weight_oz.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                    {&self.publication.weight_oz.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                                 </div>
                                             </div>
                                         </div>

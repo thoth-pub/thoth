@@ -43,17 +43,13 @@ impl MetadataTable for Institution {
             .institution_doi
             .as_ref()
             .map(|s| s.to_string())
-            .unwrap_or_else(|| "".to_string());
-        let ror = self
-            .ror
-            .as_ref()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "".to_string());
+            .unwrap_or_default();
+        let ror = self.ror.as_ref().map(|s| s.to_string()).unwrap_or_default();
         let country_code = self
             .country_code
             .as_ref()
             .map(|s| s.to_string())
-            .unwrap_or_else(|| "".to_string());
+            .unwrap_or_default();
         html! {
             <tr
                 class="row"

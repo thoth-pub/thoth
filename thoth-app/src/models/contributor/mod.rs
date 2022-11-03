@@ -29,7 +29,7 @@ impl MetadataTable for Contributor {
             .orcid
             .as_ref()
             .map(|s| s.to_string())
-            .unwrap_or_else(|| "".to_string());
+            .unwrap_or_default();
         html! {
             <tr
                 class="row"
