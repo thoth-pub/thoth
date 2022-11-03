@@ -235,7 +235,7 @@ impl PublicationsFormComponent {
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "ISBN" }</label>
                         <div class="control is-expanded">
-                            {&p.isbn.as_ref().map(|s| s.to_string()).unwrap_or_else(|| "".to_string())}
+                            {&p.isbn.as_ref().map(|s| s.to_string()).unwrap_or_default()}
                         </div>
                     </div>
 
@@ -248,14 +248,14 @@ impl PublicationsFormComponent {
                                         <div class="field" style="width: 8em;">
                                             <label class="label">{ "Width (mm)" }</label>
                                             <div class="control is-expanded">
-                                                {&p.width_mm.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                {&p.width_mm.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                             </div>
                                         </div>
 
                                         <div class="field" style="width: 8em;">
                                             <label class="label">{ "Width (in)" }</label>
                                             <div class="control is-expanded">
-                                                {&p.width_in.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                {&p.width_in.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                             </div>
                                         </div>
                                     </div>
@@ -264,14 +264,14 @@ impl PublicationsFormComponent {
                                         <div class="field" style="width: 8em;">
                                             <label class="label">{ "Height (mm)" }</label>
                                             <div class="control is-expanded">
-                                                {&p.height_mm.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                {&p.height_mm.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                             </div>
                                         </div>
 
                                         <div class="field" style="width: 8em;">
                                             <label class="label">{ "Height (in)" }</label>
                                             <div class="control is-expanded">
-                                                {&p.height_in.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                {&p.height_in.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                             </div>
                                         </div>
                                     </div>
@@ -280,14 +280,14 @@ impl PublicationsFormComponent {
                                         <div class="field" style="width: 8em;">
                                             <label class="label">{ "Depth (mm)" }</label>
                                             <div class="control is-expanded">
-                                                {&p.depth_mm.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                {&p.depth_mm.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                             </div>
                                         </div>
 
                                         <div class="field" style="width: 8em;">
                                             <label class="label">{ "Depth (in)" }</label>
                                             <div class="control is-expanded">
-                                                {&p.depth_in.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                {&p.depth_in.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                             </div>
                                         </div>
                                     </div>
@@ -296,14 +296,14 @@ impl PublicationsFormComponent {
                                         <div class="field" style="width: 8em;">
                                             <label class="label">{ "Weight (g)" }</label>
                                             <div class="control is-expanded">
-                                                {&p.weight_g.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                {&p.weight_g.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                             </div>
                                         </div>
 
                                         <div class="field" style="width: 8em;">
                                             <label class="label">{ "Weight (oz)" }</label>
                                             <div class="control is-expanded">
-                                                {&p.weight_oz.as_ref().map(|w| w.to_string()).unwrap_or_else(|| "".to_string())}
+                                                {&p.weight_oz.as_ref().map(|w| w.to_string()).unwrap_or_default()}
                                             </div>
                                         </div>
                                     </div>

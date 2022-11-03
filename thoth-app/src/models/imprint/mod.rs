@@ -32,7 +32,7 @@ impl EditRoute for ImprintWithPublisher {
 
 impl MetadataTable for ImprintWithPublisher {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
-        let imprint_url = self.imprint_url.clone().unwrap_or_else(|| "".to_string());
+        let imprint_url = self.imprint_url.clone().unwrap_or_default();
         html! {
             <tr
                 class="row"

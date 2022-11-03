@@ -565,7 +565,7 @@ impl Component for ContributionsFormComponent {
                                 />
                                 <FormTextInput
                                     label="Biography"
-                                    value={ self.contribution.biography.clone().unwrap_or_else(|| "".to_string()) }
+                                    value={ self.contribution.biography.clone().unwrap_or_default() }
                                     oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeBiography(e.to_value())) }
                                 />
                                 <FormBooleanSelect
@@ -684,7 +684,7 @@ impl ContributionsFormComponent {
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "Biography" }</label>
                         <div class="control is-expanded">
-                            {&c.biography.clone().unwrap_or_else(|| "".to_string())}
+                            {&c.biography.clone().unwrap_or_default()}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">

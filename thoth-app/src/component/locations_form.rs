@@ -296,7 +296,7 @@ impl Component for LocationsFormComponent {
                                 />
                                 <FormUrlInput
                                     label="Full Text URL"
-                                    value={ self.new_location.full_text_url.clone().unwrap_or_else(|| "".to_string()) }
+                                    value={ self.new_location.full_text_url.clone().unwrap_or_default() }
                                     oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeFullTextUrl(e.to_value())) }
                                 />
                                 <FormLocationPlatformSelect
@@ -381,13 +381,13 @@ impl LocationsFormComponent {
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "Landing Page" }</label>
                         <div class="control is-expanded">
-                            {&l.landing_page.clone().unwrap_or_else(|| "".to_string())}
+                            {&l.landing_page.clone().unwrap_or_default()}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "Full Text URL" }</label>
                         <div class="control is-expanded">
-                            {&l.full_text_url.clone().unwrap_or_else(|| "".to_string())}
+                            {&l.full_text_url.clone().unwrap_or_default()}
                         </div>
                     </div>
                     <div class="field" style="width: 8em;">

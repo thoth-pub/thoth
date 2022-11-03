@@ -403,7 +403,7 @@ pub fn form_textarea(props: &FormTextareaProps) -> VNode {
                 <textarea
                     class="textarea"
                     placeholder={ props.label.clone() }
-                    value={ props.value.clone().unwrap_or_else(|| "".to_string()) }
+                    value={ props.value.clone().unwrap_or_default() }
                     oninput={ props.oninput.clone() }
                     required={ props.required }
                     disabled={ props.deactivated }
@@ -476,7 +476,7 @@ pub fn form_text_input(props: &FormTextInputProps) -> VNode {
     html! {
         <FormInput
             label={ props.label.clone() }
-            value={ props.value.clone().unwrap_or_else(|| "".to_string()) }
+            value={ props.value.clone().unwrap_or_default() }
             input_type="text"
             oninput={ props.oninput.clone() }
             onblur={ props.onblur.clone() }
@@ -492,7 +492,7 @@ pub fn form_url_input(props: &FormUrlInputProps) -> VNode {
     html! {
         <FormInput
             label={ props.label.clone() }
-            value={ props.value.clone().unwrap_or_else(|| "".to_string()) }
+            value={ props.value.clone().unwrap_or_default() }
             input_type="url"
             oninput={ props.oninput.clone() }
             onblur={ props.onblur.clone() }
@@ -507,7 +507,7 @@ pub fn form_date_input(props: &FormDateInputProps) -> VNode {
     html! {
         <FormInput
             label={ props.label.clone() }
-            value={ props.value.clone().unwrap_or_else(|| "".to_string()) }
+            value={ props.value.clone().unwrap_or_default() }
             input_type="date"
             oninput={ props.oninput.clone() }
             onblur={ props.onblur.clone() }

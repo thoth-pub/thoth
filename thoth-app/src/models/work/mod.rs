@@ -86,11 +86,7 @@ impl EditRoute for WorkWithRelations {
 
 impl MetadataTable for WorkWithRelations {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
-        let doi = self
-            .doi
-            .as_ref()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "".to_string());
+        let doi = self.doi.as_ref().map(|s| s.to_string()).unwrap_or_default();
         html! {
             <tr
                 class="row"
@@ -217,8 +213,7 @@ impl DisplayWork for WorkWithRelations {
     }
 
     fn license_icons(&self) -> Html {
-        let license =
-            License::from_str(&self.license.clone().unwrap_or_else(|| "".to_string())).unwrap();
+        let license = License::from_str(&self.license.clone().unwrap_or_default()).unwrap();
         html! {
             <span class="icon is-small license">
                 {
@@ -300,16 +295,12 @@ impl DisplayWork for WorkWithRelations {
     }
 
     fn as_catalogue_box(&self) -> Html {
-        let doi = self
-            .doi
-            .as_ref()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "".to_string());
+        let doi = self.doi.as_ref().map(|s| s.to_string()).unwrap_or_default();
         let cover_url = self
             .cover_url
             .clone()
             .unwrap_or_else(|| "/img/cover-placeholder.jpg".to_string());
-        let place = self.place.clone().unwrap_or_else(|| "".to_string());
+        let place = self.place.clone().unwrap_or_default();
         html! {
             <div class="box" style="min-height: 13em;">
                 <article class="media">
