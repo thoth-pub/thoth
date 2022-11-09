@@ -36,7 +36,7 @@ pub(crate) async fn get_one(
 #[api_v2_operation(
     summary = "Get a work's metadata record",
     description = "Obtain a metadata record that adheres to a particular specification for a given work",
-    produces = "text/xml, text/csv, application/json",
+    produces = "text/xml, text/csv, text/plain, application/x-bibtex, application/json",
     tags(Specifications)
 )]
 pub(crate) async fn by_work(
@@ -56,7 +56,7 @@ pub(crate) async fn by_work(
 #[api_v2_operation(
     summary = "Get a publisher's metadata record",
     description = "Obtain a metadata record that adheres to a particular specification for all of a given publisher's works",
-    produces = "text/xml, text/csv",
+    produces = "text/xml, text/csv, text/plain, application/x-bibtex",
     tags(Specifications)
 )]
 pub(crate) async fn by_publisher(
