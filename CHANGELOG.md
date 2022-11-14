@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-  - [#xxx]() - Implement JSON output format
+  - [#456](https://github.com/thoth-pub/thoth/pull/456) - Implement JSON output format
 
 ## [[0.9.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.2) - 2022-11-01
 ### Changed
