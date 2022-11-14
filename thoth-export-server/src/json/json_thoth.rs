@@ -1,3 +1,5 @@
+use chrono::SecondsFormat;
+use serde::Serialize;
 use thoth_client::Work;
 use thoth_errors::{ThothError, ThothResult};
 
@@ -6,6 +8,14 @@ use super::JsonSpecification;
 #[derive(Copy, Clone)]
 pub(crate) struct JsonThoth;
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct JsonWrapper<T: Serialize> {
+    json_generated_at: String,
+    #[serde(flatten)]
+    wrapped_struct: T,
+}
+
 impl JsonSpecification for JsonThoth {
     fn handle_event(works: &[Work]) -> ThothResult<String> {
         match works.len() {
@@ -13,8 +23,15 @@ impl JsonSpecification for JsonThoth {
                 "json::thoth".to_string(),
                 "Not enough data".to_string(),
             )),
-            1 => serde_json::to_string_pretty(works.first().unwrap())
-                .map_err(|e| ThothError::InternalError(e.to_string())),
+            1 => {
+                let wrapper = JsonWrapper {
+                    json_generated_at: chrono::Utc::now()
+                        .to_rfc3339_opts(SecondsFormat::Secs, true),
+                    wrapped_struct: works.first().unwrap(),
+                };
+                serde_json::to_string_pretty(&wrapper)
+                    .map_err(|e| ThothError::InternalError(e.to_string()))
+            }
             // handler::by_publisher() prevents generation of output for multiple records
             _ => unreachable!(),
         }
@@ -25,6 +42,7 @@ impl JsonSpecification for JsonThoth {
 mod tests {
     use super::*;
     use lazy_static::lazy_static;
+    use regex::Regex;
     use std::str::FromStr;
     use thoth_api::model::Doi;
     use thoth_api::model::Isbn;
@@ -390,7 +408,7 @@ mod tests {
         };
     }
 
-    const TEST_RESULT: &str = r#"{
+    const TEST_RESULT: &str = r#"
   "workId": "00000000-0000-0000-aaaa-000000000001",
   "workStatus": "ACTIVE",
   "fullTitle": "Book Title: Book Subtitle",
@@ -751,7 +769,18 @@ mod tests {
     #[test]
     fn test_json_thoth() {
         let to_test = JsonThoth.generate(&[TEST_WORK.clone()]);
-
-        assert_eq!(to_test, Ok(TEST_RESULT.to_string()));
+        assert!(to_test.is_ok());
+        let to_test_string = to_test.unwrap();
+        let to_test_split = to_test_string.split_once(',');
+        assert!(to_test_split.is_some());
+        let to_test_tuple = to_test_split.unwrap();
+        lazy_static! {
+            static ref RE: Regex =
+                Regex::new(r#"\{\n  "jsonGeneratedAt": "\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"#)
+                    .unwrap();
+        }
+        let matches = RE.captures(to_test_tuple.0);
+        assert!(matches.is_some());
+        assert_eq!(to_test_tuple.1, TEST_RESULT);
     }
 }
