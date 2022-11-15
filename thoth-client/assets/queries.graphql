@@ -72,7 +72,7 @@ fragment Work on Work {
             publisherUrl
         }
     }
-    issues(limit: $issuesLimit) {
+    issues(limit: $issuesLimit, order: {field: ISSUE_ORDINAL, direction: ASC}) {
         issueOrdinal
         series {
             seriesType
@@ -84,7 +84,7 @@ fragment Work on Work {
             seriesCfpUrl
         }
     }
-    contributions {
+    contributions(order: {field: CONTRIBUTION_ORDINAL, direction: ASC}) {
         contributionType
         firstName
         lastName
@@ -135,7 +135,7 @@ fragment Work on Work {
             canonical
         }
     }
-    subjects(limit: $subjectsLimit) {
+    subjects(limit: $subjectsLimit, order: {field: SUBJECT_ORDINAL, direction: ASC}) {
         subjectCode
         subjectType
         subjectOrdinal
@@ -143,7 +143,7 @@ fragment Work on Work {
     fundings(limit: $fundingsLimit) {
         ...Funding
     }
-    relations(limit: $relationsLimit) {
+    relations(limit: $relationsLimit, order: {field: RELATION_ORDINAL, direction: ASC}) {
         relationType
         relationOrdinal
         relatedWork {
@@ -165,7 +165,7 @@ fragment Work on Work {
                     publisherName
                 }
             }
-            contributions {
+            contributions(order: {field: CONTRIBUTION_ORDINAL, direction: ASC}) {
                 contributionType
                 firstName
                 lastName

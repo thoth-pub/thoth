@@ -185,6 +185,7 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                         .iter()
                         .any(|c| c.contribution_type.eq(&ContributionType::AUTHOR))
                     {
+                        // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
                         contributions
                             .sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
                         contributions.sort_by(|a, b| b.main_contribution.cmp(&a.main_contribution));

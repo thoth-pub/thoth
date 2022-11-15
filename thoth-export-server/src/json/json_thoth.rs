@@ -24,10 +24,15 @@ impl JsonSpecification for JsonThoth {
                 "Not enough data".to_string(),
             )),
             1 => {
+                let mut work = works.first().unwrap().clone();
+                // Sort subjects alphabetically by type. Like all other child objects
+                // which have ordinals, they were already sorted by ordinal by WorkQuery.
+                work.subjects
+                    .sort_by(|a, b| a.subject_type.to_string().cmp(&b.subject_type.to_string()));
                 let wrapper = JsonWrapper {
                     json_generated_at: chrono::Utc::now()
                         .to_rfc3339_opts(SecondsFormat::Secs, true),
-                    wrapped_struct: works.first().unwrap(),
+                    wrapped_struct: work,
                 };
                 serde_json::to_string_pretty(&wrapper)
                     .map_err(|e| ThothError::InternalError(e.to_string()))
@@ -60,6 +65,10 @@ mod tests {
     };
     use uuid::Uuid;
 
+    // This tests the sorting of subjects by subject type, but cannot test the sorting
+    // of child objects by ordinal which occurs in the WorkQuery itself. This is because
+    // TEST_WORK mocks the output of WorkQuery. All child objects with ordinals have been
+    // listed within TEST_WORK in correct ordinal order.
     lazy_static! {
         static ref TEST_WORK: Work = Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
@@ -298,14 +307,19 @@ mod tests {
             ],
             subjects: vec![
                 WorkSubjects {
-                    subject_code: "AAB".to_string(),
-                    subject_type: SubjectType::BIC,
-                    subject_ordinal: 2,
-                },
-                WorkSubjects {
                     subject_code: "AAA".to_string(),
                     subject_type: SubjectType::BIC,
                     subject_ordinal: 1,
+                },
+                WorkSubjects {
+                    subject_code: "AAA000000".to_string(),
+                    subject_type: SubjectType::BISAC,
+                    subject_ordinal: 1,
+                },
+                WorkSubjects {
+                    subject_code: "AAB".to_string(),
+                    subject_type: SubjectType::BIC,
+                    subject_ordinal: 2,
                 },
                 WorkSubjects {
                     subject_code: "AAA000001".to_string(),
@@ -313,8 +327,8 @@ mod tests {
                     subject_ordinal: 2,
                 },
                 WorkSubjects {
-                    subject_code: "AAA000000".to_string(),
-                    subject_type: SubjectType::BISAC,
+                    subject_code: "keyword1".to_string(),
+                    subject_type: SubjectType::KEYWORD,
                     subject_ordinal: 1,
                 },
                 WorkSubjects {
@@ -326,11 +340,6 @@ mod tests {
                     subject_code: "keyword2".to_string(),
                     subject_type: SubjectType::KEYWORD,
                     subject_ordinal: 2,
-                },
-                WorkSubjects {
-                    subject_code: "keyword1".to_string(),
-                    subject_type: SubjectType::KEYWORD,
-                    subject_ordinal: 1,
                 },
                 WorkSubjects {
                     subject_code: "JA85".to_string(),
@@ -651,18 +660,13 @@ mod tests {
   ],
   "subjects": [
     {
-      "subjectCode": "AAB",
-      "subjectType": "BIC",
-      "subjectOrdinal": 2
-    },
-    {
       "subjectCode": "AAA",
       "subjectType": "BIC",
       "subjectOrdinal": 1
     },
     {
-      "subjectCode": "AAA000001",
-      "subjectType": "BISAC",
+      "subjectCode": "AAB",
+      "subjectType": "BIC",
       "subjectOrdinal": 2
     },
     {
@@ -671,19 +675,24 @@ mod tests {
       "subjectOrdinal": 1
     },
     {
+      "subjectCode": "AAA000001",
+      "subjectType": "BISAC",
+      "subjectOrdinal": 2
+    },
+    {
       "subjectCode": "Category1",
       "subjectType": "CUSTOM",
+      "subjectOrdinal": 1
+    },
+    {
+      "subjectCode": "keyword1",
+      "subjectType": "KEYWORD",
       "subjectOrdinal": 1
     },
     {
       "subjectCode": "keyword2",
       "subjectType": "KEYWORD",
       "subjectOrdinal": 2
-    },
-    {
-      "subjectCode": "keyword1",
-      "subjectType": "KEYWORD",
-      "subjectOrdinal": 1
     },
     {
       "subjectCode": "JA85",

@@ -98,6 +98,7 @@ impl CsvRow<CsvThoth> for Work {
 impl From<Work> for CsvThothRow {
     fn from(work: Work) -> Self {
         let mut subjects = work.subjects;
+        // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
         subjects.sort_by(|a, b| a.subject_ordinal.cmp(&b.subject_ordinal));
         CsvThothRow {
             publisher: work.imprint.publisher.publisher_name,

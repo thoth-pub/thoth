@@ -110,6 +110,7 @@ impl TryFrom<Work> for KbartOclcRow {
             // The first author/editor will usually be the contributor with contribution_ordinal 1,
             // but this is not guaranteed, so we select the highest-ranked contributor of the
             // appropriate contribution type who is listed as a "main" contributor.
+            // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
             contributions.sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
             for contribution in contributions {
                 if contribution.main_contribution {

@@ -129,6 +129,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                     // `book_set_metadata` can be used for works which are part of a set.
                     // Omitted at present but could be considered as a future enhancement.
                     let mut chapters = self.relations.clone();
+                    // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
                     chapters.sort_by(|a, b| a.relation_ordinal.cmp(&b.relation_ordinal));
                     for chapter in chapters
                         .iter()
