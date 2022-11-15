@@ -145,6 +145,7 @@ impl TryFrom<Work> for BibtexThothEntry {
         let mut author_list = vec![];
         let mut editor_list = vec![];
         let mut contributions = work.contributions;
+        // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
         contributions.sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
         for contribution in contributions {
             if contribution.main_contribution {
