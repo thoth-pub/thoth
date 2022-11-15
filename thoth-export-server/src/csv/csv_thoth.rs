@@ -451,6 +451,7 @@ mod tests {
             title: "Book Title".to_string(),
             subtitle: Some("Book Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
+            reference: None,
             edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
@@ -477,8 +478,10 @@ mod tests {
             cover_caption: Some("This is a cover caption".to_string()),
             imprint: WorkImprint {
                 imprint_name: "OA Editions Imprint".to_string(),
+                imprint_url: None,
                 publisher: WorkImprintPublisher {
                     publisher_name: "OA Editions".to_string(),
+                    publisher_shortname: Some("OAE".to_string()),
                     publisher_url: None,
                 },
             },
@@ -505,6 +508,7 @@ mod tests {
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
                         orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
+                        website: None,
                     },
                     affiliations: vec![
                         WorkContributionsAffiliations {
@@ -512,7 +516,9 @@ mod tests {
                             affiliation_ordinal: 1,
                             institution: WorkContributionsAffiliationsInstitution {
                                 institution_name: "University of Life".to_string(),
+                                institution_doi: None,
                                 ror: None,
+                                country_code: None,
                             },
                         },
                     ],
@@ -527,6 +533,7 @@ mod tests {
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
                         orcid: None,
+                        website: None,
                     },
                     affiliations: vec![],
                 },
@@ -858,6 +865,7 @@ mod tests {
             contribution_ordinal: 1,
             contributor: WorkContributionsContributor {
                 orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
+                website: None,
             },
             affiliations: vec![],
         };
@@ -881,7 +889,9 @@ mod tests {
             affiliation_ordinal: 1,
             institution: WorkContributionsAffiliationsInstitution {
                 institution_name: "University of Life".to_string(),
+                institution_doi: None,
                 ror: None,
+                country_code: None,
             },
         };
         assert_eq!(

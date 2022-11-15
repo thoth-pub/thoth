@@ -1063,6 +1063,7 @@ mod tests {
             title: "Book Title".to_string(),
             subtitle: Some("Book Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
+            reference: None,
             edition: Some(100),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
@@ -1089,8 +1090,10 @@ mod tests {
             cover_caption: None,
             imprint: WorkImprint {
                 imprint_name: "OA Editions Imprint".to_string(),
+                imprint_url: None,
                 publisher: WorkImprintPublisher {
                     publisher_name: "OA Editions".to_string(),
+                    publisher_shortname: Some("OAE".to_string()),
                     publisher_url: None,
                 },
             },
@@ -1133,6 +1136,7 @@ mod tests {
                         orcid: Some(
                             Orcid::from_str("https://orcid.org/0000-0002-0000-0004").unwrap(),
                         ),
+                        website: None,
                     },
                     affiliations: vec![],
                 },
@@ -1148,13 +1152,16 @@ mod tests {
                         orcid: Some(
                             Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap(),
                         ),
+                        website: None,
                     },
                     affiliations: vec![WorkContributionsAffiliations {
                         position: None,
                         affiliation_ordinal: 1,
                         institution: WorkContributionsAffiliationsInstitution {
                             institution_name: "Thoth University".to_string(),
+                            institution_doi: None,
                             ror: Some(Ror::from_str("https://ror.org/0abcdef12").unwrap()),
+                            country_code: None,
                         },
                     }],
                 },
@@ -1170,6 +1177,7 @@ mod tests {
                         orcid: Some(
                             Orcid::from_str("https://orcid.org/0000-0002-0000-0002").unwrap(),
                         ),
+                        website: None,
                     },
                     affiliations: vec![],
                 },
@@ -1181,13 +1189,18 @@ mod tests {
                     main_contribution: true,
                     biography: None,
                     contribution_ordinal: 3,
-                    contributor: WorkContributionsContributor { orcid: None },
+                    contributor: WorkContributionsContributor {
+                        orcid: None,
+                        website: None,
+                    },
                     affiliations: vec![WorkContributionsAffiliations {
                         position: None,
                         affiliation_ordinal: 1,
                         institution: WorkContributionsAffiliationsInstitution {
                             institution_name: "COPIM".to_string(),
+                            institution_doi: None,
                             ror: None,
+                            country_code: None,
                         },
                     }],
                 },
@@ -1338,6 +1351,7 @@ mod tests {
                 standards_body_name: None,
                 standards_body_acronym: None,
                 publication_date: Some(chrono::NaiveDate::from_ymd(2022, 1, 1)),
+                retrieval_date: None,
             }],
         };
 
@@ -1614,6 +1628,7 @@ mod tests {
             title: "Book Title".to_string(),
             subtitle: Some("Book Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
+            reference: None,
             edition: Some(100),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
@@ -1640,8 +1655,10 @@ mod tests {
             cover_caption: None,
             imprint: WorkImprint {
                 imprint_name: "OA Editions Imprint".to_string(),
+                imprint_url: None,
                 publisher: WorkImprintPublisher {
                     publisher_name: "OA Editions".to_string(),
+                    publisher_shortname: Some("OAE".to_string()),
                     publisher_url: None,
                 },
             },

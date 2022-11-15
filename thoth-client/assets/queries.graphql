@@ -18,6 +18,7 @@ fragment Reference on Reference {
     standardsBodyName
     standardsBodyAcronym
     publicationDate
+    retrievalDate
 }
 
 fragment Funding on Funding {
@@ -41,6 +42,7 @@ fragment Work on Work {
     title
     subtitle
     workType
+    reference
     edition
     doi
     publicationDate
@@ -67,8 +69,10 @@ fragment Work on Work {
     coverCaption
     imprint {
         imprintName
+        imprintUrl
         publisher {
             publisherName
+            publisherShortname
             publisherUrl
         }
     }
@@ -94,13 +98,16 @@ fragment Work on Work {
         contributionOrdinal
         contributor {
             orcid
+            website
         }
         affiliations(order: {field: AFFILIATION_ORDINAL, direction: ASC}) {
             position
             affiliationOrdinal
             institution {
                 institutionName
+                institutionDoi
                 ror
+                countryCode
             }
         }
     }
