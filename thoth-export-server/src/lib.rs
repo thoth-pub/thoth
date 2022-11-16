@@ -10,6 +10,7 @@ mod bibtex;
 mod csv;
 mod data;
 mod format;
+mod json;
 mod platform;
 mod rapidoc;
 mod record;

@@ -110,6 +110,7 @@ impl TryFrom<Work> for KbartOclcRow {
             // The first author/editor will usually be the contributor with contribution_ordinal 1,
             // but this is not guaranteed, so we select the highest-ranked contributor of the
             // appropriate contribution type who is listed as a "main" contributor.
+            // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
             contributions.sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
             for contribution in contributions {
                 if contribution.main_contribution {
@@ -241,6 +242,7 @@ mod tests {
             title: "Book Title".to_string(),
             subtitle: Some("Book Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
+            reference: None,
             edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
@@ -269,8 +271,10 @@ mod tests {
             cover_caption: None,
             imprint: WorkImprint {
                 imprint_name: "OA Editions Imprint".to_string(),
+                imprint_url: None,
                 publisher: WorkImprintPublisher {
                     publisher_name: "OA Editions".to_string(),
+                    publisher_shortname: Some("OAE".to_string()),
                     publisher_url: None,
                 },
             },
@@ -313,6 +317,7 @@ mod tests {
                         orcid: Some(
                             Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap(),
                         ),
+                        website: None,
                     },
                     affiliations: vec![],
                 },
@@ -324,7 +329,10 @@ mod tests {
                     main_contribution: true,
                     biography: None,
                     contribution_ordinal: 2,
-                    contributor: WorkContributionsContributor { orcid: None },
+                    contributor: WorkContributionsContributor {
+                        orcid: None,
+                        website: None,
+                    },
                     affiliations: vec![],
                 },
                 WorkContributions {
@@ -335,7 +343,10 @@ mod tests {
                     main_contribution: true,
                     biography: None,
                     contribution_ordinal: 3,
-                    contributor: WorkContributionsContributor { orcid: None },
+                    contributor: WorkContributionsContributor {
+                        orcid: None,
+                        website: None,
+                    },
                     affiliations: vec![],
                 },
             ],
