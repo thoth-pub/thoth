@@ -103,6 +103,13 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                     .without_relations()
                     .without_references()),
             },
+            MetadataSpecification::JsonThoth(_) => match q.request {
+                SpecificationRequest::ByWork => Ok(QueryParameters::new().with_all()),
+                SpecificationRequest::ByPublisher => Err(ThothError::IncompleteMetadataRecord(
+                    "json::thoth".to_string(),
+                    "Output can only be generated for one work at a time".to_string(),
+                )),
+            },
             MetadataSpecification::KbartOclc(_) => {
                 Ok(QueryParameters::new().with_issues().with_publications())
             }

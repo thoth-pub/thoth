@@ -121,6 +121,7 @@ pub trait DisplayWork {
     fn onix_ebsco_host_endpoint(&self) -> String;
     fn onix_proquest_ebrary_endpoint(&self) -> String;
     fn csv_endpoint(&self) -> String;
+    fn json_endpoint(&self) -> String;
     fn kbart_endpoint(&self) -> String;
     fn bibtex_endpoint(&self) -> String;
     fn doideposit_endpoint(&self) -> String;
@@ -183,6 +184,13 @@ impl DisplayWork for WorkWithRelations {
     fn csv_endpoint(&self) -> String {
         format!(
             "{}/specifications/csv::thoth/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
+    fn json_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/json::thoth/work/{}",
             THOTH_EXPORT_API, &self.work_id
         )
     }
@@ -439,6 +447,12 @@ impl DisplayWork for WorkWithRelations {
                                                 class="dropdown-item"
                                             >
                                             {"CSV"}
+                                            </a>
+                                            <a
+                                                href={self.json_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"JSON"}
                                             </a>
                                             <a
                                                 href={self.kbart_endpoint()}

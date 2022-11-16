@@ -23,6 +23,12 @@ impl fmt::Display for work_query::LanguageCode {
     }
 }
 
+impl fmt::Display for work_query::SubjectType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 #[derive(GraphQLQuery)]
 #[graphql(
     schema_path = "assets/schema.json",

@@ -3961,6 +3961,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "log",
  "paperclip",
+ "regex",
  "serde",
  "serde_json",
  "thoth-api",
