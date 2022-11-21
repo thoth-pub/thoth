@@ -86,11 +86,7 @@ impl EditRoute for WorkWithRelations {
 
 impl MetadataTable for WorkWithRelations {
     fn as_table_row(&self, callback: Callback<MouseEvent>) -> Html {
-        let doi = self
-            .doi
-            .as_ref()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "".to_string());
+        let doi = self.doi.as_ref().map(|s| s.to_string()).unwrap_or_default();
         html! {
             <tr
                 class="row"
@@ -125,6 +121,7 @@ pub trait DisplayWork {
     fn onix_ebsco_host_endpoint(&self) -> String;
     fn onix_proquest_ebrary_endpoint(&self) -> String;
     fn csv_endpoint(&self) -> String;
+    fn json_endpoint(&self) -> String;
     fn kbart_endpoint(&self) -> String;
     fn bibtex_endpoint(&self) -> String;
     fn doideposit_endpoint(&self) -> String;
@@ -191,6 +188,13 @@ impl DisplayWork for WorkWithRelations {
         )
     }
 
+    fn json_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/json::thoth/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
     fn kbart_endpoint(&self) -> String {
         format!(
             "{}/specifications/kbart::oclc/work/{}",
@@ -217,8 +221,7 @@ impl DisplayWork for WorkWithRelations {
     }
 
     fn license_icons(&self) -> Html {
-        let license =
-            License::from_str(&self.license.clone().unwrap_or_else(|| "".to_string())).unwrap();
+        let license = License::from_str(&self.license.clone().unwrap_or_default()).unwrap();
         html! {
             <span class="icon is-small license">
                 {
@@ -300,16 +303,12 @@ impl DisplayWork for WorkWithRelations {
     }
 
     fn as_catalogue_box(&self) -> Html {
-        let doi = self
-            .doi
-            .as_ref()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "".to_string());
+        let doi = self.doi.as_ref().map(|s| s.to_string()).unwrap_or_default();
         let cover_url = self
             .cover_url
             .clone()
             .unwrap_or_else(|| "/img/cover-placeholder.jpg".to_string());
-        let place = self.place.clone().unwrap_or_else(|| "".to_string());
+        let place = self.place.clone().unwrap_or_default();
         html! {
             <div class="box" style="min-height: 13em;">
                 <article class="media">
@@ -448,6 +447,12 @@ impl DisplayWork for WorkWithRelations {
                                                 class="dropdown-item"
                                             >
                                             {"CSV"}
+                                            </a>
+                                            <a
+                                                href={self.json_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"JSON"}
                                             </a>
                                             <a
                                                 href={self.kbart_endpoint()}

@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.9.3]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.3) - 2022-11-21
+### Added
+  - [#456](https://github.com/thoth-pub/thoth/pull/456) - Implement JSON output format
+
+### Changed
+  - [#455](https://github.com/thoth-pub/thoth/pull/455) - Extend CSV output format to include all available fields
+
 ## [[0.9.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.2) - 2022-11-01
 ### Changed
   - [#396](https://github.com/thoth-pub/thoth/pull/396) - Expand the list of contribution types with: SoftwareBy, ResearchBy, ContributionsBy, Indexer

@@ -10,6 +10,7 @@ use thoth_errors::{ThothError, ThothResult};
 
 use crate::bibtex::{BibtexSpecification, BibtexThoth};
 use crate::csv::{CsvSpecification, CsvThoth, KbartOclc};
+use crate::json::{JsonSpecification, JsonThoth};
 use crate::xml::{
     DoiDepositCrossref, Onix21EbscoHost, Onix21ProquestEbrary, Onix3GoogleBooks, Onix3Jstor,
     Onix3Oapen, Onix3Overdrive, Onix3ProjectMuse, XmlSpecification,
@@ -33,6 +34,7 @@ pub(crate) enum MetadataSpecification {
     Onix21EbscoHost(Onix21EbscoHost),
     Onix21ProquestEbrary(Onix21ProquestEbrary),
     CsvThoth(CsvThoth),
+    JsonThoth(JsonThoth),
     KbartOclc(KbartOclc),
     BibtexThoth(BibtexThoth),
     DoiDepositCrossref(DoiDepositCrossref),
@@ -52,10 +54,12 @@ where
     const CSV_MIME_TYPE: &'static str = "text/csv; charset=utf-8";
     const TXT_MIME_TYPE: &'static str = "text/plain; charset=utf-8";
     const BIB_MIME_TYPE: &'static str = "application/x-bibtex; charset=utf-8";
+    const JSON_MIME_TYPE: &'static str = "application/json; charset=utf-8";
     const XML_EXTENSION: &'static str = ".xml";
     const CSV_EXTENSION: &'static str = ".csv";
     const TXT_EXTENSION: &'static str = ".txt";
     const BIB_EXTENSION: &'static str = ".bib";
+    const JSON_EXTENSION: &'static str = ".json";
 
     pub(crate) fn new(id: String, specification: MetadataSpecification, data: T) -> Self {
         MetadataRecord {
@@ -75,6 +79,7 @@ where
             MetadataSpecification::Onix21EbscoHost(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Onix21ProquestEbrary(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::CsvThoth(_) => Self::CSV_MIME_TYPE,
+            MetadataSpecification::JsonThoth(_) => Self::JSON_MIME_TYPE,
             MetadataSpecification::KbartOclc(_) => Self::TXT_MIME_TYPE,
             MetadataSpecification::BibtexThoth(_) => Self::BIB_MIME_TYPE,
             MetadataSpecification::DoiDepositCrossref(_) => Self::XML_MIME_TYPE,
@@ -91,6 +96,7 @@ where
             MetadataSpecification::Onix21EbscoHost(_) => self.xml_file_name(),
             MetadataSpecification::Onix21ProquestEbrary(_) => self.xml_file_name(),
             MetadataSpecification::CsvThoth(_) => self.csv_file_name(),
+            MetadataSpecification::JsonThoth(_) => self.json_file_name(),
             MetadataSpecification::KbartOclc(_) => self.txt_file_name(),
             MetadataSpecification::BibtexThoth(_) => self.bib_file_name(),
             MetadataSpecification::DoiDepositCrossref(_) => self.xml_file_name(),
@@ -111,6 +117,10 @@ where
 
     fn bib_file_name(&self) -> String {
         self.format_file_name(Self::BIB_EXTENSION)
+    }
+
+    fn json_file_name(&self) -> String {
+        self.format_file_name(Self::JSON_EXTENSION)
     }
 
     fn format_file_name(&self, extension: &'static str) -> String {
@@ -154,6 +164,7 @@ impl MetadataRecord<Vec<Work>> {
             MetadataSpecification::CsvThoth(csv_thoth) => {
                 csv_thoth.generate(&self.data, QuoteStyle::Always, DELIMITER_COMMA)
             }
+            MetadataSpecification::JsonThoth(json_thoth) => json_thoth.generate(&self.data),
             MetadataSpecification::KbartOclc(kbart_oclc) => {
                 kbart_oclc.generate(&self.data, QuoteStyle::Necessary, DELIMITER_TAB)
             }
@@ -219,6 +230,7 @@ impl FromStr for MetadataSpecification {
                 Onix21ProquestEbrary {},
             )),
             "csv::thoth" => Ok(MetadataSpecification::CsvThoth(CsvThoth {})),
+            "json::thoth" => Ok(MetadataSpecification::JsonThoth(JsonThoth {})),
             "kbart::oclc" => Ok(MetadataSpecification::KbartOclc(KbartOclc {})),
             "bibtex::thoth" => Ok(MetadataSpecification::BibtexThoth(BibtexThoth {})),
             "doideposit::crossref" => Ok(MetadataSpecification::DoiDepositCrossref(
@@ -242,6 +254,7 @@ impl ToString for MetadataSpecification {
                 "onix_2.1::proquest_ebrary".to_string()
             }
             MetadataSpecification::CsvThoth(_) => "csv::thoth".to_string(),
+            MetadataSpecification::JsonThoth(_) => "json::thoth".to_string(),
             MetadataSpecification::KbartOclc(_) => "kbart::oclc".to_string(),
             MetadataSpecification::BibtexThoth(_) => "bibtex::thoth".to_string(),
             MetadataSpecification::DoiDepositCrossref(_) => "doideposit::crossref".to_string(),
@@ -273,6 +286,12 @@ mod tests {
             vec![],
         );
         assert_eq!(to_test.file_name(), "csv__thoth__some_id.csv".to_string());
+        let to_test = MetadataRecord::new(
+            "some_id".to_string(),
+            MetadataSpecification::JsonThoth(JsonThoth {}),
+            vec![],
+        );
+        assert_eq!(to_test.file_name(), "json__thoth__some_id.json".to_string());
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix3ProjectMuse(Onix3ProjectMuse {}),

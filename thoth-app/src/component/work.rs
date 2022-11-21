@@ -642,7 +642,7 @@ impl Component for WorkComponent {
                                         <div class="tile is-child">
                                             <figure class="image is-fullwidth">
                                                 <img
-                                                    src={self.work.cover_url.clone().unwrap_or_else(|| "".to_string()).clone()}
+                                                    src={self.work.cover_url.clone().unwrap_or_default().clone()}
                                                     loading="lazy"
                                                 />
                                             </figure>

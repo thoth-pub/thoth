@@ -59,6 +59,12 @@ lazy_static! {
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/thoth"),],
         },
         Specification {
+            id: "json::thoth",
+            name: "Thoth JSON",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/json"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/thoth"),],
+        },
+        Specification {
             id: "kbart::oclc",
             name: "OCLC KBART",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/kbart"),
@@ -96,10 +102,10 @@ lazy_static! {
         Platform {
             id: "thoth",
             name: "Thoth",
-            accepts: vec![concat!(
-                env!("THOTH_EXPORT_API"),
-                "/specifications/csv::thoth"
-            ),],
+            accepts: vec![
+                concat!(env!("THOTH_EXPORT_API"), "/specifications/csv::thoth"),
+                concat!(env!("THOTH_EXPORT_API"), "/specifications/json::thoth"),
+            ],
         },
         Platform {
             id: "project_muse",
@@ -277,6 +283,15 @@ lazy_static! {
             specifications: vec![concat!(
                 env!("THOTH_EXPORT_API"),
                 "/specifications/csv::thoth"
+            ),],
+        },
+        Format {
+            id: "json",
+            name: "JSON",
+            version: None,
+            specifications: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/json::thoth"
             ),],
         },
         Format {
