@@ -39,7 +39,7 @@ lazy_static! {
         },
         Specification {
             id: "onix_3.0::overdrive",
-            name: "Google Books ONIX 3.0",
+            name: "OverDrive ONIX 3.0",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_3.0"),
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/overdrive"),],
         },
