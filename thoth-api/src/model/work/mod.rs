@@ -347,6 +347,45 @@ impl WorkWithRelations {
     }
 }
 
+impl From<Work> for PatchWork {
+    fn from(w: Work) -> Self {
+        Self {
+            work_id: w.work_id,
+            work_type: w.work_type,
+            work_status: w.work_status,
+            full_title: w.full_title,
+            title: w.title,
+            subtitle: w.subtitle,
+            reference: w.reference,
+            edition: w.edition,
+            imprint_id: w.imprint_id,
+            doi: w.doi,
+            publication_date: w.publication_date,
+            place: w.place,
+            page_count: w.page_count,
+            page_breakdown: w.page_breakdown,
+            image_count: w.image_count,
+            table_count: w.table_count,
+            audio_count: w.audio_count,
+            video_count: w.video_count,
+            license: w.license,
+            copyright_holder: w.copyright_holder,
+            landing_page: w.landing_page,
+            lccn: w.lccn,
+            oclc: w.oclc,
+            short_abstract: w.short_abstract,
+            long_abstract: w.long_abstract,
+            general_note: w.general_note,
+            toc: w.toc,
+            cover_url: w.cover_url,
+            cover_caption: w.cover_caption,
+            first_page: w.first_page,
+            last_page: w.last_page,
+            page_interval: w.page_interval,
+        }
+    }
+}
+
 impl Default for WorkType {
     fn default() -> WorkType {
         WorkType::Monograph
@@ -656,6 +695,82 @@ fn test_workfield_fromstr() {
     assert!(WorkField::from_str("WorkID").is_err());
     assert!(WorkField::from_str("Contributors").is_err());
     assert!(WorkField::from_str("Publisher").is_err());
+}
+
+#[test]
+fn test_work_into_patchwork() {
+    use std::str::FromStr;
+
+    let work = Work {
+        work_id: Uuid::parse_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+        work_type: WorkType::Monograph,
+        work_status: WorkStatus::Active,
+        full_title: "Some title".to_string(),
+        title: "Some title".to_string(),
+        subtitle: None,
+        reference: None,
+        edition: Some(1),
+        imprint_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
+        doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
+        publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
+        place: Some("León, Spain".to_string()),
+        page_count: Some(123),
+        page_breakdown: None,
+        image_count: Some(22),
+        table_count: Some(3),
+        audio_count: None,
+        video_count: None,
+        license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
+        copyright_holder: Some("Author1".to_string()),
+        landing_page: Some("https://book.page".to_string()),
+        lccn: None,
+        oclc: None,
+        short_abstract: Some("Short abstract".to_string()),
+        long_abstract: Some("Long abstract".to_string()),
+        general_note: None,
+        toc: None,
+        cover_url: Some("https://book.cover/image".to_string()),
+        cover_caption: None,
+        created_at: Default::default(),
+        updated_at: Default::default(),
+        first_page: None,
+        last_page: None,
+        page_interval: None,
+    };
+    let patch_work: PatchWork = work.clone().into();
+
+    assert_eq!(work.work_id, patch_work.work_id);
+    assert_eq!(work.work_type, patch_work.work_type);
+    assert_eq!(work.work_status, patch_work.work_status);
+    assert_eq!(work.full_title, patch_work.full_title);
+    assert_eq!(work.title, patch_work.title);
+    assert_eq!(work.subtitle, patch_work.subtitle);
+    assert_eq!(work.reference, patch_work.reference);
+    assert_eq!(work.edition, patch_work.edition);
+    assert_eq!(work.imprint_id, patch_work.imprint_id);
+    assert_eq!(work.doi, patch_work.doi);
+    assert_eq!(work.publication_date, patch_work.publication_date);
+    assert_eq!(work.place, patch_work.place);
+    assert_eq!(work.page_count, patch_work.page_count);
+    assert_eq!(work.page_breakdown, patch_work.page_breakdown);
+    assert_eq!(work.image_count, patch_work.image_count);
+    assert_eq!(work.table_count, patch_work.table_count);
+    assert_eq!(work.audio_count, patch_work.audio_count);
+    assert_eq!(work.video_count, patch_work.video_count);
+    assert_eq!(work.license, patch_work.license);
+    assert_eq!(work.copyright_holder, patch_work.copyright_holder);
+    assert_eq!(work.landing_page, patch_work.landing_page);
+    assert_eq!(work.lccn, patch_work.lccn);
+    assert_eq!(work.oclc, patch_work.oclc);
+    assert_eq!(work.short_abstract, patch_work.short_abstract);
+    assert_eq!(work.long_abstract, patch_work.long_abstract);
+    assert_eq!(work.general_note, patch_work.general_note);
+    assert_eq!(work.toc, patch_work.toc);
+    assert_eq!(work.cover_url, patch_work.cover_url);
+    assert_eq!(work.cover_caption, patch_work.cover_caption);
+    assert_eq!(work.first_page, patch_work.first_page);
+    assert_eq!(work.last_page, patch_work.last_page);
+    assert_eq!(work.page_interval, patch_work.page_interval);
 }
 
 #[cfg(feature = "backend")]

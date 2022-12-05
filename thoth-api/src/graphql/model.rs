@@ -1559,8 +1559,24 @@ impl MutationRoot {
         }
 
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
-        work.update(&context.db, &data, &account_id)
-            .map_err(|e| e.into())
+        // update the work and, if it succeeds, synchronise its children statuses and pub. date
+        match work.update(&context.db, &data, &account_id) {
+            Ok(w) => {
+                // update chapters if their pub. data or work_status doesn't match the parent's
+                for child in work.children(&context.db)? {
+                    if child.publication_date != w.publication_date
+                        || child.work_status != w.work_status
+                    {
+                        let mut data: PatchWork = child.clone().into();
+                        data.publication_date = w.publication_date;
+                        data.work_status = w.work_status.clone();
+                        child.update(&context.db, &data, &account_id)?;
+                    }
+                }
+                Ok(w)
+            }
+            Err(e) => Err(e.into()),
+        }
     }
 
     fn update_publisher(context: &Context, data: PatchPublisher) -> FieldResult<Publisher> {

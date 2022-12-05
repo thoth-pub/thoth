@@ -3,6 +3,7 @@ use super::{
     WorkType,
 };
 use crate::graphql::utils::Direction;
+use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderBy};
 use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
 use crate::schema::{work, work_history};
 use crate::{crud_methods, db_insert};
@@ -77,6 +78,25 @@ impl Work {
         } else {
             Err(ThothError::ChapterIsbnError)
         }
+    }
+
+    pub fn children(&self, db: &crate::db::PgPool) -> ThothResult<Vec<Work>> {
+        WorkRelation::all(
+            db,
+            99999,
+            0,
+            None,
+            WorkRelationOrderBy::default(),
+            vec![],
+            Some(self.work_id),
+            None,
+            vec![RelationType::HasChild],
+            None,
+        )
+        .unwrap_or_default()
+        .into_iter()
+        .map(|relation| Work::from_id(db, &relation.related_work_id))
+        .collect()
     }
 }
 
