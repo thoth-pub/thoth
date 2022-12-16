@@ -18,9 +18,9 @@ WORKDIR /wasm
 
 # Install build dependencies
 RUN apt-get update && apt-get -y install pkg-config npm
-RUN npm install -g npm@${NPM_VERSION}
 RUN npm install -g n@${N_VERSION}
 RUN n ${NODE_VERSION}
+RUN npm install -g npm@${NPM_VERSION}
 RUN npm install -g rollup@${ROLLUP_VERSION}
 RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
 
