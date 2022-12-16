@@ -1,4 +1,4 @@
-ARG RUST_IMAGE=rust:1.65.0
+ARG RUST_IMAGE=rust:1.66.0
 ARG MUSL_IMAGE=clux/muslrust:1.65.0-stable
 
 FROM ${RUST_IMAGE} as wasm
