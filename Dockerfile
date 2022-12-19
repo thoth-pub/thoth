@@ -1,12 +1,12 @@
-ARG RUST_IMAGE=rust:1.65.0
-ARG MUSL_IMAGE=clux/muslrust:1.65.0-stable
+ARG RUST_IMAGE=rust:1.66.0
+ARG MUSL_IMAGE=clux/muslrust:1.66.0
 
 FROM ${RUST_IMAGE} as wasm
 
-ENV NPM_VERSION=8.15.1
-ENV N_VERSION=9.0.0
-ENV NODE_VERSION=16.16.0
-ENV ROLLUP_VERSION=2.77.2
+ENV NPM_VERSION=9.2.0
+ENV N_VERSION=9.0.1
+ENV NODE_VERSION=18.12.1
+ENV ROLLUP_VERSION=3.7.4
 ENV WASM_PACK_VERSION=0.10.3
 
 ARG THOTH_GRAPHQL_API=https://api.thoth.pub
@@ -18,9 +18,9 @@ WORKDIR /wasm
 
 # Install build dependencies
 RUN apt-get update && apt-get -y install pkg-config npm
-RUN npm install -g npm@${NPM_VERSION}
 RUN npm install -g n@${N_VERSION}
 RUN n ${NODE_VERSION}
+RUN npm install -g npm@${NPM_VERSION}
 RUN npm install -g rollup@${ROLLUP_VERSION}
 RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
 
