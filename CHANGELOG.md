@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade rust to `1.66.0` in production and development `Dockerfile`
   - Upgrade build dependencies (npm `v9.2.0`, n `v9.0.1`, node `v18.12.1` and rollup `v3.7.4`) in production and development `Dockerfile`
 
+### Fixed
+  - [#463](https://github.com/thoth-pub/thoth/issues/463) - Update Thema codes to v1.5
+
 ## [[0.9.4]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.4) - 2022-12-05
 ### Added
   - [#414](https://github.com/thoth-pub/thoth/pull/414) - Synchronise chapters' `work_status` and `publication_date` with parent's upon parent's update
