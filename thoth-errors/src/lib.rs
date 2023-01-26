@@ -158,7 +158,7 @@ impl fmt::Display for GraphqlError {
 impl fmt::Display for GraqphqlErrorMessage {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for error in &self.errors {
-            write!(f, "{}", error)?;
+            write!(f, "{error}")?;
         }
         Ok(())
     }

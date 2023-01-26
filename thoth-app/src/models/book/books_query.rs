@@ -18,7 +18,7 @@ graphql_query_builder! {
     BooksRequest,
     BooksRequestBody,
     Variables,
-    format!("{}{}{}", BOOKS_QUERY_HEADER, WORKS_QUERY_BODY, BOOKS_QUERY_FOOTER),
+    format!("{BOOKS_QUERY_HEADER}{WORKS_QUERY_BODY}{BOOKS_QUERY_FOOTER}"),
     BooksResponseBody,
     BooksResponseData,
     FetchBooks,
