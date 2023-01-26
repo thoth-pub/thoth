@@ -27,7 +27,7 @@ pub struct Account {
 }
 
 #[cfg_attr(feature = "backend", derive(Insertable))]
-#[cfg_attr(feature = "backend", table_name = "account")]
+#[cfg_attr(feature = "backend", diesel(table_name = account))]
 pub struct NewAccount {
     pub name: String,
     pub surname: String,
@@ -58,7 +58,7 @@ pub struct PublisherAccount {
 }
 
 #[cfg_attr(feature = "backend", derive(Insertable))]
-#[cfg_attr(feature = "backend", table_name = "publisher_account")]
+#[cfg_attr(feature = "backend", diesel(table_name = publisher_account))]
 pub struct NewPublisherAccount {
     pub account_id: Uuid,
     pub publisher_id: Uuid,
@@ -114,7 +114,7 @@ pub struct LoginCredentials {
     pub password: String,
 }
 
-#[cfg_attr(feature = "backend", derive(AsChangeset), table_name = "account")]
+#[cfg_attr(feature = "backend", derive(AsChangeset), diesel(table_name = account))]
 pub struct NewPassword {
     pub email: String,
     pub hash: Vec<u8>,

@@ -25,11 +25,11 @@ use thoth_errors::{ThothError, ThothResult};
 impl Account {
     pub fn get_permissions(&self, pool: &PgPool) -> ThothResult<Vec<LinkedPublisher>> {
         use crate::schema::publisher_account::dsl::*;
-        let conn = pool.get().unwrap();
+        let mut conn = pool.get().unwrap();
 
         let linked_publishers = publisher_account
             .filter(account_id.eq(self.account_id))
-            .load::<PublisherAccount>(&conn)
+            .load::<PublisherAccount>(&mut conn)
             .expect("Error loading publisher accounts");
         let permissions: Vec<LinkedPublisher> =
             linked_publishers.into_iter().map(|p| p.into()).collect();
@@ -46,7 +46,7 @@ impl Account {
 
     pub fn issue_token(&self, pool: &PgPool) -> ThothResult<String> {
         const DEFAULT_TOKEN_VALIDITY: i64 = 24 * 60 * 60;
-        let connection = pool.get().unwrap();
+        let mut connection = pool.get().unwrap();
         dotenv().ok();
         let linked_publishers: Vec<LinkedPublisher> =
             self.get_permissions(pool).unwrap_or_default();
@@ -73,7 +73,7 @@ impl Account {
         use crate::schema::account::dsl;
         let updated_account = diesel::update(dsl::account.find(self.account_id))
             .set(dsl::token.eq(token.unwrap()))
-            .get_result::<Account>(&connection)
+            .get_result::<Account>(&mut connection)
             .expect("Unable to set token");
         Ok(updated_account.token.unwrap())
     }

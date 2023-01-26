@@ -9,8 +9,11 @@ use crate::schema::language;
 #[cfg(feature = "backend")]
 use crate::schema::language_history;
 
-#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
-#[cfg_attr(feature = "backend", DieselType = "Language_relation")]
+#[cfg_attr(
+    feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    DieselTypePath = "crate::schema::sql_types::LanguageRelation"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
@@ -53,7 +56,7 @@ pub struct Language {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "language"
+    diesel(table_name = language)
 )]
 pub struct NewLanguage {
     pub work_id: Uuid,
@@ -65,8 +68,7 @@ pub struct NewLanguage {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "language"
+    diesel(table_name = language, treat_none_as_null = true)
 )]
 pub struct PatchLanguage {
     pub language_id: Uuid,
@@ -76,8 +78,11 @@ pub struct PatchLanguage {
     pub main_language: bool,
 }
 
-#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
-#[cfg_attr(feature = "backend", DieselType = "Language_code")]
+#[cfg_attr(
+    feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    DieselTypePath = "crate::schema::sql_types::LanguageCode"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "UPPERCASE")]
@@ -583,7 +588,7 @@ pub struct LanguageHistory {
 #[cfg_attr(
     feature = "backend",
     derive(Insertable),
-    table_name = "language_history"
+    diesel(table_name = language_history)
 )]
 pub struct NewLanguageHistory {
     pub language_id: Uuid,

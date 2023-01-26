@@ -47,7 +47,7 @@ pub struct IssueWithSeries {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "issue"
+    diesel(table_name = issue)
 )]
 pub struct NewIssue {
     pub series_id: Uuid,
@@ -58,8 +58,7 @@ pub struct NewIssue {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "issue"
+    diesel(table_name = issue, treat_none_as_null = true)
 )]
 pub struct PatchIssue {
     pub issue_id: Uuid,
@@ -77,7 +76,7 @@ pub struct IssueHistory {
     pub timestamp: Timestamp,
 }
 
-#[cfg_attr(feature = "backend", derive(Insertable), table_name = "issue_history")]
+#[cfg_attr(feature = "backend", derive(Insertable), diesel(table_name = issue_history))]
 pub struct NewIssueHistory {
     pub issue_id: Uuid,
     pub account_id: Uuid,

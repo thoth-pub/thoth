@@ -102,7 +102,7 @@ impl Default for WeightUnit {
 
 impl Default for Timestamp {
     fn default() -> Timestamp {
-        Timestamp(TimeZone::timestamp(&Utc, 0, 0))
+        Timestamp(TimeZone::timestamp_opt(&Utc, 0, 0).unwrap())
     }
 }
 
@@ -353,7 +353,7 @@ where
     /// The structure that is returned by the insert statement
     type MainEntity;
 
-    fn insert(&self, connection: &diesel::PgConnection) -> ThothResult<Self::MainEntity>;
+    fn insert(&self, connection: &mut diesel::PgConnection) -> ThothResult<Self::MainEntity>;
 }
 
 /// Declares function implementations for the `Crud` trait, reducing the boilerplate needed to define
@@ -387,20 +387,21 @@ macro_rules! crud_methods {
         fn from_id(db: &$crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
             use diesel::{QueryDsl, RunQueryDsl};
 
-            let connection = db.get().unwrap();
-            match $entity_dsl.find(entity_id).get_result::<Self>(&connection) {
+            let mut connection = db.get().unwrap();
+            match $entity_dsl
+                .find(entity_id)
+                .get_result::<Self>(&mut connection)
+            {
                 Ok(t) => Ok(t),
                 Err(e) => Err(ThothError::from(e)),
             }
         }
 
         fn create(db: &$crate::db::PgPool, data: &Self::NewEntity) -> ThothResult<Self> {
-            use diesel::RunQueryDsl;
-
-            let connection = db.get().unwrap();
+            let mut connection = db.get().unwrap();
             match diesel::insert_into($table_dsl)
                 .values(data)
-                .get_result::<Self>(&connection)
+                .get_result::<Self>(&mut connection)
             {
                 Ok(t) => Ok(t),
                 Err(e) => Err(ThothError::from(e)),
@@ -417,13 +418,13 @@ macro_rules! crud_methods {
         ) -> ThothResult<Self> {
             use diesel::{Connection, QueryDsl, RunQueryDsl};
 
-            let connection = db.get().unwrap();
-            connection.transaction(|| {
+            let mut connection = db.get().unwrap();
+            connection.transaction(|connection| {
                 match diesel::update($entity_dsl.find(&self.pk()))
                     .set(data)
-                    .get_result(&connection)
+                    .get_result(connection)
                 {
-                    Ok(c) => match self.new_history_entry(&account_id).insert(&connection) {
+                    Ok(c) => match self.new_history_entry(&account_id).insert(connection) {
                         Ok(_) => Ok(c),
                         Err(e) => Err(e),
                     },
@@ -435,8 +436,8 @@ macro_rules! crud_methods {
         fn delete(self, db: &$crate::db::PgPool) -> ThothResult<Self> {
             use diesel::{QueryDsl, RunQueryDsl};
 
-            let connection = db.get().unwrap();
-            match diesel::delete($entity_dsl.find(&self.pk())).execute(&connection) {
+            let mut connection = db.get().unwrap();
+            match diesel::delete($entity_dsl.find(&self.pk())).execute(&mut connection) {
                 Ok(_) => Ok(self),
                 Err(e) => Err(ThothError::from(e)),
             }
@@ -467,7 +468,7 @@ macro_rules! crud_methods {
 #[macro_export]
 macro_rules! db_insert {
     ($table_dsl:expr) => {
-        fn insert(&self, connection: &diesel::PgConnection) -> ThothResult<Self::MainEntity> {
+        fn insert(&self, connection: &mut diesel::PgConnection) -> ThothResult<Self::MainEntity> {
             use diesel::RunQueryDsl;
 
             match diesel::insert_into($table_dsl)

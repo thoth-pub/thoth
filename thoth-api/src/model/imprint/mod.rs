@@ -55,7 +55,7 @@ pub struct ImprintWithPublisher {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "imprint"
+    diesel(table_name = imprint)
 )]
 pub struct NewImprint {
     pub publisher_id: Uuid,
@@ -66,8 +66,7 @@ pub struct NewImprint {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "imprint"
+    diesel(table_name = imprint, treat_none_as_null = true)
 )]
 pub struct PatchImprint {
     pub imprint_id: Uuid,
@@ -88,7 +87,7 @@ pub struct ImprintHistory {
 #[cfg_attr(
     feature = "backend",
     derive(Insertable),
-    table_name = "imprint_history"
+    diesel(table_name = imprint_history)
 )]
 pub struct NewImprintHistory {
     pub imprint_id: Uuid,

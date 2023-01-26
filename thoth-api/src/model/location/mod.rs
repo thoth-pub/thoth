@@ -10,8 +10,11 @@ use crate::schema::location;
 #[cfg(feature = "backend")]
 use crate::schema::location_history;
 
-#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
-#[cfg_attr(feature = "backend", DieselType = "Location_platform")]
+#[cfg_attr(
+    feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    DieselTypePath = "crate::schema::sql_types::LocationPlatform"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum LocationPlatform {
@@ -82,7 +85,7 @@ pub struct Location {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "location"
+    diesel(table_name = location)
 )]
 pub struct NewLocation {
     pub publication_id: Uuid,
@@ -95,8 +98,7 @@ pub struct NewLocation {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "location"
+    diesel(table_name = location, treat_none_as_null = true)
 )]
 pub struct PatchLocation {
     pub location_id: Uuid,
@@ -119,7 +121,7 @@ pub struct LocationHistory {
 #[cfg_attr(
     feature = "backend",
     derive(Insertable),
-    table_name = "location_history"
+    diesel(table_name = location_history)
 )]
 pub struct NewLocationHistory {
     pub location_id: Uuid,

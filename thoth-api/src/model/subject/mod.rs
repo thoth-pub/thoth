@@ -13,8 +13,11 @@ use crate::schema::subject_history;
 use thoth_errors::ThothError;
 use thoth_errors::ThothResult;
 
-#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
-#[cfg_attr(feature = "backend", DieselType = "Subject_type")]
+#[cfg_attr(
+    feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    DieselTypePath = "crate::schema::sql_types::SubjectType"
+)]
 #[derive(
     Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Deserialize, Serialize, EnumString, Display,
 )]
@@ -62,7 +65,7 @@ pub struct Subject {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "subject"
+    diesel(table_name = subject)
 )]
 pub struct NewSubject {
     pub work_id: Uuid,
@@ -74,8 +77,7 @@ pub struct NewSubject {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "subject"
+    diesel(table_name = subject, treat_none_as_null = true)
 )]
 pub struct PatchSubject {
     pub subject_id: Uuid,
@@ -97,7 +99,7 @@ pub struct SubjectHistory {
 #[cfg_attr(
     feature = "backend",
     derive(Insertable),
-    table_name = "subject_history"
+    diesel(table_name = subject_history)
 )]
 pub struct NewSubjectHistory {
     pub subject_id: Uuid,

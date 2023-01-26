@@ -6,7 +6,6 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{reference, reference_history};
 use crate::{crud_methods, db_insert};
-use diesel::dsl::any;
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -37,7 +36,7 @@ impl Crud for Reference {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Reference>> {
         use crate::schema::reference::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = reference
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select(crate::schema::reference::all_columns)
@@ -146,7 +145,7 @@ impl Crud for Reference {
             },
         };
         if !publishers.is_empty() {
-            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
+            query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(work_id.eq(pid));
@@ -174,7 +173,7 @@ impl Crud for Reference {
         match query
             .limit(limit.into())
             .offset(offset.into())
-            .load::<Reference>(&connection)
+            .load::<Reference>(&mut connection)
         {
             Ok(t) => Ok(t),
             Err(e) => Err(ThothError::from(e)),
@@ -189,12 +188,12 @@ impl Crud for Reference {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::reference::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = reference
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .into_boxed();
         if !publishers.is_empty() {
-            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
+            query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
         }
         if let Some(filter) = filter {
             // All searchable fields are nullable, so searching with an empty filter could fail
@@ -221,7 +220,7 @@ impl Crud for Reference {
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match query.count().get_result::<i64>(&connection) {
+        match query.count().get_result::<i64>(&mut connection) {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
             Err(e) => Err(ThothError::from(e)),
         }

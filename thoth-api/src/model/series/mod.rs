@@ -12,8 +12,11 @@ use crate::schema::series;
 #[cfg(feature = "backend")]
 use crate::schema::series_history;
 
-#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
-#[cfg_attr(feature = "backend", DieselType = "Series_type")]
+#[cfg_attr(
+    feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    DieselTypePath = "crate::schema::sql_types::SeriesType"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
@@ -84,7 +87,7 @@ pub struct SeriesWithImprint {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "series"
+    diesel(table_name = series)
 )]
 pub struct NewSeries {
     pub series_type: SeriesType,
@@ -100,8 +103,7 @@ pub struct NewSeries {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "series"
+    diesel(table_name = series, treat_none_as_null = true)
 )]
 pub struct PatchSeries {
     pub series_id: Uuid,
@@ -124,7 +126,7 @@ pub struct SeriesHistory {
     pub timestamp: Timestamp,
 }
 
-#[cfg_attr(feature = "backend", derive(Insertable), table_name = "series_history")]
+#[cfg_attr(feature = "backend", derive(Insertable), diesel(table_name = series_history))]
 pub struct NewSeriesHistory {
     pub series_id: Uuid,
     pub account_id: Uuid,

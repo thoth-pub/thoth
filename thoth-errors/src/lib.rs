@@ -216,15 +216,8 @@ impl From<xml::writer::Error> for ThothError {
     }
 }
 
-impl From<uuid_07::parser::ParseError> for ThothError {
-    fn from(_: uuid_07::parser::ParseError) -> ThothError {
-        ThothError::InvalidUuid
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl From<uuid_08::Error> for ThothError {
-    fn from(_: uuid_08::Error) -> ThothError {
+impl From<uuid::Error> for ThothError {
+    fn from(_: uuid::Error) -> ThothError {
         ThothError::InvalidUuid
     }
 }

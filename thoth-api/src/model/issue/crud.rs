@@ -4,7 +4,6 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{issue, issue_history};
 use crate::{crud_methods, db_insert};
-use diesel::dsl::any;
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -33,7 +32,7 @@ impl Crud for Issue {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Issue>> {
         use crate::schema::issue::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = issue
             .inner_join(crate::schema::series::table.inner_join(crate::schema::imprint::table))
             .select(crate::schema::issue::all_columns)
@@ -66,7 +65,7 @@ impl Crud for Issue {
             },
         };
         if !publishers.is_empty() {
-            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
+            query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(work_id.eq(pid));
@@ -77,7 +76,7 @@ impl Crud for Issue {
         match query
             .limit(limit.into())
             .offset(offset.into())
-            .load::<Issue>(&connection)
+            .load::<Issue>(&mut connection)
         {
             Ok(t) => Ok(t),
             Err(e) => Err(ThothError::from(e)),
@@ -92,13 +91,13 @@ impl Crud for Issue {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::issue::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
 
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match issue.count().get_result::<i64>(&connection) {
+        match issue.count().get_result::<i64>(&mut connection) {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
             Err(e) => Err(ThothError::from(e)),
         }
@@ -144,16 +143,16 @@ impl PatchIssue {
 fn issue_imprints_match(work_id: Uuid, series_id: Uuid, db: &crate::db::PgPool) -> ThothResult<()> {
     use diesel::prelude::*;
 
-    let connection = db.get().unwrap();
+    let mut connection = db.get().unwrap();
     let series_imprint = crate::schema::series::table
         .select(crate::schema::series::imprint_id)
         .filter(crate::schema::series::series_id.eq(series_id))
-        .first::<Uuid>(&connection)
+        .first::<Uuid>(&mut connection)
         .expect("Error loading series for issue");
     let work_imprint = crate::schema::work::table
         .select(crate::schema::work::imprint_id)
         .filter(crate::schema::work::work_id.eq(work_id))
-        .first::<Uuid>(&connection)
+        .first::<Uuid>(&mut connection)
         .expect("Error loading work for issue");
     if work_imprint == series_imprint {
         Ok(())

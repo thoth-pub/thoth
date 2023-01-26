@@ -1,14 +1,15 @@
 use std::env;
-use std::io;
 
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool};
-use diesel_migrations::embed_migrations;
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use dotenv::dotenv;
 
 use thoth_errors::{ThothError, ThothResult};
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
+
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 fn init_pool(database_url: &str) -> PgPool {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
@@ -32,9 +33,8 @@ pub fn establish_connection() -> PgPool {
 }
 
 pub fn run_migrations() -> ThothResult<()> {
-    embed_migrations!("migrations");
     let connection = establish_connection().get().unwrap();
-    match embedded_migrations::run_with_output(&connection, &mut io::stdout()) {
+    match connection.run_pending_migrations(MIGRATIONS) {
         Ok(_) => Ok(()),
         Err(_) => Err(ThothError::DatabaseError(
             "Could not run migrations".to_string(),
