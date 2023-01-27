@@ -20,7 +20,7 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
 # An example Thoth GraphQL query might look like:
 #
 #     {
-#       works(workType: MONOGRAPH, workStatus: ACTIVE) {
+#       books(workStatus: ACTIVE) {
 #           fullTitle
 #           doi
 #       }
@@ -37,7 +37,7 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
 #
 
 {
-    works(order: {field: PUBLICATION_DATE, direction: ASC}) {
+    books(order: {field: PUBLICATION_DATE, direction: ASC}) {
        fullTitle
        doi
        publications {
@@ -61,7 +61,7 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Thoth GraphQL API Documentation</title>
         <link rel="shortcut icon" href="https://thoth.pub/favicon.ico" />
-        <link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/npm/graphiql@0.17.2/graphiql.min.css">
+        <link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/npm/graphiql@0.17.5/graphiql.min.css">
           <style>
             html, body, #app {{
                 height: 100vh;
@@ -75,7 +75,7 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
         <script src="//cdnjs.cloudflare.com/ajax/libs/fetch/2.0.3/fetch.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/react/16.10.2/umd/react.production.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/react-dom/16.10.2/umd/react-dom.production.min.js"></script>
-        <script src="//cdn.jsdelivr.net/npm/graphiql@0.17.2/graphiql.min.js"></script>
+        <script src="//cdn.jsdelivr.net/npm/graphiql@0.17.5/graphiql.min.js"></script>
         <script>var GRAPHQL_URL = '{graphql_endpoint_url}';</script>
         <script>
             function graphQLFetcher(params) {{
