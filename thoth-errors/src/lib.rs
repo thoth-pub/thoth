@@ -242,11 +242,7 @@ mod tests {
     #[test]
     fn test_uuid_error() {
         assert_eq!(
-            ThothError::from(uuid_07::Uuid::parse_str("not-a-uuid").unwrap_err()),
-            ThothError::InvalidUuid
-        );
-        assert_eq!(
-            ThothError::from(uuid_08::Uuid::parse_str("not-a-uuid").unwrap_err()),
+            ThothError::from(uuid::Uuid::parse_str("not-a-uuid").unwrap_err()),
             ThothError::InvalidUuid
         );
     }
