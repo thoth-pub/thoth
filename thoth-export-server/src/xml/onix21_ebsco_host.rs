@@ -27,7 +27,7 @@ impl XmlSpecification for Onix21EbscoHost {
                 })?;
                 write_element_block("SentDate", w, |w| {
                     w.write(XmlEvent::Characters(
-                        &Utc::today().format("%Y%m%d").to_string(),
+                        &Utc::now().format("%Y%m%d").to_string(),
                     ))
                     .map_err(|e| e.into())
                 })

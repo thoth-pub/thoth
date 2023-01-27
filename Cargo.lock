@@ -383,6 +383,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eab1c04a571841102f5345a8fc0f6bb3d31c315dec879b5c6e42e40ce7ffa34e"
 
 [[package]]
+name = "async-trait"
+version = "0.1.53"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed6aa3524a2dfcf9fe180c51eae2b58738348d819517ceadf95789c51fff7600"
+dependencies = [
+ "proc-macro2 1.0.36",
+ "quote 1.0.15",
+ "syn 1.0.94",
+]
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -450,7 +461,7 @@ dependencies = [
  "dirs",
  "failure",
  "flate2",
- "hex",
+ "hex 0.3.2",
  "is_executable",
  "siphasher 0.2.3",
  "tar",
@@ -527,6 +538,23 @@ checksum = "59ad2d4653bf5ca36ae797b1f4bb4dbddb60ce49ca4aed8a2ce4829f60425b80"
 dependencies = [
  "alloc-no-stdlib",
  "alloc-stdlib",
+]
+
+[[package]]
+name = "bson"
+version = "1.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de0aa578035b938855a710ba58d43cfb4d435f3619f99236fb35922a574d6cb1"
+dependencies = [
+ "base64 0.13.0",
+ "chrono",
+ "hex 0.4.3",
+ "lazy_static 1.4.0",
+ "linked-hash-map",
+ "rand 0.7.3",
+ "serde",
+ "serde_json",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -1069,6 +1097,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive_utils"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "532b4c15dccee12c7044f1fcad956e98410860b22231e44a3b827464797ca7bf"
+dependencies = [
+ "proc-macro2 1.0.36",
+ "quote 1.0.15",
+ "syn 1.0.94",
+]
+
+[[package]]
 name = "dialoguer"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1396,6 +1435,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "futures-enum"
+version = "0.1.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3422d14de7903a52e9dbc10ae05a7e14445ec61890100e098754e120b2bd7b1e"
+dependencies = [
+ "derive_utils",
+ "quote 1.0.15",
+ "syn 1.0.94",
+]
+
+[[package]]
 name = "futures-executor"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1667,6 +1717,16 @@ dependencies = [
 
 [[package]]
 name = "graphql-parser"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1abd4ce5247dfc04a03ccde70f87a048458c9356c7e41d21ad8c407b3dde6f2"
+dependencies = [
+ "combine",
+ "thiserror",
+]
+
+[[package]]
+name = "graphql-parser"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2ebc8013b4426d5b81a4364c419a95ed0b404af2b82e2457de52d9348f0e474"
@@ -1693,7 +1753,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f290ecfa3bea3e8a157899dc8a1d96ee7dd6405c18c8ddd213fc58939d18a0e9"
 dependencies = [
  "graphql-introspection-query",
- "graphql-parser",
+ "graphql-parser 0.4.0",
  "heck 0.4.0",
  "lazy_static 1.4.0",
  "proc-macro2 1.0.36",
@@ -1786,6 +1846,12 @@ name = "hex"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "805026a5d0141ffc30abb3be3173848ad46a1b1664fe632428479619a3644d77"
+
+[[package]]
+name = "hex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hkdf"
@@ -2113,26 +2179,33 @@ dependencies = [
 
 [[package]]
 name = "juniper"
-version = "0.14.2"
+version = "0.15.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f662ba51e2fbc3d6dd1ca66be70b44963606a34473156abddcb0351fc6caa668"
+checksum = "4f478f229a8ab52ff242f3250c8b3b8fe0a59b5b934f9706b7bdbc980991a7b6"
 dependencies = [
+ "async-trait",
+ "bson",
  "chrono",
  "fnv",
+ "futures 0.3.5",
+ "futures-enum",
+ "graphql-parser 0.3.0",
  "indexmap",
  "juniper_codegen",
  "serde",
- "serde_derive",
+ "smartstring",
+ "static_assertions",
  "url 2.2.2",
- "uuid 0.7.4",
+ "uuid 0.8.2",
 ]
 
 [[package]]
 name = "juniper_codegen"
-version = "0.14.2"
+version = "0.15.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d40af234d8e971a9d7dda93ffbcc8a44a93f17e69e3067f72ce7a6894c41d51b"
+checksum = "aee97671061ad50301ba077d054d295e01d31a1868fbd07902db651f987e71db"
 dependencies = [
+ "proc-macro-error",
  "proc-macro2 1.0.36",
  "quote 1.0.15",
  "syn 1.0.94",
@@ -3578,6 +3651,7 @@ version = "1.0.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "164eacbdb13512ec2745fb09d51fd5b22b0d65ed294a1dcf7285a360c80a675c"
 dependencies = [
+ "indexmap",
  "itoa 0.4.5",
  "ryu",
  "serde",
@@ -3696,6 +3770,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2dd574626839106c320a323308629dcb1acfc96e32a8cba364ddc61ac23ee83"
 
 [[package]]
+name = "smartstring"
+version = "0.2.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e714dff2b33f2321fdcd475b71cec79781a692d846f37f415fb395a1d2bcd48e"
+dependencies = [
+ "static_assertions",
+]
+
+[[package]]
 name = "socket2"
 version = "0.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3727,6 +3810,12 @@ name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
+
+[[package]]
+name = "static_assertions"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "string"

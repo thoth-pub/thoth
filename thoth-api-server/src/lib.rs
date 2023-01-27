@@ -86,16 +86,10 @@ async fn graphql(
     data: web::Json<GraphQLRequest>,
 ) -> Result<HttpResponse, Error> {
     let ctx = Context::new(pool.into_inner(), token);
-    let result = web::block(move || {
-        let res = data.execute(&st, &ctx);
-        serde_json::to_string(&res)
-    })
-    .await?;
-    match result {
-        Ok(body) => Ok(HttpResponse::Ok()
-            .content_type("application/json")
-            .body(body)),
-        Err(e) => Err(e.into()),
+    let result = data.execute(&st, &ctx).await;
+    match result.is_ok() {
+        true => Ok(HttpResponse::Ok().json(result)),
+        false => Ok(HttpResponse::BadRequest().json(result))
     }
 }
 

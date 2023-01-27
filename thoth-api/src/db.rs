@@ -33,7 +33,7 @@ pub fn establish_connection() -> PgPool {
 }
 
 pub fn run_migrations() -> ThothResult<()> {
-    let connection = establish_connection().get().unwrap();
+    let mut connection = establish_connection().get().unwrap();
     match connection.run_pending_migrations(MIGRATIONS) {
         Ok(_) => Ok(()),
         Err(_) => Err(ThothError::DatabaseError(
