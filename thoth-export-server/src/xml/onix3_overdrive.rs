@@ -1069,7 +1069,7 @@ mod tests {
             reference: None,
             edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
-            publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
+            publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
             short_abstract: None,
@@ -1406,7 +1406,7 @@ mod tests {
         );
 
         // Replace publication date but remove USD price: result is error
-        test_work.publication_date = Some(chrono::NaiveDate::from_ymd(1999, 12, 31));
+        test_work.publication_date = chrono::NaiveDate::from_ymd_opt(1999, 12, 31);
         test_work.publications[0].prices.pop();
         let output = generate_test_output(false, &test_work);
         assert_eq!(

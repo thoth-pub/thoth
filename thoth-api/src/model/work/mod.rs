@@ -717,7 +717,7 @@ fn test_work_into_patchwork() {
         edition: Some(1),
         imprint_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
         doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
-        publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
+        publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
         place: Some("León, Spain".to_string()),
         page_count: Some(123),
         page_breakdown: None,

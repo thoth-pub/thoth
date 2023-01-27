@@ -292,7 +292,7 @@ mod tests {
             reference: None,
             edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
-            publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
+            publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
             license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
             short_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.".to_string()),
@@ -591,7 +591,7 @@ mod tests {
         );
 
         // Reinstate publication date but remove author/editor details: ditto
-        test_work.publication_date = Some(chrono::NaiveDate::from_ymd(1999, 12, 31));
+        test_work.publication_date = chrono::NaiveDate::from_ymd_opt(1999, 12, 31);
         test_work.contributions.clear();
         let to_test = BibtexThoth.generate(&[test_work.clone()]);
         assert_eq!(
