@@ -380,7 +380,7 @@ impl CsvCell<CsvThoth> for WorkContributionsAffiliations {
             self.institution
                 .country_code
                 .as_ref()
-                .map(|c| format!("{:?}", c))
+                .map(|c| format!("{c:?}"))
                 .unwrap_or_default(),
         )
     }
@@ -435,7 +435,7 @@ impl CsvCell<CsvThoth> for WorkFundings {
             self.institution
                 .country_code
                 .as_ref()
-                .map(|c| format!("{:?}", c))
+                .map(|c| format!("{c:?}"))
                 .unwrap_or_default(),
             self.program.clone().unwrap_or_default(),
             self.project_name.clone().unwrap_or_default(),

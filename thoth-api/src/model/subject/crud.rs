@@ -80,7 +80,7 @@ impl Crud for Subject {
             query = query.filter(subject_type.eq_any(subject_types));
         }
         if let Some(filter) = filter {
-            query = query.filter(subject_code.ilike(format!("%{}%", filter)));
+            query = query.filter(subject_code.ilike(format!("%{filter}%")));
         }
         match query
             .then_order_by(subject_code.asc())
@@ -107,7 +107,7 @@ impl Crud for Subject {
             query = query.filter(subject_type.eq_any(subject_types));
         }
         if let Some(filter) = filter {
-            query = query.filter(subject_code.ilike(format!("%{}%", filter)));
+            query = query.filter(subject_code.ilike(format!("%{filter}%")));
         }
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this

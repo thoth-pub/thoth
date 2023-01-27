@@ -154,19 +154,19 @@ impl Crud for Reference {
             // All searchable fields are nullable, so searching with an empty filter could fail
             if !filter.is_empty() {
                 query = query.filter(
-                    doi.ilike(format!("%{}%", filter))
-                        .or(unstructured_citation.ilike(format!("%{}%", filter)))
-                        .or(issn.ilike(format!("%{}%", filter)))
-                        .or(isbn.ilike(format!("%{}%", filter)))
-                        .or(journal_title.ilike(format!("%{}%", filter)))
-                        .or(article_title.ilike(format!("%{}%", filter)))
-                        .or(series_title.ilike(format!("%{}%", filter)))
-                        .or(volume_title.ilike(format!("%{}%", filter)))
-                        .or(author.ilike(format!("%{}%", filter)))
-                        .or(standard_designator.ilike(format!("%{}%", filter)))
-                        .or(standards_body_name.ilike(format!("%{}%", filter)))
-                        .or(url.ilike(format!("%{}%", filter)))
-                        .or(standards_body_acronym.ilike(format!("%{}%", filter))),
+                    doi.ilike(format!("%{filter}%"))
+                        .or(unstructured_citation.ilike(format!("%{filter}%")))
+                        .or(issn.ilike(format!("%{filter}%")))
+                        .or(isbn.ilike(format!("%{filter}%")))
+                        .or(journal_title.ilike(format!("%{filter}%")))
+                        .or(article_title.ilike(format!("%{filter}%")))
+                        .or(series_title.ilike(format!("%{filter}%")))
+                        .or(volume_title.ilike(format!("%{filter}%")))
+                        .or(author.ilike(format!("%{filter}%")))
+                        .or(standard_designator.ilike(format!("%{filter}%")))
+                        .or(standards_body_name.ilike(format!("%{filter}%")))
+                        .or(url.ilike(format!("%{filter}%")))
+                        .or(standards_body_acronym.ilike(format!("%{filter}%"))),
                 );
             }
         }
@@ -199,19 +199,19 @@ impl Crud for Reference {
             // All searchable fields are nullable, so searching with an empty filter could fail
             if !filter.is_empty() {
                 query = query.filter(
-                    doi.ilike(format!("%{}%", filter))
-                        .or(unstructured_citation.ilike(format!("%{}%", filter)))
-                        .or(issn.ilike(format!("%{}%", filter)))
-                        .or(isbn.ilike(format!("%{}%", filter)))
-                        .or(journal_title.ilike(format!("%{}%", filter)))
-                        .or(article_title.ilike(format!("%{}%", filter)))
-                        .or(series_title.ilike(format!("%{}%", filter)))
-                        .or(volume_title.ilike(format!("%{}%", filter)))
-                        .or(author.ilike(format!("%{}%", filter)))
-                        .or(standard_designator.ilike(format!("%{}%", filter)))
-                        .or(standards_body_name.ilike(format!("%{}%", filter)))
-                        .or(url.ilike(format!("%{}%", filter)))
-                        .or(standards_body_acronym.ilike(format!("%{}%", filter))),
+                    doi.ilike(format!("%{filter}%"))
+                        .or(unstructured_citation.ilike(format!("%{filter}%")))
+                        .or(issn.ilike(format!("%{filter}%")))
+                        .or(isbn.ilike(format!("%{filter}%")))
+                        .or(journal_title.ilike(format!("%{filter}%")))
+                        .or(article_title.ilike(format!("%{filter}%")))
+                        .or(series_title.ilike(format!("%{filter}%")))
+                        .or(volume_title.ilike(format!("%{filter}%")))
+                        .or(author.ilike(format!("%{filter}%")))
+                        .or(standard_designator.ilike(format!("%{filter}%")))
+                        .or(standards_body_name.ilike(format!("%{filter}%")))
+                        .or(url.ilike(format!("%{filter}%")))
+                        .or(standards_body_acronym.ilike(format!("%{filter}%"))),
                 );
             }
         }

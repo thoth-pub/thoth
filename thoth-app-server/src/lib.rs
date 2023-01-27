@@ -82,7 +82,7 @@ pub async fn start_server(host: String, port: String) -> io::Result<()> {
             .configure(config)
             .default_service(web::route().to(index))
     })
-    .bind(format!("{}:{}", host, port))?
+    .bind(format!("{host}:{port}"))?
     .run()
     .await
 }

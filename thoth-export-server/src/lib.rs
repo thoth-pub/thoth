@@ -27,7 +27,7 @@ struct ApiConfig {
 impl ApiConfig {
     pub fn new(public_url: String) -> Self {
         Self {
-            api_schema: format!("{}/swagger.json", public_url),
+            api_schema: format!("{public_url}/swagger.json"),
         }
     }
 }
@@ -103,7 +103,7 @@ pub async fn start_server(
             .with_json_spec_at("/swagger.json")
             .build()
     })
-    .bind(format!("{}:{}", host, port))?
+    .bind(format!("{host}:{port}"))?
     .run()
     .await
 }

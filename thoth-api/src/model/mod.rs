@@ -599,31 +599,31 @@ fn test_timestamp_default() {
 #[test]
 fn test_doi_display() {
     let doi = Doi("https://doi.org/10.12345/Test-Suffix.01".to_string());
-    assert_eq!(format!("{}", doi), "10.12345/Test-Suffix.01");
+    assert_eq!(format!("{doi}"), "10.12345/Test-Suffix.01");
 }
 
 #[test]
 fn test_isbn_display() {
     let isbn = Isbn("978-3-16-148410-0".to_string());
-    assert_eq!(format!("{}", isbn), "978-3-16-148410-0");
+    assert_eq!(format!("{isbn}"), "978-3-16-148410-0");
 }
 
 #[test]
 fn test_orcid_display() {
     let orcid = Orcid("https://orcid.org/0000-0002-1234-5678".to_string());
-    assert_eq!(format!("{}", orcid), "0000-0002-1234-5678");
+    assert_eq!(format!("{orcid}"), "0000-0002-1234-5678");
 }
 
 #[test]
 fn test_ror_display() {
     let ror = Ror("https://ror.org/0abcdef12".to_string());
-    assert_eq!(format!("{}", ror), "0abcdef12");
+    assert_eq!(format!("{ror}"), "0abcdef12");
 }
 
 #[test]
 fn test_timestamp_display() {
     let stamp: Timestamp = Default::default();
-    assert_eq!(format!("{}", stamp), "1970-01-01 00:00:00");
+    assert_eq!(format!("{stamp}"), "1970-01-01 00:00:00");
 }
 
 #[test]

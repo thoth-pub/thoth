@@ -111,7 +111,7 @@ impl Crud for Publication {
         if let Some(filter) = filter {
             // ISBN field is nullable, so searching with an empty filter could fail
             if !filter.is_empty() {
-                query = query.filter(isbn.ilike(format!("%{}%", filter)));
+                query = query.filter(isbn.ilike(format!("%{filter}%")));
             }
         }
         match query
@@ -145,7 +145,7 @@ impl Crud for Publication {
         if let Some(filter) = filter {
             // ISBN field is nullable, so searching with an empty filter could fail
             if !filter.is_empty() {
-                query = query.filter(isbn.ilike(format!("%{}%", filter)));
+                query = query.filter(isbn.ilike(format!("%{filter}%")));
             }
         }
 

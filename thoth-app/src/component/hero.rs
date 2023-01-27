@@ -5,7 +5,7 @@ use crate::{THOTH_EXPORT_API, THOTH_GRAPHQL_API};
 
 #[function_component(HeroComponent)]
 pub fn hero_component() -> VNode {
-    let graphiql = format!("{}/graphiql", THOTH_GRAPHQL_API);
+    let graphiql = format!("{THOTH_GRAPHQL_API}/graphiql");
     html! {
         <section class="hero is-warning">
             <div class="hero-body">

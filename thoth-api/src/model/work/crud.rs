@@ -280,12 +280,12 @@ impl Crud for Work {
         if let Some(filter) = filter {
             query = query.filter(
                 dsl::full_title
-                    .ilike(format!("%{}%", filter))
-                    .or(dsl::doi.ilike(format!("%{}%", filter)))
-                    .or(dsl::reference.ilike(format!("%{}%", filter)))
-                    .or(dsl::short_abstract.ilike(format!("%{}%", filter)))
-                    .or(dsl::long_abstract.ilike(format!("%{}%", filter)))
-                    .or(dsl::landing_page.ilike(format!("%{}%", filter))),
+                    .ilike(format!("%{filter}%"))
+                    .or(dsl::doi.ilike(format!("%{filter}%")))
+                    .or(dsl::reference.ilike(format!("%{filter}%")))
+                    .or(dsl::short_abstract.ilike(format!("%{filter}%")))
+                    .or(dsl::long_abstract.ilike(format!("%{filter}%")))
+                    .or(dsl::landing_page.ilike(format!("%{filter}%"))),
             );
         }
         match query
@@ -322,12 +322,12 @@ impl Crud for Work {
         if let Some(filter) = filter {
             query = query.filter(
                 dsl::full_title
-                    .ilike(format!("%{}%", filter))
-                    .or(dsl::doi.ilike(format!("%{}%", filter)))
-                    .or(dsl::reference.ilike(format!("%{}%", filter)))
-                    .or(dsl::short_abstract.ilike(format!("%{}%", filter)))
-                    .or(dsl::long_abstract.ilike(format!("%{}%", filter)))
-                    .or(dsl::landing_page.ilike(format!("%{}%", filter))),
+                    .ilike(format!("%{filter}%"))
+                    .or(dsl::doi.ilike(format!("%{filter}%")))
+                    .or(dsl::reference.ilike(format!("%{filter}%")))
+                    .or(dsl::short_abstract.ilike(format!("%{filter}%")))
+                    .or(dsl::long_abstract.ilike(format!("%{filter}%")))
+                    .or(dsl::landing_page.ilike(format!("%{filter}%"))),
             );
         }
 

@@ -76,7 +76,7 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
         <script src="//cdnjs.cloudflare.com/ajax/libs/react/16.10.2/umd/react.production.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/react-dom/16.10.2/umd/react-dom.production.min.js"></script>
         <script src="//cdn.jsdelivr.net/npm/graphiql@0.17.2/graphiql.min.js"></script>
-        <script>var GRAPHQL_URL = '{graphql_url}';</script>
+        <script>var GRAPHQL_URL = '{graphql_endpoint_url}';</script>
         <script>
             function graphQLFetcher(params) {{
                 return fetch(GRAPHQL_URL, {{
@@ -107,7 +107,5 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
     </body>
 </html>
 "#,
-        graphql_url = graphql_endpoint_url,
-        default_query = default_query,
     )
 }

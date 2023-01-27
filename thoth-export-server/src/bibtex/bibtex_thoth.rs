@@ -79,53 +79,53 @@ impl fmt::Display for BibtexThothEntry {
         writeln!(f, "@{}{{{},", self.entry_type, citekey)?;
         write!(f, "\ttitle\t\t= {{{}}}", self.title)?;
         if let Some(shorttitle) = &self.shorttitle {
-            write!(f, ",\n\tshorttitle\t= {{{}}}", shorttitle)?;
+            write!(f, ",\n\tshorttitle\t= {{{shorttitle}}}")?;
         }
         if let Some(author) = &self.author {
-            write!(f, ",\n\tauthor\t\t= {{{}}}", author)?;
+            write!(f, ",\n\tauthor\t\t= {{{author}}}")?;
         }
         if let Some(editor) = &self.editor {
-            write!(f, ",\n\teditor\t\t= {{{}}}", editor)?;
+            write!(f, ",\n\teditor\t\t= {{{editor}}}")?;
         }
         write!(f, ",\n\tyear\t\t= {}", self.year)?;
         write!(f, ",\n\tmonth\t\t= {}", self.month)?;
         write!(f, ",\n\tday\t\t\t= {}", self.day)?;
         write!(f, ",\n\tpublisher\t= {{{}}}", self.publisher)?;
         if let Some(address) = &self.address {
-            write!(f, ",\n\taddress\t\t= {{{}}}", address)?;
+            write!(f, ",\n\taddress\t\t= {{{address}}}")?;
         }
         if let Some(series) = &self.series {
-            write!(f, ",\n\tseries\t\t= {{{}}}", series)?;
+            write!(f, ",\n\tseries\t\t= {{{series}}}")?;
         }
         if let Some(volume) = &self.volume {
-            write!(f, ",\n\tvolume\t\t= {}", volume)?;
+            write!(f, ",\n\tvolume\t\t= {volume}")?;
         }
         if let Some(booktitle) = &self.booktitle {
-            write!(f, ",\n\tbooktitle\t= {{{}}}", booktitle)?;
+            write!(f, ",\n\tbooktitle\t= {{{booktitle}}}")?;
         }
         if let Some(chapter) = &self.chapter {
-            write!(f, ",\n\tchapter\t\t= {}", chapter)?;
+            write!(f, ",\n\tchapter\t\t= {chapter}")?;
         }
         if let Some(pages) = &self.pages {
-            write!(f, ",\n\tpages\t\t= {{{}}}", pages)?;
+            write!(f, ",\n\tpages\t\t= {{{pages}}}")?;
         }
         if let Some(doi) = &self.doi {
-            write!(f, ",\n\tdoi\t\t\t= {{{}}}", doi)?;
+            write!(f, ",\n\tdoi\t\t\t= {{{doi}}}")?;
         }
         if let Some(isbn) = &self.isbn {
-            write!(f, ",\n\tisbn\t\t= {{{}}}", isbn)?;
+            write!(f, ",\n\tisbn\t\t= {{{isbn}}}")?;
         }
         if let Some(issn) = &self.issn {
-            write!(f, ",\n\tissn\t\t= {{{}}}", issn)?;
+            write!(f, ",\n\tissn\t\t= {{{issn}}}")?;
         }
         if let Some(url) = &self.url {
-            write!(f, ",\n\turl\t\t\t= {{{}}}", url)?;
+            write!(f, ",\n\turl\t\t\t= {{{url}}}")?;
         }
         if let Some(copyright) = &self.copyright {
-            write!(f, ",\n\tcopyright\t= {{{}}}", copyright)?;
+            write!(f, ",\n\tcopyright\t= {{{copyright}}}")?;
         }
         if let Some(long_abstract) = &self.long_abstract {
-            write!(f, ",\n\tabstract\t= {{{}}}", long_abstract)?;
+            write!(f, ",\n\tabstract\t= {{{long_abstract}}}")?;
         }
         writeln!(f, "\n}}")
     }

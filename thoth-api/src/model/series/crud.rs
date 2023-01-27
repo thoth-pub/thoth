@@ -91,11 +91,11 @@ impl Crud for Series {
         if let Some(filter) = filter {
             query = query.filter(
                 series_name
-                    .ilike(format!("%{}%", filter))
-                    .or(issn_print.ilike(format!("%{}%", filter)))
-                    .or(issn_digital.ilike(format!("%{}%", filter)))
-                    .or(series_url.ilike(format!("%{}%", filter)))
-                    .or(series_description.ilike(format!("%{}%", filter))),
+                    .ilike(format!("%{filter}%"))
+                    .or(issn_print.ilike(format!("%{filter}%")))
+                    .or(issn_digital.ilike(format!("%{filter}%")))
+                    .or(series_url.ilike(format!("%{filter}%")))
+                    .or(series_description.ilike(format!("%{filter}%"))),
             );
         }
         match query
@@ -129,11 +129,11 @@ impl Crud for Series {
         if let Some(filter) = filter {
             query = query.filter(
                 series_name
-                    .ilike(format!("%{}%", filter))
-                    .or(issn_print.ilike(format!("%{}%", filter)))
-                    .or(issn_digital.ilike(format!("%{}%", filter)))
-                    .or(series_url.ilike(format!("%{}%", filter)))
-                    .or(series_description.ilike(format!("%{}%", filter))),
+                    .ilike(format!("%{filter}%"))
+                    .or(issn_print.ilike(format!("%{filter}%")))
+                    .or(issn_digital.ilike(format!("%{filter}%")))
+                    .or(series_url.ilike(format!("%{filter}%")))
+                    .or(series_description.ilike(format!("%{filter}%"))),
             );
         }
 

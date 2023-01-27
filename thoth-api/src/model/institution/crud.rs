@@ -70,9 +70,9 @@ impl Crud for Institution {
         if let Some(filter) = filter {
             query = query.filter(
                 institution_name
-                    .ilike(format!("%{}%", filter))
-                    .or(ror.ilike(format!("%{}%", filter)))
-                    .or(institution_doi.ilike(format!("%{}%", filter))),
+                    .ilike(format!("%{filter}%"))
+                    .or(ror.ilike(format!("%{filter}%")))
+                    .or(institution_doi.ilike(format!("%{filter}%"))),
             );
         }
         match query
@@ -98,9 +98,9 @@ impl Crud for Institution {
         if let Some(filter) = filter {
             query = query.filter(
                 institution_name
-                    .ilike(format!("%{}%", filter))
-                    .or(ror.ilike(format!("%{}%", filter)))
-                    .or(institution_doi.ilike(format!("%{}%", filter))),
+                    .ilike(format!("%{filter}%"))
+                    .or(ror.ilike(format!("%{filter}%")))
+                    .or(institution_doi.ilike(format!("%{filter}%"))),
             );
         }
 

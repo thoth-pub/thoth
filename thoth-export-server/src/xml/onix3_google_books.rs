@@ -406,7 +406,7 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                             })
                             .map(|pr| pr.unit_price)
                         {
-                            let formatted_price = format!("{:.2}", price);
+                            let formatted_price = format!("{price:.2}");
                             write_element_block("Price", w, |w| {
                                 // 02 RRP including tax
                                 write_element_block("PriceType", w, |w| {

@@ -29,7 +29,6 @@ pub fn rapidoc_source(openapi_spec: &str) -> String {
       </rapi-doc>
     </body>
 </html>
-"#,
-        openapi_spec = openapi_spec
+"#
     )
 }

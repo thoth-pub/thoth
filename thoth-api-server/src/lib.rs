@@ -38,8 +38,8 @@ struct ApiConfig {
 impl ApiConfig {
     pub fn new(public_url: String) -> Self {
         Self {
-            public_url: format!("{}/graphql", public_url),
-            schema_explorer_url: format!("{}/graphiql", public_url),
+            public_url: format!("{public_url}/graphql"),
+            schema_explorer_url: format!("{public_url}/graphiql"),
             ..Default::default()
         }
     }
@@ -215,7 +215,7 @@ pub async fn start_server(
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
             .configure(config)
     })
-    .bind(format!("{}:{}", host, port))?
+    .bind(format!("{host}:{port}"))?
     .run()
     .await
 }
