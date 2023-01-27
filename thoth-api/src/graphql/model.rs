@@ -1,6 +1,6 @@
 use chrono::naive::NaiveDate;
-use juniper::{EmptySubscription, FieldResult};
 use juniper::RootNode;
+use juniper::{EmptySubscription, FieldResult};
 use std::sync::Arc;
 use uuid::Uuid;
 

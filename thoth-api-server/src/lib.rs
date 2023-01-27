@@ -89,7 +89,7 @@ async fn graphql(
     let result = data.execute(&st, &ctx).await;
     match result.is_ok() {
         true => Ok(HttpResponse::Ok().json(result)),
-        false => Ok(HttpResponse::BadRequest().json(result))
+        false => Ok(HttpResponse::BadRequest().json(result)),
     }
 }
 

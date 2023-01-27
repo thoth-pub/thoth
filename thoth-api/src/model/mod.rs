@@ -593,7 +593,10 @@ fn test_ror_default() {
 #[test]
 fn test_timestamp_default() {
     let stamp: Timestamp = Default::default();
-    assert_eq!(stamp, Timestamp(TimeZone::timestamp_opt(&Utc, 0, 0).unwrap()));
+    assert_eq!(
+        stamp,
+        Timestamp(TimeZone::timestamp_opt(&Utc, 0, 0).unwrap())
+    );
 }
 
 #[test]
