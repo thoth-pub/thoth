@@ -245,7 +245,7 @@ mod tests {
             error_information,
         ));
         assert_eq!(
-            format!("{}", error),
+            format!("{error}"),
             "A contribution with this ordinal number already exists.",
         )
     }
@@ -269,7 +269,7 @@ mod tests {
             DatabaseErrorKind::__Unknown,
             error_information,
         ));
-        assert_eq!(format!("{}", error), "Database error: Some error happened")
+        assert_eq!(format!("{error}"), "Database error: Some error happened")
     }
 
     #[test]

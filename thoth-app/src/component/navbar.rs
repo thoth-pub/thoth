@@ -42,7 +42,7 @@ impl Component for NavbarComponent {
             e.prevent_default();
             Msg::Logout
         });
-        let graphiql = format!("{}/graphiql", THOTH_GRAPHQL_API);
+        let graphiql = format!("{THOTH_GRAPHQL_API}/graphiql");
         html! {
             <nav class="navbar is-warning" role="navigation" aria-label="main navigation">
                 <div class="navbar-brand">

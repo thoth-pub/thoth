@@ -72,8 +72,8 @@ impl Crud for Publisher {
         if let Some(filter) = filter {
             query = query.filter(
                 publisher_name
-                    .ilike(format!("%{}%", filter))
-                    .or(publisher_shortname.ilike(format!("%{}%", filter))),
+                    .ilike(format!("%{filter}%"))
+                    .or(publisher_shortname.ilike(format!("%{filter}%"))),
             );
         }
         match query
@@ -102,8 +102,8 @@ impl Crud for Publisher {
         if let Some(filter) = filter {
             query = query.filter(
                 publisher_name
-                    .ilike(format!("%{}%", filter))
-                    .or(publisher_shortname.ilike(format!("%{}%", filter))),
+                    .ilike(format!("%{filter}%"))
+                    .or(publisher_shortname.ilike(format!("%{filter}%"))),
             );
         }
 

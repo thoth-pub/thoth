@@ -71,8 +71,8 @@ impl Crud for Imprint {
         if let Some(filter) = filter {
             query = query.filter(
                 imprint_name
-                    .ilike(format!("%{}%", filter))
-                    .or(imprint_url.ilike(format!("%{}%", filter))),
+                    .ilike(format!("%{filter}%"))
+                    .or(imprint_url.ilike(format!("%{filter}%"))),
             );
         }
         match query
@@ -101,8 +101,8 @@ impl Crud for Imprint {
         if let Some(filter) = filter {
             query = query.filter(
                 imprint_name
-                    .ilike(format!("%{}%", filter))
-                    .or(imprint_url.ilike(format!("%{}%", filter))),
+                    .ilike(format!("%{filter}%"))
+                    .or(imprint_url.ilike(format!("%{filter}%"))),
             );
         }
 

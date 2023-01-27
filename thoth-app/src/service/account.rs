@@ -133,7 +133,7 @@ impl AccountService {
             .request(verb, uri)
             .header("Content-Type", "application/json");
         if let Some(token) = self.get_token() {
-            request = request.header("Authorization", format!("Bearer {}", token));
+            request = request.header("Authorization", format!("Bearer {token}"));
         }
         if let Some(content) = body {
             request = request.body(content);

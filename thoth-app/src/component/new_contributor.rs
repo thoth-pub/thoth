@@ -244,7 +244,7 @@ impl Component for NewContributorComponent {
         if self.show_duplicate_tooltip && !self.contributors.is_empty() {
             tooltip = "Existing contributors with similar names:\n\n".to_string();
             for c in &self.contributors {
-                tooltip = format!("{}{}\n", tooltip, c);
+                tooltip = format!("{tooltip}{c}\n");
             }
         }
         html! {
