@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade `diesel` to v2.0.2
   - Upgrade `uuid` to v0.8.2
   - Upgrade `paperclip` to v0.8.0
+  - Upgrade `graphql_client` 0.12.0
 
 ## [[0.9.5]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.5) - 2023-01-17
 ### Changed
