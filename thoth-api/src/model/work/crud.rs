@@ -7,7 +7,6 @@ use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderB
 use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
 use crate::schema::{work, work_history};
 use crate::{crud_methods, db_insert};
-use diesel::dsl::any;
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -23,21 +22,23 @@ impl Work {
         use crate::schema::work::dsl;
         use diesel::sql_types::Nullable;
         use diesel::sql_types::Text;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         // Allow case-insensitive searching (DOIs in database may have mixed casing)
         sql_function!(fn lower(x: Nullable<Text>) -> Nullable<Text>);
         let mut query = dsl::work
             .filter(lower(dsl::doi).eq(doi.to_lowercase_string()))
             .into_boxed();
         if !work_types.is_empty() {
-            query = query.filter(dsl::work_type.eq(any(work_types)));
+            query = query.filter(dsl::work_type.eq_any(work_types));
         }
-        query.get_result::<Work>(&connection).map_err(|e| e.into())
+        query
+            .get_result::<Work>(&mut connection)
+            .map_err(|e| e.into())
     }
 
     pub fn can_update_imprint(&self, db: &crate::db::PgPool) -> ThothResult<()> {
         use crate::schema::issue::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
@@ -45,7 +46,7 @@ impl Work {
         let issue_count = issue
             .filter(work_id.eq(self.work_id))
             .count()
-            .get_result::<i64>(&connection)
+            .get_result::<i64>(&mut connection)
             .expect("Error loading issue count for work")
             .to_string()
             .parse::<i32>()
@@ -61,12 +62,12 @@ impl Work {
 
     pub fn can_be_chapter(&self, db: &crate::db::PgPool) -> ThothResult<()> {
         use crate::schema::publication::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let isbn_count = publication
             .filter(work_id.eq(self.work_id))
             .filter(isbn.is_not_null())
             .count()
-            .get_result::<i64>(&connection)
+            .get_result::<i64>(&mut connection)
             .expect("Error loading publication ISBNs for work")
             .to_string()
             .parse::<i32>()
@@ -124,7 +125,7 @@ impl Crud for Work {
         work_status: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Work>> {
         use crate::schema::work::dsl;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = dsl::work
             .inner_join(crate::schema::imprint::table)
             .select(crate::schema::work::all_columns)
@@ -265,13 +266,13 @@ impl Crud for Work {
             },
         };
         if !publishers.is_empty() {
-            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
+            query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(dsl::imprint_id.eq(pid));
         }
         if !work_types.is_empty() {
-            query = query.filter(dsl::work_type.eq(any(work_types)));
+            query = query.filter(dsl::work_type.eq_any(work_types));
         }
         if let Some(wk_status) = work_status {
             query = query.filter(dsl::work_status.eq(wk_status));
@@ -290,7 +291,7 @@ impl Crud for Work {
         match query
             .limit(limit.into())
             .offset(offset.into())
-            .load::<Work>(&connection)
+            .load::<Work>(&mut connection)
         {
             Ok(t) => Ok(t),
             Err(e) => Err(ThothError::from(e)),
@@ -305,15 +306,15 @@ impl Crud for Work {
         work_status: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::work::dsl;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = dsl::work
             .inner_join(crate::schema::imprint::table)
             .into_boxed();
         if !publishers.is_empty() {
-            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
+            query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
         }
         if !work_types.is_empty() {
-            query = query.filter(dsl::work_type.eq(any(work_types)));
+            query = query.filter(dsl::work_type.eq_any(work_types));
         }
         if let Some(wk_status) = work_status {
             query = query.filter(dsl::work_status.eq(wk_status));
@@ -334,7 +335,7 @@ impl Crud for Work {
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match query.count().get_result::<i64>(&connection) {
+        match query.count().get_result::<i64>(&mut connection) {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
             Err(e) => Err(ThothError::from(e)),
         }

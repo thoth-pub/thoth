@@ -58,7 +58,7 @@ pub struct AffiliationWithContribution {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "affiliation"
+    diesel(table_name = affiliation)
 )]
 pub struct NewAffiliation {
     pub contribution_id: Uuid,
@@ -70,8 +70,7 @@ pub struct NewAffiliation {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "affiliation"
+    diesel(table_name = affiliation, treat_none_as_null = true)
 )]
 pub struct PatchAffiliation {
     pub affiliation_id: Uuid,
@@ -93,7 +92,7 @@ pub struct AffiliationHistory {
 #[cfg_attr(
     feature = "backend",
     derive(Insertable),
-    table_name = "affiliation_history"
+    diesel(table_name = affiliation_history)
 )]
 pub struct NewAffiliationHistory {
     pub affiliation_id: Uuid,

@@ -6,7 +6,6 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{series, series_history};
 use crate::{crud_methods, db_insert};
-use diesel::dsl::any;
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -37,7 +36,7 @@ impl Crud for Series {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Series>> {
         use crate::schema::series::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = series
             .inner_join(crate::schema::imprint::table)
             .select(crate::schema::series::all_columns)
@@ -86,10 +85,10 @@ impl Crud for Series {
             },
         };
         if !publishers.is_empty() {
-            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
+            query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
         }
         if !series_types.is_empty() {
-            query = query.filter(series_type.eq(any(series_types)));
+            query = query.filter(series_type.eq_any(series_types));
         }
         if let Some(filter) = filter {
             query = query.filter(
@@ -104,7 +103,7 @@ impl Crud for Series {
         match query
             .limit(limit.into())
             .offset(offset.into())
-            .load::<Series>(&connection)
+            .load::<Series>(&mut connection)
         {
             Ok(t) => Ok(t),
             Err(e) => Err(ThothError::from(e)),
@@ -119,15 +118,15 @@ impl Crud for Series {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::series::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = series
             .inner_join(crate::schema::imprint::table)
             .into_boxed();
         if !publishers.is_empty() {
-            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
+            query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
         }
         if !series_types.is_empty() {
-            query = query.filter(series_type.eq(any(series_types)));
+            query = query.filter(series_type.eq_any(series_types));
         }
         if let Some(filter) = filter {
             query = query.filter(
@@ -144,7 +143,7 @@ impl Crud for Series {
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match query.count().get_result::<i64>(&connection) {
+        match query.count().get_result::<i64>(&mut connection) {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
             Err(e) => Err(ThothError::from(e)),
         }

@@ -11,8 +11,11 @@ use crate::schema::work_relation;
 #[cfg(feature = "backend")]
 use crate::schema::work_relation_history;
 
-#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
-#[cfg_attr(feature = "backend", DieselType = "Relation_type")]
+#[cfg_attr(
+    feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    DieselTypePath = "crate::schema::sql_types::RelationType"
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
@@ -78,7 +81,7 @@ pub struct WorkRelationWithRelatedWork {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "work_relation"
+    diesel(table_name = work_relation)
 )]
 pub struct NewWorkRelation {
     pub relator_work_id: Uuid,
@@ -90,8 +93,7 @@ pub struct NewWorkRelation {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "work_relation"
+    diesel(table_name = work_relation, treat_none_as_null = true)
 )]
 pub struct PatchWorkRelation {
     pub work_relation_id: Uuid,
@@ -113,7 +115,7 @@ pub struct WorkRelationHistory {
 #[cfg_attr(
     feature = "backend",
     derive(Insertable),
-    table_name = "work_relation_history"
+    diesel(table_name = work_relation_history)
 )]
 pub struct NewWorkRelationHistory {
     pub work_relation_id: Uuid,

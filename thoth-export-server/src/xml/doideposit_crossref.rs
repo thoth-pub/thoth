@@ -867,7 +867,7 @@ mod tests {
                 subtitle: Some("One".to_string()),
                 edition: None,
                 doi: Some(Doi::from_str("https://doi.org/10.00001/CHAPTER.0001").unwrap()),
-                publication_date: Some(chrono::NaiveDate::from_ymd(2000, 2, 28)),
+                publication_date: chrono::NaiveDate::from_ymd_opt(2000, 2, 28),
                 license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
                 short_abstract: Some("A shorter abstract".to_string()),
                 long_abstract: Some("First paragraph.\n\nSecond paragraph.".to_string()),
@@ -1066,7 +1066,7 @@ mod tests {
             reference: None,
             edition: Some(100),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
-            publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
+            publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
             short_abstract: None,
@@ -1312,7 +1312,7 @@ mod tests {
                     subtitle: Some("One".to_string()),
                     edition: None,
                     doi: Some(Doi::from_str("https://doi.org/10.00001/PART.0001").unwrap()),
-                    publication_date: Some(chrono::NaiveDate::from_ymd(2000, 2, 28)),
+                    publication_date: chrono::NaiveDate::from_ymd_opt(2000, 2, 28),
                     license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
                     short_abstract: None,
                     long_abstract: None,
@@ -1350,7 +1350,7 @@ mod tests {
                 standard_designator: None,
                 standards_body_name: None,
                 standards_body_acronym: None,
-                publication_date: Some(chrono::NaiveDate::from_ymd(2022, 1, 1)),
+                publication_date: chrono::NaiveDate::from_ymd_opt(2022, 1, 1),
                 retrieval_date: None,
             }],
         };
@@ -1606,7 +1606,7 @@ mod tests {
         );
 
         // Restore publication date and remove all publication ISBNs. Result: error
-        test_work.publication_date = Some(chrono::NaiveDate::from_ymd(1999, 12, 31));
+        test_work.publication_date = chrono::NaiveDate::from_ymd_opt(1999, 12, 31);
         test_work.publications[0].isbn = None;
         let output = generate_test_output(false, &test_work);
         assert_eq!(
@@ -1631,7 +1631,7 @@ mod tests {
             reference: None,
             edition: Some(100),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
-            publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
+            publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
             short_abstract: None,

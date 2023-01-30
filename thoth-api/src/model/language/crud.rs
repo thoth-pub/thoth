@@ -7,7 +7,6 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{language, language_history};
 use crate::{crud_methods, db_insert};
-use diesel::dsl::any;
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -36,7 +35,7 @@ impl Crud for Language {
         language_relation: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Language>> {
         use crate::schema::language::dsl;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = dsl::language
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select(crate::schema::language::all_columns)
@@ -73,13 +72,13 @@ impl Crud for Language {
             },
         };
         if !publishers.is_empty() {
-            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
+            query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(dsl::work_id.eq(pid));
         }
         if !language_codes.is_empty() {
-            query = query.filter(dsl::language_code.eq(any(language_codes)));
+            query = query.filter(dsl::language_code.eq_any(language_codes));
         }
         if let Some(lang_relation) = language_relation {
             query = query.filter(dsl::language_relation.eq(lang_relation));
@@ -87,7 +86,7 @@ impl Crud for Language {
         match query
             .limit(limit.into())
             .offset(offset.into())
-            .load::<Language>(&connection)
+            .load::<Language>(&mut connection)
         {
             Ok(t) => Ok(t),
             Err(e) => Err(ThothError::from(e)),
@@ -102,10 +101,10 @@ impl Crud for Language {
         language_relation: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::language::dsl;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = dsl::language.into_boxed();
         if !language_codes.is_empty() {
-            query = query.filter(dsl::language_code.eq(any(language_codes)));
+            query = query.filter(dsl::language_code.eq_any(language_codes));
         }
         if let Some(lang_relation) = language_relation {
             query = query.filter(dsl::language_relation.eq(lang_relation));
@@ -114,7 +113,7 @@ impl Crud for Language {
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match query.count().get_result::<i64>(&connection) {
+        match query.count().get_result::<i64>(&mut connection) {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
             Err(e) => Err(ThothError::from(e)),
         }

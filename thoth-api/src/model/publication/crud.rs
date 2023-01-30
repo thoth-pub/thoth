@@ -7,7 +7,6 @@ use crate::model::work::WorkType;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{publication, publication_history};
 use crate::{crud_methods, db_insert};
-use diesel::dsl::any;
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -36,7 +35,7 @@ impl Crud for Publication {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Publication>> {
         use crate::schema::publication::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = publication
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select(crate::schema::publication::all_columns)
@@ -101,13 +100,13 @@ impl Crud for Publication {
             },
         };
         if !publishers.is_empty() {
-            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
+            query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(work_id.eq(pid));
         }
         if !publication_types.is_empty() {
-            query = query.filter(publication_type.eq(any(publication_types)));
+            query = query.filter(publication_type.eq_any(publication_types));
         }
         if let Some(filter) = filter {
             // ISBN field is nullable, so searching with an empty filter could fail
@@ -118,7 +117,7 @@ impl Crud for Publication {
         match query
             .limit(limit.into())
             .offset(offset.into())
-            .load::<Publication>(&connection)
+            .load::<Publication>(&mut connection)
         {
             Ok(t) => Ok(t),
             Err(e) => Err(ThothError::from(e)),
@@ -133,15 +132,15 @@ impl Crud for Publication {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::publication::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = publication
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .into_boxed();
         if !publishers.is_empty() {
-            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
+            query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
         }
         if !publication_types.is_empty() {
-            query = query.filter(publication_type.eq(any(publication_types)));
+            query = query.filter(publication_type.eq_any(publication_types));
         }
         if let Some(filter) = filter {
             // ISBN field is nullable, so searching with an empty filter could fail
@@ -154,7 +153,7 @@ impl Crud for Publication {
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match query.count().get_result::<i64>(&connection) {
+        match query.count().get_result::<i64>(&mut connection) {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
             Err(e) => Err(ThothError::from(e)),
         }
@@ -191,11 +190,11 @@ where
 {
     fn work_type(&self, db: &crate::db::PgPool) -> WorkType {
         use diesel::prelude::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         crate::schema::work::table
             .select(crate::schema::work::work_type)
             .filter(crate::schema::work::work_id.eq(self.work_id()))
-            .first::<WorkType>(&connection)
+            .first::<WorkType>(&mut connection)
             .expect("Error loading work type for publication")
     }
 

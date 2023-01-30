@@ -10,7 +10,6 @@ extern crate diesel_derive_enum;
 #[macro_use]
 extern crate diesel_derive_newtype;
 #[cfg(feature = "backend")]
-#[macro_use]
 extern crate diesel_migrations;
 extern crate dotenv;
 extern crate juniper;

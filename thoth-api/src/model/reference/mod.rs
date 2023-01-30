@@ -78,7 +78,7 @@ pub struct Reference {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "reference"
+    diesel(table_name = reference)
 )]
 pub struct NewReference {
     pub work_id: Uuid,
@@ -108,8 +108,7 @@ pub struct NewReference {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "reference"
+    diesel(table_name = reference, treat_none_as_null = true)
 )]
 pub struct PatchReference {
     pub reference_id: Uuid,
@@ -149,7 +148,7 @@ pub struct ReferenceHistory {
 #[cfg_attr(
     feature = "backend",
     derive(Insertable),
-    table_name = "reference_history"
+    diesel(table_name = reference_history)
 )]
 pub struct NewReferenceHistory {
     pub reference_id: Uuid,

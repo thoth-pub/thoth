@@ -6,7 +6,6 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{subject, subject_history};
 use crate::{crud_methods, db_insert};
-use diesel::dsl::any;
 use diesel::{ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -35,7 +34,7 @@ impl Crud for Subject {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Subject>> {
         use crate::schema::subject::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = subject
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select(crate::schema::subject::all_columns)
@@ -72,13 +71,13 @@ impl Crud for Subject {
             },
         };
         if !publishers.is_empty() {
-            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
+            query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(work_id.eq(pid));
         }
         if !subject_types.is_empty() {
-            query = query.filter(subject_type.eq(any(subject_types)));
+            query = query.filter(subject_type.eq_any(subject_types));
         }
         if let Some(filter) = filter {
             query = query.filter(subject_code.ilike(format!("%{filter}%")));
@@ -87,7 +86,7 @@ impl Crud for Subject {
             .then_order_by(subject_code.asc())
             .limit(limit.into())
             .offset(offset.into())
-            .load::<Subject>(&connection)
+            .load::<Subject>(&mut connection)
         {
             Ok(t) => Ok(t),
             Err(e) => Err(ThothError::from(e)),
@@ -102,10 +101,10 @@ impl Crud for Subject {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::subject::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = subject.into_boxed();
         if !subject_types.is_empty() {
-            query = query.filter(subject_type.eq(any(subject_types)));
+            query = query.filter(subject_type.eq_any(subject_types));
         }
         if let Some(filter) = filter {
             query = query.filter(subject_code.ilike(format!("%{filter}%")));
@@ -114,7 +113,7 @@ impl Crud for Subject {
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match query.count().get_result::<i64>(&connection) {
+        match query.count().get_result::<i64>(&mut connection) {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
             Err(e) => Err(ThothError::from(e)),
         }

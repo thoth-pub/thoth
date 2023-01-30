@@ -51,7 +51,7 @@ pub struct Contributor {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "contributor"
+    diesel(table_name = contributor)
 )]
 pub struct NewContributor {
     pub first_name: Option<String>,
@@ -64,8 +64,7 @@ pub struct NewContributor {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "contributor"
+    diesel(table_name = contributor, treat_none_as_null = true)
 )]
 pub struct PatchContributor {
     pub contributor_id: Uuid,
@@ -88,7 +87,7 @@ pub struct ContributorHistory {
 #[cfg_attr(
     feature = "backend",
     derive(Insertable),
-    table_name = "contributor_history"
+    diesel(table_name = contributor_history)
 )]
 pub struct NewContributorHistory {
     pub contributor_id: Uuid,

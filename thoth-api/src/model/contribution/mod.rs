@@ -15,7 +15,7 @@ use crate::schema::contribution_history;
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
     graphql(description = "Role describing the type of contribution to the work"),
-    DieselType = "Contribution_type"
+    DieselTypePath = "crate::schema::sql_types::ContributionType"
 )]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -150,7 +150,7 @@ pub struct ContributionWithWork {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "contribution"
+    diesel(table_name = contribution)
 )]
 pub struct NewContribution {
     pub work_id: Uuid,
@@ -167,8 +167,7 @@ pub struct NewContribution {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "contribution"
+    diesel(table_name = contribution, treat_none_as_null = true)
 )]
 pub struct PatchContribution {
     pub contribution_id: Uuid,
@@ -195,7 +194,7 @@ pub struct ContributionHistory {
 #[cfg_attr(
     feature = "backend",
     derive(Insertable),
-    table_name = "contribution_history"
+    diesel(table_name = contribution_history)
 )]
 pub struct NewContributionHistory {
     pub contribution_id: Uuid,

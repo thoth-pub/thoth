@@ -6,7 +6,6 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{location, location_history};
 use crate::{crud_methods, db_insert};
-use diesel::dsl::any;
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -35,7 +34,7 @@ impl Crud for Location {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Location>> {
         use crate::schema::location::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query =
             location
                 .inner_join(crate::schema::publication::table.inner_join(
@@ -79,18 +78,18 @@ impl Crud for Location {
             },
         };
         if !publishers.is_empty() {
-            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
+            query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(publication_id.eq(pid));
         }
         if !location_platforms.is_empty() {
-            query = query.filter(location_platform.eq(any(location_platforms)));
+            query = query.filter(location_platform.eq_any(location_platforms));
         }
         match query
             .limit(limit.into())
             .offset(offset.into())
-            .load::<Location>(&connection)
+            .load::<Location>(&mut connection)
         {
             Ok(t) => Ok(t),
             Err(e) => Err(ThothError::from(e)),
@@ -105,16 +104,16 @@ impl Crud for Location {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::location::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = location.into_boxed();
         if !location_platforms.is_empty() {
-            query = query.filter(location_platform.eq(any(location_platforms)));
+            query = query.filter(location_platform.eq_any(location_platforms));
         }
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match query.count().get_result::<i64>(&connection) {
+        match query.count().get_result::<i64>(&mut connection) {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
             Err(e) => Err(ThothError::from(e)),
         }
@@ -150,12 +149,12 @@ impl NewLocation {
         use crate::schema::location::dsl::*;
         use diesel::prelude::*;
 
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let canonical_count = location
             .filter(publication_id.eq(self.publication_id))
             .filter(canonical)
             .count()
-            .get_result::<i64>(&connection)
+            .get_result::<i64>(&mut connection)
             .expect("Error loading locations for publication")
             .to_string()
             .parse::<i32>()
@@ -203,11 +202,11 @@ fn location_canonical_record_complete(
         use crate::model::publication::PublicationType;
         use diesel::prelude::*;
 
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let publication_type = crate::schema::publication::table
             .select(crate::schema::publication::publication_type)
             .filter(crate::schema::publication::publication_id.eq(publication_id))
-            .first::<PublicationType>(&connection)
+            .first::<PublicationType>(&mut connection)
             .expect("Error loading publication type for location");
         // If a canonical location's publication is of a digital type,
         // it must have both the possible URLs to count as complete.

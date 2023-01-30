@@ -6,7 +6,6 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{affiliation, affiliation_history};
 use crate::{crud_methods, db_insert};
-use diesel::dsl::any;
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -35,7 +34,7 @@ impl Crud for Affiliation {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Affiliation>> {
         use crate::schema::affiliation::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query =
             affiliation
                 .inner_join(crate::schema::contribution::table.inner_join(
@@ -75,7 +74,7 @@ impl Crud for Affiliation {
             },
         };
         if !publishers.is_empty() {
-            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
+            query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(institution_id.eq(pid));
@@ -86,7 +85,7 @@ impl Crud for Affiliation {
         match query
             .limit(limit.into())
             .offset(offset.into())
-            .load::<Affiliation>(&connection)
+            .load::<Affiliation>(&mut connection)
         {
             Ok(t) => Ok(t),
             Err(e) => Err(ThothError::from(e)),
@@ -101,13 +100,13 @@ impl Crud for Affiliation {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::affiliation::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
 
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should institution until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match affiliation.count().get_result::<i64>(&connection) {
+        match affiliation.count().get_result::<i64>(&mut connection) {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
             Err(e) => Err(ThothError::from(e)),
         }

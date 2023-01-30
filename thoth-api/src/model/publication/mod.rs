@@ -15,8 +15,11 @@ use crate::schema::publication;
 #[cfg(feature = "backend")]
 use crate::schema::publication_history;
 
-#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
-#[cfg_attr(feature = "backend", DieselType = "Publication_type")]
+#[cfg_attr(
+    feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    DieselTypePath = "crate::schema::sql_types::PublicationType"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublicationType {
@@ -119,7 +122,7 @@ pub struct PublicationWithRelations {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "publication"
+    diesel(table_name = publication)
 )]
 pub struct NewPublication {
     pub publication_type: PublicationType,
@@ -138,8 +141,7 @@ pub struct NewPublication {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "publication"
+    diesel(table_name = publication, treat_none_as_null = true)
 )]
 pub struct PatchPublication {
     pub publication_id: Uuid,
@@ -168,7 +170,7 @@ pub struct PublicationHistory {
 #[cfg_attr(
     feature = "backend",
     derive(Insertable),
-    table_name = "publication_history"
+    diesel(table_name = publication_history)
 )]
 pub struct NewPublicationHistory {
     pub publication_id: Uuid,
