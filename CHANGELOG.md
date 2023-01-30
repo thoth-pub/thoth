@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
   - Use inlined syntax in format strings to comply with [`rustc 1.67.0`](https://github.com/rust-lang/rust/releases/tag/1.67.0)
+  - Upgrade rust to `1.67.0` in production and development `Dockerfile`
+  - Upgrade build dependencies (npm `v9.4.0`, node `v18.13.0` and rollup `v3.12.0`) in production and development `Dockerfile`
   - [#457](https://github.com/thoth-pub/thoth/issues/457) - Upgrade `juniper` to v0.15.10
   - Upgrade `diesel` to v2.0.2
   - Upgrade `uuid` to v0.8.2
