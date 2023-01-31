@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade `graphql_client` to v0.12.0
   - Upgrade `chrono` to v0.4.23
 
+### Fixed
+  - [#469](https://github.com/thoth-pub/thoth/issues/469) - Expand DOI regex to include square brackets
+
 ## [[0.9.5]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.5) - 2023-01-17
 ### Changed
   - Upgrade rust to `1.66.0` in production and development `Dockerfile`
