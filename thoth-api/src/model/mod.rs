@@ -44,7 +44,7 @@ pub enum WeightUnit {
     feature = "backend",
     derive(DieselNewType, juniper::GraphQLScalarValue),
     graphql(
-        description = r#"Digital Object Identifier. Expressed as `^https:\/\/doi\.org\/10\.\d{4,9}\/[-._\;\(\)\/:a-zA-Z0-9]+$`"#
+        description = r#"Digital Object Identifier. Expressed as `^https:\/\/doi\.org\/10\.\d{4,9}\/[-._\;\(\)\[\]\/:a-zA-Z0-9]+$`"#
     )
 )]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -152,7 +152,7 @@ impl FromStr for Doi {
             // and captures the identifier segment starting with the "10." directory indicator
             // Corresponds to database constraints although regex syntax differs slightly
             // (e.g. `;()/` do not need to be escaped here)
-            r#"^(?i:(?:https?://)?(?:www\.)?(?:dx\.)?doi\.org/)?(10\.\d{4,9}/[-._;()/:a-zA-Z0-9]+$)"#).unwrap();
+            r#"^(?i:(?:https?://)?(?:www\.)?(?:dx\.)?doi\.org/)?(10\.\d{4,9}/[-._;()\[\]/:a-zA-Z0-9]+$)"#).unwrap();
         }
         if input.is_empty() {
             Err(ThothError::DoiEmptyError)
@@ -700,6 +700,7 @@ fn test_doi_fromstr() {
     assert!(Doi::from_str("//doi.org/10.12345/Test-Suffix.01").is_err());
     assert!(Doi::from_str("https://doi-org/10.12345/Test-Suffix.01").is_err());
     assert!(Doi::from_str("10.https://doi.org/12345/Test-Suffix.01").is_err());
+    assert!(Doi::from_str("http://dx.doi.org/10.2990/1471-5457(2005)24[2:tmpwac]2.0.co;2").is_ok());
 }
 
 #[test]
