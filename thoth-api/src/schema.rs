@@ -1,3 +1,53 @@
+pub mod sql_types {
+    #[derive(diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "contribution_type"))]
+    pub struct ContributionType;
+
+    #[derive(diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "country_code"))]
+    pub struct CountryCode;
+
+    #[derive(diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "language_relation"))]
+    pub struct LanguageRelation;
+
+    #[derive(diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "language_code"))]
+    pub struct LanguageCode;
+
+    #[derive(diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "location_platform"))]
+    pub struct LocationPlatform;
+
+    #[derive(diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "currency_code"))]
+    pub struct CurrencyCode;
+
+    #[derive(diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "publication_type"))]
+    pub struct PublicationType;
+
+    #[derive(diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "series_type"))]
+    pub struct SeriesType;
+
+    #[derive(diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "subject_type"))]
+    pub struct SubjectType;
+
+    #[derive(diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "work_type"))]
+    pub struct WorkType;
+
+    #[derive(diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "work_status"))]
+    pub struct WorkStatus;
+
+    #[derive(diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "relation_type"))]
+    pub struct RelationType;
+}
+
 table! {
     use diesel::sql_types::*;
 
@@ -45,13 +95,13 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::model::contribution::Contribution_type;
+    use super::sql_types::ContributionType;
 
     contribution (contribution_id) {
         contribution_id -> Uuid,
         work_id -> Uuid,
         contributor_id -> Uuid,
-        contribution_type -> Contribution_type,
+        contribution_type -> ContributionType,
         main_contribution -> Bool,
         biography -> Nullable<Text>,
         created_at -> Timestamptz,
@@ -158,7 +208,7 @@ table! {
 
 table! {
 use diesel::sql_types::*;
-    use crate::model::institution::Country_code;
+    use super::sql_types::CountryCode;
 
     institution (institution_id) {
         institution_id -> Uuid,
@@ -167,7 +217,7 @@ use diesel::sql_types::*;
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
         ror -> Nullable<Text>,
-        country_code -> Nullable<Country_code>,
+        country_code -> Nullable<CountryCode>,
     }
 }
 
@@ -210,14 +260,14 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::model::language::Language_relation;
-    use crate::model::language::Language_code;
+    use super::sql_types::LanguageRelation;
+    use super::sql_types::LanguageCode;
 
     language (language_id) {
         language_id -> Uuid,
         work_id -> Uuid,
-        language_code -> Language_code,
-        language_relation -> Language_relation,
+        language_code -> LanguageCode,
+        language_relation -> LanguageRelation,
         main_language -> Bool,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
@@ -238,14 +288,14 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::model::location::Location_platform;
+    use super::sql_types::LocationPlatform;
 
     location (location_id) {
         location_id -> Uuid,
         publication_id -> Uuid,
         landing_page -> Nullable<Text>,
         full_text_url -> Nullable<Text>,
-        location_platform -> Location_platform,
+        location_platform -> LocationPlatform,
         canonical -> Bool,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
@@ -266,12 +316,12 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::model::price::Currency_code;
+    use super::sql_types::CurrencyCode;
 
     price (price_id) {
         price_id -> Uuid,
         publication_id -> Uuid,
-        currency_code -> Currency_code,
+        currency_code -> CurrencyCode,
         unit_price -> Float8,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
@@ -292,11 +342,11 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::model::publication::Publication_type;
+    use super::sql_types::PublicationType;
 
     publication (publication_id) {
         publication_id -> Uuid,
-        publication_type -> Publication_type,
+        publication_type -> PublicationType,
         work_id -> Uuid,
         isbn -> Nullable<Text>,
         created_at -> Timestamptz,
@@ -407,11 +457,11 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::model::series::Series_type;
+    use super::sql_types::SeriesType;
 
     series (series_id) {
         series_id -> Uuid,
-        series_type -> Series_type,
+        series_type -> SeriesType,
         series_name -> Text,
         issn_print -> Text,
         issn_digital -> Text,
@@ -438,12 +488,12 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::model::subject::Subject_type;
+    use super::sql_types::SubjectType;
 
     subject (subject_id) {
         subject_id -> Uuid,
         work_id -> Uuid,
-        subject_type -> Subject_type,
+        subject_type -> SubjectType,
         subject_code -> Text,
         subject_ordinal -> Int4,
         created_at -> Timestamptz,
@@ -465,13 +515,13 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::model::work::Work_type;
-    use crate::model::work::Work_status;
+    use super::sql_types::WorkType;
+    use super::sql_types::WorkStatus;
 
     work (work_id) {
         work_id -> Uuid,
-        work_type -> Work_type,
-        work_status -> Work_status,
+        work_type -> WorkType,
+        work_status -> WorkStatus,
         full_title -> Text,
         title -> Text,
         subtitle -> Nullable<Text>,
@@ -520,13 +570,13 @@ table! {
 
 table! {
     use diesel::sql_types::*;
-    use crate::model::work_relation::Relation_type;
+    use super::sql_types::RelationType;
 
     work_relation (work_relation_id) {
         work_relation_id -> Uuid,
         relator_work_id -> Uuid,
         related_work_id -> Uuid,
-        relation_type -> Relation_type,
+        relation_type -> RelationType,
         relation_ordinal -> Int4,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,

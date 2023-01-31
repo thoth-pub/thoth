@@ -38,7 +38,7 @@ pub struct Price {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "price"
+    diesel(table_name = price)
 )]
 pub struct NewPrice {
     pub publication_id: Uuid,
@@ -49,8 +49,7 @@ pub struct NewPrice {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "price"
+    diesel(table_name = price, treat_none_as_null = true)
 )]
 pub struct PatchPrice {
     pub price_id: Uuid,
@@ -59,8 +58,11 @@ pub struct PatchPrice {
     pub unit_price: f64,
 }
 
-#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
-#[cfg_attr(feature = "backend", DieselType = "Currency_code")]
+#[cfg_attr(
+    feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    DieselTypePath = "crate::schema::sql_types::CurrencyCode"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "UPPERCASE")]
@@ -378,7 +380,7 @@ pub struct PriceHistory {
     pub timestamp: Timestamp,
 }
 
-#[cfg_attr(feature = "backend", derive(Insertable), table_name = "price_history")]
+#[cfg_attr(feature = "backend", derive(Insertable), diesel(table_name = price_history))]
 pub struct NewPriceHistory {
     pub price_id: Uuid,
     pub account_id: Uuid,

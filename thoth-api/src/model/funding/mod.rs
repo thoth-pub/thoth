@@ -66,7 +66,7 @@ pub struct FundingWithWork {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "funding"
+    diesel(table_name = funding)
 )]
 pub struct NewFunding {
     pub work_id: Uuid,
@@ -81,8 +81,7 @@ pub struct NewFunding {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "funding"
+    diesel(table_name = funding, treat_none_as_null = true)
 )]
 pub struct PatchFunding {
     pub funding_id: Uuid,
@@ -107,7 +106,7 @@ pub struct FundingHistory {
 #[cfg_attr(
     feature = "backend",
     derive(Insertable),
-    table_name = "funding_history"
+    diesel(table_name = funding_history)
 )]
 pub struct NewFundingHistory {
     pub funding_id: Uuid,

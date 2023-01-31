@@ -36,7 +36,7 @@ impl Crud for Institution {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Institution>> {
         use crate::schema::institution::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = institution.into_boxed();
 
         query = match order.field {
@@ -72,15 +72,15 @@ impl Crud for Institution {
         if let Some(filter) = filter {
             query = query.filter(
                 institution_name
-                    .ilike(format!("%{}%", filter))
-                    .or(ror.ilike(format!("%{}%", filter)))
-                    .or(institution_doi.ilike(format!("%{}%", filter))),
+                    .ilike(format!("%{filter}%"))
+                    .or(ror.ilike(format!("%{filter}%")))
+                    .or(institution_doi.ilike(format!("%{filter}%"))),
             );
         }
         match query
             .limit(limit.into())
             .offset(offset.into())
-            .load::<Institution>(&connection)
+            .load::<Institution>(&mut connection)
         {
             Ok(t) => Ok(t),
             Err(e) => Err(ThothError::from(e)),
@@ -95,14 +95,14 @@ impl Crud for Institution {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::institution::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = institution.into_boxed();
         if let Some(filter) = filter {
             query = query.filter(
                 institution_name
-                    .ilike(format!("%{}%", filter))
-                    .or(ror.ilike(format!("%{}%", filter)))
-                    .or(institution_doi.ilike(format!("%{}%", filter))),
+                    .ilike(format!("%{filter}%"))
+                    .or(ror.ilike(format!("%{filter}%")))
+                    .or(institution_doi.ilike(format!("%{filter}%"))),
             );
         }
 
@@ -110,7 +110,7 @@ impl Crud for Institution {
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match query.count().get_result::<i64>(&connection) {
+        match query.count().get_result::<i64>(&mut connection) {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
             Err(e) => Err(ThothError::from(e)),
         }

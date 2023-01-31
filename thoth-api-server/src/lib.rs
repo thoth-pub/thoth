@@ -38,8 +38,8 @@ struct ApiConfig {
 impl ApiConfig {
     pub fn new(public_url: String) -> Self {
         Self {
-            public_url: format!("{}/graphql", public_url),
-            schema_explorer_url: format!("{}/graphiql", public_url),
+            public_url: format!("{public_url}/graphql"),
+            schema_explorer_url: format!("{public_url}/graphiql"),
             ..Default::default()
         }
     }
@@ -86,16 +86,10 @@ async fn graphql(
     data: web::Json<GraphQLRequest>,
 ) -> Result<HttpResponse, Error> {
     let ctx = Context::new(pool.into_inner(), token);
-    let result = web::block(move || {
-        let res = data.execute(&st, &ctx);
-        serde_json::to_string(&res)
-    })
-    .await?;
-    match result {
-        Ok(body) => Ok(HttpResponse::Ok()
-            .content_type("application/json")
-            .body(body)),
-        Err(e) => Err(e.into()),
+    let result = data.execute(&st, &ctx).await;
+    match result.is_ok() {
+        true => Ok(HttpResponse::Ok().json(result)),
+        false => Ok(HttpResponse::BadRequest().json(result)),
     }
 }
 
@@ -221,7 +215,7 @@ pub async fn start_server(
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
             .configure(config)
     })
-    .bind(format!("{}:{}", host, port))?
+    .bind(format!("{host}:{port}"))?
     .run()
     .await
 }

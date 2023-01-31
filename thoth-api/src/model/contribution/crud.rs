@@ -7,7 +7,6 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{contribution, contribution_history};
 use crate::{crud_methods, db_insert};
-use diesel::dsl::any;
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -36,7 +35,7 @@ impl Crud for Contribution {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Contribution>> {
         use crate::schema::contribution::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = contribution
             .inner_join(crate::schema::work::table.inner_join(crate::schema::imprint::table))
             .select(crate::schema::contribution::all_columns)
@@ -93,7 +92,7 @@ impl Crud for Contribution {
             },
         };
         if !publishers.is_empty() {
-            query = query.filter(crate::schema::imprint::publisher_id.eq(any(publishers)));
+            query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(work_id.eq(pid));
@@ -102,12 +101,12 @@ impl Crud for Contribution {
             query = query.filter(contributor_id.eq(pid));
         }
         if !contribution_types.is_empty() {
-            query = query.filter(contribution_type.eq(any(contribution_types)));
+            query = query.filter(contribution_type.eq_any(contribution_types));
         }
         match query
             .limit(limit.into())
             .offset(offset.into())
-            .load::<Contribution>(&connection)
+            .load::<Contribution>(&mut connection)
         {
             Ok(t) => Ok(t),
             Err(e) => Err(ThothError::from(e)),
@@ -122,17 +121,17 @@ impl Crud for Contribution {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::contribution::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = contribution.into_boxed();
         if !contribution_types.is_empty() {
-            query = query.filter(contribution_type.eq(any(contribution_types)));
+            query = query.filter(contribution_type.eq_any(contribution_types));
         }
 
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match query.count().get_result::<i64>(&connection) {
+        match query.count().get_result::<i64>(&mut connection) {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
             Err(e) => Err(ThothError::from(e)),
         }

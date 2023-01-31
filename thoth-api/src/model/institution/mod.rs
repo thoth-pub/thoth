@@ -52,7 +52,7 @@ pub struct Institution {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "institution"
+    diesel(table_name = institution)
 )]
 pub struct NewInstitution {
     pub institution_name: String,
@@ -64,8 +64,7 @@ pub struct NewInstitution {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "institution"
+    diesel(table_name = institution, treat_none_as_null = true)
 )]
 pub struct PatchInstitution {
     pub institution_id: Uuid,
@@ -75,8 +74,11 @@ pub struct PatchInstitution {
     pub country_code: Option<CountryCode>,
 }
 
-#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
-#[cfg_attr(feature = "backend", DieselType = "Country_code")]
+#[cfg_attr(
+    feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    DieselTypePath = "crate::schema::sql_types::CountryCode"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CountryCode {
@@ -592,7 +594,7 @@ pub struct InstitutionHistory {
 #[cfg_attr(
     feature = "backend",
     derive(Insertable),
-    table_name = "institution_history"
+    diesel(table_name = institution_history)
 )]
 pub struct NewInstitutionHistory {
     pub institution_id: Uuid,

@@ -22,7 +22,7 @@ graphql_query_builder! {
     SlimWorksRequest,
     SlimWorksRequestBody,
     Variables,
-    format!("{}{}{}", WORKS_QUERY_HEADER, SLIM_WORKS_QUERY_BODY, WORKS_QUERY_FOOTER),
+    format!("{WORKS_QUERY_HEADER}{SLIM_WORKS_QUERY_BODY}{WORKS_QUERY_FOOTER}"),
     SlimWorksResponseBody,
     SlimWorksResponseData,
     FetchSlimWorks,

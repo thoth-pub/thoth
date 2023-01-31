@@ -18,7 +18,7 @@ graphql_query_builder! {
     ChaptersRequest,
     ChaptersRequestBody,
     Variables,
-    format!("{}{}{}", CHAPTERS_QUERY_HEADER, WORKS_QUERY_BODY, CHAPTERS_QUERY_FOOTER),
+    format!("{CHAPTERS_QUERY_HEADER}{WORKS_QUERY_BODY}{CHAPTERS_QUERY_FOOTER}"),
     ChaptersResponseBody,
     ChaptersResponseData,
     FetchChapters,

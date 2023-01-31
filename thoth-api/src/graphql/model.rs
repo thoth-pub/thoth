@@ -1,6 +1,6 @@
 use chrono::naive::NaiveDate;
-use juniper::FieldResult;
 use juniper::RootNode;
+use juniper::{EmptySubscription, FieldResult};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -101,7 +101,7 @@ pub struct FundingOrderBy {
 
 pub struct QueryRoot;
 
-#[juniper::object(Context = Context)]
+#[juniper::graphql_object(Context = Context)]
 impl QueryRoot {
     #[graphql(
     description="Query the full list of works",
@@ -1361,7 +1361,7 @@ impl QueryRoot {
 
 pub struct MutationRoot;
 
-#[juniper::object(Context = Context)]
+#[juniper::graphql_object(Context = Context)]
 impl MutationRoot {
     fn create_work(context: &Context, data: NewWork) -> FieldResult<Work> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
@@ -2078,7 +2078,7 @@ impl MutationRoot {
     }
 }
 
-#[juniper::object(Context = Context, description = "A written text that can be published")]
+#[juniper::graphql_object(Context = Context, description = "A written text that can be published")]
 impl Work {
     pub fn work_id(&self) -> &Uuid {
         &self.work_id
@@ -2575,7 +2575,7 @@ impl Work {
     }
 }
 
-#[juniper::object(Context = Context, description = "A manifestation of a written text")]
+#[juniper::graphql_object(Context = Context, description = "A manifestation of a written text")]
 impl Publication {
     pub fn publication_id(&self) -> Uuid {
         self.publication_id
@@ -2765,7 +2765,7 @@ impl Publication {
     }
 }
 
-#[juniper::object(Context = Context, description = "An organisation that produces and distributes written texts.")]
+#[juniper::graphql_object(Context = Context, description = "An organisation that produces and distributes written texts.")]
 impl Publisher {
     pub fn publisher_id(&self) -> Uuid {
         self.publisher_id
@@ -2835,7 +2835,7 @@ impl Publisher {
     }
 }
 
-#[juniper::object(Context = Context, description = "The brand under which a publisher issues works.")]
+#[juniper::graphql_object(Context = Context, description = "The brand under which a publisher issues works.")]
 impl Imprint {
     pub fn imprint_id(&self) -> Uuid {
         self.imprint_id
@@ -2921,7 +2921,7 @@ impl Imprint {
     }
 }
 
-#[juniper::object(Context = Context, description = "A person who has been involved in the production of a written text.")]
+#[juniper::graphql_object(Context = Context, description = "A person who has been involved in the production of a written text.")]
 impl Contributor {
     pub fn contributor_id(&self) -> Uuid {
         self.contributor_id
@@ -2999,7 +2999,7 @@ impl Contributor {
     }
 }
 
-#[juniper::object(Context = Context, description = "A person's involvement in the production of a written text.")]
+#[juniper::graphql_object(Context = Context, description = "A person's involvement in the production of a written text.")]
 impl Contribution {
     pub fn contribution_id(&self) -> Uuid {
         self.contribution_id
@@ -3096,7 +3096,7 @@ impl Contribution {
     }
 }
 
-#[juniper::object(Context = Context, description = "A periodical of publications about a particular subject.")]
+#[juniper::graphql_object(Context = Context, description = "A periodical of publications about a particular subject.")]
 impl Series {
     pub fn series_id(&self) -> Uuid {
         self.series_id
@@ -3187,7 +3187,7 @@ impl Series {
     }
 }
 
-#[juniper::object(Context = Context, description = "A work published as a number in a periodical.")]
+#[juniper::graphql_object(Context = Context, description = "A work published as a number in a periodical.")]
 impl Issue {
     pub fn issue_id(&self) -> Uuid {
         self.issue_id
@@ -3222,7 +3222,7 @@ impl Issue {
     }
 }
 
-#[juniper::object(Context = Context, description = "Description of a work's language.")]
+#[juniper::graphql_object(Context = Context, description = "Description of a work's language.")]
 impl Language {
     pub fn language_id(&self) -> Uuid {
         self.language_id
@@ -3257,7 +3257,7 @@ impl Language {
     }
 }
 
-#[juniper::object(Context = Context, description = "A location, such as a web shop or distribution platform, where a publication can be acquired or viewed.")]
+#[juniper::graphql_object(Context = Context, description = "A location, such as a web shop or distribution platform, where a publication can be acquired or viewed.")]
 impl Location {
     pub fn location_id(&self) -> Uuid {
         self.location_id
@@ -3296,7 +3296,7 @@ impl Location {
     }
 }
 
-#[juniper::object(Context = Context, description = "The amount of money, in any currency, that a publication costs.")]
+#[juniper::graphql_object(Context = Context, description = "The amount of money, in any currency, that a publication costs.")]
 impl Price {
     pub fn price_id(&self) -> Uuid {
         self.price_id
@@ -3327,7 +3327,7 @@ impl Price {
     }
 }
 
-#[juniper::object(Context = Context, description = "A significant discipline or term related to a work.")]
+#[juniper::graphql_object(Context = Context, description = "A significant discipline or term related to a work.")]
 impl Subject {
     pub fn subject_id(&self) -> &Uuid {
         &self.subject_id
@@ -3362,7 +3362,7 @@ impl Subject {
     }
 }
 
-#[juniper::object(Context = Context, description = "An organisation with which contributors may be affiliated or by which works may be funded.")]
+#[juniper::graphql_object(Context = Context, description = "An organisation with which contributors may be affiliated or by which works may be funded.")]
 impl Institution {
     pub fn institution_id(&self) -> &Uuid {
         &self.institution_id
@@ -3475,7 +3475,7 @@ impl Institution {
     }
 }
 
-#[juniper::object(Context = Context, description = "A grant awarded to the publication of a work by an institution.")]
+#[juniper::graphql_object(Context = Context, description = "A grant awarded to the publication of a work by an institution.")]
 impl Funding {
     pub fn funding_id(&self) -> &Uuid {
         &self.funding_id
@@ -3526,7 +3526,7 @@ impl Funding {
     }
 }
 
-#[juniper::object(Context = Context, description = "An association between a person and an institution for a specific contribution.")]
+#[juniper::graphql_object(Context = Context, description = "An association between a person and an institution for a specific contribution.")]
 impl Affiliation {
     pub fn affiliation_id(&self) -> Uuid {
         self.affiliation_id
@@ -3565,7 +3565,7 @@ impl Affiliation {
     }
 }
 
-#[juniper::object(Context = Context, description = "A relationship between two works, e.g. a book and one of its chapters, or an original and its translation.")]
+#[juniper::graphql_object(Context = Context, description = "A relationship between two works, e.g. a book and one of its chapters, or an original and its translation.")]
 impl WorkRelation {
     pub fn work_relation_id(&self) -> &Uuid {
         &self.work_relation_id
@@ -3600,7 +3600,7 @@ impl WorkRelation {
     }
 }
 
-#[juniper::object(
+#[juniper::graphql_object(
     Context = Context,
     description = "A citation to a written text. References must always include the DOI of the cited work, the unstructured citation, or both.",
 )]
@@ -3750,10 +3750,10 @@ impl Reference {
     }
 }
 
-pub type Schema = RootNode<'static, QueryRoot, MutationRoot>;
+pub type Schema = RootNode<'static, QueryRoot, MutationRoot, EmptySubscription<Context>>;
 
 pub fn create_schema() -> Schema {
-    Schema::new(QueryRoot {}, MutationRoot {})
+    Schema::new(QueryRoot {}, MutationRoot {}, EmptySubscription::new())
 }
 
 fn publisher_id_from_imprint_id(db: &crate::db::PgPool, imprint_id: Uuid) -> ThothResult<Uuid> {

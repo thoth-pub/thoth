@@ -44,7 +44,7 @@ pub enum WeightUnit {
     feature = "backend",
     derive(DieselNewType, juniper::GraphQLScalarValue),
     graphql(
-        description = r#"Digital Object Identifier. Expressed as `^https:\/\/doi\.org\/10\.\d{4,9}\/[-._\;\(\)\/:a-zA-Z0-9]+$`"#
+        description = r#"Digital Object Identifier. Expressed as `^https:\/\/doi\.org\/10\.\d{4,9}\/[-._\;\(\)\[\]\/:a-zA-Z0-9]+$`"#
     )
 )]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -102,7 +102,7 @@ impl Default for WeightUnit {
 
 impl Default for Timestamp {
     fn default() -> Timestamp {
-        Timestamp(TimeZone::timestamp(&Utc, 0, 0))
+        Timestamp(TimeZone::timestamp_opt(&Utc, 0, 0).unwrap())
     }
 }
 
@@ -152,7 +152,7 @@ impl FromStr for Doi {
             // and captures the identifier segment starting with the "10." directory indicator
             // Corresponds to database constraints although regex syntax differs slightly
             // (e.g. `;()/` do not need to be escaped here)
-            r#"^(?i:(?:https?://)?(?:www\.)?(?:dx\.)?doi\.org/)?(10\.\d{4,9}/[-._;()/:a-zA-Z0-9]+$)"#).unwrap();
+            r#"^(?i:(?:https?://)?(?:www\.)?(?:dx\.)?doi\.org/)?(10\.\d{4,9}/[-._;()\[\]/:a-zA-Z0-9]+$)"#).unwrap();
         }
         if input.is_empty() {
             Err(ThothError::DoiEmptyError)
@@ -353,7 +353,7 @@ where
     /// The structure that is returned by the insert statement
     type MainEntity;
 
-    fn insert(&self, connection: &diesel::PgConnection) -> ThothResult<Self::MainEntity>;
+    fn insert(&self, connection: &mut diesel::PgConnection) -> ThothResult<Self::MainEntity>;
 }
 
 /// Declares function implementations for the `Crud` trait, reducing the boilerplate needed to define
@@ -387,20 +387,21 @@ macro_rules! crud_methods {
         fn from_id(db: &$crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
             use diesel::{QueryDsl, RunQueryDsl};
 
-            let connection = db.get().unwrap();
-            match $entity_dsl.find(entity_id).get_result::<Self>(&connection) {
+            let mut connection = db.get().unwrap();
+            match $entity_dsl
+                .find(entity_id)
+                .get_result::<Self>(&mut connection)
+            {
                 Ok(t) => Ok(t),
                 Err(e) => Err(ThothError::from(e)),
             }
         }
 
         fn create(db: &$crate::db::PgPool, data: &Self::NewEntity) -> ThothResult<Self> {
-            use diesel::RunQueryDsl;
-
-            let connection = db.get().unwrap();
+            let mut connection = db.get().unwrap();
             match diesel::insert_into($table_dsl)
                 .values(data)
-                .get_result::<Self>(&connection)
+                .get_result::<Self>(&mut connection)
             {
                 Ok(t) => Ok(t),
                 Err(e) => Err(ThothError::from(e)),
@@ -417,13 +418,13 @@ macro_rules! crud_methods {
         ) -> ThothResult<Self> {
             use diesel::{Connection, QueryDsl, RunQueryDsl};
 
-            let connection = db.get().unwrap();
-            connection.transaction(|| {
+            let mut connection = db.get().unwrap();
+            connection.transaction(|connection| {
                 match diesel::update($entity_dsl.find(&self.pk()))
                     .set(data)
-                    .get_result(&connection)
+                    .get_result(connection)
                 {
-                    Ok(c) => match self.new_history_entry(&account_id).insert(&connection) {
+                    Ok(c) => match self.new_history_entry(&account_id).insert(connection) {
                         Ok(_) => Ok(c),
                         Err(e) => Err(e),
                     },
@@ -435,8 +436,8 @@ macro_rules! crud_methods {
         fn delete(self, db: &$crate::db::PgPool) -> ThothResult<Self> {
             use diesel::{QueryDsl, RunQueryDsl};
 
-            let connection = db.get().unwrap();
-            match diesel::delete($entity_dsl.find(&self.pk())).execute(&connection) {
+            let mut connection = db.get().unwrap();
+            match diesel::delete($entity_dsl.find(&self.pk())).execute(&mut connection) {
                 Ok(_) => Ok(self),
                 Err(e) => Err(ThothError::from(e)),
             }
@@ -467,7 +468,7 @@ macro_rules! crud_methods {
 #[macro_export]
 macro_rules! db_insert {
     ($table_dsl:expr) => {
-        fn insert(&self, connection: &diesel::PgConnection) -> ThothResult<Self::MainEntity> {
+        fn insert(&self, connection: &mut diesel::PgConnection) -> ThothResult<Self::MainEntity> {
             use diesel::RunQueryDsl;
 
             match diesel::insert_into($table_dsl)
@@ -592,37 +593,40 @@ fn test_ror_default() {
 #[test]
 fn test_timestamp_default() {
     let stamp: Timestamp = Default::default();
-    assert_eq!(stamp, Timestamp(TimeZone::timestamp(&Utc, 0, 0)));
+    assert_eq!(
+        stamp,
+        Timestamp(TimeZone::timestamp_opt(&Utc, 0, 0).unwrap())
+    );
 }
 
 #[test]
 fn test_doi_display() {
     let doi = Doi("https://doi.org/10.12345/Test-Suffix.01".to_string());
-    assert_eq!(format!("{}", doi), "10.12345/Test-Suffix.01");
+    assert_eq!(format!("{doi}"), "10.12345/Test-Suffix.01");
 }
 
 #[test]
 fn test_isbn_display() {
     let isbn = Isbn("978-3-16-148410-0".to_string());
-    assert_eq!(format!("{}", isbn), "978-3-16-148410-0");
+    assert_eq!(format!("{isbn}"), "978-3-16-148410-0");
 }
 
 #[test]
 fn test_orcid_display() {
     let orcid = Orcid("https://orcid.org/0000-0002-1234-5678".to_string());
-    assert_eq!(format!("{}", orcid), "0000-0002-1234-5678");
+    assert_eq!(format!("{orcid}"), "0000-0002-1234-5678");
 }
 
 #[test]
 fn test_ror_display() {
     let ror = Ror("https://ror.org/0abcdef12".to_string());
-    assert_eq!(format!("{}", ror), "0abcdef12");
+    assert_eq!(format!("{ror}"), "0abcdef12");
 }
 
 #[test]
 fn test_timestamp_display() {
     let stamp: Timestamp = Default::default();
-    assert_eq!(format!("{}", stamp), "1970-01-01 00:00:00");
+    assert_eq!(format!("{stamp}"), "1970-01-01 00:00:00");
 }
 
 #[test]
@@ -696,6 +700,7 @@ fn test_doi_fromstr() {
     assert!(Doi::from_str("//doi.org/10.12345/Test-Suffix.01").is_err());
     assert!(Doi::from_str("https://doi-org/10.12345/Test-Suffix.01").is_err());
     assert!(Doi::from_str("10.https://doi.org/12345/Test-Suffix.01").is_err());
+    assert!(Doi::from_str("http://dx.doi.org/10.2990/1471-5457(2005)24[2:tmpwac]2.0.co;2").is_ok());
 }
 
 #[test]

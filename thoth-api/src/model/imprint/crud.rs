@@ -6,7 +6,6 @@ use crate::graphql::utils::Direction;
 use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{imprint, imprint_history};
 use crate::{crud_methods, db_insert};
-use diesel::dsl::any;
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
@@ -37,7 +36,7 @@ impl Crud for Imprint {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Imprint>> {
         use crate::schema::imprint::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = imprint.into_boxed();
 
         query = match order.field {
@@ -63,7 +62,7 @@ impl Crud for Imprint {
             },
         };
         if !publishers.is_empty() {
-            query = query.filter(publisher_id.eq(any(publishers)));
+            query = query.filter(publisher_id.eq_any(publishers));
         }
         if let Some(pid) = parent_id_1 {
             query = query.filter(publisher_id.eq(pid));
@@ -71,14 +70,14 @@ impl Crud for Imprint {
         if let Some(filter) = filter {
             query = query.filter(
                 imprint_name
-                    .ilike(format!("%{}%", filter))
-                    .or(imprint_url.ilike(format!("%{}%", filter))),
+                    .ilike(format!("%{filter}%"))
+                    .or(imprint_url.ilike(format!("%{filter}%"))),
             );
         }
         match query
             .limit(limit.into())
             .offset(offset.into())
-            .load::<Imprint>(&connection)
+            .load::<Imprint>(&mut connection)
         {
             Ok(t) => Ok(t),
             Err(e) => Err(ThothError::from(e)),
@@ -93,16 +92,16 @@ impl Crud for Imprint {
         _: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::imprint::dsl::*;
-        let connection = db.get().unwrap();
+        let mut connection = db.get().unwrap();
         let mut query = imprint.into_boxed();
         if !publishers.is_empty() {
-            query = query.filter(publisher_id.eq(any(publishers)));
+            query = query.filter(publisher_id.eq_any(publishers));
         }
         if let Some(filter) = filter {
             query = query.filter(
                 imprint_name
-                    .ilike(format!("%{}%", filter))
-                    .or(imprint_url.ilike(format!("%{}%", filter))),
+                    .ilike(format!("%{filter}%"))
+                    .or(imprint_url.ilike(format!("%{filter}%"))),
             );
         }
 
@@ -110,7 +109,7 @@ impl Crud for Imprint {
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this
         // is converting i64 to string and then parsing it as i32. This should work until we reach
         // 2147483647 records - if you are fixing this bug, congratulations on book number 2147483647!
-        match query.count().get_result::<i64>(&connection) {
+        match query.count().get_result::<i64>(&mut connection) {
             Ok(t) => Ok(t.to_string().parse::<i32>().unwrap()),
             Err(e) => Err(ThothError::from(e)),
         }

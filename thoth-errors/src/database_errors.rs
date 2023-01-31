@@ -206,6 +206,10 @@ mod tests {
         fn constraint_name(&self) -> Option<&str> {
             self.constraint
         }
+
+        fn statement_position(&self) -> Option<i32> {
+            None
+        }
     }
 
     fn error_information(
@@ -245,7 +249,7 @@ mod tests {
             error_information,
         ));
         assert_eq!(
-            format!("{}", error),
+            format!("{error}"),
             "A contribution with this ordinal number already exists.",
         )
     }
@@ -255,7 +259,7 @@ mod tests {
         let error_information = error_information("Some error happened", None);
         assert_eq!(
             ThothError::from(Error::DatabaseError(
-                DatabaseErrorKind::__Unknown,
+                DatabaseErrorKind::Unknown,
                 error_information
             )),
             ThothError::DatabaseError("Some error happened".to_string())
@@ -266,10 +270,10 @@ mod tests {
     fn test_non_constraint_error_display() {
         let error_information = error_information("Some error happened", None);
         let error = ThothError::from(Error::DatabaseError(
-            DatabaseErrorKind::__Unknown,
+            DatabaseErrorKind::Unknown,
             error_information,
         ));
-        assert_eq!(format!("{}", error), "Database error: Some error happened")
+        assert_eq!(format!("{error}"), "Database error: Some error happened")
     }
 
     #[test]

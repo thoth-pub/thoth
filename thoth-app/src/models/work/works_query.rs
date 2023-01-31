@@ -58,7 +58,7 @@ graphql_query_builder! {
     WorksRequest,
     WorksRequestBody,
     Variables,
-    format!("{}{}{}", WORKS_QUERY_HEADER, WORKS_QUERY_BODY, WORKS_QUERY_FOOTER),
+    format!("{WORKS_QUERY_HEADER}{WORKS_QUERY_BODY}{WORKS_QUERY_FOOTER}"),
     WorksResponseBody,
     WorksResponseData,
     FetchWorks,

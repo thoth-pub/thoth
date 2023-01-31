@@ -22,8 +22,11 @@ use crate::schema::work;
 #[cfg(feature = "backend")]
 use crate::schema::work_history;
 
-#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
-#[cfg_attr(feature = "backend", DieselType = "Work_type")]
+#[cfg_attr(
+    feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    DieselTypePath = "crate::schema::sql_types::WorkType"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
@@ -40,8 +43,11 @@ pub enum WorkType {
     BookSet,
 }
 
-#[cfg_attr(feature = "backend", derive(DbEnum, juniper::GraphQLEnum))]
-#[cfg_attr(feature = "backend", DieselType = "Work_status")]
+#[cfg_attr(
+    feature = "backend",
+    derive(DbEnum, juniper::GraphQLEnum),
+    DieselTypePath = "crate::schema::sql_types::WorkStatus"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
@@ -207,7 +213,7 @@ pub struct WorkWithRelations {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, Insertable),
-    table_name = "work"
+    diesel(table_name = work)
 )]
 pub struct NewWork {
     pub work_type: WorkType,
@@ -246,8 +252,7 @@ pub struct NewWork {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject, AsChangeset),
-    changeset_options(treat_none_as_null = "true"),
-    table_name = "work"
+    diesel(table_name = work, treat_none_as_null = true)
 )]
 pub struct PatchWork {
     pub work_id: Uuid,
@@ -293,7 +298,7 @@ pub struct WorkHistory {
     pub timestamp: Timestamp,
 }
 
-#[cfg_attr(feature = "backend", derive(Insertable), table_name = "work_history")]
+#[cfg_attr(feature = "backend", derive(Insertable), diesel(table_name = work_history))]
 pub struct NewWorkHistory {
     pub work_id: Uuid,
     pub account_id: Uuid,
@@ -332,7 +337,7 @@ impl WorkWithRelations {
 
     pub fn compile_page_interval(&self) -> Option<String> {
         if let (Some(first), Some(last)) = (&self.first_page.clone(), &self.last_page.clone()) {
-            Some(format!("{}–{}", first, last))
+            Some(format!("{first}–{last}"))
         } else {
             None
         }
@@ -712,7 +717,7 @@ fn test_work_into_patchwork() {
         edition: Some(1),
         imprint_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
         doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
-        publication_date: Some(chrono::NaiveDate::from_ymd(1999, 12, 31)),
+        publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
         place: Some("León, Spain".to_string()),
         page_count: Some(123),
         page_breakdown: None,
