@@ -1,0 +1,22 @@
+name: run-migrations
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+    paths-ignore:
+      - '**up.sql'
+      - '**down.sql'
+      - '**db.rs'
+  pull_request:
+    paths-ignore:
+      - '**up.sql'
+      - '**down.sql'
+      - '**db.rs'
+
+jobs:
+  run_migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo "No build required"'
