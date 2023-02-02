@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.9.7]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.7) - 2023-02-02
+### Fixed
+  - Correct wrong fields used in `0.9.6` migration
+
 ## [[0.9.6]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.6) - 2023-01-31
 ### Changed
   - Use inlined syntax in format strings to comply with [`rustc 1.67.0`](https://github.com/rust-lang/rust/releases/tag/1.67.0)
