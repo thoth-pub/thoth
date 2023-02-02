@@ -36,8 +36,6 @@ pub fn run_migrations() -> ThothResult<()> {
     let mut connection = establish_connection().get().unwrap();
     match connection.run_pending_migrations(MIGRATIONS) {
         Ok(_) => Ok(()),
-        Err(_) => Err(ThothError::DatabaseError(
-            "Could not run migrations".to_string(),
-        )),
+        Err(error) => Err(ThothError::DatabaseError(error.to_string())),
     }
 }
