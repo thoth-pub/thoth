@@ -2328,6 +2328,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "marc"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe64e04162cf64d8498413d3b89be57ca8ac067d08405097205bc6cec43b054b"
+
+[[package]]
 name = "matches"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4134,6 +4140,7 @@ dependencies = [
  "csv",
  "diesel",
  "juniper",
+ "marc",
  "phf",
  "reqwest 0.11.9",
  "serde",
@@ -4155,6 +4162,7 @@ dependencies = [
  "env_logger 0.7.1",
  "lazy_static 1.4.0",
  "log",
+ "marc",
  "paperclip",
  "regex",
  "serde",

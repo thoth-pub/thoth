@@ -134,6 +134,9 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                     "Output can only be generated for one work at a time".to_string(),
                 )),
             },
+            MetadataSpecification::Marc21RecordThoth(_) => {
+                Ok(QueryParameters::new().with_issues().with_publications())
+            }
         }
     }
 }

@@ -11,6 +11,7 @@ mod csv;
 mod data;
 mod format;
 mod json;
+mod marc21;
 mod platform;
 mod rapidoc;
 mod record;
