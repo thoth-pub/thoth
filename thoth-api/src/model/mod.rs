@@ -265,7 +265,7 @@ impl Doi {
 
 impl Isbn {
     pub fn to_hyphenless_string(&self) -> String {
-        self.0.replace("-", "")
+        self.0.replace('-', "")
     }
 }
 
