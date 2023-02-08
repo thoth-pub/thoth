@@ -1,5 +1,6 @@
+use crate::marc21::Marc21Field;
 use marc::{Record, RecordBuilder};
-use thoth_client::{Work, WorkType};
+use thoth_client::{Work, WorkPublications, WorkType};
 use thoth_errors::{ThothError, ThothResult};
 
 use super::{Marc21Entry, Marc21Specification};
@@ -33,9 +34,34 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
     fn to_record(&self) -> ThothResult<Record> {
         let mut builder = RecordBuilder::new();
         builder.add_field((b"001", self.title.clone().into_bytes()))?;
-        builder.add_field((b"001", self.title.clone().into_bytes()))?;
-        builder.add_field((b"001", self.title.clone().into_bytes()))?;
+
+        let publications: Vec<WorkPublications> = self
+            .publications
+            .clone()
+            .into_iter()
+            .filter(|p| p.isbn.is_some())
+            .collect();
+        if !publications.is_empty() {
+            for publication in &publications {
+                Marc21Field::<Marc21RecordThoth>::to_field(publication, &mut builder)?;
+            }
+        }
 
         Ok(builder.get_record()?)
+    }
+}
+
+impl Marc21Field<Marc21RecordThoth> for WorkPublications {
+    fn to_field(&self, builder: &mut RecordBuilder) -> ThothResult<()> {
+        if let Some(isbn) = self.isbn.clone() {
+            let mut subfield_data: Vec<u8> = Vec::new();
+            subfield_data.extend(b"a");
+            subfield_data.extend(isbn.to_hyphenless_string().as_bytes());
+            subfield_data.extend(b"q");
+            subfield_data.extend(format!("({})", self.publication_type).into_bytes());
+
+            builder.add_field((b"020", subfield_data))?;
+        }
+        Ok(())
     }
 }

@@ -1,5 +1,5 @@
+use marc::{Record, RecordBuilder};
 use std::io::Write;
-use marc::Record;
 use thoth_client::Work;
 use thoth_errors::{ThothError, ThothResult};
 
@@ -24,6 +24,10 @@ pub(crate) trait Marc21Entry<T: Marc21Specification> {
     }
 
     fn to_record(&self) -> ThothResult<Record>;
+}
+
+pub(crate) trait Marc21Field<T: Marc21Specification> {
+    fn to_field(&self, builder: &mut RecordBuilder) -> ThothResult<()>;
 }
 
 mod marc21record_thoth;
