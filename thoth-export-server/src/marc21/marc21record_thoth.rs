@@ -1,5 +1,4 @@
 use marc::{Record, RecordBuilder};
-use std::io::Write;
 use thoth_client::{Work, WorkType};
 use thoth_errors::{ThothError, ThothResult};
 
@@ -15,13 +14,13 @@ impl Marc21Specification for Marc21RecordThoth {
                 "marc21record::thoth".to_string(),
                 "Not enough data".to_string(),
             )),
-            1 => Marc21Entry::<Marc21RecordThoth>::marc21_entry(works.first().unwrap(), w),
+            1 => Marc21Entry::<Marc21RecordThoth>::marc21_record(works.first().unwrap(), w),
             _ => {
                 for work in works.iter() {
                     // Do not include Chapters in full publisher metadata record
                     // (assumes that a publisher will always have more than one work)
                     if work.work_type != WorkType::BOOK_CHAPTER {
-                        Marc21Entry::<Marc21RecordThoth>::marc21_entry(work, w).ok();
+                        Marc21Entry::<Marc21RecordThoth>::marc21_record(work, w).ok();
                     }
                 }
                 Ok(())
@@ -31,14 +30,12 @@ impl Marc21Specification for Marc21RecordThoth {
 }
 
 impl Marc21Entry<Marc21RecordThoth> for Work {
-    fn marc21_entry(&self, w: &mut Vec<u8>) -> ThothResult<()> {
-        w.write_all(self.marc21_record()?.as_ref())?;
-        Ok(())
-    }
-
-    fn marc21_record(&self) -> ThothResult<Record> {
+    fn to_record(&self) -> ThothResult<Record> {
         let mut builder = RecordBuilder::new();
-        let record = builder.add_field((b"001", self.title.clone().into_bytes()))?.get_record()?;
-        Ok(record)
+        builder.add_field((b"001", self.title.clone().into_bytes()))?;
+        builder.add_field((b"001", self.title.clone().into_bytes()))?;
+        builder.add_field((b"001", self.title.clone().into_bytes()))?;
+
+        Ok(builder.get_record()?)
     }
 }
