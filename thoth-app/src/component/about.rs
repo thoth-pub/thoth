@@ -19,9 +19,9 @@ impl Component for AboutComponent {
                     <p>{ "Thoth is an open metadata management and dissemination platform. As an organisation, we are focused on:" }</p>
                     <ul>
                         <li>{ "creation, curation, and dissemination of high-quality metadata records which are essential for the advancement of public knowledge;" }</li>
-                        <li>{ "promote openness in scholarly communications such as open access, open licensing, FLOSS, open data, open metadata, and open standards and protocols;" }</li>
-                        <li>{ "embrace infrastructural and platform diversity as an inherent component of a flourishing scholarly communications landscape;" }</li>
-                        <li>{ "provide high-quality solutions and services for metadata creation, management, dissemination, archiving and preservation." }</li>
+                        <li>{ "promoting openness in scholarly communications such as open access, open licensing, FLOSS, open data, open metadata, and open standards and protocols;" }</li>
+                        <li>{ "embracing infrastructural and platform diversity as an inherent component of a flourishing scholarly communications landscape;" }</li>
+                        <li>{ "providing high-quality solutions and services for metadata creation, management, dissemination, archiving and preservation." }</li>
                     </ul>
                     <p>{ "Thoth has been developed by Javier Arias in the context of the Community-led Open Publication Infrastructures for Monographs (COPIM) project funded by UKRI and the Arcadia Fund." }</p>
                     <p>{ "Thoth is incorporated as a Community Interest Company in the UK, no. 14549556." }</p>
