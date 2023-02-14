@@ -5,12 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[0.9.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.8) - 2023-02-14
 ### Changed
   - Replace generic error with actual message when migrations fail
   - Upgrade node and rollup in github actions
 
 ### Added
   - Github action to check that all migrations run successfully
+  - About page with organisation information
 
 ## [[0.9.7]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.7) - 2023-02-02
 ### Fixed
