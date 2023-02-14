@@ -66,6 +66,13 @@ impl Component for NavbarComponent {
                             {"Catalogue"}
                         </Link<AppRoute>>
 
+                        <Link<AppRoute>
+                            classes="navbar-item"
+                            to={ AppRoute::About }
+                        >
+                            {"About Us"}
+                        </Link<AppRoute>>
+
                         <div class="navbar-item has-dropdown is-hoverable">
                             <a class="navbar-link">
                             { "Docs" }
