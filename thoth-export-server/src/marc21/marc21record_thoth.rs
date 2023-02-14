@@ -47,6 +47,10 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             }
         }
 
+        if let Some(doi) = self.doi.clone() {
+            builder.add_field((b"024", doi.to_lowercase_string().into_bytes()))?;
+        }
+
         Ok(builder.get_record()?)
     }
 }
