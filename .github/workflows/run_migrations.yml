@@ -1,0 +1,68 @@
+name: run-migrations
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+    paths:
+      - '**up.sql'
+      - '**down.sql'
+      - '**db.rs'
+  pull_request:
+    paths:
+      - '**up.sql'
+      - '**down.sql'
+      - '**db.rs'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  THOTH_GRAPHQL_API: https://api.thoth.pub
+  THOTH_EXPORT_API: https://export.thoth.pub
+  DATABASE_URL: postgres://thoth:thoth@localhost:5432/thoth
+
+jobs:
+  run_migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:12
+        env:
+          POSTGRES_PASSWORD: thoth
+          POSTGRES_DB: thoth
+          POSTGRES_USER: thoth
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-node@v3
+      with:
+        node-version: '18.13.0'
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+    - uses: jetli/wasm-pack-action@v0.3.0
+      with:
+        version: 'v0.10.3'
+    - name: Install rollup
+      run: sudo npm install -g rollup@3.12.0
+    - name: Compile WASM
+      run: wasm-pack build thoth-app/ --target web --release
+    - name: Pack APP
+      run: rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js
+    - name: Build binary
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --verbose
+    - name: Run migrations
+      uses: actions-rs/cargo@v1
+      with:
+        command: run
+        args: migrate
