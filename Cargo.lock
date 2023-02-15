@@ -2755,8 +2755,8 @@ dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.36",
  "quote 1.0.15",
- "strum 0.24.0",
- "strum_macros 0.24.0",
+ "strum",
+ "strum_macros",
  "syn 1.0.94",
 ]
 
@@ -3882,29 +3882,11 @@ dependencies = [
 
 [[package]]
 name = "strum"
-version = "0.20.0"
+version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7318c509b5ba57f18533982607f24070a55d353e90d4cae30c467cdb2ad5ac5c"
+checksum = "063e6045c0e62079840579a7e47a355ae92f60eb74daaf156fb1e84ba164e63f"
 dependencies = [
- "strum_macros 0.20.1",
-]
-
-[[package]]
-name = "strum"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e96acfc1b70604b8b2f1ffa4c57e59176c7dbb05d556c71ecd2f5498a1dee7f8"
-
-[[package]]
-name = "strum_macros"
-version = "0.20.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee8bc6b87a5112aeeab1f4a9f7ab634fe6cbefc4850006df31267f4cfb9e3149"
-dependencies = [
- "heck 0.3.1",
- "proc-macro2 1.0.36",
- "quote 1.0.15",
- "syn 1.0.94",
+ "strum_macros",
 ]
 
 [[package]]
@@ -4094,7 +4076,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "strum 0.20.0",
+ "strum",
  "thoth-errors",
  "uuid 0.8.2",
 ]
