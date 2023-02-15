@@ -4,7 +4,7 @@ use actix_cors::Cors;
 use actix_web::{get, middleware::Logger, web, App, HttpResponse, HttpServer};
 
 const NO_CACHE: &str = "no-cache";
-const LOG_FORMAT: &str = r#"%{X-Forwarded-For}i %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#;
+const LOG_FORMAT: &str = r#"%{r}a %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#;
 
 macro_rules! static_files {
     ($(($cname:ident, $fname:ident) => ($source_path:expr, $dest_path:expr, $type:expr),)*) => (

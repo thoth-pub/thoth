@@ -20,7 +20,7 @@ mod xml;
 
 use crate::rapidoc::rapidoc_source;
 
-const LOG_FORMAT: &str = r#"%{X-Forwarded-For}i %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#;
+const LOG_FORMAT: &str = r#"%{r}a %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#;
 
 struct ApiConfig {
     api_schema: String,
