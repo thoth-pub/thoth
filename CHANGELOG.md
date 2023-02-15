@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+  - Upgrade `actix-web` to v4.3.0
+  - Upgrade `actix-cors` to v0.6.4
+  - Upgrade `env_logger` to v0.10.0
 
 ## [[0.9.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.8) - 2023-02-14
 ### Changed
