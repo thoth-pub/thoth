@@ -20,6 +20,8 @@ mod xml;
 
 use crate::rapidoc::rapidoc_source;
 
+const LOG_FORMAT: &str = r#""%{X-Forwarded-For}i" %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#;
+
 struct ApiConfig {
     api_schema: String,
 }
@@ -91,7 +93,7 @@ pub async fn start_server(
         };
 
         App::new()
-            .wrap(Logger::default())
+            .wrap(Logger::new(LOG_FORMAT))
             .wrap(Cors::default().allowed_methods(vec!["GET", "OPTIONS"]))
             .app_data(Data::new(ThothClient::new(gql_endpoint.clone())))
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
