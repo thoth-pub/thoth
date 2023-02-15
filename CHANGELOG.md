@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade `actix-web` to v4.3.0
   - Upgrade `actix-cors` to v0.6.4
   - Upgrade `env_logger` to v0.10.0
+  - Upgrade `jsonwebtoken` to v8.2.0
+  - Output real IP address in actix logs
 
 ## [[0.9.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.8) - 2023-02-14
 ### Changed
