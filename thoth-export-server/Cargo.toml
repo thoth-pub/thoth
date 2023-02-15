@@ -12,11 +12,11 @@ readme = "README.md"
 thoth-api = { version = "0.9.8", path = "../thoth-api" }
 thoth-errors = { version = "0.9.8", path = "../thoth-errors" }
 thoth-client = { version = "0.9.8", path = "../thoth-client" }
-actix-web = "4.0.1"
-actix-cors = "0.6.0"
+actix-web = "4.3.0"
+actix-cors = "0.6.4"
 chrono = { version = "0.4.23", features = ["serde"] }
 csv = "1.1.6"
-env_logger = "0.7.1"
+env_logger = "0.10.0"
 lazy_static = "1.4.0"
 log = "0.4.14"
 paperclip = { version = "0.8.0", features = ["actix-base", "actix4", "uuid0", "v2"] }

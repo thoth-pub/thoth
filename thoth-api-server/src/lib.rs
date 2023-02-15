@@ -26,6 +26,8 @@ use thoth_errors::ThothError;
 
 use crate::graphiql::graphiql_source;
 
+const LOG_FORMAT: &str = r#"%{r}a %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#;
+
 #[derive(Serialize)]
 struct ApiConfig {
     api_name: String,
@@ -196,7 +198,7 @@ pub async fn start_server(
 
     HttpServer::new(move || {
         App::new()
-            .wrap(Logger::default())
+            .wrap(Logger::new(LOG_FORMAT))
             .wrap(IdentityService::new(
                 CookieIdentityPolicy::new(secret_str.as_bytes())
                     .name("auth")
