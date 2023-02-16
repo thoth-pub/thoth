@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.9.9]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.9) - 2023-02-16
+### Changed
+  - Upgrade `actix-web` to v4.3.0
+  - Upgrade `actix-cors` to v0.6.4
+  - Upgrade `env_logger` to v0.10.0
+  - Upgrade `jsonwebtoken` to v8.2.0
+  - Upgrade `strum` to v0.24.1
+  - Output real IP address in actix logs
+
 ## [[0.9.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.8) - 2023-02-14
 ### Changed
   - Replace generic error with actual message when migrations fail
