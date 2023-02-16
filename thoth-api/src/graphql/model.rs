@@ -2236,6 +2236,10 @@ impl Work {
         self.page_interval.as_ref()
     }
 
+    pub fn relation_updated_at(&self) -> Timestamp {
+        self.relation_updated_at.clone()
+    }
+
     pub fn imprint(&self, context: &Context) -> FieldResult<Imprint> {
         Imprint::from_id(&context.db, &self.imprint_id).map_err(|e| e.into())
     }
