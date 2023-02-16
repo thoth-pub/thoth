@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 /// A set of booleans to toggle directives in the GraphQL queries
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct QueryParameters {
     with_issues: bool,
     with_languages: bool,
