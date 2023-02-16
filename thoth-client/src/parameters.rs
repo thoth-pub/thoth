@@ -374,11 +374,13 @@ mod tests {
         let publishers = Some(vec![publisher_id]);
         let mut parameters = QueryParameters::new().with_all();
         let mut variables: works_query::Variables =
-            WorksQueryVariables::new(publishers.clone(), parameters).into();
+            WorksQueryVariables::new(publishers.clone(), 100, 0, parameters).into();
         assert_eq!(
             variables,
             works_query::Variables {
                 publishers: publishers.clone(),
+                limit: 100,
+                offset: 0,
                 issues_limit: FILTER_INCLUDE_ALL,
                 languages_limit: FILTER_INCLUDE_ALL,
                 publications_limit: FILTER_INCLUDE_ALL,
@@ -389,11 +391,13 @@ mod tests {
             }
         );
         parameters = QueryParameters::new();
-        variables = WorksQueryVariables::new(publishers.clone(), parameters).into();
+        variables = WorksQueryVariables::new(publishers.clone(), 100, 0, parameters).into();
         assert_eq!(
             variables,
             works_query::Variables {
                 publishers: publishers.clone(),
+                limit: 100,
+                offset: 0,
                 issues_limit: FILTER_INCLUDE_NONE,
                 languages_limit: FILTER_INCLUDE_NONE,
                 publications_limit: FILTER_INCLUDE_NONE,
@@ -407,11 +411,13 @@ mod tests {
             .with_all()
             .without_relations()
             .without_references();
-        variables = WorksQueryVariables::new(publishers.clone(), parameters).into();
+        variables = WorksQueryVariables::new(publishers.clone(), 100, 0, parameters).into();
         assert_eq!(
             variables,
             works_query::Variables {
                 publishers,
+                limit: 100,
+                offset: 0,
                 issues_limit: FILTER_INCLUDE_ALL,
                 languages_limit: FILTER_INCLUDE_ALL,
                 publications_limit: FILTER_INCLUDE_ALL,
