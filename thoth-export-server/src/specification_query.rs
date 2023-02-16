@@ -41,9 +41,26 @@ impl SpecificationQuery {
     pub(crate) async fn by_publisher(self, publisher_id: Uuid) -> ThothResult<Vec<Work>> {
         let parameters: QueryParameters =
             QueryConfiguration::by_publisher(self.specification).try_into()?;
-        self.thoth_client
-            .get_works(Some(vec![publisher_id]), 99999, 0, parameters)
-            .await
+
+        let work_count = self
+            .thoth_client
+            .get_work_count(Some(vec![publisher_id]))
+            .await?;
+        let mut works: Vec<Work> = vec![];
+        let mut current_iteration: i64 = 1;
+        let limit: i64 = 100;
+        let total_iterations = (work_count / limit) + 1;
+
+        while current_iteration <= total_iterations {
+            let offset = (current_iteration - 1) * limit;
+            let works_page = self
+                .thoth_client
+                .get_works(Some(vec![publisher_id]), limit, offset, parameters)
+                .await?;
+            works.extend(works_page);
+            current_iteration += 1;
+        }
+        Ok(works)
     }
 }
 
