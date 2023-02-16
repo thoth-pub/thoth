@@ -240,3 +240,9 @@ query WorksQuery(
         ...Work
     }
 }
+
+query WorkCountQuery(
+    $publishers: [Uuid!]
+) {
+    workCount(publishers: $publishers)
+}
