@@ -225,6 +225,8 @@ query WorkQuery(
     }
 }
 query WorksQuery(
+    $limit: Int!,
+    $offset: Int!,
     $publishers: [Uuid!],
     $issuesLimit: Int!,
     $languagesLimit: Int!,
@@ -234,7 +236,7 @@ query WorksQuery(
     $relationsLimit: Int!,
     $referencesLimit: Int!
 ) {
-    works(limit: 99999, publishers: $publishers) {
+    works(limit: $limit, offset: $offset, publishers: $publishers) {
         ...Work
     }
 }

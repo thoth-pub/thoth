@@ -23,6 +23,8 @@ pub(crate) struct WorkQueryVariables {
 /// An intermediate struct to parse QueryParameters into works_query::Variables
 pub(crate) struct WorksQueryVariables {
     pub publishers: Option<Vec<Uuid>>,
+    pub limit: i64,
+    pub offset: i64,
     pub parameters: QueryParameters,
 }
 
@@ -36,9 +38,16 @@ impl WorkQueryVariables {
 }
 
 impl WorksQueryVariables {
-    pub(crate) fn new(publishers: Option<Vec<Uuid>>, parameters: QueryParameters) -> Self {
+    pub(crate) fn new(
+        publishers: Option<Vec<Uuid>>,
+        limit: i64,
+        offset: i64,
+        parameters: QueryParameters,
+    ) -> Self {
         WorksQueryVariables {
             publishers,
+            limit,
+            offset,
             parameters,
         }
     }
@@ -192,6 +201,8 @@ impl From<WorksQueryVariables> for works_query::Variables {
     fn from(v: WorksQueryVariables) -> Self {
         works_query::Variables {
             publishers: v.publishers,
+            limit: v.limit,
+            offset: v.offset,
             issues_limit: if v.parameters.with_issues {
                 FILTER_INCLUDE_ALL
             } else {

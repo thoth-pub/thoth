@@ -42,7 +42,7 @@ impl SpecificationQuery {
         let parameters: QueryParameters =
             QueryConfiguration::by_publisher(self.specification).try_into()?;
         self.thoth_client
-            .get_works(Some(vec![publisher_id]), parameters)
+            .get_works(Some(vec![publisher_id]), 99999, 0, parameters)
             .await
     }
 }

@@ -90,17 +90,19 @@ impl ThothClient {
     /// # async fn run() -> ThothResult<Vec<Work>> {
     /// let thoth_client = ThothClient::new("https://api.thoth.pub/graphql".to_string());
     /// let publisher_id = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001")?;
-    /// let works = thoth_client.get_works(Some(vec![publisher_id]), QueryParameters::new()).await?;
+    /// let works = thoth_client.get_works(Some(vec![publisher_id]), 100, 0, QueryParameters::new()).await?;
     /// # Ok(works)
     /// # }
     /// ```
     pub async fn get_works(
         &self,
         publishers: Option<Vec<Uuid>>,
+        limit: i64,
+        offset: i64,
         parameters: QueryParameters,
     ) -> ThothResult<Vec<Work>> {
         let variables: works_query::Variables =
-            WorksQueryVariables::new(publishers, parameters).into();
+            WorksQueryVariables::new(publishers, limit, offset, parameters).into();
         let request_body = WorksQuery::build_query(variables);
         let res = self.post_request(&request_body).await.await?;
         let response_body: Response<works_query::ResponseData> = res.json().await?;
