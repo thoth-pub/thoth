@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::record::MetadataSpecification;
 
-const CONCURRENT_REQUESTS: usize = 5;
+const CONCURRENT_REQUESTS: usize = 4;
 const PAGINATION_LIMIT: i64 = 100;
 
 enum SpecificationRequest {
