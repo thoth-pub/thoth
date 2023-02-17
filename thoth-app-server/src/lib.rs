@@ -73,7 +73,7 @@ async fn index() -> HttpResponse {
 }
 
 #[actix_web::main]
-pub async fn start_server(host: String, port: String) -> io::Result<()> {
+pub async fn start_server(host: String, port: String, threads: usize) -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     HttpServer::new(move || {
@@ -83,6 +83,7 @@ pub async fn start_server(host: String, port: String) -> io::Result<()> {
             .configure(config)
             .default_service(web::route().to(index))
     })
+    .workers(threads)
     .bind(format!("{host}:{port}"))?
     .run()
     .await

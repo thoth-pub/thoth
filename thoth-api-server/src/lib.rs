@@ -189,6 +189,7 @@ fn config(cfg: &mut web::ServiceConfig) {
 pub async fn start_server(
     host: String,
     port: String,
+    threads: usize,
     public_url: String,
     domain: String,
     secret_str: String,
@@ -217,6 +218,7 @@ pub async fn start_server(
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
             .configure(config)
     })
+    .workers(threads)
     .bind(format!("{host}:{port}"))?
     .run()
     .await
