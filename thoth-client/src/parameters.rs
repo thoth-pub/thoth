@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 /// A set of booleans to toggle directives in the GraphQL queries
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct QueryParameters {
     with_issues: bool,
     with_languages: bool,
@@ -23,6 +23,8 @@ pub(crate) struct WorkQueryVariables {
 /// An intermediate struct to parse QueryParameters into works_query::Variables
 pub(crate) struct WorksQueryVariables {
     pub publishers: Option<Vec<Uuid>>,
+    pub limit: i64,
+    pub offset: i64,
     pub parameters: QueryParameters,
 }
 
@@ -36,9 +38,16 @@ impl WorkQueryVariables {
 }
 
 impl WorksQueryVariables {
-    pub(crate) fn new(publishers: Option<Vec<Uuid>>, parameters: QueryParameters) -> Self {
+    pub(crate) fn new(
+        publishers: Option<Vec<Uuid>>,
+        limit: i64,
+        offset: i64,
+        parameters: QueryParameters,
+    ) -> Self {
         WorksQueryVariables {
             publishers,
+            limit,
+            offset,
             parameters,
         }
     }
@@ -192,6 +201,8 @@ impl From<WorksQueryVariables> for works_query::Variables {
     fn from(v: WorksQueryVariables) -> Self {
         works_query::Variables {
             publishers: v.publishers,
+            limit: v.limit,
+            offset: v.offset,
             issues_limit: if v.parameters.with_issues {
                 FILTER_INCLUDE_ALL
             } else {
@@ -363,11 +374,13 @@ mod tests {
         let publishers = Some(vec![publisher_id]);
         let mut parameters = QueryParameters::new().with_all();
         let mut variables: works_query::Variables =
-            WorksQueryVariables::new(publishers.clone(), parameters).into();
+            WorksQueryVariables::new(publishers.clone(), 100, 0, parameters).into();
         assert_eq!(
             variables,
             works_query::Variables {
                 publishers: publishers.clone(),
+                limit: 100,
+                offset: 0,
                 issues_limit: FILTER_INCLUDE_ALL,
                 languages_limit: FILTER_INCLUDE_ALL,
                 publications_limit: FILTER_INCLUDE_ALL,
@@ -378,11 +391,13 @@ mod tests {
             }
         );
         parameters = QueryParameters::new();
-        variables = WorksQueryVariables::new(publishers.clone(), parameters).into();
+        variables = WorksQueryVariables::new(publishers.clone(), 100, 0, parameters).into();
         assert_eq!(
             variables,
             works_query::Variables {
                 publishers: publishers.clone(),
+                limit: 100,
+                offset: 0,
                 issues_limit: FILTER_INCLUDE_NONE,
                 languages_limit: FILTER_INCLUDE_NONE,
                 publications_limit: FILTER_INCLUDE_NONE,
@@ -396,11 +411,13 @@ mod tests {
             .with_all()
             .without_relations()
             .without_references();
-        variables = WorksQueryVariables::new(publishers.clone(), parameters).into();
+        variables = WorksQueryVariables::new(publishers.clone(), 100, 0, parameters).into();
         assert_eq!(
             variables,
             works_query::Variables {
                 publishers,
+                limit: 100,
+                offset: 0,
                 issues_limit: FILTER_INCLUDE_ALL,
                 languages_limit: FILTER_INCLUDE_ALL,
                 publications_limit: FILTER_INCLUDE_ALL,

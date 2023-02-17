@@ -97,6 +97,17 @@ fn export_url_argument() -> Arg<'static, 'static> {
         .takes_value(true)
 }
 
+fn threads_argument(env_value: &'static str) -> Arg<'static, 'static> {
+    Arg::with_name("threads")
+        .short("t")
+        .long("threads")
+        .value_name("THREADS")
+        .env(env_value)
+        .default_value("5")
+        .help("Number of HTTP workers to start")
+        .takes_value(true)
+}
+
 fn thoth_commands() -> App<'static, 'static> {
     App::new(env!("CARGO_PKG_NAME"))
         .version(crate_version!())
@@ -113,6 +124,7 @@ fn thoth_commands() -> App<'static, 'static> {
                         .about("Start the thoth GraphQL API server")
                         .arg(host_argument("GRAPHQL_API_HOST"))
                         .arg(port_argument("8000", "GRAPHQL_API_PORT"))
+                        .arg(threads_argument("GRAPHQL_API_THREADS"))
                         .arg(gql_url_argument())
                         .arg(domain_argument())
                         .arg(key_argument())
@@ -122,13 +134,15 @@ fn thoth_commands() -> App<'static, 'static> {
                     App::new("app")
                         .about("Start the thoth client GUI")
                         .arg(host_argument("APP_HOST"))
-                        .arg(port_argument("8080", "APP_PORT")),
+                        .arg(port_argument("8080", "APP_PORT"))
+                        .arg(threads_argument("APP_THREADS")),
                 )
                 .subcommand(
                     App::new("export-api")
                         .about("Start the thoth metadata export API")
                         .arg(host_argument("EXPORT_API_HOST"))
                         .arg(port_argument("8181", "EXPORT_API_PORT"))
+                        .arg(threads_argument("EXPORT_API_THREADS"))
                         .arg(export_url_argument())
                         .arg(gql_endpoint_argument()),
                 ),
@@ -138,6 +152,7 @@ fn thoth_commands() -> App<'static, 'static> {
                 .about("Run the database migrations and start the thoth API server")
                 .arg(host_argument("GRAPHQL_API_HOST"))
                 .arg(port_argument("8000", "GRAPHQL_API_PORT"))
+                .arg(threads_argument("GRAPHQL_API_THREADS"))
                 .arg(gql_url_argument())
                 .arg(domain_argument())
                 .arg(key_argument())
@@ -161,24 +176,35 @@ fn main() -> ThothResult<()> {
             ("graphql-api", Some(api_matches)) => {
                 let host = api_matches.value_of("host").unwrap().to_owned();
                 let port = api_matches.value_of("port").unwrap().to_owned();
+                let threads = value_t!(api_matches.value_of("threads"), usize).unwrap();
                 let url = api_matches.value_of("gql-url").unwrap().to_owned();
                 let domain = api_matches.value_of("domain").unwrap().to_owned();
                 let secret_str = api_matches.value_of("key").unwrap().to_owned();
                 let session_duration = value_t!(api_matches.value_of("duration"), i64).unwrap();
-                api_server(host, port, url, domain, secret_str, session_duration)
-                    .map_err(|e| e.into())
+                api_server(
+                    host,
+                    port,
+                    threads,
+                    url,
+                    domain,
+                    secret_str,
+                    session_duration,
+                )
+                .map_err(|e| e.into())
             }
             ("app", Some(client_matches)) => {
                 let host = client_matches.value_of("host").unwrap().to_owned();
                 let port = client_matches.value_of("port").unwrap().to_owned();
-                app_server(host, port).map_err(|e| e.into())
+                let threads = value_t!(client_matches.value_of("threads"), usize).unwrap();
+                app_server(host, port, threads).map_err(|e| e.into())
             }
             ("export-api", Some(client_matches)) => {
                 let host = client_matches.value_of("host").unwrap().to_owned();
                 let port = client_matches.value_of("port").unwrap().to_owned();
+                let threads = value_t!(client_matches.value_of("threads"), usize).unwrap();
                 let url = client_matches.value_of("export-url").unwrap().to_owned();
                 let gql_endpoint = client_matches.value_of("gql-endpoint").unwrap().to_owned();
-                export_server(host, port, url, gql_endpoint).map_err(|e| e.into())
+                export_server(host, port, threads, url, gql_endpoint).map_err(|e| e.into())
             }
             _ => unreachable!(),
         },
@@ -186,12 +212,22 @@ fn main() -> ThothResult<()> {
         ("init", Some(init_matches)) => {
             let host = init_matches.value_of("host").unwrap().to_owned();
             let port = init_matches.value_of("port").unwrap().to_owned();
+            let threads = value_t!(init_matches.value_of("threads"), usize).unwrap();
             let url = init_matches.value_of("gql-url").unwrap().to_owned();
             let domain = init_matches.value_of("domain").unwrap().to_owned();
             let secret_str = init_matches.value_of("key").unwrap().to_owned();
             let session_duration = value_t!(init_matches.value_of("duration"), i64).unwrap();
             run_migrations()?;
-            api_server(host, port, url, domain, secret_str, session_duration).map_err(|e| e.into())
+            api_server(
+                host,
+                port,
+                threads,
+                url,
+                domain,
+                secret_str,
+                session_duration,
+            )
+            .map_err(|e| e.into())
         }
         ("account", Some(account_matches)) => match account_matches.subcommand() {
             ("register", Some(_)) => {

@@ -1418,9 +1418,9 @@ checksum = "3a471a38ef8ed83cd6e40aa59c1ffe17db6855c18e3604d9c4ed8c08ebc28678"
 
 [[package]]
 name = "futures"
-version = "0.3.5"
+version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e05b85ec287aac0dc34db7d4a569323df697f9c55b99b15d6b4ef8cde49f613"
+checksum = "13e2792b0ff0340399d58445b88fd9770e3489eff258a4cbc1523418f12abf84"
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -1470,9 +1470,9 @@ dependencies = [
 
 [[package]]
 name = "futures-executor"
-version = "0.3.5"
+version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10d6bb888be1153d3abeb9006b11b02cf5e9b209fda28693c31ae1e4e012e314"
+checksum = "e8de0a35a6ab97ec8869e32a2473f4b1324459e14c29275d14b10cb1fd19b50e"
 dependencies = [
  "futures-core",
  "futures-task",
@@ -2239,7 +2239,7 @@ dependencies = [
  "bson",
  "chrono",
  "fnv",
- "futures 0.3.5",
+ "futures 0.3.26",
  "futures-enum",
  "graphql-parser 0.3.0",
  "indexmap",
@@ -2715,7 +2715,7 @@ checksum = "f8e2adab1a71766521af58973719fb66bd7b92e6ce8a3acf1e83c7acc0e78e17"
 dependencies = [
  "actix-service",
  "actix-web",
- "futures 0.3.5",
+ "futures 0.3.26",
  "mime_guess",
  "once_cell",
  "paperclip-core",
@@ -4039,7 +4039,7 @@ dependencies = [
 
 [[package]]
 name = "thoth"
-version = "0.9.9"
+version = "0.9.10"
 dependencies = [
  "cargo-husky",
  "clap",
@@ -4054,7 +4054,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api"
-version = "0.9.9"
+version = "0.9.10"
 dependencies = [
  "actix-web",
  "argon2rs",
@@ -4065,7 +4065,7 @@ dependencies = [
  "diesel-derive-newtype",
  "diesel_migrations",
  "dotenv",
- "futures 0.3.5",
+ "futures 0.3.26",
  "isbn2",
  "jsonwebtoken",
  "juniper",
@@ -4083,7 +4083,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api-server"
-version = "0.9.9"
+version = "0.9.10"
 dependencies = [
  "actix-cors",
  "actix-identity",
@@ -4098,7 +4098,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app"
-version = "0.9.9"
+version = "0.9.10"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4127,7 +4127,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app-server"
-version = "0.9.9"
+version = "0.9.10"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -4136,7 +4136,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-client"
-version = "0.9.9"
+version = "0.9.10"
 dependencies = [
  "chrono",
  "graphql_client",
@@ -4150,7 +4150,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-errors"
-version = "0.9.9"
+version = "0.9.10"
 dependencies = [
  "actix-web",
  "csv",
@@ -4168,13 +4168,14 @@ dependencies = [
 
 [[package]]
 name = "thoth-export-server"
-version = "0.9.9"
+version = "0.9.10"
 dependencies = [
  "actix-cors",
  "actix-web",
  "chrono",
  "csv",
  "env_logger 0.10.0",
+ "futures 0.3.26",
  "lazy_static 1.4.0",
  "log",
  "paperclip",

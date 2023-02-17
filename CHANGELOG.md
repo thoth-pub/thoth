@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.9.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.10) - 2023-02-17
+### Changed
+  - Include `limit` and `offset` in `thoth-client`'s works query
+  - Paginate `get_works` requests in export API using concurrent requests
+  - Input number of actix workers via CLI arguments
+
+### Added
+  - Work count query to `thoth-client`
+
 ## [[0.9.9]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.9) - 2023-02-16
 ### Changed
   - Upgrade `actix-web` to v4.3.0
