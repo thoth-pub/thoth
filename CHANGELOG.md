@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
   - Include `limit` and `offset` in `thoth-client`'s works query
   - Paginate `get_works` requests in export API using concurrent requests
+  - Input number of actix workers via CLI arguments
 
 ### Added
   - Work count query to `thoth-client`
