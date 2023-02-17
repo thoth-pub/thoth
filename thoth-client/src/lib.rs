@@ -13,7 +13,9 @@ use uuid::Uuid;
 pub use crate::parameters::QueryParameters;
 use crate::parameters::{WorkQueryVariables, WorksQueryVariables};
 pub use crate::queries::work_query::*;
-use crate::queries::{work_query, works_query, WorkQuery, WorksQuery};
+use crate::queries::{
+    work_count_query, work_query, works_query, WorkCountQuery, WorkQuery, WorksQuery,
+};
 
 type HttpFuture = Result<reqwest::Response, reqwest::Error>;
 
@@ -90,22 +92,55 @@ impl ThothClient {
     /// # async fn run() -> ThothResult<Vec<Work>> {
     /// let thoth_client = ThothClient::new("https://api.thoth.pub/graphql".to_string());
     /// let publisher_id = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001")?;
-    /// let works = thoth_client.get_works(Some(vec![publisher_id]), QueryParameters::new()).await?;
+    /// let works = thoth_client.get_works(Some(vec![publisher_id]), 100, 0, QueryParameters::new()).await?;
     /// # Ok(works)
     /// # }
     /// ```
     pub async fn get_works(
         &self,
         publishers: Option<Vec<Uuid>>,
+        limit: i64,
+        offset: i64,
         parameters: QueryParameters,
     ) -> ThothResult<Vec<Work>> {
         let variables: works_query::Variables =
-            WorksQueryVariables::new(publishers, parameters).into();
+            WorksQueryVariables::new(publishers, limit, offset, parameters).into();
         let request_body = WorksQuery::build_query(variables);
         let res = self.post_request(&request_body).await.await?;
         let response_body: Response<works_query::ResponseData> = res.json().await?;
         match response_body.data {
             Some(data) => Ok(data.works.iter().map(|w| w.clone().into()).collect()), // convert works_query::Work into work_query::Work
+            None => Err(ThothError::EntityNotFound),
+        }
+    }
+
+    /// Get the number of `Work`s in Thoth
+    ///
+    /// # Errors
+    ///
+    /// This method fails if there was an error while sending the request
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use thoth_errors::ThothResult;
+    /// # use thoth_client::ThothClient;
+    /// # use uuid::Uuid;
+    ///
+    /// # async fn run() -> ThothResult<i64> {
+    /// let thoth_client = ThothClient::new("https://api.thoth.pub/graphql".to_string());
+    /// let publisher_id = Uuid::parse_str("00000000-0000-0000-AAAA-000000000001")?;
+    /// let work_count = thoth_client.get_work_count(Some(vec![publisher_id])).await?;
+    /// # Ok(work_count)
+    /// # }
+    /// ```
+    pub async fn get_work_count(&self, publishers: Option<Vec<Uuid>>) -> ThothResult<i64> {
+        let variables = work_count_query::Variables { publishers };
+        let request_body = WorkCountQuery::build_query(variables);
+        let res = self.post_request(&request_body).await.await?;
+        let response_body: Response<work_count_query::ResponseData> = res.json().await?;
+        match response_body.data {
+            Some(data) => Ok(data.work_count),
             None => Err(ThothError::EntityNotFound),
         }
     }

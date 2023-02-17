@@ -17,6 +17,7 @@ actix-cors = "0.6.4"
 chrono = { version = "0.4.23", features = ["serde"] }
 csv = "1.1.6"
 env_logger = "0.10.0"
+futures = "0.3.26"
 lazy_static = "1.4.0"
 log = "0.4.14"
 paperclip = { version = "0.8.0", features = ["actix-base", "actix4", "uuid0", "v2"] }

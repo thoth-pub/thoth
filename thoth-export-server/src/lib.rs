@@ -45,6 +45,7 @@ async fn index(config: web::Data<ApiConfig>) -> HttpResponse {
 pub async fn start_server(
     host: String,
     port: String,
+    threads: usize,
     public_url: String,
     gql_endpoint: String,
 ) -> io::Result<()> {
@@ -105,6 +106,7 @@ pub async fn start_server(
             .with_json_spec_at("/swagger.json")
             .build()
     })
+    .workers(threads)
     .bind(format!("{host}:{port}"))?
     .run()
     .await
