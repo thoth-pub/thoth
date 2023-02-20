@@ -1,6 +1,6 @@
 [package]
 name = "thoth-export-server"
-version = "0.9.9"
+version = "0.9.12"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -9,14 +9,15 @@ repository = "https://github.com/thoth-pub/thoth"
 readme = "README.md"
 
 [dependencies]
-thoth-api = { version = "0.9.9", path = "../thoth-api" }
-thoth-errors = { version = "0.9.9", path = "../thoth-errors" }
-thoth-client = { version = "0.9.9", path = "../thoth-client" }
+thoth-api = { version = "0.9.12", path = "../thoth-api" }
+thoth-errors = { version = "0.9.12", path = "../thoth-errors" }
+thoth-client = { version = "0.9.12", path = "../thoth-client" }
 actix-web = "4.3.0"
 actix-cors = "0.6.4"
 chrono = { version = "0.4.23", features = ["serde"] }
 csv = "1.1.6"
 env_logger = "0.10.0"
+futures = "0.3.26"
 lazy_static = "1.4.0"
 log = "0.4.14"
 paperclip = { version = "0.8.0", features = ["actix-base", "actix4", "uuid0", "v2"] }
