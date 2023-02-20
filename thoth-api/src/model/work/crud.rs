@@ -264,6 +264,10 @@ impl Crud for Work {
                 Direction::Asc => query.order(dsl::updated_at.asc()),
                 Direction::Desc => query.order(dsl::updated_at.desc()),
             },
+            WorkField::RelationUpdatedAt => match order.direction {
+                Direction::Asc => query.order(dsl::relation_updated_at.asc()),
+                Direction::Desc => query.order(dsl::relation_updated_at.desc()),
+            },
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
