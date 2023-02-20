@@ -16,6 +16,8 @@ DROP TRIGGER set_work_table_relation_updated_at ON work_relation;
 
 DROP FUNCTION IF EXISTS work_table_relation_updated_at();
 
+DROP FUNCTION IF EXISTS work_relation_work_table_relation_updated_at();
+
 ALTER TABLE work
     DROP COLUMN relation_updated_at;
 

@@ -39,8 +39,22 @@ CREATE TRIGGER set_work_table_relation_updated_at AFTER INSERT OR UPDATE OR DELE
 CREATE TRIGGER set_work_table_relation_updated_at AFTER INSERT OR UPDATE OR DELETE ON subject
     FOR EACH ROW EXECUTE PROCEDURE work_table_relation_updated_at();
 
+CREATE OR REPLACE FUNCTION work_relation_work_table_relation_updated_at() RETURNS trigger AS $$
+BEGIN
+    IF (
+        NEW IS DISTINCT FROM OLD
+    ) THEN
+        UPDATE work
+        SET relation_updated_at = current_timestamp
+        WHERE work_id = OLD.relator_work_id OR work_id = NEW.relator_work_id
+            OR work_id = OLD.related_work_id OR work_id = NEW.related_work_id;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TRIGGER set_work_table_relation_updated_at AFTER INSERT OR UPDATE OR DELETE ON work_relation
-    FOR EACH ROW EXECUTE PROCEDURE work_table_relation_updated_at();
+    FOR EACH ROW EXECUTE PROCEDURE work_relation_work_table_relation_updated_at();
 
 -- Amend existing trigger which sets updated_at value on work table
 -- to avoid setting updated_at when relation_updated_at changes.
