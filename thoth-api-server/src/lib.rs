@@ -186,6 +186,7 @@ fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(account_details);
 }
 
+#[allow(clippy::too_many_arguments)]
 #[actix_web::main]
 pub async fn start_server(
     host: String,
