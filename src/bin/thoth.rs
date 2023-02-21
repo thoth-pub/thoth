@@ -108,6 +108,17 @@ fn threads_argument(env_value: &'static str) -> Arg<'static, 'static> {
         .takes_value(true)
 }
 
+fn keep_alive_argument(env_value: &'static str) -> Arg<'static, 'static> {
+    Arg::with_name("keep-alive")
+        .short("K")
+        .long("keep-alive")
+        .value_name("THREADS")
+        .env(env_value)
+        .default_value("5")
+        .help("Number of seconds to wait for subsequent requests")
+        .takes_value(true)
+}
+
 fn thoth_commands() -> App<'static, 'static> {
     App::new(env!("CARGO_PKG_NAME"))
         .version(crate_version!())
@@ -125,6 +136,7 @@ fn thoth_commands() -> App<'static, 'static> {
                         .arg(host_argument("GRAPHQL_API_HOST"))
                         .arg(port_argument("8000", "GRAPHQL_API_PORT"))
                         .arg(threads_argument("GRAPHQL_API_THREADS"))
+                        .arg(keep_alive_argument("GRAPHQL_API_KEEP_ALIVE"))
                         .arg(gql_url_argument())
                         .arg(domain_argument())
                         .arg(key_argument())
@@ -135,7 +147,8 @@ fn thoth_commands() -> App<'static, 'static> {
                         .about("Start the thoth client GUI")
                         .arg(host_argument("APP_HOST"))
                         .arg(port_argument("8080", "APP_PORT"))
-                        .arg(threads_argument("APP_THREADS")),
+                        .arg(threads_argument("APP_THREADS"))
+                        .arg(keep_alive_argument("APP_KEEP_ALIVE")),
                 )
                 .subcommand(
                     App::new("export-api")
@@ -143,6 +156,7 @@ fn thoth_commands() -> App<'static, 'static> {
                         .arg(host_argument("EXPORT_API_HOST"))
                         .arg(port_argument("8181", "EXPORT_API_PORT"))
                         .arg(threads_argument("EXPORT_API_THREADS"))
+                        .arg(keep_alive_argument("EXPORT_API_KEEP_ALIVE"))
                         .arg(export_url_argument())
                         .arg(gql_endpoint_argument()),
                 ),
@@ -153,6 +167,7 @@ fn thoth_commands() -> App<'static, 'static> {
                 .arg(host_argument("GRAPHQL_API_HOST"))
                 .arg(port_argument("8000", "GRAPHQL_API_PORT"))
                 .arg(threads_argument("GRAPHQL_API_THREADS"))
+                .arg(keep_alive_argument("GRAPHQL_API_KEEP_ALIVE"))
                 .arg(gql_url_argument())
                 .arg(domain_argument())
                 .arg(key_argument())
@@ -177,6 +192,7 @@ fn main() -> ThothResult<()> {
                 let host = api_matches.value_of("host").unwrap().to_owned();
                 let port = api_matches.value_of("port").unwrap().to_owned();
                 let threads = value_t!(api_matches.value_of("threads"), usize).unwrap();
+                let keep_alive = value_t!(api_matches.value_of("keep-alive"), u64).unwrap();
                 let url = api_matches.value_of("gql-url").unwrap().to_owned();
                 let domain = api_matches.value_of("domain").unwrap().to_owned();
                 let secret_str = api_matches.value_of("key").unwrap().to_owned();
@@ -185,6 +201,7 @@ fn main() -> ThothResult<()> {
                     host,
                     port,
                     threads,
+                    keep_alive,
                     url,
                     domain,
                     secret_str,
@@ -196,15 +213,18 @@ fn main() -> ThothResult<()> {
                 let host = client_matches.value_of("host").unwrap().to_owned();
                 let port = client_matches.value_of("port").unwrap().to_owned();
                 let threads = value_t!(client_matches.value_of("threads"), usize).unwrap();
-                app_server(host, port, threads).map_err(|e| e.into())
+                let keep_alive = value_t!(client_matches.value_of("keep-alive"), u64).unwrap();
+                app_server(host, port, threads, keep_alive).map_err(|e| e.into())
             }
             ("export-api", Some(client_matches)) => {
                 let host = client_matches.value_of("host").unwrap().to_owned();
                 let port = client_matches.value_of("port").unwrap().to_owned();
                 let threads = value_t!(client_matches.value_of("threads"), usize).unwrap();
+                let keep_alive = value_t!(client_matches.value_of("keep-alive"), u64).unwrap();
                 let url = client_matches.value_of("export-url").unwrap().to_owned();
                 let gql_endpoint = client_matches.value_of("gql-endpoint").unwrap().to_owned();
-                export_server(host, port, threads, url, gql_endpoint).map_err(|e| e.into())
+                export_server(host, port, threads, keep_alive, url, gql_endpoint)
+                    .map_err(|e| e.into())
             }
             _ => unreachable!(),
         },
@@ -213,6 +233,7 @@ fn main() -> ThothResult<()> {
             let host = init_matches.value_of("host").unwrap().to_owned();
             let port = init_matches.value_of("port").unwrap().to_owned();
             let threads = value_t!(init_matches.value_of("threads"), usize).unwrap();
+            let keep_alive = value_t!(init_matches.value_of("keep-alive"), u64).unwrap();
             let url = init_matches.value_of("gql-url").unwrap().to_owned();
             let domain = init_matches.value_of("domain").unwrap().to_owned();
             let secret_str = init_matches.value_of("key").unwrap().to_owned();
@@ -222,6 +243,7 @@ fn main() -> ThothResult<()> {
                 host,
                 port,
                 threads,
+                keep_alive,
                 url,
                 domain,
                 secret_str,
