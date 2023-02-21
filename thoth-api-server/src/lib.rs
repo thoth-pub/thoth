@@ -1,5 +1,6 @@
 mod graphiql;
 
+use std::time::Duration;
 use std::{io, sync::Arc};
 
 use actix_cors::Cors;
@@ -190,6 +191,7 @@ pub async fn start_server(
     host: String,
     port: String,
     threads: usize,
+    keep_alive: u64,
     public_url: String,
     domain: String,
     secret_str: String,
@@ -219,6 +221,7 @@ pub async fn start_server(
             .configure(config)
     })
     .workers(threads)
+    .keep_alive(Duration::from_secs(keep_alive))
     .bind(format!("{host}:{port}"))?
     .run()
     .await

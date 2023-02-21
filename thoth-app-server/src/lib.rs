@@ -1,4 +1,5 @@
 use std::io;
+use std::time::Duration;
 
 use actix_cors::Cors;
 use actix_web::{get, middleware::Logger, web, App, HttpResponse, HttpServer};
@@ -73,7 +74,12 @@ async fn index() -> HttpResponse {
 }
 
 #[actix_web::main]
-pub async fn start_server(host: String, port: String, threads: usize) -> io::Result<()> {
+pub async fn start_server(
+    host: String,
+    port: String,
+    threads: usize,
+    keep_alive: u64,
+) -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     HttpServer::new(move || {
@@ -84,6 +90,7 @@ pub async fn start_server(host: String, port: String, threads: usize) -> io::Res
             .default_service(web::route().to(index))
     })
     .workers(threads)
+    .keep_alive(Duration::from_secs(keep_alive))
     .bind(format!("{host}:{port}"))?
     .run()
     .await
