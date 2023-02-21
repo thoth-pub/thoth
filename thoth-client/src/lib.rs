@@ -33,7 +33,8 @@ pub struct ThothClient {
 impl ThothClient {
     /// Constructs a new `ThothClient`
     pub fn new(graphql_endpoint: String) -> Self {
-        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(MAX_REQUEST_RETRIES);
+        let retry_policy =
+            ExponentialBackoff::builder().build_with_max_retries(MAX_REQUEST_RETRIES);
         let http_client = ClientBuilder::new(reqwest::Client::new())
             .with(RetryTransientMiddleware::new_with_policy(retry_policy))
             .build();
