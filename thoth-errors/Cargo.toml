@@ -1,6 +1,6 @@
 [package]
 name = "thoth-errors"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -22,4 +22,5 @@ diesel = "2.0.2"
 csv = "1.1.6"
 juniper = "0.15.10"
 phf = { version = "0.11", features = ["macros"] }
+reqwest-middleware = "0.2.0"
 xml-rs = "0.8.0"
