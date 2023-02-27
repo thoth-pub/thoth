@@ -1,4 +1,5 @@
 use std::io;
+use std::time::Duration;
 
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web::Data, App, HttpServer};
@@ -46,6 +47,7 @@ pub async fn start_server(
     host: String,
     port: String,
     threads: usize,
+    keep_alive: u64,
     public_url: String,
     gql_endpoint: String,
 ) -> io::Result<()> {
@@ -107,6 +109,7 @@ pub async fn start_server(
             .build()
     })
     .workers(threads)
+    .keep_alive(Duration::from_secs(keep_alive))
     .bind(format!("{host}:{port}"))?
     .run()
     .await

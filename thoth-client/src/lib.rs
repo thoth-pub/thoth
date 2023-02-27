@@ -5,6 +5,8 @@ mod queries;
 
 use graphql_client::GraphQLQuery;
 use graphql_client::Response;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use serde::Serialize;
 use std::future::Future;
 use thoth_errors::{ThothError, ThothResult};
@@ -17,20 +19,28 @@ use crate::queries::{
     work_count_query, work_query, works_query, WorkCountQuery, WorkQuery, WorksQuery,
 };
 
-type HttpFuture = Result<reqwest::Response, reqwest::Error>;
+/// Maximum number of allowed request retries attempts.
+const MAX_REQUEST_RETRIES: u32 = 5;
+
+type HttpFuture = Result<reqwest::Response, reqwest_middleware::Error>;
 
 /// A GraphQL `ThothClient` to query metadata
 pub struct ThothClient {
     graphql_endpoint: String,
-    http_client: reqwest::Client,
+    http_client: ClientWithMiddleware,
 }
 
 impl ThothClient {
     /// Constructs a new `ThothClient`
     pub fn new(graphql_endpoint: String) -> Self {
+        let retry_policy =
+            ExponentialBackoff::builder().build_with_max_retries(MAX_REQUEST_RETRIES);
+        let http_client = ClientBuilder::new(reqwest::Client::new())
+            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+            .build();
         ThothClient {
             graphql_endpoint,
-            http_client: reqwest::Client::new(),
+            http_client,
         }
     }
 
