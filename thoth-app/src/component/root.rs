@@ -18,6 +18,7 @@ use crate::agent::session_timer::SessionTimerRequest;
 use crate::agent::version_timer::VersionTimerAgent;
 use crate::agent::version_timer::VersionTimerDispatcher;
 use crate::agent::version_timer::VersionTimerRequest;
+use crate::component::about::AboutComponent;
 use crate::component::admin::AdminComponent;
 use crate::component::catalogue::CatalogueComponent;
 use crate::component::hero::HeroComponent;
@@ -180,6 +181,11 @@ fn switch_app(
                     <CatalogueComponent />
                 </div>
             </>
+        },
+        AppRoute::About => html! {
+            <div class="section">
+                <AboutComponent />
+            </div>
         },
         AppRoute::Login => html! {
             <div class="section">

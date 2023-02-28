@@ -1,9 +1,11 @@
 use std::io;
+use std::time::Duration;
 
 use actix_cors::Cors;
 use actix_web::{get, middleware::Logger, web, App, HttpResponse, HttpServer};
 
 const NO_CACHE: &str = "no-cache";
+const LOG_FORMAT: &str = r#"%{r}a %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#;
 
 macro_rules! static_files {
     ($(($cname:ident, $fname:ident) => ($source_path:expr, $dest_path:expr, $type:expr),)*) => (
@@ -72,16 +74,23 @@ async fn index() -> HttpResponse {
 }
 
 #[actix_web::main]
-pub async fn start_server(host: String, port: String) -> io::Result<()> {
+pub async fn start_server(
+    host: String,
+    port: String,
+    threads: usize,
+    keep_alive: u64,
+) -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     HttpServer::new(move || {
         App::new()
-            .wrap(Logger::default())
+            .wrap(Logger::new(LOG_FORMAT))
             .wrap(Cors::default().allowed_methods(vec!["GET", "POST", "OPTIONS"]))
             .configure(config)
             .default_service(web::route().to(index))
     })
+    .workers(threads)
+    .keep_alive(Duration::from_secs(keep_alive))
     .bind(format!("{host}:{port}"))?
     .run()
     .await

@@ -1,5 +1,6 @@
 mod graphiql;
 
+use std::time::Duration;
 use std::{io, sync::Arc};
 
 use actix_cors::Cors;
@@ -25,6 +26,8 @@ use thoth_api::{
 use thoth_errors::ThothError;
 
 use crate::graphiql::graphiql_source;
+
+const LOG_FORMAT: &str = r#"%{r}a %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#;
 
 #[derive(Serialize)]
 struct ApiConfig {
@@ -183,10 +186,13 @@ fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(account_details);
 }
 
+#[allow(clippy::too_many_arguments)]
 #[actix_web::main]
 pub async fn start_server(
     host: String,
     port: String,
+    threads: usize,
+    keep_alive: u64,
     public_url: String,
     domain: String,
     secret_str: String,
@@ -196,7 +202,7 @@ pub async fn start_server(
 
     HttpServer::new(move || {
         App::new()
-            .wrap(Logger::default())
+            .wrap(Logger::new(LOG_FORMAT))
             .wrap(IdentityService::new(
                 CookieIdentityPolicy::new(secret_str.as_bytes())
                     .name("auth")
@@ -215,6 +221,8 @@ pub async fn start_server(
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
             .configure(config)
     })
+    .workers(threads)
+    .keep_alive(Duration::from_secs(keep_alive))
     .bind(format!("{host}:{port}"))?
     .run()
     .await

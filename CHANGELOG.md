@@ -5,12 +5,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[0.9.13]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.13) - 2023-02-21
+### Changed
+  - Input actix keep alive via CLI arguments
+  - Implement a failed request retry policy in client
+
+## [[0.9.12]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.12) - 2023-02-17
+### Changed
+  - Reduce number of concurrent requests
+
+## [[0.9.11]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.11) - 2023-02-17
+### Changed
+  - Upgrade rust to `1.67.1` in production and development `Dockerfile`
+  - Upgrade build dependencies (npm `v9.5.0`, node `v18.14.1` and rollup `v3.15.0`) in production and development `Dockerfile`
+
+## [[0.9.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.10) - 2023-02-17
+### Changed
+  - Include `limit` and `offset` in `thoth-client`'s works query
+  - Paginate `get_works` requests in export API using concurrent requests
+  - Input number of actix workers via CLI arguments
+
+### Added
+  - Work count query to `thoth-client`
+
+## [[0.9.9]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.9) - 2023-02-16
+### Changed
+  - Upgrade `actix-web` to v4.3.0
+  - Upgrade `actix-cors` to v0.6.4
+  - Upgrade `env_logger` to v0.10.0
+  - Upgrade `jsonwebtoken` to v8.2.0
+  - Upgrade `strum` to v0.24.1
+  - Output real IP address in actix logs
+
+## [[0.9.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.8) - 2023-02-14
 ### Changed
   - Replace generic error with actual message when migrations fail
   - Upgrade node and rollup in github actions
 
 ### Added
   - Github action to check that all migrations run successfully
+  - About page with organisation information
 
 ## [[0.9.7]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.7) - 2023-02-02
 ### Fixed

@@ -430,6 +430,7 @@ impl ToElementValue for Option<chrono::NaiveDate> {
     }
 }
 
+pub mod about;
 pub mod admin;
 pub mod affiliations_form;
 pub mod books;

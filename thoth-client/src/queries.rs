@@ -44,6 +44,15 @@ impl fmt::Display for work_query::PublicationType {
 )]
 pub struct WorksQuery;
 
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "assets/schema.json",
+    query_path = "assets/queries.graphql",
+    response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq",
+    variables_derives = "Debug,PartialEq"
+)]
+pub struct WorkCountQuery;
+
 // Needed to set work_query::Work as the canonical struct for the shared fragment in the two queries
 // until https://github.com/graphql-rust/graphql-client/issues/312 gets fixed
 impl From<works_query::Work> for work_query::Work {

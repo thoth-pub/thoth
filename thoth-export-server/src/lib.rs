@@ -1,4 +1,5 @@
 use std::io;
+use std::time::Duration;
 
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web::Data, App, HttpServer};
@@ -20,6 +21,8 @@ mod specification_query;
 mod xml;
 
 use crate::rapidoc::rapidoc_source;
+
+const LOG_FORMAT: &str = r#"%{r}a %a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T"#;
 
 struct ApiConfig {
     api_schema: String,
@@ -44,6 +47,8 @@ async fn index(config: web::Data<ApiConfig>) -> HttpResponse {
 pub async fn start_server(
     host: String,
     port: String,
+    threads: usize,
+    keep_alive: u64,
     public_url: String,
     gql_endpoint: String,
 ) -> io::Result<()> {
@@ -92,7 +97,7 @@ pub async fn start_server(
         };
 
         App::new()
-            .wrap(Logger::default())
+            .wrap(Logger::new(LOG_FORMAT))
             .wrap(Cors::default().allowed_methods(vec!["GET", "OPTIONS"]))
             .app_data(Data::new(ThothClient::new(gql_endpoint.clone())))
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
@@ -104,6 +109,8 @@ pub async fn start_server(
             .with_json_spec_at("/swagger.json")
             .build()
     })
+    .workers(threads)
+    .keep_alive(Duration::from_secs(keep_alive))
     .bind(format!("{host}:{port}"))?
     .run()
     .await
