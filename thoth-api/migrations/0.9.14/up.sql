@@ -67,8 +67,8 @@ BEGIN
         UPDATE work
         SET relation_updated_at = current_timestamp
         FROM contribution
-        WHERE work_id = contribution.work_id AND contribution.contribution_id = OLD.contribution_id
-            OR work_id = contribution.work_id AND contribution.contribution_id = NEW.contribution_id;
+        WHERE work.work_id = contribution.work_id AND contribution.contribution_id = OLD.contribution_id
+            OR work.work_id = contribution.work_id AND contribution.contribution_id = NEW.contribution_id;
     END IF;
     RETURN NULL;
 END;
@@ -85,8 +85,8 @@ BEGIN
         UPDATE work
         SET relation_updated_at = current_timestamp
         FROM publication
-        WHERE work_id = publication.work_id AND publication.publication_id = OLD.publication_id
-            OR work_id = publication.work_id AND publication.publication_id = NEW.publication_id;
+        WHERE work.work_id = publication.work_id AND publication.publication_id = OLD.publication_id
+            OR work.work_id = publication.work_id AND publication.publication_id = NEW.publication_id;
     END IF;
     RETURN NULL;
 END;
@@ -103,8 +103,8 @@ BEGIN
         UPDATE work
         SET relation_updated_at = current_timestamp
         FROM publication
-        WHERE work_id = publication.work_id AND publication.publication_id = OLD.publication_id
-            OR work_id = publication.work_id AND publication.publication_id = NEW.publication_id;
+        WHERE work.work_id = publication.work_id AND publication.publication_id = OLD.publication_id
+            OR work.work_id = publication.work_id AND publication.publication_id = NEW.publication_id;
     END IF;
     RETURN NULL;
 END;
@@ -123,7 +123,7 @@ BEGIN
         FROM contribution
         -- No need to check OLD.contributor_id, as this will be the same as NEW.contributor_id in all relevant cases
         -- (contributor_id can't be changed on contributors which are referenced by existing contributions)
-        WHERE work_id = contribution.work_id AND contribution.contributor_id = NEW.contributor_id;
+        WHERE work.work_id = contribution.work_id AND contribution.contributor_id = NEW.contributor_id;
     END IF;
     RETURN NULL;
 END;
@@ -143,8 +143,8 @@ BEGIN
         SET relation_updated_at = current_timestamp
         FROM funding, affiliation, contribution
         -- Same as contributor above (but can be connected to work via two different tables)
-        WHERE work_id = funding.work_id AND funding.institution_id = NEW.institution_id
-            OR work_id = contribution.work_id AND contribution.contribution_id = affiliation.contribution_id AND affiliation.institution_id = NEW.institution_id;
+        WHERE work.work_id = funding.work_id AND funding.institution_id = NEW.institution_id
+            OR work.work_id = contribution.work_id AND contribution.contribution_id = affiliation.contribution_id AND affiliation.institution_id = NEW.institution_id;
     END IF;
     RETURN NULL;
 END;
@@ -163,7 +163,7 @@ BEGIN
         SET relation_updated_at = current_timestamp
         FROM imprint
         -- Same as contributor above
-        WHERE imprint_id = imprint.imprint_id AND imprint.publisher_id = NEW.publisher_id;
+        WHERE work.imprint_id = imprint.imprint_id AND imprint.publisher_id = NEW.publisher_id;
     END IF;
     RETURN NULL;
 END;
@@ -183,7 +183,7 @@ BEGIN
         FROM issue
         -- Same as contributor above (note that although series is also connected to work
         -- via the imprint_id, changes to a series don't affect its imprint)
-        WHERE work_id = issue.work_id AND issue.series_id = NEW.series_id;
+        WHERE work.work_id = issue.work_id AND issue.series_id = NEW.series_id;
     END IF;
     RETURN NULL;
 END;
