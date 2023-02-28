@@ -1,32 +1,32 @@
-DROP TRIGGER set_work_table_relation_updated_at ON contribution;
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON contribution;
 
-DROP TRIGGER set_work_table_relation_updated_at ON funding;
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON funding;
 
-DROP TRIGGER set_work_table_relation_updated_at ON issue;
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON issue;
 
-DROP TRIGGER set_work_table_relation_updated_at ON language;
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON language;
 
-DROP TRIGGER set_work_table_relation_updated_at ON publication;
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON publication;
 
-DROP TRIGGER set_work_table_relation_updated_at ON reference;
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON reference;
 
-DROP TRIGGER set_work_table_relation_updated_at ON subject;
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON subject;
 
-DROP TRIGGER set_work_table_relation_updated_at ON work_relation;
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON work_relation;
 
-DROP TRIGGER set_work_table_relation_updated_at ON affiliation;
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON affiliation;
 
-DROP TRIGGER set_work_table_relation_updated_at ON location;
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON location;
 
-DROP TRIGGER set_work_table_relation_updated_at ON price;
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON price;
 
-DROP TRIGGER set_work_table_relation_updated_at ON contributor;
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON contributor;
 
-DROP TRIGGER set_work_table_relation_updated_at ON institution;
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON institution;
 
-DROP TRIGGER set_work_table_relation_updated_at ON publisher;
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON publisher;
 
-DROP TRIGGER set_work_table_relation_updated_at ON series;
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON series;
 
 DROP FUNCTION IF EXISTS work_table_relation_updated_at();
 
