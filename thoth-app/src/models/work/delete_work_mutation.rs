@@ -18,6 +18,7 @@ const DELETE_WORK_MUTATION: &str = "
             imprintId
             createdAt
             updatedAt
+            relationUpdatedAt
         }
     }
 ";
