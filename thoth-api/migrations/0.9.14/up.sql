@@ -139,12 +139,17 @@ BEGIN
     IF (
         NEW IS DISTINCT FROM OLD
     ) THEN
+        -- Same as contributor above (but can be connected to work via two different tables)
+        -- Use two separate UPDATE statements as this is much faster than combining the WHERE clauses
+        -- using OR (in tests, this caused several seconds' delay when saving institution updates)
         UPDATE work
         SET relation_updated_at = current_timestamp
-        FROM funding, affiliation, contribution
-        -- Same as contributor above (but can be connected to work via two different tables)
-        WHERE work.work_id = funding.work_id AND funding.institution_id = NEW.institution_id
-            OR work.work_id = contribution.work_id AND contribution.contribution_id = affiliation.contribution_id AND affiliation.institution_id = NEW.institution_id;
+        FROM funding
+        WHERE work.work_id = funding.work_id AND funding.institution_id = NEW.institution_id;
+        UPDATE work
+        SET relation_updated_at = current_timestamp
+        FROM affiliation, contribution
+        WHERE work.work_id = contribution.work_id AND contribution.contribution_id = affiliation.contribution_id AND affiliation.institution_id = NEW.institution_id;
     END IF;
     RETURN NULL;
 END;
