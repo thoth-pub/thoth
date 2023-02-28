@@ -198,6 +198,28 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER set_work_table_relation_updated_at AFTER UPDATE ON series
     FOR EACH ROW EXECUTE PROCEDURE series_work_table_relation_updated_at();
 
+-- Works can be related to each other via the work_relation table, with a relationship similar
+-- to contributor above (a newly-created work won't have any references yet, etc)
+CREATE OR REPLACE FUNCTION work_work_table_relation_updated_at() RETURNS trigger AS $$
+BEGIN
+    IF (
+        NEW IS DISTINCT FROM OLD AND
+        NEW.relation_updated_at IS NOT DISTINCT FROM OLD.relation_updated_at
+    ) THEN
+        UPDATE work
+        SET relation_updated_at = current_timestamp
+        FROM work_relation
+        -- The positions of relator/related IDs in this statement don't matter, as
+        -- every work_relation record has a mirrored record with relator/related IDs swapped
+        WHERE work.work_id = work_relation.relator_work_id AND work_relation.related_work_id = NEW.work_id;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER set_work_table_relation_updated_at AFTER UPDATE ON work
+    FOR EACH ROW EXECUTE PROCEDURE work_work_table_relation_updated_at();
+
 -- Amend existing trigger which sets updated_at value on work table
 -- to avoid setting updated_at when relation_updated_at changes.
 
