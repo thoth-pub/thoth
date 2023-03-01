@@ -279,3 +279,21 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER set_work_table_relation_updated_at AFTER UPDATE ON work
     FOR EACH ROW EXECUTE PROCEDURE work_work_table_relation_updated_at();
+
+-- Imprint relationship is similar to contributor, although the tables are directly adjacent;
+-- new imprints won't be referenced by works yet, and deleting an imprint also deletes its works
+CREATE OR REPLACE FUNCTION imprint_work_table_relation_updated_at() RETURNS trigger AS $$
+BEGIN
+    IF (
+        NEW IS DISTINCT FROM OLD
+    ) THEN
+        UPDATE work
+        SET relation_updated_at = current_timestamp
+        WHERE imprint_id = NEW.imprint_id;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER set_work_table_relation_updated_at AFTER UPDATE ON imprint
+    FOR EACH ROW EXECUTE PROCEDURE imprint_work_table_relation_updated_at();

@@ -30,6 +30,8 @@ DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON series;
 
 DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON work;
 
+DROP TRIGGER IF EXISTS set_work_table_relation_updated_at ON imprint;
+
 DROP FUNCTION IF EXISTS work_table_relation_updated_at();
 
 DROP FUNCTION IF EXISTS work_relation_work_table_relation_updated_at();
@@ -49,6 +51,8 @@ DROP FUNCTION IF EXISTS publisher_work_table_relation_updated_at();
 DROP FUNCTION IF EXISTS series_work_table_relation_updated_at();
 
 DROP FUNCTION IF EXISTS work_work_table_relation_updated_at();
+
+DROP FUNCTION IF EXISTS imprint_work_table_relation_updated_at();
 
 ALTER TABLE work
     DROP COLUMN relation_updated_at;
