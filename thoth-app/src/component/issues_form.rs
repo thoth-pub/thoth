@@ -281,7 +281,7 @@ impl Component for IssuesFormComponent {
                 let body = SeriesesRequestBody {
                     variables: Variables {
                         filter: Some(self.search_query.clone()),
-                        limit: Some(50),
+                        limit: Some(25),
                         publishers: ctx.props().current_user.resource_access.restricted_to(),
                         ..Default::default()
                     },

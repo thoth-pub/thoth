@@ -1,3 +1,4 @@
+use gloo_timers::callback::Timeout;
 use thoth_api::model::contributor::Contributor;
 use thoth_api::model::{Orcid, ORCID_DOMAIN};
 use thoth_errors::ThothError;
@@ -30,6 +31,7 @@ use crate::models::contributor::create_contributor_mutation::PushCreateContribut
 use crate::models::contributor::create_contributor_mutation::Variables;
 use crate::models::EditRoute;
 use crate::string::SAVE_BUTTON;
+use crate::DEFAULT_DEBOUNCING_TIMEOUT;
 
 use super::ToElementValue;
 use super::ToOption;
@@ -47,6 +49,8 @@ pub struct NewContributorComponent {
     show_duplicate_tooltip: bool,
     fetch_contributors: FetchContributors,
     contributors: Vec<Contributor>,
+    search_callback: Callback<()>,
+    debounce_timeout: Option<Timeout>,
 }
 
 pub enum Msg {
@@ -57,6 +61,7 @@ pub enum Msg {
     ChangeFirstName(String),
     ChangeLastName(String),
     ChangeFullName(String),
+    SearchContributor,
     ChangeOrcid(String),
     ChangeWebsite(String),
     ToggleDuplicateTooltip(bool),
@@ -66,7 +71,7 @@ impl Component for NewContributorComponent {
     type Message = Msg;
     type Properties = ();
 
-    fn create(_ctx: &Context<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         let push_contributor = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let contributor: Contributor = Default::default();
@@ -75,6 +80,7 @@ impl Component for NewContributorComponent {
         let show_duplicate_tooltip = false;
         let fetch_contributors = Default::default();
         let contributors = Default::default();
+        let search_callback = ctx.link().callback(|_| Msg::SearchContributor);
 
         NewContributorComponent {
             contributor,
@@ -85,6 +91,8 @@ impl Component for NewContributorComponent {
             show_duplicate_tooltip,
             fetch_contributors,
             contributors,
+            search_callback,
+            debounce_timeout: None,
         }
     }
 
@@ -187,24 +195,34 @@ impl Component for NewContributorComponent {
                         true
                     } else {
                         // Search for similar existing names to show in tooltip.
-                        let body = ContributorsRequestBody {
-                            variables: SearchVariables {
-                                filter: Some(self.contributor.full_name.clone()),
-                                limit: Some(30),
-                                ..Default::default()
-                            },
-                            ..Default::default()
-                        };
-                        let request = ContributorsRequest { body };
-                        self.fetch_contributors = Fetch::new(request);
-                        ctx.link().send_message(Msg::GetContributors);
-                        // Don't need to re-render here, as another re-render will be
-                        // triggered when the message query response is received.
+                        self.debounce_timeout = self.debounce_timeout.take().and_then(|timeout| {
+                            timeout.cancel();
+                            None
+                        });
+                        let search_callback = self.search_callback.clone();
+                        let timeout = Timeout::new(DEFAULT_DEBOUNCING_TIMEOUT, move || {
+                            search_callback.emit(());
+                        });
+                        self.debounce_timeout = Some(timeout);
                         false
                     }
                 } else {
                     false
                 }
+            }
+            Msg::SearchContributor => {
+                let body = ContributorsRequestBody {
+                    variables: SearchVariables {
+                        filter: Some(self.contributor.full_name.clone()),
+                        limit: Some(25),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                };
+                let request = ContributorsRequest { body };
+                self.fetch_contributors = Fetch::new(request);
+                ctx.link().send_message(Msg::GetContributors);
+                false
             }
             Msg::ChangeOrcid(value) => {
                 if self.orcid.neq_assign(value.trim().to_owned()) {

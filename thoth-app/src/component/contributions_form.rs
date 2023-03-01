@@ -435,7 +435,7 @@ impl Component for ContributionsFormComponent {
                 let body = ContributorsRequestBody {
                     variables: Variables {
                         filter: Some(self.search_query.clone()),
-                        limit: Some(50),
+                        limit: Some(25),
                         ..Default::default()
                     },
                     ..Default::default()
