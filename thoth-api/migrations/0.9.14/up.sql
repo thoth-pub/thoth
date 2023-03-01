@@ -3,6 +3,27 @@
 ALTER TABLE work
     ADD COLUMN relation_updated_at TIMESTAMP NULL;
 
+-- Amend existing trigger which sets updated_at value on work table
+-- to avoid setting updated_at when relation_updated_at changes.
+
+CREATE OR REPLACE FUNCTION work_set_updated_at() RETURNS trigger AS $$
+BEGIN
+    IF (
+        NEW IS DISTINCT FROM OLD AND
+        NEW.updated_at IS NOT DISTINCT FROM OLD.updated_at AND
+        NEW.relation_updated_at IS NOT DISTINCT FROM OLD.relation_updated_at
+    ) THEN
+        NEW.updated_at := current_timestamp;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS set_updated_at ON work;
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON work
+    FOR EACH ROW EXECUTE PROCEDURE work_set_updated_at();
+
 -- Obtain current last relation update timestamp for all existing works.
 WITH update_times AS
 (
@@ -257,24 +278,3 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER set_work_table_relation_updated_at AFTER UPDATE ON work
     FOR EACH ROW EXECUTE PROCEDURE work_work_table_relation_updated_at();
-
--- Amend existing trigger which sets updated_at value on work table
--- to avoid setting updated_at when relation_updated_at changes.
-
-CREATE OR REPLACE FUNCTION work_set_updated_at() RETURNS trigger AS $$
-BEGIN
-    IF (
-        NEW IS DISTINCT FROM OLD AND
-        NEW.updated_at IS NOT DISTINCT FROM OLD.updated_at AND
-        NEW.relation_updated_at IS NOT DISTINCT FROM OLD.relation_updated_at
-    ) THEN
-        NEW.updated_at := current_timestamp;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS set_updated_at ON work;
-
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON work
-    FOR EACH ROW EXECUTE PROCEDURE work_set_updated_at();
