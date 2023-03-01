@@ -1,7 +1,45 @@
 -- Add work table field to track when any of the work's relations were last updated.
 
 ALTER TABLE work
-    ADD COLUMN relation_updated_at TIMESTAMP NOT NULL DEFAULT '1970-01-01 00:00:00';
+    ADD COLUMN relation_updated_at TIMESTAMP NULL;
+
+-- Obtain current last relation update timestamp for all existing works.
+WITH update_times AS
+(
+    SELECT w.work_id, GREATEST(
+        w.updated_at, c.updated_at, f.updated_at, i.updated_at, iu.updated_at, l.updated_at, p.updated_at,
+        r.updated_at, s.updated_at, wr.updated_at, a.updated_at, lo.updated_at, pr.updated_at,
+        co.updated_at, inf.updated_at, ina.updated_at, pu.updated_at, se.updated_at, wo.updated_at
+    ) last_updated
+    FROM work w
+        LEFT JOIN contribution c USING (work_id)
+        LEFT JOIN funding f USING (work_id)
+        LEFT JOIN imprint i USING (imprint_id)
+        LEFT JOIN issue iu USING (work_id)
+        LEFT JOIN language l USING (work_id)
+        LEFT JOIN publication p USING (work_id)
+        LEFT JOIN reference r USING (work_id)
+        LEFT JOIN subject s USING (work_id)
+        LEFT JOIN work_relation wr ON w.work_id = wr.relator_work_id
+        LEFT JOIN affiliation a ON c.contribution_id = a.contribution_id
+        LEFT JOIN location lo ON p.publication_id = lo.publication_id
+        LEFT JOIN price pr ON p.publication_id = pr.publication_id
+        LEFT JOIN contributor co ON c.contributor_id = co.contributor_id
+        LEFT JOIN institution inf ON f.institution_id = inf.institution_id
+        LEFT JOIN institution ina ON a.institution_id = ina.institution_id
+        LEFT JOIN publisher pu ON i.publisher_id = pu.publisher_id
+        LEFT JOIN series se ON iu.series_id = se.series_id
+        LEFT JOIN work wo ON wr.related_work_id = wo.work_id
+    GROUP BY w.work_id, last_updated
+)
+UPDATE work
+    SET relation_updated_at = update_times.last_updated
+    FROM update_times
+    WHERE work.work_id = update_times.work_id;
+
+ALTER TABLE work
+    ALTER COLUMN relation_updated_at SET NOT NULL,
+    ALTER COLUMN relation_updated_at SET DEFAULT CURRENT_TIMESTAMP;
 
 -- Add triggers to update this field whenever a relation is created, updated or deleted.
 
