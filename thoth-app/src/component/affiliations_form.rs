@@ -67,6 +67,7 @@ pub enum Msg {
     SetAffiliationDeleteState(PushActionDeleteAffiliation),
     DeleteAffiliation(Uuid),
     AddAffiliation(Institution),
+    ChangeInstitution(Institution),
     ChangePosition(String),
     ChangeOrdinal(String),
 }
@@ -333,6 +334,11 @@ impl Component for AffiliationsFormComponent {
                     .send_message(Msg::ToggleModalFormDisplay(true, None));
                 true
             }
+            Msg::ChangeInstitution(institution) => {
+                self.affiliation.institution_id = institution.institution_id;
+                self.affiliation.institution = institution;
+                true
+            }
             Msg::ChangePosition(val) => self.affiliation.position.neq_assign(val.to_opt_string()),
             Msg::ChangeOrdinal(ordinal) => {
                 let ordinal = ordinal.parse::<i32>().unwrap_or(0);
@@ -356,7 +362,7 @@ impl Component for AffiliationsFormComponent {
             e.prevent_default();
             Msg::ToggleModalFormDisplay(false, None)
         });
-        let institution_select_callback = ctx.link().callback(Msg::AddAffiliation);
+
         html! {
             <div class="field">
                 <div class={ self.modal_form_status() }>
@@ -378,6 +384,7 @@ impl Component for AffiliationsFormComponent {
                                         {&self.affiliation.institution}
                                     </div>
                                 </div>
+                                <InstitutionSelectComponent callback={ctx.link().callback(Msg::ChangeInstitution)} />
                                 <FormTextInput
                                     label="Position"
                                     value={ self.affiliation.position.clone().unwrap_or_default() }
@@ -429,7 +436,7 @@ impl Component for AffiliationsFormComponent {
                     <tbody>
                         {for affiliations.iter().map(|a| self.render_affiliation(ctx, a))}
                         <tr class="row">
-                            <InstitutionSelectComponent callback={institution_select_callback} />
+                            <InstitutionSelectComponent callback={ctx.link().callback(Msg::AddAffiliation)} />
                         </tr>
                     </tbody>
                 </table>
