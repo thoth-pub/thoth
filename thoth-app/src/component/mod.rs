@@ -465,6 +465,7 @@ pub mod hero;
 pub mod imprint;
 pub mod imprints;
 pub mod institution;
+pub mod institution_select;
 pub mod institutions;
 pub mod issues_form;
 pub mod languages_form;

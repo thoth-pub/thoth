@@ -2,7 +2,6 @@ use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::contributor::Contributor;
 use thoth_api::model::imprint::ImprintWithPublisher;
 use thoth_api::model::institution::CountryCode;
-use thoth_api::model::institution::Institution;
 use thoth_api::model::language::LanguageCode;
 use thoth_api::model::language::LanguageRelation;
 use thoth_api::model::location::LocationPlatform;
@@ -332,16 +331,6 @@ pub struct FormPublisherSelectProps {
     pub label: String,
     pub data: Vec<Publisher>,
     pub value: Option<Uuid>,
-    pub onchange: Callback<Event>,
-    #[prop_or(false)]
-    pub required: bool,
-}
-
-#[derive(PartialEq, Properties)]
-pub struct FormInstitutionSelectProps {
-    pub label: String,
-    pub data: Vec<Institution>,
-    pub value: Uuid,
     pub onchange: Callback<Event>,
     #[prop_or(false)]
     pub required: bool,
@@ -834,23 +823,6 @@ pub fn form_publisher_select(props: &FormPublisherSelectProps) -> VNode {
     }
 }
 
-#[function_component(FormInstitutionSelect)]
-pub fn form_institution_select(props: &FormInstitutionSelectProps) -> VNode {
-    html! {
-        <div class="field">
-            <label class="label">{ &props.label }</label>
-            <div class="control is-expanded">
-                <div class="select is-fullwidth">
-                <select required={ props.required } onchange={ &props.onchange }>
-                    <option value="" selected={props.value.is_nil()}>{"Select Institution"}</option>
-                    { for props.data.iter().map(|i| props.render_institution(i)) }
-                </select>
-                </div>
-            </div>
-        </div>
-    }
-}
-
 #[function_component(FormContributorSelect)]
 pub fn form_contributor_select(props: &FormContributorSelectProps) -> VNode {
     html! {
@@ -1013,16 +985,6 @@ impl FormPublisherSelectProps {
         html! {
             <option value={p.publisher_id.to_string()} selected={&p.publisher_id == value}>
                 {&p.publisher_name}
-            </option>
-        }
-    }
-}
-
-impl FormInstitutionSelectProps {
-    fn render_institution(&self, i: &Institution) -> VNode {
-        html! {
-            <option value={i.institution_id.to_string()} selected={i.institution_id == self.value}>
-                {&i.to_string()}
             </option>
         }
     }
