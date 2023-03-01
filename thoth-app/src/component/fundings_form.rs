@@ -250,7 +250,7 @@ impl Component for FundingsFormComponent {
                 let body = InstitutionsRequestBody {
                     variables: Variables {
                         filter: Some(value),
-                        limit: Some(9999),
+                        limit: Some(25),
                         ..Default::default()
                     },
                     ..Default::default()

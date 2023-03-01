@@ -138,7 +138,7 @@ impl Component for AffiliationsFormComponent {
                 if show_form {
                     let body = InstitutionsRequestBody {
                         variables: SearchVariables {
-                            limit: Some(9999),
+                            limit: Some(25),
                             ..Default::default()
                         },
                         ..Default::default()
@@ -395,7 +395,7 @@ impl Component for AffiliationsFormComponent {
                 let body = InstitutionsRequestBody {
                     variables: SearchVariables {
                         filter: Some(value),
-                        limit: Some(9999),
+                        limit: Some(25),
                         ..Default::default()
                     },
                     ..Default::default()
