@@ -1,3 +1,4 @@
+use gloo_timers::callback::Timeout;
 use std::str::FromStr;
 use thoth_api::model::contribution::Contribution;
 use thoth_api::model::contribution::ContributionType;
@@ -52,6 +53,7 @@ use crate::string::EMPTY_CONTRIBUTIONS;
 use crate::string::NO;
 use crate::string::REMOVE_BUTTON;
 use crate::string::YES;
+use crate::DEFAULT_DEBOUNCING_TIMEOUT;
 
 use super::ToElementValue;
 use super::ToOption;
@@ -68,6 +70,9 @@ pub struct ContributionsFormComponent {
     delete_contribution: PushDeleteContribution,
     update_contribution: PushUpdateContribution,
     notification_bus: NotificationDispatcher,
+    search_callback: Callback<()>,
+    search_query: String,
+    debounce_timeout: Option<Timeout>,
 }
 
 #[derive(Default)]
@@ -83,7 +88,8 @@ pub enum Msg {
     SetContributionTypesFetchState(FetchActionContributionTypes),
     GetContributionTypes,
     ToggleSearchResultDisplay(bool),
-    SearchContributor(String),
+    SearchQueryChanged(String),
+    SearchContributor,
     SetContributionCreateState(PushActionCreateContribution),
     CreateContribution,
     SetContributionUpdateState(PushActionUpdateContribution),
@@ -124,6 +130,8 @@ impl Component for ContributionsFormComponent {
         let delete_contribution = Default::default();
         let update_contribution = Default::default();
         let notification_bus = NotificationBus::dispatcher();
+        let search_callback = ctx.link().callback(|_| Msg::SearchContributor);
+        let search_query: String = Default::default();
 
         ctx.link().send_message(Msg::GetContributors);
         ctx.link().send_message(Msg::GetContributionTypes);
@@ -140,6 +148,9 @@ impl Component for ContributionsFormComponent {
             delete_contribution,
             update_contribution,
             notification_bus,
+            search_callback,
+            search_query,
+            debounce_timeout: None,
         }
     }
 
@@ -405,11 +416,26 @@ impl Component for ContributionsFormComponent {
                 self.show_results = value;
                 true
             }
-            Msg::SearchContributor(value) => {
+            Msg::SearchQueryChanged(value) => {
+                self.search_query = value;
+                // cancel previous timeout
+                self.debounce_timeout = self.debounce_timeout.take().and_then(|timeout| {
+                    timeout.cancel();
+                    None
+                });
+                // start new timeout
+                let search_callback = self.search_callback.clone();
+                let timeout = Timeout::new(DEFAULT_DEBOUNCING_TIMEOUT, move || {
+                    search_callback.emit(());
+                });
+                self.debounce_timeout = Some(timeout);
+                false
+            }
+            Msg::SearchContributor => {
                 let body = ContributorsRequestBody {
                     variables: Variables {
-                        filter: Some(value),
-                        limit: Some(9999),
+                        filter: Some(self.search_query.clone()),
+                        limit: Some(50),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -489,7 +515,7 @@ impl Component for ContributionsFormComponent {
                                         placeholder="Search Contributor"
                                         aria-haspopup="true"
                                         aria-controls="contributors-menu"
-                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchContributor(e.to_value())) }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchQueryChanged(e.to_value())) }
                                         onfocus={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(true)) }
                                         onblur={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                     />
