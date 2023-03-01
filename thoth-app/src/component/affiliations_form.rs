@@ -15,7 +15,6 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
-use crate::component::utils::FormInstitutionSelect;
 use crate::component::utils::FormNumberInput;
 use crate::component::utils::FormTextInput;
 use crate::models::affiliation::affiliations_query::AffiliationsRequest;
@@ -487,15 +486,12 @@ impl Component for AffiliationsFormComponent {
                         </header>
                         <section class="modal-card-body">
                             <form id={form_id.clone()} onsubmit={ self.modal_form_action(ctx) }>
-                                <FormInstitutionSelect
-                                    label = "Institution"
-                                    value={ self.affiliation.institution_id }
-                                    data={ self.data.institutions.clone() }
-                                    onchange={ ctx.link().callback(|e: Event|
-                                        Msg::ChangeInstitution(Uuid::parse_str(&e.to_value()).unwrap_or_default())
-                                    ) }
-                                    required = true
-                                />
+                                <div class="field">
+                                    <label class="label">{ "Institution" }</label>
+                                    <div class="control is-expanded">
+                                        {&self.affiliation.institution}
+                                    </div>
+                                </div>
                                 <FormTextInput
                                     label="Position"
                                     value={ self.affiliation.position.clone().unwrap_or_default() }
