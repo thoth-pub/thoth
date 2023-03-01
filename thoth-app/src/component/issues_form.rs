@@ -1,3 +1,4 @@
+use gloo_timers::callback::Timeout;
 use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::issue::IssueWithSeries;
@@ -36,6 +37,7 @@ use crate::models::Dropdown;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_ISSUES;
 use crate::string::REMOVE_BUTTON;
+use crate::DEFAULT_DEBOUNCING_TIMEOUT;
 
 use super::ToElementValue;
 
@@ -50,6 +52,9 @@ pub struct IssuesFormComponent {
     notification_bus: NotificationDispatcher,
     // Store props value locally in order to test whether it has been updated on props change
     resource_access: AccountAccess,
+    search_callback: Callback<()>,
+    search_query: String,
+    debounce_timeout: Option<Timeout>,
 }
 
 #[derive(Default)]
@@ -68,7 +73,8 @@ pub enum Msg {
     DeleteIssue(Uuid),
     AddIssue(SeriesWithImprint),
     ToggleSearchResultDisplay(bool),
-    SearchSeries(String),
+    SearchQueryChanged(String),
+    SearchSeries,
     ChangeOrdinal(String),
 }
 
@@ -103,6 +109,8 @@ impl Component for IssuesFormComponent {
         let delete_issue = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let resource_access = ctx.props().current_user.resource_access.clone();
+        let search_callback = ctx.link().callback(|_| Msg::SearchSeries);
+        let search_query: String = Default::default();
 
         ctx.link().send_message(Msg::GetSerieses);
 
@@ -116,6 +124,9 @@ impl Component for IssuesFormComponent {
             delete_issue,
             notification_bus,
             resource_access,
+            search_callback,
+            search_query,
+            debounce_timeout: None,
         }
     }
 
@@ -251,11 +262,26 @@ impl Component for IssuesFormComponent {
                 self.show_results = value;
                 true
             }
-            Msg::SearchSeries(value) => {
+            Msg::SearchQueryChanged(value) => {
+                self.search_query = value;
+                // cancel previous timeout
+                self.debounce_timeout = self.debounce_timeout.take().and_then(|timeout| {
+                    timeout.cancel();
+                    None
+                });
+                // start new timeout
+                let search_callback = self.search_callback.clone();
+                let timeout = Timeout::new(DEFAULT_DEBOUNCING_TIMEOUT, move || {
+                    search_callback.emit(());
+                });
+                self.debounce_timeout = Some(timeout);
+                false
+            }
+            Msg::SearchSeries => {
                 let body = SeriesesRequestBody {
                     variables: Variables {
-                        filter: Some(value),
-                        limit: Some(9999),
+                        filter: Some(self.search_query.clone()),
+                        limit: Some(25),
                         publishers: ctx.props().current_user.resource_access.restricted_to(),
                         ..Default::default()
                     },
@@ -308,7 +334,7 @@ impl Component for IssuesFormComponent {
                                         placeholder="Search Series"
                                         aria-haspopup="true"
                                         aria-controls="serieses-menu"
-                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchSeries(e.to_value())) }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchQueryChanged(e.to_value())) }
                                         onfocus={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(true)) }
                                         onblur={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                     />

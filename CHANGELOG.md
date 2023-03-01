@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [#480](https://github.com/thoth-pub/thoth/pull/480) Add field to work table to track when any of its relations were last updated
 
+## [[0.9.14]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.14) - 2023-03-01
+### Changed
+  - Upgrade `openssl-src` to v111.25.0
+  - Upgrade `bumpalo` to v3.12.0
+
+### Fixed
+  - [#326](https://github.com/thoth-pub/thoth/issues/326) - Debounce search queries
+
 ## [[0.9.13]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.13) - 2023-02-21
 ### Changed
   - Input actix keep alive via CLI arguments

@@ -25,7 +25,7 @@ pub struct CatalogueComponent {
     limit: i32,
     offset: i32,
     page_size: i32,
-    search_term: String,
+    search_query: String,
     data: Vec<WorkWithRelations>,
     result_count: i32,
     fetch_data: FetchWorks,
@@ -39,7 +39,7 @@ pub enum Msg {
     PaginateData,
     #[allow(dead_code)]
     Search(String),
-    ChangeSearchTerm(String),
+    SearchQueryChanged(String),
     TriggerSearch,
     NextPage,
     PreviousPage,
@@ -53,7 +53,7 @@ impl Component for CatalogueComponent {
         let offset: i32 = Default::default();
         let page_size: i32 = 10;
         let limit: i32 = page_size;
-        let search_term: String = Default::default();
+        let search_query: String = Default::default();
         let result_count: i32 = Default::default();
         let data = Default::default();
         let fetch_data = Default::default();
@@ -64,7 +64,7 @@ impl Component for CatalogueComponent {
             limit,
             offset,
             page_size,
-            search_term,
+            search_query,
             data,
             result_count,
             fetch_data,
@@ -93,7 +93,7 @@ impl Component for CatalogueComponent {
                 false
             }
             Msg::PaginateData => {
-                let filter = self.search_term.clone();
+                let filter = self.search_query.clone();
                 let body = WorksRequestBody {
                     variables: Variables {
                         limit: Some(self.limit),
@@ -115,8 +115,8 @@ impl Component for CatalogueComponent {
                 // needed because of macro, but unused here
                 false
             }
-            Msg::ChangeSearchTerm(term) => {
-                self.search_term = term;
+            Msg::SearchQueryChanged(term) => {
+                self.search_query = term;
                 false
             }
             Msg::TriggerSearch => {
@@ -178,9 +178,9 @@ impl Component for CatalogueComponent {
                                     <input
                                         class="input"
                                         type="search"
-                                        value={ self.search_term.clone() }
+                                        value={ self.search_query.clone() }
                                         placeholder={ self.search_text() }
-                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeSearchTerm(e.to_value())) }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchQueryChanged(e.to_value())) }
                                     />
                                     <span class="icon is-left">
                                         <i class="fas fa-search" aria-hidden="true"></i>

@@ -1,3 +1,4 @@
+use gloo_timers::callback::Timeout;
 use std::str::FromStr;
 use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
@@ -53,6 +54,7 @@ use crate::string::EDIT_BUTTON;
 use crate::string::EMPTY_RELATIONS;
 use crate::string::REMOVE_BUTTON;
 use crate::string::VIEW_BUTTON;
+use crate::DEFAULT_DEBOUNCING_TIMEOUT;
 
 use super::ToElementValue;
 
@@ -70,6 +72,9 @@ pub struct RelatedWorksFormComponent {
     notification_bus: NotificationDispatcher,
     // Store props value locally in order to test whether it has been updated on props change
     resource_access: AccountAccess,
+    search_callback: Callback<()>,
+    search_query: String,
+    debounce_timeout: Option<Timeout>,
 }
 
 #[derive(Default)]
@@ -86,7 +91,8 @@ pub enum Msg {
     SetRelationTypesFetchState(FetchActionRelationTypes),
     GetRelationTypes,
     ToggleSearchResultDisplay(bool),
-    SearchWork(String),
+    SearchQueryChanged(String),
+    SearchWork,
     SetRelationCreateState(PushActionCreateWorkRelation),
     CreateWorkRelation,
     SetRelationUpdateState(PushActionUpdateWorkRelation),
@@ -132,6 +138,8 @@ impl Component for RelatedWorksFormComponent {
         let update_relation = Default::default();
         let notification_bus = NotificationBus::dispatcher();
         let resource_access = ctx.props().current_user.resource_access.clone();
+        let search_callback = ctx.link().callback(|_| Msg::SearchWork);
+        let search_query: String = Default::default();
 
         ctx.link().send_message(Msg::GetWorks);
         ctx.link().send_message(Msg::GetRelationTypes);
@@ -149,6 +157,9 @@ impl Component for RelatedWorksFormComponent {
             update_relation,
             notification_bus,
             resource_access,
+            search_callback,
+            search_query,
+            debounce_timeout: None,
         }
     }
 
@@ -383,11 +394,26 @@ impl Component for RelatedWorksFormComponent {
                 self.show_results = value;
                 true
             }
-            Msg::SearchWork(value) => {
+            Msg::SearchQueryChanged(value) => {
+                self.search_query = value;
+                // cancel previous timeout
+                self.debounce_timeout = self.debounce_timeout.take().and_then(|timeout| {
+                    timeout.cancel();
+                    None
+                });
+                // start new timeout
+                let search_callback = self.search_callback.clone();
+                let timeout = Timeout::new(DEFAULT_DEBOUNCING_TIMEOUT, move || {
+                    search_callback.emit(());
+                });
+                self.debounce_timeout = Some(timeout);
+                false
+            }
+            Msg::SearchWork => {
                 let body = SlimWorksRequestBody {
                     variables: Variables {
-                        filter: Some(value),
-                        limit: Some(9999),
+                        filter: Some(self.search_query.clone()),
+                        limit: Some(25),
                         publishers: ctx.props().current_user.resource_access.restricted_to(),
                         ..Default::default()
                     },
@@ -456,7 +482,7 @@ impl Component for RelatedWorksFormComponent {
                                         placeholder="Search Work"
                                         aria-haspopup="true"
                                         aria-controls="works-menu"
-                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchWork(e.to_value())) }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchQueryChanged(e.to_value())) }
                                         onfocus={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(true)) }
                                         onblur={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                     />
