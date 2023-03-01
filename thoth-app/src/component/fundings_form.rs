@@ -1,3 +1,4 @@
+use gloo_timers::callback::Timeout;
 use thoth_api::model::funding::FundingWithInstitution;
 use thoth_api::model::institution::Institution;
 use thoth_errors::ThothError;
@@ -34,6 +35,7 @@ use crate::models::Dropdown;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_FUNDINGS;
 use crate::string::REMOVE_BUTTON;
+use crate::DEFAULT_DEBOUNCING_TIMEOUT;
 
 use super::ToElementValue;
 use super::ToOption;
@@ -47,6 +49,9 @@ pub struct FundingsFormComponent {
     push_funding: PushCreateFunding,
     delete_funding: PushDeleteFunding,
     notification_bus: NotificationDispatcher,
+    search_callback: Callback<()>,
+    search_query: String,
+    debounce_timeout: Option<Timeout>,
 }
 
 #[derive(Default)]
@@ -60,7 +65,8 @@ pub enum Msg {
     SetInstitutionsFetchState(FetchActionInstitutions),
     GetInstitutions,
     ToggleSearchResultDisplay(bool),
-    SearchInstitution(String),
+    SearchQueryChanged(String),
+    SearchInstitution,
     SetFundingPushState(PushActionCreateFunding),
     CreateFunding,
     SetFundingDeleteState(PushActionDeleteFunding),
@@ -93,6 +99,8 @@ impl Component for FundingsFormComponent {
         let push_funding = Default::default();
         let delete_funding = Default::default();
         let notification_bus = NotificationBus::dispatcher();
+        let search_callback = ctx.link().callback(|_| Msg::SearchInstitution);
+        let search_query: String = Default::default();
 
         ctx.link().send_message(Msg::GetInstitutions);
 
@@ -105,6 +113,9 @@ impl Component for FundingsFormComponent {
             push_funding,
             delete_funding,
             notification_bus,
+            search_callback,
+            search_query,
+            debounce_timeout: None,
         }
     }
 
@@ -246,10 +257,25 @@ impl Component for FundingsFormComponent {
                 self.show_results = value;
                 true
             }
-            Msg::SearchInstitution(value) => {
+            Msg::SearchQueryChanged(value) => {
+                self.search_query = value;
+                // cancel previous timeout
+                self.debounce_timeout = self.debounce_timeout.take().and_then(|timeout| {
+                    timeout.cancel();
+                    None
+                });
+                // start new timeout
+                let search_callback = self.search_callback.clone();
+                let timeout = Timeout::new(DEFAULT_DEBOUNCING_TIMEOUT, move || {
+                    search_callback.emit(());
+                });
+                self.debounce_timeout = Some(timeout);
+                false
+            }
+            Msg::SearchInstitution => {
                 let body = InstitutionsRequestBody {
                     variables: Variables {
-                        filter: Some(value),
+                        filter: Some(self.search_query.clone()),
                         limit: Some(25),
                         ..Default::default()
                     },
@@ -302,7 +328,7 @@ impl Component for FundingsFormComponent {
                                         placeholder="Search Institution"
                                         aria-haspopup="true"
                                         aria-controls="institutions-menu"
-                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchInstitution(e.to_value())) }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchQueryChanged(e.to_value())) }
                                         onfocus={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(true)) }
                                         onblur={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(false)) }
                                     />
