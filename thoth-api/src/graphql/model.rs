@@ -2211,10 +2211,12 @@ impl Work {
         self.cover_caption.as_ref()
     }
 
+    #[graphql(description = "Date and time at which the work record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the work record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
@@ -2236,6 +2238,9 @@ impl Work {
         self.page_interval.as_ref()
     }
 
+    #[graphql(
+        description = "Date and time at which the work record or any of its linked records was last updated"
+    )]
     pub fn relation_updated_at(&self) -> Timestamp {
         self.relation_updated_at.clone()
     }
