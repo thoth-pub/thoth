@@ -106,9 +106,8 @@ BEGIN
     ) THEN
         UPDATE work
         SET updated_at_with_relations = current_timestamp
-        -- We don't need to also check related_work_ids, as every work_relation
-        -- record has a mirrored record with relator/related IDs swapped
-        WHERE work_id = OLD.relator_work_id OR work_id = NEW.relator_work_id;
+        WHERE work_id = OLD.relator_work_id OR work_id = NEW.relator_work_id
+            OR work_id = OLD.related_work_id OR work_id = NEW.related_work_id;
     END IF;
     RETURN NULL;
 END;
