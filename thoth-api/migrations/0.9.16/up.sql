@@ -263,8 +263,7 @@ CREATE TRIGGER set_work_updated_at_with_relations AFTER UPDATE ON series
 CREATE OR REPLACE FUNCTION work_work_updated_at_with_relations() RETURNS trigger AS $$
 BEGIN
     IF (
-        NEW IS DISTINCT FROM OLD AND
-        NEW.updated_at_with_relations IS NOT DISTINCT FROM OLD.updated_at_with_relations
+        NEW IS DISTINCT FROM OLD
     ) THEN
         UPDATE work
         SET updated_at_with_relations = current_timestamp
