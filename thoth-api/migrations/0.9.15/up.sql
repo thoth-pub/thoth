@@ -14,6 +14,7 @@ BEGIN
         NEW.relation_updated_at IS NOT DISTINCT FROM OLD.relation_updated_at
     ) THEN
         NEW.updated_at := current_timestamp;
+        NEW.relation_updated_at := current_timestamp;
     END IF;
     RETURN NEW;
 END;
