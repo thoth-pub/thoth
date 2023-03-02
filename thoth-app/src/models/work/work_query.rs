@@ -59,7 +59,7 @@ pub const WORK_QUERY: &str = "
                     imprintId
                     createdAt
                     updatedAt
-                    relationUpdatedAt
+                    updatedAtWithRelations
                 }
             }
             contributions(order: {field: CONTRIBUTION_ORDINAL, direction: ASC}) {

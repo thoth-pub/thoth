@@ -122,7 +122,7 @@ pub enum WorkField {
     FirstPage,
     LastPage,
     PageInterval,
-    RelationUpdatedAt,
+    UpdatedAtWithRelations,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -513,8 +513,8 @@ fn test_workfield_display() {
     assert_eq!(format!("{}", WorkField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", WorkField::UpdatedAt), "UpdatedAt");
     assert_eq!(
-        format!("{}", WorkField::RelationUpdatedAt),
-        "RelationUpdatedAt"
+        format!("{}", WorkField::UpdatedAtWithRelations),
+        "UpdatedAtWithRelations"
     );
 }
 
@@ -704,8 +704,8 @@ fn test_workfield_fromstr() {
         WorkField::UpdatedAt
     );
     assert_eq!(
-        WorkField::from_str("RelationUpdatedAt").unwrap(),
-        WorkField::RelationUpdatedAt
+        WorkField::from_str("UpdatedAtWithRelations").unwrap(),
+        WorkField::UpdatedAtWithRelations
     );
     assert!(WorkField::from_str("WorkID").is_err());
     assert!(WorkField::from_str("Contributors").is_err());

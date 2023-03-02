@@ -33,7 +33,7 @@ const CREATE_WORK_RELATION_MUTATION: &str = "
                 imprintId
                 createdAt
                 updatedAt
-                relationUpdatedAt
+                updatedAtWithRelations
             }
         }
     }

@@ -84,7 +84,7 @@ const UPDATE_WORK_MUTATION: &str = "
             imprintId
             createdAt
             updatedAt
-            relationUpdatedAt
+            updatedAtWithRelations
         }
     }
 ";
