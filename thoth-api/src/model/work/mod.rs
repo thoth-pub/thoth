@@ -163,7 +163,7 @@ pub struct Work {
     pub first_page: Option<String>,
     pub last_page: Option<String>,
     pub page_interval: Option<String>,
-    pub relation_updated_at: Timestamp,
+    pub updated_at_with_relations: Timestamp,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -751,7 +751,7 @@ fn test_work_into_patchwork() {
         first_page: None,
         last_page: None,
         page_interval: None,
-        relation_updated_at: Default::default(),
+        updated_at_with_relations: Default::default(),
     };
     let patch_work: PatchWork = work.clone().into();
 

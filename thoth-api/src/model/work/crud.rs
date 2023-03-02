@@ -265,8 +265,8 @@ impl Crud for Work {
                 Direction::Desc => query.order(dsl::updated_at.desc()),
             },
             WorkField::RelationUpdatedAt => match order.direction {
-                Direction::Asc => query.order(dsl::relation_updated_at.asc()),
-                Direction::Desc => query.order(dsl::relation_updated_at.desc()),
+                Direction::Asc => query.order(dsl::updated_at_with_relations.asc()),
+                Direction::Desc => query.order(dsl::updated_at_with_relations.desc()),
             },
         };
         if !publishers.is_empty() {

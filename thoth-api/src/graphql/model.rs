@@ -2241,8 +2241,8 @@ impl Work {
     #[graphql(
         description = "Date and time at which the work record or any of its linked records was last updated"
     )]
-    pub fn relation_updated_at(&self) -> Timestamp {
-        self.relation_updated_at.clone()
+    pub fn updated_at_with_relations(&self) -> Timestamp {
+        self.updated_at_with_relations.clone()
     }
 
     pub fn imprint(&self, context: &Context) -> FieldResult<Imprint> {
