@@ -16,6 +16,7 @@ pub const SLIM_WORKS_QUERY_BODY: &str = "
             copyrightHolder
             createdAt
             updatedAt
+            updatedAtWithRelations
         }";
 
 graphql_query_builder! {

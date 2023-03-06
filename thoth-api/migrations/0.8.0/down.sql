@@ -61,3 +61,5 @@ ALTER TABLE publication
     DROP COLUMN height_in,
     DROP COLUMN depth_mm,
     DROP COLUMN depth_in;
+
+DROP FUNCTION IF EXISTS publication_chapter_no_dimensions();
