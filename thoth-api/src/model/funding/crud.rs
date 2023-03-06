@@ -29,7 +29,7 @@ impl Crud for Funding {
         parent_id_1: Option<Uuid>,
         parent_id_2: Option<Uuid>,
         _: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Funding>> {
         use crate::schema::funding::dsl::*;
         let mut connection = db.get().unwrap();
@@ -104,7 +104,7 @@ impl Crud for Funding {
         _: Option<String>,
         _: Vec<Uuid>,
         _: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::funding::dsl::*;
         let mut connection = db.get().unwrap();

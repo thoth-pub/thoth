@@ -32,7 +32,7 @@ impl Crud for WorkRelation {
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
         relation_types: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<Vec<WorkRelation>> {
         use crate::schema::work_relation::dsl::*;
         let mut connection = db.get().unwrap();
@@ -91,7 +91,7 @@ impl Crud for WorkRelation {
         _: Option<String>,
         _: Vec<Uuid>,
         relation_types: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::work_relation::dsl::*;
         let mut connection = db.get().unwrap();

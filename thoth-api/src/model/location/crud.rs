@@ -31,7 +31,7 @@ impl Crud for Location {
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
         location_platforms: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Location>> {
         use crate::schema::location::dsl::*;
         let mut connection = db.get().unwrap();
@@ -101,7 +101,7 @@ impl Crud for Location {
         _: Option<String>,
         _: Vec<Uuid>,
         location_platforms: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::location::dsl::*;
         let mut connection = db.get().unwrap();

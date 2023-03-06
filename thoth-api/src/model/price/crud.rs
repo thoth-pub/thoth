@@ -29,7 +29,7 @@ impl Crud for Price {
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
         currency_codes: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Price>> {
         use crate::schema::price::dsl::*;
         let mut connection = db.get().unwrap();
@@ -91,7 +91,7 @@ impl Crud for Price {
         _: Option<String>,
         _: Vec<Uuid>,
         currency_codes: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::price::dsl::*;
         let mut connection = db.get().unwrap();

@@ -33,7 +33,7 @@ impl Crud for Series {
         _: Option<Uuid>,
         _: Option<Uuid>,
         series_types: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Series>> {
         use crate::schema::series::dsl::*;
         let mut connection = db.get().unwrap();
@@ -115,7 +115,7 @@ impl Crud for Series {
         filter: Option<String>,
         publishers: Vec<Uuid>,
         series_types: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::series::dsl::*;
         let mut connection = db.get().unwrap();

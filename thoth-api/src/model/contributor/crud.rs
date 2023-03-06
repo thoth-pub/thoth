@@ -33,7 +33,7 @@ impl Crud for Contributor {
         _: Option<Uuid>,
         _: Option<Uuid>,
         _: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Contributor>> {
         use crate::schema::contributor::dsl::*;
         let mut connection = db.get().unwrap();
@@ -96,7 +96,7 @@ impl Crud for Contributor {
         filter: Option<String>,
         _: Vec<Uuid>,
         _: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::contributor::dsl::*;
         let mut connection = db.get().unwrap();

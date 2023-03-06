@@ -29,7 +29,7 @@ impl Crud for Issue {
         parent_id_1: Option<Uuid>,
         parent_id_2: Option<Uuid>,
         _: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Issue>> {
         use crate::schema::issue::dsl::*;
         let mut connection = db.get().unwrap();
@@ -88,7 +88,7 @@ impl Crud for Issue {
         _: Option<String>,
         _: Vec<Uuid>,
         _: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::issue::dsl::*;
         let mut connection = db.get().unwrap();

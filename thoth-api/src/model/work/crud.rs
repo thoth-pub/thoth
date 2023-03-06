@@ -92,7 +92,7 @@ impl Work {
             Some(self.work_id),
             None,
             vec![RelationType::HasChild],
-            None,
+            vec![],
         )
         .unwrap_or_default()
         .into_iter()

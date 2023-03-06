@@ -33,7 +33,7 @@ impl Crud for Institution {
         _: Option<Uuid>,
         _: Option<Uuid>,
         _: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Institution>> {
         use crate::schema::institution::dsl::*;
         let mut connection = db.get().unwrap();
@@ -92,7 +92,7 @@ impl Crud for Institution {
         filter: Option<String>,
         _: Vec<Uuid>,
         _: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::institution::dsl::*;
         let mut connection = db.get().unwrap();

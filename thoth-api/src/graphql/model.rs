@@ -453,7 +453,7 @@ impl QueryRoot {
             None,
             None,
             publication_types,
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -491,7 +491,7 @@ impl QueryRoot {
             Some(filter),
             publishers,
             publication_types,
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -540,7 +540,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -568,7 +568,8 @@ impl QueryRoot {
         filter: String,
         publishers: Vec<Uuid>,
     ) -> FieldResult<i32> {
-        Publisher::count(&context.db, Some(filter), publishers, vec![], None).map_err(|e| e.into())
+        Publisher::count(&context.db, Some(filter), publishers, vec![], vec![])
+            .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -608,7 +609,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -632,7 +633,7 @@ impl QueryRoot {
         )
     )]
     fn imprint_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> FieldResult<i32> {
-        Imprint::count(&context.db, Some(filter), publishers, vec![], None).map_err(|e| e.into())
+        Imprint::count(&context.db, Some(filter), publishers, vec![], vec![]).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -667,7 +668,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -687,7 +688,7 @@ impl QueryRoot {
         )
     )]
     fn contributor_count(context: &Context, filter: String) -> FieldResult<i32> {
-        Contributor::count(&context.db, Some(filter), vec![], vec![], None).map_err(|e| e.into())
+        Contributor::count(&context.db, Some(filter), vec![], vec![], vec![]).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -732,7 +733,7 @@ impl QueryRoot {
             None,
             None,
             contribution_types,
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -754,7 +755,7 @@ impl QueryRoot {
         context: &Context,
         contribution_types: Vec<ContributionType>,
     ) -> FieldResult<i32> {
-        Contribution::count(&context.db, None, vec![], contribution_types, None)
+        Contribution::count(&context.db, None, vec![], contribution_types, vec![])
             .map_err(|e| e.into())
     }
 
@@ -800,7 +801,7 @@ impl QueryRoot {
             None,
             None,
             series_types,
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -833,7 +834,7 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         series_types: Vec<SeriesType>,
     ) -> FieldResult<i32> {
-        Series::count(&context.db, Some(filter), publishers, series_types, None)
+        Series::count(&context.db, Some(filter), publishers, series_types, vec![])
             .map_err(|e| e.into())
     }
 
@@ -874,7 +875,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -886,7 +887,7 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of issues")]
     fn issue_count(context: &Context) -> FieldResult<i32> {
-        Issue::count(&context.db, None, vec![], vec![], None).map_err(|e| e.into())
+        Issue::count(&context.db, None, vec![], vec![], vec![]).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1004,7 +1005,7 @@ impl QueryRoot {
             None,
             None,
             location_platforms,
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -1019,7 +1020,7 @@ impl QueryRoot {
         context: &Context,
         location_platforms: Vec<LocationPlatform>,
     ) -> FieldResult<i32> {
-        Location::count(&context.db, None, vec![], location_platforms, None).map_err(|e| e.into())
+        Location::count(&context.db, None, vec![], location_platforms, vec![]).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1064,7 +1065,7 @@ impl QueryRoot {
             None,
             None,
             currency_codes,
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -1084,7 +1085,7 @@ impl QueryRoot {
         )
     )]
     fn price_count(context: &Context, currency_codes: Vec<CurrencyCode>) -> FieldResult<i32> {
-        Price::count(&context.db, None, vec![], currency_codes, None).map_err(|e| e.into())
+        Price::count(&context.db, None, vec![], currency_codes, vec![]).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1134,7 +1135,7 @@ impl QueryRoot {
             None,
             None,
             subject_types,
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -1162,7 +1163,8 @@ impl QueryRoot {
         filter: String,
         subject_types: Vec<SubjectType>,
     ) -> FieldResult<i32> {
-        Subject::count(&context.db, Some(filter), vec![], subject_types, None).map_err(|e| e.into())
+        Subject::count(&context.db, Some(filter), vec![], subject_types, vec![])
+            .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1197,7 +1199,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -1217,7 +1219,7 @@ impl QueryRoot {
         )
     )]
     fn institution_count(context: &Context, filter: String) -> FieldResult<i32> {
-        Institution::count(&context.db, Some(filter), vec![], vec![], None).map_err(|e| e.into())
+        Institution::count(&context.db, Some(filter), vec![], vec![], vec![]).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1257,7 +1259,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -1269,7 +1271,7 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of funding instances associated to works")]
     fn funding_count(context: &Context) -> FieldResult<i32> {
-        Funding::count(&context.db, None, vec![], vec![], None).map_err(|e| e.into())
+        Funding::count(&context.db, None, vec![], vec![], vec![]).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1309,7 +1311,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -1321,7 +1323,7 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of affiliations")]
     fn affiliation_count(context: &Context) -> FieldResult<i32> {
-        Affiliation::count(&context.db, None, vec![], vec![], None).map_err(|e| e.into())
+        Affiliation::count(&context.db, None, vec![], vec![], vec![]).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1361,7 +1363,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -1373,7 +1375,7 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of references")]
     fn reference_count(context: &Context) -> FieldResult<i32> {
-        Reference::count(&context.db, None, vec![], vec![], None).map_err(|e| e.into())
+        Reference::count(&context.db, None, vec![], vec![], vec![]).map_err(|e| e.into())
     }
 }
 
@@ -2305,7 +2307,7 @@ impl Work {
             Some(self.work_id),
             None,
             contribution_types,
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -2398,7 +2400,7 @@ impl Work {
             Some(self.work_id),
             None,
             publication_types,
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -2446,7 +2448,7 @@ impl Work {
             Some(self.work_id),
             None,
             subject_types,
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -2484,7 +2486,7 @@ impl Work {
             Some(self.work_id),
             None,
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -2522,7 +2524,7 @@ impl Work {
             Some(self.work_id),
             None,
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -2559,7 +2561,7 @@ impl Work {
             Some(self.work_id),
             None,
             relation_types,
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -2596,7 +2598,7 @@ impl Work {
             Some(self.work_id),
             None,
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -2739,7 +2741,7 @@ impl Publication {
             Some(self.publication_id),
             None,
             currency_codes,
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -2782,7 +2784,7 @@ impl Publication {
             Some(self.publication_id),
             None,
             location_platforms,
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -2856,7 +2858,7 @@ impl Publisher {
             Some(self.publisher_id),
             None,
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -3023,7 +3025,7 @@ impl Contributor {
             None,
             Some(self.contributor_id),
             contribution_types,
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -3120,7 +3122,7 @@ impl Contribution {
             None,
             Some(self.contribution_id),
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -3211,7 +3213,7 @@ impl Series {
             None,
             Some(self.series_id),
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -3461,7 +3463,7 @@ impl Institution {
             None,
             Some(self.institution_id),
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
@@ -3499,7 +3501,7 @@ impl Institution {
             Some(self.institution_id),
             None,
             vec![],
-            None,
+            vec![],
         )
         .map_err(|e| e.into())
     }
