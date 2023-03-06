@@ -300,7 +300,7 @@ where
         parent_id_1: Option<Uuid>,
         parent_id_2: Option<Uuid>,
         filter_param_1: Vec<Self::FilterParameter1>,
-        filter_param_2: Option<Self::FilterParameter2>,
+        filter_param_2: Vec<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Self>>;
 
     /// Query the database to obtain the total number of entities satisfying the search criteria
@@ -309,7 +309,7 @@ where
         filter: Option<String>,
         publishers: Vec<Uuid>,
         filter_param_1: Vec<Self::FilterParameter1>,
-        filter_param_2: Option<Self::FilterParameter2>,
+        filter_param_2: Vec<Self::FilterParameter2>,
     ) -> ThothResult<i32>;
 
     /// Query the database to obtain an instance of the entity given its ID

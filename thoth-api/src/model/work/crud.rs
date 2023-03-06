@@ -122,7 +122,7 @@ impl Crud for Work {
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
         work_types: Vec<Self::FilterParameter1>,
-        work_status: Option<Self::FilterParameter2>,
+        work_statuses: Vec<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Work>> {
         use crate::schema::work::dsl;
         let mut connection = db.get().unwrap();
@@ -278,8 +278,8 @@ impl Crud for Work {
         if !work_types.is_empty() {
             query = query.filter(dsl::work_type.eq_any(work_types));
         }
-        if let Some(wk_status) = work_status {
-            query = query.filter(dsl::work_status.eq(wk_status));
+        if !work_statuses.is_empty() {
+            query = query.filter(dsl::work_status.eq_any(work_statuses));
         }
         if let Some(filter) = filter {
             query = query.filter(
@@ -307,7 +307,7 @@ impl Crud for Work {
         filter: Option<String>,
         publishers: Vec<Uuid>,
         work_types: Vec<Self::FilterParameter1>,
-        work_status: Option<Self::FilterParameter2>,
+        work_statuses: Vec<Self::FilterParameter2>,
     ) -> ThothResult<i32> {
         use crate::schema::work::dsl;
         let mut connection = db.get().unwrap();
@@ -320,8 +320,8 @@ impl Crud for Work {
         if !work_types.is_empty() {
             query = query.filter(dsl::work_type.eq_any(work_types));
         }
-        if let Some(wk_status) = work_status {
-            query = query.filter(dsl::work_status.eq(wk_status));
+        if !work_statuses.is_empty() {
+            query = query.filter(dsl::work_status.eq_any(work_statuses));
         }
         if let Some(filter) = filter {
             query = query.filter(

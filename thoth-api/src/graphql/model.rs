@@ -130,7 +130,10 @@ impl QueryRoot {
             default = vec![],
             description = "Specific types to filter by",
         ),
-        work_status(description = "A specific status to filter by"),
+        work_statuses(
+            default = vec![],
+            description = "Specific statuses to filter by"
+        ),
     )
   )]
     fn works(
@@ -141,7 +144,7 @@ impl QueryRoot {
         order: WorkOrderBy,
         publishers: Vec<Uuid>,
         work_types: Vec<WorkType>,
-        work_status: Option<WorkStatus>,
+        work_statuses: Vec<WorkStatus>,
     ) -> FieldResult<Vec<Work>> {
         Work::all(
             &context.db,
@@ -153,7 +156,7 @@ impl QueryRoot {
             None,
             None,
             work_types,
-            work_status,
+            work_statuses,
         )
         .map_err(|e| e.into())
     }
@@ -183,7 +186,10 @@ impl QueryRoot {
                 default = vec![],
                 description = "Specific types to filter by",
             ),
-            work_status(description = "A specific status to filter by"),
+            work_statuses(
+                default = vec![],
+                description = "Specific statuses to filter by"
+            ),
         )
     )]
     fn work_count(
@@ -191,14 +197,14 @@ impl QueryRoot {
         filter: String,
         publishers: Vec<Uuid>,
         work_types: Vec<WorkType>,
-        work_status: Option<WorkStatus>,
+        work_statuses: Vec<WorkStatus>,
     ) -> FieldResult<i32> {
         Work::count(
             &context.db,
             Some(filter),
             publishers,
             work_types,
-            work_status,
+            work_statuses,
         )
         .map_err(|e| e.into())
     }
@@ -226,7 +232,10 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            work_status(description = "A specific status to filter by"),
+            work_statuses(
+                default = vec![],
+                description = "Specific statuses to filter by"
+            ),
         )
     )]
     fn books(
@@ -236,7 +245,7 @@ impl QueryRoot {
         filter: String,
         order: WorkOrderBy,
         publishers: Vec<Uuid>,
-        work_status: Option<WorkStatus>,
+        work_statuses: Vec<WorkStatus>,
     ) -> FieldResult<Vec<Work>> {
         Work::all(
             &context.db,
@@ -253,7 +262,7 @@ impl QueryRoot {
                 WorkType::Textbook,
                 WorkType::JournalIssue,
             ],
-            work_status,
+            work_statuses,
         )
         .map_err(|e| e.into())
     }
@@ -284,14 +293,17 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            work_status(description = "A specific status to filter by"),
+            work_statuses(
+                default = vec![],
+                description = "Specific statuses to filter by"
+            ),
         )
     )]
     fn book_count(
         context: &Context,
         filter: String,
         publishers: Vec<Uuid>,
-        work_status: Option<WorkStatus>,
+        work_statuses: Vec<WorkStatus>,
     ) -> FieldResult<i32> {
         Work::count(
             &context.db,
@@ -303,7 +315,7 @@ impl QueryRoot {
                 WorkType::Textbook,
                 WorkType::JournalIssue,
             ],
-            work_status,
+            work_statuses,
         )
         .map_err(|e| e.into())
     }
@@ -331,7 +343,10 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            work_status(description = "A specific status to filter by"),
+            work_statuses(
+                default = vec![],
+                description = "Specific statuses to filter by"
+            ),
         )
     )]
     fn chapters(
@@ -341,7 +356,7 @@ impl QueryRoot {
         filter: String,
         order: WorkOrderBy,
         publishers: Vec<Uuid>,
-        work_status: Option<WorkStatus>,
+        work_statuses: Vec<WorkStatus>,
     ) -> FieldResult<Vec<Work>> {
         Work::all(
             &context.db,
@@ -353,7 +368,7 @@ impl QueryRoot {
             None,
             None,
             vec![WorkType::BookChapter],
-            work_status,
+            work_statuses,
         )
         .map_err(|e| e.into())
     }
@@ -374,21 +389,24 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            work_status(description = "A specific status to filter by"),
+            work_statuses(
+                default = vec![],
+                description = "Specific statuses to filter by"
+            ),
         )
     )]
     fn chapter_count(
         context: &Context,
         filter: String,
         publishers: Vec<Uuid>,
-        work_status: Option<WorkStatus>,
+        work_statuses: Vec<WorkStatus>,
     ) -> FieldResult<i32> {
         Work::count(
             &context.db,
             Some(filter),
             publishers,
             vec![WorkType::BookChapter],
-            work_status,
+            work_statuses,
         )
         .map_err(|e| e.into())
     }
@@ -2902,7 +2920,10 @@ impl Imprint {
             default = vec![],
             description = "Specific types to filter by",
         ),
-        work_status(description = "A specific status to filter by"),
+        work_statuses(
+            default = vec![],
+            description = "Specific statuses to filter by"
+        ),
     )
   )]
     pub fn works(
@@ -2912,7 +2933,7 @@ impl Imprint {
         filter: String,
         order: WorkOrderBy,
         work_types: Vec<WorkType>,
-        work_status: Option<WorkStatus>,
+        work_statuses: Vec<WorkStatus>,
     ) -> FieldResult<Vec<Work>> {
         Work::all(
             &context.db,
@@ -2924,7 +2945,7 @@ impl Imprint {
             Some(self.imprint_id),
             None,
             work_types,
-            work_status,
+            work_statuses,
         )
         .map_err(|e| e.into())
     }
