@@ -83,7 +83,9 @@ pub struct Ror(String);
 #[cfg_attr(
     feature = "backend",
     derive(DieselNewType, juniper::GraphQLScalarValue),
-    graphql(description = "RFC 3339 combined date and time in UTC time zone")
+    graphql(
+        description = "RFC 3339 combined date and time in UTC time zone (e.g. \"1999-12-31T23:59:00Z\")"
+    )
 )]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Timestamp(DateTime<Utc>);
