@@ -144,7 +144,6 @@ impl QueryRoot {
             description = "Specific statuses to filter by"
         ),
         updated_at_with_relations(
-            default = TimeExpression::default(),
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         ),
     )
@@ -206,7 +205,6 @@ impl QueryRoot {
                 description = "Specific statuses to filter by"
             ),
             updated_at_with_relations(
-                default = TimeExpression::default(),
                 description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
             ),
         )
@@ -258,7 +256,6 @@ impl QueryRoot {
                 description = "Specific statuses to filter by"
             ),
             updated_at_with_relations(
-                default = TimeExpression::default(),
                 description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
             ),
         )
@@ -325,7 +322,6 @@ impl QueryRoot {
                 description = "Specific statuses to filter by"
             ),
             updated_at_with_relations(
-                default = TimeExpression::default(),
                 description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
             ),
         )
@@ -381,7 +377,6 @@ impl QueryRoot {
                 description = "Specific statuses to filter by"
             ),
             updated_at_with_relations(
-                default = TimeExpression::default(),
                 description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
             ),
         )
@@ -433,7 +428,6 @@ impl QueryRoot {
                 description = "Specific statuses to filter by"
             ),
             updated_at_with_relations(
-                default = TimeExpression::default(),
                 description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
             ),
         )
@@ -2987,7 +2981,6 @@ impl Imprint {
             description = "Specific statuses to filter by"
         ),
         updated_at_with_relations(
-            default = TimeExpression::default(),
             description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
         ),
     )

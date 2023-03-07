@@ -1,10 +1,11 @@
 use super::{
-    NewWork, NewWorkHistory, PatchWork, TimeExpression, Work, WorkField, WorkHistory, WorkOrderBy,
-    WorkStatus, WorkType,
+    NewWork, NewWorkHistory, PatchWork, Work, WorkField, WorkHistory, WorkOrderBy, WorkStatus,
+    WorkType,
 };
-use crate::graphql::utils::Direction;
+use crate::graphql::model::TimeExpression;
+use crate::graphql::utils::{Direction, Expression};
 use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderBy};
-use crate::model::{Crud, DbInsert, Doi, HistoryEntry, Timestamp};
+use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
 use crate::schema::{work, work_history};
 use crate::{crud_methods, db_insert};
 use diesel::{
@@ -283,17 +284,13 @@ impl Crud for Work {
         if !work_statuses.is_empty() {
             query = query.filter(dsl::work_status.eq_any(work_statuses));
         }
-        if !updated_at_with_relations.is_empty {
-            match updated_at_with_relations.expression {
+        if let Some(updated) = updated_at_with_relations {
+            match updated.expression {
                 Expression::GreaterThan => {
-                    query = query.filter(
-                        dsl::updated_at_with_relations.gt(updated_at_with_relations.timestamp),
-                    )
+                    query = query.filter(dsl::updated_at_with_relations.gt(updated.timestamp))
                 }
                 Expression::LessThan => {
-                    query = query.filter(
-                        dsl::updated_at_with_relations.lt(updated_at_with_relations.timestamp),
-                    )
+                    query = query.filter(dsl::updated_at_with_relations.lt(updated.timestamp))
                 }
             }
         }
@@ -324,6 +321,7 @@ impl Crud for Work {
         publishers: Vec<Uuid>,
         work_types: Vec<Self::FilterParameter1>,
         work_statuses: Vec<Self::FilterParameter2>,
+        updated_at_with_relations: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::work::dsl;
         let mut connection = db.get().unwrap();
@@ -338,6 +336,16 @@ impl Crud for Work {
         }
         if !work_statuses.is_empty() {
             query = query.filter(dsl::work_status.eq_any(work_statuses));
+        }
+        if let Some(updated) = updated_at_with_relations {
+            match updated.expression {
+                Expression::GreaterThan => {
+                    query = query.filter(dsl::updated_at_with_relations.gt(updated.timestamp))
+                }
+                Expression::LessThan => {
+                    query = query.filter(dsl::updated_at_with_relations.lt(updated.timestamp))
+                }
+            }
         }
         if let Some(filter) = filter {
             query = query.filter(
