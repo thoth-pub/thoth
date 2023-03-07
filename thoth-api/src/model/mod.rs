@@ -280,6 +280,8 @@ where
     type FilterParameter1;
     /// A second such structure, e.g. `WorkStatus`
     type FilterParameter2;
+    /// A third such structure, e.g. `TimeExpression`
+    type FilterParameter3;
 
     /// Specify the entity's primary key
     fn pk(&self) -> Uuid;
@@ -301,6 +303,7 @@ where
         parent_id_2: Option<Uuid>,
         filter_param_1: Vec<Self::FilterParameter1>,
         filter_param_2: Vec<Self::FilterParameter2>,
+        filter_param_3: Option<Self::FilterParameter2>,
     ) -> ThothResult<Vec<Self>>;
 
     /// Query the database to obtain the total number of entities satisfying the search criteria
@@ -310,6 +313,7 @@ where
         publishers: Vec<Uuid>,
         filter_param_1: Vec<Self::FilterParameter1>,
         filter_param_2: Vec<Self::FilterParameter2>,
+        filter_param_3: Option<Self::FilterParameter2>,
     ) -> ThothResult<i32>;
 
     /// Query the database to obtain an instance of the entity given its ID

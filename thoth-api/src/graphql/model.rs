@@ -36,7 +36,7 @@ use crate::model::Timestamp;
 use crate::model::WeightUnit;
 use thoth_errors::{ThothError, ThothResult};
 
-use super::utils::Direction;
+use super::utils::{Direction, Expression};
 
 impl juniper::Context for Context {}
 
@@ -99,6 +99,15 @@ pub struct FundingOrderBy {
     pub direction: Direction,
 }
 
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(
+    description = "Timestamp and choice out of greater than/less than to use when filtering by a time field (e.g. updated_at"
+)]
+pub struct TimeExpression {
+    pub timestamp: Timestamp,
+    pub expression: Expression,
+}
+
 pub struct QueryRoot;
 
 #[juniper::graphql_object(Context = Context)]
@@ -134,6 +143,10 @@ impl QueryRoot {
             default = vec![],
             description = "Specific statuses to filter by"
         ),
+        updated_at_with_relations(
+            default = TimeExpression::default(),
+            description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+        ),
     )
   )]
     fn works(
@@ -145,6 +158,7 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         work_types: Vec<WorkType>,
         work_statuses: Vec<WorkStatus>,
+        updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
         Work::all(
             &context.db,
@@ -157,6 +171,7 @@ impl QueryRoot {
             None,
             work_types,
             work_statuses,
+            updated_at_with_relations,
         )
         .map_err(|e| e.into())
     }
