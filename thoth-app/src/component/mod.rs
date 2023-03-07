@@ -49,9 +49,9 @@ macro_rules! pagination_helpers {
                                     <input
                                         class="input"
                                         type="search"
-                                        value={ self.search_term.clone() }
+                                        value={ self.search_query.clone() }
                                         placeholder={ self.search_text() }
-                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::Search(e.to_value())) }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchQueryChanged(e.to_value())) }
                                     />
                                     <span class="icon is-left">
                                         <i class="fas fa-search" aria-hidden="true"></i>
@@ -84,11 +84,13 @@ macro_rules! pagination_component {
         $order_struct:ty,
         $order_field:ty,
     ) => {
+        use gloo_timers::callback::Timeout;
         use std::str::FromStr;
         use thoth_api::account::model::AccountAccess;
         use thoth_api::account::model::AccountDetails;
         use thoth_api::graphql::utils::Direction::*;
         use thoth_errors::ThothError;
+        use yew::Callback;
         use yew::html;
         use yew::prelude::Component;
         use yew::prelude::Context;
@@ -107,12 +109,15 @@ macro_rules! pagination_component {
         use $crate::component::utils::Reloader;
         use $crate::models::{EditRoute, CreateRoute, MetadataTable};
         use $crate::route::AdminRoute;
+        use $crate::DEFAULT_DEBOUNCING_TIMEOUT;
 
         pub struct $component {
             limit: i32,
             offset: i32,
             page_size: i32,
-            search_term: String,
+            search_callback: Callback<()>,
+            search_query: String,
+            debounce_timeout: Option<Timeout>,
             order: $order_struct,
             data: Vec<$entity>,
             table_headers: Vec<String>,
@@ -128,7 +133,7 @@ macro_rules! pagination_component {
             SetFetchState($fetch_action),
             GetData,
             PaginateData,
-            Search(String),
+            SearchQueryChanged(String),
             NextPage,
             PreviousPage,
             ChangeRoute(AdminRoute),
@@ -148,7 +153,8 @@ macro_rules! pagination_component {
                 let offset: i32 = Default::default();
                 let page_size: i32 = 20;
                 let limit: i32 = page_size;
-                let search_term: String = Default::default();
+                let search_callback = ctx.link().callback(|_| Msg::PaginateData);
+                let search_query: String = Default::default();
                 let order = Default::default();
                 let result_count: i32 = Default::default();
                 let data = Default::default();
@@ -163,7 +169,9 @@ macro_rules! pagination_component {
                     limit,
                     offset,
                     page_size,
-                    search_term,
+                    search_callback,
+                    search_query,
+                    debounce_timeout: None,
                     order,
                     data,
                     table_headers,
@@ -195,7 +203,7 @@ macro_rules! pagination_component {
                         false
                     }
                     Msg::PaginateData => {
-                        let filter = self.search_term.clone();
+                        let filter = self.search_query.clone();
                         let order = self.order.clone();
                         let body = $request_body {
                             variables: $request_variables {
@@ -212,10 +220,21 @@ macro_rules! pagination_component {
                         ctx.link().send_message(Msg::GetData);
                         false
                     }
-                    Msg::Search(term) => {
+                    Msg::SearchQueryChanged(query) => {
                         self.offset = 0;
-                        self.search_term = term;
-                        ctx.link().send_message(Msg::PaginateData);
+                        self.search_query = query;
+
+                        // cancel previous timeout
+                        self.debounce_timeout = self.debounce_timeout.take().and_then(|timeout| {
+                            timeout.cancel();
+                            None
+                        });
+                        // start new timeout
+                        let search_callback = self.search_callback.clone();
+                        let timeout = Timeout::new(DEFAULT_DEBOUNCING_TIMEOUT, move || {
+                            search_callback.emit(());
+                        });
+                        self.debounce_timeout = Some(timeout);
                         false
                     }
                     Msg::NextPage => {
@@ -446,6 +465,7 @@ pub mod hero;
 pub mod imprint;
 pub mod imprints;
 pub mod institution;
+pub mod institution_select;
 pub mod institutions;
 pub mod issues_form;
 pub mod languages_form;

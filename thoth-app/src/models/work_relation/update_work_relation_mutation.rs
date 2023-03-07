@@ -36,6 +36,7 @@ const UPDATE_WORK_RELATION_MUTATION: &str = "
                 copyrightHolder
                 createdAt
                 updatedAt
+                updatedAtWithRelations
             }
         }
     }

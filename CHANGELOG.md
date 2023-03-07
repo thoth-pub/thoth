@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+  - [#480](https://github.com/thoth-pub/thoth/pull/480) Add field to work table to track when the work or any of its relations was last updated
+
+## [[0.9.15]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.15) - 2023-03-01
+### Fixed
+  - Issue adding institutions in previous release
+
+## [[0.9.14]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.14) - 2023-03-01
+### Changed
+  - Upgrade `openssl-src` to v111.25.0
+  - Upgrade `bumpalo` to v3.12.0
+
+### Fixed
+  - [#326](https://github.com/thoth-pub/thoth/issues/326) - Debounce search queries
 
 ## [[0.9.13]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.13) - 2023-02-21
 ### Changed

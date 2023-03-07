@@ -22,7 +22,7 @@ impl XmlSpecification for Onix21EbscoHost {
                     w.write(XmlEvent::Characters("Thoth")).map_err(|e| e.into())
                 })?;
                 write_element_block("FromEmail", w, |w| {
-                    w.write(XmlEvent::Characters("info@thoth.pub"))
+                    w.write(XmlEvent::Characters("distribution@thoth.pub"))
                         .map_err(|e| e.into())
                 })?;
                 write_element_block("SentDate", w, |w| {

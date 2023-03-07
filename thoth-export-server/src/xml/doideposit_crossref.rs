@@ -57,7 +57,7 @@ impl XmlSpecification for DoiDepositCrossref {
                                 w.write(XmlEvent::Characters("Thoth")).map_err(|e| e.into())
                             })?;
                             write_element_block("email_address", w, |w| {
-                                w.write(XmlEvent::Characters("info@thoth.pub"))
+                                w.write(XmlEvent::Characters("distribution@thoth.pub"))
                                     .map_err(|e| e.into())
                             })
                         })?;

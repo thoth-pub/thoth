@@ -122,6 +122,7 @@ pub enum WorkField {
     FirstPage,
     LastPage,
     PageInterval,
+    UpdatedAtWithRelations,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -162,6 +163,7 @@ pub struct Work {
     pub first_page: Option<String>,
     pub last_page: Option<String>,
     pub page_interval: Option<String>,
+    pub updated_at_with_relations: Timestamp,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -510,6 +512,10 @@ fn test_workfield_display() {
     assert_eq!(format!("{}", WorkField::CoverCaption), "CoverCaption");
     assert_eq!(format!("{}", WorkField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", WorkField::UpdatedAt), "UpdatedAt");
+    assert_eq!(
+        format!("{}", WorkField::UpdatedAtWithRelations),
+        "UpdatedAtWithRelations"
+    );
 }
 
 #[test]
@@ -697,6 +703,10 @@ fn test_workfield_fromstr() {
         WorkField::from_str("UpdatedAt").unwrap(),
         WorkField::UpdatedAt
     );
+    assert_eq!(
+        WorkField::from_str("UpdatedAtWithRelations").unwrap(),
+        WorkField::UpdatedAtWithRelations
+    );
     assert!(WorkField::from_str("WorkID").is_err());
     assert!(WorkField::from_str("Contributors").is_err());
     assert!(WorkField::from_str("Publisher").is_err());
@@ -741,6 +751,7 @@ fn test_work_into_patchwork() {
         first_page: None,
         last_page: None,
         page_interval: None,
+        updated_at_with_relations: Default::default(),
     };
     let patch_work: PatchWork = work.clone().into();
 

@@ -14,6 +14,7 @@ use crate::agent::notification_bus::NotificationBus;
 use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
+use crate::component::institution_select::InstitutionSelectComponent;
 use crate::component::utils::FormTextInput;
 use crate::models::funding::create_funding_mutation::CreateFundingRequest;
 use crate::models::funding::create_funding_mutation::CreateFundingRequestBody;
@@ -25,12 +26,6 @@ use crate::models::funding::delete_funding_mutation::DeleteFundingRequestBody;
 use crate::models::funding::delete_funding_mutation::PushActionDeleteFunding;
 use crate::models::funding::delete_funding_mutation::PushDeleteFunding;
 use crate::models::funding::delete_funding_mutation::Variables as DeleteVariables;
-use crate::models::institution::institutions_query::FetchActionInstitutions;
-use crate::models::institution::institutions_query::FetchInstitutions;
-use crate::models::institution::institutions_query::InstitutionsRequest;
-use crate::models::institution::institutions_query::InstitutionsRequestBody;
-use crate::models::institution::institutions_query::Variables;
-use crate::models::Dropdown;
 use crate::string::CANCEL_BUTTON;
 use crate::string::EMPTY_FUNDINGS;
 use crate::string::REMOVE_BUTTON;
@@ -39,28 +34,16 @@ use super::ToElementValue;
 use super::ToOption;
 
 pub struct FundingsFormComponent {
-    data: FundingsFormData,
     new_funding: FundingWithInstitution,
     show_add_form: bool,
-    show_results: bool,
-    fetch_institutions: FetchInstitutions,
     push_funding: PushCreateFunding,
     delete_funding: PushDeleteFunding,
     notification_bus: NotificationDispatcher,
 }
 
-#[derive(Default)]
-struct FundingsFormData {
-    institutions: Vec<Institution>,
-}
-
 #[allow(clippy::large_enum_variant)]
 pub enum Msg {
     ToggleAddFormDisplay(bool),
-    SetInstitutionsFetchState(FetchActionInstitutions),
-    GetInstitutions,
-    ToggleSearchResultDisplay(bool),
-    SearchInstitution(String),
     SetFundingPushState(PushActionCreateFunding),
     CreateFunding,
     SetFundingDeleteState(PushActionDeleteFunding),
@@ -84,24 +67,16 @@ impl Component for FundingsFormComponent {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(ctx: &Context<Self>) -> Self {
-        let data: FundingsFormData = Default::default();
+    fn create(_: &Context<Self>) -> Self {
         let new_funding: FundingWithInstitution = Default::default();
         let show_add_form = false;
-        let show_results = false;
-        let fetch_institutions = Default::default();
         let push_funding = Default::default();
         let delete_funding = Default::default();
         let notification_bus = NotificationBus::dispatcher();
 
-        ctx.link().send_message(Msg::GetInstitutions);
-
         FundingsFormComponent {
-            data,
             new_funding,
             show_add_form,
-            show_results,
-            fetch_institutions,
             push_funding,
             delete_funding,
             notification_bus,
@@ -113,25 +88,6 @@ impl Component for FundingsFormComponent {
             Msg::ToggleAddFormDisplay(value) => {
                 self.show_add_form = value;
                 true
-            }
-            Msg::SetInstitutionsFetchState(fetch_state) => {
-                self.fetch_institutions.apply(fetch_state);
-                self.data.institutions = match self.fetch_institutions.clone().state() {
-                    FetchState::NotFetching(_) => vec![],
-                    FetchState::Fetching(_) => vec![],
-                    FetchState::Fetched(body) => body.data.institutions,
-                    FetchState::Failed(_, _err) => vec![],
-                };
-                true
-            }
-            Msg::GetInstitutions => {
-                ctx.link().send_future(
-                    self.fetch_institutions
-                        .fetch(Msg::SetInstitutionsFetchState),
-                );
-                ctx.link()
-                    .send_message(Msg::SetInstitutionsFetchState(FetchAction::Fetching));
-                false
             }
             Msg::SetFundingPushState(fetch_state) => {
                 self.push_funding.apply(fetch_state);
@@ -242,24 +198,6 @@ impl Component for FundingsFormComponent {
                 ctx.link().send_message(Msg::ToggleAddFormDisplay(true));
                 true
             }
-            Msg::ToggleSearchResultDisplay(value) => {
-                self.show_results = value;
-                true
-            }
-            Msg::SearchInstitution(value) => {
-                let body = InstitutionsRequestBody {
-                    variables: Variables {
-                        filter: Some(value),
-                        limit: Some(9999),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                };
-                let request = InstitutionsRequest { body };
-                self.fetch_institutions = Fetch::new(request);
-                ctx.link().send_message(Msg::GetInstitutions);
-                false
-            }
             Msg::ChangeProgram(val) => self.new_funding.program.neq_assign(val.to_opt_string()),
             Msg::ChangeProjectName(val) => self
                 .new_funding
@@ -286,47 +224,15 @@ impl Component for FundingsFormComponent {
             e.prevent_default();
             Msg::ToggleAddFormDisplay(false)
         });
+        let institution_select_callback = ctx.link().callback(Msg::AddFunding);
+
         html! {
             <nav class="panel">
                 <p class="panel-heading">
                     { "Funding" }
                 </p>
                 <div class="panel-block">
-                    <div class={ self.search_dropdown_status() } style="width: 100%">
-                        <div class="dropdown-trigger" style="width: 100%">
-                            <div class="field">
-                                <p class="control is-expanded has-icons-left">
-                                    <input
-                                        class="input"
-                                        type="search"
-                                        placeholder="Search Institution"
-                                        aria-haspopup="true"
-                                        aria-controls="institutions-menu"
-                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::SearchInstitution(e.to_value())) }
-                                        onfocus={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(true)) }
-                                        onblur={ ctx.link().callback(|_| Msg::ToggleSearchResultDisplay(false)) }
-                                    />
-                                    <span class="icon is-left">
-                                        <i class="fas fa-search" aria-hidden="true"></i>
-                                    </span>
-                                </p>
-                            </div>
-                        </div>
-                        <div class="dropdown-menu" id="institutions-menu" role="menu">
-                            <div class="dropdown-content">
-                                {
-                                    for self.data.institutions.iter().map(|f| {
-                                        let institution = f.clone();
-                                        f.as_dropdown_item(
-                                            ctx.link().callback(move |_| {
-                                                Msg::AddFunding(institution.clone())
-                                            })
-                                        )
-                                    })
-                                }
-                            </div>
-                        </div>
-                    </div>
+                    <InstitutionSelectComponent callback={institution_select_callback} />
                 </div>
                 <div class={ self.add_form_status() }>
                     <div class="modal-background" onclick={ &close_modal }></div>
@@ -417,13 +323,6 @@ impl FundingsFormComponent {
         match self.show_add_form {
             true => "modal is-active".to_string(),
             false => "modal".to_string(),
-        }
-    }
-
-    fn search_dropdown_status(&self) -> String {
-        match self.show_results {
-            true => "dropdown is-active".to_string(),
-            false => "dropdown".to_string(),
         }
     }
 
