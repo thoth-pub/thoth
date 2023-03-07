@@ -205,6 +205,10 @@ impl QueryRoot {
                 default = vec![],
                 description = "Specific statuses to filter by"
             ),
+            updated_at_with_relations(
+                default = TimeExpression::default(),
+                description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+            ),
         )
     )]
     fn work_count(
@@ -213,6 +217,7 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         work_types: Vec<WorkType>,
         work_statuses: Vec<WorkStatus>,
+        updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<i32> {
         Work::count(
             &context.db,
@@ -220,6 +225,7 @@ impl QueryRoot {
             publishers,
             work_types,
             work_statuses,
+            updated_at_with_relations,
         )
         .map_err(|e| e.into())
     }
@@ -251,6 +257,10 @@ impl QueryRoot {
                 default = vec![],
                 description = "Specific statuses to filter by"
             ),
+            updated_at_with_relations(
+                default = TimeExpression::default(),
+                description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+            ),
         )
     )]
     fn books(
@@ -261,6 +271,7 @@ impl QueryRoot {
         order: WorkOrderBy,
         publishers: Vec<Uuid>,
         work_statuses: Vec<WorkStatus>,
+        updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
         Work::all(
             &context.db,
@@ -278,6 +289,7 @@ impl QueryRoot {
                 WorkType::JournalIssue,
             ],
             work_statuses,
+            updated_at_with_relations,
         )
         .map_err(|e| e.into())
     }
@@ -312,6 +324,10 @@ impl QueryRoot {
                 default = vec![],
                 description = "Specific statuses to filter by"
             ),
+            updated_at_with_relations(
+                default = TimeExpression::default(),
+                description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+            ),
         )
     )]
     fn book_count(
@@ -319,6 +335,7 @@ impl QueryRoot {
         filter: String,
         publishers: Vec<Uuid>,
         work_statuses: Vec<WorkStatus>,
+        updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<i32> {
         Work::count(
             &context.db,
@@ -331,6 +348,7 @@ impl QueryRoot {
                 WorkType::JournalIssue,
             ],
             work_statuses,
+            updated_at_with_relations,
         )
         .map_err(|e| e.into())
     }
@@ -362,6 +380,10 @@ impl QueryRoot {
                 default = vec![],
                 description = "Specific statuses to filter by"
             ),
+            updated_at_with_relations(
+                default = TimeExpression::default(),
+                description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+            ),
         )
     )]
     fn chapters(
@@ -372,6 +394,7 @@ impl QueryRoot {
         order: WorkOrderBy,
         publishers: Vec<Uuid>,
         work_statuses: Vec<WorkStatus>,
+        updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
         Work::all(
             &context.db,
@@ -384,6 +407,7 @@ impl QueryRoot {
             None,
             vec![WorkType::BookChapter],
             work_statuses,
+            updated_at_with_relations,
         )
         .map_err(|e| e.into())
     }
@@ -408,6 +432,10 @@ impl QueryRoot {
                 default = vec![],
                 description = "Specific statuses to filter by"
             ),
+            updated_at_with_relations(
+                default = TimeExpression::default(),
+                description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+            ),
         )
     )]
     fn chapter_count(
@@ -415,6 +443,7 @@ impl QueryRoot {
         filter: String,
         publishers: Vec<Uuid>,
         work_statuses: Vec<WorkStatus>,
+        updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<i32> {
         Work::count(
             &context.db,
@@ -422,6 +451,7 @@ impl QueryRoot {
             publishers,
             vec![WorkType::BookChapter],
             work_statuses,
+            updated_at_with_relations,
         )
         .map_err(|e| e.into())
     }
@@ -2956,6 +2986,10 @@ impl Imprint {
             default = vec![],
             description = "Specific statuses to filter by"
         ),
+        updated_at_with_relations(
+            default = TimeExpression::default(),
+            description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+        ),
     )
   )]
     pub fn works(
@@ -2966,6 +3000,7 @@ impl Imprint {
         order: WorkOrderBy,
         work_types: Vec<WorkType>,
         work_statuses: Vec<WorkStatus>,
+        updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
         Work::all(
             &context.db,
@@ -2978,6 +3013,7 @@ impl Imprint {
             None,
             work_types,
             work_statuses,
+            updated_at_with_relations,
         )
         .map_err(|e| e.into())
     }
