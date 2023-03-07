@@ -18,6 +18,7 @@ impl Crud for Series {
     type OrderByEntity = SeriesOrderBy;
     type FilterParameter1 = SeriesType;
     type FilterParameter2 = ();
+    type FilterParameter3 = ();
 
     fn pk(&self) -> Uuid {
         self.series_id
@@ -34,6 +35,7 @@ impl Crud for Series {
         _: Option<Uuid>,
         series_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Series>> {
         use crate::schema::series::dsl::*;
         let mut connection = db.get().unwrap();
@@ -116,6 +118,7 @@ impl Crud for Series {
         publishers: Vec<Uuid>,
         series_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::series::dsl::*;
         let mut connection = db.get().unwrap();

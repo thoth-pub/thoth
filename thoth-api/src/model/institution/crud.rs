@@ -18,6 +18,7 @@ impl Crud for Institution {
     type OrderByEntity = InstitutionOrderBy;
     type FilterParameter1 = ();
     type FilterParameter2 = ();
+    type FilterParameter3 = ();
 
     fn pk(&self) -> Uuid {
         self.institution_id
@@ -34,6 +35,7 @@ impl Crud for Institution {
         _: Option<Uuid>,
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Institution>> {
         use crate::schema::institution::dsl::*;
         let mut connection = db.get().unwrap();
@@ -93,6 +95,7 @@ impl Crud for Institution {
         _: Vec<Uuid>,
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::institution::dsl::*;
         let mut connection = db.get().unwrap();

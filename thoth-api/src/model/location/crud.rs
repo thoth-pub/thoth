@@ -16,6 +16,7 @@ impl Crud for Location {
     type OrderByEntity = LocationOrderBy;
     type FilterParameter1 = LocationPlatform;
     type FilterParameter2 = ();
+    type FilterParameter3 = ();
 
     fn pk(&self) -> Uuid {
         self.location_id
@@ -32,6 +33,7 @@ impl Crud for Location {
         _: Option<Uuid>,
         location_platforms: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Location>> {
         use crate::schema::location::dsl::*;
         let mut connection = db.get().unwrap();
@@ -102,6 +104,7 @@ impl Crud for Location {
         _: Vec<Uuid>,
         location_platforms: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::location::dsl::*;
         let mut connection = db.get().unwrap();

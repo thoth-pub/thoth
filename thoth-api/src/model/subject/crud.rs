@@ -16,6 +16,7 @@ impl Crud for Subject {
     type OrderByEntity = SubjectOrderBy;
     type FilterParameter1 = SubjectType;
     type FilterParameter2 = ();
+    type FilterParameter3 = ();
 
     fn pk(&self) -> Uuid {
         self.subject_id
@@ -32,6 +33,7 @@ impl Crud for Subject {
         _: Option<Uuid>,
         subject_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Subject>> {
         use crate::schema::subject::dsl::*;
         let mut connection = db.get().unwrap();
@@ -99,6 +101,7 @@ impl Crud for Subject {
         _: Vec<Uuid>,
         subject_types: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::subject::dsl::*;
         let mut connection = db.get().unwrap();

@@ -18,6 +18,7 @@ impl Crud for Reference {
     type OrderByEntity = ReferenceOrderBy;
     type FilterParameter1 = ();
     type FilterParameter2 = ();
+    type FilterParameter3 = ();
 
     fn pk(&self) -> Uuid {
         self.reference_id
@@ -34,6 +35,7 @@ impl Crud for Reference {
         _: Option<Uuid>,
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Reference>> {
         use crate::schema::reference::dsl::*;
         let mut connection = db.get().unwrap();
@@ -186,6 +188,7 @@ impl Crud for Reference {
         publishers: Vec<Uuid>,
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::reference::dsl::*;
         let mut connection = db.get().unwrap();

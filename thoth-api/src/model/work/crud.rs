@@ -94,6 +94,7 @@ impl Work {
             None,
             vec![RelationType::HasChild],
             vec![],
+            None,
         )
         .unwrap_or_default()
         .into_iter()

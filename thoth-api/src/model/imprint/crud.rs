@@ -18,6 +18,7 @@ impl Crud for Imprint {
     type OrderByEntity = ImprintOrderBy;
     type FilterParameter1 = ();
     type FilterParameter2 = ();
+    type FilterParameter3 = ();
 
     fn pk(&self) -> Uuid {
         self.imprint_id
@@ -34,6 +35,7 @@ impl Crud for Imprint {
         _: Option<Uuid>,
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Imprint>> {
         use crate::schema::imprint::dsl::*;
         let mut connection = db.get().unwrap();
@@ -90,6 +92,7 @@ impl Crud for Imprint {
         publishers: Vec<Uuid>,
         _: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::imprint::dsl::*;
         let mut connection = db.get().unwrap();
