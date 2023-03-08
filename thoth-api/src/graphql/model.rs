@@ -101,7 +101,7 @@ pub struct FundingOrderBy {
 
 #[derive(juniper::GraphQLInputObject)]
 #[graphql(
-    description = "Timestamp and choice out of greater than/less than to use when filtering by a time field (e.g. updated_at"
+    description = "Timestamp and choice out of greater than/less than to use when filtering by a time field (e.g. updated_at)"
 )]
 pub struct TimeExpression {
     pub timestamp: Timestamp,
