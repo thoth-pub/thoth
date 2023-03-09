@@ -14,10 +14,11 @@ use crate::schema::language_history;
     derive(DbEnum, juniper::GraphQLEnum),
     DieselTypePath = "crate::schema::sql_types::LanguageRelation"
 )]
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum LanguageRelation {
+    #[default]
     Original,
     #[cfg_attr(feature = "backend", db_rename = "translated-from")]
     TranslatedFrom,
@@ -83,7 +84,7 @@ pub struct PatchLanguage {
     derive(DbEnum, juniper::GraphQLEnum),
     DieselTypePath = "crate::schema::sql_types::LanguageCode"
 )]
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "UPPERCASE")]
 pub enum LanguageCode {
@@ -210,6 +211,7 @@ pub enum LanguageCode {
     Egy,
     Eka,
     Elx,
+    #[default]
     Eng,
     Enm,
     Epo,
@@ -594,18 +596,6 @@ pub struct NewLanguageHistory {
     pub language_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-}
-
-impl Default for LanguageCode {
-    fn default() -> LanguageCode {
-        LanguageCode::Eng
-    }
-}
-
-impl Default for LanguageRelation {
-    fn default() -> LanguageRelation {
-        LanguageRelation::Original
-    }
 }
 
 impl Default for Language {

@@ -27,12 +27,13 @@ use crate::schema::work_history;
     derive(DbEnum, juniper::GraphQLEnum),
     DieselTypePath = "crate::schema::sql_types::WorkType"
 )]
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum WorkType {
     #[cfg_attr(feature = "backend", db_rename = "book-chapter")]
     BookChapter,
+    #[default]
     Monograph,
     #[cfg_attr(feature = "backend", db_rename = "edited-book")]
     EditedBook,
@@ -48,7 +49,7 @@ pub enum WorkType {
     derive(DbEnum, juniper::GraphQLEnum),
     DieselTypePath = "crate::schema::sql_types::WorkStatus"
 )]
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum WorkStatus {
@@ -64,6 +65,7 @@ pub enum WorkStatus {
     OutOfStockIndefinitely,
     #[cfg_attr(feature = "backend", db_rename = "out-of-print")]
     OutOfPrint,
+    #[default]
     Inactive,
     Unknown,
     Remaindered,
@@ -77,7 +79,7 @@ pub enum WorkStatus {
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting works list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum WorkField {
     #[strum(serialize = "ID")]
@@ -86,6 +88,7 @@ pub enum WorkField {
     WorkType,
     WorkStatus,
     #[strum(serialize = "Title")]
+    #[default]
     FullTitle,
     #[strum(serialize = "ShortTitle")]
     Title,
@@ -390,24 +393,6 @@ impl From<Work> for PatchWork {
             last_page: w.last_page,
             page_interval: w.page_interval,
         }
-    }
-}
-
-impl Default for WorkType {
-    fn default() -> WorkType {
-        WorkType::Monograph
-    }
-}
-
-impl Default for WorkStatus {
-    fn default() -> WorkStatus {
-        WorkStatus::Inactive
-    }
-}
-
-impl Default for WorkField {
-    fn default() -> Self {
-        WorkField::FullTitle
     }
 }
 
