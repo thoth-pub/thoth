@@ -18,13 +18,14 @@ use crate::schema::contributor_history;
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting contributors list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ContributorField {
     #[strum(serialize = "ID")]
     ContributorId,
     FirstName,
     LastName,
+    #[default]
     FullName,
     #[serde(rename = "ORCID")]
     #[strum(serialize = "ORCID")]
@@ -104,12 +105,6 @@ pub struct NewContributorHistory {
 pub struct ContributorOrderBy {
     pub field: ContributorField,
     pub direction: Direction,
-}
-
-impl Default for ContributorField {
-    fn default() -> Self {
-        ContributorField::FullName
-    }
 }
 
 impl fmt::Display for Contributor {

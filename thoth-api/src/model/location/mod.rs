@@ -15,7 +15,7 @@ use crate::schema::location_history;
     derive(DbEnum, juniper::GraphQLEnum),
     DieselTypePath = "crate::schema::sql_types::LocationPlatform"
 )]
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum LocationPlatform {
     #[cfg_attr(feature = "backend", db_rename = "Project MUSE")]
@@ -49,6 +49,7 @@ pub enum LocationPlatform {
     #[strum(serialize = "JISC KB")]
     JiscKb,
     #[cfg_attr(feature = "backend", db_rename = "Other")]
+    #[default]
     Other,
 }
 
@@ -137,12 +138,6 @@ pub struct NewLocationHistory {
 pub struct LocationOrderBy {
     pub field: LocationField,
     pub direction: Direction,
-}
-
-impl Default for LocationPlatform {
-    fn default() -> LocationPlatform {
-        LocationPlatform::Other
-    }
 }
 
 #[test]

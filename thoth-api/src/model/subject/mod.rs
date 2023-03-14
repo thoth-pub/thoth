@@ -19,7 +19,17 @@ use thoth_errors::ThothResult;
     DieselTypePath = "crate::schema::sql_types::SubjectType"
 )]
 #[derive(
-    Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Deserialize, Serialize, EnumString, Display,
+    Debug,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    Ord,
+    PartialOrd,
+    Deserialize,
+    Serialize,
+    EnumString,
+    Display,
 )]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SubjectType {
@@ -31,6 +41,7 @@ pub enum SubjectType {
     #[strum(serialize = "LCC")]
     Lcc,
     Custom,
+    #[default]
     Keyword,
 }
 
@@ -123,12 +134,6 @@ pub fn check_subject(subject_type: &SubjectType, code: &str) -> ThothResult<()> 
             code.to_string(),
             subject_type.to_string(),
         ))
-    }
-}
-
-impl Default for SubjectType {
-    fn default() -> SubjectType {
-        SubjectType::Keyword
     }
 }
 

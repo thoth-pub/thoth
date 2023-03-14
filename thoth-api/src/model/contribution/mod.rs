@@ -17,11 +17,14 @@ use crate::schema::contribution_history;
     graphql(description = "Role describing the type of contribution to the work"),
     DieselTypePath = "crate::schema::sql_types::ContributionType"
 )]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(
+    Debug, Clone, Default, Copy, PartialEq, Eq, Deserialize, Serialize, EnumString, Display,
+)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum ContributionType {
     #[cfg_attr(feature = "backend", graphql(description = "Author of the work"))]
+    #[default]
     Author,
     #[cfg_attr(feature = "backend", graphql(description = "Editor of the work"))]
     Editor,
@@ -200,12 +203,6 @@ pub struct NewContributionHistory {
     pub contribution_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-}
-
-impl Default for ContributionType {
-    fn default() -> ContributionType {
-        ContributionType::Author
-    }
 }
 
 impl Default for Contribution {
