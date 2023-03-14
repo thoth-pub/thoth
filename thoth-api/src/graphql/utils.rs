@@ -16,20 +16,15 @@ fn test_direction_default() {
     assert_eq!(dir, Direction::Asc);
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, juniper::GraphQLEnum)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, juniper::GraphQLEnum)]
 #[graphql(
     description = "Expression to use when filtering by numeric value (greater than or less than)"
 )]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Expression {
+    #[default]
     GreaterThan,
     LessThan,
-}
-
-impl Default for Expression {
-    fn default() -> Expression {
-        Expression::GreaterThan
-    }
 }
 
 #[test]
