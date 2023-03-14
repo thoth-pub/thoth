@@ -20,10 +20,11 @@ use crate::schema::publication_history;
     derive(DbEnum, juniper::GraphQLEnum),
     DieselTypePath = "crate::schema::sql_types::PublicationType"
 )]
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublicationType {
     #[cfg_attr(feature = "backend", db_rename = "Paperback")]
+    #[default]
     Paperback,
     #[cfg_attr(feature = "backend", db_rename = "Hardback")]
     Hardback,
@@ -55,12 +56,13 @@ pub enum PublicationType {
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting publications list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublicationField {
     #[strum(serialize = "ID")]
     PublicationId,
     #[strum(serialize = "Type")]
+    #[default]
     PublicationType,
     #[strum(serialize = "WorkID")]
     WorkId,
@@ -443,18 +445,6 @@ impl PublicationProperties for PatchPublication {
 
     fn work_id(&self) -> &Uuid {
         &self.work_id
-    }
-}
-
-impl Default for PublicationType {
-    fn default() -> PublicationType {
-        PublicationType::Paperback
-    }
-}
-
-impl Default for PublicationField {
-    fn default() -> Self {
-        PublicationField::PublicationType
     }
 }
 

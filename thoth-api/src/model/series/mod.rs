@@ -17,12 +17,13 @@ use crate::schema::series_history;
     derive(DbEnum, juniper::GraphQLEnum),
     DieselTypePath = "crate::schema::sql_types::SeriesType"
 )]
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum SeriesType {
     Journal,
     #[cfg_attr(feature = "backend", db_rename = "book-series")]
+    #[default]
     BookSeries,
 }
 
@@ -31,13 +32,14 @@ pub enum SeriesType {
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting series list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SeriesField {
     #[strum(serialize = "ID")]
     SeriesId,
     SeriesType,
     #[strum(serialize = "Series")]
+    #[default]
     SeriesName,
     #[strum(serialize = "ISSNPrint")]
     IssnPrint,
@@ -142,18 +144,6 @@ pub struct NewSeriesHistory {
 pub struct SeriesOrderBy {
     pub field: SeriesField,
     pub direction: Direction,
-}
-
-impl Default for SeriesType {
-    fn default() -> SeriesType {
-        SeriesType::BookSeries
-    }
-}
-
-impl Default for SeriesField {
-    fn default() -> Self {
-        SeriesField::SeriesName
-    }
 }
 
 impl fmt::Display for SeriesWithImprint {
