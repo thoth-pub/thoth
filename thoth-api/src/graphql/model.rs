@@ -139,6 +139,7 @@ impl QueryRoot {
             default = vec![],
             description = "Specific types to filter by",
         ),
+        work_status(description = "(deprecated) A specific status to filter by"),
         work_statuses(
             default = vec![],
             description = "Specific statuses to filter by"
@@ -156,9 +157,14 @@ impl QueryRoot {
         order: WorkOrderBy,
         publishers: Vec<Uuid>,
         work_types: Vec<WorkType>,
+        work_status: Option<WorkStatus>,
         work_statuses: Vec<WorkStatus>,
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
+        let mut statuses = work_statuses;
+        if let Some(status) = work_status {
+            statuses.push(status);
+        }
         Work::all(
             &context.db,
             limit,
@@ -169,7 +175,7 @@ impl QueryRoot {
             None,
             None,
             work_types,
-            work_statuses,
+            statuses,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -200,6 +206,7 @@ impl QueryRoot {
                 default = vec![],
                 description = "Specific types to filter by",
             ),
+            work_status(description = "(deprecated) A specific status to filter by"),
             work_statuses(
                 default = vec![],
                 description = "Specific statuses to filter by"
@@ -214,15 +221,20 @@ impl QueryRoot {
         filter: String,
         publishers: Vec<Uuid>,
         work_types: Vec<WorkType>,
+        work_status: Option<WorkStatus>,
         work_statuses: Vec<WorkStatus>,
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<i32> {
+        let mut statuses = work_statuses;
+        if let Some(status) = work_status {
+            statuses.push(status);
+        }
         Work::count(
             &context.db,
             Some(filter),
             publishers,
             work_types,
-            work_statuses,
+            statuses,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -251,6 +263,7 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
+            work_status(description = "(deprecated) A specific status to filter by"),
             work_statuses(
                 default = vec![],
                 description = "Specific statuses to filter by"
@@ -267,9 +280,14 @@ impl QueryRoot {
         filter: String,
         order: WorkOrderBy,
         publishers: Vec<Uuid>,
+        work_status: Option<WorkStatus>,
         work_statuses: Vec<WorkStatus>,
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
+        let mut statuses = work_statuses;
+        if let Some(status) = work_status {
+            statuses.push(status);
+        }
         Work::all(
             &context.db,
             limit,
@@ -285,7 +303,7 @@ impl QueryRoot {
                 WorkType::Textbook,
                 WorkType::JournalIssue,
             ],
-            work_statuses,
+            statuses,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -317,6 +335,7 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
+            work_status(description = "(deprecated) A specific status to filter by"),
             work_statuses(
                 default = vec![],
                 description = "Specific statuses to filter by"
@@ -330,9 +349,14 @@ impl QueryRoot {
         context: &Context,
         filter: String,
         publishers: Vec<Uuid>,
+        work_status: Option<WorkStatus>,
         work_statuses: Vec<WorkStatus>,
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<i32> {
+        let mut statuses = work_statuses;
+        if let Some(status) = work_status {
+            statuses.push(status);
+        }
         Work::count(
             &context.db,
             Some(filter),
@@ -343,7 +367,7 @@ impl QueryRoot {
                 WorkType::Textbook,
                 WorkType::JournalIssue,
             ],
-            work_statuses,
+            statuses,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -372,6 +396,7 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
+            work_status(description = "(deprecated) A specific status to filter by"),
             work_statuses(
                 default = vec![],
                 description = "Specific statuses to filter by"
@@ -388,9 +413,14 @@ impl QueryRoot {
         filter: String,
         order: WorkOrderBy,
         publishers: Vec<Uuid>,
+        work_status: Option<WorkStatus>,
         work_statuses: Vec<WorkStatus>,
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
+        let mut statuses = work_statuses;
+        if let Some(status) = work_status {
+            statuses.push(status);
+        }
         Work::all(
             &context.db,
             limit,
@@ -401,7 +431,7 @@ impl QueryRoot {
             None,
             None,
             vec![WorkType::BookChapter],
-            work_statuses,
+            statuses,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -423,6 +453,7 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
+            work_status(description = "(deprecated) A specific status to filter by"),
             work_statuses(
                 default = vec![],
                 description = "Specific statuses to filter by"
@@ -436,15 +467,20 @@ impl QueryRoot {
         context: &Context,
         filter: String,
         publishers: Vec<Uuid>,
+        work_status: Option<WorkStatus>,
         work_statuses: Vec<WorkStatus>,
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<i32> {
+        let mut statuses = work_statuses;
+        if let Some(status) = work_status {
+            statuses.push(status);
+        }
         Work::count(
             &context.db,
             Some(filter),
             publishers,
             vec![WorkType::BookChapter],
-            work_statuses,
+            statuses,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
@@ -3022,6 +3058,7 @@ impl Imprint {
             default = vec![],
             description = "Specific types to filter by",
         ),
+        work_status(description = "(deprecated) A specific status to filter by"),
         work_statuses(
             default = vec![],
             description = "Specific statuses to filter by"
@@ -3038,9 +3075,14 @@ impl Imprint {
         filter: String,
         order: WorkOrderBy,
         work_types: Vec<WorkType>,
+        work_status: Option<WorkStatus>,
         work_statuses: Vec<WorkStatus>,
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
+        let mut statuses = work_statuses;
+        if let Some(status) = work_status {
+            statuses.push(status);
+        }
         Work::all(
             &context.db,
             limit,
@@ -3051,7 +3093,7 @@ impl Imprint {
             Some(self.imprint_id),
             None,
             work_types,
-            work_statuses,
+            statuses,
             updated_at_with_relations,
         )
         .map_err(|e| e.into())
