@@ -63,7 +63,7 @@ pub struct PatchPrice {
     derive(DbEnum, juniper::GraphQLEnum),
     DieselTypePath = "crate::schema::sql_types::CurrencyCode"
 )]
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "UPPERCASE")]
 pub enum CurrencyCode {
@@ -161,6 +161,7 @@ pub enum CurrencyCode {
     Fjd,
     Fkp,
     Frf,
+    #[default]
     Gbp,
     Gek,
     Gel,
@@ -385,12 +386,6 @@ pub struct NewPriceHistory {
     pub price_id: Uuid,
     pub account_id: Uuid,
     pub data: serde_json::Value,
-}
-
-impl Default for CurrencyCode {
-    fn default() -> CurrencyCode {
-        CurrencyCode::Gbp
-    }
 }
 
 #[test]

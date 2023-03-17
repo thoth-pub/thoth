@@ -287,7 +287,7 @@ mod tests {
     #[test]
     fn test_constraint_error_consistency() {
         fn is_snake_case_character(c: u8) -> bool {
-            (b'a'..=b'z').contains(&c) || (b'0'..=b'9').contains(&c) || c == b'_'
+            c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_'
         }
 
         for (constraint, error) in DATABASE_CONSTRAINT_ERRORS.entries() {

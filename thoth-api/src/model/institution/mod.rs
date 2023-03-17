@@ -19,12 +19,13 @@ use crate::schema::institution_history;
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting institutions list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum InstitutionField {
     #[strum(serialize = "ID")]
     InstitutionId,
     #[strum(serialize = "Institution")]
+    #[default]
     InstitutionName,
     #[strum(serialize = "DOI")]
     InstitutionDoi,
@@ -611,12 +612,6 @@ pub struct NewInstitutionHistory {
 pub struct InstitutionOrderBy {
     pub field: InstitutionField,
     pub direction: Direction,
-}
-
-impl Default for InstitutionField {
-    fn default() -> Self {
-        InstitutionField::InstitutionName
-    }
 }
 
 impl fmt::Display for Institution {
