@@ -1004,6 +1004,7 @@ impl QueryRoot {
                 default = vec![],
                 description = "Specific languages to filter by",
             ),
+            language_relation(description = "(deprecated) A specific relation to filter by"),
             language_relations(
                 default = vec![],
                 description = "Specific relations to filter by",
@@ -1017,8 +1018,13 @@ impl QueryRoot {
         order: LanguageOrderBy,
         publishers: Vec<Uuid>,
         language_codes: Vec<LanguageCode>,
+        language_relation: Option<LanguageRelation>,
         language_relations: Vec<LanguageRelation>,
     ) -> FieldResult<Vec<Language>> {
+        let mut relations = language_relations;
+        if let Some(relation) = language_relation {
+            relations.push(relation);
+        }
         Language::all(
             &context.db,
             limit,
@@ -1029,7 +1035,7 @@ impl QueryRoot {
             None,
             None,
             language_codes,
-            language_relations,
+            relations,
             None,
         )
         .map_err(|e| e.into())
@@ -1047,6 +1053,7 @@ impl QueryRoot {
                 default = vec![],
                 description = "Specific languages to filter by",
             ),
+            language_relation(description = "(deprecated) A specific relation to filter by"),
             language_relations(
                 default = vec![],
                 description = "Specific relations to filter by",
@@ -1056,17 +1063,15 @@ impl QueryRoot {
     fn language_count(
         context: &Context,
         language_codes: Vec<LanguageCode>,
+        language_relation: Option<LanguageRelation>,
         language_relations: Vec<LanguageRelation>,
     ) -> FieldResult<i32> {
-        Language::count(
-            &context.db,
-            None,
-            vec![],
-            language_codes,
-            language_relations,
-            None,
-        )
-        .map_err(|e| e.into())
+        let mut relations = language_relations;
+        if let Some(relation) = language_relation {
+            relations.push(relation);
+        }
+        Language::count(&context.db, None, vec![], language_codes, relations, None)
+            .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -2453,6 +2458,7 @@ impl Work {
                 default = vec![],
                 description = "Specific languages to filter by",
             ),
+            language_relation(description = "(deprecated) A specific relation to filter by"),
             language_relations(
                 default = vec![],
                 description = "Specific relations to filter by",
@@ -2466,8 +2472,13 @@ impl Work {
         offset: i32,
         order: LanguageOrderBy,
         language_codes: Vec<LanguageCode>,
+        language_relation: Option<LanguageRelation>,
         language_relations: Vec<LanguageRelation>,
     ) -> FieldResult<Vec<Language>> {
+        let mut relations = language_relations;
+        if let Some(relation) = language_relation {
+            relations.push(relation);
+        }
         Language::all(
             &context.db,
             limit,
@@ -2478,7 +2489,7 @@ impl Work {
             Some(self.work_id),
             None,
             language_codes,
-            language_relations,
+            relations,
             None,
         )
         .map_err(|e| e.into())
