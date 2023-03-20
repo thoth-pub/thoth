@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
   - Removed manual character checks and derivable defaults to comply with [`rustc 1.68.0`](https://github.com/rust-lang/rust/releases/tag/1.68.0)
+  - [484](https://github.com/thoth-pub/thoth/pull/484) GraphQL queries: support filtering on multiple enum variants for work status and language relation, and add filtering for works last updated before/after a specified timestamp
 
 ## [[0.9.15]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.15) - 2023-03-01
 ### Fixed
