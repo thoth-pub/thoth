@@ -2,7 +2,8 @@ use super::{
     NewWork, NewWorkHistory, PatchWork, Work, WorkField, WorkHistory, WorkOrderBy, WorkStatus,
     WorkType,
 };
-use crate::graphql::utils::Direction;
+use crate::graphql::model::TimeExpression;
+use crate::graphql::utils::{Direction, Expression};
 use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderBy};
 use crate::model::{Crud, DbInsert, Doi, HistoryEntry};
 use crate::schema::{work, work_history};
@@ -92,6 +93,7 @@ impl Work {
             Some(self.work_id),
             None,
             vec![RelationType::HasChild],
+            vec![],
             None,
         )
         .unwrap_or_default()
@@ -107,6 +109,7 @@ impl Crud for Work {
     type OrderByEntity = WorkOrderBy;
     type FilterParameter1 = WorkType;
     type FilterParameter2 = WorkStatus;
+    type FilterParameter3 = TimeExpression;
 
     fn pk(&self) -> Uuid {
         self.work_id
@@ -122,7 +125,8 @@ impl Crud for Work {
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
         work_types: Vec<Self::FilterParameter1>,
-        work_status: Option<Self::FilterParameter2>,
+        work_statuses: Vec<Self::FilterParameter2>,
+        updated_at_with_relations: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Work>> {
         use crate::schema::work::dsl;
         let mut connection = db.get().unwrap();
@@ -264,6 +268,10 @@ impl Crud for Work {
                 Direction::Asc => query.order(dsl::updated_at.asc()),
                 Direction::Desc => query.order(dsl::updated_at.desc()),
             },
+            WorkField::UpdatedAtWithRelations => match order.direction {
+                Direction::Asc => query.order(dsl::updated_at_with_relations.asc()),
+                Direction::Desc => query.order(dsl::updated_at_with_relations.desc()),
+            },
         };
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
@@ -274,8 +282,18 @@ impl Crud for Work {
         if !work_types.is_empty() {
             query = query.filter(dsl::work_type.eq_any(work_types));
         }
-        if let Some(wk_status) = work_status {
-            query = query.filter(dsl::work_status.eq(wk_status));
+        if !work_statuses.is_empty() {
+            query = query.filter(dsl::work_status.eq_any(work_statuses));
+        }
+        if let Some(updated) = updated_at_with_relations {
+            match updated.expression {
+                Expression::GreaterThan => {
+                    query = query.filter(dsl::updated_at_with_relations.gt(updated.timestamp))
+                }
+                Expression::LessThan => {
+                    query = query.filter(dsl::updated_at_with_relations.lt(updated.timestamp))
+                }
+            }
         }
         if let Some(filter) = filter {
             query = query.filter(
@@ -303,7 +321,8 @@ impl Crud for Work {
         filter: Option<String>,
         publishers: Vec<Uuid>,
         work_types: Vec<Self::FilterParameter1>,
-        work_status: Option<Self::FilterParameter2>,
+        work_statuses: Vec<Self::FilterParameter2>,
+        updated_at_with_relations: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::work::dsl;
         let mut connection = db.get().unwrap();
@@ -316,8 +335,18 @@ impl Crud for Work {
         if !work_types.is_empty() {
             query = query.filter(dsl::work_type.eq_any(work_types));
         }
-        if let Some(wk_status) = work_status {
-            query = query.filter(dsl::work_status.eq(wk_status));
+        if !work_statuses.is_empty() {
+            query = query.filter(dsl::work_status.eq_any(work_statuses));
+        }
+        if let Some(updated) = updated_at_with_relations {
+            match updated.expression {
+                Expression::GreaterThan => {
+                    query = query.filter(dsl::updated_at_with_relations.gt(updated.timestamp))
+                }
+                Expression::LessThan => {
+                    query = query.filter(dsl::updated_at_with_relations.lt(updated.timestamp))
+                }
+            }
         }
         if let Some(filter) = filter {
             query = query.filter(

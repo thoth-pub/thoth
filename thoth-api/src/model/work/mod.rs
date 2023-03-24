@@ -27,12 +27,13 @@ use crate::schema::work_history;
     derive(DbEnum, juniper::GraphQLEnum),
     DieselTypePath = "crate::schema::sql_types::WorkType"
 )]
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum WorkType {
     #[cfg_attr(feature = "backend", db_rename = "book-chapter")]
     BookChapter,
+    #[default]
     Monograph,
     #[cfg_attr(feature = "backend", db_rename = "edited-book")]
     EditedBook,
@@ -48,7 +49,7 @@ pub enum WorkType {
     derive(DbEnum, juniper::GraphQLEnum),
     DieselTypePath = "crate::schema::sql_types::WorkStatus"
 )]
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum WorkStatus {
@@ -64,6 +65,7 @@ pub enum WorkStatus {
     OutOfStockIndefinitely,
     #[cfg_attr(feature = "backend", db_rename = "out-of-print")]
     OutOfPrint,
+    #[default]
     Inactive,
     Unknown,
     Remaindered,
@@ -77,7 +79,7 @@ pub enum WorkStatus {
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting works list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum WorkField {
     #[strum(serialize = "ID")]
@@ -86,6 +88,7 @@ pub enum WorkField {
     WorkType,
     WorkStatus,
     #[strum(serialize = "Title")]
+    #[default]
     FullTitle,
     #[strum(serialize = "ShortTitle")]
     Title,
@@ -122,6 +125,7 @@ pub enum WorkField {
     FirstPage,
     LastPage,
     PageInterval,
+    UpdatedAtWithRelations,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -162,6 +166,7 @@ pub struct Work {
     pub first_page: Option<String>,
     pub last_page: Option<String>,
     pub page_interval: Option<String>,
+    pub updated_at_with_relations: Timestamp,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -391,24 +396,6 @@ impl From<Work> for PatchWork {
     }
 }
 
-impl Default for WorkType {
-    fn default() -> WorkType {
-        WorkType::Monograph
-    }
-}
-
-impl Default for WorkStatus {
-    fn default() -> WorkStatus {
-        WorkStatus::Inactive
-    }
-}
-
-impl Default for WorkField {
-    fn default() -> Self {
-        WorkField::FullTitle
-    }
-}
-
 impl fmt::Display for Work {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(doi) = &self.doi {
@@ -510,6 +497,10 @@ fn test_workfield_display() {
     assert_eq!(format!("{}", WorkField::CoverCaption), "CoverCaption");
     assert_eq!(format!("{}", WorkField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", WorkField::UpdatedAt), "UpdatedAt");
+    assert_eq!(
+        format!("{}", WorkField::UpdatedAtWithRelations),
+        "UpdatedAtWithRelations"
+    );
 }
 
 #[test]
@@ -697,6 +688,10 @@ fn test_workfield_fromstr() {
         WorkField::from_str("UpdatedAt").unwrap(),
         WorkField::UpdatedAt
     );
+    assert_eq!(
+        WorkField::from_str("UpdatedAtWithRelations").unwrap(),
+        WorkField::UpdatedAtWithRelations
+    );
     assert!(WorkField::from_str("WorkID").is_err());
     assert!(WorkField::from_str("Contributors").is_err());
     assert!(WorkField::from_str("Publisher").is_err());
@@ -741,6 +736,7 @@ fn test_work_into_patchwork() {
         first_page: None,
         last_page: None,
         page_interval: None,
+        updated_at_with_relations: Default::default(),
     };
     let patch_work: PatchWork = work.clone().into();
 

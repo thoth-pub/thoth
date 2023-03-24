@@ -17,12 +17,13 @@ use crate::schema::imprint_history;
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting imprints list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ImprintField {
     #[strum(serialize = "ID")]
     ImprintId,
     #[strum(serialize = "Imprint")]
+    #[default]
     ImprintName,
     #[strum(serialize = "ImprintURL")]
     ImprintUrl,
@@ -104,12 +105,6 @@ pub struct NewImprintHistory {
 pub struct ImprintOrderBy {
     pub field: ImprintField,
     pub direction: Direction,
-}
-
-impl Default for ImprintField {
-    fn default() -> Self {
-        ImprintField::ImprintName
-    }
 }
 
 #[test]

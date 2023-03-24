@@ -16,12 +16,13 @@ use crate::schema::publisher_history;
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting publishers list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PublisherField {
     #[strum(serialize = "ID")]
     PublisherId,
     #[strum(serialize = "Name")]
+    #[default]
     PublisherName,
     #[strum(serialize = "ShortName")]
     PublisherShortname,
@@ -95,12 +96,6 @@ pub struct NewPublisherHistory {
 pub struct PublisherOrderBy {
     pub field: PublisherField,
     pub direction: Direction,
-}
-
-impl Default for PublisherField {
-    fn default() -> Self {
-        PublisherField::PublisherName
-    }
 }
 
 impl fmt::Display for Publisher {

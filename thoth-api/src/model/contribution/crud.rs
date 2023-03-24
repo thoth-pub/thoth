@@ -17,6 +17,7 @@ impl Crud for Contribution {
     type OrderByEntity = ContributionOrderBy;
     type FilterParameter1 = ContributionType;
     type FilterParameter2 = ();
+    type FilterParameter3 = ();
 
     fn pk(&self) -> Uuid {
         self.contribution_id
@@ -32,7 +33,8 @@ impl Crud for Contribution {
         parent_id_1: Option<Uuid>,
         parent_id_2: Option<Uuid>,
         contribution_types: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Contribution>> {
         use crate::schema::contribution::dsl::*;
         let mut connection = db.get().unwrap();
@@ -118,7 +120,8 @@ impl Crud for Contribution {
         _: Option<String>,
         _: Vec<Uuid>,
         contribution_types: Vec<Self::FilterParameter1>,
-        _: Option<Self::FilterParameter2>,
+        _: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::contribution::dsl::*;
         let mut connection = db.get().unwrap();

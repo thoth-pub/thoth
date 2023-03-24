@@ -14,11 +14,12 @@ use crate::schema::reference_history;
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting references list")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ReferenceField {
     ReferenceId,
     WorkId,
+    #[default]
     ReferenceOrdinal,
     Doi,
     UnstructuredCitation,
@@ -165,12 +166,6 @@ pub struct NewReferenceHistory {
 pub struct ReferenceOrderBy {
     pub field: ReferenceField,
     pub direction: Direction,
-}
-
-impl Default for ReferenceField {
-    fn default() -> Self {
-        ReferenceField::ReferenceOrdinal
-    }
 }
 
 #[test]

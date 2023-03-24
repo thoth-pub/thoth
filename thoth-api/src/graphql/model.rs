@@ -36,7 +36,7 @@ use crate::model::Timestamp;
 use crate::model::WeightUnit;
 use thoth_errors::{ThothError, ThothResult};
 
-use super::utils::Direction;
+use super::utils::{Direction, Expression};
 
 impl juniper::Context for Context {}
 
@@ -99,6 +99,15 @@ pub struct FundingOrderBy {
     pub direction: Direction,
 }
 
+#[derive(juniper::GraphQLInputObject)]
+#[graphql(
+    description = "Timestamp and choice out of greater than/less than to use when filtering by a time field (e.g. updated_at)"
+)]
+pub struct TimeExpression {
+    pub timestamp: Timestamp,
+    pub expression: Expression,
+}
+
 pub struct QueryRoot;
 
 #[juniper::graphql_object(Context = Context)]
@@ -130,7 +139,14 @@ impl QueryRoot {
             default = vec![],
             description = "Specific types to filter by",
         ),
-        work_status(description = "A specific status to filter by"),
+        work_status(description = "(deprecated) A specific status to filter by"),
+        work_statuses(
+            default = vec![],
+            description = "Specific statuses to filter by"
+        ),
+        updated_at_with_relations(
+            description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+        ),
     )
   )]
     fn works(
@@ -142,7 +158,13 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         work_types: Vec<WorkType>,
         work_status: Option<WorkStatus>,
+        work_statuses: Vec<WorkStatus>,
+        updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
+        let mut statuses = work_statuses;
+        if let Some(status) = work_status {
+            statuses.push(status);
+        }
         Work::all(
             &context.db,
             limit,
@@ -153,7 +175,8 @@ impl QueryRoot {
             None,
             None,
             work_types,
-            work_status,
+            statuses,
+            updated_at_with_relations,
         )
         .map_err(|e| e.into())
     }
@@ -183,7 +206,14 @@ impl QueryRoot {
                 default = vec![],
                 description = "Specific types to filter by",
             ),
-            work_status(description = "A specific status to filter by"),
+            work_status(description = "(deprecated) A specific status to filter by"),
+            work_statuses(
+                default = vec![],
+                description = "Specific statuses to filter by"
+            ),
+            updated_at_with_relations(
+                description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+            ),
         )
     )]
     fn work_count(
@@ -192,13 +222,20 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         work_types: Vec<WorkType>,
         work_status: Option<WorkStatus>,
+        work_statuses: Vec<WorkStatus>,
+        updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<i32> {
+        let mut statuses = work_statuses;
+        if let Some(status) = work_status {
+            statuses.push(status);
+        }
         Work::count(
             &context.db,
             Some(filter),
             publishers,
             work_types,
-            work_status,
+            statuses,
+            updated_at_with_relations,
         )
         .map_err(|e| e.into())
     }
@@ -226,7 +263,14 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            work_status(description = "A specific status to filter by"),
+            work_status(description = "(deprecated) A specific status to filter by"),
+            work_statuses(
+                default = vec![],
+                description = "Specific statuses to filter by"
+            ),
+            updated_at_with_relations(
+                description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+            ),
         )
     )]
     fn books(
@@ -237,7 +281,13 @@ impl QueryRoot {
         order: WorkOrderBy,
         publishers: Vec<Uuid>,
         work_status: Option<WorkStatus>,
+        work_statuses: Vec<WorkStatus>,
+        updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
+        let mut statuses = work_statuses;
+        if let Some(status) = work_status {
+            statuses.push(status);
+        }
         Work::all(
             &context.db,
             limit,
@@ -253,7 +303,8 @@ impl QueryRoot {
                 WorkType::Textbook,
                 WorkType::JournalIssue,
             ],
-            work_status,
+            statuses,
+            updated_at_with_relations,
         )
         .map_err(|e| e.into())
     }
@@ -284,7 +335,14 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            work_status(description = "A specific status to filter by"),
+            work_status(description = "(deprecated) A specific status to filter by"),
+            work_statuses(
+                default = vec![],
+                description = "Specific statuses to filter by"
+            ),
+            updated_at_with_relations(
+                description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+            ),
         )
     )]
     fn book_count(
@@ -292,7 +350,13 @@ impl QueryRoot {
         filter: String,
         publishers: Vec<Uuid>,
         work_status: Option<WorkStatus>,
+        work_statuses: Vec<WorkStatus>,
+        updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<i32> {
+        let mut statuses = work_statuses;
+        if let Some(status) = work_status {
+            statuses.push(status);
+        }
         Work::count(
             &context.db,
             Some(filter),
@@ -303,7 +367,8 @@ impl QueryRoot {
                 WorkType::Textbook,
                 WorkType::JournalIssue,
             ],
-            work_status,
+            statuses,
+            updated_at_with_relations,
         )
         .map_err(|e| e.into())
     }
@@ -331,7 +396,14 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            work_status(description = "A specific status to filter by"),
+            work_status(description = "(deprecated) A specific status to filter by"),
+            work_statuses(
+                default = vec![],
+                description = "Specific statuses to filter by"
+            ),
+            updated_at_with_relations(
+                description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+            ),
         )
     )]
     fn chapters(
@@ -342,7 +414,13 @@ impl QueryRoot {
         order: WorkOrderBy,
         publishers: Vec<Uuid>,
         work_status: Option<WorkStatus>,
+        work_statuses: Vec<WorkStatus>,
+        updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
+        let mut statuses = work_statuses;
+        if let Some(status) = work_status {
+            statuses.push(status);
+        }
         Work::all(
             &context.db,
             limit,
@@ -353,7 +431,8 @@ impl QueryRoot {
             None,
             None,
             vec![WorkType::BookChapter],
-            work_status,
+            statuses,
+            updated_at_with_relations,
         )
         .map_err(|e| e.into())
     }
@@ -374,7 +453,14 @@ impl QueryRoot {
                 default = vec![],
                 description = "If set, only shows results connected to publishers with these IDs",
             ),
-            work_status(description = "A specific status to filter by"),
+            work_status(description = "(deprecated) A specific status to filter by"),
+            work_statuses(
+                default = vec![],
+                description = "Specific statuses to filter by"
+            ),
+            updated_at_with_relations(
+                description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+            ),
         )
     )]
     fn chapter_count(
@@ -382,13 +468,20 @@ impl QueryRoot {
         filter: String,
         publishers: Vec<Uuid>,
         work_status: Option<WorkStatus>,
+        work_statuses: Vec<WorkStatus>,
+        updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<i32> {
+        let mut statuses = work_statuses;
+        if let Some(status) = work_status {
+            statuses.push(status);
+        }
         Work::count(
             &context.db,
             Some(filter),
             publishers,
             vec![WorkType::BookChapter],
-            work_status,
+            statuses,
+            updated_at_with_relations,
         )
         .map_err(|e| e.into())
     }
@@ -435,6 +528,7 @@ impl QueryRoot {
             None,
             None,
             publication_types,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -473,6 +567,7 @@ impl QueryRoot {
             Some(filter),
             publishers,
             publication_types,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -522,6 +617,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -550,7 +646,8 @@ impl QueryRoot {
         filter: String,
         publishers: Vec<Uuid>,
     ) -> FieldResult<i32> {
-        Publisher::count(&context.db, Some(filter), publishers, vec![], None).map_err(|e| e.into())
+        Publisher::count(&context.db, Some(filter), publishers, vec![], vec![], None)
+            .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -590,6 +687,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -614,7 +712,8 @@ impl QueryRoot {
         )
     )]
     fn imprint_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> FieldResult<i32> {
-        Imprint::count(&context.db, Some(filter), publishers, vec![], None).map_err(|e| e.into())
+        Imprint::count(&context.db, Some(filter), publishers, vec![], vec![], None)
+            .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -649,6 +748,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -669,7 +769,8 @@ impl QueryRoot {
         )
     )]
     fn contributor_count(context: &Context, filter: String) -> FieldResult<i32> {
-        Contributor::count(&context.db, Some(filter), vec![], vec![], None).map_err(|e| e.into())
+        Contributor::count(&context.db, Some(filter), vec![], vec![], vec![], None)
+            .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -714,6 +815,7 @@ impl QueryRoot {
             None,
             None,
             contribution_types,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -736,7 +838,7 @@ impl QueryRoot {
         context: &Context,
         contribution_types: Vec<ContributionType>,
     ) -> FieldResult<i32> {
-        Contribution::count(&context.db, None, vec![], contribution_types, None)
+        Contribution::count(&context.db, None, vec![], contribution_types, vec![], None)
             .map_err(|e| e.into())
     }
 
@@ -782,6 +884,7 @@ impl QueryRoot {
             None,
             None,
             series_types,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -815,8 +918,15 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         series_types: Vec<SeriesType>,
     ) -> FieldResult<i32> {
-        Series::count(&context.db, Some(filter), publishers, series_types, None)
-            .map_err(|e| e.into())
+        Series::count(
+            &context.db,
+            Some(filter),
+            publishers,
+            series_types,
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -856,6 +966,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -868,7 +979,7 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of issues")]
     fn issue_count(context: &Context) -> FieldResult<i32> {
-        Issue::count(&context.db, None, vec![], vec![], None).map_err(|e| e.into())
+        Issue::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -893,7 +1004,11 @@ impl QueryRoot {
                 default = vec![],
                 description = "Specific languages to filter by",
             ),
-            language_relation(description = "A specific relation to filter by"),
+            language_relation(description = "(deprecated) A specific relation to filter by"),
+            language_relations(
+                default = vec![],
+                description = "Specific relations to filter by",
+            ),
         )
     )]
     fn languages(
@@ -904,7 +1019,12 @@ impl QueryRoot {
         publishers: Vec<Uuid>,
         language_codes: Vec<LanguageCode>,
         language_relation: Option<LanguageRelation>,
+        language_relations: Vec<LanguageRelation>,
     ) -> FieldResult<Vec<Language>> {
+        let mut relations = language_relations;
+        if let Some(relation) = language_relation {
+            relations.push(relation);
+        }
         Language::all(
             &context.db,
             limit,
@@ -915,7 +1035,8 @@ impl QueryRoot {
             None,
             None,
             language_codes,
-            language_relation,
+            relations,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -932,15 +1053,24 @@ impl QueryRoot {
                 default = vec![],
                 description = "Specific languages to filter by",
             ),
-            language_relation(description = "A specific relation to filter by"),
+            language_relation(description = "(deprecated) A specific relation to filter by"),
+            language_relations(
+                default = vec![],
+                description = "Specific relations to filter by",
+            ),
         )
     )]
     fn language_count(
         context: &Context,
         language_codes: Vec<LanguageCode>,
         language_relation: Option<LanguageRelation>,
+        language_relations: Vec<LanguageRelation>,
     ) -> FieldResult<i32> {
-        Language::count(&context.db, None, vec![], language_codes, language_relation)
+        let mut relations = language_relations;
+        if let Some(relation) = language_relation {
+            relations.push(relation);
+        }
+        Language::count(&context.db, None, vec![], language_codes, relations, None)
             .map_err(|e| e.into())
     }
 
@@ -986,6 +1116,7 @@ impl QueryRoot {
             None,
             None,
             location_platforms,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -1001,7 +1132,8 @@ impl QueryRoot {
         context: &Context,
         location_platforms: Vec<LocationPlatform>,
     ) -> FieldResult<i32> {
-        Location::count(&context.db, None, vec![], location_platforms, None).map_err(|e| e.into())
+        Location::count(&context.db, None, vec![], location_platforms, vec![], None)
+            .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1046,6 +1178,7 @@ impl QueryRoot {
             None,
             None,
             currency_codes,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -1066,7 +1199,7 @@ impl QueryRoot {
         )
     )]
     fn price_count(context: &Context, currency_codes: Vec<CurrencyCode>) -> FieldResult<i32> {
-        Price::count(&context.db, None, vec![], currency_codes, None).map_err(|e| e.into())
+        Price::count(&context.db, None, vec![], currency_codes, vec![], None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1116,6 +1249,7 @@ impl QueryRoot {
             None,
             None,
             subject_types,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -1144,7 +1278,15 @@ impl QueryRoot {
         filter: String,
         subject_types: Vec<SubjectType>,
     ) -> FieldResult<i32> {
-        Subject::count(&context.db, Some(filter), vec![], subject_types, None).map_err(|e| e.into())
+        Subject::count(
+            &context.db,
+            Some(filter),
+            vec![],
+            subject_types,
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1179,6 +1321,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -1199,7 +1342,8 @@ impl QueryRoot {
         )
     )]
     fn institution_count(context: &Context, filter: String) -> FieldResult<i32> {
-        Institution::count(&context.db, Some(filter), vec![], vec![], None).map_err(|e| e.into())
+        Institution::count(&context.db, Some(filter), vec![], vec![], vec![], None)
+            .map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1239,6 +1383,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -1251,7 +1396,7 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of funding instances associated to works")]
     fn funding_count(context: &Context) -> FieldResult<i32> {
-        Funding::count(&context.db, None, vec![], vec![], None).map_err(|e| e.into())
+        Funding::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1291,6 +1436,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -1303,7 +1449,7 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of affiliations")]
     fn affiliation_count(context: &Context) -> FieldResult<i32> {
-        Affiliation::count(&context.db, None, vec![], vec![], None).map_err(|e| e.into())
+        Affiliation::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1343,6 +1489,7 @@ impl QueryRoot {
             None,
             None,
             vec![],
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -1355,7 +1502,7 @@ impl QueryRoot {
 
     #[graphql(description = "Get the total number of references")]
     fn reference_count(context: &Context) -> FieldResult<i32> {
-        Reference::count(&context.db, None, vec![], vec![], None).map_err(|e| e.into())
+        Reference::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
     }
 }
 
@@ -2211,10 +2358,12 @@ impl Work {
         self.cover_caption.as_ref()
     }
 
+    #[graphql(description = "Date and time at which the work record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at.clone()
     }
 
+    #[graphql(description = "Date and time at which the work record was last updated")]
     pub fn updated_at(&self) -> Timestamp {
         self.updated_at.clone()
     }
@@ -2234,6 +2383,13 @@ impl Work {
     )]
     pub fn page_interval(&self) -> Option<&String> {
         self.page_interval.as_ref()
+    }
+
+    #[graphql(
+        description = "Date and time at which the work record or any of its linked records was last updated"
+    )]
+    pub fn updated_at_with_relations(&self) -> Timestamp {
+        self.updated_at_with_relations.clone()
     }
 
     pub fn imprint(&self, context: &Context) -> FieldResult<Imprint> {
@@ -2278,6 +2434,7 @@ impl Work {
             Some(self.work_id),
             None,
             contribution_types,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -2301,7 +2458,11 @@ impl Work {
                 default = vec![],
                 description = "Specific languages to filter by",
             ),
-            language_relation(description = "A specific relation to filter by"),
+            language_relation(description = "(deprecated) A specific relation to filter by"),
+            language_relations(
+                default = vec![],
+                description = "Specific relations to filter by",
+            ),
         )
     )]
     pub fn languages(
@@ -2312,7 +2473,12 @@ impl Work {
         order: LanguageOrderBy,
         language_codes: Vec<LanguageCode>,
         language_relation: Option<LanguageRelation>,
+        language_relations: Vec<LanguageRelation>,
     ) -> FieldResult<Vec<Language>> {
+        let mut relations = language_relations;
+        if let Some(relation) = language_relation {
+            relations.push(relation);
+        }
         Language::all(
             &context.db,
             limit,
@@ -2323,7 +2489,8 @@ impl Work {
             Some(self.work_id),
             None,
             language_codes,
-            language_relation,
+            relations,
+            None,
         )
         .map_err(|e| e.into())
     }
@@ -2371,6 +2538,7 @@ impl Work {
             Some(self.work_id),
             None,
             publication_types,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -2419,6 +2587,7 @@ impl Work {
             Some(self.work_id),
             None,
             subject_types,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -2456,6 +2625,7 @@ impl Work {
             vec![],
             Some(self.work_id),
             None,
+            vec![],
             vec![],
             None,
         )
@@ -2495,6 +2665,7 @@ impl Work {
             Some(self.work_id),
             None,
             vec![],
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -2532,6 +2703,7 @@ impl Work {
             Some(self.work_id),
             None,
             relation_types,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -2568,6 +2740,7 @@ impl Work {
             vec![],
             Some(self.work_id),
             None,
+            vec![],
             vec![],
             None,
         )
@@ -2712,6 +2885,7 @@ impl Publication {
             Some(self.publication_id),
             None,
             currency_codes,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -2755,6 +2929,7 @@ impl Publication {
             Some(self.publication_id),
             None,
             location_platforms,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -2829,6 +3004,7 @@ impl Publisher {
             Some(self.publisher_id),
             None,
             vec![],
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -2893,7 +3069,14 @@ impl Imprint {
             default = vec![],
             description = "Specific types to filter by",
         ),
-        work_status(description = "A specific status to filter by"),
+        work_status(description = "(deprecated) A specific status to filter by"),
+        work_statuses(
+            default = vec![],
+            description = "Specific statuses to filter by"
+        ),
+        updated_at_with_relations(
+            description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+        ),
     )
   )]
     pub fn works(
@@ -2904,7 +3087,13 @@ impl Imprint {
         order: WorkOrderBy,
         work_types: Vec<WorkType>,
         work_status: Option<WorkStatus>,
+        work_statuses: Vec<WorkStatus>,
+        updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
+        let mut statuses = work_statuses;
+        if let Some(status) = work_status {
+            statuses.push(status);
+        }
         Work::all(
             &context.db,
             limit,
@@ -2915,7 +3104,8 @@ impl Imprint {
             Some(self.imprint_id),
             None,
             work_types,
-            work_status,
+            statuses,
+            updated_at_with_relations,
         )
         .map_err(|e| e.into())
     }
@@ -2993,6 +3183,7 @@ impl Contributor {
             None,
             Some(self.contributor_id),
             contribution_types,
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -3090,6 +3281,7 @@ impl Contribution {
             None,
             Some(self.contribution_id),
             vec![],
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -3180,6 +3372,7 @@ impl Series {
             vec![],
             None,
             Some(self.series_id),
+            vec![],
             vec![],
             None,
         )
@@ -3431,6 +3624,7 @@ impl Institution {
             None,
             Some(self.institution_id),
             vec![],
+            vec![],
             None,
         )
         .map_err(|e| e.into())
@@ -3468,6 +3662,7 @@ impl Institution {
             vec![],
             Some(self.institution_id),
             None,
+            vec![],
             vec![],
             None,
         )

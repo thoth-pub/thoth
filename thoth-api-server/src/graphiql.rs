@@ -20,7 +20,7 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
 # An example Thoth GraphQL query might look like:
 #
 #     {
-#       books(workStatus: ACTIVE) {
+#       books(workStatuses: [ACTIVE]) {
 #           fullTitle
 #           doi
 #       }

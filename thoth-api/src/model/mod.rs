@@ -18,10 +18,11 @@ pub const ROR_DOMAIN: &str = "https://ror.org/";
     derive(juniper::GraphQLEnum),
     graphql(description = "Unit of measurement for physical Work dimensions (mm, cm or in)")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase")]
 pub enum LengthUnit {
+    #[default]
     Mm,
     Cm,
     In,
@@ -32,10 +33,11 @@ pub enum LengthUnit {
     derive(juniper::GraphQLEnum),
     graphql(description = "Unit of measurement for physical Work weight (grams or ounces)")
 )]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase")]
 pub enum WeightUnit {
+    #[default]
     G,
     Oz,
 }
@@ -83,22 +85,12 @@ pub struct Ror(String);
 #[cfg_attr(
     feature = "backend",
     derive(DieselNewType, juniper::GraphQLScalarValue),
-    graphql(description = "RFC 3339 combined date and time in UTC time zone")
+    graphql(
+        description = "RFC 3339 combined date and time in UTC time zone (e.g. \"1999-12-31T23:59:00Z\")"
+    )
 )]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Timestamp(DateTime<Utc>);
-
-impl Default for LengthUnit {
-    fn default() -> LengthUnit {
-        LengthUnit::Mm
-    }
-}
-
-impl Default for WeightUnit {
-    fn default() -> WeightUnit {
-        WeightUnit::G
-    }
-}
 
 impl Default for Timestamp {
     fn default() -> Timestamp {
@@ -280,6 +272,8 @@ where
     type FilterParameter1;
     /// A second such structure, e.g. `WorkStatus`
     type FilterParameter2;
+    /// A third such structure, e.g. `TimeExpression`
+    type FilterParameter3;
 
     /// Specify the entity's primary key
     fn pk(&self) -> Uuid;
@@ -300,7 +294,8 @@ where
         parent_id_1: Option<Uuid>,
         parent_id_2: Option<Uuid>,
         filter_param_1: Vec<Self::FilterParameter1>,
-        filter_param_2: Option<Self::FilterParameter2>,
+        filter_param_2: Vec<Self::FilterParameter2>,
+        filter_param_3: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Self>>;
 
     /// Query the database to obtain the total number of entities satisfying the search criteria
@@ -309,7 +304,8 @@ where
         filter: Option<String>,
         publishers: Vec<Uuid>,
         filter_param_1: Vec<Self::FilterParameter1>,
-        filter_param_2: Option<Self::FilterParameter2>,
+        filter_param_2: Vec<Self::FilterParameter2>,
+        filter_param_3: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32>;
 
     /// Query the database to obtain an instance of the entity given its ID

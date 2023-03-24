@@ -17,6 +17,7 @@ impl Crud for Language {
     type OrderByEntity = LanguageOrderBy;
     type FilterParameter1 = LanguageCode;
     type FilterParameter2 = LanguageRelation;
+    type FilterParameter3 = ();
 
     fn pk(&self) -> Uuid {
         self.language_id
@@ -32,7 +33,8 @@ impl Crud for Language {
         parent_id_1: Option<Uuid>,
         _: Option<Uuid>,
         language_codes: Vec<Self::FilterParameter1>,
-        language_relation: Option<Self::FilterParameter2>,
+        language_relations: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<Vec<Language>> {
         use crate::schema::language::dsl;
         let mut connection = db.get().unwrap();
@@ -80,8 +82,8 @@ impl Crud for Language {
         if !language_codes.is_empty() {
             query = query.filter(dsl::language_code.eq_any(language_codes));
         }
-        if let Some(lang_relation) = language_relation {
-            query = query.filter(dsl::language_relation.eq(lang_relation));
+        if !language_relations.is_empty() {
+            query = query.filter(dsl::language_relation.eq_any(language_relations));
         }
         match query
             .limit(limit.into())
@@ -98,7 +100,8 @@ impl Crud for Language {
         _: Option<String>,
         _: Vec<Uuid>,
         language_codes: Vec<Self::FilterParameter1>,
-        language_relation: Option<Self::FilterParameter2>,
+        language_relations: Vec<Self::FilterParameter2>,
+        _: Option<Self::FilterParameter3>,
     ) -> ThothResult<i32> {
         use crate::schema::language::dsl;
         let mut connection = db.get().unwrap();
@@ -106,8 +109,8 @@ impl Crud for Language {
         if !language_codes.is_empty() {
             query = query.filter(dsl::language_code.eq_any(language_codes));
         }
-        if let Some(lang_relation) = language_relation {
-            query = query.filter(dsl::language_relation.eq(lang_relation));
+        if !language_relations.is_empty() {
+            query = query.filter(dsl::language_relation.eq_any(language_relations));
         }
         // `SELECT COUNT(*)` in postgres returns a BIGINT, which diesel parses as i64. Juniper does
         // not implement i64 yet, only i32. The only sensible way, albeit shameful, to solve this

@@ -553,6 +553,7 @@ table! {
         first_page -> Nullable<Text>,
         last_page -> Nullable<Text>,
         page_interval -> Nullable<Text>,
+        updated_at_with_relations -> Timestamptz,
     }
 }
 
