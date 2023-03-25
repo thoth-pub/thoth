@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[0.9.17]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.17) - 2023-03-25
   - Upgrade rust to `1.68.1` in production and development `Dockerfile`
   - Upgrade build dependencies (npm `v9.6.2`, node `v18.15.0` and rollup `v3.20.2`) in production and development `Dockerfile`
   - Upgrade `wasm-pack` to v0.11.0
