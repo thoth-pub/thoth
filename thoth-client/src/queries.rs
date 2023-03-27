@@ -3,6 +3,7 @@ use std::fmt;
 use chrono::naive::NaiveDate;
 use graphql_client::GraphQLQuery;
 use thoth_api::model::contribution::ContributionType;
+use thoth_api::model::publication::PublicationType;
 use thoth_api::model::Doi;
 use thoth_api::model::Isbn;
 use thoth_api::model::Orcid;
@@ -90,6 +91,24 @@ impl From<work_query::ContributionType> for ContributionType {
             work_query::ContributionType::CONTRIBUTIONS_BY => ContributionType::ContributionsBy,
             work_query::ContributionType::INDEXER => ContributionType::Indexer,
             _ => unreachable!(),
+        }
+    }
+}
+
+impl From<work_query::PublicationType> for PublicationType {
+    fn from(value: crate::PublicationType) -> Self {
+        match value {
+            work_query::PublicationType::PAPERBACK => PublicationType::Paperback,
+            work_query::PublicationType::HARDBACK => PublicationType::Hardback,
+            work_query::PublicationType::PDF => PublicationType::Pdf,
+            work_query::PublicationType::HTML => PublicationType::Html,
+            work_query::PublicationType::XML => PublicationType::Xml,
+            work_query::PublicationType::EPUB => PublicationType::Epub,
+            work_query::PublicationType::MOBI => PublicationType::Mobi,
+            work_query::PublicationType::AZW3 => PublicationType::Azw3,
+            work_query::PublicationType::DOCX => PublicationType::Docx,
+            work_query::PublicationType::FICTION_BOOK => PublicationType::FictionBook,
+            work_query::PublicationType::Other(_) => unreachable!(),
         }
     }
 }
