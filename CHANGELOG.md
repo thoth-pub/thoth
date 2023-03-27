@@ -6,7 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.9.18]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.18) - 2023-03-27
+### Security
+  - Upgrade `r2d2` to v0.8.10
+  - Upgrade `scheduled-thread-pool` to v0.2.7
+  - Upgrade `openssl` to v0.10.48
+  - Upgrade `remove_dir_all` to v0.5.3
+
 ## [[0.9.17]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.17) - 2023-03-25
+### Changed
   - Upgrade rust to `1.68.1` in production and development `Dockerfile`
   - Upgrade build dependencies (npm `v9.6.2`, node `v18.15.0` and rollup `v3.20.2`) in production and development `Dockerfile`
   - Upgrade `wasm-pack` to v0.11.0
