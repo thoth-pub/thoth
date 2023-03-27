@@ -33,7 +33,19 @@ impl Marc21Specification for Marc21RecordThoth {
 impl Marc21Entry<Marc21RecordThoth> for Work {
     fn to_record(&self) -> ThothResult<Record> {
         let mut builder = RecordBuilder::new();
-        builder.add_field((b"001", self.title.clone().into_bytes()))?;
+
+        // 245 – title
+        let mut title_subfield_data: Vec<u8> = Vec::new();
+        title_subfield_data.extend(b"00"); // no title added entry
+        title_subfield_data.extend(b"a"); // main title
+        title_subfield_data.extend(self.title.clone().into_bytes());
+        title_subfield_data.extend(b"h"); // general material designation (GMD)
+        title_subfield_data.extend(b"[electronic resource] :");
+        if let Some(subtitle) = self.subtitle.clone() {
+            title_subfield_data.extend(b"b"); // main title
+            title_subfield_data.extend(subtitle.into_bytes());
+        }
+        builder.add_field((b"245", title_subfield_data))?;
 
         let publications: Vec<WorkPublications> = self
             .publications
