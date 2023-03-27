@@ -1,6 +1,8 @@
 use crate::marc21::Marc21Field;
+use chrono::Datelike;
 use marc::{FieldRepr, Record, RecordBuilder};
 use thoth_api::model::contribution::ContributionType;
+use thoth_api::model::publication::PublicationType;
 use thoth_client::{Work, WorkContributions, WorkPublications, WorkType};
 use thoth_errors::{ThothError, ThothResult};
 
@@ -35,21 +37,44 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
     fn to_record(&self) -> ThothResult<Record> {
         let mut builder = RecordBuilder::new();
 
-        // 245 – title
-        let mut title_field: FieldRepr = FieldRepr::from((b"245", "00")); // no title added entry
-        title_field = title_field.add_subfield(b'a', self.title.clone().into_bytes())?; // main title
-        title_field = title_field.add_subfield(b'h', b"[electronic resource] :")?; // general material designation (GMD)
-        if let Some(subtitle) = self.subtitle.clone() {
-            title_field = title_field.add_subfield(b'b', subtitle.into_bytes())?;
-            // subtitle
-        }
-        title_field =
-            title_field.add_subfield(b'c', contributors_string(&self.contributions).as_bytes())?; // statement of responsibility
-        builder.add_field(title_field)?;
-
         // 020 - ISBN
         for publication in &self.publications {
             Marc21Field::<Marc21RecordThoth>::to_field(publication, &mut builder)?;
+        }
+
+        // 245 – title
+        let mut title_field: FieldRepr = FieldRepr::from((b"245", "00")); // no title added entry
+        title_field = title_field.add_subfield(b"a", self.title.clone().into_bytes())?; // main title
+        title_field = title_field.add_subfield(b"h", b"[electronic resource] :")?; // general material designation (GMD)
+        if let Some(subtitle) = self.subtitle.clone() {
+            title_field = title_field.add_subfield(b"b", subtitle.into_bytes())?;
+            // subtitle
+        }
+        title_field =
+            title_field.add_subfield(b"c", contributors_string(&self.contributions).as_bytes())?; // statement of responsibility
+        builder.add_field(title_field)?;
+
+        // 264 - publication
+        let mut publication_field: FieldRepr = FieldRepr::from((b"264", "\\1"));
+        if let Some(place) = self.place.clone() {
+            publication_field = publication_field.add_subfield(b"a", place.into_bytes())?;
+            // place of publication
+        }
+        publication_field = publication_field.add_subfield(
+            b"b",
+            self.imprint.publisher.publisher_name.clone().into_bytes(),
+        )?; // publisher
+        if let Some(publication_date) = self.publication_date {
+            // year of publication is used in two 264 fields, let's do both
+            let year = publication_date.year().to_string();
+            publication_field = publication_field.add_subfield(b"c", year.clone().into_bytes())?;
+            let mut copyright_year_field = FieldRepr::from((b"264", "\\4"));
+            copyright_year_field =
+                copyright_year_field.add_subfield(b"c", format!("©{}", year).into_bytes())?;
+            builder.add_field(publication_field)?;
+            builder.add_field(copyright_year_field)?;
+        } else {
+            builder.add_field(publication_field)?;
         }
 
         // 856 - location
@@ -74,10 +99,11 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
 impl Marc21Field<Marc21RecordThoth> for WorkPublications {
     fn to_field(&self, builder: &mut RecordBuilder) -> ThothResult<()> {
         if let Some(isbn) = &self.isbn {
-            let mut isbn_field: FieldRepr = FieldRepr::from((b"020", ""));
-            isbn_field = isbn_field.add_subfield(b'a', isbn.to_hyphenless_string().as_bytes())?;
-            isbn_field = isbn_field
-                .add_subfield(b'q', format!("({})", self.publication_type).into_bytes())?;
+            let mut isbn_field: FieldRepr = FieldRepr::from((b"020", "\\\\")); // 2 backslashes represent that the subfield can appear multiple times within the field
+            isbn_field = isbn_field.add_subfield(b"a", isbn.to_hyphenless_string().as_bytes())?;
+            let publication_type: PublicationType = self.publication_type.clone().into();
+            isbn_field =
+                isbn_field.add_subfield(b"q", format!("({})", publication_type).into_bytes())?;
 
             builder.add_field(isbn_field)?;
         }
