@@ -14,6 +14,7 @@ thoth-errors = { version = "0.9.18", path = "../thoth-errors" }
 thoth-client = { version = "0.9.18", path = "../thoth-client" }
 actix-web = "4.3.0"
 actix-cors = "0.6.4"
+cc_license = { version = "0.1.0" }
 chrono = { version = "0.4.23", features = ["serde"] }
 csv = "1.1.6"
 env_logger = "0.10.0"

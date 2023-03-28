@@ -1,4 +1,5 @@
 use crate::marc21::Marc21Field;
+use cc_license::License;
 use chrono::Datelike;
 use marc::{FieldRepr, Record, RecordBuilder};
 use thoth_api::model::contribution::ContributionType;
@@ -75,6 +76,30 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             builder.add_field(copyright_year_field)?;
         } else {
             builder.add_field(publication_field)?;
+        }
+
+        // 506 - restrictions on access
+        let mut restrictions_field: FieldRepr = FieldRepr::from((b"506", "\\\\"));
+        restrictions_field =
+            restrictions_field.add_subfield(b"a", "Open access resource providing free access.")?;
+        builder.add_field(restrictions_field)?;
+
+        // 538 - mode of access
+        let mut access_field: FieldRepr = FieldRepr::from((b"538", "\\\\"));
+        access_field = access_field.add_subfield(b"a", "Mode of access: World Wide Web.")?;
+        builder.add_field(access_field)?;
+
+        // 540 - license
+        if let Some(license_url) = self.license.clone() {
+            let mut license_field: FieldRepr = FieldRepr::from((b"540", "\\\\"));
+            match License::from_url(&license_url) {
+                Ok(license) => license_field =
+                    license_field.add_subfield(b"a", format!("The text of this book is licensed under a {} For more detailed information consult the publisher's website.", license.to_string()).into_bytes())?,
+                Err(_) => license_field =
+                    license_field.add_subfield(b"a", "The text of this book is licensed under a custom license. For more detailed information consult the publisher's website.")?,
+            }
+            license_field = license_field.add_subfield(b"u", license_url.into_bytes())?;
+            builder.add_field(license_field)?;
         }
 
         // 856 - location

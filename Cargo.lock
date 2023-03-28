@@ -651,6 +651,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cc_license"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9e604b8591d0dbbd946023bcf91b4171f944765c1eb6c73003d3928d9e8c64c"
+dependencies = [
+ "regex",
+]
+
+[[package]]
 name = "cfg-if"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3468,6 +3477,7 @@ version = "0.9.18"
 dependencies = [
  "actix-cors",
  "actix-web",
+ "cc_license",
  "chrono",
  "csv",
  "env_logger",
