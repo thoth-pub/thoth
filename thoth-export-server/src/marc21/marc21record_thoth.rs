@@ -38,6 +38,9 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
     fn to_record(&self) -> ThothResult<Record> {
         let mut builder = RecordBuilder::new();
 
+        // 001 - control number
+        builder.add_field((b"001", self.work_id.to_string()))?;
+
         // 020 - ISBN
         for publication in &self.publications {
             Marc21Field::<Marc21RecordThoth>::to_field(publication, &mut builder)?;
