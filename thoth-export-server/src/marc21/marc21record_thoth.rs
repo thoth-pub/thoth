@@ -96,6 +96,25 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
         builder.add_field(extent_field)?;
 
+        // 500 - availability
+        let mut availability_field: FieldRepr = FieldRepr::from((b"500", "\\\\"));
+        availability_field = availability_field.add_subfield(
+            b"a",
+            format!(
+                "Available through {}.",
+                self.imprint.publisher.publisher_name.clone()
+            )
+            .into_bytes(),
+        )?;
+        builder.add_field(availability_field)?;
+
+        // 504 - general note
+        if let Some(general_note) = self.general_note.clone() {
+            let mut note_field: FieldRepr = FieldRepr::from((b"504", "\\\\"));
+            note_field = note_field.add_subfield(b"a", general_note.into_bytes())?;
+            builder.add_field(note_field)?;
+        }
+
         // 506 - restrictions on access
         let mut restrictions_field: FieldRepr = FieldRepr::from((b"506", "\\\\"));
         restrictions_field =
