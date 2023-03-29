@@ -89,7 +89,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
 
         // 300 - extent and physical description
         let mut extent_field: FieldRepr = FieldRepr::from((b"300", "\\\\"));
-        let (extent_str, resource_count) = description_string(&self);
+        let (extent_str, resource_count) = description_string(self);
         extent_field = extent_field.add_subfield(b"a", extent_str)?;
         if let Some(resource_count_str) = resource_count {
             extent_field = extent_field.add_subfield(b"b", resource_count_str)?;
@@ -155,63 +155,34 @@ impl Marc21Field<Marc21RecordThoth> for WorkPublications {
 }
 
 fn description_string(work: &Work) -> (String, Option<String>) {
-    let mut description = "1 online resource".to_string();
-
-    // add page count
-    let mut page_info = None;
-    if let Some(page_breakdown) = work.page_breakdown.clone() {
-        page_info = Some(format!(" ({} pages)", page_breakdown));
-    } else if let Some(page_count) = work.page_count {
-        page_info = Some(format!(" ({} pages)", page_count));
-    }
-    if let Some(info) = &page_info {
-        description.push_str(info);
-    }
-
-    // other resource counts
-    let mut counts = vec![];
-    if let Some(image_count) = work.image_count {
-        let tag = match image_count {
-            1 => "illustration",
-            _ => "illustrations",
-        };
-        counts.push(format!("{} {}", image_count, tag));
-    }
-    if let Some(table_count) = work.table_count {
-        let tag = match table_count {
-            1 => "table",
-            _ => "tables",
-        };
-        counts.push(format!("{} {}", table_count, tag));
-    }
-    if let Some(audio_count) = work.audio_count {
-        let tag = match audio_count {
-            1 => "audio track",
-            _ => "audio tracks",
-        };
-        counts.push(format!("{} {}", audio_count, tag));
-    }
-    if let Some(video_count) = work.video_count {
-        let tag = match video_count {
-            1 => "video",
-            _ => "videos",
-        };
-        counts.push(format!("{} {}", video_count, tag));
-    }
-    let other_counts = match counts.is_empty() {
-        true => {
-            description.push_str(".");
-            None
-        }
-        false => {
-            let mut other_counts_str = counts.join(", ");
-            other_counts_str.push_str(".");
-            description.push_str(": ");
-            Some(other_counts_str)
-        }
+    let description = match (work.page_breakdown.as_ref(), work.page_count) {
+        (Some(breakdown), _) => format!("1 online resource ({} pages)", breakdown),
+        (_, Some(count)) => format!("1 online resource ({} pages)", count),
+        _ => "1 online resource".to_string(),
     };
 
-    (description, other_counts)
+    // other resource counts
+    let counts = [
+        (work.image_count, "illustration", "illustrations"),
+        (work.table_count, "table", "tables"),
+        (work.audio_count, "audio track", "audio tracks"),
+        (work.video_count, "video", "videos"),
+    ];
+    let other_counts = counts
+        .iter()
+        .filter_map(|(count, singular, plural)| match count {
+            Some(c) if *c > 0 => Some(format!("{} {}", c, if *c == 1 { singular } else { plural })),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    match other_counts.is_empty() {
+        true => (description + ".", None),
+        false => (
+            description + ": ",
+            Some(format!("{}.", other_counts.join(", "))),
+        ),
+    }
 }
 
 fn contributors_string(contributions: &[WorkContributions]) -> String {
