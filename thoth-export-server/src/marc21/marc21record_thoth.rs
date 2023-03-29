@@ -87,6 +87,15 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             builder.add_field(publication_field)?;
         }
 
+        // 300 - extent and physical description
+        let mut extent_field: FieldRepr = FieldRepr::from((b"300", "\\\\"));
+        let (extent_str, resource_count) = description_string(&self);
+        extent_field = extent_field.add_subfield(b"a", extent_str)?;
+        if let Some(resource_count_str) = resource_count {
+            extent_field = extent_field.add_subfield(b"b", resource_count_str)?;
+        }
+        builder.add_field(extent_field)?;
+
         // 506 - restrictions on access
         let mut restrictions_field: FieldRepr = FieldRepr::from((b"506", "\\\\"));
         restrictions_field =
@@ -143,6 +152,66 @@ impl Marc21Field<Marc21RecordThoth> for WorkPublications {
         }
         Ok(())
     }
+}
+
+fn description_string(work: &Work) -> (String, Option<String>) {
+    let mut description = "1 online resource".to_string();
+
+    // add page count
+    let mut page_info = None;
+    if let Some(page_breakdown) = work.page_breakdown.clone() {
+        page_info = Some(format!(" ({} pages)", page_breakdown));
+    } else if let Some(page_count) = work.page_count {
+        page_info = Some(format!(" ({} pages)", page_count));
+    }
+    if let Some(info) = &page_info {
+        description.push_str(info);
+    }
+
+    // other resource counts
+    let mut counts = vec![];
+    if let Some(image_count) = work.image_count {
+        let tag = match image_count {
+            1 => "illustration",
+            _ => "illustrations",
+        };
+        counts.push(format!("{} {}", image_count, tag));
+    }
+    if let Some(table_count) = work.table_count {
+        let tag = match table_count {
+            1 => "table",
+            _ => "tables",
+        };
+        counts.push(format!("{} {}", table_count, tag));
+    }
+    if let Some(audio_count) = work.audio_count {
+        let tag = match audio_count {
+            1 => "audio track",
+            _ => "audio tracks",
+        };
+        counts.push(format!("{} {}", audio_count, tag));
+    }
+    if let Some(video_count) = work.video_count {
+        let tag = match video_count {
+            1 => "video",
+            _ => "videos",
+        };
+        counts.push(format!("{} {}", video_count, tag));
+    }
+    let other_counts = match counts.is_empty() {
+        true => {
+            description.push_str(".");
+            None
+        }
+        false => {
+            let mut other_counts_str = counts.join(", ");
+            other_counts_str.push_str(".");
+            description.push_str(": ");
+            Some(other_counts_str)
+        }
+    };
+
+    (description, other_counts)
 }
 
 fn contributors_string(contributions: &[WorkContributions]) -> String {
