@@ -2,6 +2,7 @@ use crate::marc21::Marc21Field;
 use cc_license::License;
 use chrono::Datelike;
 use marc::{FieldRepr, Record, RecordBuilder};
+use std::collections::HashMap;
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::publication::PublicationType;
 use thoth_client::{
@@ -232,6 +233,25 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             }
             license_field = license_field.add_subfield(b"u", license_url.into_bytes())?;
             builder.add_field(license_field)?;
+        }
+
+        // 700 - contributors
+        let mut contributions_by_name: HashMap<String, Vec<WorkContributions>> = HashMap::new();
+        for contribution in &self.contributions {
+            let name = contribution.full_name.clone();
+            let contributions_for_name = contributions_by_name.entry(name).or_insert(Vec::new());
+            contributions_for_name.push(contribution.clone());
+        }
+        for (name, contributions) in contributions_by_name.iter() {
+            let roles = contributions
+                .iter()
+                .map(|c| ContributionType::from(c.contribution_type.clone()).to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            let mut contributor_field = FieldRepr::from((b"700", "1\\"));
+            contributor_field = contributor_field.add_subfield(b"a", name)?;
+            contributor_field = contributor_field.add_subfield(b"e", roles)?;
+            builder.add_field(contributor_field)?;
         }
 
         // 710 - publisher
