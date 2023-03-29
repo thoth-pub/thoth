@@ -69,6 +69,13 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             builder.add_field(doi_field)?;
         }
 
+        // 040 - cataloging source field \\$aStSaUL$beng$erda
+        let mut cataloguing_field: FieldRepr = FieldRepr::from((b"040", "\\\\"));
+        cataloguing_field = cataloguing_field.add_subfield(b"a", "Thoth")?;
+        cataloguing_field = cataloguing_field.add_subfield(b"b", "eng")?;
+        cataloguing_field = cataloguing_field.add_subfield(b"e", "rda")?;
+        builder.add_field(cataloguing_field)?;
+
         // 050 - LCC
         for subject in self
             .subjects
