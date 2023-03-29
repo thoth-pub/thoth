@@ -49,9 +49,24 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         // 007 - characteristics
         builder.add_field((b"007", "cr  n         "))?;
 
+        // 010 - LCCN
+        if let Some(lccn) = self.lccn.clone() {
+            let mut lccn_field: FieldRepr = FieldRepr::from((b"010", "\\\\"));
+            lccn_field = lccn_field.add_subfield(b"a", lccn.as_bytes())?;
+            builder.add_field(lccn_field)?;
+        }
+
         // 020 - ISBN
         for publication in &self.publications {
             Marc21Field::<Marc21RecordThoth>::to_field(publication, &mut builder)?;
+        }
+
+        // 024 - DOI
+        if let Some(doi) = &self.doi {
+            let mut doi_field: FieldRepr = FieldRepr::from((b"024", "7\\"));
+            doi_field = doi_field.add_subfield(b"a", doi.to_string().as_bytes())?;
+            doi_field = doi_field.add_subfield(b"2", "doi")?;
+            builder.add_field(doi_field)?;
         }
 
         // 050 - LCC
