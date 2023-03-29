@@ -139,6 +139,15 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             builder.add_field(license_field)?;
         }
 
+        // 710 - publisher
+        let mut publisher_field: FieldRepr = FieldRepr::from((b"710", "2\\"));
+        publisher_field = publisher_field.add_subfield(
+            b"a",
+            format!("{},", self.imprint.publisher.publisher_name.clone()).into_bytes(),
+        )?;
+        publisher_field = publisher_field.add_subfield(b"e", "publisher.")?;
+        builder.add_field(publisher_field)?;
+
         // 856 - location
         if let Some(doi) = &self.doi {
             let mut cover_field: FieldRepr = FieldRepr::from((b"856", "40")); // version of resource
