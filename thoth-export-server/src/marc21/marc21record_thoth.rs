@@ -121,6 +121,13 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             restrictions_field.add_subfield(b"a", "Open access resource providing free access.")?;
         builder.add_field(restrictions_field)?;
 
+        // 520 - abstract
+        if let Some(long_abstract) = self.long_abstract.clone() {
+            let mut abstract_field: FieldRepr = FieldRepr::from((b"520", "\\\\"));
+            abstract_field = abstract_field.add_subfield(b"a", long_abstract.into_bytes())?;
+            builder.add_field(abstract_field)?;
+        }
+
         // 538 - mode of access
         let mut access_field: FieldRepr = FieldRepr::from((b"538", "\\\\"));
         access_field = access_field.add_subfield(b"a", "Mode of access: World Wide Web.")?;
