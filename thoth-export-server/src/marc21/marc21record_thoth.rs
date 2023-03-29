@@ -189,6 +189,13 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             builder.add_field(note_field)?;
         }
 
+        // 505 - contents note
+        if let Some(toc) = self.toc.clone() {
+            let mut toc_field: FieldRepr = FieldRepr::from((b"505", "0\\"));
+            toc_field = toc_field.add_subfield(b"a", toc.into_bytes())?;
+            builder.add_field(toc_field)?;
+        }
+
         // 506 - restrictions on access
         let mut restrictions_field: FieldRepr = FieldRepr::from((b"506", "\\\\"));
         restrictions_field =
