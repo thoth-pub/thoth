@@ -297,9 +297,10 @@ impl Marc21Field<Marc21RecordThoth> for WorkPublications {
     }
 }
 
+type SubjectField<'a, 'b> = (&'a [u8; 3], &'b str, Option<(&'a [u8; 1], &'b str)>);
 impl Marc21Field<Marc21RecordThoth> for WorkSubjects {
     fn to_field(&self, builder: &mut RecordBuilder) -> ThothResult<()> {
-        let (tag, ind, sub2): (&[u8; 3], &str, Option<(&[u8; 1], &str)>) = match self.subject_type {
+        let (tag, ind, sub2): SubjectField = match self.subject_type {
             SubjectType::BIC => (b"072", " 7", Some((b"2", "bicssc"))),
             SubjectType::BISAC => (b"072", " 7", Some((b"2", "bisacsh"))),
             SubjectType::THEMA => (b"072", " 7", Some((b"2", "thema"))),
