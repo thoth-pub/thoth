@@ -96,6 +96,27 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
         builder.add_field(extent_field)?;
 
+        // 336 - content type
+        let mut content_type_field: FieldRepr = FieldRepr::from((b"336", "\\\\"));
+        content_type_field = content_type_field.add_subfield(b"a", "text")?;
+        content_type_field = content_type_field.add_subfield(b"b", "txt")?;
+        content_type_field = content_type_field.add_subfield(b"2", "rdacontent")?;
+        builder.add_field(content_type_field)?;
+
+        // 337 - type of material
+        let mut material_field: FieldRepr = FieldRepr::from((b"337", "\\\\"));
+        material_field = material_field.add_subfield(b"a", "computer")?;
+        material_field = material_field.add_subfield(b"b", "c")?;
+        material_field = material_field.add_subfield(b"2", "rdamedia")?;
+        builder.add_field(material_field)?;
+
+        // 338 - type of media
+        let mut media_field: FieldRepr = FieldRepr::from((b"338", "\\\\"));
+        media_field = media_field.add_subfield(b"a", "online resource")?;
+        media_field = media_field.add_subfield(b"b", "cr")?;
+        media_field = media_field.add_subfield(b"2", "rdacarrier")?;
+        builder.add_field(media_field)?;
+
         // 500 - availability
         let mut availability_field: FieldRepr = FieldRepr::from((b"500", "\\\\"));
         availability_field = availability_field.add_subfield(
