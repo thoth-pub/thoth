@@ -41,6 +41,12 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         // 001 - control number
         builder.add_field((b"001", self.work_id.to_string()))?;
 
+        // 006 - media type
+        builder.add_field((b"006", "m        d        "))?;
+
+        // 007 - characteristics
+        builder.add_field((b"007", "cr  n         "))?;
+
         // 020 - ISBN
         for publication in &self.publications {
             Marc21Field::<Marc21RecordThoth>::to_field(publication, &mut builder)?;
