@@ -78,7 +78,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             Marc21Field::<Marc21RecordThoth>::to_field(subject, &mut builder)?;
         }
 
-        // 084 - BIC
+        // 072 - BIC
         for subject in self
             .subjects
             .iter()
@@ -87,7 +87,16 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             Marc21Field::<Marc21RecordThoth>::to_field(subject, &mut builder)?;
         }
 
-        // 084 - Thema
+        // 072 - BISAC
+        for subject in self
+            .subjects
+            .iter()
+            .filter(|s| s.subject_type == SubjectType::BISAC)
+        {
+            Marc21Field::<Marc21RecordThoth>::to_field(subject, &mut builder)?;
+        }
+
+        // 072 - Thema
         for subject in self
             .subjects
             .iter()
@@ -211,24 +220,6 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             builder.add_field(license_field)?;
         }
 
-        // 650 - BISAC
-        for subject in self
-            .subjects
-            .iter()
-            .filter(|s| s.subject_type == SubjectType::BISAC)
-        {
-            Marc21Field::<Marc21RecordThoth>::to_field(subject, &mut builder)?;
-        }
-
-        // 650 - keywords
-        for subject in self
-            .subjects
-            .iter()
-            .filter(|s| s.subject_type == SubjectType::KEYWORD)
-        {
-            Marc21Field::<Marc21RecordThoth>::to_field(subject, &mut builder)?;
-        }
-
         // 710 - publisher
         let mut publisher_field: FieldRepr = FieldRepr::from((b"710", "2\\"));
         publisher_field = publisher_field.add_subfield(
@@ -275,11 +266,10 @@ impl Marc21Field<Marc21RecordThoth> for WorkPublications {
 impl Marc21Field<Marc21RecordThoth> for WorkSubjects {
     fn to_field(&self, builder: &mut RecordBuilder) -> ThothResult<()> {
         let (tag, ind, sub2): (&[u8; 3], &str, Option<(&[u8; 1], &str)>) = match self.subject_type {
-            SubjectType::BIC => (b"084", "\\\\", Some((b"2", "bic"))),
-            SubjectType::BISAC => (b"650", "\\0", Some((b"2", "bisacsh"))),
-            SubjectType::THEMA => (b"084", "\\\\", Some((b"2", "thema"))),
+            SubjectType::BIC => (b"072", " 7", Some((b"2", "bicssc"))),
+            SubjectType::BISAC => (b"072", " 7", Some((b"2", "bisacsh"))),
+            SubjectType::THEMA => (b"072", " 7", Some((b"2", "thema"))),
             SubjectType::LCC => (b"050", "00", None),
-            SubjectType::KEYWORD => (b"650", "\\0", Some((b"v", "keywords"))),
             _ => {
                 return Ok(());
             }
