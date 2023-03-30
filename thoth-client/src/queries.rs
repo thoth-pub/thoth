@@ -3,6 +3,7 @@ use std::fmt;
 use chrono::naive::NaiveDate;
 use graphql_client::GraphQLQuery;
 use thoth_api::model::contribution::ContributionType;
+use thoth_api::model::language::LanguageRelation;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::Doi;
 use thoth_api::model::Isbn;
@@ -109,6 +110,17 @@ impl From<work_query::PublicationType> for PublicationType {
             work_query::PublicationType::DOCX => PublicationType::Docx,
             work_query::PublicationType::FICTION_BOOK => PublicationType::FictionBook,
             work_query::PublicationType::Other(_) => unreachable!(),
+        }
+    }
+}
+
+impl From<work_query::LanguageRelation> for LanguageRelation {
+    fn from(value: crate::LanguageRelation) -> Self {
+        match value {
+            work_query::LanguageRelation::ORIGINAL => LanguageRelation::Original,
+            work_query::LanguageRelation::TRANSLATED_FROM => LanguageRelation::TranslatedFrom,
+            work_query::LanguageRelation::TRANSLATED_INTO => LanguageRelation::TranslatedInto,
+            work_query::LanguageRelation::Other(_) => unreachable!(),
         }
     }
 }

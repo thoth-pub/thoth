@@ -111,6 +111,11 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         cataloguing_field = cataloguing_field.add_subfield(b"e", "rda")?;
         builder.add_field(cataloguing_field)?;
 
+        // 041 - language
+        if let Some(language_field) = language_field(&self.languages) {
+            builder.add_field(language_field)?;
+        }
+
         // 050 - LCC
         for subject in self
             .subjects
@@ -334,6 +339,63 @@ fn main_language(languages: &[WorkLanguages]) -> Option<String> {
     }
 }
 
+pub fn language_field(languages: &[WorkLanguages]) -> Option<FieldRepr> {
+    let original_codes = languages
+        .iter()
+        .filter(|l| l.language_relation == LanguageRelation::ORIGINAL)
+        .map(|l| l.language_code.to_string().to_lowercase())
+        .collect::<Vec<_>>();
+    let into_codes = languages
+        .iter()
+        .filter(|l| l.language_relation == LanguageRelation::TRANSLATED_INTO)
+        .map(|l| l.language_code.to_string().to_lowercase())
+        .collect::<Vec<_>>();
+    let from_codes = languages
+        .iter()
+        .filter(|l| l.language_relation == LanguageRelation::TRANSLATED_FROM)
+        .map(|l| l.language_code.to_string().to_lowercase())
+        .collect::<Vec<_>>();
+
+    let has_original = !original_codes.is_empty();
+    let has_translated_into = !into_codes.is_empty();
+    let has_translated_from = !from_codes.is_empty();
+
+    let (subfield_codes, subfield_language_codes): (Vec<_>, Vec<_>) =
+        match (has_original, has_translated_into, has_translated_from) {
+            (true, true, true) => (
+                vec![b"a", b"h", b"k"],
+                vec![into_codes, from_codes, original_codes],
+            ),
+            (true, true, false) => (vec![b"a", b"h"], vec![into_codes, original_codes]),
+            (true, false, true) => (vec![b"a", b"h"], vec![original_codes, from_codes]),
+            (true, false, false) => (vec![b"a"], vec![original_codes]),
+            (false, true, true) => (vec![b"a", b"h"], vec![into_codes, from_codes]),
+            (false, true, false) => (vec![b"a"], vec![into_codes]),
+            (false, false, true) => {
+                return None;
+            }
+            (false, false, false) => {
+                return None;
+            }
+        };
+
+    let language_indicator = if subfield_codes.len() == 1 {
+        "0\\"
+    } else {
+        "1\\"
+    };
+    let mut language_field: FieldRepr = FieldRepr::from((b"041", language_indicator));
+    for (subfield_code, language_codes) in subfield_codes.iter().zip(subfield_language_codes) {
+        for language_code in language_codes {
+            language_field = language_field
+                .add_subfield(*subfield_code, language_code)
+                .ok()?;
+        }
+    }
+
+    Some(language_field)
+}
+
 impl Marc21Field<Marc21RecordThoth> for WorkPublications {
     fn to_field(&self, builder: &mut RecordBuilder) -> ThothResult<()> {
         if let Some(isbn) = &self.isbn {
@@ -404,10 +466,10 @@ fn description_string(work: &Work) -> (String, Option<String>) {
 
 fn contributors_string(contributions: &[WorkContributions]) -> String {
     // group main contributions by contribution type
-    let mut contributions_by_type: std::collections::HashMap<
+    let mut contributions_by_type: HashMap<
         ContributionType,
         Vec<&WorkContributions>,
-    > = std::collections::HashMap::new();
+    > = HashMap::new();
     for c in contributions.iter().filter(|c| c.main_contribution) {
         let entry = contributions_by_type
             .entry(ContributionType::from(c.contribution_type.clone()))
