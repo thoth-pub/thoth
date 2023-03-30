@@ -502,3 +502,201 @@ fn contributors_string(contributions: &[WorkContributions]) -> String {
 
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use thoth_client::LanguageCode;
+
+    #[test]
+    fn test_language_field_original_only() {
+        let languages = vec![WorkLanguages {
+            language_code: LanguageCode::ENG,
+            language_relation: LanguageRelation::ORIGINAL,
+            main_language: true,
+        }];
+        assert_eq!(
+            language_field(&languages).unwrap().get_data(),
+            b"0\\\x1faeng"
+        );
+    }
+
+    #[test]
+    fn test_language_field_translated_into_only() {
+        let languages = vec![
+            WorkLanguages {
+                language_code: LanguageCode::FRE,
+                language_relation: LanguageRelation::TRANSLATED_INTO,
+                main_language: true,
+            },
+            WorkLanguages {
+                language_code: LanguageCode::SPA,
+                language_relation: LanguageRelation::TRANSLATED_INTO,
+                main_language: true,
+            },
+        ];
+        assert_eq!(
+            language_field(&languages).unwrap().get_data(),
+            b"1\\\x1fafre\x1faspa\x1fhund"
+        );
+    }
+
+    #[test]
+    fn test_language_field_translated_from_only() {
+        let languages = vec![
+            WorkLanguages {
+                language_code: LanguageCode::GER,
+                language_relation: LanguageRelation::TRANSLATED_FROM,
+                main_language: true,
+            },
+            WorkLanguages {
+                language_code: LanguageCode::ITA,
+                language_relation: LanguageRelation::TRANSLATED_FROM,
+                main_language: true,
+            },
+        ];
+        assert_eq!(language_field(&languages), None);
+    }
+
+    #[test]
+    fn test_language_field_original_and_double_translated_into() {
+        let languages = vec![
+            WorkLanguages {
+                language_code: LanguageCode::ENG,
+                language_relation: LanguageRelation::ORIGINAL,
+                main_language: true,
+            },
+            WorkLanguages {
+                language_code: LanguageCode::FRE,
+                language_relation: LanguageRelation::TRANSLATED_INTO,
+                main_language: true,
+            },
+            WorkLanguages {
+                language_code: LanguageCode::SPA,
+                language_relation: LanguageRelation::TRANSLATED_INTO,
+                main_language: true,
+            },
+        ];
+        assert_eq!(
+            language_field(&languages).unwrap().get_data(),
+            b"1\\\x1fafre\x1faspa\x1fheng"
+        );
+    }
+
+    #[test]
+    fn test_language_field_original_and_double_translated_from() {
+        let languages = vec![
+            WorkLanguages {
+                language_code: LanguageCode::ENG,
+                language_relation: LanguageRelation::ORIGINAL,
+                main_language: true,
+            },
+            WorkLanguages {
+                language_code: LanguageCode::GER,
+                language_relation: LanguageRelation::TRANSLATED_FROM,
+                main_language: true,
+            },
+            WorkLanguages {
+                language_code: LanguageCode::ITA,
+                language_relation: LanguageRelation::TRANSLATED_FROM,
+                main_language: true,
+            },
+        ];
+        assert_eq!(
+            language_field(&languages).unwrap().get_data(),
+            b"1\\\x1faeng\x1fhger\x1fhita"
+        );
+    }
+
+    #[test]
+    fn test_language_field_no_languages() {
+        let languages: [WorkLanguages; 0] = [];
+        assert_eq!(language_field(&languages), None);
+    }
+
+    #[test]
+    fn test_language_field_original_and_translated_into() {
+        let languages = [
+            WorkLanguages {
+                language_relation: LanguageRelation::ORIGINAL,
+                language_code: LanguageCode::ENG,
+                main_language: true,
+            },
+            WorkLanguages {
+                language_relation: LanguageRelation::TRANSLATED_INTO,
+                language_code: LanguageCode::FRE,
+                main_language: true,
+            },
+        ];
+        assert_eq!(
+            language_field(&languages).unwrap().get_data(),
+            b"1\\\x1fafre\x1fheng"
+        );
+    }
+
+    #[test]
+    fn test_language_field_original_and_translated_from() {
+        let languages = [
+            WorkLanguages {
+                language_relation: LanguageRelation::ORIGINAL,
+                language_code: LanguageCode::ENG,
+                main_language: true,
+            },
+            WorkLanguages {
+                language_relation: LanguageRelation::TRANSLATED_FROM,
+                language_code: LanguageCode::FRE,
+                main_language: true,
+            },
+        ];
+        assert_eq!(
+            language_field(&languages).unwrap().get_data(),
+            b"1\\\x1faeng\x1fhfre"
+        );
+    }
+
+    #[test]
+    fn test_language_field_translated_into_and_translated_from() {
+        let languages = [
+            WorkLanguages {
+                language_relation: LanguageRelation::TRANSLATED_INTO,
+                language_code: LanguageCode::FRE,
+                main_language: true,
+            },
+            WorkLanguages {
+                language_relation: LanguageRelation::TRANSLATED_FROM,
+                language_code: LanguageCode::GER,
+                main_language: true,
+            },
+        ];
+        assert_eq!(
+            language_field(&languages).unwrap().get_data(),
+            b"1\\\x1fafre\x1fhger"
+        );
+    }
+
+    #[test]
+    fn test_language_field_original_translated_into_and_translated_from() {
+        let languages = [
+            WorkLanguages {
+                language_relation: LanguageRelation::ORIGINAL,
+                language_code: LanguageCode::ENG,
+                main_language: true,
+            },
+            WorkLanguages {
+                language_relation: LanguageRelation::TRANSLATED_INTO,
+                language_code: LanguageCode::FRE,
+                main_language: true,
+            },
+            WorkLanguages {
+                language_relation: LanguageRelation::TRANSLATED_FROM,
+
+                language_code: LanguageCode::GER,
+                main_language: true,
+            },
+        ];
+        assert_eq!(
+            language_field(&languages).unwrap().get_data(),
+            b"1\\\x1fafre\x1fhger\x1fkeng"
+        );
+    }
+}
