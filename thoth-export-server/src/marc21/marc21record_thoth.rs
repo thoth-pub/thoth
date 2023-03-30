@@ -340,26 +340,30 @@ fn main_language(languages: &[WorkLanguages]) -> Option<String> {
 }
 
 pub fn language_field(languages: &[WorkLanguages]) -> Option<FieldRepr> {
-    let original_codes = languages
-        .iter()
-        .filter(|l| l.language_relation == LanguageRelation::ORIGINAL)
-        .map(|l| l.language_code.to_string().to_lowercase())
-        .collect::<Vec<_>>();
-    let into_codes = languages
-        .iter()
-        .filter(|l| l.language_relation == LanguageRelation::TRANSLATED_INTO)
-        .map(|l| l.language_code.to_string().to_lowercase())
-        .collect::<Vec<_>>();
-    let from_codes = languages
-        .iter()
-        .filter(|l| l.language_relation == LanguageRelation::TRANSLATED_FROM)
-        .map(|l| l.language_code.to_string().to_lowercase())
-        .collect::<Vec<_>>();
+    let (original_codes, into_codes, from_codes): (Vec<_>, Vec<_>, Vec<_>) = languages.iter().fold(
+        (Vec::new(), Vec::new(), Vec::new()),
+        |(mut orig, mut into, mut from), l| {
+            match l.language_relation {
+                LanguageRelation::ORIGINAL => orig.push(l.language_code.to_string().to_lowercase()),
+                LanguageRelation::TRANSLATED_INTO => {
+                    into.push(l.language_code.to_string().to_lowercase())
+                }
+                LanguageRelation::TRANSLATED_FROM => {
+                    from.push(l.language_code.to_string().to_lowercase())
+                }
+                _ => {}
+            }
+            (orig, into, from)
+        },
+    );
 
     let has_original = !original_codes.is_empty();
     let has_translated_into = !into_codes.is_empty();
     let has_translated_from = !from_codes.is_empty();
 
+    // $a is used for the language of text
+    // $h is used for the language the text has been translated from
+    // $k language of the text translated from if there's an ultimate original language, e.g. text in English translated from German and originally published in Swedish
     let (subfield_codes, subfield_language_codes): (Vec<_>, Vec<_>) =
         match (has_original, has_translated_into, has_translated_from) {
             (true, true, true) => (
@@ -380,9 +384,9 @@ pub fn language_field(languages: &[WorkLanguages]) -> Option<FieldRepr> {
         };
 
     let language_indicator = if subfield_codes.len() == 1 {
-        "0\\"
+        "0\\" // original text
     } else {
-        "1\\"
+        "1\\" // translation
     };
     let mut language_field: FieldRepr = FieldRepr::from((b"041", language_indicator));
     for (subfield_code, language_codes) in subfield_codes.iter().zip(subfield_language_codes) {
@@ -466,10 +470,8 @@ fn description_string(work: &Work) -> (String, Option<String>) {
 
 fn contributors_string(contributions: &[WorkContributions]) -> String {
     // group main contributions by contribution type
-    let mut contributions_by_type: HashMap<
-        ContributionType,
-        Vec<&WorkContributions>,
-    > = HashMap::new();
+    let mut contributions_by_type: HashMap<ContributionType, Vec<&WorkContributions>> =
+        HashMap::new();
     for c in contributions.iter().filter(|c| c.main_contribution) {
         let entry = contributions_by_type
             .entry(ContributionType::from(c.contribution_type.clone()))
