@@ -374,7 +374,7 @@ pub fn language_field(languages: &[WorkLanguages]) -> Option<FieldRepr> {
             (true, false, true) => (vec![b"a", b"h"], vec![original_codes, from_codes]),
             (true, false, false) => (vec![b"a"], vec![original_codes]),
             (false, true, true) => (vec![b"a", b"h"], vec![into_codes, from_codes]),
-            (false, true, false) => (vec![b"a"], vec![into_codes]),
+            (false, true, false) => (vec![b"a", b"h"], vec![into_codes, vec!["und".to_string()]]), // original language undertermined
             (false, false, true) => {
                 return None;
             }
