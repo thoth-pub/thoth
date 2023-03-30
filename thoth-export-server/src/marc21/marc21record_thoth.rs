@@ -1,12 +1,13 @@
 use crate::marc21::Marc21Field;
 use cc_license::License;
-use chrono::Datelike;
+use chrono::{Datelike, Utc};
 use marc::{FieldRepr, Record, RecordBuilder};
 use std::collections::HashMap;
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::publication::PublicationType;
 use thoth_client::{
-    SubjectType, Work, WorkContributions, WorkPublications, WorkSubjects, WorkType,
+    LanguageRelation, SubjectType, Work, WorkContributions, WorkLanguages, WorkPublications,
+    WorkSubjects, WorkType,
 };
 use thoth_errors::{ThothError, ThothResult};
 
@@ -39,6 +40,13 @@ impl Marc21Specification for Marc21RecordThoth {
 
 impl Marc21Entry<Marc21RecordThoth> for Work {
     fn to_record(&self) -> ThothResult<Record> {
+        let publication_date = self.publication_date.ok_or_else(|| {
+            ThothError::IncompleteMetadataRecord(
+                "marc21record::thoth".to_string(),
+                "Missing Publication Date".to_string(),
+            )
+        })?;
+
         let mut builder = RecordBuilder::new();
 
         // 001 - control number
@@ -50,6 +58,26 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         // 007 - characteristics
         builder.add_field((b"007", "cr  n         "))?;
 
+        // 008 - fixed-length data elements
+        let date = Utc::now().format("%y%m%d").to_string();
+        let pub_year = publication_date.year().to_string();
+        let language = main_language(
+            &self
+                .languages
+                .iter()
+                .filter(|l| l.main_language)
+                .cloned()
+                .collect::<Vec<WorkLanguages>>(),
+        )
+        .ok_or_else(|| {
+            ThothError::IncompleteMetadataRecord(
+                "marc21record::thoth".to_string(),
+                "Missing Main Language".to_string(),
+            )
+        })?;
+        let data_field = format!("{date}t{pub_year}{pub_year}        sb    000 0 {language} d");
+        builder.add_field((b"008", data_field.as_bytes()))?;
+
         // 010 - LCCN
         if let Some(lccn) = self.lccn.clone() {
             let mut lccn_field: FieldRepr = FieldRepr::from((b"010", "\\\\"));
@@ -58,6 +86,12 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
 
         // 020 - ISBN
+        if self.publications.iter().all(|p| p.isbn.is_none()) {
+            return Err(ThothError::IncompleteMetadataRecord(
+                "marc21record::thoth".to_string(),
+                "Missing ISBN".to_string(),
+            ));
+        }
         for publication in &self.publications {
             Marc21Field::<Marc21RecordThoth>::to_field(publication, &mut builder)?;
         }
@@ -135,18 +169,14 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             b"b",
             self.imprint.publisher.publisher_name.clone().into_bytes(),
         )?; // publisher
-        if let Some(publication_date) = self.publication_date {
             // year of publication is used in two 264 fields, let's do both
-            let year = publication_date.year().to_string();
-            publication_field = publication_field.add_subfield(b"c", year.clone().into_bytes())?;
-            let mut copyright_year_field = FieldRepr::from((b"264", "\\4"));
-            copyright_year_field =
-                copyright_year_field.add_subfield(b"c", format!("©{}", year).into_bytes())?;
-            builder.add_field(publication_field)?;
-            builder.add_field(copyright_year_field)?;
-        } else {
-            builder.add_field(publication_field)?;
-        }
+        let year = publication_date.year().to_string();
+        publication_field = publication_field.add_subfield(b"c", year.clone().into_bytes())?;
+        let mut copyright_year_field = FieldRepr::from((b"264", "\\4"));
+        copyright_year_field =
+            copyright_year_field.add_subfield(b"c", format!("©{}", year).into_bytes())?;
+        builder.add_field(publication_field)?;
+        builder.add_field(copyright_year_field)?;
 
         // 300 - extent and physical description
         let mut extent_field: FieldRepr = FieldRepr::from((b"300", "\\\\"));
@@ -236,6 +266,12 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
 
         // 700 - contributors
+        if self.contributions.is_empty() {
+            return Err(ThothError::IncompleteMetadataRecord(
+                "marc21record::thoth".to_string(),
+                "Missing Contributions".to_string(),
+            ));
+        }
         let mut contributions_by_name: HashMap<String, Vec<WorkContributions>> = HashMap::new();
         for contribution in &self.contributions {
             let name = contribution.full_name.clone();
@@ -279,6 +315,22 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
 
         Ok(builder.get_record()?)
+    }
+}
+
+fn main_language(languages: &[WorkLanguages]) -> Option<String> {
+    match languages.len() {
+        0 => None,
+        1 => Some(languages[0].language_code.to_string().to_lowercase()),
+        _ => languages
+            .iter()
+            .min_by_key(|language| match language.language_relation {
+                LanguageRelation::TRANSLATED_INTO => 0,
+                LanguageRelation::ORIGINAL => 1,
+                LanguageRelation::TRANSLATED_FROM => 2,
+                _ => 3,
+            })
+            .map(|language| language.language_code.to_string().to_lowercase()),
     }
 }
 
