@@ -506,7 +506,230 @@ fn contributors_string(contributions: &[WorkContributions]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use thoth_client::LanguageCode;
+    use std::str::FromStr;
+    use thoth_api::model::{Doi, Isbn, Orcid, Ror};
+    use thoth_client::{
+        LanguageCode, SeriesType, WorkContributionsAffiliations,
+        WorkContributionsAffiliationsInstitution, WorkContributionsContributor, WorkImprint,
+        WorkImprintPublisher, WorkIssues, WorkIssuesSeries, WorkStatus,
+    };
+    use uuid::Uuid;
+
+    fn test_work() -> Work {
+        Work {
+            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            work_status: WorkStatus::ACTIVE,
+            full_title: "Book Title: Book Subtitle".to_string(),
+            title: "Book Title".to_string(),
+            subtitle: Some("Book Subtitle".to_string()),
+            work_type: WorkType::MONOGRAPH,
+            reference: None,
+            edition: Some(1),
+            doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
+            publication_date: chrono::NaiveDate::from_ymd_opt(2010, 2, 1),
+            license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
+            copyright_holder: None,
+            short_abstract: None,
+            long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
+            general_note: Some("Includes bibliography (pages 165-170) and index.".to_string()),
+            place: Some("León, Spain".to_string()),
+            page_count: None,
+            page_breakdown: None,
+            first_page: None,
+            last_page: None,
+            page_interval: None,
+            image_count: None,
+            table_count: None,
+            audio_count: None,
+            video_count: None,
+            landing_page: None,
+            toc: None,
+            lccn: None,
+            oclc: None,
+            cover_url: Some("https://www.book.com/cover.jpg".to_string()),
+            cover_caption: None,
+            imprint: WorkImprint {
+                imprint_name: "OA Editions Imprint".to_string(),
+                imprint_url: None,
+                publisher: WorkImprintPublisher {
+                    publisher_name: "OA Editions".to_string(),
+                    publisher_shortname: None,
+                    publisher_url: None,
+                },
+            },
+            issues: vec![WorkIssues {
+                issue_ordinal: 11,
+                series: WorkIssuesSeries {
+                    series_type: SeriesType::BOOK_SERIES,
+                    series_name: "Name of series".to_string(),
+                    issn_print: "1234-5678".to_string(),
+                    issn_digital: "8765-4321".to_string(),
+                    series_url: None,
+                    series_description: None,
+                    series_cfp_url: None,
+                },
+            }],
+            contributions: vec![
+                WorkContributions {
+                    contribution_type: thoth_client::ContributionType::AUTHOR,
+                    first_name: Some("Sole".to_string()),
+                    last_name: "Author".to_string(),
+                    full_name: "Sole Author".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    contribution_ordinal: 1,
+                    contributor: WorkContributionsContributor {
+                        orcid: Some(
+                            Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap(),
+                        ),
+                        website: None,
+                    },
+                    affiliations: vec![WorkContributionsAffiliations {
+                        position: None,
+                        affiliation_ordinal: 1,
+                        institution: WorkContributionsAffiliationsInstitution {
+                            institution_name: "Thoth University".to_string(),
+                            institution_doi: None,
+                            ror: Some(Ror::from_str("https://ror.org/0abcdef12").unwrap()),
+                            country_code: None,
+                        },
+                    }],
+                },
+                WorkContributions {
+                    contribution_type: thoth_client::ContributionType::EDITOR,
+                    first_name: Some("Only".to_string()),
+                    last_name: "Editor".to_string(),
+                    full_name: "Only Editor".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    contribution_ordinal: 2,
+                    contributor: WorkContributionsContributor {
+                        orcid: Some(
+                            Orcid::from_str("https://orcid.org/0000-0002-0000-0002").unwrap(),
+                        ),
+                        website: None,
+                    },
+                    affiliations: vec![],
+                },
+                WorkContributions {
+                    contribution_type: thoth_client::ContributionType::TRANSLATOR,
+                    first_name: None,
+                    last_name: "Translator".to_string(),
+                    full_name: "Translator".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    contribution_ordinal: 3,
+                    contributor: WorkContributionsContributor {
+                        orcid: None,
+                        website: None,
+                    },
+                    affiliations: vec![WorkContributionsAffiliations {
+                        position: None,
+                        affiliation_ordinal: 1,
+                        institution: WorkContributionsAffiliationsInstitution {
+                            institution_name: "COPIM".to_string(),
+                            institution_doi: None,
+                            ror: None,
+                            country_code: None,
+                        },
+                    }],
+                },
+            ],
+            languages: vec![
+                WorkLanguages {
+                    language_code: LanguageCode::ENG,
+                    language_relation: LanguageRelation::TRANSLATED_INTO,
+                    main_language: true,
+                },
+                WorkLanguages {
+                    language_code: LanguageCode::SPA,
+                    language_relation: LanguageRelation::TRANSLATED_FROM,
+                    main_language: true,
+                },
+            ],
+            publications: vec![
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
+                    publication_type: thoth_client::PublicationType::PDF,
+                    isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-FFFF-000000000006").unwrap(),
+                    publication_type: thoth_client::PublicationType::XML,
+                    isbn: Some(Isbn::from_str("978-92-95055-02-5").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![],
+                },
+                WorkPublications {
+                    publication_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000003").unwrap(),
+                    publication_type: thoth_client::PublicationType::HARDBACK,
+                    isbn: Some(Isbn::from_str("978-1-4028-9462-6").unwrap()),
+                    width_mm: None,
+                    width_cm: None,
+                    width_in: None,
+                    height_mm: None,
+                    height_cm: None,
+                    height_in: None,
+                    depth_mm: None,
+                    depth_cm: None,
+                    depth_in: None,
+                    weight_g: None,
+                    weight_oz: None,
+                    prices: vec![],
+                    locations: vec![],
+                },
+            ],
+            subjects: vec![
+                WorkSubjects {
+                    subject_code: "AAB".to_string(),
+                    subject_type: SubjectType::BIC,
+                    subject_ordinal: 1,
+                },
+                WorkSubjects {
+                    subject_code: "AAA000000".to_string(),
+                    subject_type: SubjectType::BISAC,
+                    subject_ordinal: 2,
+                },
+                WorkSubjects {
+                    subject_code: "JA85".to_string(),
+                    subject_type: SubjectType::LCC,
+                    subject_ordinal: 3,
+                },
+                WorkSubjects {
+                    subject_code: "JWA".to_string(),
+                    subject_type: SubjectType::THEMA,
+                    subject_ordinal: 4,
+                },
+            ],
+            fundings: vec![],
+            relations: vec![],
+            references: vec![],
+        }
+    }
 
     #[test]
     fn test_language_field_original_only() {
@@ -698,5 +921,87 @@ mod tests {
             language_field(&languages).unwrap().get_data(),
             b"1\\\x1fafre\x1fhger\x1fkeng"
         );
+    }
+
+    #[test]
+    fn test_description_string_no_counts() {
+        let work = test_work();
+
+        let expected = ("1 online resource.".to_string(), None);
+        assert_eq!(description_string(&work), expected);
+    }
+
+    #[test]
+    fn test_description_string_page_count_only() {
+        let mut work = test_work();
+        work.page_count = Some(100);
+
+        let expected = ("1 online resource (100 pages).".to_string(), None);
+        assert_eq!(description_string(&work), expected);
+    }
+
+    #[test]
+    fn test_description_string_page_breakdown_only() {
+        let mut work = test_work();
+        work.page_breakdown = Some("x+238".to_string());
+
+        let expected = ("1 online resource (x+238 pages).".to_string(), None);
+        assert_eq!(description_string(&work), expected);
+    }
+
+    #[test]
+    fn test_description_string_page_count_and_breakdown() {
+        let mut work = test_work();
+        work.page_count = Some(248);
+        work.page_breakdown = Some("x+238".to_string());
+
+        let expected = ("1 online resource (x+238 pages).".to_string(), None);
+        assert_eq!(description_string(&work), expected);
+    }
+
+    #[test]
+    fn test_description_string_other_counts_only() {
+        let mut work = test_work();
+        work.image_count = Some(1);
+        work.table_count = Some(2);
+        work.audio_count = Some(3);
+        work.video_count = Some(4);
+
+        let expected = (
+            "1 online resource: ".to_string(),
+            Some("1 illustration, 2 tables, 3 audio tracks, 4 videos.".to_string()),
+        );
+        assert_eq!(description_string(&work), expected);
+    }
+
+    #[test]
+    fn test_description_string_all_counts() {
+        let mut work = test_work();
+        work.page_count = Some(248);
+        work.page_breakdown = Some("x+238".to_string());
+        work.image_count = Some(1);
+        work.table_count = Some(2);
+        work.audio_count = Some(3);
+        work.video_count = Some(4);
+
+        let expected = (
+            "1 online resource (x+238 pages): ".to_string(),
+            Some("1 illustration, 2 tables, 3 audio tracks, 4 videos.".to_string()),
+        );
+        assert_eq!(description_string(&work), expected);
+    }
+
+    #[test]
+    fn test_description_string_some_counts() {
+        let mut work = test_work();
+        work.page_count = Some(248);
+        work.image_count = Some(9);
+        work.table_count = Some(1);
+
+        let expected = (
+            "1 online resource (248 pages): ".to_string(),
+            Some("9 illustrations, 1 table.".to_string()),
+        );
+        assert_eq!(description_string(&work), expected);
     }
 }
