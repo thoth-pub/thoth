@@ -190,11 +190,17 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             }
         }
 
+        // only one 100 field is allowed, first-come first-served
+        let mut is_main_author_defined = false;
         for (name, contributions) in contributions_by_name.iter() {
             let is_main = contributions
                 .iter()
                 .any(|c| c.contribution_type == thoth_client::ContributionType::AUTHOR);
-            let field_code = if is_main { b"100" } else { b"700" };
+            let mut field_code = b"700";
+            if is_main && !is_main_author_defined {
+                field_code = b"100";
+                is_main_author_defined = true;
+            }
             let roles = contributions
                 .iter()
                 .map(|c| ContributionType::from(c.contribution_type.clone()).to_string())
@@ -204,7 +210,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             let mut contributor_field = FieldRepr::from((field_code, "1\\"));
             contributor_field = contributor_field.add_subfield(b"a", name)?;
             contributor_field = contributor_field.add_subfield(b"e", roles)?;
-            for affiliation in &contributions.first().unwrap().affiliations {
+            if let Some(affiliation) = &contributions.first().unwrap().affiliations.first() {
                 contributor_field = contributor_field.add_subfield(
                     b"u",
                     affiliation.institution.institution_name.clone().as_bytes(),
