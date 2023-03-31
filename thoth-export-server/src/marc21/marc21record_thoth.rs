@@ -16,7 +16,7 @@ use super::{Marc21Entry, Marc21Specification};
 #[derive(Copy, Clone)]
 pub(crate) struct Marc21RecordThoth;
 
-const MARC_ERROR: &'static str = "marc21record::thoth";
+const MARC_ERROR: &str = "marc21record::thoth";
 
 impl Marc21Specification for Marc21RecordThoth {
     fn handle_event(w: &mut Vec<u8>, works: &[Work]) -> ThothResult<()> {
@@ -119,12 +119,18 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             }
         }
 
-        // 024 - DOI
+        // 024 - standard identifiers (DOI, OCLC)
         if let Some(doi) = &self.doi {
             let mut doi_field: FieldRepr = FieldRepr::from((b"024", "7\\"));
             doi_field = doi_field.add_subfield(b"a", doi.to_string().as_bytes())?;
             doi_field = doi_field.add_subfield(b"2", "doi")?;
             builder.add_field(doi_field)?;
+        }
+        if let Some(oclc) = &self.oclc {
+            let mut oclc_field: FieldRepr = FieldRepr::from((b"024", "7\\"));
+            oclc_field = oclc_field.add_subfield(b"a", oclc.clone().as_bytes())?;
+            oclc_field = oclc_field.add_subfield(b"2", "oclc")?;
+            builder.add_field(oclc_field)?;
         }
 
         // 040 - cataloging source field \\$aStSaUL$beng$erda
@@ -439,7 +445,7 @@ impl Marc21Field<Marc21RecordThoth> for WorkPublications {
 
 impl Marc21Field<Marc21RecordThoth> for WorkIssues {
     fn to_field(&self, builder: &mut RecordBuilder) -> ThothResult<()> {
-        for (field, indicator) in vec![(b"490", "1\\"), (b"830", "\\0")] {
+        for (field, indicator) in &[(b"490", "1\\"), (b"830", "\\0")] {
             let mut series_field: FieldRepr = FieldRepr::from((field, indicator));
             series_field =
                 series_field.add_subfield(b"a", self.series.series_name.clone().as_bytes())?;
