@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::publication::PublicationType;
 use thoth_client::{
-    LanguageRelation, SubjectType, Work, WorkContributions, WorkLanguages, WorkPublications,
-    WorkSubjects, WorkType,
+    LanguageRelation, SubjectType, Work, WorkContributions, WorkIssues, WorkLanguages,
+    WorkPublications, WorkSubjects, WorkType,
 };
 use thoth_errors::{ThothError, ThothResult};
 
@@ -40,6 +40,20 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             return Err(ThothError::IncompleteMetadataRecord(
                 MARC_ERROR.to_string(),
                 "MARC records are not available for chapters".to_string(),
+            ));
+        }
+
+        if self.publications.iter().all(|p| p.isbn.is_none()) {
+            return Err(ThothError::IncompleteMetadataRecord(
+                MARC_ERROR.to_string(),
+                "Missing ISBN".to_string(),
+            ));
+        }
+
+        if self.contributions.is_empty() {
+            return Err(ThothError::IncompleteMetadataRecord(
+                MARC_ERROR.to_string(),
+                "Missing Contributions".to_string(),
             ));
         }
 
@@ -89,14 +103,20 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
 
         // 020 - ISBN
-        if self.publications.iter().all(|p| p.isbn.is_none()) {
-            return Err(ThothError::IncompleteMetadataRecord(
-                MARC_ERROR.to_string(),
-                "Missing ISBN".to_string(),
-            ));
-        }
         for publication in &self.publications {
             Marc21Field::<Marc21RecordThoth>::to_field(publication, &mut builder)?;
+        }
+
+        // 022 - ISSN
+        for issue in &self.issues {
+            for issn in vec![
+                format!("{} (Online)", issue.series.issn_digital.clone()),
+                format!("{} (Print)", issue.series.issn_print.clone()),
+            ] {
+                let mut issn_field: FieldRepr = FieldRepr::from((b"022", "\\\\"));
+                issn_field = issn_field.add_subfield(b"a", issn.as_bytes())?;
+                builder.add_field(issn_field)?;
+            }
         }
 
         // 024 - DOI
@@ -216,6 +236,11 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         media_field = media_field.add_subfield(b"2", "rdacarrier")?;
         builder.add_field(media_field)?;
 
+        // 409 and 830 - series
+        for issue in &self.issues {
+            Marc21Field::<Marc21RecordThoth>::to_field(issue, &mut builder)?;
+        }
+
         // 500 - availability
         let mut availability_field: FieldRepr = FieldRepr::from((b"500", "\\\\"));
         availability_field = availability_field.add_subfield(
@@ -274,12 +299,6 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
 
         // 700 - contributors
-        if self.contributions.is_empty() {
-            return Err(ThothError::IncompleteMetadataRecord(
-                MARC_ERROR.to_string(),
-                "Missing Contributions".to_string(),
-            ));
-        }
         let mut contributions_by_name: HashMap<String, Vec<WorkContributions>> = HashMap::new();
         for contribution in &self.contributions {
             let name = contribution.full_name.clone();
@@ -413,6 +432,23 @@ impl Marc21Field<Marc21RecordThoth> for WorkPublications {
                 isbn_field.add_subfield(b"q", format!("({})", publication_type).into_bytes())?;
 
             builder.add_field(isbn_field)?;
+        }
+        Ok(())
+    }
+}
+
+impl Marc21Field<Marc21RecordThoth> for WorkIssues {
+    fn to_field(&self, builder: &mut RecordBuilder) -> ThothResult<()> {
+        for (field, indicator) in vec![(b"490", "1\\"), (b"830", "\\0")] {
+            let mut series_field: FieldRepr = FieldRepr::from((field, indicator));
+            series_field =
+                series_field.add_subfield(b"a", self.series.series_name.clone().as_bytes())?;
+            series_field = series_field
+                .add_subfield(b"v", format!("vol. {}", self.issue_ordinal).as_bytes())?;
+            series_field =
+                series_field.add_subfield(b"x", self.series.issn_digital.clone().as_bytes())?;
+
+            builder.add_field(series_field)?;
         }
         Ok(())
     }
