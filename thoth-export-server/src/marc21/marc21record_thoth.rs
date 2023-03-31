@@ -16,33 +16,36 @@ use super::{Marc21Entry, Marc21Specification};
 #[derive(Copy, Clone)]
 pub(crate) struct Marc21RecordThoth;
 
+const MARC_ERROR: &'static str = "marc21record::thoth";
+
 impl Marc21Specification for Marc21RecordThoth {
     fn handle_event(w: &mut Vec<u8>, works: &[Work]) -> ThothResult<()> {
-        match works.len() {
-            0 => Err(ThothError::IncompleteMetadataRecord(
-                "marc21record::thoth".to_string(),
+        match works {
+            [] => Err(ThothError::IncompleteMetadataRecord(
+                MARC_ERROR.to_string(),
                 "Not enough data".to_string(),
             )),
-            1 => Marc21Entry::<Marc21RecordThoth>::marc21_record(works.first().unwrap(), w),
-            _ => {
-                for work in works.iter() {
-                    // Do not include Chapters in full publisher metadata record
-                    // (assumes that a publisher will always have more than one work)
-                    if work.work_type != WorkType::BOOK_CHAPTER {
-                        Marc21Entry::<Marc21RecordThoth>::marc21_record(work, w).ok();
-                    }
-                }
+            [work] => Marc21Entry::<Marc21RecordThoth>::marc21_record(work, w),
+            _ => works.iter().try_for_each(|work| {
+                Marc21Entry::<Marc21RecordThoth>::marc21_record(work, w).ok();
                 Ok(())
-            }
+            }),
         }
     }
 }
 
 impl Marc21Entry<Marc21RecordThoth> for Work {
     fn to_record(&self) -> ThothResult<Record> {
+        if self.work_type == WorkType::BOOK_CHAPTER {
+            return Err(ThothError::IncompleteMetadataRecord(
+                MARC_ERROR.to_string(),
+                "MARC records are not available for chapters".to_string(),
+            ));
+        }
+
         let publication_date = self.publication_date.ok_or_else(|| {
             ThothError::IncompleteMetadataRecord(
-                "marc21record::thoth".to_string(),
+                MARC_ERROR.to_string(),
                 "Missing Publication Date".to_string(),
             )
         })?;
@@ -71,7 +74,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         )
         .ok_or_else(|| {
             ThothError::IncompleteMetadataRecord(
-                "marc21record::thoth".to_string(),
+                MARC_ERROR.to_string(),
                 "Missing Main Language".to_string(),
             )
         })?;
@@ -88,7 +91,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         // 020 - ISBN
         if self.publications.iter().all(|p| p.isbn.is_none()) {
             return Err(ThothError::IncompleteMetadataRecord(
-                "marc21record::thoth".to_string(),
+                MARC_ERROR.to_string(),
                 "Missing ISBN".to_string(),
             ));
         }
@@ -273,7 +276,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         // 700 - contributors
         if self.contributions.is_empty() {
             return Err(ThothError::IncompleteMetadataRecord(
-                "marc21record::thoth".to_string(),
+                MARC_ERROR.to_string(),
                 "Missing Contributions".to_string(),
             ));
         }
