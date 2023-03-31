@@ -177,7 +177,8 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                 .with_issues()
                 .with_publications()
                 .with_subjects()
-                .with_languages()),
+                .with_languages()
+                .with_fundings()),
         }
     }
 }

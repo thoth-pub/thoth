@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::publication::PublicationType;
 use thoth_client::{
-    LanguageRelation, SubjectType, Work, WorkContributions, WorkIssues, WorkLanguages,
-    WorkPublications, WorkSubjects, WorkType,
+    LanguageRelation, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues,
+    WorkLanguages, WorkPublications, WorkSubjects, WorkType,
 };
 use thoth_errors::{ThothError, ThothResult};
 
@@ -300,6 +300,11 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             builder.add_field(abstract_field)?;
         }
 
+        // 536 - funding
+        for funding in &self.fundings {
+            Marc21Field::<Marc21RecordThoth>::to_field(funding, &mut builder)?;
+        }
+
         // 538 - mode of access
         let mut access_field: FieldRepr = FieldRepr::from((b"538", "\\\\"));
         access_field = access_field.add_subfield(b"a", "Mode of access: World Wide Web.")?;
@@ -462,11 +467,31 @@ impl Marc21Field<Marc21RecordThoth> for WorkIssues {
         let fields = [(b"490", "1\\"), (b"830", "\\0")];
         for (field, indicator) in fields {
             FieldRepr::from((field, indicator))
-                .add_subfield(b"a", &self.series.series_name.as_bytes())
-                .and_then(|f| f.add_subfield(b"v", format!("vol. {}", self.issue_ordinal).as_bytes()))
-                .and_then(|f| f.add_subfield(b"x", &self.series.issn_digital.as_bytes()))
+                .add_subfield(b"a", self.series.series_name.as_bytes())
+                .and_then(|f| {
+                    f.add_subfield(b"v", format!("vol. {}", self.issue_ordinal).as_bytes())
+                })
+                .and_then(|f| f.add_subfield(b"x", self.series.issn_digital.as_bytes()))
                 .and_then(|f| builder.add_field(f))?;
         }
+        Ok(())
+    }
+}
+
+impl Marc21Field<Marc21RecordThoth> for WorkFundings {
+    fn to_field(&self, builder: &mut RecordBuilder) -> ThothResult<()> {
+        let mut funding_field: FieldRepr = FieldRepr::from((b"536", "\\\\"))
+            .add_subfield(b"a", self.institution.institution_name.clone().as_bytes())?;
+        if let Some(grant_number) = &self.grant_number {
+            funding_field = funding_field.add_subfield(b"c", grant_number.clone().as_bytes())?;
+        }
+        if let Some(program) = &self.program {
+            funding_field = funding_field.add_subfield(b"e", program.clone().as_bytes())?;
+        }
+        if let Some(project_name) = &self.project_name {
+            funding_field = funding_field.add_subfield(b"f", project_name.clone().as_bytes())?;
+        }
+        builder.add_field(funding_field)?;
         Ok(())
     }
 }
