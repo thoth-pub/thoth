@@ -470,13 +470,13 @@ fn description_string(work: &Work) -> (String, Option<String>) {
 
 fn contributors_string(contributions: &[WorkContributions]) -> String {
     // group main contributions by contribution type
-    let mut contributions_by_type: HashMap<ContributionType, Vec<&WorkContributions>> =
-        HashMap::new();
+    let mut contributions_by_type: Vec<(ContributionType, Vec<&WorkContributions>)> = vec![];
     for c in contributions.iter().filter(|c| c.main_contribution) {
-        let entry = contributions_by_type
-            .entry(ContributionType::from(c.contribution_type.clone()))
-            .or_insert(vec![]);
-        entry.push(c);
+        let key = ContributionType::from(c.contribution_type.clone());
+        match contributions_by_type.iter_mut().find(|(k, _)| *k == key) {
+            Some(entry) => entry.1.push(c),
+            None => contributions_by_type.push((key, vec![c])),
+        }
     }
 
     // build string for each contribution type
@@ -491,7 +491,11 @@ fn contributors_string(contributions: &[WorkContributions]) -> String {
         let type_string = match contribution_type {
             ContributionType::Author => names,
             ContributionType::Editor => format!("edited by {}", names),
-            _ => format!("{} ({})", contribution_type, names),
+            ContributionType::Translator => format!("translated by {}", names),
+            ContributionType::Photographer => format!("photography by {}", names),
+            ContributionType::Illustrator => format!("illustrations by {}", names),
+            ContributionType::MusicEditor => format!("music edited by {}", names),
+            _ => format!("{} {}", contribution_type.to_string().to_lowercase(), names),
         };
         type_strings.push(type_string);
     }
@@ -728,6 +732,23 @@ mod tests {
             fundings: vec![],
             relations: vec![],
             references: vec![],
+        }
+    }
+
+    fn test_contribution() -> WorkContributions {
+        WorkContributions {
+            contribution_type: thoth_client::ContributionType::AUTHOR,
+            first_name: None,
+            last_name: "".to_string(),
+            full_name: "".to_string(),
+            main_contribution: true,
+            biography: None,
+            contribution_ordinal: 1,
+            contributor: WorkContributionsContributor {
+                orcid: None,
+                website: None,
+            },
+            affiliations: vec![],
         }
     }
 
@@ -1003,5 +1024,112 @@ mod tests {
             Some("9 illustrations, 1 table.".to_string()),
         );
         assert_eq!(description_string(&work), expected);
+    }
+
+    #[test]
+    fn test_contributors_string_single_author() {
+        let mut contribution = test_contribution();
+        contribution.full_name = "John Doe".to_string();
+        let contributions = [contribution];
+
+        let expected = "John Doe.";
+        assert_eq!(contributors_string(&contributions), expected);
+    }
+
+    #[test]
+    fn test_contributors_string_single_editor() {
+        let mut contribution = test_contribution();
+        contribution.full_name = "Jane Smith".to_string();
+        contribution.contribution_type = thoth_client::ContributionType::EDITOR;
+        let contributions = [contribution];
+
+        let expected = "edited by Jane Smith.";
+        assert_eq!(contributors_string(&contributions), expected);
+    }
+
+    #[test]
+    fn test_contributors_string_single_translator() {
+        let mut contribution = test_contribution();
+        contribution.full_name = "Juan García".to_string();
+        contribution.contribution_type = thoth_client::ContributionType::TRANSLATOR;
+        let contributions = [contribution];
+
+        let expected = "translated by Juan García.";
+        assert_eq!(contributors_string(&contributions), expected);
+    }
+
+    #[test]
+    fn test_contributors_string_multiple_authors() {
+        let mut first_contribution = test_contribution();
+        first_contribution.full_name = "John Doe".to_string();
+        let mut second_contribution = test_contribution();
+        second_contribution.full_name = "Jane Smith".to_string();
+        let mut third_contribution = test_contribution();
+        third_contribution.full_name = "Bob Johnson".to_string();
+        let contributions = [first_contribution, second_contribution, third_contribution];
+
+        let expected = "John Doe, Jane Smith, Bob Johnson.";
+        assert_eq!(contributors_string(&contributions), expected);
+    }
+
+    #[test]
+    fn test_contributors_string_multiple_editors() {
+        let mut first_contribution = test_contribution();
+        first_contribution.full_name = "Jane Smith".to_string();
+        first_contribution.contribution_type = thoth_client::ContributionType::EDITOR;
+        let mut second_contribution = test_contribution();
+        second_contribution.full_name = "Bob Johnson".to_string();
+        second_contribution.contribution_type = thoth_client::ContributionType::EDITOR;
+        let contributions = [first_contribution, second_contribution];
+
+        let expected = "edited by Jane Smith, Bob Johnson.";
+        assert_eq!(contributors_string(&contributions), expected);
+    }
+
+    #[test]
+    fn test_contributors_string_multiple_types() {
+        let mut first_contribution = test_contribution();
+        first_contribution.full_name = "John Doe".to_string();
+        let mut second_contribution = test_contribution();
+        second_contribution.full_name = "Jane Smith".to_string();
+        second_contribution.contribution_type = thoth_client::ContributionType::EDITOR;
+        let mut third_contribution = test_contribution();
+        third_contribution.full_name = "Bob Johnson".to_string();
+        third_contribution.contribution_type = thoth_client::ContributionType::TRANSLATOR;
+        let mut fourth_contribution = test_contribution();
+        fourth_contribution.full_name = "Alice Brown".to_string();
+        fourth_contribution.contribution_type = thoth_client::ContributionType::INTRODUCTION_BY;
+        let contributions = [
+            first_contribution,
+            second_contribution,
+            third_contribution,
+            fourth_contribution,
+        ];
+
+        let expected = "John Doe; edited by Jane Smith; translated by Bob Johnson; introduction by Alice Brown.";
+        assert_eq!(contributors_string(&contributions), expected);
+    }
+
+    #[test]
+    fn test_contributors_string_multiple_authors_and_editors() {
+        let mut first_contribution = test_contribution();
+        first_contribution.full_name = "John Doe".to_string();
+        let mut second_contribution = test_contribution();
+        second_contribution.full_name = "Jane Smith".to_string();
+        second_contribution.contribution_type = thoth_client::ContributionType::EDITOR;
+        let mut third_contribution = test_contribution();
+        third_contribution.full_name = "Bob Johnson".to_string();
+        third_contribution.contribution_type = thoth_client::ContributionType::EDITOR;
+        let mut fourth_contribution = test_contribution();
+        fourth_contribution.full_name = "Alice Brown".to_string();
+        let contributions = [
+            first_contribution,
+            second_contribution,
+            third_contribution,
+            fourth_contribution,
+        ];
+
+        let expected = "John Doe, Alice Brown; edited by Jane Smith, Bob Johnson.";
+        assert_eq!(contributors_string(&contributions), expected);
     }
 }
