@@ -2,7 +2,6 @@ use crate::marc21::Marc21Field;
 use cc_license::License;
 use chrono::{Datelike, Utc};
 use marc::{FieldRepr, Record, RecordBuilder};
-use std::collections::HashMap;
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::publication::PublicationType;
 use thoth_client::{
@@ -181,6 +180,39 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             Marc21Field::<Marc21RecordThoth>::to_field(subject, &mut builder)?;
         }
 
+        // 100 and 700 - contributors
+        let mut contributions_by_name: Vec<(String, Vec<&WorkContributions>)> = vec![];
+        for c in &self.contributions {
+            let key = c.full_name.clone();
+            match contributions_by_name.iter_mut().find(|(k, _)| *k == key) {
+                Some(entry) => entry.1.push(c),
+                None => contributions_by_name.push((key, vec![c])),
+            }
+        }
+
+        for (name, contributions) in contributions_by_name.iter() {
+            let is_main = contributions
+                .iter()
+                .any(|c| c.contribution_type == thoth_client::ContributionType::AUTHOR);
+            let field_code = if is_main { b"100" } else { b"700" };
+            let roles = contributions
+                .iter()
+                .map(|c| ContributionType::from(c.contribution_type.clone()).to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            let mut contributor_field = FieldRepr::from((field_code, "1\\"));
+            contributor_field = contributor_field.add_subfield(b"a", name)?;
+            contributor_field = contributor_field.add_subfield(b"e", roles)?;
+            for affiliation in &contributions.first().unwrap().affiliations {
+                contributor_field = contributor_field.add_subfield(
+                    b"u",
+                    affiliation.institution.institution_name.clone().as_bytes(),
+                )?;
+            }
+            builder.add_field(contributor_field)?;
+        }
+
         // 245 – title
         let mut title_field: FieldRepr = FieldRepr::from((b"245", "00")); // no title added entry
         title_field = title_field.add_subfield(b"a", self.title.clone().into_bytes())?; // main title
@@ -323,25 +355,6 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             builder.add_field(license_field)?;
         }
 
-        // 700 - contributors
-        let mut contributions_by_name: HashMap<String, Vec<WorkContributions>> = HashMap::new();
-        for contribution in &self.contributions {
-            let name = contribution.full_name.clone();
-            let contributions_for_name = contributions_by_name.entry(name).or_insert(Vec::new());
-            contributions_for_name.push(contribution.clone());
-        }
-        for (name, contributions) in contributions_by_name.iter() {
-            let roles = contributions
-                .iter()
-                .map(|c| ContributionType::from(c.contribution_type.clone()).to_string())
-                .collect::<Vec<_>>()
-                .join(", ");
-            let mut contributor_field = FieldRepr::from((b"700", "1\\"));
-            contributor_field = contributor_field.add_subfield(b"a", name)?;
-            contributor_field = contributor_field.add_subfield(b"e", roles)?;
-            builder.add_field(contributor_field)?;
-        }
-
         // 710 - publisher
         let mut publisher_field: FieldRepr = FieldRepr::from((b"710", "2\\"));
         publisher_field = publisher_field.add_subfield(
@@ -371,9 +384,9 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
 }
 
 fn main_language(languages: &[WorkLanguages]) -> Option<String> {
-    match languages.len() {
-        0 => None,
-        1 => Some(languages[0].language_code.to_string().to_lowercase()),
+    match languages {
+        [] => None,
+        [language] => Some(language.language_code.to_string().to_lowercase()),
         _ => languages
             .iter()
             .min_by_key(|language| match language.language_relation {
@@ -592,9 +605,9 @@ fn contributors_string(contributions: &[WorkContributions]) -> String {
 mod tests {
     use super::*;
     use std::str::FromStr;
-    use thoth_api::model::{Doi, Isbn, Orcid, Ror};
+    use thoth_api::model::{Doi, Isbn};
     use thoth_client::{
-        LanguageCode, SeriesType, WorkContributionsAffiliations,
+        FundingInstitution, LanguageCode, SeriesType, WorkContributionsAffiliations,
         WorkContributionsAffiliationsInstitution, WorkContributionsContributor, WorkImprint,
         WorkImprintPublisher, WorkIssues, WorkIssuesSeries, WorkStatus,
     };
@@ -628,9 +641,9 @@ mod tests {
             audio_count: None,
             video_count: None,
             landing_page: None,
-            toc: None,
-            lccn: None,
-            oclc: None,
+            toc: Some("Introduction; Chapter 1; Chapter 2; Bibliography; Index".to_string()),
+            lccn: Some("LCCN010101".to_string()),
+            oclc: Some("OCLC010101".to_string()),
             cover_url: Some("https://www.book.com/cover.jpg".to_string()),
             cover_caption: None,
             imprint: WorkImprint {
@@ -664,9 +677,7 @@ mod tests {
                     biography: None,
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
-                        orcid: Some(
-                            Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap(),
-                        ),
+                        orcid: None,
                         website: None,
                     },
                     affiliations: vec![WorkContributionsAffiliations {
@@ -675,7 +686,7 @@ mod tests {
                         institution: WorkContributionsAffiliationsInstitution {
                             institution_name: "Thoth University".to_string(),
                             institution_doi: None,
-                            ror: Some(Ror::from_str("https://ror.org/0abcdef12").unwrap()),
+                            ror: None,
                             country_code: None,
                         },
                     }],
@@ -689,9 +700,7 @@ mod tests {
                     biography: None,
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
-                        orcid: Some(
-                            Orcid::from_str("https://orcid.org/0000-0002-0000-0002").unwrap(),
-                        ),
+                        orcid: None,
                         website: None,
                     },
                     affiliations: vec![],
@@ -734,7 +743,7 @@ mod tests {
             ],
             publications: vec![
                 WorkPublications {
-                    publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
+                    publication_id: Default::default(),
                     publication_type: thoth_client::PublicationType::PDF,
                     isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
                     width_mm: None,
@@ -752,7 +761,7 @@ mod tests {
                     locations: vec![],
                 },
                 WorkPublications {
-                    publication_id: Uuid::from_str("00000000-0000-0000-FFFF-000000000006").unwrap(),
+                    publication_id: Default::default(),
                     publication_type: thoth_client::PublicationType::XML,
                     isbn: Some(Isbn::from_str("978-92-95055-02-5").unwrap()),
                     width_mm: None,
@@ -770,7 +779,7 @@ mod tests {
                     locations: vec![],
                 },
                 WorkPublications {
-                    publication_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000003").unwrap(),
+                    publication_id: Default::default(),
                     publication_type: thoth_client::PublicationType::HARDBACK,
                     isbn: Some(Isbn::from_str("978-1-4028-9462-6").unwrap()),
                     width_mm: None,
@@ -810,7 +819,19 @@ mod tests {
                     subject_ordinal: 4,
                 },
             ],
-            fundings: vec![],
+            fundings: vec![WorkFundings {
+                program: Some("Funding Programme".to_string()),
+                project_name: Some("Funding Project".to_string()),
+                project_shortname: None,
+                grant_number: Some("JA0001".to_string()),
+                jurisdiction: None,
+                institution: FundingInstitution {
+                    institution_name: "Funding Institution".to_string(),
+                    institution_doi: None,
+                    ror: None,
+                    country_code: None,
+                },
+            }],
             relations: vec![],
             references: vec![],
         }
@@ -1212,5 +1233,47 @@ mod tests {
 
         let expected = "John Doe, Alice Brown; edited by Jane Smith, Bob Johnson.";
         assert_eq!(contributors_string(&contributions), expected);
+    }
+
+    #[test]
+    fn test_generate_marc() {
+        let work = test_work();
+        let current_date = Utc::now().format("%y%m%d").to_string();
+        let expected = format!("02097nam  2200529 i 4500001003700000006001900037007001500056008004100071010001500112020002500127020002500152020003000177022002300207022002200230024002800252024002100280040002000301041001300321050000900334072001600343072002300359072001500382100004200397245011800439250001600557264003600573264001100609300002300620336002600643337002600669338003600695490003900731500003500770504005300805505006000858506004800918520003100966536006800997538003601065540022301101700002401324700003401348710002901382830003901411856005801450856005901508\u{1e}00000000-0000-0000-aaaa-000000000001\u{1e}m        d        \u{1e}cr  n         \u{1e}{current_date}t20102010        sb    000 0 eng d\u{1e}\\\\\u{1f}aLCCN010101\u{1e}\\\\\u{1f}a9783161484100\u{1f}q(PDF)\u{1e}\\\\\u{1f}a9789295055025\u{1f}q(XML)\u{1e}\\\\\u{1f}a9781402894626\u{1f}q(Hardback)\u{1e}\\\\\u{1f}a8765-4321 (Online)\u{1e}\\\\\u{1f}a1234-5678 (Print)\u{1e}7\\\u{1f}a10.00001/BOOK.0001\u{1f}2doi\u{1e}7\\\u{1f}aOCLC010101\u{1f}2oclc\u{1e}\\\\\u{1f}aThoth\u{1f}beng\u{1f}erda\u{1e}1\\\u{1f}aeng\u{1f}hspa\u{1e}00\u{1f}aJA85\u{1e} 7\u{1f}aAAB\u{1f}2bicssc\u{1e} 7\u{1f}aAAA000000\u{1f}2bisacsh\u{1e} 7\u{1f}aJWA\u{1f}2thema\u{1e}1\\\u{1f}aSole Author\u{1f}eAuthor\u{1f}uThoth University\u{1e}00\u{1f}aBook Title\u{1f}h[electronic resource] :\u{1f}bBook Subtitle\u{1f}cSole Author; edited by Only Editor; translated by Translator.\u{1e}\\\\\u{1f}a1st edition\u{1e}\\1\u{1f}aLeón, Spain\u{1f}bOA Editions\u{1f}c2010\u{1e}\\4\u{1f}c©2010\u{1e}\\\\\u{1f}a1 online resource.\u{1e}\\\\\u{1f}atext\u{1f}btxt\u{1f}2rdacontent\u{1e}\\\\\u{1f}acomputer\u{1f}bc\u{1f}2rdamedia\u{1e}\\\\\u{1f}aonline resource\u{1f}bcr\u{1f}2rdacarrier\u{1e}1\\\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1e}\\\\\u{1f}aAvailable through OA Editions.\u{1e}\\\\\u{1f}aIncludes bibliography (pages 165-170) and index.\u{1e}0\\\u{1f}aIntroduction; Chapter 1; Chapter 2; Bibliography; Index\u{1e}\\\\\u{1f}aOpen access resource providing free access.\u{1e}\\\\\u{1f}aLorem ipsum dolor sit amet\u{1e}\\\\\u{1f}aFunding Institution\u{1f}cJA0001\u{1f}eFunding Programme\u{1f}fFunding Project\u{1e}\\\\\u{1f}aMode of access: World Wide Web.\u{1e}\\\\\u{1f}aThe text of this book is licensed under a Creative Commons Attribution 4.0 International license (CC BY 4.0). For more detailed information consult the publisher's website.\u{1f}uhttps://creativecommons.org/licenses/by/4.0/\u{1e}1\\\u{1f}aOnly Editor\u{1f}eEditor\u{1e}1\\\u{1f}aTranslator\u{1f}eTranslator\u{1f}uCOPIM\u{1e}2\\\u{1f}aOA Editions,\u{1f}epublisher.\u{1e}\\0\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1e}40\u{1f}uhttps://doi.org/10.00001/book.0001\u{1f}zConnect to e-book\u{1e}42\u{1f}uhttps://www.book.com/cover.jpg\u{1f}zConnect to cover image\u{1e}\u{1d}");
+
+        assert_eq!(Marc21RecordThoth {}.generate(&[work]), Ok(expected))
+    }
+
+    #[test]
+    fn test_generate_no_work_error() {
+        assert!(Marc21RecordThoth {}.generate(&[]).is_err())
+    }
+
+    #[test]
+    fn test_generate_chapter_error() {
+        let mut work = test_work();
+        work.work_type = WorkType::BOOK_CHAPTER;
+        assert!(Marc21RecordThoth {}.generate(&[work]).is_err())
+    }
+
+    #[test]
+    fn test_generate_no_publications_error() {
+        let mut work = test_work();
+        work.publications = vec![];
+        assert!(Marc21RecordThoth {}.generate(&[work]).is_err())
+    }
+
+    #[test]
+    fn test_generate_no_contributions_error() {
+        let mut work = test_work();
+        work.contributions = vec![];
+        assert!(Marc21RecordThoth {}.generate(&[work]).is_err())
+    }
+
+    #[test]
+    fn test_generate_no_publication_date_error() {
+        let mut work = test_work();
+        work.publication_date = None;
+        assert!(Marc21RecordThoth {}.generate(&[work]).is_err())
     }
 }
