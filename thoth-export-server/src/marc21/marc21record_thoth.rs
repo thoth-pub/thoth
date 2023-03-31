@@ -193,6 +193,20 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             title_field.add_subfield(b"c", contributors_string(&self.contributions).as_bytes())?; // statement of responsibility
         builder.add_field(title_field)?;
 
+        // 250 - edition statement
+        if let Some(edition) = &self.edition {
+            let suffix = match edition % 10 {
+                1 if edition % 100 != 11 => "st",
+                2 if edition % 100 != 12 => "nd",
+                3 if edition % 100 != 13 => "rd",
+                _ => "th",
+            };
+            let mut edition_field: FieldRepr = FieldRepr::from((b"250", "\\\\"));
+            edition_field = edition_field
+                .add_subfield(b"a", format!("{}{} edition", edition, suffix).as_bytes())?;
+            builder.add_field(edition_field)?;
+        }
+
         // 264 - publication
         let mut publication_field: FieldRepr = FieldRepr::from((b"264", "\\1"));
         if let Some(place) = self.place.clone() {
@@ -445,16 +459,13 @@ impl Marc21Field<Marc21RecordThoth> for WorkPublications {
 
 impl Marc21Field<Marc21RecordThoth> for WorkIssues {
     fn to_field(&self, builder: &mut RecordBuilder) -> ThothResult<()> {
-        for (field, indicator) in &[(b"490", "1\\"), (b"830", "\\0")] {
-            let mut series_field: FieldRepr = FieldRepr::from((field, indicator));
-            series_field =
-                series_field.add_subfield(b"a", self.series.series_name.clone().as_bytes())?;
-            series_field = series_field
-                .add_subfield(b"v", format!("vol. {}", self.issue_ordinal).as_bytes())?;
-            series_field =
-                series_field.add_subfield(b"x", self.series.issn_digital.clone().as_bytes())?;
-
-            builder.add_field(series_field)?;
+        let fields = [(b"490", "1\\"), (b"830", "\\0")];
+        for (field, indicator) in fields {
+            FieldRepr::from((field, indicator))
+                .add_subfield(b"a", &self.series.series_name.as_bytes())
+                .and_then(|f| f.add_subfield(b"v", format!("vol. {}", self.issue_ordinal).as_bytes()))
+                .and_then(|f| f.add_subfield(b"x", &self.series.issn_digital.as_bytes()))
+                .and_then(|f| builder.add_field(f))?;
         }
         Ok(())
     }
