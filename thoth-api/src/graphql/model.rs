@@ -2341,8 +2341,18 @@ impl Work {
         self.long_abstract.as_ref()
     }
 
+    #[graphql(
+        description = "A general-purpose field used to include information that does not have a specific designated field"
+    )]
     pub fn general_note(&self) -> Option<&String> {
         self.general_note.as_ref()
+    }
+
+    #[graphql(
+        description = "Indicates that the work contains a bibliogrpahy or other similar information"
+    )]
+    pub fn bibliography_note(&self) -> Option<&String> {
+        self.bibliography_note.as_ref()
     }
 
     #[graphql(description = "Table of contents of the work (not applicable to chapters)")]

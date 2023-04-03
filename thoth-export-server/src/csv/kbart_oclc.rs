@@ -253,6 +253,7 @@ mod tests {
                 "Lorem ipsum dolor sit amet, consectetur adipiscing elit".to_string(),
             ),
             general_note: None,
+            bibliography_note: None,
             place: Some("León, Spain".to_string()),
             page_count: Some(334),
             page_breakdown: Some("x+334".to_string()),

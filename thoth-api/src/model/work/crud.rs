@@ -248,6 +248,10 @@ impl Crud for Work {
                 Direction::Asc => query.order(dsl::general_note.asc()),
                 Direction::Desc => query.order(dsl::general_note.desc()),
             },
+            WorkField::BibliographyNote => match order.direction {
+                Direction::Asc => query.order(dsl::bibliography_note.asc()),
+                Direction::Desc => query.order(dsl::bibliography_note.desc()),
+            },
             WorkField::Toc => match order.direction {
                 Direction::Asc => query.order(dsl::toc.asc()),
                 Direction::Desc => query.order(dsl::toc.desc()),

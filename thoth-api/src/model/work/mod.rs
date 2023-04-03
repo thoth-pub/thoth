@@ -115,6 +115,7 @@ pub enum WorkField {
     ShortAbstract,
     LongAbstract,
     GeneralNote,
+    BibliographyNote,
     #[strum(serialize = "TOC")]
     Toc,
     #[strum(serialize = "CoverURL")]
@@ -158,6 +159,7 @@ pub struct Work {
     pub short_abstract: Option<String>,
     pub long_abstract: Option<String>,
     pub general_note: Option<String>,
+    pub bibliography_note: Option<String>,
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
@@ -197,6 +199,7 @@ pub struct WorkWithRelations {
     pub short_abstract: Option<String>,
     pub long_abstract: Option<String>,
     pub general_note: Option<String>,
+    pub bibliography_note: Option<String>,
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
@@ -246,6 +249,7 @@ pub struct NewWork {
     pub short_abstract: Option<String>,
     pub long_abstract: Option<String>,
     pub general_note: Option<String>,
+    pub bibliography_note: Option<String>,
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
@@ -286,6 +290,7 @@ pub struct PatchWork {
     pub short_abstract: Option<String>,
     pub long_abstract: Option<String>,
     pub general_note: Option<String>,
+    pub bibliography_note: Option<String>,
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,
@@ -386,6 +391,7 @@ impl From<Work> for PatchWork {
             short_abstract: w.short_abstract,
             long_abstract: w.long_abstract,
             general_note: w.general_note,
+            bibliography_note: w.bibliography_note,
             toc: w.toc,
             cover_url: w.cover_url,
             cover_caption: w.cover_caption,
@@ -492,6 +498,10 @@ fn test_workfield_display() {
     assert_eq!(format!("{}", WorkField::ShortAbstract), "ShortAbstract");
     assert_eq!(format!("{}", WorkField::LongAbstract), "LongAbstract");
     assert_eq!(format!("{}", WorkField::GeneralNote), "GeneralNote");
+    assert_eq!(
+        format!("{}", WorkField::BibliographyNote),
+        "BibliographyNote"
+    );
     assert_eq!(format!("{}", WorkField::Toc), "TOC");
     assert_eq!(format!("{}", WorkField::CoverUrl), "CoverURL");
     assert_eq!(format!("{}", WorkField::CoverCaption), "CoverCaption");
@@ -671,6 +681,10 @@ fn test_workfield_fromstr() {
         WorkField::from_str("GeneralNote").unwrap(),
         WorkField::GeneralNote
     );
+    assert_eq!(
+        WorkField::from_str("BibliographyNote").unwrap(),
+        WorkField::BibliographyNote
+    );
     assert_eq!(WorkField::from_str("TOC").unwrap(), WorkField::Toc);
     assert_eq!(
         WorkField::from_str("CoverURL").unwrap(),
@@ -728,6 +742,7 @@ fn test_work_into_patchwork() {
         short_abstract: Some("Short abstract".to_string()),
         long_abstract: Some("Long abstract".to_string()),
         general_note: None,
+        bibliography_note: None,
         toc: None,
         cover_url: Some("https://book.cover/image".to_string()),
         cover_caption: None,
@@ -766,6 +781,7 @@ fn test_work_into_patchwork() {
     assert_eq!(work.short_abstract, patch_work.short_abstract);
     assert_eq!(work.long_abstract, patch_work.long_abstract);
     assert_eq!(work.general_note, patch_work.general_note);
+    assert_eq!(work.bibliography_note, patch_work.bibliography_note);
     assert_eq!(work.toc, patch_work.toc);
     assert_eq!(work.cover_url, patch_work.cover_url);
     assert_eq!(work.cover_caption, patch_work.cover_caption);

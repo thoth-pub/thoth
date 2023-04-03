@@ -5743,6 +5743,16 @@
             {
               "defaultValue": null,
               "description": null,
+              "name": "bibliographyNote",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
               "name": "toc",
               "type": {
                 "kind": "SCALAR",
@@ -12252,6 +12262,18 @@
             {
               "args": [],
               "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "bibliographyNote",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": null,
               "description": "Table of contents of the work (not applicable to chapters)",
               "isDeprecated": false,
               "name": "toc",
@@ -15720,6 +15742,12 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
+              "name": "BIBLIOGRAPHY_NOTE"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
               "name": "TOC"
             },
             {
@@ -18723,6 +18751,16 @@
               "defaultValue": null,
               "description": null,
               "name": "generalNote",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "bibliographyNote",
               "type": {
                 "kind": "SCALAR",
                 "name": "String",
