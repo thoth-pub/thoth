@@ -18,7 +18,7 @@ use crate::schema::contribution_history;
     DieselTypePath = "crate::schema::sql_types::ContributionType"
 )]
 #[derive(
-    Debug, Clone, Default, Copy, PartialEq, Eq, Hash, Deserialize, Serialize, EnumString, Display,
+    Debug, Clone, Default, Copy, PartialEq, Eq, Deserialize, Serialize, EnumString, Display,
 )]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
