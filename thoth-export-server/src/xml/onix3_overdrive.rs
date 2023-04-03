@@ -539,13 +539,13 @@ fn get_publications_data(
 
     for publication in publications {
         if let Some(isbn) = &publication.isbn.as_ref().map(|i| i.to_string()) {
-            isbns.push(isbn.replace('-', ""));
+            isbns.push(isbn.to_hyphenless_string());
             // The default product ISBN is the main publication's (EPUB or PDF)
             if publication
                 .publication_id
                 .eq(&main_publication.publication_id)
             {
-                main_isbn = isbn.replace('-', "");
+                main_isbn = isbn.to_hyphenless_string();
             }
             // If the main publication has no ISBN, use either the PDF's or the paperback's
             // (no guarantee as to which will be chosen)
@@ -553,7 +553,7 @@ fn get_publications_data(
                 || publication.publication_type.eq(&PublicationType::PAPERBACK))
                 && main_isbn.is_empty()
             {
-                main_isbn = isbn.replace('-', "");
+                main_isbn = isbn.to_hyphenless_string();
             }
         }
     }

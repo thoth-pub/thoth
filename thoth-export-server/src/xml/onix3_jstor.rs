@@ -403,12 +403,10 @@ fn get_publications_data(publications: &[WorkPublications]) -> (String, String) 
     let main_isbn = pdf_isbn
         // Books that don't have a PDF ISBN will use the paperback's
         .or(paperback_isbn)
-        .map_or_else(|| "".to_string(), |i| i.to_string())
-        .replace('-', "");
+        .map_or_else(|| "".to_string(), |i| i.to_hyphenless_string());
     let print_isbn = hardback_isbn
         .or(paperback_isbn)
-        .map_or_else(|| "".to_string(), |i| i.to_string())
-        .replace('-', "");
+        .map_or_else(|| "".to_string(), |i| i.to_hyphenless_string());
 
     (main_isbn, print_isbn)
 }

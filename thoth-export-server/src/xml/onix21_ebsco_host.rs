@@ -433,15 +433,15 @@ fn get_publications_data(publications: &[WorkPublications]) -> (String, Vec<Stri
 
     for publication in publications {
         if let Some(isbn) = &publication.isbn.as_ref().map(|i| i.to_string()) {
-            isbns.push(isbn.replace('-', ""));
+            isbns.push(isbn.to_hyphenless_string());
             // The default product ISBN is the PDF's
             if publication.publication_type.eq(&PublicationType::PDF) {
-                main_isbn = isbn.replace('-', "");
+                main_isbn = isbn.to_hyphenless_string();
             }
             // Books that don't have a PDF ISBN will use the paperback's
             if publication.publication_type.eq(&PublicationType::PAPERBACK) && main_isbn.is_empty()
             {
-                main_isbn = isbn.replace('-', "");
+                main_isbn = isbn.to_hyphenless_string();
             }
         }
     }
