@@ -192,7 +192,7 @@ impl TryFrom<Work> for BibtexThothEntry {
                     chapter = Some(parent_relation.relation_ordinal);
                 }
                 // BibTeX page ranges require a double dash between the page numbers
-                pages = work.page_interval.map(|p| p.replace('-', "--"));
+                pages = work.page_interval.map(|p| p.replace('–', "--"));
             } else if work.work_type == WorkType::BOOK_SET {
                 // None of the standard BibTeX entry types are suitable for Book Sets
                 entry_type = "misc".to_string();
