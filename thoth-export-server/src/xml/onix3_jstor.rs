@@ -14,6 +14,8 @@ use thoth_errors::{ThothError, ThothResult};
 #[derive(Copy, Clone)]
 pub struct Onix3Jstor {}
 
+const ONIX_ERROR: &str = "onix_3.0::jstor";
+
 impl XmlSpecification for Onix3Jstor {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
         let mut attr_map: HashMap<&str, &str> = HashMap::new();
@@ -42,7 +44,7 @@ impl XmlSpecification for Onix3Jstor {
 
             match works.len() {
                 0 => Err(ThothError::IncompleteMetadataRecord(
-                    "onix_3.0::jstor".to_string(),
+                    ONIX_ERROR.to_string(),
                     "Not enough data".to_string(),
                 )),
                 1 => XmlElementBlock::<Onix3Jstor>::xml_element(works.first().unwrap(), w),
@@ -378,7 +380,7 @@ impl XmlElementBlock<Onix3Jstor> for Work {
             })
         } else {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_3.0::jstor".to_string(),
+                ONIX_ERROR.to_string(),
                 "Missing PDF URL".to_string(),
             ))
         }
@@ -403,12 +405,10 @@ fn get_publications_data(publications: &[WorkPublications]) -> (String, String) 
     let main_isbn = pdf_isbn
         // Books that don't have a PDF ISBN will use the paperback's
         .or(paperback_isbn)
-        .map_or_else(|| "".to_string(), |i| i.to_string())
-        .replace('-', "");
+        .map_or_else(|| "".to_string(), |i| i.to_hyphenless_string());
     let print_isbn = hardback_isbn
         .or(paperback_isbn)
-        .map_or_else(|| "".to_string(), |i| i.to_string())
-        .replace('-', "");
+        .map_or_else(|| "".to_string(), |i| i.to_hyphenless_string());
 
     (main_isbn, print_isbn)
 }
@@ -704,6 +704,7 @@ mod tests {
             short_abstract: None,
             long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
+            bibliography_note: None,
             place: Some("León, Spain".to_string()),
             page_count: Some(334),
             page_breakdown: None,

@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.10.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.10.0) - 2023-04-03
+### Added
+  - [42](https://github.com/thoth-pub/thoth/pull/42) - Generate MARC 21 records
+  - New `work` field `bibliography_note`
+
 ## [[0.9.18]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.18) - 2023-03-27
 ### Security
   - Upgrade `r2d2` to v0.8.10

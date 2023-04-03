@@ -651,6 +651,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cc_license"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9e604b8591d0dbbd946023bcf91b4171f944765c1eb6c73003d3928d9e8c64c"
+dependencies = [
+ "regex",
+]
+
+[[package]]
 name = "cfg-if"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2045,6 +2054,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "marc"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe64e04162cf64d8498413d3b89be57ca8ac067d08405097205bc6cec43b054b"
+
+[[package]]
 name = "matches"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3325,7 +3340,7 @@ dependencies = [
 
 [[package]]
 name = "thoth"
-version = "0.9.18"
+version = "0.10.0"
 dependencies = [
  "cargo-husky",
  "clap",
@@ -3340,7 +3355,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api"
-version = "0.9.18"
+version = "0.10.0"
 dependencies = [
  "actix-web",
  "argon2rs",
@@ -3369,7 +3384,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api-server"
-version = "0.9.18"
+version = "0.10.0"
 dependencies = [
  "actix-cors",
  "actix-identity",
@@ -3384,7 +3399,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app"
-version = "0.9.18"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3413,7 +3428,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app-server"
-version = "0.9.18"
+version = "0.10.0"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -3422,7 +3437,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-client"
-version = "0.9.18"
+version = "0.10.0"
 dependencies = [
  "chrono",
  "graphql_client",
@@ -3438,12 +3453,13 @@ dependencies = [
 
 [[package]]
 name = "thoth-errors"
-version = "0.9.18"
+version = "0.10.0"
 dependencies = [
  "actix-web",
  "csv",
  "diesel",
  "juniper",
+ "marc",
  "phf",
  "reqwest",
  "reqwest-middleware",
@@ -3457,16 +3473,18 @@ dependencies = [
 
 [[package]]
 name = "thoth-export-server"
-version = "0.9.18"
+version = "0.10.0"
 dependencies = [
  "actix-cors",
  "actix-web",
+ "cc_license",
  "chrono",
  "csv",
  "env_logger",
  "futures",
  "lazy_static",
  "log",
+ "marc",
  "paperclip",
  "regex",
  "serde",

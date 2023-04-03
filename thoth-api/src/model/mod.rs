@@ -255,6 +255,12 @@ impl Doi {
     }
 }
 
+impl Isbn {
+    pub fn to_hyphenless_string(&self) -> String {
+        self.0.replace('-', "")
+    }
+}
+
 #[cfg(feature = "backend")]
 #[allow(clippy::too_many_arguments)]
 /// Common functionality to perform basic CRUD actions on Thoth entities
@@ -809,6 +815,12 @@ fn test_ror_fromstr() {
     assert!(Ror::from_str("//ror.org/0abcdef12").is_err());
     assert!(Ror::from_str("https://ror-org/0abcdef12").is_err());
     assert!(Ror::from_str("0abcdef12https://ror.org/").is_err());
+}
+
+#[test]
+fn test_isbn_to_hyphenless_string() {
+    let hyphenless_isbn = Isbn("978-3-16-148410-0".to_string()).to_hyphenless_string();
+    assert_eq!(hyphenless_isbn, "9783161484100");
 }
 
 #[test]

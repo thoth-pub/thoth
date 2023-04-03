@@ -14,6 +14,8 @@ use thoth_errors::{ThothError, ThothResult};
 #[derive(Copy, Clone)]
 pub struct Onix21EbscoHost {}
 
+const ONIX_ERROR: &str = "onix_2.1::ebsco_host";
+
 impl XmlSpecification for Onix21EbscoHost {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
         write_full_element_block("ONIXMessage", None, None, w, |w| {
@@ -35,7 +37,7 @@ impl XmlSpecification for Onix21EbscoHost {
 
             match works.len() {
                 0 => Err(ThothError::IncompleteMetadataRecord(
-                    "onix_2.1::ebsco_host".to_string(),
+                    ONIX_ERROR.to_string(),
                     "Not enough data".to_string(),
                 )),
                 1 => XmlElementBlock::<Onix21EbscoHost>::xml_element(works.first().unwrap(), w),
@@ -420,7 +422,7 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
             })
         } else {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_2.1::ebsco_host".to_string(),
+                ONIX_ERROR.to_string(),
                 "No unpriced PDF or EPUB URL".to_string(),
             ))
         }
@@ -432,16 +434,16 @@ fn get_publications_data(publications: &[WorkPublications]) -> (String, Vec<Stri
     let mut isbns: Vec<String> = Vec::new();
 
     for publication in publications {
-        if let Some(isbn) = &publication.isbn.as_ref().map(|i| i.to_string()) {
-            isbns.push(isbn.replace('-', ""));
+        if let Some(isbn) = &publication.isbn.as_ref() {
+            isbns.push(isbn.to_hyphenless_string());
             // The default product ISBN is the PDF's
             if publication.publication_type.eq(&PublicationType::PDF) {
-                main_isbn = isbn.replace('-', "");
+                main_isbn = isbn.to_hyphenless_string();
             }
             // Books that don't have a PDF ISBN will use the paperback's
             if publication.publication_type.eq(&PublicationType::PAPERBACK) && main_isbn.is_empty()
             {
-                main_isbn = isbn.replace('-', "");
+                main_isbn = isbn.to_hyphenless_string();
             }
         }
     }
@@ -867,6 +869,7 @@ mod tests {
             short_abstract: None,
             long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
+            bibliography_note: None,
             place: Some("León, Spain".to_string()),
             page_count: Some(334),
             page_breakdown: None,

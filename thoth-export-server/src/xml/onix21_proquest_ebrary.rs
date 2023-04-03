@@ -14,6 +14,8 @@ use thoth_errors::{ThothError, ThothResult};
 #[derive(Copy, Clone)]
 pub struct Onix21ProquestEbrary {}
 
+const ONIX_ERROR: &str = "onix_2.1::proquest_ebrary";
+
 // This specification is exactly the same as EBSCO Host's except for the price point:
 // 0.00 (ProQuest Ebrary) instead of 0.01 (EBSCO Host)
 impl XmlSpecification for Onix21ProquestEbrary {
@@ -37,7 +39,7 @@ impl XmlSpecification for Onix21ProquestEbrary {
 
             match works.len() {
                 0 => Err(ThothError::IncompleteMetadataRecord(
-                    "onix_2.1::proquest_ebrary".to_string(),
+                    ONIX_ERROR.to_string(),
                     "Not enough data".to_string(),
                 )),
                 1 => {
@@ -422,7 +424,7 @@ impl XmlElementBlock<Onix21ProquestEbrary> for Work {
             })
         } else {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_2.1::proquest_ebrary".to_string(),
+                ONIX_ERROR.to_string(),
                 "No unpriced PDF or EPUB URL".to_string(),
             ))
         }
@@ -434,16 +436,16 @@ fn get_publications_data(publications: &[WorkPublications]) -> (String, Vec<Stri
     let mut isbns: Vec<String> = Vec::new();
 
     for publication in publications {
-        if let Some(isbn) = &publication.isbn.as_ref().map(|i| i.to_string()) {
-            isbns.push(isbn.replace('-', ""));
+        if let Some(isbn) = &publication.isbn.as_ref() {
+            isbns.push(isbn.to_hyphenless_string());
             // The default product ISBN is the PDF's
             if publication.publication_type.eq(&PublicationType::PDF) {
-                main_isbn = isbn.replace('-', "");
+                main_isbn = isbn.to_hyphenless_string();
             }
             // Books that don't have a PDF ISBN will use the paperback's
             if publication.publication_type.eq(&PublicationType::PAPERBACK) && main_isbn.is_empty()
             {
-                main_isbn = isbn.replace('-', "");
+                main_isbn = isbn.to_hyphenless_string();
             }
         }
     }
@@ -870,6 +872,7 @@ mod tests {
             short_abstract: None,
             long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
+            bibliography_note: None,
             place: Some("León, Spain".to_string()),
             page_count: Some(334),
             page_breakdown: None,

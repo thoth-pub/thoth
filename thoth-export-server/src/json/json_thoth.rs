@@ -8,6 +8,8 @@ use super::JsonSpecification;
 #[derive(Copy, Clone)]
 pub(crate) struct JsonThoth;
 
+const JSON_ERROR: &str = "json::thoth";
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct JsonWrapper<T: Serialize> {
@@ -20,7 +22,7 @@ impl JsonSpecification for JsonThoth {
     fn handle_event(works: &[Work]) -> ThothResult<String> {
         match works.len() {
             0 => Err(ThothError::IncompleteMetadataRecord(
-                "json::thoth".to_string(),
+                JSON_ERROR.to_string(),
                 "Not enough data".to_string(),
             )),
             1 => {
@@ -86,6 +88,7 @@ mod tests {
             short_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.".to_string()),
             long_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string()),
             general_note: Some("This is a general note".to_string()),
+            bibliography_note: Some("This is a bibliography note".to_string()),
             place: Some("León, Spain".to_string()),
             page_count: Some(334),
             page_breakdown: Some("x+334".to_string()),
@@ -441,6 +444,7 @@ mod tests {
   "shortAbstract": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.",
   "longAbstract": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.",
   "generalNote": "This is a general note",
+  "bibliographyNote": "This is a bibliography note",
   "place": "León, Spain",
   "pageCount": 334,
   "pageBreakdown": "x+334",

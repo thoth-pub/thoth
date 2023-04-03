@@ -9,6 +9,8 @@ use super::{BibtexEntry, BibtexSpecification};
 #[derive(Copy, Clone)]
 pub(crate) struct BibtexThoth;
 
+const BIBTEX_ERROR: &str = "bibtex::thoth";
+
 #[derive(Debug)]
 struct BibtexThothEntry {
     entry_type: String,
@@ -39,7 +41,7 @@ impl BibtexSpecification for BibtexThoth {
     fn handle_event(w: &mut Vec<u8>, works: &[Work]) -> ThothResult<()> {
         match works.len() {
             0 => Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::thoth".to_string(),
+                BIBTEX_ERROR.to_string(),
                 "Not enough data".to_string(),
             )),
             1 => BibtexEntry::<BibtexThoth>::bibtex_entry(works.first().unwrap(), w),
@@ -138,7 +140,7 @@ impl TryFrom<Work> for BibtexThothEntry {
         // Publication year is mandatory for books/chapters in BibTeX
         if work.publication_date.is_none() {
             return Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::thoth".to_string(),
+                BIBTEX_ERROR.to_string(),
                 "Missing Publication Date".to_string(),
             ));
         }
@@ -161,7 +163,7 @@ impl TryFrom<Work> for BibtexThothEntry {
         // BibTeX book/chapter records must contain either author or editor
         if author_list.is_empty() && editor_list.is_empty() {
             Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::thoth".to_string(),
+                BIBTEX_ERROR.to_string(),
                 "Missing Author/Editor Details".to_string(),
             ))
         } else {
@@ -192,7 +194,7 @@ impl TryFrom<Work> for BibtexThothEntry {
                     chapter = Some(parent_relation.relation_ordinal);
                 }
                 // BibTeX page ranges require a double dash between the page numbers
-                pages = work.page_interval.map(|p| p.replace('-', "--"));
+                pages = work.page_interval.map(|p| p.replace('–', "--"));
             } else if work.work_type == WorkType::BOOK_SET {
                 // None of the standard BibTeX entry types are suitable for Book Sets
                 entry_type = "misc".to_string();
@@ -298,6 +300,7 @@ mod tests {
             short_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.".to_string()),
             long_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string()),
             general_note: Some("This is a general note".to_string()),
+            bibliography_note: None,
             place: Some("León, Spain".to_string()),
             page_count: Some(334),
             page_breakdown: Some("x+334".to_string()),
@@ -562,7 +565,7 @@ mod tests {
         test_work.work_type = WorkType::BOOK_CHAPTER;
         // We need to manually set the page range in this test framework, but within
         // the Thoth database this is automatically derived from first + last page
-        test_work.page_interval = Some("10-20".to_string());
+        test_work.page_interval = Some("10–20".to_string());
         let to_test = BibtexThoth.generate(&[test_work.clone()]);
         let test_result = "@inbook{1999-12-31,
 \ttitle\t\t= {Work Title},
@@ -585,7 +588,7 @@ mod tests {
         assert_eq!(
             to_test,
             Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::thoth".to_string(),
+                BIBTEX_ERROR.to_string(),
                 "Missing Publication Date".to_string(),
             ))
         );
@@ -597,7 +600,7 @@ mod tests {
         assert_eq!(
             to_test,
             Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::thoth".to_string(),
+                BIBTEX_ERROR.to_string(),
                 "Missing Author/Editor Details".to_string(),
             ))
         );
