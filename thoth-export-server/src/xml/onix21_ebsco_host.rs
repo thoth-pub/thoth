@@ -14,6 +14,8 @@ use thoth_errors::{ThothError, ThothResult};
 #[derive(Copy, Clone)]
 pub struct Onix21EbscoHost {}
 
+const ONIX_ERROR: &str = "onix_2.1::ebsco_host";
+
 impl XmlSpecification for Onix21EbscoHost {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
         write_full_element_block("ONIXMessage", None, None, w, |w| {
@@ -35,7 +37,7 @@ impl XmlSpecification for Onix21EbscoHost {
 
             match works.len() {
                 0 => Err(ThothError::IncompleteMetadataRecord(
-                    "onix_2.1::ebsco_host".to_string(),
+                    ONIX_ERROR.to_string(),
                     "Not enough data".to_string(),
                 )),
                 1 => XmlElementBlock::<Onix21EbscoHost>::xml_element(works.first().unwrap(), w),
@@ -420,7 +422,7 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
             })
         } else {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_2.1::ebsco_host".to_string(),
+                ONIX_ERROR.to_string(),
                 "No unpriced PDF or EPUB URL".to_string(),
             ))
         }

@@ -14,6 +14,8 @@ use thoth_errors::{ThothError, ThothResult};
 #[derive(Copy, Clone)]
 pub struct Onix3Jstor {}
 
+const ONIX_ERROR: &str = "onix_3.0::jstor";
+
 impl XmlSpecification for Onix3Jstor {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
         let mut attr_map: HashMap<&str, &str> = HashMap::new();
@@ -42,7 +44,7 @@ impl XmlSpecification for Onix3Jstor {
 
             match works.len() {
                 0 => Err(ThothError::IncompleteMetadataRecord(
-                    "onix_3.0::jstor".to_string(),
+                    ONIX_ERROR.to_string(),
                     "Not enough data".to_string(),
                 )),
                 1 => XmlElementBlock::<Onix3Jstor>::xml_element(works.first().unwrap(), w),
@@ -378,7 +380,7 @@ impl XmlElementBlock<Onix3Jstor> for Work {
             })
         } else {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_3.0::jstor".to_string(),
+                ONIX_ERROR.to_string(),
                 "Missing PDF URL".to_string(),
             ))
         }

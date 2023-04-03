@@ -10,6 +10,8 @@ use super::{CsvRow, CsvSpecification};
 #[derive(Copy, Clone)]
 pub(crate) struct KbartOclc;
 
+const KBART_ERROR: &str = "kbart::oclc";
+
 #[derive(Debug, Serialize)]
 struct KbartOclcRow {
     publication_title: String,
@@ -43,7 +45,7 @@ impl CsvSpecification for KbartOclc {
     fn handle_event<W: Write>(w: &mut Writer<W>, works: &[Work]) -> ThothResult<()> {
         match works.len() {
             0 => Err(ThothError::IncompleteMetadataRecord(
-                "kbart::oclc".to_string(),
+                KBART_ERROR.to_string(),
                 "Not enough data".to_string(),
             )),
             1 => CsvRow::<KbartOclc>::csv_row(works.first().unwrap(), w),
@@ -75,13 +77,13 @@ impl TryFrom<Work> for KbartOclcRow {
         // title_url is mandatory in KBART but optional in Thoth
         if work.landing_page.is_none() {
             Err(ThothError::IncompleteMetadataRecord(
-                "kbart::oclc".to_string(),
+                KBART_ERROR.to_string(),
                 "Missing Landing Page".to_string(),
             ))
         // Don't output works with no publication date (mandatory in KBART)
         } else if work.publication_date.is_none() {
             Err(ThothError::IncompleteMetadataRecord(
-                "kbart::oclc".to_string(),
+                KBART_ERROR.to_string(),
                 "Missing Publication Date".to_string(),
             ))
         } else {
@@ -512,7 +514,7 @@ mod tests {
         assert_eq!(
             to_test,
             Err(ThothError::IncompleteMetadataRecord(
-                "kbart::oclc".to_string(),
+                KBART_ERROR.to_string(),
                 "Missing Landing Page".to_string(),
             ))
         );
@@ -525,7 +527,7 @@ mod tests {
         assert_eq!(
             to_test,
             Err(ThothError::IncompleteMetadataRecord(
-                "kbart::oclc".to_string(),
+                KBART_ERROR.to_string(),
                 "Missing Publication Date".to_string(),
             ))
         );

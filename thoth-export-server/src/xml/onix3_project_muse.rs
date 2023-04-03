@@ -14,6 +14,8 @@ use thoth_errors::{ThothError, ThothResult};
 #[derive(Copy, Clone)]
 pub struct Onix3ProjectMuse {}
 
+const ONIX_ERROR: &str = "onix_3.0::project_muse";
+
 impl XmlSpecification for Onix3ProjectMuse {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
         let mut attr_map: HashMap<&str, &str> = HashMap::new();
@@ -42,7 +44,7 @@ impl XmlSpecification for Onix3ProjectMuse {
 
             match works.len() {
                 0 => Err(ThothError::IncompleteMetadataRecord(
-                    "onix_3.0::project_muse".to_string(),
+                    ONIX_ERROR.to_string(),
                     "Not enough data".to_string(),
                 )),
                 1 => XmlElementBlock::<Onix3ProjectMuse>::xml_element(works.first().unwrap(), w),
@@ -70,7 +72,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
             .any(|s| s.subject_type.eq(&SubjectType::BISAC) || s.subject_type.eq(&SubjectType::BIC))
         {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_3.0::project_muse".to_string(),
+                ONIX_ERROR.to_string(),
                 "No BIC or BISAC subject code".to_string(),
             ))
         }
@@ -396,7 +398,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
             })
         } else {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_3.0::project_muse".to_string(),
+                ONIX_ERROR.to_string(),
                 "Missing PDF URL".to_string(),
             ))
         }

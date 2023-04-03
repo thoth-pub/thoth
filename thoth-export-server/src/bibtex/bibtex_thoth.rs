@@ -9,6 +9,8 @@ use super::{BibtexEntry, BibtexSpecification};
 #[derive(Copy, Clone)]
 pub(crate) struct BibtexThoth;
 
+const BIBTEX_ERROR: &str = "bibtex::thoth";
+
 #[derive(Debug)]
 struct BibtexThothEntry {
     entry_type: String,
@@ -39,7 +41,7 @@ impl BibtexSpecification for BibtexThoth {
     fn handle_event(w: &mut Vec<u8>, works: &[Work]) -> ThothResult<()> {
         match works.len() {
             0 => Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::thoth".to_string(),
+                BIBTEX_ERROR.to_string(),
                 "Not enough data".to_string(),
             )),
             1 => BibtexEntry::<BibtexThoth>::bibtex_entry(works.first().unwrap(), w),
@@ -138,7 +140,7 @@ impl TryFrom<Work> for BibtexThothEntry {
         // Publication year is mandatory for books/chapters in BibTeX
         if work.publication_date.is_none() {
             return Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::thoth".to_string(),
+                BIBTEX_ERROR.to_string(),
                 "Missing Publication Date".to_string(),
             ));
         }
@@ -161,7 +163,7 @@ impl TryFrom<Work> for BibtexThothEntry {
         // BibTeX book/chapter records must contain either author or editor
         if author_list.is_empty() && editor_list.is_empty() {
             Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::thoth".to_string(),
+                BIBTEX_ERROR.to_string(),
                 "Missing Author/Editor Details".to_string(),
             ))
         } else {
@@ -586,7 +588,7 @@ mod tests {
         assert_eq!(
             to_test,
             Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::thoth".to_string(),
+                BIBTEX_ERROR.to_string(),
                 "Missing Publication Date".to_string(),
             ))
         );
@@ -598,7 +600,7 @@ mod tests {
         assert_eq!(
             to_test,
             Err(ThothError::IncompleteMetadataRecord(
-                "bibtex::thoth".to_string(),
+                BIBTEX_ERROR.to_string(),
                 "Missing Author/Editor Details".to_string(),
             ))
         );

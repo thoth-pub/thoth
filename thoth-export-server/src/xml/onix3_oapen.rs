@@ -14,6 +14,8 @@ use thoth_errors::{ThothError, ThothResult};
 #[derive(Copy, Clone)]
 pub struct Onix3Oapen {}
 
+const ONIX_ERROR: &str = "onix_3.0::oapen";
+
 impl XmlSpecification for Onix3Oapen {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
         let mut attr_map: HashMap<&str, &str> = HashMap::new();
@@ -42,7 +44,7 @@ impl XmlSpecification for Onix3Oapen {
 
             match works.len() {
                 0 => Err(ThothError::IncompleteMetadataRecord(
-                    "onix_3.0::oapen".to_string(),
+                    ONIX_ERROR.to_string(),
                     "Not enough data".to_string(),
                 )),
                 1 => XmlElementBlock::<Onix3Oapen>::xml_element(works.first().unwrap(), w),
@@ -388,7 +390,7 @@ impl XmlElementBlock<Onix3Oapen> for Work {
             })
         } else {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_3.0::oapen".to_string(),
+                ONIX_ERROR.to_string(),
                 "Missing PDF URL".to_string(),
             ))
         }

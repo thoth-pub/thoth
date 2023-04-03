@@ -8,6 +8,8 @@ use super::JsonSpecification;
 #[derive(Copy, Clone)]
 pub(crate) struct JsonThoth;
 
+const JSON_ERROR: &str = "json::thoth";
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct JsonWrapper<T: Serialize> {
@@ -20,7 +22,7 @@ impl JsonSpecification for JsonThoth {
     fn handle_event(works: &[Work]) -> ThothResult<String> {
         match works.len() {
             0 => Err(ThothError::IncompleteMetadataRecord(
-                "json::thoth".to_string(),
+                JSON_ERROR.to_string(),
                 "Not enough data".to_string(),
             )),
             1 => {

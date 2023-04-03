@@ -14,6 +14,8 @@ use thoth_errors::{ThothError, ThothResult};
 #[derive(Copy, Clone)]
 pub struct Onix21ProquestEbrary {}
 
+const ONIX_ERROR: &str = "onix_2.1::proquest_ebrary";
+
 // This specification is exactly the same as EBSCO Host's except for the price point:
 // 0.00 (ProQuest Ebrary) instead of 0.01 (EBSCO Host)
 impl XmlSpecification for Onix21ProquestEbrary {
@@ -37,7 +39,7 @@ impl XmlSpecification for Onix21ProquestEbrary {
 
             match works.len() {
                 0 => Err(ThothError::IncompleteMetadataRecord(
-                    "onix_2.1::proquest_ebrary".to_string(),
+                    ONIX_ERROR.to_string(),
                     "Not enough data".to_string(),
                 )),
                 1 => {
@@ -422,7 +424,7 @@ impl XmlElementBlock<Onix21ProquestEbrary> for Work {
             })
         } else {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_2.1::proquest_ebrary".to_string(),
+                ONIX_ERROR.to_string(),
                 "No unpriced PDF or EPUB URL".to_string(),
             ))
         }

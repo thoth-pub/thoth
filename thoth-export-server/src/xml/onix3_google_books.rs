@@ -14,6 +14,8 @@ use thoth_errors::{ThothError, ThothResult};
 #[derive(Copy, Clone)]
 pub struct Onix3GoogleBooks {}
 
+const ONIX_ERROR: &str = "onix_3.0::google_books";
+
 // Output format based on documentation at https://support.google.com/books/partner/answer/6374180.
 impl XmlSpecification for Onix3GoogleBooks {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
@@ -49,7 +51,7 @@ impl XmlSpecification for Onix3GoogleBooks {
 
             match works.len() {
                 0 => Err(ThothError::IncompleteMetadataRecord(
-                    "onix_3.0::google_books".to_string(),
+                    ONIX_ERROR.to_string(),
                     "Not enough data".to_string(),
                 )),
                 1 => XmlElementBlock::<Onix3GoogleBooks>::xml_element(works.first().unwrap(), w),
@@ -73,13 +75,13 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
         // Don't output works with no publication date (mandatory in Google Books)
         if self.publication_date.is_none() {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_3.0::google_books".to_string(),
+                ONIX_ERROR.to_string(),
                 "Missing Publication Date".to_string(),
             ))
         // Don't output works with no contributors (at least one required for Google Books)
         } else if self.contributions.is_empty() {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_3.0::google_books".to_string(),
+                ONIX_ERROR.to_string(),
                 "No contributors supplied".to_string(),
             ))
         // We can only generate the document if there's an EPUB or PDF
@@ -107,7 +109,7 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
             if main_isbn.is_empty() {
                 // Google Books requires at least one ProductIdentifier block with an ISBN type
                 return Err(ThothError::IncompleteMetadataRecord(
-                    "onix_3.0::google_books".to_string(),
+                    ONIX_ERROR.to_string(),
                     "This work does not have a PDF, EPUB or paperback ISBN".to_string(),
                 ));
             }
@@ -436,7 +438,7 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
             })
         } else {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_3.0::google_books".to_string(),
+                ONIX_ERROR.to_string(),
                 "Missing EPUB or PDF URL".to_string(),
             ))
         }
