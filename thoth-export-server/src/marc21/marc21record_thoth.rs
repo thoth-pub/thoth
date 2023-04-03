@@ -96,9 +96,9 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
 
         // 010 - LCCN
         if let Some(lccn) = self.lccn.clone() {
-            let mut lccn_field: FieldRepr = FieldRepr::from((b"010", "\\\\"));
-            lccn_field = lccn_field.add_subfield(b"a", lccn.as_bytes())?;
-            builder.add_field(lccn_field)?;
+            FieldRepr::from((b"010", "\\\\"))
+                .add_subfield(b"a", lccn.into_bytes())
+                .and_then(|f| builder.add_field(f))?;
         }
 
         // 020 - ISBN
@@ -112,32 +112,32 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
                 format!("{} (Online)", issue.series.issn_digital.clone()),
                 format!("{} (Print)", issue.series.issn_print.clone()),
             ] {
-                let mut issn_field: FieldRepr = FieldRepr::from((b"022", "\\\\"));
-                issn_field = issn_field.add_subfield(b"a", issn.as_bytes())?;
-                builder.add_field(issn_field)?;
+                FieldRepr::from((b"022", "\\\\"))
+                    .add_subfield(b"a", issn.as_bytes())
+                    .and_then(|f| builder.add_field(f))?;
             }
         }
 
         // 024 - standard identifiers (DOI, OCLC)
         if let Some(doi) = &self.doi {
-            let mut doi_field: FieldRepr = FieldRepr::from((b"024", "7\\"));
-            doi_field = doi_field.add_subfield(b"a", doi.to_string().as_bytes())?;
-            doi_field = doi_field.add_subfield(b"2", "doi")?;
-            builder.add_field(doi_field)?;
+            FieldRepr::from((b"024", "7\\"))
+                .add_subfield(b"a", doi.to_string().as_bytes())
+                .and_then(|f| f.add_subfield(b"2", "doi"))
+                .and_then(|f| builder.add_field(f))?;
         }
         if let Some(oclc) = &self.oclc {
-            let mut oclc_field: FieldRepr = FieldRepr::from((b"024", "7\\"));
-            oclc_field = oclc_field.add_subfield(b"a", oclc.clone().as_bytes())?;
-            oclc_field = oclc_field.add_subfield(b"2", "oclc")?;
-            builder.add_field(oclc_field)?;
+            FieldRepr::from((b"024", "7\\"))
+                .add_subfield(b"a", oclc.clone().as_bytes())
+                .and_then(|f| f.add_subfield(b"2", "oclc"))
+                .and_then(|f| builder.add_field(f))?;
         }
 
-        // 040 - cataloging source field \\$aStSaUL$beng$erda
-        let mut cataloguing_field: FieldRepr = FieldRepr::from((b"040", "\\\\"));
-        cataloguing_field = cataloguing_field.add_subfield(b"a", "Thoth")?;
-        cataloguing_field = cataloguing_field.add_subfield(b"b", "eng")?;
-        cataloguing_field = cataloguing_field.add_subfield(b"e", "rda")?;
-        builder.add_field(cataloguing_field)?;
+        // 040 - cataloging source field
+        FieldRepr::from((b"040", "\\\\"))
+            .add_subfield(b"a", "Thoth")
+            .and_then(|f| f.add_subfield(b"b", "eng"))
+            .and_then(|f| f.add_subfield(b"e", "rda"))
+            .and_then(|f| builder.add_field(f))?;
 
         // 041 - language
         if let Some(language_field) = language_field(&self.languages) {
@@ -186,16 +186,18 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
 
         // 245 – title
-        let mut title_field: FieldRepr = FieldRepr::from((b"245", "00")); // no title added entry
-        title_field = title_field.add_subfield(b"a", self.title.clone().into_bytes())?; // main title
-        title_field = title_field.add_subfield(b"h", b"[electronic resource] :")?; // general material designation (GMD)
-        if let Some(subtitle) = self.subtitle.clone() {
-            title_field = title_field.add_subfield(b"b", subtitle.into_bytes())?;
-            // subtitle
-        }
-        title_field =
-            title_field.add_subfield(b"c", contributors_string(&self.contributions).as_bytes())?; // statement of responsibility
-        builder.add_field(title_field)?;
+        FieldRepr::from((b"245", "00"))
+            .add_subfield(b"a", self.title.clone().into_bytes())
+            .and_then(|f| f.add_subfield(b"h", b"[electronic resource] :"))
+            .and_then(|f| {
+                if let Some(subtitle) = self.subtitle.clone() {
+                    f.add_subfield(b"b", subtitle.into_bytes())
+                } else {
+                    Ok(f)
+                }
+            })
+            .and_then(|f| f.add_subfield(b"c", contributors_string(&self.contributions).as_bytes()))
+            .and_then(|f| builder.add_field(f))?;
 
         // 250 - edition statement
         if let Some(edition) = &self.edition {
@@ -205,60 +207,62 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
                 3 if edition % 100 != 13 => "rd",
                 _ => "th",
             };
-            let mut edition_field: FieldRepr = FieldRepr::from((b"250", "\\\\"));
-            edition_field = edition_field
-                .add_subfield(b"a", format!("{}{} edition", edition, suffix).as_bytes())?;
-            builder.add_field(edition_field)?;
+            FieldRepr::from((b"250", "\\\\"))
+                .add_subfield(b"a", format!("{}{} edition", edition, suffix).as_bytes())
+                .and_then(|f| builder.add_field(f))?;
         }
 
         // 264 - publication
-        let mut publication_field: FieldRepr = FieldRepr::from((b"264", "\\1"));
-        if let Some(place) = self.place.clone() {
-            publication_field = publication_field.add_subfield(b"a", place.into_bytes())?;
-            // place of publication
-        }
-        publication_field = publication_field.add_subfield(
-            b"b",
-            self.imprint.publisher.publisher_name.clone().into_bytes(),
-        )?; // publisher
-            // year of publication is used in two 264 fields, let's do both
         let year = publication_date.year().to_string();
-        publication_field = publication_field.add_subfield(b"c", year.clone().into_bytes())?;
-        let mut copyright_year_field = FieldRepr::from((b"264", "\\4"));
-        copyright_year_field =
-            copyright_year_field.add_subfield(b"c", format!("©{}", year).into_bytes())?;
-        builder.add_field(publication_field)?;
-        builder.add_field(copyright_year_field)?;
+        if let Some(place) = self.place.clone() {
+            FieldRepr::from((b"264", "\\1"))
+                .add_subfield(b"a", place.into_bytes())
+                .and_then(|f| {
+                    f.add_subfield(
+                        b"b",
+                        self.imprint.publisher.publisher_name.clone().into_bytes(),
+                    )
+                })
+                .and_then(|f| f.add_subfield(b"c", year.clone().into_bytes()))
+                .and_then(|f| builder.add_field(f))?;
+        }
+        FieldRepr::from((b"264", "\\4"))
+            .add_subfield(b"c", format!("©{}", year).into_bytes())
+            .and_then(|f| builder.add_field(f))?;
 
         // 300 - extent and physical description
-        let mut extent_field: FieldRepr = FieldRepr::from((b"300", "\\\\"));
         let (extent_str, resource_count) = description_string(self);
-        extent_field = extent_field.add_subfield(b"a", extent_str)?;
-        if let Some(resource_count_str) = resource_count {
-            extent_field = extent_field.add_subfield(b"b", resource_count_str)?;
-        }
-        builder.add_field(extent_field)?;
+        FieldRepr::from((b"300", "\\\\"))
+            .add_subfield(b"a", extent_str)
+            .and_then(|f| {
+                if let Some(resource_count_str) = resource_count {
+                    f.add_subfield(b"b", resource_count_str)
+                } else {
+                    Ok(f)
+                }
+            })
+            .and_then(|f| builder.add_field(f))?;
 
         // 336 - content type
-        let mut content_type_field: FieldRepr = FieldRepr::from((b"336", "\\\\"));
-        content_type_field = content_type_field.add_subfield(b"a", "text")?;
-        content_type_field = content_type_field.add_subfield(b"b", "txt")?;
-        content_type_field = content_type_field.add_subfield(b"2", "rdacontent")?;
-        builder.add_field(content_type_field)?;
+        FieldRepr::from((b"336", "\\\\"))
+            .add_subfield(b"a", "text")
+            .and_then(|f| f.add_subfield(b"b", "txt"))
+            .and_then(|f| f.add_subfield(b"2", "rdacontent"))
+            .and_then(|f| builder.add_field(f))?;
 
         // 337 - type of material
-        let mut material_field: FieldRepr = FieldRepr::from((b"337", "\\\\"));
-        material_field = material_field.add_subfield(b"a", "computer")?;
-        material_field = material_field.add_subfield(b"b", "c")?;
-        material_field = material_field.add_subfield(b"2", "rdamedia")?;
-        builder.add_field(material_field)?;
+        FieldRepr::from((b"337", "\\\\"))
+            .add_subfield(b"a", "computer")
+            .and_then(|f| f.add_subfield(b"b", "c"))
+            .and_then(|f| f.add_subfield(b"2", "rdamedia"))
+            .and_then(|f| builder.add_field(f))?;
 
         // 338 - type of media
-        let mut media_field: FieldRepr = FieldRepr::from((b"338", "\\\\"));
-        media_field = media_field.add_subfield(b"a", "online resource")?;
-        media_field = media_field.add_subfield(b"b", "cr")?;
-        media_field = media_field.add_subfield(b"2", "rdacarrier")?;
-        builder.add_field(media_field)?;
+        FieldRepr::from((b"338", "\\\\"))
+            .add_subfield(b"a", "online resource")
+            .and_then(|f| f.add_subfield(b"b", "cr"))
+            .and_then(|f| f.add_subfield(b"2", "rdacarrier"))
+            .and_then(|f| builder.add_field(f))?;
 
         // 409 and 830 - series
         for issue in &self.issues {
@@ -287,22 +291,21 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
 
         // 505 - contents note
         if let Some(toc) = self.toc.clone() {
-            let mut toc_field: FieldRepr = FieldRepr::from((b"505", "0\\"));
-            toc_field = toc_field.add_subfield(b"a", toc.into_bytes())?;
-            builder.add_field(toc_field)?;
+            FieldRepr::from((b"505", "0\\"))
+                .add_subfield(b"a", toc.into_bytes())
+                .and_then(|f| builder.add_field(f))?;
         }
 
         // 506 - restrictions on access
-        let mut restrictions_field: FieldRepr = FieldRepr::from((b"506", "\\\\"));
-        restrictions_field =
-            restrictions_field.add_subfield(b"a", "Open access resource providing free access.")?;
-        builder.add_field(restrictions_field)?;
+        FieldRepr::from((b"506", "\\\\"))
+            .add_subfield(b"a", "Open access resource providing free access.")
+            .and_then(|f| builder.add_field(f))?;
 
         // 520 - abstract
         if let Some(long_abstract) = self.long_abstract.clone() {
-            let mut abstract_field: FieldRepr = FieldRepr::from((b"520", "\\\\"));
-            abstract_field = abstract_field.add_subfield(b"a", long_abstract.into_bytes())?;
-            builder.add_field(abstract_field)?;
+            FieldRepr::from((b"520", "\\\\"))
+                .add_subfield(b"a", long_abstract.into_bytes())
+                .and_then(|f| builder.add_field(f))?;
         }
 
         // 536 - funding
@@ -311,45 +314,44 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
 
         // 538 - mode of access
-        let mut access_field: FieldRepr = FieldRepr::from((b"538", "\\\\"));
-        access_field = access_field.add_subfield(b"a", "Mode of access: World Wide Web.")?;
-        builder.add_field(access_field)?;
+        FieldRepr::from((b"538", "\\\\"))
+            .add_subfield(b"a", "Mode of access: World Wide Web.")
+            .and_then(|f| builder.add_field(f))?;
 
         // 540 - license
         if let Some(license_url) = self.license.clone() {
-            let mut license_field: FieldRepr = FieldRepr::from((b"540", "\\\\"));
-            match License::from_url(&license_url) {
-                Ok(license) => license_field =
-                    license_field.add_subfield(b"a", format!("The text of this book is licensed under a {} For more detailed information consult the publisher's website.", license.to_string()).into_bytes())?,
-                Err(_) => license_field =
-                    license_field.add_subfield(b"a", "The text of this book is licensed under a custom license. For more detailed information consult the publisher's website.")?,
-            }
-            license_field = license_field.add_subfield(b"u", license_url.into_bytes())?;
-            builder.add_field(license_field)?;
+            let license_text = match License::from_url(&license_url) {
+                Ok(license) => format!("The text of this book is licensed under a {} For more detailed information consult the publisher's website.", license.to_string()),
+                Err(_) => "The text of this book is licensed under a custom license. For more detailed information consult the publisher's website.".to_string(),
+            };
+            FieldRepr::from((b"540", "\\\\"))
+                .add_subfield(b"a", license_text.as_bytes())
+                .and_then(|f| f.add_subfield(b"u", license_url.into_bytes()))
+                .and_then(|f| builder.add_field(f))?;
         }
 
         // 710 - publisher
-        let mut publisher_field: FieldRepr = FieldRepr::from((b"710", "2\\"));
-        publisher_field = publisher_field.add_subfield(
-            b"a",
-            format!("{},", self.imprint.publisher.publisher_name.clone()).into_bytes(),
-        )?;
-        publisher_field = publisher_field.add_subfield(b"e", "publisher.")?;
-        builder.add_field(publisher_field)?;
+        FieldRepr::from((b"710", "2\\"))
+            .add_subfield(
+                b"a",
+                format!("{},", self.imprint.publisher.publisher_name.clone()).into_bytes(),
+            )
+            .and_then(|f| f.add_subfield(b"e", "publisher."))
+            .and_then(|f| builder.add_field(f))?;
 
         // 856 - location
         if let Some(doi) = &self.doi {
-            let mut cover_field: FieldRepr = FieldRepr::from((b"856", "40")); // version of resource
-            cover_field = cover_field.add_subfield(b"u", doi.to_lowercase_string().into_bytes())?;
-            cover_field = cover_field.add_subfield(b"z", b"Connect to e-book")?;
-            builder.add_field(cover_field)?;
+            FieldRepr::from((b"856", "40"))
+                .add_subfield(b"u", doi.to_lowercase_string().into_bytes())
+                .and_then(|f| f.add_subfield(b"z", "Connect to e-book"))
+                .and_then(|f| builder.add_field(f))?;
         }
         // 856 - cover
         if let Some(cover_url) = self.cover_url.clone() {
-            let mut cover_field: FieldRepr = FieldRepr::from((b"856", "42")); // related resource
-            cover_field = cover_field.add_subfield(b"u", cover_url.into_bytes())?;
-            cover_field = cover_field.add_subfield(b"z", b"Connect to cover image")?;
-            builder.add_field(cover_field)?;
+            FieldRepr::from((b"856", "42"))
+                .add_subfield(b"u", cover_url.into_bytes())
+                .and_then(|f| f.add_subfield(b"z", "Connect to cover image"))
+                .and_then(|f| builder.add_field(f))?;
         }
 
         Ok(builder.get_record()?)
@@ -479,13 +481,11 @@ fn language_field(languages: &[WorkLanguages]) -> Option<FieldRepr> {
 impl Marc21Field<Marc21RecordThoth> for WorkPublications {
     fn to_field(&self, builder: &mut RecordBuilder) -> ThothResult<()> {
         if let Some(isbn) = &self.isbn {
-            let mut isbn_field: FieldRepr = FieldRepr::from((b"020", "\\\\")); // 2 backslashes represent that the subfield can appear multiple times within the field
-            isbn_field = isbn_field.add_subfield(b"a", isbn.to_hyphenless_string().as_bytes())?;
             let publication_type: PublicationType = self.publication_type.clone().into();
-            isbn_field =
-                isbn_field.add_subfield(b"q", format!("({})", publication_type).into_bytes())?;
-
-            builder.add_field(isbn_field)?;
+            FieldRepr::from((b"020", "\\\\"))
+                .add_subfield(b"a", isbn.to_hyphenless_string().as_bytes())
+                .and_then(|f| f.add_subfield(b"q", format!("({})", publication_type)))
+                .and_then(|f| builder.add_field(f))?;
         }
         Ok(())
     }
