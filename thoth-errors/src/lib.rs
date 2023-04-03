@@ -37,6 +37,8 @@ pub enum ThothError {
     InvalidUuid,
     #[error("CSV Error: {0}")]
     CsvError(String),
+    #[error("MARC Error: {0}")]
+    MarcError(String),
     #[error("Could not generate {0}: {1}")]
     IncompleteMetadataRecord(String, String),
     #[error("{0} is not a validly formatted ORCID and will not be saved")]
@@ -226,6 +228,13 @@ impl From<xml::writer::Error> for ThothError {
 impl From<uuid::Error> for ThothError {
     fn from(_: uuid::Error) -> ThothError {
         ThothError::InvalidUuid
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl From<marc::Error> for ThothError {
+    fn from(e: marc::Error) -> Self {
+        ThothError::MarcError(e.to_string())
     }
 }
 

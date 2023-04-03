@@ -651,6 +651,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cc_license"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9e604b8591d0dbbd946023bcf91b4171f944765c1eb6c73003d3928d9e8c64c"
+dependencies = [
+ "regex",
+]
+
+[[package]]
 name = "cfg-if"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2043,6 +2052,12 @@ checksum = "abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e"
 dependencies = [
  "cfg-if 1.0.0",
 ]
+
+[[package]]
+name = "marc"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe64e04162cf64d8498413d3b89be57ca8ac067d08405097205bc6cec43b054b"
 
 [[package]]
 name = "matches"
@@ -3444,6 +3459,7 @@ dependencies = [
  "csv",
  "diesel",
  "juniper",
+ "marc",
  "phf",
  "reqwest",
  "reqwest-middleware",
@@ -3461,12 +3477,14 @@ version = "0.9.18"
 dependencies = [
  "actix-cors",
  "actix-web",
+ "cc_license",
  "chrono",
  "csv",
  "env_logger",
  "futures",
  "lazy_static",
  "log",
+ "marc",
  "paperclip",
  "regex",
  "serde",

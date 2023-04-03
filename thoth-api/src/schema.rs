@@ -545,6 +545,7 @@ table! {
         short_abstract -> Nullable<Text>,
         long_abstract -> Nullable<Text>,
         general_note -> Nullable<Text>,
+        bibliography_note -> Nullable<Text>,
         toc -> Nullable<Text>,
         cover_url -> Nullable<Text>,
         cover_caption -> Nullable<Text>,

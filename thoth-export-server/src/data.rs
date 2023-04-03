@@ -97,6 +97,12 @@ lazy_static! {
                 "/platforms/proquest_ebrary"
             )],
         },
+        Specification {
+            id: "marc21record::thoth",
+            name: "Thoth MARC 21 Record",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/marc21record"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/thoth")],
+        },
     ];
     pub(crate) static ref ALL_PLATFORMS: Vec<Platform<'static>> = vec![
         Platform {
@@ -105,6 +111,10 @@ lazy_static! {
             accepts: vec![
                 concat!(env!("THOTH_EXPORT_API"), "/specifications/csv::thoth"),
                 concat!(env!("THOTH_EXPORT_API"), "/specifications/json::thoth"),
+                concat!(
+                    env!("THOTH_EXPORT_API"),
+                    "/specifications/marc21record::thoth"
+                ),
             ],
         },
         Platform {
@@ -319,6 +329,15 @@ lazy_static! {
             specifications: vec![concat!(
                 env!("THOTH_EXPORT_API"),
                 "/specifications/doideposit::crossref"
+            ),],
+        },
+        Format {
+            id: "marc21record",
+            name: "MARC21Record",
+            version: None,
+            specifications: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/marc21record::thoth"
             ),],
         },
     ];

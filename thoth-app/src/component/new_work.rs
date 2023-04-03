@@ -114,6 +114,7 @@ pub enum Msg {
     ChangeShortAbstract(String),
     ChangeLongAbstract(String),
     ChangeNote(String),
+    ChangeBibliographyNote(String),
     ChangeToc(String),
     ChangeCoverUrl(String),
     ChangeCoverCaption(String),
@@ -313,6 +314,7 @@ impl Component for NewWorkComponent {
                         short_abstract: self.work.short_abstract.clone(),
                         long_abstract: self.work.long_abstract.clone(),
                         general_note: self.work.general_note.clone(),
+                        bibliography_note: self.work.bibliography_note.clone(),
                         toc: self.work.toc.clone(),
                         cover_url: self.work.cover_url.clone(),
                         cover_caption: self.work.cover_caption.clone(),
@@ -416,6 +418,10 @@ impl Component for NewWorkComponent {
                 self.work.long_abstract.neq_assign(value.to_opt_string())
             }
             Msg::ChangeNote(value) => self.work.general_note.neq_assign(value.to_opt_string()),
+            Msg::ChangeBibliographyNote(value) => self
+                .work
+                .bibliography_note
+                .neq_assign(value.to_opt_string()),
             Msg::ChangeToc(value) => self.work.toc.neq_assign(value.to_opt_string()),
             Msg::ChangeCoverUrl(value) => self.work.cover_url.neq_assign(value.to_opt_string()),
             Msg::ChangeCoverCaption(value) => {
@@ -649,6 +655,11 @@ impl Component for NewWorkComponent {
                         label = "General Note"
                         value={ self.work.general_note.clone() }
                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeNote(e.to_value())) }
+                    />
+                    <FormTextarea
+                        label = "Bibliography Note"
+                        value={ self.work.bibliography_note.clone() }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeBibliographyNote(e.to_value())) }
                     />
                     <FormTextarea
                         label = "Table of Content"

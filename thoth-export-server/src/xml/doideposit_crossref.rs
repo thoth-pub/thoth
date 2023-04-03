@@ -17,6 +17,8 @@ use thoth_errors::{ThothError, ThothResult};
 #[derive(Copy, Clone)]
 pub struct DoiDepositCrossref {}
 
+const DEPOSIT_ERROR: &str = "doideposit::crossref";
+
 // Output format based on schema documentation at https://data.crossref.org/reports/help/schema_doc/5.3.1/index.html
 // (retrieved via https://www.crossref.org/documentation/schema-library/xsd-schema-quick-reference/).
 // Output validity tested using tool at https://www.crossref.org/02publishers/parser.html
@@ -25,7 +27,7 @@ impl XmlSpecification for DoiDepositCrossref {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
         match works.len() {
             0 => Err(ThothError::IncompleteMetadataRecord(
-                "doideposit::crossref".to_string(),
+                DEPOSIT_ERROR.to_string(),
                 "Not enough data".to_string(),
             )),
             1 => {
@@ -245,7 +247,7 @@ fn work_metadata<W: Write>(
             // `edition_number` is not supported for chapters,
             // but edition should always be None for Thoth chapters.
             return Err(ThothError::IncompleteMetadataRecord(
-                "doideposit::crossref".to_string(),
+                DEPOSIT_ERROR.to_string(),
                 "Chapters cannot have Edition numbers".to_string(),
             ));
         }
@@ -272,7 +274,7 @@ fn work_metadata<W: Write>(
     } else if !is_chapter {
         // `publication_date` element is mandatory for `book_metadata` and `book_series_metadata`
         return Err(ThothError::IncompleteMetadataRecord(
-            "doideposit::crossref".to_string(),
+            DEPOSIT_ERROR.to_string(),
             "Missing Publication Date".to_string(),
         ));
     }
@@ -324,7 +326,7 @@ fn work_metadata<W: Write>(
             // `book_metadata` must have either at least one `isbn` element or a `noisbn`
             // element with a `reason` attribute - assume missing ISBNs are erroneous
             return Err(ThothError::IncompleteMetadataRecord(
-                "doideposit::crossref".to_string(),
+                DEPOSIT_ERROR.to_string(),
                 "This work does not have any ISBNs".to_string(),
             ));
         }
@@ -449,7 +451,7 @@ fn work_metadata<W: Write>(
             // `doi_data` element is mandatory for `content_item`, and must contain
             // both `doi` element and `resource` (landing page) element
             return Err(ThothError::IncompleteMetadataRecord(
-                "doideposit::crossref".to_string(),
+                DEPOSIT_ERROR.to_string(),
                 "Missing chapter Landing Page".to_string(),
             ));
         }
@@ -457,7 +459,7 @@ fn work_metadata<W: Write>(
         // `doi_data` element is mandatory for `content_item`, and must contain
         // both `doi` element and `resource` (landing page) element
         return Err(ThothError::IncompleteMetadataRecord(
-            "doideposit::crossref".to_string(),
+            DEPOSIT_ERROR.to_string(),
             "Missing chapter DOI".to_string(),
         ));
     }
@@ -1072,6 +1074,7 @@ mod tests {
             short_abstract: None,
             long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
+            bibliography_note: None,
             place: Some("León, Spain".to_string()),
             page_count: None,
             page_breakdown: None,
@@ -1637,6 +1640,7 @@ mod tests {
             short_abstract: None,
             long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
+            bibliography_note: None,
             place: Some("León, Spain".to_string()),
             page_count: None,
             page_breakdown: None,

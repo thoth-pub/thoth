@@ -15,6 +15,8 @@ use thoth_errors::{ThothError, ThothResult};
 #[derive(Copy, Clone)]
 pub struct Onix3Overdrive {}
 
+const ONIX_ERROR: &str = "onix_3.0::overdrive";
+
 impl XmlSpecification for Onix3Overdrive {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
         let mut attr_map: HashMap<&str, &str> = HashMap::new();
@@ -43,7 +45,7 @@ impl XmlSpecification for Onix3Overdrive {
 
             match works.len() {
                 0 => Err(ThothError::IncompleteMetadataRecord(
-                    "onix_3.0::overdrive".to_string(),
+                    ONIX_ERROR.to_string(),
                     "Not enough data".to_string(),
                 )),
                 1 => XmlElementBlock::<Onix3Overdrive>::xml_element(works.first().unwrap(), w),
@@ -67,19 +69,19 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
         // Don't output works with no publication date (mandatory in OverDrive)
         if self.publication_date.is_none() {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_3.0::overdrive".to_string(),
+                ONIX_ERROR.to_string(),
                 "Missing Publication Date".to_string(),
             ))
         // Don't output works with no long abstract (Description element mandatory in OverDrive)
         } else if self.long_abstract.is_none() {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_3.0::overdrive".to_string(),
+                ONIX_ERROR.to_string(),
                 "Missing Long Abstract".to_string(),
             ))
         // Don't output works with no language codes (mandatory in OverDrive)
         } else if self.languages.is_empty() {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_3.0::overdrive".to_string(),
+                ONIX_ERROR.to_string(),
                 "Missing Language Code(s)".to_string(),
             ))
         // We can only generate the document if there's an EPUB or PDF
@@ -512,7 +514,7 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                                 })
                             } else {
                                 Err(ThothError::IncompleteMetadataRecord(
-                                    "onix_3.0::overdrive".to_string(),
+                                    ONIX_ERROR.to_string(),
                                     "No USD price found".to_string(),
                                 ))
                             }
@@ -523,7 +525,7 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
             })
         } else {
             Err(ThothError::IncompleteMetadataRecord(
-                "onix_3.0::overdrive".to_string(),
+                ONIX_ERROR.to_string(),
                 "No priced EPUB or PDF URL".to_string(),
             ))
         }
@@ -538,14 +540,14 @@ fn get_publications_data(
     let mut isbns: Vec<String> = Vec::new();
 
     for publication in publications {
-        if let Some(isbn) = &publication.isbn.as_ref().map(|i| i.to_string()) {
-            isbns.push(isbn.replace('-', ""));
+        if let Some(isbn) = &publication.isbn.as_ref() {
+            isbns.push(isbn.to_hyphenless_string());
             // The default product ISBN is the main publication's (EPUB or PDF)
             if publication
                 .publication_id
                 .eq(&main_publication.publication_id)
             {
-                main_isbn = isbn.replace('-', "");
+                main_isbn = isbn.to_hyphenless_string();
             }
             // If the main publication has no ISBN, use either the PDF's or the paperback's
             // (no guarantee as to which will be chosen)
@@ -553,7 +555,7 @@ fn get_publications_data(
                 || publication.publication_type.eq(&PublicationType::PAPERBACK))
                 && main_isbn.is_empty()
             {
-                main_isbn = isbn.replace('-', "");
+                main_isbn = isbn.to_hyphenless_string();
             }
         }
     }
@@ -1075,6 +1077,7 @@ mod tests {
             short_abstract: None,
             long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
             general_note: None,
+            bibliography_note: None,
             place: Some("León, Spain".to_string()),
             page_count: Some(334),
             page_breakdown: None,

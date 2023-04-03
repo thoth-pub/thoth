@@ -34,6 +34,7 @@ const UPDATE_WORK_MUTATION: &str = "
         $shortAbstract: String,
         $longAbstract: String,
         $generalNote: String,
+        $bibliographyNote: String,
         $toc: String,
         $coverUrl: String,
         $coverCaption: String,
@@ -69,6 +70,7 @@ const UPDATE_WORK_MUTATION: &str = "
             shortAbstract: $shortAbstract
             longAbstract: $longAbstract
             generalNote: $generalNote
+            bibliographyNote: $bibliographyNote
             toc: $toc
             coverUrl: $coverUrl
             coverCaption: $coverCaption
@@ -128,6 +130,7 @@ pub struct Variables {
     pub short_abstract: Option<String>,
     pub long_abstract: Option<String>,
     pub general_note: Option<String>,
+    pub bibliography_note: Option<String>,
     pub toc: Option<String>,
     pub cover_url: Option<String>,
     pub cover_caption: Option<String>,

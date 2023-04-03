@@ -113,6 +113,7 @@ impl MetadataTable for WorkWithRelations {
 }
 
 pub trait DisplayWork {
+    fn marc21_thoth_endpoint(&self) -> String;
     fn onix_projectmuse_endpoint(&self) -> String;
     fn onix_oapen_endpoint(&self) -> String;
     fn onix_jstor_endpoint(&self) -> String;
@@ -132,6 +133,13 @@ pub trait DisplayWork {
 }
 
 impl DisplayWork for WorkWithRelations {
+    fn marc21_thoth_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/marc21record::thoth/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
     fn onix_projectmuse_endpoint(&self) -> String {
         format!(
             "{}/specifications/onix_3.0::project_muse/work/{}",
@@ -471,6 +479,12 @@ impl DisplayWork for WorkWithRelations {
                                                 class="dropdown-item"
                                             >
                                             {"CrossRef DOI deposit"}
+                                            </a>
+                                            <a
+                                                href={self.marc21_thoth_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"MARC 21 Record"}
                                             </a>
                                         </div>
                                     </div>

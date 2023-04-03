@@ -120,6 +120,7 @@ static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "subject_subject_code_check" => "Subject codes must not be an empty string.",
     "subject_subject_ordinal_check" => "A subject ordinal number must be greater than 0.",
     "work_audio_count_check" => "An audio count must be greater than 0.",
+    "work_bibliography_note_check" => "Bibliography note must not be an empty string.",
     "work_chapter_no_edition" => "Chapters must not have an edition number.",
     "work_chapter_no_lccn" => "Chapters must not have a LCCN.",
     "work_chapter_no_oclc" => "Chapters must not have an OCLC number.",
