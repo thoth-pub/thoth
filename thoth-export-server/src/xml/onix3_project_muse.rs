@@ -408,7 +408,7 @@ fn get_publications_data(publications: &[WorkPublications]) -> (String, Vec<Stri
     let mut isbns: Vec<String> = Vec::new();
 
     for publication in publications {
-        if let Some(isbn) = &publication.isbn.as_ref().map(|i| i.to_string()) {
+        if let Some(isbn) = &publication.isbn.as_ref() {
             isbns.push(isbn.to_hyphenless_string());
             // The default product ISBN is the PDF's
             if publication.publication_type.eq(&PublicationType::PDF) {
