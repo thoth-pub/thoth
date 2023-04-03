@@ -181,41 +181,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
 
         // 100 and 700 - contributors
-        let mut contributions_by_name: Vec<(String, Vec<&WorkContributions>)> = vec![];
-        for c in &self.contributions {
-            let key = c.full_name.clone();
-            match contributions_by_name.iter_mut().find(|(k, _)| *k == key) {
-                Some(entry) => entry.1.push(c),
-                None => contributions_by_name.push((key, vec![c])),
-            }
-        }
-
-        // only one 100 field is allowed, first-come first-served
-        let mut is_main_author_defined = false;
-        for (name, contributions) in contributions_by_name.iter() {
-            let is_main = contributions
-                .iter()
-                .any(|c| c.contribution_type == thoth_client::ContributionType::AUTHOR);
-            let mut field_code = b"700";
-            if is_main && !is_main_author_defined {
-                field_code = b"100";
-                is_main_author_defined = true;
-            }
-            let roles = contributions
-                .iter()
-                .map(|c| ContributionType::from(c.contribution_type.clone()).to_string())
-                .collect::<Vec<_>>()
-                .join(", ");
-
-            let mut contributor_field = FieldRepr::from((field_code, "1\\"));
-            contributor_field = contributor_field.add_subfield(b"a", name)?;
-            contributor_field = contributor_field.add_subfield(b"e", roles)?;
-            if let Some(affiliation) = &contributions.first().unwrap().affiliations.first() {
-                contributor_field = contributor_field.add_subfield(
-                    b"u",
-                    affiliation.institution.institution_name.clone().as_bytes(),
-                )?;
-            }
+        for contributor_field in contributor_fields(&self.contributions)? {
             builder.add_field(contributor_field)?;
         }
 
@@ -405,7 +371,50 @@ fn main_language(languages: &[WorkLanguages]) -> Option<String> {
     }
 }
 
-pub fn language_field(languages: &[WorkLanguages]) -> Option<FieldRepr> {
+fn contributor_fields(contributions: &[WorkContributions]) -> ThothResult<Vec<FieldRepr>> {
+    // 100 and 700 - contributors
+    let mut contributions_by_name: Vec<(String, Vec<&WorkContributions>)> = vec![];
+    for c in contributions {
+        let key = c.full_name.clone();
+        match contributions_by_name.iter_mut().find(|(k, _)| *k == key) {
+            Some(entry) => entry.1.push(c),
+            None => contributions_by_name.push((key, vec![c])),
+        }
+    }
+
+    let mut contributor_fields: Vec<FieldRepr> = vec![];
+    // only one 100 field is allowed, first-come first-served
+    let mut is_main_author_defined = false;
+    for (name, contributions) in contributions_by_name.iter() {
+        let is_main = contributions
+            .iter()
+            .any(|c| c.contribution_type == thoth_client::ContributionType::AUTHOR);
+        let mut field_code = b"700";
+        if is_main && !is_main_author_defined {
+            field_code = b"100";
+            is_main_author_defined = true;
+        }
+        let roles = contributions
+            .iter()
+            .map(|c| ContributionType::from(c.contribution_type.clone()).to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut contributor_field = FieldRepr::from((field_code, "1\\"));
+        contributor_field = contributor_field.add_subfield(b"a", name)?;
+        contributor_field = contributor_field.add_subfield(b"e", roles)?;
+        if let Some(affiliation) = &contributions.first().unwrap().affiliations.first() {
+            contributor_field = contributor_field.add_subfield(
+                b"u",
+                affiliation.institution.institution_name.clone().as_bytes(),
+            )?;
+        }
+        contributor_fields.push(contributor_field);
+    }
+    Ok(contributor_fields)
+}
+
+fn language_field(languages: &[WorkLanguages]) -> Option<FieldRepr> {
     let (original_codes, into_codes, from_codes): (Vec<_>, Vec<_>, Vec<_>) = languages.iter().fold(
         (Vec::new(), Vec::new(), Vec::new()),
         |(mut orig, mut into, mut from), l| {
@@ -858,6 +867,175 @@ mod tests {
             },
             affiliations: vec![],
         }
+    }
+
+    #[test]
+    fn test_contributor_fields_empty_slice() {
+        let contributions: [WorkContributions; 0] = [];
+        let expected: ThothResult<Vec<FieldRepr>> = Ok(vec![]);
+        let result = contributor_fields(&contributions);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_contributor_fields_single_author() {
+        let mut contribution = test_contribution();
+        contribution.full_name = "Jane Doe".to_string();
+        let contributions = [contribution];
+
+        let expected = Ok(vec![FieldRepr::from((b"100", "1\\"))
+            .add_subfield(b"a", "Jane Doe".as_bytes())
+            .and_then(|f| f.add_subfield(b"e", "Author".as_bytes()))
+            .unwrap()]);
+        assert_eq!(contributor_fields(&contributions), expected);
+    }
+
+    #[test]
+    fn test_contributor_fields_multiple_contributors_no_author() {
+        let mut first_contribution = test_contribution();
+        first_contribution.full_name = "Jane Doe".to_string();
+        first_contribution.contribution_type = thoth_client::ContributionType::EDITOR;
+        let mut second_contribution = test_contribution();
+        second_contribution.full_name = "John Smith".to_string();
+        second_contribution.contribution_type = thoth_client::ContributionType::TRANSLATOR;
+        let contributions = [first_contribution, second_contribution];
+
+        let expected = Ok(vec![
+            FieldRepr::from((b"700", "1\\"))
+                .add_subfield(b"a", "Jane Doe".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "Editor".as_bytes()))
+                .unwrap(),
+            FieldRepr::from((b"700", "1\\"))
+                .add_subfield(b"a", "John Smith".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "Translator".as_bytes()))
+                .unwrap(),
+        ]);
+        assert_eq!(contributor_fields(&contributions), expected);
+    }
+
+    #[test]
+    fn test_contributor_fields_multiple_contributions_one_author() {
+        let mut first_contribution = test_contribution();
+        first_contribution.full_name = "John Smith".to_string();
+        let mut second_contribution = test_contribution();
+        second_contribution.full_name = "Jane Doe".to_string();
+        second_contribution.contribution_type = thoth_client::ContributionType::EDITOR;
+        let mut third_contribution = test_contribution();
+        third_contribution.full_name = "Jane Doe".to_string();
+        third_contribution.contribution_type = thoth_client::ContributionType::TRANSLATOR;
+        let contributions = [first_contribution, second_contribution, third_contribution];
+
+        let expected = Ok(vec![
+            FieldRepr::from((b"100", "1\\"))
+                .add_subfield(b"a", "John Smith".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "Author".as_bytes()))
+                .unwrap(),
+            FieldRepr::from((b"700", "1\\"))
+                .add_subfield(b"a", "Jane Doe".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "Editor, Translator".as_bytes()))
+                .unwrap(),
+        ]);
+        assert_eq!(contributor_fields(&contributions), expected);
+    }
+
+    #[test]
+    fn test_contributor_fields_multiple_contributors_multiple_authors() {
+        let mut first_contribution = test_contribution();
+        first_contribution.full_name = "John Smith".to_string();
+        let mut second_contribution = test_contribution();
+        second_contribution.full_name = "Jane Doe".to_string();
+        let mut third_contribution = test_contribution();
+        third_contribution.full_name = "Bob Johnson".to_string();
+        third_contribution.contribution_type = thoth_client::ContributionType::INTRODUCTION_BY;
+        let mut fourth_contribution = test_contribution();
+        fourth_contribution.full_name = "Juan García".to_string();
+        fourth_contribution.contribution_type = thoth_client::ContributionType::TRANSLATOR;
+        let contributions = [
+            first_contribution,
+            second_contribution,
+            third_contribution,
+            fourth_contribution,
+        ];
+
+        let expected = Ok(vec![
+            FieldRepr::from((b"100", "1\\"))
+                .add_subfield(b"a", "John Smith".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "Author".as_bytes()))
+                .unwrap(),
+            FieldRepr::from((b"700", "1\\"))
+                .add_subfield(b"a", "Jane Doe".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "Author".as_bytes()))
+                .unwrap(),
+            FieldRepr::from((b"700", "1\\"))
+                .add_subfield(b"a", "Bob Johnson".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "Introduction By".as_bytes()))
+                .unwrap(),
+            FieldRepr::from((b"700", "1\\"))
+                .add_subfield(b"a", "Juan García".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "Translator".as_bytes()))
+                .unwrap(),
+        ]);
+        assert_eq!(contributor_fields(&contributions), expected);
+    }
+
+    #[test]
+    fn test_contributor_fields_single_author_single_affiliation() {
+        let mut contribution = test_contribution();
+        contribution.full_name = "Jane Doe".to_string();
+        contribution.affiliations = vec![WorkContributionsAffiliations {
+            position: None,
+            affiliation_ordinal: 1,
+            institution: WorkContributionsAffiliationsInstitution {
+                institution_name: "Thoth University".to_string(),
+                institution_doi: None,
+                ror: None,
+                country_code: None,
+            },
+        }];
+        let contributions = [contribution];
+
+        let expected = Ok(vec![FieldRepr::from((b"100", "1\\"))
+            .add_subfield(b"a", "Jane Doe".as_bytes())
+            .and_then(|f| f.add_subfield(b"e", "Author".as_bytes()))
+            .and_then(|f| f.add_subfield(b"u", "Thoth University".as_bytes()))
+            .unwrap()]);
+        assert_eq!(contributor_fields(&contributions), expected);
+    }
+
+    #[test]
+    fn test_contributor_fields_single_author_multiple_affiliations() {
+        let mut contribution = test_contribution();
+        contribution.full_name = "Jane Doe".to_string();
+        contribution.affiliations = vec![
+            WorkContributionsAffiliations {
+                position: None,
+                affiliation_ordinal: 1,
+                institution: WorkContributionsAffiliationsInstitution {
+                    institution_name: "Thoth University".to_string(),
+                    institution_doi: None,
+                    ror: None,
+                    country_code: None,
+                },
+            },
+            WorkContributionsAffiliations {
+                position: None,
+                affiliation_ordinal: 2,
+                institution: WorkContributionsAffiliationsInstitution {
+                    institution_name: "COPIM".to_string(),
+                    institution_doi: None,
+                    ror: None,
+                    country_code: None,
+                },
+            },
+        ];
+        let contributions = [contribution];
+
+        let expected = Ok(vec![FieldRepr::from((b"100", "1\\"))
+            .add_subfield(b"a", "Jane Doe".as_bytes())
+            .and_then(|f| f.add_subfield(b"e", "Author".as_bytes()))
+            .and_then(|f| f.add_subfield(b"u", "Thoth University".as_bytes()))
+            .unwrap()]);
+        assert_eq!(contributor_fields(&contributions), expected);
     }
 
     #[test]
