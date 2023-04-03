@@ -565,7 +565,7 @@ mod tests {
         test_work.work_type = WorkType::BOOK_CHAPTER;
         // We need to manually set the page range in this test framework, but within
         // the Thoth database this is automatically derived from first + last page
-        test_work.page_interval = Some("10-20".to_string());
+        test_work.page_interval = Some("10–20".to_string());
         let to_test = BibtexThoth.generate(&[test_work.clone()]);
         let test_result = "@inbook{1999-12-31,
 \ttitle\t\t= {Work Title},
