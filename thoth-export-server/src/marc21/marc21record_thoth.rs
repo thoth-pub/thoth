@@ -16,6 +16,7 @@ use super::{Marc21Entry, Marc21Specification};
 pub(crate) struct Marc21RecordThoth;
 
 const MARC_ERROR: &str = "marc21record::thoth";
+const MARC_ORGANIZATION_CODE: &str = "UkCbTOM";
 
 impl Marc21Specification for Marc21RecordThoth {
     fn handle_event(w: &mut Vec<u8>, works: &[Work]) -> ThothResult<()> {
@@ -134,7 +135,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
 
         // 040 - cataloging source field
         FieldRepr::from((b"040", "\\\\"))
-            .add_subfield(b"a", "Thoth")
+            .add_subfield(b"a", MARC_ORGANIZATION_CODE)
             .and_then(|f| f.add_subfield(b"b", "eng"))
             .and_then(|f| f.add_subfield(b"e", "rda"))
             .and_then(|f| builder.add_field(f))?;
