@@ -2055,9 +2055,9 @@ dependencies = [
 
 [[package]]
 name = "marc"
-version = "2.0.0"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe64e04162cf64d8498413d3b89be57ca8ac067d08405097205bc6cec43b054b"
+checksum = "0fa197b92dfca18e1e0662e49c3716ab5077791e637f283d707514162f9fb54f"
 
 [[package]]
 name = "matches"
