@@ -179,6 +179,12 @@ impl TryFrom<QueryConfiguration> for QueryParameters {
                 .with_subjects()
                 .with_languages()
                 .with_fundings()),
+            MetadataSpecification::Marc21MarkupThoth(_) => Ok(QueryParameters::new()
+                .with_issues()
+                .with_publications()
+                .with_subjects()
+                .with_languages()
+                .with_fundings()),
         }
     }
 }

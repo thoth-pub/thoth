@@ -103,6 +103,12 @@ lazy_static! {
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/marc21record"),
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/thoth")],
         },
+        Specification {
+            id: "marc21markup::thoth",
+            name: "Thoth MARC 21 Markup",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/marc21markup"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/thoth")],
+        },
     ];
     pub(crate) static ref ALL_PLATFORMS: Vec<Platform<'static>> = vec![
         Platform {
@@ -114,6 +120,10 @@ lazy_static! {
                 concat!(
                     env!("THOTH_EXPORT_API"),
                     "/specifications/marc21record::thoth"
+                ),
+                concat!(
+                    env!("THOTH_EXPORT_API"),
+                    "/specifications/marc21markup::thoth"
                 ),
             ],
         },
@@ -338,6 +348,15 @@ lazy_static! {
             specifications: vec![concat!(
                 env!("THOTH_EXPORT_API"),
                 "/specifications/marc21record::thoth"
+            ),],
+        },
+        Format {
+            id: "marc21markup",
+            name: "MARC21Markup",
+            version: None,
+            specifications: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/marc21markup::thoth"
             ),],
         },
     ];

@@ -19,8 +19,12 @@ pub(crate) trait Marc21Specification {
 
 pub(crate) trait Marc21Entry<T: Marc21Specification> {
     fn marc21_record(&self, w: &mut Vec<u8>) -> ThothResult<()> {
-        w.write_all(self.to_record()?.as_ref())?;
-        Ok(())
+        w.write_all(self.to_record()?.as_ref())
+            .map_err(ThothError::from)
+    }
+
+    fn marc21_markup(&self) -> ThothResult<String> {
+        Ok(self.to_record()?.to_string())
     }
 
     fn to_record(&self) -> ThothResult<Record>;
@@ -30,5 +34,8 @@ pub(crate) trait Marc21Field<T: Marc21Specification> {
     fn to_field(&self, builder: &mut RecordBuilder) -> ThothResult<()>;
 }
 
+mod marc21markup_thoth;
 mod marc21record_thoth;
+
+pub(crate) use marc21markup_thoth::Marc21MarkupThoth;
 pub(crate) use marc21record_thoth::Marc21RecordThoth;
