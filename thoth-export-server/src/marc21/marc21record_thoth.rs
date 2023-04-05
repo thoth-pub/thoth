@@ -619,7 +619,7 @@ fn contributors_string(contributions: &[WorkContributions]) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::str::FromStr;
     use thoth_api::model::{Doi, Isbn};
@@ -630,7 +630,7 @@ mod tests {
     };
     use uuid::Uuid;
 
-    fn test_work() -> Work {
+    pub(crate) fn test_work() -> Work {
         Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
