@@ -21,7 +21,7 @@ env_logger = "0.10.0"
 futures = "0.3.26"
 lazy_static = "1.4.0"
 log = "0.4.14"
-marc = "3.0.0"
+marc = { git = "https://github.com/thoth-pub/rust-marc.git", branch = "xml", features = ["xml"] }
 paperclip = { version = "0.8.0", features = ["actix-base", "actix4", "uuid0", "v2"] }
 serde = { version = "1.0.115", features = ["derive"] }
 serde_json = "1.0"
