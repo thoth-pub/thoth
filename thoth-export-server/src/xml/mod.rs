@@ -93,5 +93,7 @@ mod onix21_ebsco_host;
 pub(crate) use onix21_ebsco_host::Onix21EbscoHost;
 mod doideposit_crossref;
 pub(crate) use doideposit_crossref::DoiDepositCrossref;
+mod marc21xml_thoth;
+pub(crate) use marc21xml_thoth::Marc21XmlThoth;
 mod onix21_proquest_ebrary;
 pub(crate) use onix21_proquest_ebrary::Onix21ProquestEbrary;

@@ -13,8 +13,8 @@ use crate::csv::{CsvSpecification, CsvThoth, KbartOclc};
 use crate::json::{JsonSpecification, JsonThoth};
 use crate::marc21::{Marc21MarkupThoth, Marc21RecordThoth, Marc21Specification};
 use crate::xml::{
-    DoiDepositCrossref, Onix21EbscoHost, Onix21ProquestEbrary, Onix3GoogleBooks, Onix3Jstor,
-    Onix3Oapen, Onix3Overdrive, Onix3ProjectMuse, XmlSpecification,
+    DoiDepositCrossref, Marc21XmlThoth, Onix21EbscoHost, Onix21ProquestEbrary, Onix3GoogleBooks,
+    Onix3Jstor, Onix3Oapen, Onix3Overdrive, Onix3ProjectMuse, XmlSpecification,
 };
 
 pub(crate) trait AsRecord {}
@@ -41,6 +41,7 @@ pub(crate) enum MetadataSpecification {
     DoiDepositCrossref(DoiDepositCrossref),
     Marc21RecordThoth(Marc21RecordThoth),
     Marc21MarkupThoth(Marc21MarkupThoth),
+    Marc21XmlThoth(Marc21XmlThoth),
 }
 
 pub(crate) struct MetadataRecord<T: AsRecord> {
@@ -91,6 +92,7 @@ where
             MetadataSpecification::DoiDepositCrossref(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Marc21RecordThoth(_) => Self::MARC_MIME_TYPE,
             MetadataSpecification::Marc21MarkupThoth(_) => Self::TXT_MIME_TYPE,
+            MetadataSpecification::Marc21XmlThoth(_) => Self::XML_MIME_TYPE,
         }
     }
 
@@ -110,6 +112,7 @@ where
             MetadataSpecification::DoiDepositCrossref(_) => self.xml_file_name(),
             MetadataSpecification::Marc21RecordThoth(_) => self.marc_record_file_name(),
             MetadataSpecification::Marc21MarkupThoth(_) => self.marc_markup_file_name(),
+            MetadataSpecification::Marc21XmlThoth(_) => self.xml_file_name(),
         }
     }
 
@@ -196,6 +199,9 @@ impl MetadataRecord<Vec<Work>> {
             MetadataSpecification::Marc21MarkupThoth(marc21markup_thoth) => {
                 marc21markup_thoth.generate(&self.data)
             }
+            MetadataSpecification::Marc21XmlThoth(marc21xml_thoth) => {
+                marc21xml_thoth.generate(&self.data)
+            }
         }
     }
 }
@@ -266,6 +272,7 @@ impl FromStr for MetadataSpecification {
             "marc21markup::thoth" => Ok(MetadataSpecification::Marc21MarkupThoth(
                 Marc21MarkupThoth {},
             )),
+            "marc21xml::thoth" => Ok(MetadataSpecification::Marc21XmlThoth(Marc21XmlThoth {})),
             _ => Err(ThothError::InvalidMetadataSpecification(input.to_string())),
         }
     }
@@ -290,6 +297,7 @@ impl ToString for MetadataSpecification {
             MetadataSpecification::DoiDepositCrossref(_) => "doideposit::crossref".to_string(),
             MetadataSpecification::Marc21RecordThoth(_) => "marc21record::thoth".to_string(),
             MetadataSpecification::Marc21MarkupThoth(_) => "marc21markup::thoth".to_string(),
+            MetadataSpecification::Marc21XmlThoth(_) => "marc21xml::thoth".to_string(),
         }
     }
 }
@@ -428,6 +436,15 @@ mod tests {
         assert_eq!(
             to_test.file_name(),
             "marc21markup__thoth__some_id.mrk".to_string()
+        );
+        let to_test = MetadataRecord::new(
+            "some_id".to_string(),
+            MetadataSpecification::Marc21XmlThoth(Marc21XmlThoth {}),
+            vec![],
+        );
+        assert_eq!(
+            to_test.file_name(),
+            "marc21xml__thoth__some_id.xml".to_string()
         );
     }
 }
