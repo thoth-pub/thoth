@@ -20,7 +20,7 @@ const ONIX_ERROR: &str = "onix_2.1::proquest_ebrary";
 // 0.00 (ProQuest Ebrary) instead of 0.01 (EBSCO Host)
 impl XmlSpecification for Onix21ProquestEbrary {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
-        write_full_element_block("ONIXMessage", None, None, w, |w| {
+        write_full_element_block("ONIXMessage", None, w, |w| {
             write_element_block("Header", w, |w| {
                 write_element_block("FromCompany", w, |w| {
                     w.write(XmlEvent::Characters("Thoth")).map_err(|e| e.into())

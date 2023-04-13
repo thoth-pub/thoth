@@ -43,7 +43,7 @@ impl XmlSpecification for DoiDepositCrossref {
                 attr_map.insert("xmlns:jats", "http://www.ncbi.nlm.nih.gov/JATS1");
                 attr_map.insert("xmlns:fr", "http://www.crossref.org/fundref.xsd");
 
-                write_full_element_block("doi_batch", None, Some(attr_map), w, |w| {
+                write_full_element_block("doi_batch", Some(attr_map), w, |w| {
                     write_element_block("head", w, |w| {
                         write_element_block("doi_batch_id", w, |w| {
                             w.write(XmlEvent::Characters(&work_id))
@@ -87,7 +87,6 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
         write_element_block("body", w, |w| {
             write_full_element_block(
                 "book",
-                None,
                 Some(HashMap::from([("book_type", work_type)])),
                 w,
                 |w| {
@@ -97,7 +96,6 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                     {
                         write_full_element_block(
                             "book_series_metadata",
-                            None,
                             Some(HashMap::from([("language", "en")])),
                             w,
                             |w| {
@@ -113,7 +111,6 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                     } else {
                         write_full_element_block(
                             "book_metadata",
-                            None,
                             Some(HashMap::from([("language", "en")])),
                             w,
                             |w| {
@@ -192,7 +189,6 @@ fn work_metadata<W: Write>(
     if let Some(long_abstract) = &work.long_abstract {
         write_full_element_block(
             "jats:abstract",
-            None,
             Some(HashMap::from([("abstract-type", "long")])),
             w,
             |w| {
@@ -211,7 +207,6 @@ fn work_metadata<W: Write>(
     if let Some(short_abstract) = &work.short_abstract {
         write_full_element_block(
             "jats:abstract",
-            None,
             Some(HashMap::from([("abstract-type", "short")])),
             w,
             |w| {
@@ -345,7 +340,6 @@ fn work_metadata<W: Write>(
     if !work.fundings.is_empty() {
         write_full_element_block(
             "fr:program",
-            None,
             Some(HashMap::from([("name", "fundref")])),
             w,
             |w| {
@@ -358,7 +352,6 @@ fn work_metadata<W: Write>(
     }
     write_full_element_block(
         "ai:program",
-        None,
         Some(HashMap::from([("name", "AccessIndicators")])),
         w,
         |w| {
@@ -395,20 +388,17 @@ fn work_metadata<W: Write>(
                     // Alternatively, a direct link to full-text HTML can be used (not implemented here).
                     write_full_element_block(
                         "collection",
-                        None,
                         Some(HashMap::from([("property", "crawler-based")])),
                         w,
                         |w| {
                             for crawler in ["iParadigms", "google", "msn", "yahoo", "scirus"] {
                                 write_full_element_block(
                                     "item",
-                                    None,
                                     Some(HashMap::from([("crawler", crawler)])),
                                     w,
                                     |w| {
                                         write_full_element_block(
                                             "resource",
-                                            None,
                                             Some(HashMap::from([("mime_type", "application/pdf")])),
                                             w,
                                             |w| {
@@ -426,14 +416,12 @@ fn work_metadata<W: Write>(
                     // Alternatively, a direct link to full-text XML can be used (not implemented here).
                     write_full_element_block(
                         "collection",
-                        None,
                         Some(HashMap::from([("property", "text-mining")])),
                         w,
                         |w| {
                             write_element_block("item", w, |w| {
                                 write_full_element_block(
                                     "resource",
-                                    None,
                                     Some(HashMap::from([("mime_type", "application/pdf")])),
                                     w,
                                     |w| {
@@ -486,7 +474,6 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkIssuesSeries {
             })?;
             write_full_element_block(
                 "issn",
-                None,
                 Some(HashMap::from([("media_type", "print")])),
                 w,
                 |w| {
@@ -496,7 +483,6 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkIssuesSeries {
             )?;
             write_full_element_block(
                 "issn",
-                None,
                 Some(HashMap::from([("media_type", "electronic")])),
                 w,
                 |w| {
@@ -516,7 +502,6 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelations {
         }
         write_full_element_block(
             "content_item",
-            None,
             Some(HashMap::from([("component_type", "chapter")])),
             w,
             |w| work_metadata(w, &self.related_work, Some(self.relation_ordinal), None),
@@ -535,7 +520,6 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkPublication
             };
             write_full_element_block(
                 "isbn",
-                None,
                 Some(HashMap::from([("media_type", isbn_type.as_str())])),
                 w,
                 |w| w.write(XmlEvent::Characters(&isbn)).map_err(|e| e.into()),
@@ -574,7 +558,6 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributio
         };
         write_full_element_block(
             "person_name",
-            None,
             Some(HashMap::from([
                 ("sequence", ordinal),
                 ("contributor_role", role),
@@ -627,7 +610,7 @@ impl XmlElementBlock<DoiDepositCrossref>
             if let Some(ror) = &self.ror {
                 let mut id_type: HashMap<&str, &str> = HashMap::new();
                 id_type.insert("type", "ror");
-                write_full_element_block("institution_id", None, Some(id_type), w, |w| {
+                write_full_element_block("institution_id", Some(id_type), w, |w| {
                     w.write(XmlEvent::Characters(&ror.with_domain()))
                         .map_err(|e| e.into())
                 })?;
@@ -641,13 +624,11 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkFundings {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_full_element_block(
             "fr:assertion",
-            None,
             Some(HashMap::from([("name", "fundgroup")])),
             w,
             |w| {
                 write_full_element_block(
                     "fr:assertion",
-                    None,
                     Some(HashMap::from([("name", "funder_name")])),
                     w,
                     |w| {
@@ -655,7 +636,6 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkFundings {
                         if let Some(doi) = &self.institution.institution_doi {
                             write_full_element_block(
                                 "fr:assertion",
-                                None,
                                 Some(HashMap::from([("name", "funder_identifier")])),
                                 w,
                                 |w| {
@@ -670,7 +650,6 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkFundings {
                 if let Some(grant_number) = &self.grant_number {
                     write_full_element_block(
                         "fr:assertion",
-                        None,
                         Some(HashMap::from([("name", "award_number")])),
                         w,
                         |w| {
@@ -690,7 +669,6 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkReferences 
         let key = format!("ref{}", &self.reference_ordinal);
         write_full_element_block(
             "citation",
-            None,
             Some(HashMap::from([("key", key.as_ref())])),
             w,
             |w| {

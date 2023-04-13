@@ -11,23 +11,16 @@ fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> ThothResult<()>>(
     w: &mut EventWriter<W>,
     f: F,
 ) -> ThothResult<()> {
-    write_full_element_block(element, None, None, w, f)
+    write_full_element_block(element, None, w, f)
 }
 
 fn write_full_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> ThothResult<()>>(
     element: &str,
-    ns: Option<HashMap<String, String>>,
     attr: Option<HashMap<&str, &str>>,
     w: &mut EventWriter<W>,
     f: F,
 ) -> ThothResult<()> {
     let mut event_builder: StartElementBuilder = XmlEvent::start_element(element);
-
-    if let Some(ns) = ns {
-        for (k, v) in ns.iter() {
-            event_builder = event_builder.ns(k, v);
-        }
-    }
 
     if let Some(attr) = attr {
         for (k, v) in attr.iter() {

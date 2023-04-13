@@ -23,7 +23,7 @@ impl XmlSpecification for Onix3ProjectMuse {
         attr_map.insert("release", "3.0");
         attr_map.insert("xmlns", "http://ns.editeur.org/onix/3.0/reference");
 
-        write_full_element_block("ONIXMessage", None, Some(attr_map), w, |w| {
+        write_full_element_block("ONIXMessage", Some(attr_map), w, |w| {
             write_element_block("Header", w, |w| {
                 write_element_block("Sender", w, |w| {
                     write_element_block("SenderName", w, |w| {
@@ -238,7 +238,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                             write_element_block("ContentAudience", w, |w| {
                                 w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                             })?;
-                            write_full_element_block("Text", None, Some(lang_fmt), w, |w| {
+                            write_full_element_block("Text", Some(lang_fmt), w, |w| {
                                 w.write(XmlEvent::Characters(labstract))
                                     .map_err(|e| e.into())
                             })
@@ -307,7 +307,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                                 w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                             })?;
                             // dateformat="00" YYYYMMDD
-                            write_full_element_block("Date", None, Some(date_fmt), w, |w| {
+                            write_full_element_block("Date", Some(date_fmt), w, |w| {
                                 w.write(XmlEvent::Characters(&date.format("%Y%m%d").to_string()))
                                     .map_err(|e| e.into())
                             })

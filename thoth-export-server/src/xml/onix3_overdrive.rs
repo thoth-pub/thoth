@@ -24,7 +24,7 @@ impl XmlSpecification for Onix3Overdrive {
         attr_map.insert("release", "3.0");
         attr_map.insert("xmlns", "http://ns.editeur.org/onix/3.0/reference");
 
-        write_full_element_block("ONIXMessage", None, Some(attr_map), w, |w| {
+        write_full_element_block("ONIXMessage", Some(attr_map), w, |w| {
             write_element_block("Header", w, |w| {
                 write_element_block("Sender", w, |w| {
                     write_element_block("SenderName", w, |w| {
@@ -274,7 +274,7 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                         write_element_block("ContentAudience", w, |w| {
                             w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                         })?;
-                        write_full_element_block("Text", None, Some(lang_fmt.clone()), w, |w| {
+                        write_full_element_block("Text", Some(lang_fmt.clone()), w, |w| {
                             w.write(XmlEvent::Characters(self.long_abstract.as_ref().unwrap()))
                                 .map_err(|e| e.into())
                         })
@@ -289,7 +289,7 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                             write_element_block("ContentAudience", w, |w| {
                                 w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                             })?;
-                            write_full_element_block("Text", None, Some(lang_fmt.clone()), w, |w| {
+                            write_full_element_block("Text", Some(lang_fmt.clone()), w, |w| {
                                 w.write(XmlEvent::Characters(toc)).map_err(|e| e.into())
                             })
                         })?;
@@ -357,7 +357,7 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                             w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                         })?;
                         // dateformat="00" YYYYMMDD
-                        write_full_element_block("Date", None, Some(date_fmt), w, |w| {
+                        write_full_element_block("Date", Some(date_fmt), w, |w| {
                             w.write(XmlEvent::Characters(
                                 &self.publication_date.unwrap().format("%Y%m%d").to_string(),
                             ))
@@ -471,7 +471,7 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                                     w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
                                 })?;
                                 // dateformat="00" YYYYMMDD
-                                write_full_element_block("Date", None, Some(date_fmt), w, |w| {
+                                write_full_element_block("Date", Some(date_fmt), w, |w| {
                                     w.write(XmlEvent::Characters(
                                         &self
                                             .publication_date
