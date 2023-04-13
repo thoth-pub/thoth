@@ -19,12 +19,12 @@ const ONIX_ERROR: &str = "onix_3.0::overdrive";
 
 impl XmlSpecification for Onix3Overdrive {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
-        let mut attr_map: HashMap<&str, &str> = HashMap::new();
+        let attributes = &[
+            ("release", "3.0"),
+            ("xmlns", "http://ns.editeur.org/onix/3.0/reference"),
+        ];
 
-        attr_map.insert("release", "3.0");
-        attr_map.insert("xmlns", "http://ns.editeur.org/onix/3.0/reference");
-
-        write_full_element_block("ONIXMessage", Some(attr_map), w, |w| {
+        write_full_element_block("ONIXMessage", Some(attributes.to_vec()), w, |w| {
             write_element_block("Header", w, |w| {
                 write_element_block("Sender", w, |w| {
                     write_element_block("SenderName", w, |w| {
@@ -262,8 +262,6 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                         })
                     })
                 })?;
-                let mut lang_fmt: HashMap<&str, &str> = HashMap::new();
-                lang_fmt.insert("language", "eng");
                 write_element_block("CollateralDetail", w, |w| {
                     write_element_block("TextContent", w, |w| {
                         // 03 Description ("30 Abstract" not implemented in OverDrive)
@@ -274,7 +272,7 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                         write_element_block("ContentAudience", w, |w| {
                             w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                         })?;
-                        write_full_element_block("Text", Some(lang_fmt.clone()), w, |w| {
+                        write_full_element_block("Text", Some(vec![("language", "eng")]), w, |w| {
                             w.write(XmlEvent::Characters(self.long_abstract.as_ref().unwrap()))
                                 .map_err(|e| e.into())
                         })
@@ -289,9 +287,12 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                             write_element_block("ContentAudience", w, |w| {
                                 w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                             })?;
-                            write_full_element_block("Text", Some(lang_fmt.clone()), w, |w| {
-                                w.write(XmlEvent::Characters(toc)).map_err(|e| e.into())
-                            })
+                            write_full_element_block(
+                                "Text",
+                                Some(vec![("language", "eng")]),
+                                w,
+                                |w| w.write(XmlEvent::Characters(toc)).map_err(|e| e.into()),
+                            )
                         })?;
                     }
                     if let Some(cover_url) = &self.cover_url {
@@ -349,15 +350,12 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                     }
                     XmlElement::<Onix3Overdrive>::xml_element(&self.work_status, w)?;
                     write_element_block("PublishingDate", w, |w| {
-                        let mut date_fmt: HashMap<&str, &str> = HashMap::new();
-                        date_fmt.insert("dateformat", "00"); // 00 YYYYMMDD
-
                         write_element_block("PublishingDateRole", w, |w| {
                             // 01 Publication date
                             w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                         })?;
                         // dateformat="00" YYYYMMDD
-                        write_full_element_block("Date", Some(date_fmt), w, |w| {
+                        write_full_element_block("Date", Some(vec![("dateformat", "00")]), w, |w| {
                             w.write(XmlEvent::Characters(
                                 &self.publication_date.unwrap().format("%Y%m%d").to_string(),
                             ))
@@ -463,24 +461,26 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                                 w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
                             })?;
                             write_element_block("SupplyDate", w, |w| {
-                                let mut date_fmt: HashMap<&str, &str> = HashMap::new();
-                                date_fmt.insert("dateformat", "00"); // 00 YYYYMMDD
-
                                 write_element_block("SupplyDateRole", w, |w| {
                                     // 02 Embargo Date
                                     w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
                                 })?;
                                 // dateformat="00" YYYYMMDD
-                                write_full_element_block("Date", Some(date_fmt), w, |w| {
-                                    w.write(XmlEvent::Characters(
-                                        &self
-                                            .publication_date
-                                            .unwrap()
-                                            .format("%Y%m%d")
-                                            .to_string(),
-                                    ))
-                                    .map_err(|e| e.into())
-                                })
+                                write_full_element_block(
+                                    "Date",
+                                    Some(vec![("dateformat", "00")]),
+                                    w,
+                                    |w| {
+                                        w.write(XmlEvent::Characters(
+                                            &self
+                                                .publication_date
+                                                .unwrap()
+                                                .format("%Y%m%d")
+                                                .to_string(),
+                                        ))
+                                        .map_err(|e| e.into())
+                                    },
+                                )
                             })?;
                             // Price element is required for OverDrive. Assume the USD price is canonical.
                             if let Some(price) = main_publication

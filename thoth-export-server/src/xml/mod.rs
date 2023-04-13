@@ -1,5 +1,4 @@
 use crate::record::XML_DECLARATION;
-use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::Work;
 use thoth_errors::{ThothError, ThothResult};
@@ -16,15 +15,15 @@ fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> ThothResult<()>>(
 
 fn write_full_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> ThothResult<()>>(
     element: &str,
-    attr: Option<HashMap<&str, &str>>,
+    attr: Option<Vec<(&str, &str)>>,
     w: &mut EventWriter<W>,
     f: F,
 ) -> ThothResult<()> {
     let mut event_builder: StartElementBuilder = XmlEvent::start_element(element);
 
     if let Some(attr) = attr {
-        for (k, v) in attr.iter() {
-            event_builder = event_builder.attr(*k, v);
+        for &(k, v) in attr.iter() {
+            event_builder = event_builder.attr(k, v);
         }
     }
 
