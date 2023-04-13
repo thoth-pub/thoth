@@ -6,7 +6,7 @@ use thoth_errors::{ThothError, ThothResult};
 use xml::writer::events::StartElementBuilder;
 use xml::writer::{EmitterConfig, EventWriter, XmlEvent};
 
-pub(crate) fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> ThothResult<()>>(
+fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> ThothResult<()>>(
     element: &str,
     w: &mut EventWriter<W>,
     f: F,
@@ -14,7 +14,7 @@ pub(crate) fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> ThothR
     write_full_element_block(element, None, None, w, f)
 }
 
-pub(crate) fn write_full_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> ThothResult<()>>(
+fn write_full_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> ThothResult<()>>(
     element: &str,
     ns: Option<HashMap<String, String>>,
     attr: Option<HashMap<&str, &str>>,
