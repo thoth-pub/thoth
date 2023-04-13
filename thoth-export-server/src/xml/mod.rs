@@ -5,6 +5,11 @@ use thoth_errors::{ThothError, ThothResult};
 use xml::writer::events::StartElementBuilder;
 use xml::writer::{EmitterConfig, EventWriter, XmlEvent};
 
+const ONIX3_NS: &[(&str, &str)] = &[
+    ("release", "3.0"),
+    ("xmlns", "http://ns.editeur.org/onix/3.0/reference"),
+];
+
 fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> ThothResult<()>>(
     element: &str,
     w: &mut EventWriter<W>,

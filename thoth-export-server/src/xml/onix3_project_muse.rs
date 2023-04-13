@@ -8,7 +8,7 @@ use thoth_client::{
 use xml::writer::{EventWriter, XmlEvent};
 
 use super::{write_element_block, XmlElement, XmlSpecification};
-use crate::xml::{write_full_element_block, XmlElementBlock};
+use crate::xml::{write_full_element_block, XmlElementBlock, ONIX3_NS};
 use thoth_errors::{ThothError, ThothResult};
 
 #[derive(Copy, Clone)]
@@ -18,12 +18,7 @@ const ONIX_ERROR: &str = "onix_3.0::project_muse";
 
 impl XmlSpecification for Onix3ProjectMuse {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
-        let attributes = &[
-            ("release", "3.0"),
-            ("xmlns", "http://ns.editeur.org/onix/3.0/reference"),
-        ];
-
-        write_full_element_block("ONIXMessage", Some(attributes.to_vec()), w, |w| {
+        write_full_element_block("ONIXMessage", Some(ONIX3_NS.to_vec()), w, |w| {
             write_element_block("Header", w, |w| {
                 write_element_block("Sender", w, |w| {
                     write_element_block("SenderName", w, |w| {

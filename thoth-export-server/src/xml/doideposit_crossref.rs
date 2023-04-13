@@ -17,6 +17,18 @@ use thoth_errors::{ThothError, ThothResult};
 pub struct DoiDepositCrossref {}
 
 const DEPOSIT_ERROR: &str = "doideposit::crossref";
+const CROSSREF_NS: &[(&str, &str)] = &[
+    ("version", "5.3.1"),
+    ("xmlns", "http://www.crossref.org/schema/5.3.1"),
+    ("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance"),
+    (
+        "xsi:schemaLocation",
+        "http://www.crossref.org/schema/5.3.1 http://www.crossref.org/schemas/crossref5.3.1.xsd",
+    ),
+    ("xmlns:ai", "http://www.crossref.org/AccessIndicators.xsd"),
+    ("xmlns:jats", "http://www.ncbi.nlm.nih.gov/JATS1"),
+    ("xmlns:fr", "http://www.crossref.org/fundref.xsd"),
+];
 
 // Output format based on schema documentation at https://data.crossref.org/reports/help/schema_doc/5.3.1/index.html
 // (retrieved via https://www.crossref.org/documentation/schema-library/xsd-schema-quick-reference/).
@@ -33,17 +45,7 @@ impl XmlSpecification for DoiDepositCrossref {
                 let timestamp = Utc::now().format("%Y%m%d%H%M").to_string();
                 let work_id = format!("{}_{}", work.work_id, timestamp);
 
-                let attributes = &[
-                    ("version", "5.3.1"),
-                    ("xmlns", "http://www.crossref.org/schema/5.3.1"),
-                    ("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance"),
-                    ("xsi:schemaLocation", "http://www.crossref.org/schema/5.3.1 http://www.crossref.org/schemas/crossref5.3.1.xsd"),
-                    ("xmlns:ai", "http://www.crossref.org/AccessIndicators.xsd"),
-                    ("xmlns:jats", "http://www.ncbi.nlm.nih.gov/JATS1"),
-                    ("xmlns:fr", "http://www.crossref.org/fundref.xsd"),
-                ];
-
-                write_full_element_block("doi_batch", Some(attributes.to_vec()), w, |w| {
+                write_full_element_block("doi_batch", Some(CROSSREF_NS.to_vec()), w, |w| {
                     write_element_block("head", w, |w| {
                         write_element_block("doi_batch_id", w, |w| {
                             w.write(XmlEvent::Characters(&work_id))
