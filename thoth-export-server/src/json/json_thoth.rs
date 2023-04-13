@@ -20,21 +20,24 @@ struct JsonWrapper<T: Serialize> {
 
 impl JsonSpecification for JsonThoth {
     fn handle_event(works: &[Work]) -> ThothResult<String> {
-        match works.len() {
-            0 => Err(ThothError::IncompleteMetadataRecord(
+        match works {
+            [] => Err(ThothError::IncompleteMetadataRecord(
                 JSON_ERROR.to_string(),
                 "Not enough data".to_string(),
             )),
-            1 => {
-                let mut work = works.first().unwrap().clone();
-                // Sort subjects alphabetically by type. Like all other child objects
-                // which have ordinals, they were already sorted by ordinal by WorkQuery.
-                work.subjects
-                    .sort_by(|a, b| a.subject_type.to_string().cmp(&b.subject_type.to_string()));
+            [work] => {
                 let wrapper = JsonWrapper {
                     json_generated_at: chrono::Utc::now()
                         .to_rfc3339_opts(SecondsFormat::Secs, true),
-                    wrapped_struct: work,
+                    wrapped_struct: {
+                        // Sort subjects alphabetically by type. Like all other child objects
+                        // which have ordinals, they were already sorted by ordinal by WorkQuery.
+                        let mut ordered_work = work.clone();
+                        ordered_work.subjects.sort_by(|a, b| {
+                            a.subject_type.to_string().cmp(&b.subject_type.to_string())
+                        });
+                        ordered_work
+                    },
                 };
                 serde_json::to_string_pretty(&wrapper)
                     .map_err(|e| ThothError::InternalError(e.to_string()))

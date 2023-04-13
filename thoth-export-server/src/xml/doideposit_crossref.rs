@@ -25,13 +25,12 @@ const DEPOSIT_ERROR: &str = "doideposit::crossref";
 // (retrieved via https://www.crossref.org/documentation/member-setup/direct-deposit-xml/testing-your-xml/).
 impl XmlSpecification for DoiDepositCrossref {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
-        match works.len() {
-            0 => Err(ThothError::IncompleteMetadataRecord(
+        match works {
+            [] => Err(ThothError::IncompleteMetadataRecord(
                 DEPOSIT_ERROR.to_string(),
                 "Not enough data".to_string(),
             )),
-            1 => {
-                let work = works.first().unwrap();
+            [work] => {
                 let timestamp = Utc::now().format("%Y%m%d%H%M").to_string();
                 let work_id = format!("{}_{}", work.work_id, timestamp);
                 let mut attr_map: HashMap<&str, &str> = HashMap::new();

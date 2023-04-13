@@ -43,12 +43,12 @@ struct KbartOclcRow {
 
 impl CsvSpecification for KbartOclc {
     fn handle_event<W: Write>(w: &mut Writer<W>, works: &[Work]) -> ThothResult<()> {
-        match works.len() {
-            0 => Err(ThothError::IncompleteMetadataRecord(
+        match works {
+            [] => Err(ThothError::IncompleteMetadataRecord(
                 KBART_ERROR.to_string(),
                 "Not enough data".to_string(),
             )),
-            1 => CsvRow::<KbartOclc>::csv_row(works.first().unwrap(), w),
+            [work] => CsvRow::<KbartOclc>::csv_row(work, w),
             _ => {
                 for work in works.iter() {
                     // Do not include Chapters in full publisher metadata record

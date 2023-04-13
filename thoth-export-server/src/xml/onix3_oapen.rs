@@ -42,12 +42,12 @@ impl XmlSpecification for Onix3Oapen {
                 })
             })?;
 
-            match works.len() {
-                0 => Err(ThothError::IncompleteMetadataRecord(
+            match works {
+                [] => Err(ThothError::IncompleteMetadataRecord(
                     ONIX_ERROR.to_string(),
                     "Not enough data".to_string(),
                 )),
-                1 => XmlElementBlock::<Onix3Oapen>::xml_element(works.first().unwrap(), w),
+                [work] => XmlElementBlock::<Onix3Oapen>::xml_element(work, w),
                 _ => {
                     for work in works.iter() {
                         // Do not include Chapters in full publisher metadata record
