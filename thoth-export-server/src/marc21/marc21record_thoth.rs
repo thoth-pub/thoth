@@ -1,4 +1,4 @@
-use crate::marc21::Marc21Field;
+use crate::marc21::{Marc21Field, MARC_ORGANIZATION_CODE};
 use cc_license::License;
 use chrono::{Datelike, Utc};
 use marc::{FieldRepr, Record, RecordBuilder};
@@ -17,7 +17,6 @@ use super::{Marc21Entry, Marc21Specification};
 pub(crate) struct Marc21RecordThoth;
 
 const MARC_ERROR: &str = "marc21record::thoth";
-const MARC_ORGANIZATION_CODE: &str = "UkCbTOM";
 
 impl Marc21Specification for Marc21RecordThoth {
     fn handle_event(w: &mut Vec<u8>, works: &[Work]) -> ThothResult<()> {

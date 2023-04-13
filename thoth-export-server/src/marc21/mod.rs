@@ -3,6 +3,8 @@ use std::io::Write;
 use thoth_client::Work;
 use thoth_errors::{ThothError, ThothResult};
 
+const MARC_ORGANIZATION_CODE: &str = "UkCbTOM";
+
 pub(crate) trait Marc21Specification {
     fn generate(&self, works: &[Work]) -> ThothResult<String> {
         let mut buffer: Vec<u8> = Vec::new();
