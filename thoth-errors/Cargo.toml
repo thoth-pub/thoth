@@ -21,7 +21,7 @@ actix-web = "4.3.0"
 diesel = "2.0.2"
 csv = "1.1.6"
 juniper = "0.15.10"
-marc = "2.0.0"
+marc = { git = "https://github.com/thoth-pub/rust-marc.git", branch = "xml", features = ["xml"] }
 phf = { version = "0.11", features = ["macros"] }
 reqwest-middleware = "0.2.0"
 xml-rs = "0.8.0"

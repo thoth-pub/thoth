@@ -114,6 +114,8 @@ impl MetadataTable for WorkWithRelations {
 
 pub trait DisplayWork {
     fn marc21_thoth_endpoint(&self) -> String;
+    fn marc21markup_thoth_endpoint(&self) -> String;
+    fn marc21xml_thoth_endpoint(&self) -> String;
     fn onix_projectmuse_endpoint(&self) -> String;
     fn onix_oapen_endpoint(&self) -> String;
     fn onix_jstor_endpoint(&self) -> String;
@@ -136,6 +138,20 @@ impl DisplayWork for WorkWithRelations {
     fn marc21_thoth_endpoint(&self) -> String {
         format!(
             "{}/specifications/marc21record::thoth/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
+    fn marc21markup_thoth_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/marc21markup::thoth/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
+    fn marc21xml_thoth_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/marc21xml::thoth/work/{}",
             THOTH_EXPORT_API, &self.work_id
         )
     }
@@ -485,6 +501,18 @@ impl DisplayWork for WorkWithRelations {
                                                 class="dropdown-item"
                                             >
                                             {"MARC 21 Record"}
+                                            </a>
+                                            <a
+                                                href={self.marc21markup_thoth_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"MARC 21 Markup"}
+                                            </a>
+                                            <a
+                                                href={self.marc21xml_thoth_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"MARC 21 XML"}
                                             </a>
                                         </div>
                                     </div>

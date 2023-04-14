@@ -2055,9 +2055,11 @@ dependencies = [
 
 [[package]]
 name = "marc"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe64e04162cf64d8498413d3b89be57ca8ac067d08405097205bc6cec43b054b"
+version = "3.0.0"
+source = "git+https://github.com/thoth-pub/rust-marc.git?branch=xml#30327c2628d0ca9f87aa7c1ae10f32d60d1d9c72"
+dependencies = [
+ "xml-rs",
+]
 
 [[package]]
 name = "matches"

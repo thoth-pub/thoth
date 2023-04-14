@@ -1,37 +1,34 @@
 use crate::record::XML_DECLARATION;
-use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::Work;
 use thoth_errors::{ThothError, ThothResult};
 use xml::writer::events::StartElementBuilder;
 use xml::writer::{EmitterConfig, EventWriter, XmlEvent};
 
-pub(crate) fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> ThothResult<()>>(
+const ONIX3_NS: &[(&str, &str)] = &[
+    ("release", "3.0"),
+    ("xmlns", "http://ns.editeur.org/onix/3.0/reference"),
+];
+
+fn write_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> ThothResult<()>>(
     element: &str,
     w: &mut EventWriter<W>,
     f: F,
 ) -> ThothResult<()> {
-    write_full_element_block(element, None, None, w, f)
+    write_full_element_block(element, None, w, f)
 }
 
-pub(crate) fn write_full_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> ThothResult<()>>(
+fn write_full_element_block<W: Write, F: Fn(&mut EventWriter<W>) -> ThothResult<()>>(
     element: &str,
-    ns: Option<HashMap<String, String>>,
-    attr: Option<HashMap<&str, &str>>,
+    attr: Option<Vec<(&str, &str)>>,
     w: &mut EventWriter<W>,
     f: F,
 ) -> ThothResult<()> {
     let mut event_builder: StartElementBuilder = XmlEvent::start_element(element);
 
-    if let Some(ns) = ns {
-        for (k, v) in ns.iter() {
-            event_builder = event_builder.ns(k, v);
-        }
-    }
-
     if let Some(attr) = attr {
-        for (k, v) in attr.iter() {
-            event_builder = event_builder.attr(*k, v);
+        for &(k, v) in attr.iter() {
+            event_builder = event_builder.attr(k, v);
         }
     }
 
@@ -93,5 +90,7 @@ mod onix21_ebsco_host;
 pub(crate) use onix21_ebsco_host::Onix21EbscoHost;
 mod doideposit_crossref;
 pub(crate) use doideposit_crossref::DoiDepositCrossref;
+mod marc21xml_thoth;
+pub(crate) use marc21xml_thoth::Marc21XmlThoth;
 mod onix21_proquest_ebrary;
 pub(crate) use onix21_proquest_ebrary::Onix21ProquestEbrary;
