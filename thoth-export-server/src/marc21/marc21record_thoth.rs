@@ -1,9 +1,10 @@
-use crate::marc21::Marc21Field;
+use crate::marc21::{Marc21Field, MARC_ORGANIZATION_CODE};
 use cc_license::License;
 use chrono::{Datelike, Utc};
 use marc::{FieldRepr, Record, RecordBuilder};
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::publication::PublicationType;
+use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
     LanguageRelation, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues,
     WorkLanguages, WorkPublications, WorkSubjects, WorkType,
@@ -134,7 +135,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
 
         // 040 - cataloging source field
         FieldRepr::from((b"040", "\\\\"))
-            .add_subfield(b"a", "Thoth")
+            .add_subfield(b"a", MARC_ORGANIZATION_CODE)
             .and_then(|f| f.add_subfield(b"b", "eng"))
             .and_then(|f| f.add_subfield(b"e", "rda"))
             .and_then(|f| builder.add_field(f))?;
@@ -412,6 +413,10 @@ fn contributor_fields(contributions: &[WorkContributions]) -> ThothResult<Vec<Fi
                 affiliation.institution.institution_name.clone().as_bytes(),
             )?;
         }
+        if let Some(orcid) = &contributions.first().unwrap().contributor.orcid {
+            contributor_field =
+                contributor_field.add_subfield(b"1", orcid.with_domain().as_bytes())?;
+        }
         contributor_fields.push(contributor_field);
     }
     Ok(contributor_fields)
@@ -618,10 +623,10 @@ fn contributors_string(contributions: &[WorkContributions]) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::str::FromStr;
-    use thoth_api::model::{Doi, Isbn};
+    use thoth_api::model::{Doi, Isbn, Orcid};
     use thoth_client::{
         FundingInstitution, LanguageCode, SeriesType, WorkContributionsAffiliations,
         WorkContributionsAffiliationsInstitution, WorkContributionsContributor, WorkImprint,
@@ -629,7 +634,7 @@ mod tests {
     };
     use uuid::Uuid;
 
-    fn test_work() -> Work {
+    pub(crate) fn test_work() -> Work {
         Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
@@ -697,7 +702,9 @@ mod tests {
                     biography: None,
                     contribution_ordinal: 1,
                     contributor: WorkContributionsContributor {
-                        orcid: None,
+                        orcid: Some(
+                            Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap(),
+                        ),
                         website: None,
                     },
                     affiliations: vec![WorkContributionsAffiliations {
@@ -720,7 +727,9 @@ mod tests {
                     biography: None,
                     contribution_ordinal: 2,
                     contributor: WorkContributionsContributor {
-                        orcid: None,
+                        orcid: Some(
+                            Orcid::from_str("https://orcid.org/0000-0002-0000-0004").unwrap(),
+                        ),
                         website: None,
                     },
                     affiliations: vec![],
@@ -1039,6 +1048,24 @@ mod tests {
             .add_subfield(b"a", "Jane Doe".as_bytes())
             .and_then(|f| f.add_subfield(b"e", "Author".as_bytes()))
             .and_then(|f| f.add_subfield(b"u", "Thoth University".as_bytes()))
+            .unwrap()]);
+        assert_eq!(contributor_fields(&contributions), expected);
+    }
+
+    #[test]
+    fn test_contributor_fields_single_author_with_orcid() {
+        let mut contribution = test_contribution();
+        contribution.full_name = "Jane Doe".to_string();
+        contribution.contributor = WorkContributionsContributor {
+            orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0011").unwrap()),
+            website: None,
+        };
+        let contributions = [contribution];
+
+        let expected = Ok(vec![FieldRepr::from((b"100", "1\\"))
+            .add_subfield(b"a", "Jane Doe".as_bytes())
+            .and_then(|f| f.add_subfield(b"e", "Author".as_bytes()))
+            .and_then(|f| f.add_subfield(b"1", "https://orcid.org/0000-0002-0000-0011".as_bytes()))
             .unwrap()]);
         assert_eq!(contributor_fields(&contributions), expected);
     }
@@ -1428,7 +1455,7 @@ mod tests {
     fn test_generate_marc() {
         let work = test_work();
         let current_date = Utc::now().format("%y%m%d").to_string();
-        let expected = format!("02145nam  2200529 i 4500001003700000006001900037007001500056008004100071010001500112020002500127020002500152020003000177022002300207022002200230024002800252024002100280040002000301041001300321050000900334072001600343072002300359072001500382100004200397245011800439250001600557264003600573264001100609300002300620336002600643337002600669338003600695490003900731500008300770504005300853505006000906506004800966520003101014536006801045538003601113540022301149700002401372700003401396710002901430830003901459856005801498856005901556\u{1e}00000000-0000-0000-aaaa-000000000001\u{1e}m        d        \u{1e}cr  n         \u{1e}{current_date}t20102010        sb    000 0 eng d\u{1e}\\\\\u{1f}aLCCN010101\u{1e}\\\\\u{1f}a9783161484100\u{1f}q(PDF)\u{1e}\\\\\u{1f}a9789295055025\u{1f}q(XML)\u{1e}\\\\\u{1f}a9781402894626\u{1f}q(Hardback)\u{1e}\\\\\u{1f}a8765-4321 (Online)\u{1e}\\\\\u{1f}a1234-5678 (Print)\u{1e}7\\\u{1f}a10.00001/BOOK.0001\u{1f}2doi\u{1e}7\\\u{1f}aOCLC010101\u{1f}2oclc\u{1e}\\\\\u{1f}aThoth\u{1f}beng\u{1f}erda\u{1e}1\\\u{1f}aeng\u{1f}hspa\u{1e}00\u{1f}aJA85\u{1e} 7\u{1f}aAAB\u{1f}2bicssc\u{1e} 7\u{1f}aAAA000000\u{1f}2bisacsh\u{1e} 7\u{1f}aJWA\u{1f}2thema\u{1e}1\\\u{1f}aSole Author\u{1f}eAuthor\u{1f}uThoth University\u{1e}00\u{1f}aBook Title\u{1f}h[electronic resource] :\u{1f}bBook Subtitle\u{1f}cSole Author; edited by Only Editor; translated by Translator.\u{1e}\\\\\u{1f}a1st edition\u{1e}\\1\u{1f}aLeón, Spain\u{1f}bOA Editions\u{1f}c2010\u{1e}\\4\u{1f}c©2010\u{1e}\\\\\u{1f}a1 online resource.\u{1e}\\\\\u{1f}atext\u{1f}btxt\u{1f}2rdacontent\u{1e}\\\\\u{1f}acomputer\u{1f}bc\u{1f}2rdamedia\u{1e}\\\\\u{1f}aonline resource\u{1f}bcr\u{1f}2rdacarrier\u{1e}1\\\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1e}\\\\\u{1f}aPlease note that in this book the mathematical formulas are encoded in MathML.\u{1e}\\\\\u{1f}aIncludes bibliography (pages 165-170) and index.\u{1e}0\\\u{1f}aIntroduction; Chapter 1; Chapter 2; Bibliography; Index\u{1e}\\\\\u{1f}aOpen access resource providing free access.\u{1e}\\\\\u{1f}aLorem ipsum dolor sit amet\u{1e}\\\\\u{1f}aFunding Institution\u{1f}cJA0001\u{1f}eFunding Programme\u{1f}fFunding Project\u{1e}\\\\\u{1f}aMode of access: World Wide Web.\u{1e}\\\\\u{1f}aThe text of this book is licensed under a Creative Commons Attribution 4.0 International license (CC BY 4.0). For more detailed information consult the publisher's website.\u{1f}uhttps://creativecommons.org/licenses/by/4.0/\u{1e}1\\\u{1f}aOnly Editor\u{1f}eEditor\u{1e}1\\\u{1f}aTranslator\u{1f}eTranslator\u{1f}uCOPIM\u{1e}2\\\u{1f}aOA Editions,\u{1f}epublisher.\u{1e}\\0\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1e}40\u{1f}uhttps://doi.org/10.00001/book.0001\u{1f}zConnect to e-book\u{1e}42\u{1f}uhttps://www.book.com/cover.jpg\u{1f}zConnect to cover image\u{1e}\u{1d}");
+        let expected = format!("02225nam  2200529 i 4500001003700000006001900037007001500056008004100071010001500112020002500127020002500152020003000177022002300207022002200230024002800252024002100280040002200301041001300323050000900336072001600345072002300361072001500384100008100399245011800480250001600598264003600614264001100650300002300661336002600684337002600710338003600736490003900772500008300811504005300894505006000947506004801007520003101055536006801086538003601154540022301190700006301413700003401476710002901510830003901539856005801578856005901636\u{1e}00000000-0000-0000-aaaa-000000000001\u{1e}m        d        \u{1e}cr  n         \u{1e}{current_date}t20102010        sb    000 0 eng d\u{1e}\\\\\u{1f}aLCCN010101\u{1e}\\\\\u{1f}a9783161484100\u{1f}q(PDF)\u{1e}\\\\\u{1f}a9789295055025\u{1f}q(XML)\u{1e}\\\\\u{1f}a9781402894626\u{1f}q(Hardback)\u{1e}\\\\\u{1f}a8765-4321 (Online)\u{1e}\\\\\u{1f}a1234-5678 (Print)\u{1e}7\\\u{1f}a10.00001/BOOK.0001\u{1f}2doi\u{1e}7\\\u{1f}aOCLC010101\u{1f}2oclc\u{1e}\\\\\u{1f}aUkCbTOM\u{1f}beng\u{1f}erda\u{1e}1\\\u{1f}aeng\u{1f}hspa\u{1e}00\u{1f}aJA85\u{1e} 7\u{1f}aAAB\u{1f}2bicssc\u{1e} 7\u{1f}aAAA000000\u{1f}2bisacsh\u{1e} 7\u{1f}aJWA\u{1f}2thema\u{1e}1\\\u{1f}aSole Author\u{1f}eAuthor\u{1f}uThoth University\u{1f}1https://orcid.org/0000-0002-0000-0001\u{1e}00\u{1f}aBook Title\u{1f}h[electronic resource] :\u{1f}bBook Subtitle\u{1f}cSole Author; edited by Only Editor; translated by Translator.\u{1e}\\\\\u{1f}a1st edition\u{1e}\\1\u{1f}aLeón, Spain\u{1f}bOA Editions\u{1f}c2010\u{1e}\\4\u{1f}c©2010\u{1e}\\\\\u{1f}a1 online resource.\u{1e}\\\\\u{1f}atext\u{1f}btxt\u{1f}2rdacontent\u{1e}\\\\\u{1f}acomputer\u{1f}bc\u{1f}2rdamedia\u{1e}\\\\\u{1f}aonline resource\u{1f}bcr\u{1f}2rdacarrier\u{1e}1\\\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1e}\\\\\u{1f}aPlease note that in this book the mathematical formulas are encoded in MathML.\u{1e}\\\\\u{1f}aIncludes bibliography (pages 165-170) and index.\u{1e}0\\\u{1f}aIntroduction; Chapter 1; Chapter 2; Bibliography; Index\u{1e}\\\\\u{1f}aOpen access resource providing free access.\u{1e}\\\\\u{1f}aLorem ipsum dolor sit amet\u{1e}\\\\\u{1f}aFunding Institution\u{1f}cJA0001\u{1f}eFunding Programme\u{1f}fFunding Project\u{1e}\\\\\u{1f}aMode of access: World Wide Web.\u{1e}\\\\\u{1f}aThe text of this book is licensed under a Creative Commons Attribution 4.0 International license (CC BY 4.0). For more detailed information consult the publisher's website.\u{1f}uhttps://creativecommons.org/licenses/by/4.0/\u{1e}1\\\u{1f}aOnly Editor\u{1f}eEditor\u{1f}1https://orcid.org/0000-0002-0000-0004\u{1e}1\\\u{1f}aTranslator\u{1f}eTranslator\u{1f}uCOPIM\u{1e}2\\\u{1f}aOA Editions,\u{1f}epublisher.\u{1e}\\0\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1e}40\u{1f}uhttps://doi.org/10.00001/book.0001\u{1f}zConnect to e-book\u{1e}42\u{1f}uhttps://www.book.com/cover.jpg\u{1f}zConnect to cover image\u{1e}\u{1d}");
 
         assert_eq!(Marc21RecordThoth {}.generate(&[work]), Ok(expected))
     }

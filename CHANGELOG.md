@@ -6,9 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.11.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.0) - 2023-04-14
+### Added
+  - [490](https://github.com/thoth-pub/thoth/issues/490) - Generate MARC 21 markup
+  - [491](https://github.com/thoth-pub/thoth/issues/491) - Generate MARC 21 XML
+  - [492](https://github.com/thoth-pub/thoth/pull/492) - Add Thoth's MARC organization code to MARC records
+  - [492](https://github.com/thoth-pub/thoth/pull/492) - Add ORCID IDs to MARC
+  - [492](https://github.com/thoth-pub/thoth/pull/492) - Add contact details to APP
+
+### Changed
+  - [492](https://github.com/thoth-pub/thoth/pull/492) - Streamline `thoth-export-server`'s XML module
+
 ## [[0.10.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.10.0) - 2023-04-03
 ### Added
-  - [42](https://github.com/thoth-pub/thoth/pull/42) - Generate MARC 21 records
+  - [42](https://github.com/thoth-pub/thoth/issues/42) - Generate MARC 21 records
   - New `work` field `bibliography_note`
 
 ## [[0.9.18]](https://github.com/thoth-pub/thoth/releases/tag/v0.9.18) - 2023-03-27

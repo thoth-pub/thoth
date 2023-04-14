@@ -18,7 +18,7 @@ const ONIX_ERROR: &str = "onix_2.1::ebsco_host";
 
 impl XmlSpecification for Onix21EbscoHost {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
-        write_full_element_block("ONIXMessage", None, None, w, |w| {
+        write_full_element_block("ONIXMessage", None, w, |w| {
             write_element_block("Header", w, |w| {
                 write_element_block("FromCompany", w, |w| {
                     w.write(XmlEvent::Characters("Thoth")).map_err(|e| e.into())
@@ -35,12 +35,12 @@ impl XmlSpecification for Onix21EbscoHost {
                 })
             })?;
 
-            match works.len() {
-                0 => Err(ThothError::IncompleteMetadataRecord(
+            match works {
+                [] => Err(ThothError::IncompleteMetadataRecord(
                     ONIX_ERROR.to_string(),
                     "Not enough data".to_string(),
                 )),
-                1 => XmlElementBlock::<Onix21EbscoHost>::xml_element(works.first().unwrap(), w),
+                [work] => XmlElementBlock::<Onix21EbscoHost>::xml_element(work, w),
                 _ => {
                     for work in works.iter() {
                         // Do not include Chapters in full publisher metadata record

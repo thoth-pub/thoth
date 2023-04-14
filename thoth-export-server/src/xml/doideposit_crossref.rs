@@ -1,5 +1,4 @@
 use chrono::Utc;
-use std::collections::HashMap;
 use std::io::Write;
 use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
@@ -18,6 +17,18 @@ use thoth_errors::{ThothError, ThothResult};
 pub struct DoiDepositCrossref {}
 
 const DEPOSIT_ERROR: &str = "doideposit::crossref";
+const CROSSREF_NS: &[(&str, &str)] = &[
+    ("version", "5.3.1"),
+    ("xmlns", "http://www.crossref.org/schema/5.3.1"),
+    ("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance"),
+    (
+        "xsi:schemaLocation",
+        "http://www.crossref.org/schema/5.3.1 http://www.crossref.org/schemas/crossref5.3.1.xsd",
+    ),
+    ("xmlns:ai", "http://www.crossref.org/AccessIndicators.xsd"),
+    ("xmlns:jats", "http://www.ncbi.nlm.nih.gov/JATS1"),
+    ("xmlns:fr", "http://www.crossref.org/fundref.xsd"),
+];
 
 // Output format based on schema documentation at https://data.crossref.org/reports/help/schema_doc/5.3.1/index.html
 // (retrieved via https://www.crossref.org/documentation/schema-library/xsd-schema-quick-reference/).
@@ -25,26 +36,16 @@ const DEPOSIT_ERROR: &str = "doideposit::crossref";
 // (retrieved via https://www.crossref.org/documentation/member-setup/direct-deposit-xml/testing-your-xml/).
 impl XmlSpecification for DoiDepositCrossref {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
-        match works.len() {
-            0 => Err(ThothError::IncompleteMetadataRecord(
+        match works {
+            [] => Err(ThothError::IncompleteMetadataRecord(
                 DEPOSIT_ERROR.to_string(),
                 "Not enough data".to_string(),
             )),
-            1 => {
-                let work = works.first().unwrap();
+            [work] => {
                 let timestamp = Utc::now().format("%Y%m%d%H%M").to_string();
                 let work_id = format!("{}_{}", work.work_id, timestamp);
-                let mut attr_map: HashMap<&str, &str> = HashMap::new();
 
-                attr_map.insert("version", "5.3.1");
-                attr_map.insert("xmlns", "http://www.crossref.org/schema/5.3.1");
-                attr_map.insert("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
-                attr_map.insert("xsi:schemaLocation", "http://www.crossref.org/schema/5.3.1 http://www.crossref.org/schemas/crossref5.3.1.xsd");
-                attr_map.insert("xmlns:ai", "http://www.crossref.org/AccessIndicators.xsd");
-                attr_map.insert("xmlns:jats", "http://www.ncbi.nlm.nih.gov/JATS1");
-                attr_map.insert("xmlns:fr", "http://www.crossref.org/fundref.xsd");
-
-                write_full_element_block("doi_batch", None, Some(attr_map), w, |w| {
+                write_full_element_block("doi_batch", Some(CROSSREF_NS.to_vec()), w, |w| {
                     write_element_block("head", w, |w| {
                         write_element_block("doi_batch_id", w, |w| {
                             w.write(XmlEvent::Characters(&work_id))
@@ -86,62 +87,54 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
             WorkType::Other(_) => unreachable!(),
         };
         write_element_block("body", w, |w| {
-            write_full_element_block(
-                "book",
-                None,
-                Some(HashMap::from([("book_type", work_type)])),
-                w,
-                |w| {
-                    // Only one series can be listed, so we select the first one found (if any).
-                    if let Some((series, ordinal)) =
-                        self.issues.first().map(|i| (&i.series, i.issue_ordinal))
-                    {
-                        write_full_element_block(
-                            "book_series_metadata",
-                            None,
-                            Some(HashMap::from([("language", "en")])),
-                            w,
-                            |w| {
-                                XmlElementBlock::<DoiDepositCrossref>::xml_element(series, w)?;
-                                work_metadata(
-                                    w,
-                                    &WorkRelationsRelatedWork::from(self.clone()),
-                                    None,
-                                    Some(ordinal),
-                                )
-                            },
-                        )?;
-                    } else {
-                        write_full_element_block(
-                            "book_metadata",
-                            None,
-                            Some(HashMap::from([("language", "en")])),
-                            w,
-                            |w| {
-                                work_metadata(
-                                    w,
-                                    &WorkRelationsRelatedWork::from(self.clone()),
-                                    None,
-                                    None,
-                                )
-                            },
-                        )?;
-                    }
-                    // As an alternative to `book_metadata` and `book_series_metadata` above,
-                    // `book_set_metadata` can be used for works which are part of a set.
-                    // Omitted at present but could be considered as a future enhancement.
-                    let mut chapters = self.relations.clone();
-                    // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
-                    chapters.sort_by(|a, b| a.relation_ordinal.cmp(&b.relation_ordinal));
-                    for chapter in chapters
-                        .iter()
-                        .filter(|r| r.relation_type == RelationType::HAS_CHILD)
-                    {
-                        XmlElementBlock::<DoiDepositCrossref>::xml_element(chapter, w)?;
-                    }
-                    Ok(())
-                },
-            )
+            write_full_element_block("book", Some(vec![("book_type", work_type)]), w, |w| {
+                // Only one series can be listed, so we select the first one found (if any).
+                if let Some((series, ordinal)) =
+                    self.issues.first().map(|i| (&i.series, i.issue_ordinal))
+                {
+                    write_full_element_block(
+                        "book_series_metadata",
+                        Some(vec![("language", "en")]),
+                        w,
+                        |w| {
+                            XmlElementBlock::<DoiDepositCrossref>::xml_element(series, w)?;
+                            work_metadata(
+                                w,
+                                &WorkRelationsRelatedWork::from(self.clone()),
+                                None,
+                                Some(ordinal),
+                            )
+                        },
+                    )?;
+                } else {
+                    write_full_element_block(
+                        "book_metadata",
+                        Some(vec![("language", "en")]),
+                        w,
+                        |w| {
+                            work_metadata(
+                                w,
+                                &WorkRelationsRelatedWork::from(self.clone()),
+                                None,
+                                None,
+                            )
+                        },
+                    )?;
+                }
+                // As an alternative to `book_metadata` and `book_series_metadata` above,
+                // `book_set_metadata` can be used for works which are part of a set.
+                // Omitted at present but could be considered as a future enhancement.
+                let mut chapters = self.relations.clone();
+                // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
+                chapters.sort_by(|a, b| a.relation_ordinal.cmp(&b.relation_ordinal));
+                for chapter in chapters
+                    .iter()
+                    .filter(|r| r.relation_type == RelationType::HAS_CHILD)
+                {
+                    XmlElementBlock::<DoiDepositCrossref>::xml_element(chapter, w)?;
+                }
+                Ok(())
+            })
         })
     }
 }
@@ -193,8 +186,7 @@ fn work_metadata<W: Write>(
     if let Some(long_abstract) = &work.long_abstract {
         write_full_element_block(
             "jats:abstract",
-            None,
-            Some(HashMap::from([("abstract-type", "long")])),
+            Some(vec![("abstract-type", "long")]),
             w,
             |w| {
                 for paragraph in long_abstract.lines() {
@@ -212,8 +204,7 @@ fn work_metadata<W: Write>(
     if let Some(short_abstract) = &work.short_abstract {
         write_full_element_block(
             "jats:abstract",
-            None,
-            Some(HashMap::from([("abstract-type", "short")])),
+            Some(vec![("abstract-type", "short")]),
             w,
             |w| {
                 for paragraph in short_abstract.lines() {
@@ -344,23 +335,16 @@ fn work_metadata<W: Write>(
         })?;
     }
     if !work.fundings.is_empty() {
-        write_full_element_block(
-            "fr:program",
-            None,
-            Some(HashMap::from([("name", "fundref")])),
-            w,
-            |w| {
-                for funding in &work.fundings {
-                    XmlElementBlock::<DoiDepositCrossref>::xml_element(funding, w)?;
-                }
-                Ok(())
-            },
-        )?;
+        write_full_element_block("fr:program", Some(vec![("name", "fundref")]), w, |w| {
+            for funding in &work.fundings {
+                XmlElementBlock::<DoiDepositCrossref>::xml_element(funding, w)?;
+            }
+            Ok(())
+        })?;
     }
     write_full_element_block(
         "ai:program",
-        None,
-        Some(HashMap::from([("name", "AccessIndicators")])),
+        Some(vec![("name", "AccessIndicators")]),
         w,
         |w| {
             write_element_block("ai:free_to_read", w, |_w| Ok(()))?;
@@ -396,21 +380,18 @@ fn work_metadata<W: Write>(
                     // Alternatively, a direct link to full-text HTML can be used (not implemented here).
                     write_full_element_block(
                         "collection",
-                        None,
-                        Some(HashMap::from([("property", "crawler-based")])),
+                        Some(vec![("property", "crawler-based")]),
                         w,
                         |w| {
                             for crawler in ["iParadigms", "google", "msn", "yahoo", "scirus"] {
                                 write_full_element_block(
                                     "item",
-                                    None,
-                                    Some(HashMap::from([("crawler", crawler)])),
+                                    Some(vec![("crawler", crawler)]),
                                     w,
                                     |w| {
                                         write_full_element_block(
                                             "resource",
-                                            None,
-                                            Some(HashMap::from([("mime_type", "application/pdf")])),
+                                            Some(vec![("mime_type", "application/pdf")]),
                                             w,
                                             |w| {
                                                 w.write(XmlEvent::Characters(pdf_url))
@@ -427,15 +408,13 @@ fn work_metadata<W: Write>(
                     // Alternatively, a direct link to full-text XML can be used (not implemented here).
                     write_full_element_block(
                         "collection",
-                        None,
-                        Some(HashMap::from([("property", "text-mining")])),
+                        Some(vec![("property", "text-mining")]),
                         w,
                         |w| {
                             write_element_block("item", w, |w| {
                                 write_full_element_block(
                                     "resource",
-                                    None,
-                                    Some(HashMap::from([("mime_type", "application/pdf")])),
+                                    Some(vec![("mime_type", "application/pdf")]),
                                     w,
                                     |w| {
                                         w.write(XmlEvent::Characters(pdf_url)).map_err(|e| e.into())
@@ -485,26 +464,14 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkIssuesSeries {
                         .map_err(|e| e.into())
                 })
             })?;
-            write_full_element_block(
-                "issn",
-                None,
-                Some(HashMap::from([("media_type", "print")])),
-                w,
-                |w| {
-                    w.write(XmlEvent::Characters(&self.issn_print))
-                        .map_err(|e| e.into())
-                },
-            )?;
-            write_full_element_block(
-                "issn",
-                None,
-                Some(HashMap::from([("media_type", "electronic")])),
-                w,
-                |w| {
-                    w.write(XmlEvent::Characters(&self.issn_digital))
-                        .map_err(|e| e.into())
-                },
-            )
+            write_full_element_block("issn", Some(vec![("media_type", "print")]), w, |w| {
+                w.write(XmlEvent::Characters(&self.issn_print))
+                    .map_err(|e| e.into())
+            })?;
+            write_full_element_block("issn", Some(vec![("media_type", "electronic")]), w, |w| {
+                w.write(XmlEvent::Characters(&self.issn_digital))
+                    .map_err(|e| e.into())
+            })
         })
     }
 }
@@ -517,8 +484,7 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelations {
         }
         write_full_element_block(
             "content_item",
-            None,
-            Some(HashMap::from([("component_type", "chapter")])),
+            Some(vec![("component_type", "chapter")]),
             w,
             |w| work_metadata(w, &self.related_work, Some(self.relation_ordinal), None),
         )
@@ -536,8 +502,7 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkPublication
             };
             write_full_element_block(
                 "isbn",
-                None,
-                Some(HashMap::from([("media_type", isbn_type.as_str())])),
+                Some(vec![("media_type", isbn_type.as_str())]),
                 w,
                 |w| w.write(XmlEvent::Characters(&isbn)).map_err(|e| e.into()),
             )?;
@@ -575,11 +540,7 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributio
         };
         write_full_element_block(
             "person_name",
-            None,
-            Some(HashMap::from([
-                ("sequence", ordinal),
-                ("contributor_role", role),
-            ])),
+            Some(vec![("sequence", ordinal), ("contributor_role", role)]),
             w,
             |w| {
                 if let Some(first_name) = &self.first_name {
@@ -626,9 +587,7 @@ impl XmlElementBlock<DoiDepositCrossref>
                     .map_err(|e| e.into())
             })?;
             if let Some(ror) = &self.ror {
-                let mut id_type: HashMap<&str, &str> = HashMap::new();
-                id_type.insert("type", "ror");
-                write_full_element_block("institution_id", None, Some(id_type), w, |w| {
+                write_full_element_block("institution_id", Some(vec![("type", "ror")]), w, |w| {
                     w.write(XmlEvent::Characters(&ror.with_domain()))
                         .map_err(|e| e.into())
                 })?;
@@ -640,176 +599,161 @@ impl XmlElementBlock<DoiDepositCrossref>
 
 impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkFundings {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        write_full_element_block(
-            "fr:assertion",
-            None,
-            Some(HashMap::from([("name", "fundgroup")])),
-            w,
-            |w| {
+        write_full_element_block("fr:assertion", Some(vec![("name", "fundgroup")]), w, |w| {
+            write_full_element_block(
+                "fr:assertion",
+                Some(vec![("name", "funder_name")]),
+                w,
+                |w| {
+                    w.write(XmlEvent::Characters(&self.institution.institution_name))?;
+                    if let Some(doi) = &self.institution.institution_doi {
+                        write_full_element_block(
+                            "fr:assertion",
+                            Some(vec![("name", "funder_identifier")]),
+                            w,
+                            |w| {
+                                w.write(XmlEvent::Characters(&doi.with_domain()))
+                                    .map_err(|e| e.into())
+                            },
+                        )?;
+                    }
+                    Ok(())
+                },
+            )?;
+            if let Some(grant_number) = &self.grant_number {
                 write_full_element_block(
                     "fr:assertion",
-                    None,
-                    Some(HashMap::from([("name", "funder_name")])),
+                    Some(vec![("name", "award_number")]),
                     w,
                     |w| {
-                        w.write(XmlEvent::Characters(&self.institution.institution_name))?;
-                        if let Some(doi) = &self.institution.institution_doi {
-                            write_full_element_block(
-                                "fr:assertion",
-                                None,
-                                Some(HashMap::from([("name", "funder_identifier")])),
-                                w,
-                                |w| {
-                                    w.write(XmlEvent::Characters(&doi.with_domain()))
-                                        .map_err(|e| e.into())
-                                },
-                            )?;
-                        }
-                        Ok(())
+                        w.write(XmlEvent::Characters(grant_number))
+                            .map_err(|e| e.into())
                     },
                 )?;
-                if let Some(grant_number) = &self.grant_number {
-                    write_full_element_block(
-                        "fr:assertion",
-                        None,
-                        Some(HashMap::from([("name", "award_number")])),
-                        w,
-                        |w| {
-                            w.write(XmlEvent::Characters(grant_number))
-                                .map_err(|e| e.into())
-                        },
-                    )?;
-                }
-                Ok(())
-            },
-        )
+            }
+            Ok(())
+        })
     }
 }
 
 impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkReferences {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         let key = format!("ref{}", &self.reference_ordinal);
-        write_full_element_block(
-            "citation",
-            None,
-            Some(HashMap::from([("key", key.as_ref())])),
-            w,
-            |w| {
-                if let Some(doi) = &self.doi {
-                    write_element_block("doi", w, |w| {
-                        w.write(XmlEvent::Characters(&doi.to_string()))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-                if let Some(unstructured_citation) = &self.unstructured_citation {
-                    write_element_block("unstructured_citation", w, |w| {
-                        w.write(XmlEvent::Characters(unstructured_citation))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-                if let Some(issn) = &self.issn {
-                    write_element_block("issn", w, |w| {
-                        w.write(XmlEvent::Characters(issn)).map_err(|e| e.into())
-                    })?;
-                }
-                if let Some(isbn) = &self.isbn {
-                    write_element_block("isbn", w, |w| {
-                        w.write(XmlEvent::Characters(&isbn.to_string()))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-                if let Some(journal_title) = &self.journal_title {
-                    write_element_block("journal_title", w, |w| {
-                        w.write(XmlEvent::Characters(journal_title))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-                if let Some(article_title) = &self.article_title {
-                    write_element_block("article_title", w, |w| {
-                        w.write(XmlEvent::Characters(article_title))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-                if let Some(series_title) = &self.series_title {
-                    write_element_block("series_title", w, |w| {
-                        w.write(XmlEvent::Characters(series_title))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-                if let Some(volume_title) = &self.volume_title {
-                    write_element_block("volume_title", w, |w| {
-                        w.write(XmlEvent::Characters(volume_title))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-                if let Some(edition) = &self.edition {
-                    write_element_block("edition_number", w, |w| {
-                        w.write(XmlEvent::Characters(&edition.to_string()))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-                if let Some(author) = &self.author {
-                    write_element_block("author", w, |w| {
-                        w.write(XmlEvent::Characters(author)).map_err(|e| e.into())
-                    })?;
-                }
-                if let Some(volume) = &self.volume {
-                    write_element_block("volume", w, |w| {
-                        w.write(XmlEvent::Characters(volume)).map_err(|e| e.into())
-                    })?;
-                }
-                if let Some(issue) = &self.issue {
-                    write_element_block("issue", w, |w| {
-                        w.write(XmlEvent::Characters(issue)).map_err(|e| e.into())
-                    })?;
-                }
-                if let Some(first_page) = &self.first_page {
-                    write_element_block("first_page", w, |w| {
-                        w.write(XmlEvent::Characters(first_page))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-                if let Some(component_number) = &self.component_number {
-                    write_element_block("component_number", w, |w| {
-                        w.write(XmlEvent::Characters(component_number))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-                // a citation for a standard must contain all three fields
-                if self.standard_designator.is_some()
-                    && self.standards_body_name.is_some()
-                    && self.standards_body_acronym.is_some()
-                {
-                    write_element_block("std_designator", w, |w| {
+        write_full_element_block("citation", Some(vec![("key", key.as_ref())]), w, |w| {
+            if let Some(doi) = &self.doi {
+                write_element_block("doi", w, |w| {
+                    w.write(XmlEvent::Characters(&doi.to_string()))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            if let Some(unstructured_citation) = &self.unstructured_citation {
+                write_element_block("unstructured_citation", w, |w| {
+                    w.write(XmlEvent::Characters(unstructured_citation))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            if let Some(issn) = &self.issn {
+                write_element_block("issn", w, |w| {
+                    w.write(XmlEvent::Characters(issn)).map_err(|e| e.into())
+                })?;
+            }
+            if let Some(isbn) = &self.isbn {
+                write_element_block("isbn", w, |w| {
+                    w.write(XmlEvent::Characters(&isbn.to_string()))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            if let Some(journal_title) = &self.journal_title {
+                write_element_block("journal_title", w, |w| {
+                    w.write(XmlEvent::Characters(journal_title))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            if let Some(article_title) = &self.article_title {
+                write_element_block("article_title", w, |w| {
+                    w.write(XmlEvent::Characters(article_title))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            if let Some(series_title) = &self.series_title {
+                write_element_block("series_title", w, |w| {
+                    w.write(XmlEvent::Characters(series_title))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            if let Some(volume_title) = &self.volume_title {
+                write_element_block("volume_title", w, |w| {
+                    w.write(XmlEvent::Characters(volume_title))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            if let Some(edition) = &self.edition {
+                write_element_block("edition_number", w, |w| {
+                    w.write(XmlEvent::Characters(&edition.to_string()))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            if let Some(author) = &self.author {
+                write_element_block("author", w, |w| {
+                    w.write(XmlEvent::Characters(author)).map_err(|e| e.into())
+                })?;
+            }
+            if let Some(volume) = &self.volume {
+                write_element_block("volume", w, |w| {
+                    w.write(XmlEvent::Characters(volume)).map_err(|e| e.into())
+                })?;
+            }
+            if let Some(issue) = &self.issue {
+                write_element_block("issue", w, |w| {
+                    w.write(XmlEvent::Characters(issue)).map_err(|e| e.into())
+                })?;
+            }
+            if let Some(first_page) = &self.first_page {
+                write_element_block("first_page", w, |w| {
+                    w.write(XmlEvent::Characters(first_page))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            if let Some(component_number) = &self.component_number {
+                write_element_block("component_number", w, |w| {
+                    w.write(XmlEvent::Characters(component_number))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            // a citation for a standard must contain all three fields
+            if self.standard_designator.is_some()
+                && self.standards_body_name.is_some()
+                && self.standards_body_acronym.is_some()
+            {
+                write_element_block("std_designator", w, |w| {
+                    w.write(XmlEvent::Characters(
+                        self.standard_designator.as_ref().unwrap(),
+                    ))
+                    .map_err(|e| e.into())
+                })?;
+                write_element_block("standards_body", w, |w| {
+                    write_element_block("standards_body_name", w, |w| {
                         w.write(XmlEvent::Characters(
-                            self.standard_designator.as_ref().unwrap(),
+                            self.standards_body_name.as_ref().unwrap(),
                         ))
                         .map_err(|e| e.into())
                     })?;
-                    write_element_block("standards_body", w, |w| {
-                        write_element_block("standards_body_name", w, |w| {
-                            w.write(XmlEvent::Characters(
-                                self.standards_body_name.as_ref().unwrap(),
-                            ))
-                            .map_err(|e| e.into())
-                        })?;
-                        write_element_block("standards_body_acronym", w, |w| {
-                            w.write(XmlEvent::Characters(
-                                self.standards_body_acronym.as_ref().unwrap(),
-                            ))
-                            .map_err(|e| e.into())
-                        })
-                    })?;
-                }
-                if let Some(date) = &self.publication_date {
-                    write_element_block("cYear", w, |w| {
-                        w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
-                            .map_err(|e| e.into())
-                    })?;
-                }
-                Ok(())
-            },
-        )
+                    write_element_block("standards_body_acronym", w, |w| {
+                        w.write(XmlEvent::Characters(
+                            self.standards_body_acronym.as_ref().unwrap(),
+                        ))
+                        .map_err(|e| e.into())
+                    })
+                })?;
+            }
+            if let Some(date) = &self.publication_date {
+                write_element_block("cYear", w, |w| {
+                    w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            Ok(())
+        })
     }
 }
 

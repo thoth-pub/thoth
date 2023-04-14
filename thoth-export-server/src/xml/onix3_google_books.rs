@@ -1,5 +1,4 @@
 use chrono::Utc;
-use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
     ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType, Work,
@@ -8,7 +7,7 @@ use thoth_client::{
 use xml::writer::{EventWriter, XmlEvent};
 
 use super::{write_element_block, XmlElement, XmlSpecification};
-use crate::xml::{write_full_element_block, XmlElementBlock};
+use crate::xml::{write_full_element_block, XmlElementBlock, ONIX3_NS};
 use thoth_errors::{ThothError, ThothResult};
 
 #[derive(Copy, Clone)]
@@ -19,12 +18,7 @@ const ONIX_ERROR: &str = "onix_3.0::google_books";
 // Output format based on documentation at https://support.google.com/books/partner/answer/6374180.
 impl XmlSpecification for Onix3GoogleBooks {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
-        let mut attr_map: HashMap<&str, &str> = HashMap::new();
-
-        attr_map.insert("release", "3.0");
-        attr_map.insert("xmlns", "http://ns.editeur.org/onix/3.0/reference");
-
-        write_full_element_block("ONIXMessage", None, Some(attr_map), w, |w| {
+        write_full_element_block("ONIXMessage", Some(ONIX3_NS.to_vec()), w, |w| {
             write_element_block("Header", w, |w| {
                 write_element_block("Sender", w, |w| {
                     write_element_block("SenderName", w, |w| {
@@ -49,12 +43,12 @@ impl XmlSpecification for Onix3GoogleBooks {
                 })
             })?;
 
-            match works.len() {
-                0 => Err(ThothError::IncompleteMetadataRecord(
+            match works {
+                [] => Err(ThothError::IncompleteMetadataRecord(
                     ONIX_ERROR.to_string(),
                     "Not enough data".to_string(),
                 )),
-                1 => XmlElementBlock::<Onix3GoogleBooks>::xml_element(works.first().unwrap(), w),
+                [work] => XmlElementBlock::<Onix3GoogleBooks>::xml_element(work, w),
                 _ => {
                     for work in works.iter() {
                         // Do not include Chapters in full publisher metadata record
@@ -253,8 +247,6 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                     })
                 })?;
                 if self.long_abstract.is_some() || self.toc.is_some() {
-                    let mut lang_fmt: HashMap<&str, &str> = HashMap::new();
-                    lang_fmt.insert("language", "eng");
                     write_element_block("CollateralDetail", w, |w| {
                         if let Some(labstract) = &self.long_abstract {
                             write_element_block("TextContent", w, |w| {
@@ -268,8 +260,7 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                                 })?;
                                 write_full_element_block(
                                     "Text",
-                                    None,
-                                    Some(lang_fmt.clone()),
+                                    Some(vec![("language", "eng")]),
                                     w,
                                     |w| {
                                         w.write(XmlEvent::Characters(labstract))
@@ -290,8 +281,7 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                                 })?;
                                 write_full_element_block(
                                     "Text",
-                                    None,
-                                    Some(lang_fmt.clone()),
+                                    Some(vec![("language", "eng")]),
                                     w,
                                     |w| w.write(XmlEvent::Characters(toc)).map_err(|e| e.into()),
                                 )
@@ -321,15 +311,12 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                     })?;
                     XmlElement::<Onix3GoogleBooks>::xml_element(&self.work_status, w)?;
                     write_element_block("PublishingDate", w, |w| {
-                        let mut date_fmt: HashMap<&str, &str> = HashMap::new();
-                        date_fmt.insert("dateformat", "00"); // 00 YYYYMMDD
-
                         write_element_block("PublishingDateRole", w, |w| {
                             // 01 Publishing Date (19 not supported by Google Books)
                             w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                         })?;
                         // dateformat="00" YYYYMMDD
-                        write_full_element_block("Date", None, Some(date_fmt), w, |w| {
+                        write_full_element_block("Date", Some(vec![("dateformat", "00")]), w, |w| {
                             w.write(XmlEvent::Characters(
                                 &self.publication_date.unwrap().format("%Y%m%d").to_string(),
                             ))

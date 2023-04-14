@@ -39,12 +39,12 @@ struct BibtexThothEntry {
 
 impl BibtexSpecification for BibtexThoth {
     fn handle_event(w: &mut Vec<u8>, works: &[Work]) -> ThothResult<()> {
-        match works.len() {
-            0 => Err(ThothError::IncompleteMetadataRecord(
+        match works {
+            [] => Err(ThothError::IncompleteMetadataRecord(
                 BIBTEX_ERROR.to_string(),
                 "Not enough data".to_string(),
             )),
-            1 => BibtexEntry::<BibtexThoth>::bibtex_entry(works.first().unwrap(), w),
+            [work] => BibtexEntry::<BibtexThoth>::bibtex_entry(work, w),
             _ => {
                 for work in works.iter() {
                     // Do not include Chapters in full publisher metadata record

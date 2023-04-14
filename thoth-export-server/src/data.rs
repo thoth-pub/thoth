@@ -103,6 +103,18 @@ lazy_static! {
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/marc21record"),
             accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/thoth")],
         },
+        Specification {
+            id: "marc21markup::thoth",
+            name: "Thoth MARC 21 Markup",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/marc21markup"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/thoth")],
+        },
+        Specification {
+            id: "marc21xml::thoth",
+            name: "Thoth MARC 21 XML",
+            format: concat!(env!("THOTH_EXPORT_API"), "/formats/marc21xml"),
+            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/thoth")],
+        },
     ];
     pub(crate) static ref ALL_PLATFORMS: Vec<Platform<'static>> = vec![
         Platform {
@@ -115,6 +127,11 @@ lazy_static! {
                     env!("THOTH_EXPORT_API"),
                     "/specifications/marc21record::thoth"
                 ),
+                concat!(
+                    env!("THOTH_EXPORT_API"),
+                    "/specifications/marc21markup::thoth"
+                ),
+                concat!(env!("THOTH_EXPORT_API"), "/specifications/marc21xml::thoth"),
             ],
         },
         Platform {
@@ -338,6 +355,24 @@ lazy_static! {
             specifications: vec![concat!(
                 env!("THOTH_EXPORT_API"),
                 "/specifications/marc21record::thoth"
+            ),],
+        },
+        Format {
+            id: "marc21markup",
+            name: "MARC21Markup",
+            version: None,
+            specifications: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/marc21markup::thoth"
+            ),],
+        },
+        Format {
+            id: "marc21xml",
+            name: "MARC21Xml",
+            version: None,
+            specifications: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/marc21xml::thoth"
             ),],
         },
     ];
