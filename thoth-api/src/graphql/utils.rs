@@ -32,3 +32,13 @@ fn test_expression_default() {
     let dir: Expression = Default::default();
     assert_eq!(dir, Expression::GreaterThan);
 }
+#[derive(juniper::GraphQLEnum)]
+pub enum Operator {
+    Eq,
+    Neq,
+    Gt,
+    Lt,
+    Gte,
+    Lte,
+    Ilike,
+}

@@ -4,7 +4,7 @@ use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
 
-use crate::graphql::utils::Direction;
+use crate::graphql::utils::{Direction, Operator};
 use crate::model::imprint::ImprintWithPublisher;
 use crate::model::Timestamp;
 #[cfg(feature = "backend")]
@@ -138,12 +138,19 @@ pub struct NewSeriesHistory {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject),
-    graphql(description = "Field and order to use when sorting seriess list")
+    graphql(description = "Field and order to use when sorting serieses list")
 )]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SeriesOrderBy {
     pub field: SeriesField,
     pub direction: Direction,
+}
+
+#[cfg_attr(feature = "backend", derive(juniper::GraphQLInputObject))]
+pub struct SeriesFilter {
+    pub field: SeriesField,
+    pub operator: Operator,
+    pub value: String,
 }
 
 impl fmt::Display for SeriesWithImprint {

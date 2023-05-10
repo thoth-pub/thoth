@@ -36,7 +36,7 @@ use crate::model::Timestamp;
 use crate::model::WeightUnit;
 use thoth_errors::{ThothError, ThothResult};
 
-use super::utils::{Direction, Expression};
+use super::utils::{Direction, Expression, Operator};
 
 impl juniper::Context for Context {}
 
@@ -863,6 +863,9 @@ impl QueryRoot {
                 default = vec![],
                 description = "Specific types to filter by",
             ),
+            filters(
+                default = vec![],
+            ),
         ),
     )]
     fn serieses(
@@ -873,19 +876,47 @@ impl QueryRoot {
         order: SeriesOrderBy,
         publishers: Vec<Uuid>,
         series_types: Vec<SeriesType>,
+        filters: Vec<SeriesFilter>,
     ) -> FieldResult<Vec<Series>> {
+        let mut all_filters = filters;
+        if !filter.trim().is_empty() {
+            for field in [
+                SeriesField::SeriesName,
+                SeriesField::IssnPrint,
+                SeriesField::IssnDigital,
+                SeriesField::SeriesUrl,
+                SeriesField::SeriesDescription,
+            ] {
+                let filter_expr = SeriesFilter {
+                    field,
+                    operator: Operator::Ilike,
+                    value: filter.clone(),
+                };
+                all_filters.push(filter_expr);
+            }
+        }
+        if !series_types.is_empty() {
+            for series_type in series_types {
+                let filter_expr = SeriesFilter {
+                    field: SeriesField::SeriesType,
+                    operator: Operator::Eq,
+                    value: series_type.to_string(),
+                };
+                all_filters.push(filter_expr);
+            }
+        }
         Series::all(
             &context.db,
             limit,
             offset,
-            Some(filter),
+            None,
             order,
             publishers,
             None,
             None,
-            series_types,
             vec![],
-            None,
+            vec![],
+            Some(all_filters),
         )
         .map_err(|e| e.into())
     }
