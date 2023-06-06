@@ -32,7 +32,7 @@ pub enum SeriesType {
     derive(juniper::GraphQLEnum),
     graphql(description = "Field to use when sorting series list")
 )]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, EnumString, Display, PartialOrd, Ord)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SeriesField {
     #[strum(serialize = "ID")]

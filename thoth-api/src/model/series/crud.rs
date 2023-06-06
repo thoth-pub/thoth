@@ -89,82 +89,161 @@ impl Crud for Series {
         if !publishers.is_empty() {
             query = query.filter(crate::schema::imprint::publisher_id.eq_any(publishers));
         }
-        let filters_unwrapped = filters.unwrap();
+        let mut filters_unwrapped = filters.unwrap();
         if !filters_unwrapped.is_empty() {
+            filters_unwrapped.sort_by_key(|f| f.field.clone());
+            let mut prev_field = None;
             for filter in filters_unwrapped {
-                query = match filter.field {
-                    // Filtering only supported for text fields
-                    SeriesField::SeriesId => query,
-                    SeriesField::SeriesType => query,
-                    SeriesField::SeriesName => match filter.operator {
-                        Operator::Eq => query.filter(series_name.eq(filter.value)),
-                        Operator::Neq => query.filter(series_name.ne(filter.value)),
-                        Operator::Gt => query.filter(series_name.gt(filter.value)),
-                        Operator::Lt => query.filter(series_name.lt(filter.value)),
-                        Operator::Gte => query.filter(series_name.ge(filter.value)),
-                        Operator::Lte => query.filter(series_name.le(filter.value)),
-                        Operator::Ilike => {
-                            query.filter(series_name.ilike(format!("%{}%", filter.value)))
-                        }
-                    },
-                    SeriesField::IssnPrint => match filter.operator {
-                        Operator::Eq => query.filter(issn_print.eq(filter.value)),
-                        Operator::Neq => query.filter(issn_print.ne(filter.value)),
-                        Operator::Gt => query.filter(issn_print.gt(filter.value)),
-                        Operator::Lt => query.filter(issn_print.lt(filter.value)),
-                        Operator::Gte => query.filter(issn_print.ge(filter.value)),
-                        Operator::Lte => query.filter(issn_print.le(filter.value)),
-                        Operator::Ilike => {
-                            query.filter(issn_print.ilike(format!("%{}%", filter.value)))
-                        }
-                    },
-                    SeriesField::IssnDigital => match filter.operator {
-                        Operator::Eq => query.filter(issn_digital.eq(filter.value)),
-                        Operator::Neq => query.filter(issn_digital.ne(filter.value)),
-                        Operator::Gt => query.filter(issn_digital.gt(filter.value)),
-                        Operator::Lt => query.filter(issn_digital.lt(filter.value)),
-                        Operator::Gte => query.filter(issn_digital.ge(filter.value)),
-                        Operator::Lte => query.filter(issn_digital.le(filter.value)),
-                        Operator::Ilike => {
-                            query.filter(issn_digital.ilike(format!("%{}%", filter.value)))
-                        }
-                    },
-                    SeriesField::SeriesUrl => match filter.operator {
-                        Operator::Eq => query.filter(series_url.eq(filter.value)),
-                        Operator::Neq => query.filter(series_url.ne(filter.value)),
-                        Operator::Gt => query.filter(series_url.gt(filter.value)),
-                        Operator::Lt => query.filter(series_url.lt(filter.value)),
-                        Operator::Gte => query.filter(series_url.ge(filter.value)),
-                        Operator::Lte => query.filter(series_url.le(filter.value)),
-                        Operator::Ilike => {
-                            query.filter(series_url.ilike(format!("%{}%", filter.value)))
-                        }
-                    },
-                    SeriesField::SeriesDescription => match filter.operator {
-                        Operator::Eq => query.filter(series_description.eq(filter.value)),
-                        Operator::Neq => query.filter(series_description.ne(filter.value)),
-                        Operator::Gt => query.filter(series_description.gt(filter.value)),
-                        Operator::Lt => query.filter(series_description.lt(filter.value)),
-                        Operator::Gte => query.filter(series_description.ge(filter.value)),
-                        Operator::Lte => query.filter(series_description.le(filter.value)),
-                        Operator::Ilike => {
-                            query.filter(series_description.ilike(format!("%{}%", filter.value)))
-                        }
-                    },
-                    SeriesField::SeriesCfpUrl => match filter.operator {
-                        Operator::Eq => query.filter(series_cfp_url.eq(filter.value)),
-                        Operator::Neq => query.filter(series_cfp_url.ne(filter.value)),
-                        Operator::Gt => query.filter(series_cfp_url.gt(filter.value)),
-                        Operator::Lt => query.filter(series_cfp_url.lt(filter.value)),
-                        Operator::Gte => query.filter(series_cfp_url.ge(filter.value)),
-                        Operator::Lte => query.filter(series_cfp_url.le(filter.value)),
-                        Operator::Ilike => {
-                            query.filter(series_cfp_url.ilike(format!("%{}%", filter.value)))
-                        }
-                    },
-                    SeriesField::CreatedAt => query,
-                    SeriesField::UpdatedAt => query,
-                };
+                if prev_field == Some(filter.field.clone()) {
+                    query = match filter.field {
+                        // Filtering only supported for text fields
+                        SeriesField::SeriesId => query,
+                        SeriesField::SeriesType => query,
+                        SeriesField::SeriesName => match filter.operator {
+                            Operator::Eq => query.or_filter(series_name.eq(filter.value)),
+                            Operator::Neq => query.or_filter(series_name.ne(filter.value)),
+                            Operator::Gt => query.or_filter(series_name.gt(filter.value)),
+                            Operator::Lt => query.or_filter(series_name.lt(filter.value)),
+                            Operator::Gte => query.or_filter(series_name.ge(filter.value)),
+                            Operator::Lte => query.or_filter(series_name.le(filter.value)),
+                            Operator::Ilike => {
+                                query.or_filter(series_name.ilike(format!("%{}%", filter.value)))
+                            }
+                        },
+                        SeriesField::IssnPrint => match filter.operator {
+                            Operator::Eq => query.or_filter(issn_print.eq(filter.value)),
+                            Operator::Neq => query.or_filter(issn_print.ne(filter.value)),
+                            Operator::Gt => query.or_filter(issn_print.gt(filter.value)),
+                            Operator::Lt => query.or_filter(issn_print.lt(filter.value)),
+                            Operator::Gte => query.or_filter(issn_print.ge(filter.value)),
+                            Operator::Lte => query.or_filter(issn_print.le(filter.value)),
+                            Operator::Ilike => {
+                                query.or_filter(issn_print.ilike(format!("%{}%", filter.value)))
+                            }
+                        },
+                        SeriesField::IssnDigital => match filter.operator {
+                            Operator::Eq => query.or_filter(issn_digital.eq(filter.value)),
+                            Operator::Neq => query.or_filter(issn_digital.ne(filter.value)),
+                            Operator::Gt => query.or_filter(issn_digital.gt(filter.value)),
+                            Operator::Lt => query.or_filter(issn_digital.lt(filter.value)),
+                            Operator::Gte => query.or_filter(issn_digital.ge(filter.value)),
+                            Operator::Lte => query.or_filter(issn_digital.le(filter.value)),
+                            Operator::Ilike => {
+                                query.or_filter(issn_digital.ilike(format!("%{}%", filter.value)))
+                            }
+                        },
+                        SeriesField::SeriesUrl => match filter.operator {
+                            Operator::Eq => query.or_filter(series_url.eq(filter.value)),
+                            Operator::Neq => query.or_filter(series_url.ne(filter.value)),
+                            Operator::Gt => query.or_filter(series_url.gt(filter.value)),
+                            Operator::Lt => query.or_filter(series_url.lt(filter.value)),
+                            Operator::Gte => query.or_filter(series_url.ge(filter.value)),
+                            Operator::Lte => query.or_filter(series_url.le(filter.value)),
+                            Operator::Ilike => {
+                                query.or_filter(series_url.ilike(format!("%{}%", filter.value)))
+                            }
+                        },
+                        SeriesField::SeriesDescription => match filter.operator {
+                            Operator::Eq => query.or_filter(series_description.eq(filter.value)),
+                            Operator::Neq => query.or_filter(series_description.ne(filter.value)),
+                            Operator::Gt => query.or_filter(series_description.gt(filter.value)),
+                            Operator::Lt => query.or_filter(series_description.lt(filter.value)),
+                            Operator::Gte => query.or_filter(series_description.ge(filter.value)),
+                            Operator::Lte => query.or_filter(series_description.le(filter.value)),
+                            Operator::Ilike => {
+                                query.or_filter(series_description.ilike(format!("%{}%", filter.value)))
+                            }
+                        },
+                        SeriesField::SeriesCfpUrl => match filter.operator {
+                            Operator::Eq => query.or_filter(series_cfp_url.eq(filter.value)),
+                            Operator::Neq => query.or_filter(series_cfp_url.ne(filter.value)),
+                            Operator::Gt => query.or_filter(series_cfp_url.gt(filter.value)),
+                            Operator::Lt => query.or_filter(series_cfp_url.lt(filter.value)),
+                            Operator::Gte => query.or_filter(series_cfp_url.ge(filter.value)),
+                            Operator::Lte => query.or_filter(series_cfp_url.le(filter.value)),
+                            Operator::Ilike => {
+                                query.or_filter(series_cfp_url.ilike(format!("%{}%", filter.value)))
+                            }
+                        },
+                        SeriesField::CreatedAt => query,
+                        SeriesField::UpdatedAt => query,
+                    };
+                } else {
+                    query = match filter.field {
+                        // Filtering only supported for text fields
+                        SeriesField::SeriesId => query,
+                        SeriesField::SeriesType => query,
+                        SeriesField::SeriesName => match filter.operator {
+                            Operator::Eq => query.filter(series_name.eq(filter.value)),
+                            Operator::Neq => query.filter(series_name.ne(filter.value)),
+                            Operator::Gt => query.filter(series_name.gt(filter.value)),
+                            Operator::Lt => query.filter(series_name.lt(filter.value)),
+                            Operator::Gte => query.filter(series_name.ge(filter.value)),
+                            Operator::Lte => query.filter(series_name.le(filter.value)),
+                            Operator::Ilike => {
+                                query.filter(series_name.ilike(format!("%{}%", filter.value)))
+                            }
+                        },
+                        SeriesField::IssnPrint => match filter.operator {
+                            Operator::Eq => query.filter(issn_print.eq(filter.value)),
+                            Operator::Neq => query.filter(issn_print.ne(filter.value)),
+                            Operator::Gt => query.filter(issn_print.gt(filter.value)),
+                            Operator::Lt => query.filter(issn_print.lt(filter.value)),
+                            Operator::Gte => query.filter(issn_print.ge(filter.value)),
+                            Operator::Lte => query.filter(issn_print.le(filter.value)),
+                            Operator::Ilike => {
+                                query.filter(issn_print.ilike(format!("%{}%", filter.value)))
+                            }
+                        },
+                        SeriesField::IssnDigital => match filter.operator {
+                            Operator::Eq => query.filter(issn_digital.eq(filter.value)),
+                            Operator::Neq => query.filter(issn_digital.ne(filter.value)),
+                            Operator::Gt => query.filter(issn_digital.gt(filter.value)),
+                            Operator::Lt => query.filter(issn_digital.lt(filter.value)),
+                            Operator::Gte => query.filter(issn_digital.ge(filter.value)),
+                            Operator::Lte => query.filter(issn_digital.le(filter.value)),
+                            Operator::Ilike => {
+                                query.filter(issn_digital.ilike(format!("%{}%", filter.value)))
+                            }
+                        },
+                        SeriesField::SeriesUrl => match filter.operator {
+                            Operator::Eq => query.filter(series_url.eq(filter.value)),
+                            Operator::Neq => query.filter(series_url.ne(filter.value)),
+                            Operator::Gt => query.filter(series_url.gt(filter.value)),
+                            Operator::Lt => query.filter(series_url.lt(filter.value)),
+                            Operator::Gte => query.filter(series_url.ge(filter.value)),
+                            Operator::Lte => query.filter(series_url.le(filter.value)),
+                            Operator::Ilike => {
+                                query.filter(series_url.ilike(format!("%{}%", filter.value)))
+                            }
+                        },
+                        SeriesField::SeriesDescription => match filter.operator {
+                            Operator::Eq => query.filter(series_description.eq(filter.value)),
+                            Operator::Neq => query.filter(series_description.ne(filter.value)),
+                            Operator::Gt => query.filter(series_description.gt(filter.value)),
+                            Operator::Lt => query.filter(series_description.lt(filter.value)),
+                            Operator::Gte => query.filter(series_description.ge(filter.value)),
+                            Operator::Lte => query.filter(series_description.le(filter.value)),
+                            Operator::Ilike => {
+                                query.filter(series_description.ilike(format!("%{}%", filter.value)))
+                            }
+                        },
+                        SeriesField::SeriesCfpUrl => match filter.operator {
+                            Operator::Eq => query.filter(series_cfp_url.eq(filter.value)),
+                            Operator::Neq => query.filter(series_cfp_url.ne(filter.value)),
+                            Operator::Gt => query.filter(series_cfp_url.gt(filter.value)),
+                            Operator::Lt => query.filter(series_cfp_url.lt(filter.value)),
+                            Operator::Gte => query.filter(series_cfp_url.ge(filter.value)),
+                            Operator::Lte => query.filter(series_cfp_url.le(filter.value)),
+                            Operator::Ilike => {
+                                query.filter(series_cfp_url.ilike(format!("%{}%", filter.value)))
+                            }
+                        },
+                        SeriesField::CreatedAt => query,
+                        SeriesField::UpdatedAt => query,
+                    };
+                }
+                prev_field = Some(filter.field.clone());
             }
         }
         match query
