@@ -91,10 +91,11 @@ impl Crud for Series {
         }
         let mut filters_unwrapped = filters.unwrap();
         if !filters_unwrapped.is_empty() {
-            filters_unwrapped.sort_by_key(|f| f.field.clone());
-            let mut prev_field = None;
+            filters_unwrapped.sort_by_key(|f| f.value.clone());
+            let mut prev_value = None;
             for filter in filters_unwrapped {
-                if prev_field == Some(filter.field.clone()) {
+                let curr_value = filter.value.clone();
+                if prev_value == Some(curr_value.clone()) {
                     query = match filter.field {
                         // Filtering only supported for text fields
                         SeriesField::SeriesId => query,
@@ -243,7 +244,7 @@ impl Crud for Series {
                         SeriesField::UpdatedAt => query,
                     };
                 }
-                prev_field = Some(filter.field.clone());
+                prev_value = Some(curr_value.clone());
             }
         }
         match query
