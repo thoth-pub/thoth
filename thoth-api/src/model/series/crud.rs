@@ -7,8 +7,9 @@ use crate::model::{Crud, DbInsert, HistoryEntry};
 use crate::schema::{series, series_history};
 use crate::{crud_methods, db_insert};
 use diesel::{
-    BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
+    BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl, BoxableExpression, IntoSql,
 };
+use diesel::pg::Pg;
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
@@ -93,155 +94,160 @@ impl Crud for Series {
         if !filters_unwrapped.is_empty() {
             filters_unwrapped.sort_by_key(|f| f.value.clone());
             let mut prev_value = None;
+            let mut filter_by: Box<dyn BoxableExpression<series, Pg, SqlType = _>> = Box::new(true.as_sql());
             for filter in filters_unwrapped {
                 let curr_value = filter.value.clone();
                 if prev_value == Some(curr_value.clone()) {
-                    query = match filter.field {
+                    filter_by = match filter.field {
                         // Filtering only supported for text fields
-                        SeriesField::SeriesId => query,
-                        SeriesField::SeriesType => query,
+                        SeriesField::SeriesId => filter_by,
+                        SeriesField::SeriesType => filter_by,
                         SeriesField::SeriesName => match filter.operator {
-                            Operator::Eq => query.or_filter(series_name.eq(filter.value)),
-                            Operator::Neq => query.or_filter(series_name.ne(filter.value)),
-                            Operator::Gt => query.or_filter(series_name.gt(filter.value)),
-                            Operator::Lt => query.or_filter(series_name.lt(filter.value)),
-                            Operator::Gte => query.or_filter(series_name.ge(filter.value)),
-                            Operator::Lte => query.or_filter(series_name.le(filter.value)),
+                            Operator::Eq => Box::new(filter_by.or(series_name.eq(filter.value))),
+                            Operator::Neq => Box::new(filter_by.or(series_name.ne(filter.value))),
+                            Operator::Gt => Box::new(filter_by.or(series_name.gt(filter.value))),
+                            Operator::Lt => Box::new(filter_by.or(series_name.lt(filter.value))),
+                            Operator::Gte => Box::new(filter_by.or(series_name.ge(filter.value))),
+                            Operator::Lte => Box::new(filter_by.or(series_name.le(filter.value))),
                             Operator::Ilike => {
-                                query.or_filter(series_name.ilike(format!("%{}%", filter.value)))
+                                Box::new(filter_by.or(series_name.ilike(format!("%{}%", filter.value))))
                             }
                         },
                         SeriesField::IssnPrint => match filter.operator {
-                            Operator::Eq => query.or_filter(issn_print.eq(filter.value)),
-                            Operator::Neq => query.or_filter(issn_print.ne(filter.value)),
-                            Operator::Gt => query.or_filter(issn_print.gt(filter.value)),
-                            Operator::Lt => query.or_filter(issn_print.lt(filter.value)),
-                            Operator::Gte => query.or_filter(issn_print.ge(filter.value)),
-                            Operator::Lte => query.or_filter(issn_print.le(filter.value)),
+                            Operator::Eq => Box::new(filter_by.or(issn_print.eq(filter.value))),
+                            Operator::Neq => Box::new(filter_by.or(issn_print.ne(filter.value))),
+                            Operator::Gt => Box::new(filter_by.or(issn_print.gt(filter.value))),
+                            Operator::Lt => Box::new(filter_by.or(issn_print.lt(filter.value))),
+                            Operator::Gte => Box::new(filter_by.or(issn_print.ge(filter.value))),
+                            Operator::Lte => Box::new(filter_by.or(issn_print.le(filter.value))),
                             Operator::Ilike => {
-                                query.or_filter(issn_print.ilike(format!("%{}%", filter.value)))
+                                Box::new(filter_by.or(issn_print.ilike(format!("%{}%", filter.value))))
                             }
                         },
                         SeriesField::IssnDigital => match filter.operator {
-                            Operator::Eq => query.or_filter(issn_digital.eq(filter.value)),
-                            Operator::Neq => query.or_filter(issn_digital.ne(filter.value)),
-                            Operator::Gt => query.or_filter(issn_digital.gt(filter.value)),
-                            Operator::Lt => query.or_filter(issn_digital.lt(filter.value)),
-                            Operator::Gte => query.or_filter(issn_digital.ge(filter.value)),
-                            Operator::Lte => query.or_filter(issn_digital.le(filter.value)),
+                            Operator::Eq => Box::new(filter_by.or(issn_digital.eq(filter.value))),
+                            Operator::Neq => Box::new(filter_by.or(issn_digital.ne(filter.value))),
+                            Operator::Gt => Box::new(filter_by.or(issn_digital.gt(filter.value))),
+                            Operator::Lt => Box::new(filter_by.or(issn_digital.lt(filter.value))),
+                            Operator::Gte => Box::new(filter_by.or(issn_digital.ge(filter.value))),
+                            Operator::Lte => Box::new(filter_by.or(issn_digital.le(filter.value))),
                             Operator::Ilike => {
-                                query.or_filter(issn_digital.ilike(format!("%{}%", filter.value)))
+                                Box::new(filter_by.or(issn_digital.ilike(format!("%{}%", filter.value))))
                             }
                         },
                         SeriesField::SeriesUrl => match filter.operator {
-                            Operator::Eq => query.or_filter(series_url.eq(filter.value)),
-                            Operator::Neq => query.or_filter(series_url.ne(filter.value)),
-                            Operator::Gt => query.or_filter(series_url.gt(filter.value)),
-                            Operator::Lt => query.or_filter(series_url.lt(filter.value)),
-                            Operator::Gte => query.or_filter(series_url.ge(filter.value)),
-                            Operator::Lte => query.or_filter(series_url.le(filter.value)),
+                            Operator::Eq => Box::new(filter_by.or(series_url.eq(filter.value))),
+                            Operator::Neq => Box::new(filter_by.or(series_url.ne(filter.value))),
+                            Operator::Gt => Box::new(filter_by.or(series_url.gt(filter.value))),
+                            Operator::Lt => Box::new(filter_by.or(series_url.lt(filter.value))),
+                            Operator::Gte => Box::new(filter_by.or(series_url.ge(filter.value))),
+                            Operator::Lte => Box::new(filter_by.or(series_url.le(filter.value))),
                             Operator::Ilike => {
-                                query.or_filter(series_url.ilike(format!("%{}%", filter.value)))
+                                Box::new(filter_by.or(series_url.ilike(format!("%{}%", filter.value))))
                             }
                         },
                         SeriesField::SeriesDescription => match filter.operator {
-                            Operator::Eq => query.or_filter(series_description.eq(filter.value)),
-                            Operator::Neq => query.or_filter(series_description.ne(filter.value)),
-                            Operator::Gt => query.or_filter(series_description.gt(filter.value)),
-                            Operator::Lt => query.or_filter(series_description.lt(filter.value)),
-                            Operator::Gte => query.or_filter(series_description.ge(filter.value)),
-                            Operator::Lte => query.or_filter(series_description.le(filter.value)),
+                            Operator::Eq => Box::new(filter_by.or(series_description.eq(filter.value))),
+                            Operator::Neq => Box::new(filter_by.or(series_description.ne(filter.value))),
+                            Operator::Gt => Box::new(filter_by.or(series_description.gt(filter.value))),
+                            Operator::Lt => Box::new(filter_by.or(series_description.lt(filter.value))),
+                            Operator::Gte => Box::new(filter_by.or(series_description.ge(filter.value))),
+                            Operator::Lte => Box::new(filter_by.or(series_description.le(filter.value))),
                             Operator::Ilike => {
-                                query.or_filter(series_description.ilike(format!("%{}%", filter.value)))
+                                Box::new(filter_by.or(series_description.ilike(format!("%{}%", filter.value))))
                             }
                         },
                         SeriesField::SeriesCfpUrl => match filter.operator {
-                            Operator::Eq => query.or_filter(series_cfp_url.eq(filter.value)),
-                            Operator::Neq => query.or_filter(series_cfp_url.ne(filter.value)),
-                            Operator::Gt => query.or_filter(series_cfp_url.gt(filter.value)),
-                            Operator::Lt => query.or_filter(series_cfp_url.lt(filter.value)),
-                            Operator::Gte => query.or_filter(series_cfp_url.ge(filter.value)),
-                            Operator::Lte => query.or_filter(series_cfp_url.le(filter.value)),
+                            Operator::Eq => Box::new(filter_by.or(series_cfp_url.eq(filter.value))),
+                            Operator::Neq => Box::new(filter_by.or(series_cfp_url.ne(filter.value))),
+                            Operator::Gt => Box::new(filter_by.or(series_cfp_url.gt(filter.value))),
+                            Operator::Lt => Box::new(filter_by.or(series_cfp_url.lt(filter.value))),
+                            Operator::Gte => Box::new(filter_by.or(series_cfp_url.ge(filter.value))),
+                            Operator::Lte => Box::new(filter_by.or(series_cfp_url.le(filter.value))),
                             Operator::Ilike => {
-                                query.or_filter(series_cfp_url.ilike(format!("%{}%", filter.value)))
+                                Box::new(filter_by.or(series_cfp_url.ilike(format!("%{}%", filter.value))))
                             }
                         },
-                        SeriesField::CreatedAt => query,
-                        SeriesField::UpdatedAt => query,
+                        SeriesField::CreatedAt => filter_by,
+                        SeriesField::UpdatedAt => filter_by,
                     };
                 } else {
-                    query = match filter.field {
+                    if prev_value.is_some() {
+                        query = query.filter(filter_by);
+                        filter_by = Box::new(true.as_sql());
+                    }
+                    filter_by = match filter.field {
                         // Filtering only supported for text fields
-                        SeriesField::SeriesId => query,
-                        SeriesField::SeriesType => query,
+                        SeriesField::SeriesId => filter_by,
+                        SeriesField::SeriesType => filter_by,
                         SeriesField::SeriesName => match filter.operator {
-                            Operator::Eq => query.filter(series_name.eq(filter.value)),
-                            Operator::Neq => query.filter(series_name.ne(filter.value)),
-                            Operator::Gt => query.filter(series_name.gt(filter.value)),
-                            Operator::Lt => query.filter(series_name.lt(filter.value)),
-                            Operator::Gte => query.filter(series_name.ge(filter.value)),
-                            Operator::Lte => query.filter(series_name.le(filter.value)),
+                            Operator::Eq => Box::new(series_name.eq(filter.value)),
+                            Operator::Neq => Box::new(series_name.ne(filter.value)),
+                            Operator::Gt => Box::new(series_name.gt(filter.value)),
+                            Operator::Lt => Box::new(series_name.lt(filter.value)),
+                            Operator::Gte => Box::new(series_name.ge(filter.value)),
+                            Operator::Lte => Box::new(series_name.le(filter.value)),
                             Operator::Ilike => {
-                                query.filter(series_name.ilike(format!("%{}%", filter.value)))
+                                Box::new(series_name.ilike(format!("%{}%", filter.value)))
                             }
                         },
                         SeriesField::IssnPrint => match filter.operator {
-                            Operator::Eq => query.filter(issn_print.eq(filter.value)),
-                            Operator::Neq => query.filter(issn_print.ne(filter.value)),
-                            Operator::Gt => query.filter(issn_print.gt(filter.value)),
-                            Operator::Lt => query.filter(issn_print.lt(filter.value)),
-                            Operator::Gte => query.filter(issn_print.ge(filter.value)),
-                            Operator::Lte => query.filter(issn_print.le(filter.value)),
+                            Operator::Eq => Box::new(issn_print.eq(filter.value)),
+                            Operator::Neq => Box::new(issn_print.ne(filter.value)),
+                            Operator::Gt => Box::new(issn_print.gt(filter.value)),
+                            Operator::Lt => Box::new(issn_print.lt(filter.value)),
+                            Operator::Gte => Box::new(issn_print.ge(filter.value)),
+                            Operator::Lte => Box::new(issn_print.le(filter.value)),
                             Operator::Ilike => {
-                                query.filter(issn_print.ilike(format!("%{}%", filter.value)))
+                                Box::new(issn_print.ilike(format!("%{}%", filter.value)))
                             }
                         },
                         SeriesField::IssnDigital => match filter.operator {
-                            Operator::Eq => query.filter(issn_digital.eq(filter.value)),
-                            Operator::Neq => query.filter(issn_digital.ne(filter.value)),
-                            Operator::Gt => query.filter(issn_digital.gt(filter.value)),
-                            Operator::Lt => query.filter(issn_digital.lt(filter.value)),
-                            Operator::Gte => query.filter(issn_digital.ge(filter.value)),
-                            Operator::Lte => query.filter(issn_digital.le(filter.value)),
+                            Operator::Eq => Box::new(issn_digital.eq(filter.value)),
+                            Operator::Neq => Box::new(issn_digital.ne(filter.value)),
+                            Operator::Gt => Box::new(issn_digital.gt(filter.value)),
+                            Operator::Lt => Box::new(issn_digital.lt(filter.value)),
+                            Operator::Gte => Box::new(issn_digital.ge(filter.value)),
+                            Operator::Lte => Box::new(issn_digital.le(filter.value)),
                             Operator::Ilike => {
-                                query.filter(issn_digital.ilike(format!("%{}%", filter.value)))
+                                Box::new(issn_digital.ilike(format!("%{}%", filter.value)))
                             }
                         },
                         SeriesField::SeriesUrl => match filter.operator {
-                            Operator::Eq => query.filter(series_url.eq(filter.value)),
-                            Operator::Neq => query.filter(series_url.ne(filter.value)),
-                            Operator::Gt => query.filter(series_url.gt(filter.value)),
-                            Operator::Lt => query.filter(series_url.lt(filter.value)),
-                            Operator::Gte => query.filter(series_url.ge(filter.value)),
-                            Operator::Lte => query.filter(series_url.le(filter.value)),
+                            Operator::Eq => Box::new(series_url.eq(filter.value)),
+                            Operator::Neq => Box::new(series_url.ne(filter.value)),
+                            Operator::Gt => Box::new(series_url.gt(filter.value)),
+                            Operator::Lt => Box::new(series_url.lt(filter.value)),
+                            Operator::Gte => Box::new(series_url.ge(filter.value)),
+                            Operator::Lte => Box::new(series_url.le(filter.value)),
                             Operator::Ilike => {
-                                query.filter(series_url.ilike(format!("%{}%", filter.value)))
+                                Box::new(series_url.ilike(format!("%{}%", filter.value)))
                             }
                         },
                         SeriesField::SeriesDescription => match filter.operator {
-                            Operator::Eq => query.filter(series_description.eq(filter.value)),
-                            Operator::Neq => query.filter(series_description.ne(filter.value)),
-                            Operator::Gt => query.filter(series_description.gt(filter.value)),
-                            Operator::Lt => query.filter(series_description.lt(filter.value)),
-                            Operator::Gte => query.filter(series_description.ge(filter.value)),
-                            Operator::Lte => query.filter(series_description.le(filter.value)),
+                            Operator::Eq => Box::new(series_description.eq(filter.value)),
+                            Operator::Neq => Box::new(series_description.ne(filter.value)),
+                            Operator::Gt => Box::new(series_description.gt(filter.value)),
+                            Operator::Lt => Box::new(series_description.lt(filter.value)),
+                            Operator::Gte => Box::new(series_description.ge(filter.value)),
+                            Operator::Lte => Box::new(series_description.le(filter.value)),
                             Operator::Ilike => {
-                                query.filter(series_description.ilike(format!("%{}%", filter.value)))
+                                Box::new(series_description.ilike(format!("%{}%", filter.value)))
                             }
                         },
                         SeriesField::SeriesCfpUrl => match filter.operator {
-                            Operator::Eq => query.filter(series_cfp_url.eq(filter.value)),
-                            Operator::Neq => query.filter(series_cfp_url.ne(filter.value)),
-                            Operator::Gt => query.filter(series_cfp_url.gt(filter.value)),
-                            Operator::Lt => query.filter(series_cfp_url.lt(filter.value)),
-                            Operator::Gte => query.filter(series_cfp_url.ge(filter.value)),
-                            Operator::Lte => query.filter(series_cfp_url.le(filter.value)),
+                            Operator::Eq => Box::new(series_cfp_url.eq(filter.value)),
+                            Operator::Neq => Box::new(series_cfp_url.ne(filter.value)),
+                            Operator::Gt => Box::new(series_cfp_url.gt(filter.value)),
+                            Operator::Lt => Box::new(series_cfp_url.lt(filter.value)),
+                            Operator::Gte => Box::new(series_cfp_url.ge(filter.value)),
+                            Operator::Lte => Box::new(series_cfp_url.le(filter.value)),
                             Operator::Ilike => {
-                                query.filter(series_cfp_url.ilike(format!("%{}%", filter.value)))
+                                Box::new(series_cfp_url.ilike(format!("%{}%", filter.value)))
                             }
                         },
-                        SeriesField::CreatedAt => query,
-                        SeriesField::UpdatedAt => query,
+                        SeriesField::CreatedAt => filter_by,
+                        SeriesField::UpdatedAt => filter_by,
                     };
                 }
                 prev_value = Some(curr_value.clone());
