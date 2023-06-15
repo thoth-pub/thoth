@@ -3898,9 +3898,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-pack"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e89624b4c032eb5c88e7c064c117c9880fbab8a992aba7c7727141dfd347e736"
+checksum = "a704de65032300e10cf6e033446aed99fa88bcdc7716d2ad5fb86e9f64fce204"
 dependencies = [
  "anyhow",
  "atty",
