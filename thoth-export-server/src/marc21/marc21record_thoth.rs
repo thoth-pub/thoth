@@ -331,6 +331,11 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
                 .and_then(|f| builder.add_field(f))?;
         }
 
+        // 588 - source of description note
+        FieldRepr::from((b"588", "0\\"))
+            .add_subfield(b"a", "Metadata licensed under CC0 Public Domain Dedication.")
+            .and_then(|f| builder.add_field(f))?;
+
         // 710 - publisher
         FieldRepr::from((b"710", "2\\"))
             .add_subfield(
@@ -354,6 +359,11 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
                 .and_then(|f| f.add_subfield(b"z", "Connect to cover image"))
                 .and_then(|f| builder.add_field(f))?;
         }
+        // 856 - metadata license
+        FieldRepr::from((b"856", "42"))
+            .add_subfield(b"u", "https://creativecommons.org/publicdomain/zero/1.0/")
+            .and_then(|f| f.add_subfield(b"z", "CC0 Metadata License"))
+            .and_then(|f| builder.add_field(f))?;
 
         Ok(builder.get_record()?)
     }
