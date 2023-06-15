@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.11.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.1) - 2023-06-15
+### Added
+  - Add CC0 license to MARC records
+
+### Changed
+  - Upgrade rust to `1.70.0` in production and development `Dockerfile`
+  - Upgrade build dependencies (npm `v9.6.7`, node `v18.16.0` and rollup `v3.23.1`) in production and development `Dockerfile`
+  - Upgrade `wasm-pack` to v0.11.1
+  - Replace `marc` fork with actual crate
+  - Update about page
+
 ## [[0.11.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.0) - 2023-04-14
 ### Added
   - [490](https://github.com/thoth-pub/thoth/issues/490) - Generate MARC 21 markup
