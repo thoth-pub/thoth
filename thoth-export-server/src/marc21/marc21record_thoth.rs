@@ -333,7 +333,10 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
 
         // 588 - source of description note
         FieldRepr::from((b"588", "0\\"))
-            .add_subfield(b"a", "Metadata licensed under CC0 Public Domain Dedication.")
+            .add_subfield(
+                b"a",
+                "Metadata licensed under CC0 Public Domain Dedication.",
+            )
             .and_then(|f| builder.add_field(f))?;
 
         // 710 - publisher
