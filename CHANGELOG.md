@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+  - Upgrade `wasm-pack` to [v0.12.0](https://github.com/rustwasm/wasm-pack/releases/tag/v0.12.0)
+  - Upgrade `clap` to v2.34.0
+
 ## [[0.11.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.1) - 2023-06-15
 ### Added
   - Add CC0 license to MARC records

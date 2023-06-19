@@ -21,7 +21,7 @@ thoth-api-server = { version = "0.11.1", path = "thoth-api-server" }
 thoth-app-server = { version = "0.11.1", path = "thoth-app-server" }
 thoth-errors = { version = "0.11.1", path = "thoth-errors" }
 thoth-export-server = { version = "0.11.1", path = "thoth-export-server" }
-clap = "2.33.3"
+clap = "2.34.0"
 dialoguer = "0.7.1"
 dotenv = "0.15.0"
 
