@@ -98,7 +98,7 @@ impl Crud for Series {
             // Start with a trivially true statement that we can build on
             // From the docs: "[`.nullable()`] has no impact on the generated SQL, and is
             // only used to allow certain comparisons that would otherwise fail to compile."
-            let mut filter_by: Box<dyn BoxableExpression<series, Pg, SqlType = Nullable<Bool>>> = Box::new(series_id.eq(series_id).nullable());
+            let mut filter_by: Box<dyn BoxableExpression<_, Pg, SqlType = Nullable<Bool>>> = Box::new(series_id.eq(series_id).nullable());
             for filter in filters_unwrapped {
                 let curr_value = filter.value.clone();
                 if prev_value == Some(curr_value.clone()) {
