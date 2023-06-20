@@ -256,6 +256,8 @@ impl Crud for Series {
                 }
                 prev_value = Some(curr_value.clone());
             }
+            // There should always be an in-progress filter_by to add at the end
+            query = query.filter(filter_by);
         }
         match query
             .limit(limit.into())
