@@ -66,7 +66,7 @@ pub struct Isbn(String);
     feature = "backend",
     derive(DieselNewType, juniper::GraphQLScalarValue),
     graphql(
-        description = r#"ORCID (Open Researcher and Contributor ID) identifier. Expressed as `^https:\/\/orcid\.org\/0000-000(1-[5-9]|2-[0-9]|3-[0-4])\d{3}-\d{3}[\dX]$`"#
+        description = r#"ORCID (Open Researcher and Contributor ID) identifier. Expressed as `^https:\/\/orcid\.org\/\d{4}-\d{4}-\d{4}-\d{3}[\dX]$`"#
     )
 )]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -193,10 +193,10 @@ impl FromStr for Orcid {
             // (?:) = non-capturing group
             // i    = case-insensitive flag
             // $    = end of string
-            // Matches strings of format "[[http[s]://][www.]orcid.org/]0000-000X-XXXX-XXXX"
+            // Matches strings of format "[[http[s]://][www.]orcid.org/]XXXX-XXXX-XXXX-XXXX"
             // and captures the 16-digit identifier segment
             // Corresponds to database constraints although regex syntax differs slightly
-            r#"^(?i:(?:https?://)?(?:www\.)?orcid\.org/)?(0000-000(?:1-[5-9]|2-[0-9]|3-[0-4])\d{3}-\d{3}[\dX]$)"#).unwrap();
+            r#"^(?i:(?:https?://)?(?:www\.)?orcid\.org/)?(\d{4}-\d{4}-\d{4}-\d{3}[\dX]$)"#).unwrap();
         }
         if input.is_empty() {
             Err(ThothError::OrcidEmptyError)
@@ -776,6 +776,7 @@ fn test_orcid_fromstr() {
     assert!(Orcid::from_str("//orcid.org/0000-0002-1234-5678").is_err());
     assert!(Orcid::from_str("https://orcid-org/0000-0002-1234-5678").is_err());
     assert!(Orcid::from_str("0000-0002-1234-5678https://orcid.org/").is_err());
+    assert!(Orcid::from_str("0009-0002-1234-567X").is_ok());
 }
 
 #[test]
