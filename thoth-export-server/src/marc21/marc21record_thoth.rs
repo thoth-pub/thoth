@@ -436,6 +436,11 @@ fn contributor_fields(contributions: &[WorkContributions]) -> ThothResult<Vec<Fi
 }
 
 fn language_field(languages: &[WorkLanguages]) -> Option<FieldRepr> {
+    if languages.len() == 1 {
+        // 041 language fields are not needed when there is only one language
+        // (already represented in field 008 positions 35-37)
+        return None;
+    }
     let (original_codes, into_codes, from_codes): (Vec<_>, Vec<_>, Vec<_>) = languages.iter().fold(
         (Vec::new(), Vec::new(), Vec::new()),
         |(mut orig, mut into, mut from), l| {
@@ -1090,10 +1095,7 @@ pub(crate) mod tests {
             language_relation: LanguageRelation::ORIGINAL,
             main_language: true,
         }];
-        assert_eq!(
-            language_field(&languages).unwrap().get_data(),
-            b"0\\\x1faeng"
-        );
+        assert_eq!(language_field(&languages), None);
     }
 
     #[test]
