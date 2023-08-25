@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+  - [500](https://github.com/thoth-pub/thoth/issues/500) - Update ORCID regex
+
 ### Security
   - Upgrade `openssl` to v0.10.56
   - Upgrade `reqwest` to v0.11.20

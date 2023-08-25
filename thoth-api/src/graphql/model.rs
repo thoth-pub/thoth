@@ -2349,7 +2349,7 @@ impl Work {
     }
 
     #[graphql(
-        description = "Indicates that the work contains a bibliogrpahy or other similar information"
+        description = "Indicates that the work contains a bibliography or other similar information"
     )]
     pub fn bibliography_note(&self) -> Option<&String> {
         self.bibliography_note.as_ref()
