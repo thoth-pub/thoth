@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Security
-  - Upgrade `openssl` to v0.10.55
+  - Upgrade `openssl` to v0.10.56
   - Upgrade `reqwest` to v0.11.20
   - Upgrade `chrono` to v0.4.26
 
