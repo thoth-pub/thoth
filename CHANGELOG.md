@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade build dependencies (npm `v9.8.1`, node `v18.17.1`, n `v9.1.0`, and rollup `v3.28.1`) in production and development `Dockerfile`
   - Upgrade `wasm-pack` to [v0.12.1](https://github.com/rustwasm/wasm-pack/releases/tag/v0.12.1)
 
+### Added
+  - Link to privacy policy in navbar
+
 ## [[0.11.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.2) - 2023-06-19
 ### Changed
   - Upgrade `wasm-pack` to [v0.12.0](https://github.com/rustwasm/wasm-pack/releases/tag/v0.12.0)
