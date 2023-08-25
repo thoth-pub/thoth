@@ -16,7 +16,7 @@ maintenance = { status = "actively-developed" }
 crate-type = ["cdylib", "rlib"]
 
 [build-dependencies]
-wasm-pack = "0.12.0"
+wasm-pack = "0.12.1"
 
 [dependencies]
 anyhow = "1.0.32"
