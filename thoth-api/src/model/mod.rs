@@ -144,7 +144,7 @@ impl FromStr for Doi {
             // and captures the identifier segment starting with the "10." directory indicator
             // Corresponds to database constraints although regex syntax differs slightly
             // (e.g. `;()/` do not need to be escaped here)
-            r#"^(?i:(?:https?://)?(?:www\.)?(?:dx\.)?doi\.org/)?(10\.\d{4,9}/[-._;()\[\]/:a-zA-Z0-9]+$)"#).unwrap();
+            r"^(?i:(?:https?://)?(?:www\.)?(?:dx\.)?doi\.org/)?(10\.\d{4,9}/[-._;()\[\]/:a-zA-Z0-9]+$)").unwrap();
         }
         if input.is_empty() {
             Err(ThothError::DoiEmptyError)
@@ -196,7 +196,7 @@ impl FromStr for Orcid {
             // Matches strings of format "[[http[s]://][www.]orcid.org/]XXXX-XXXX-XXXX-XXXX"
             // and captures the 16-digit identifier segment
             // Corresponds to database constraints although regex syntax differs slightly
-            r#"^(?i:(?:https?://)?(?:www\.)?orcid\.org/)?(\d{4}-\d{4}-\d{4}-\d{3}[\dX]$)"#).unwrap();
+            r"^(?i:(?:https?://)?(?:www\.)?orcid\.org/)?(\d{4}-\d{4}-\d{4}-\d{3}[\dX]$)").unwrap();
         }
         if input.is_empty() {
             Err(ThothError::OrcidEmptyError)
@@ -230,7 +230,7 @@ impl FromStr for Ror {
             // Matches strings of format "[[[http[s]://]|[https://www.]]ror.org/]0XXXXXXNN"
             // and captures the 7-character/2-digit-checksum identifier segment
             // Corresponds to database constraints although regex syntax differs slightly
-            r#"^(?i:(?:https?://|https://www\.)?ror\.org/)?(0[a-hjkmnp-z0-9]{6}\d{2}$)"#).unwrap();
+            r"^(?i:(?:https?://|https://www\.)?ror\.org/)?(0[a-hjkmnp-z0-9]{6}\d{2}$)").unwrap();
         }
         if input.is_empty() {
             Err(ThothError::RorEmptyError)

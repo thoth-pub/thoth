@@ -109,7 +109,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
 
         // 022 - ISSN
         for issue in &self.issues {
-            for issn in vec![
+            for issn in [
                 format!("{} (Online)", issue.series.issn_digital.clone()),
                 format!("{} (Print)", issue.series.issn_print.clone()),
             ] {
