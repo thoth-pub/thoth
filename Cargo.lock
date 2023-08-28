@@ -2926,9 +2926,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.100.1"
+version = "0.100.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6207cd5ed3d8dca7816f8f3725513a34609c0c765bf652b8c3cb4cfd87db46b"
+checksum = "e98ff011474fa39949b7e5c0428f9b4937eda7da7848bbb947786b7be0b27dab"
 dependencies = [
  "ring",
  "untrusted",
@@ -3411,7 +3411,7 @@ dependencies = [
 
 [[package]]
 name = "thoth"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "cargo-husky",
  "clap 2.34.0",
@@ -3426,7 +3426,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "actix-web",
  "argon2rs",
@@ -3455,7 +3455,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api-server"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "actix-cors",
  "actix-identity",
@@ -3470,7 +3470,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3499,7 +3499,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app-server"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -3508,7 +3508,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-client"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "chrono",
  "graphql_client",
@@ -3524,7 +3524,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-errors"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "actix-web",
  "csv",
@@ -3544,7 +3544,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-export-server"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -3839,7 +3839,7 @@ dependencies = [
  "log",
  "once_cell",
  "rustls",
- "rustls-webpki 0.100.1",
+ "rustls-webpki 0.100.2",
  "serde",
  "serde_json",
  "url",
@@ -4064,7 +4064,7 @@ version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b03058f88386e5ff5310d9111d53f48b17d732b401aeb83a8d5190f2ac459338"
 dependencies = [
- "rustls-webpki 0.100.1",
+ "rustls-webpki 0.100.2",
 ]
 
 [[package]]
