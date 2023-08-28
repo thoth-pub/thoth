@@ -12250,7 +12250,7 @@
             {
               "args": [],
               "deprecationReason": null,
-              "description": null,
+              "description": "A general-purpose field used to include information that does not have a specific designated field",
               "isDeprecated": false,
               "name": "generalNote",
               "type": {
@@ -12262,7 +12262,7 @@
             {
               "args": [],
               "deprecationReason": null,
-              "description": null,
+              "description": "Indicates that the work contains a bibliography or other similar information",
               "isDeprecated": false,
               "name": "bibliographyNote",
               "type": {
@@ -22164,7 +22164,7 @@
           "possibleTypes": null
         },
         {
-          "description": "ORCID (Open Researcher and Contributor ID) identifier. Expressed as `^https:\\/\\/orcid\\.org\\/0000-000(1-[5-9]|2-[0-9]|3-[0-4])\\d{3}-\\d{3}[\\dX]$`",
+          "description": "ORCID (Open Researcher and Contributor ID) identifier. Expressed as `^https:\\/\\/orcid\\.org\\/\\d{4}-\\d{4}-\\d{4}-\\d{3}[\\dX]$`",
           "enumValues": null,
           "fields": null,
           "inputFields": null,

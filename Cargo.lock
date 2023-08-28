@@ -306,6 +306,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "android-tzdata"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e999941b234f3131b00bc13c22d06e8c5ff726d1b6318ac7eb276997bbb4fef0"
+
+[[package]]
 name = "android_system_properties"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -728,13 +734,13 @@ checksum = "8100e46ff92eb85bf6dc2930c73f2a4f7176393c84a9446b3d501e1b354e7b34"
 
 [[package]]
 name = "chrono"
-version = "0.4.23"
+version = "0.4.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16b0a3d9ed01224b22057780a37bb8c5dbfe1be8ba48678e7bf57ec4b385411f"
+checksum = "ec837a71355b28f6556dbd569b37b3f363091c0bd4b2e735674521b4c5fd9bc5"
 dependencies = [
+ "android-tzdata",
  "iana-time-zone",
  "js-sys",
- "num-integer",
  "num-traits",
  "serde",
  "time 0.1.45",
@@ -1775,9 +1781,9 @@ dependencies = [
 
 [[package]]
 name = "httparse"
-version = "1.6.0"
+version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9100414882e15fb7feccb4897e5f0ff0ff1ca7d1a86a23208ada4d7a18e6c6c4"
+checksum = "d897f394bad6a705d5f4104762e116a75639e470d80901eed05a860a95cb1904"
 
 [[package]]
 name = "httpdate"
@@ -1808,9 +1814,9 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
-version = "0.14.18"
+version = "0.14.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b26ae0a80afebe130861d90abf98e3814a4f28a4c6ffeb5ab8ebb2be311e0ef2"
+checksum = "abfba89e19b959ca163c7752ba59d737c1ceea53a5d31a149c805446fc958064"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -2281,9 +2287,9 @@ checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
 name = "openssl"
-version = "0.10.48"
+version = "0.10.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "518915b97df115dd36109bfa429a48b8f737bd05508cf9588977b599648926d2"
+checksum = "729b745ad4a5575dd06a3e1af1414bd330ee561c01b3899eb584baeaa8def17e"
 dependencies = [
  "bitflags",
  "cfg-if 1.0.0",
@@ -2313,11 +2319,10 @@ checksum = "77af24da69f9d9341038eba93a073b1fdaaa1b788221b00a69bce9e762cb32de"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.83"
+version = "0.9.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "666416d899cf077260dac8698d60a60b435a46d57e82acb1be3d0dad87284e5b"
+checksum = "866b5f16f90776b9bb8dc1e1802ac6f0513de3a7a7465867bfbc563dc737faac"
 dependencies = [
- "autocfg",
  "cc",
  "libc",
  "pkg-config",
@@ -2775,9 +2780,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.11.15"
+version = "0.11.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ba30cc2c0cd02af1222ed216ba659cdb2f879dfe3181852fe7c50b1d0005949"
+checksum = "3e9ad3fe7488d7e34558a2033d45a0c90b72d97b4f80705666fea71472e2e6a1"
 dependencies = [
  "base64 0.21.0",
  "bytes",
@@ -2909,13 +2914,13 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.21.2"
+version = "0.21.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e32ca28af694bc1bbf399c33a516dbdf1c90090b8ab23c2bc24f834aa2247f5f"
+checksum = "1d1feddffcfcc0b33f5c6ce9a29e341e4cd59c3f78e7ee45f4a40c038b1d6cbb"
 dependencies = [
  "log",
  "ring",
- "rustls-webpki",
+ "rustls-webpki 0.101.4",
  "sct",
 ]
 
@@ -2924,6 +2929,16 @@ name = "rustls-webpki"
 version = "0.100.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6207cd5ed3d8dca7816f8f3725513a34609c0c765bf652b8c3cb4cfd87db46b"
+dependencies = [
+ "ring",
+ "untrusted",
+]
+
+[[package]]
+name = "rustls-webpki"
+version = "0.101.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d93931baf2d282fff8d3a532bbfd7653f734643161b87e3e01e59a04439bf0d"
 dependencies = [
  "ring",
  "untrusted",
@@ -3396,7 +3411,7 @@ dependencies = [
 
 [[package]]
 name = "thoth"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "cargo-husky",
  "clap 2.34.0",
@@ -3411,7 +3426,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "actix-web",
  "argon2rs",
@@ -3440,7 +3455,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api-server"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "actix-cors",
  "actix-identity",
@@ -3455,7 +3470,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3484,7 +3499,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app-server"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -3493,7 +3508,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-client"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "chrono",
  "graphql_client",
@@ -3509,7 +3524,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-errors"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "actix-web",
  "csv",
@@ -3529,7 +3544,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-export-server"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -3824,7 +3839,7 @@ dependencies = [
  "log",
  "once_cell",
  "rustls",
- "rustls-webpki",
+ "rustls-webpki 0.100.1",
  "serde",
  "serde_json",
  "url",
@@ -4003,9 +4018,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-pack"
-version = "0.12.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a7ded582ed0351d10412c6c269887dda691b01ea75e9df7e977e624612f7ef2"
+checksum = "232d74cc810a700817e78a5689da7d1d8ab6f0b9ebb26b6f0c0d98f15e20fec2"
 dependencies = [
  "anyhow",
  "atty",
@@ -4049,7 +4064,7 @@ version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b03058f88386e5ff5310d9111d53f48b17d732b401aeb83a8d5190f2ac459338"
 dependencies = [
- "rustls-webpki",
+ "rustls-webpki 0.100.1",
 ]
 
 [[package]]
@@ -4295,11 +4310,12 @@ dependencies = [
 
 [[package]]
 name = "winreg"
-version = "0.10.1"
+version = "0.50.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80d0f4e272c85def139476380b12f9ac60926689dd2e01d4923222f40580869d"
+checksum = "524e57b2c537c0f9b1e69f1965311ec12182b4122e45035b1508cd24d2adadb1"
 dependencies = [
- "winapi",
+ "cfg-if 1.0.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
