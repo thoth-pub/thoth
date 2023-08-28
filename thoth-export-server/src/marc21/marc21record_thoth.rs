@@ -413,7 +413,11 @@ fn contributor_fields(contributions: &[WorkContributions]) -> ThothResult<Vec<Fi
         }
         let roles = contributions
             .iter()
-            .map(|c| ContributionType::from(c.contribution_type.clone()).to_string().to_lowercase())
+            .map(|c| {
+                ContributionType::from(c.contribution_type.clone())
+                    .to_string()
+                    .to_lowercase()
+            })
             .collect::<Vec<_>>()
             .join(", ");
 
