@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.11.4]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.4) - 2023-08-28
+### Security
+  - Upgrade `rustls-webpki` to v0.100.2
+
 ## [[0.11.3]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.3) - 2023-08-28
 ### Fixed
   - [500](https://github.com/thoth-pub/thoth/issues/500) - Update ORCID regex
