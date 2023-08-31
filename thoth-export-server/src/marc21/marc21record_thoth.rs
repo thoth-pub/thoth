@@ -176,11 +176,23 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
 
         // 245 – title
-        let title_indicator = match contributor_fields.iter().any(|c| c.get_tag() == b"100") {
-            true => "10",
-            false => "00",
+        let added_entry = match contributor_fields.iter().any(|c| c.get_tag() == b"100") {
+            true => "1",
+            false => "0",
         };
-        let mut title_field = FieldRepr::from((b"245", title_indicator));
+        let mut nonfiling_char_count = "0";
+        if language == "eng" {
+            // Ideally we would also do this for other languages
+            if self.title.to_lowercase().starts_with("a ") {
+                nonfiling_char_count = "2";
+            } else if self.title.to_lowercase().starts_with("an ") {
+                nonfiling_char_count = "3";
+            } else if self.title.to_lowercase().starts_with("the ") {
+                nonfiling_char_count = "4";
+            }
+        }
+        let mut title_field =
+            FieldRepr::from((b"245", format!("{}{}", added_entry, nonfiling_char_count)));
         if let Some(subtitle) = self.subtitle.clone() {
             title_field = title_field
                 .add_subfield(b"a", format!("{} :", self.title.clone()).as_bytes())
