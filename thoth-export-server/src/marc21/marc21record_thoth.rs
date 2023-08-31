@@ -434,12 +434,14 @@ fn contributor_fields(contributions: &[WorkContributions]) -> ThothResult<Vec<Fi
             .join(", ");
 
         let mut contributor_field = FieldRepr::from((field_code, indicator.as_str()));
-        contributor_field = contributor_field.add_subfield(b"a", name)?;
-        contributor_field = contributor_field.add_subfield(b"e", roles)?;
+        contributor_field =
+            contributor_field.add_subfield(b"a", format!("{},", name).as_bytes())?;
+        contributor_field =
+            contributor_field.add_subfield(b"e", format!("{}.", roles).as_bytes())?;
         if let Some(affiliation) = &contributions.first().unwrap().affiliations.first() {
             contributor_field = contributor_field.add_subfield(
                 b"u",
-                affiliation.institution.institution_name.clone().as_bytes(),
+                format!("{}.", affiliation.institution.institution_name.clone()).as_bytes(),
             )?;
         }
         if let Some(orcid) = &contributions.first().unwrap().contributor.orcid {
@@ -939,8 +941,8 @@ pub(crate) mod tests {
         let contributions = [contribution];
 
         let expected = Ok(vec![FieldRepr::from((b"100", "1\\"))
-            .add_subfield(b"a", "Doe, Jane".as_bytes())
-            .and_then(|f| f.add_subfield(b"e", "author".as_bytes()))
+            .add_subfield(b"a", "Doe, Jane,".as_bytes())
+            .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
             .unwrap()]);
         assert_eq!(contributor_fields(&contributions), expected);
     }
@@ -961,12 +963,12 @@ pub(crate) mod tests {
 
         let expected = Ok(vec![
             FieldRepr::from((b"700", "1\\"))
-                .add_subfield(b"a", "Doe, Jane".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "editor".as_bytes()))
+                .add_subfield(b"a", "Doe, Jane,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "editor.".as_bytes()))
                 .unwrap(),
             FieldRepr::from((b"700", "1\\"))
-                .add_subfield(b"a", "Smith, John".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "translator".as_bytes()))
+                .add_subfield(b"a", "Smith, John,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "translator.".as_bytes()))
                 .unwrap(),
         ]);
         assert_eq!(contributor_fields(&contributions), expected);
@@ -992,12 +994,12 @@ pub(crate) mod tests {
 
         let expected = Ok(vec![
             FieldRepr::from((b"100", "1\\"))
-                .add_subfield(b"a", "Smith, John".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "author".as_bytes()))
+                .add_subfield(b"a", "Smith, John,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
                 .unwrap(),
             FieldRepr::from((b"700", "1\\"))
-                .add_subfield(b"a", "Doe, Jane".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "editor, translator".as_bytes()))
+                .add_subfield(b"a", "Doe, Jane,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "editor, translator.".as_bytes()))
                 .unwrap(),
         ]);
         assert_eq!(contributor_fields(&contributions), expected);
@@ -1032,20 +1034,20 @@ pub(crate) mod tests {
 
         let expected = Ok(vec![
             FieldRepr::from((b"100", "1\\"))
-                .add_subfield(b"a", "Smith, John".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "author".as_bytes()))
+                .add_subfield(b"a", "Smith, John,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
                 .unwrap(),
             FieldRepr::from((b"700", "1\\"))
-                .add_subfield(b"a", "Doe, Jane".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "author".as_bytes()))
+                .add_subfield(b"a", "Doe, Jane,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
                 .unwrap(),
             FieldRepr::from((b"700", "1\\"))
-                .add_subfield(b"a", "Johnson, Billy Bob".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "introduction by".as_bytes()))
+                .add_subfield(b"a", "Johnson, Billy Bob,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "introduction by.".as_bytes()))
                 .unwrap(),
             FieldRepr::from((b"700", "1\\"))
-                .add_subfield(b"a", "García Sánchez, Juan".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "translator".as_bytes()))
+                .add_subfield(b"a", "García Sánchez, Juan,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "translator.".as_bytes()))
                 .unwrap(),
         ]);
         assert_eq!(contributor_fields(&contributions), expected);
@@ -1070,9 +1072,9 @@ pub(crate) mod tests {
         let contributions = [contribution];
 
         let expected = Ok(vec![FieldRepr::from((b"100", "1\\"))
-            .add_subfield(b"a", "Doe, Jane".as_bytes())
-            .and_then(|f| f.add_subfield(b"e", "author".as_bytes()))
-            .and_then(|f| f.add_subfield(b"u", "Thoth University".as_bytes()))
+            .add_subfield(b"a", "Doe, Jane,".as_bytes())
+            .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
+            .and_then(|f| f.add_subfield(b"u", "Thoth University.".as_bytes()))
             .unwrap()]);
         assert_eq!(contributor_fields(&contributions), expected);
     }
@@ -1108,9 +1110,9 @@ pub(crate) mod tests {
         let contributions = [contribution];
 
         let expected = Ok(vec![FieldRepr::from((b"100", "1\\"))
-            .add_subfield(b"a", "Doe, Jane".as_bytes())
-            .and_then(|f| f.add_subfield(b"e", "author".as_bytes()))
-            .and_then(|f| f.add_subfield(b"u", "Thoth University".as_bytes()))
+            .add_subfield(b"a", "Doe, Jane,".as_bytes())
+            .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
+            .and_then(|f| f.add_subfield(b"u", "Thoth University.".as_bytes()))
             .unwrap()]);
         assert_eq!(contributor_fields(&contributions), expected);
     }
@@ -1128,8 +1130,8 @@ pub(crate) mod tests {
         let contributions = [contribution];
 
         let expected = Ok(vec![FieldRepr::from((b"100", "1\\"))
-            .add_subfield(b"a", "Doe, Jane".as_bytes())
-            .and_then(|f| f.add_subfield(b"e", "author".as_bytes()))
+            .add_subfield(b"a", "Doe, Jane,".as_bytes())
+            .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
             .and_then(|f| f.add_subfield(b"1", "https://orcid.org/0000-0002-0000-0011".as_bytes()))
             .unwrap()]);
         assert_eq!(contributor_fields(&contributions), expected);
@@ -1162,16 +1164,16 @@ pub(crate) mod tests {
 
         let expected = Ok(vec![
             FieldRepr::from((b"700", "0\\"))
-                .add_subfield(b"a", "Thoth Collective".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "editor, introduction by".as_bytes()))
+                .add_subfield(b"a", "Thoth Collective,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "editor, introduction by.".as_bytes()))
                 .unwrap(),
             FieldRepr::from((b"100", "0\\"))
-                .add_subfield(b"a", "Anonymous".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "author".as_bytes()))
+                .add_subfield(b"a", "Anonymous,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
                 .unwrap(),
             FieldRepr::from((b"700", "1\\"))
-                .add_subfield(b"a", "Collective, Thoth".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "research by".as_bytes()))
+                .add_subfield(b"a", "Collective, Thoth,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "research by.".as_bytes()))
                 .unwrap(),
         ]);
         assert_eq!(contributor_fields(&contributions), expected);
@@ -1559,7 +1561,7 @@ pub(crate) mod tests {
     fn test_generate_marc() {
         let work = test_work();
         let current_date = Utc::now().format("%y%m%d").to_string();
-        let expected = format!("02328nam  2200529 i 4500001003700000006001900037007001500056008004100071010001500112020002500127020002500152020003000177024002800207024002500235040002200260041001300282050000900295072001600304072002300320072001500343100008200358245009700440250001600537264004000553264001100593300002300604336002600627337002600653338003600679490005000715500008300765504005300848505006000901506005000961520003101011536006801042538003601110540022301146588005801369700006401427700003401491710002901525830005001554856005801604856005901662856007701721\u{1e}00000000-0000-0000-aaaa-000000000001\u{1e}m     o  d        \u{1e}cr  n         \u{1e}{current_date}t20102010        ob    000 0 eng d\u{1e}\\\\\u{1f}aLCCN010101\u{1e}\\\\\u{1f}a9783161484100\u{1f}q(PDF)\u{1e}\\\\\u{1f}a9789295055025\u{1f}q(XML)\u{1e}\\\\\u{1f}z9781402894626\u{1f}q(Hardback)\u{1e}7\\\u{1f}a10.00001/BOOK.0001\u{1f}2doi\u{1e}7\\\u{1f}aOCLC010101\u{1f}2worldcat\u{1e}\\\\\u{1f}aUkCbTOM\u{1f}beng\u{1f}erda\u{1e}1\\\u{1f}aeng\u{1f}hspa\u{1e}00\u{1f}aJA85\u{1e} 7\u{1f}aAAB\u{1f}2bicssc\u{1e} 7\u{1f}aAAA000000\u{1f}2bisacsh\u{1e} 7\u{1f}aJWA\u{1f}2thema\u{1e}1\\\u{1f}aAuthor, Sole\u{1f}eauthor\u{1f}uThoth University\u{1f}1https://orcid.org/0000-0002-0000-0001\u{1e}10\u{1f}aBook Title :\u{1f}bBook Subtitle /\u{1f}cSole Author; edited by Only Editor; translated by Translator.\u{1e}\\\\\u{1f}a1st edition\u{1e}\\1\u{1f}aLeón, Spain :\u{1f}bOA Editions,\u{1f}c2010.\u{1e}\\4\u{1f}c©2010\u{1e}\\\\\u{1f}a1 online resource.\u{1e}\\\\\u{1f}atext\u{1f}btxt\u{1f}2rdacontent\u{1e}\\\\\u{1f}acomputer\u{1f}bc\u{1f}2rdamedia\u{1e}\\\\\u{1f}aonline resource\u{1f}bcr\u{1f}2rdacarrier\u{1e}1\\\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1f}x1234-5678\u{1e}\\\\\u{1f}aPlease note that in this book the mathematical formulas are encoded in MathML.\u{1e}\\\\\u{1f}aIncludes bibliography (pages 165-170) and index.\u{1e}0\\\u{1f}aIntroduction; Chapter 1; Chapter 2; Bibliography; Index\u{1e}0\\\u{1f}aOpen Access\u{1f}fUnrestricted online access\u{1f}2star\u{1e}\\\\\u{1f}aLorem ipsum dolor sit amet\u{1e}\\\\\u{1f}aFunding Institution\u{1f}cJA0001\u{1f}eFunding Programme\u{1f}fFunding Project\u{1e}\\\\\u{1f}aMode of access: World Wide Web.\u{1e}\\\\\u{1f}aThe text of this book is licensed under a Creative Commons Attribution 4.0 International license (CC BY 4.0). For more detailed information consult the publisher's website.\u{1f}uhttps://creativecommons.org/licenses/by/4.0/\u{1e}0\\\u{1f}aMetadata licensed under CC0 Public Domain Dedication.\u{1e}1\\\u{1f}aEditor, Only\u{1f}eeditor\u{1f}1https://orcid.org/0000-0002-0000-0004\u{1e}0\\\u{1f}aTranslator\u{1f}etranslator\u{1f}uCOPIM\u{1e}2\\\u{1f}aOA Editions,\u{1f}epublisher.\u{1e}\\0\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1f}x1234-5678\u{1e}40\u{1f}uhttps://doi.org/10.00001/book.0001\u{1f}zConnect to e-book\u{1e}42\u{1f}uhttps://www.book.com/cover.jpg\u{1f}zConnect to cover image\u{1e}42\u{1f}uhttps://creativecommons.org/publicdomain/zero/1.0/\u{1f}zCC0 Metadata License\u{1e}\u{1d}");
+        let expected = format!("02336nam  2200529 i 4500001003700000006001900037007001500056008004100071010001500112020002500127020002500152020003000177024002800207024002500235040002200260041001300282050000900295072001600304072002300320072001500343100008500358245009700443250001600540264004000556264001100596300002300607336002600630337002600656338003600682490005000718500008300768504005300851505006000904506005000964520003101014536006801045538003601113540022301149588005801372700006601430700003701496710002901533830005001562856005801612856005901670856007701729\u{1e}00000000-0000-0000-aaaa-000000000001\u{1e}m     o  d        \u{1e}cr  n         \u{1e}{current_date}t20102010        ob    000 0 eng d\u{1e}\\\\\u{1f}aLCCN010101\u{1e}\\\\\u{1f}a9783161484100\u{1f}q(PDF)\u{1e}\\\\\u{1f}a9789295055025\u{1f}q(XML)\u{1e}\\\\\u{1f}z9781402894626\u{1f}q(Hardback)\u{1e}7\\\u{1f}a10.00001/BOOK.0001\u{1f}2doi\u{1e}7\\\u{1f}aOCLC010101\u{1f}2worldcat\u{1e}\\\\\u{1f}aUkCbTOM\u{1f}beng\u{1f}erda\u{1e}1\\\u{1f}aeng\u{1f}hspa\u{1e}00\u{1f}aJA85\u{1e} 7\u{1f}aAAB\u{1f}2bicssc\u{1e} 7\u{1f}aAAA000000\u{1f}2bisacsh\u{1e} 7\u{1f}aJWA\u{1f}2thema\u{1e}1\\\u{1f}aAuthor, Sole,\u{1f}eauthor.\u{1f}uThoth University.\u{1f}1https://orcid.org/0000-0002-0000-0001\u{1e}10\u{1f}aBook Title :\u{1f}bBook Subtitle /\u{1f}cSole Author; edited by Only Editor; translated by Translator.\u{1e}\\\\\u{1f}a1st edition\u{1e}\\1\u{1f}aLeón, Spain :\u{1f}bOA Editions,\u{1f}c2010.\u{1e}\\4\u{1f}c©2010\u{1e}\\\\\u{1f}a1 online resource.\u{1e}\\\\\u{1f}atext\u{1f}btxt\u{1f}2rdacontent\u{1e}\\\\\u{1f}acomputer\u{1f}bc\u{1f}2rdamedia\u{1e}\\\\\u{1f}aonline resource\u{1f}bcr\u{1f}2rdacarrier\u{1e}1\\\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1f}x1234-5678\u{1e}\\\\\u{1f}aPlease note that in this book the mathematical formulas are encoded in MathML.\u{1e}\\\\\u{1f}aIncludes bibliography (pages 165-170) and index.\u{1e}0\\\u{1f}aIntroduction; Chapter 1; Chapter 2; Bibliography; Index\u{1e}0\\\u{1f}aOpen Access\u{1f}fUnrestricted online access\u{1f}2star\u{1e}\\\\\u{1f}aLorem ipsum dolor sit amet\u{1e}\\\\\u{1f}aFunding Institution\u{1f}cJA0001\u{1f}eFunding Programme\u{1f}fFunding Project\u{1e}\\\\\u{1f}aMode of access: World Wide Web.\u{1e}\\\\\u{1f}aThe text of this book is licensed under a Creative Commons Attribution 4.0 International license (CC BY 4.0). For more detailed information consult the publisher's website.\u{1f}uhttps://creativecommons.org/licenses/by/4.0/\u{1e}0\\\u{1f}aMetadata licensed under CC0 Public Domain Dedication.\u{1e}1\\\u{1f}aEditor, Only,\u{1f}eeditor.\u{1f}1https://orcid.org/0000-0002-0000-0004\u{1e}0\\\u{1f}aTranslator,\u{1f}etranslator.\u{1f}uCOPIM.\u{1e}2\\\u{1f}aOA Editions,\u{1f}epublisher.\u{1e}\\0\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1f}x1234-5678\u{1e}40\u{1f}uhttps://doi.org/10.00001/book.0001\u{1f}zConnect to e-book\u{1e}42\u{1f}uhttps://www.book.com/cover.jpg\u{1f}zConnect to cover image\u{1e}42\u{1f}uhttps://creativecommons.org/publicdomain/zero/1.0/\u{1f}zCC0 Metadata License\u{1e}\u{1d}");
 
         assert_eq!(Marc21RecordThoth {}.generate(&[work]), Ok(expected))
     }
