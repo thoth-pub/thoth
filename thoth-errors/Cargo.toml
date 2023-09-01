@@ -17,7 +17,7 @@ uuid = { package = "uuid", version = "0.8.2", features = ["serde", "v4"] }
 yewtil = { version = "0.4.0", features = ["fetch"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-actix-web = "4.3.0"
+actix-web = "4.4.0"
 diesel = "2.0.2"
 csv = "1.1.6"
 juniper = "0.15.10"
