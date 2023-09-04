@@ -10,9 +10,9 @@ use thoth::app_server;
 use thoth::export_server;
 use thoth_errors::ThothResult;
 
-fn host_argument(env_value: &'static str) -> Arg<'static, 'static> {
+fn host_argument(env_value: &'static str) -> Arg<'static> {
     Arg::with_name("host")
-        .short("h")
+        .short('H')
         .long("host")
         .value_name("HOST")
         .env(env_value)
@@ -21,9 +21,9 @@ fn host_argument(env_value: &'static str) -> Arg<'static, 'static> {
         .takes_value(true)
 }
 
-fn port_argument(default_value: &'static str, env_value: &'static str) -> Arg<'static, 'static> {
+fn port_argument(default_value: &'static str, env_value: &'static str) -> Arg<'static> {
     Arg::with_name("port")
-        .short("p")
+        .short('p')
         .long("port")
         .value_name("PORT")
         .env(env_value)
@@ -32,9 +32,9 @@ fn port_argument(default_value: &'static str, env_value: &'static str) -> Arg<'s
         .takes_value(true)
 }
 
-fn domain_argument() -> Arg<'static, 'static> {
+fn domain_argument() -> Arg<'static> {
     Arg::with_name("domain")
-        .short("d")
+        .short('d')
         .long("domain")
         .value_name("THOTH_DOMAIN")
         .env("THOTH_DOMAIN")
@@ -43,9 +43,9 @@ fn domain_argument() -> Arg<'static, 'static> {
         .takes_value(true)
 }
 
-fn key_argument() -> Arg<'static, 'static> {
+fn key_argument() -> Arg<'static> {
     Arg::with_name("key")
-        .short("k")
+        .short('k')
         .long("secret-key")
         .value_name("SECRET")
         .env("SECRET_KEY")
@@ -53,9 +53,9 @@ fn key_argument() -> Arg<'static, 'static> {
         .takes_value(true)
 }
 
-fn session_argument() -> Arg<'static, 'static> {
+fn session_argument() -> Arg<'static> {
     Arg::with_name("duration")
-        .short("s")
+        .short('s')
         .long("session-length")
         .value_name("DURATION")
         .env("SESSION_DURATION_SECONDS")
@@ -64,9 +64,9 @@ fn session_argument() -> Arg<'static, 'static> {
         .takes_value(true)
 }
 
-fn gql_url_argument() -> Arg<'static, 'static> {
+fn gql_url_argument() -> Arg<'static> {
     Arg::with_name("gql-url")
-        .short("u")
+        .short('u')
         .long("gql-url")
         .value_name("THOTH_GRAPHQL_API")
         .env("THOTH_GRAPHQL_API")
@@ -75,9 +75,9 @@ fn gql_url_argument() -> Arg<'static, 'static> {
         .takes_value(true)
 }
 
-fn gql_endpoint_argument() -> Arg<'static, 'static> {
+fn gql_endpoint_argument() -> Arg<'static> {
     Arg::with_name("gql-endpoint")
-        .short("g")
+        .short('g')
         .long("gql-endpoint")
         .value_name("THOTH_GRAPHQL_ENDPOINT")
         .env("THOTH_GRAPHQL_ENDPOINT")
@@ -86,9 +86,9 @@ fn gql_endpoint_argument() -> Arg<'static, 'static> {
         .takes_value(true)
 }
 
-fn export_url_argument() -> Arg<'static, 'static> {
+fn export_url_argument() -> Arg<'static> {
     Arg::with_name("export-url")
-        .short("u")
+        .short('u')
         .long("export-url")
         .value_name("THOTH_EXPORT_API")
         .env("THOTH_EXPORT_API")
@@ -97,9 +97,9 @@ fn export_url_argument() -> Arg<'static, 'static> {
         .takes_value(true)
 }
 
-fn threads_argument(env_value: &'static str) -> Arg<'static, 'static> {
+fn threads_argument(env_value: &'static str) -> Arg<'static> {
     Arg::with_name("threads")
-        .short("t")
+        .short('t')
         .long("threads")
         .value_name("THREADS")
         .env(env_value)
@@ -108,9 +108,9 @@ fn threads_argument(env_value: &'static str) -> Arg<'static, 'static> {
         .takes_value(true)
 }
 
-fn keep_alive_argument(env_value: &'static str) -> Arg<'static, 'static> {
+fn keep_alive_argument(env_value: &'static str) -> Arg<'static> {
     Arg::with_name("keep-alive")
-        .short("K")
+        .short('K')
         .long("keep-alive")
         .value_name("THREADS")
         .env(env_value)
@@ -119,7 +119,7 @@ fn keep_alive_argument(env_value: &'static str) -> Arg<'static, 'static> {
         .takes_value(true)
 }
 
-fn thoth_commands() -> App<'static, 'static> {
+fn thoth_commands() -> App<'static> {
     App::new(env!("CARGO_PKG_NAME"))
         .version(crate_version!())
         .author(crate_authors!("\n"))
@@ -187,8 +187,8 @@ fn main() -> ThothResult<()> {
     dotenv().ok();
 
     match thoth_commands().get_matches().subcommand() {
-        ("start", Some(start_matches)) => match start_matches.subcommand() {
-            ("graphql-api", Some(api_matches)) => {
+        Some(("start", start_matches)) => match start_matches.subcommand() {
+            Some(("graphql-api", api_matches)) => {
                 let host = api_matches.value_of("host").unwrap().to_owned();
                 let port = api_matches.value_of("port").unwrap().to_owned();
                 let threads = value_t!(api_matches.value_of("threads"), usize).unwrap();
@@ -209,14 +209,14 @@ fn main() -> ThothResult<()> {
                 )
                 .map_err(|e| e.into())
             }
-            ("app", Some(client_matches)) => {
+            Some(("app", client_matches)) => {
                 let host = client_matches.value_of("host").unwrap().to_owned();
                 let port = client_matches.value_of("port").unwrap().to_owned();
                 let threads = value_t!(client_matches.value_of("threads"), usize).unwrap();
                 let keep_alive = value_t!(client_matches.value_of("keep-alive"), u64).unwrap();
                 app_server(host, port, threads, keep_alive).map_err(|e| e.into())
             }
-            ("export-api", Some(client_matches)) => {
+            Some(("export-api", client_matches)) => {
                 let host = client_matches.value_of("host").unwrap().to_owned();
                 let port = client_matches.value_of("port").unwrap().to_owned();
                 let threads = value_t!(client_matches.value_of("threads"), usize).unwrap();
@@ -228,8 +228,8 @@ fn main() -> ThothResult<()> {
             }
             _ => unreachable!(),
         },
-        ("migrate", Some(_)) => run_migrations(),
-        ("init", Some(init_matches)) => {
+        Some(("migrate", _)) => run_migrations(),
+        Some(("init", init_matches)) => {
             let host = init_matches.value_of("host").unwrap().to_owned();
             let port = init_matches.value_of("port").unwrap().to_owned();
             let threads = value_t!(init_matches.value_of("threads"), usize).unwrap();
@@ -251,8 +251,8 @@ fn main() -> ThothResult<()> {
             )
             .map_err(|e| e.into())
         }
-        ("account", Some(account_matches)) => match account_matches.subcommand() {
-            ("register", Some(_)) => {
+        Some(("account", account_matches)) => match account_matches.subcommand() {
+            Some(("register", _)) => {
                 let pool = establish_connection();
 
                 let name: String = Input::new()
@@ -309,7 +309,7 @@ fn main() -> ThothResult<()> {
                 };
                 register(account_data, linked_publishers, &pool).map(|_| ())
             }
-            ("password", Some(_)) => {
+            Some(("password", _)) => {
                 let pool = establish_connection();
                 let all_emails = all_emails(&pool).expect("No user accounts present in database.");
                 let email_selection = Select::with_theme(&ColorfulTheme::default())
@@ -329,4 +329,9 @@ fn main() -> ThothResult<()> {
         },
         _ => unreachable!(),
     }
+}
+
+#[test]
+fn verify_app() {
+    thoth_commands().debug_assert();
 }
