@@ -78,7 +78,7 @@ pub struct PatchInstitution {
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
-    DieselTypePath = "crate::schema::sql_types::CountryCode"
+    ExistingTypePath = "crate::schema::sql_types::CountryCode"
 )]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]

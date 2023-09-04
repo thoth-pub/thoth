@@ -21,10 +21,10 @@ actix-web = { version = "4.3.0", optional = true }
 argon2rs = "0.2.5"
 isbn2 = "0.4.0"
 chrono = { version = "0.4.26", features = ["serde"] }
-diesel = { version = "2.0.2", features = ["postgres", "uuid", "chrono", "r2d2", "64-column-tables", "serde_json"], optional = true }
-diesel-derive-enum = { version = "2.0.0-rc.0", features = ["postgres"], optional = true }
-diesel-derive-newtype = "2.0.0-rc.0"
-diesel_migrations = { version = "2.0.0", features = ["postgres"], optional = true }
+diesel = { version = "2.1.1", features = ["postgres", "uuid", "chrono", "r2d2", "64-column-tables", "serde_json"], optional = true }
+diesel-derive-enum = { version = "2.1.0", features = ["postgres"], optional = true }
+diesel-derive-newtype = "2.1.0"
+diesel_migrations = { version = "2.1.0", features = ["postgres"], optional = true }
 dotenv = "0.15.0"
 futures = { version  = "0.3.5", optional = true }
 jsonwebtoken = "8.2.0"

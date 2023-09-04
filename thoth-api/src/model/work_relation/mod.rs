@@ -14,7 +14,7 @@ use crate::schema::work_relation_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
-    DieselTypePath = "crate::schema::sql_types::RelationType"
+    ExistingTypePath = "crate::schema::sql_types::RelationType"
 )]
 #[derive(
     Debug, Clone, Default, Copy, PartialEq, Eq, Deserialize, Serialize, EnumString, Display,
