@@ -2352,9 +2352,9 @@ dependencies = [
 
 [[package]]
 name = "paperclip"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "461c6d9997c512648e9cfd41575a3e0d3f46a1ec3c8214a32dd91b729487b1dc"
+checksum = "28494885202a294fbdc5373689bfc6a7c1ba1fd9282da7d257c4f5c0f36e6507"
 dependencies = [
  "anyhow",
  "itertools",
@@ -2373,9 +2373,9 @@ dependencies = [
 
 [[package]]
 name = "paperclip-actix"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8e2adab1a71766521af58973719fb66bd7b92e6ce8a3acf1e83c7acc0e78e17"
+checksum = "2f18195a2ed73948ba5222622d5304d869fb6ffd7729131e04ad8e47e4fc11bf"
 dependencies = [
  "actix-service",
  "actix-web",
@@ -2389,9 +2389,9 @@ dependencies = [
 
 [[package]]
 name = "paperclip-core"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d53eecc65b19fa7884e3e6939e54ba5104ec179894728bca6f6cee67adfa145e"
+checksum = "afd7633cf02474b3369a0b3bb11b4c979677bfff44affd3ef3867f6d53ac069b"
 dependencies = [
  "actix-web",
  "mime",
@@ -2408,9 +2408,9 @@ dependencies = [
 
 [[package]]
 name = "paperclip-macros"
-version = "0.6.2"
+version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0e23a129dc95a45661cbbfac1b8f865094131da7937738a343d00f47d87fada"
+checksum = "ce6e25ce2c5362c8d48dc89e0f9ca076d507f7c1eabd04f0d593cdf5addff90c"
 dependencies = [
  "heck",
  "http",
