@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade `reqwest-retry` to v0.2.3
   - Upgrade `actix-identity` to v0.5.2 and added `actix-session` v0.7.2
   - Upgrade `dialoguer` to v0.10.4
+  - Upgrade `clap` to v3.0.0
+  - Short version of host command is now `-H` instead of `-h` in CLI
 
 ## [[0.11.4]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.4) - 2023-08-28
 ### Security
