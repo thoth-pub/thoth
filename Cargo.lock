@@ -873,21 +873,6 @@ dependencies = [
 
 [[package]]
 name = "console"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3993e6445baa160675931ec041a5e03ca84b9c6e32a056150d3aa2bdda0a1f45"
-dependencies = [
- "encode_unicode",
- "lazy_static",
- "libc",
- "regex",
- "terminal_size",
- "unicode-width",
- "winapi",
-]
-
-[[package]]
-name = "console"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d79fbe8970a77e3e34151cc13d3b3e248aa0faaecb9f6091fa07ebefe5ad60"
@@ -1092,11 +1077,11 @@ dependencies = [
 
 [[package]]
 name = "dialoguer"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9dd058f8b65922819fabb4a41e7d1964e56344042c26efbccd465202c23fa0c"
+checksum = "61579ada4ec0c6031cfac3f86fdba0d195a7ebeb5e36693bd53cb5999a25beeb"
 dependencies = [
- "console 0.14.1",
+ "console",
  "lazy_static",
  "tempfile",
  "zeroize",
@@ -1108,7 +1093,7 @@ version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af3c796f3b0b408d9fd581611b47fa850821fcb84aa640b83a3c1a5be2d691f2"
 dependencies = [
- "console 0.15.5",
+ "console",
  "shell-words",
  "tempfile",
  "zeroize",
@@ -3442,16 +3427,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "terminal_size"
-version = "0.1.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86ca8ced750734db02076f44132d802af0b33b09942331f4459dde8636fd2406"
-dependencies = [
- "libc",
- "winapi",
-]
-
-[[package]]
 name = "textwrap"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3486,7 +3461,7 @@ version = "0.11.4"
 dependencies = [
  "cargo-husky",
  "clap 2.34.0",
- "dialoguer 0.8.0",
+ "dialoguer 0.9.0",
  "dotenv",
  "thoth-api",
  "thoth-api-server",
@@ -4079,7 +4054,7 @@ dependencies = [
  "cargo_metadata",
  "chrono",
  "clap 4.3.4",
- "console 0.15.5",
+ "console",
  "dialoguer 0.10.3",
  "env_logger",
  "glob",
