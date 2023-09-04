@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade `juniper` to v0.15.11
   - Upgrade `strum` to v0.25.0
   - Upgrade `paperclip` to v0.8.1
+  - Upgrade `graphql_client` to v0.13.0
+  - Upgrade `reqwest-middleware` to v0.2.3
+  - Upgrade `reqwest-retry` to v0.2.3
 
 ## [[0.11.4]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.4) - 2023-08-28
 ### Security
