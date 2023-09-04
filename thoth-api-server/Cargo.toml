@@ -13,7 +13,8 @@ thoth-api = { version = "0.11.4", path = "../thoth-api", features = ["backend"] 
 thoth-errors = { version = "0.11.4", path = "../thoth-errors" }
 actix-web = "4.4.0"
 actix-cors = "0.6.4"
-actix-identity = "0.4.0"
+actix-identity = "0.5.2"
+actix-session = { version = "0.7.2", features = ["cookie-session"] }
 env_logger = "0.10.0"
 juniper = "0.15.10"
 serde = { version = "1.0.115", features = ["derive"] }

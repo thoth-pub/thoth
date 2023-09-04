@@ -4,10 +4,13 @@ use std::time::Duration;
 use std::{io, sync::Arc};
 
 use actix_cors::Cors;
-use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
+use actix_identity::{Identity, IdentityMiddleware};
+use actix_session::config::PersistentSession;
+use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{
-    error, get, http::header, middleware::Logger, post, web, web::Data, App, Error, HttpResponse,
-    HttpServer, Result,
+    cookie::time::Duration as CookieDuration, cookie::Key, error, get, http::header,
+    middleware::Logger, post, web::Data, web::Json, web::ServiceConfig, App, Error, HttpMessage,
+    HttpRequest, HttpResponse, HttpServer, Result,
 };
 use juniper::http::GraphQLRequest;
 use serde::Serialize;
@@ -61,12 +64,12 @@ impl Default for ApiConfig {
 }
 
 #[get("/")]
-async fn index(config: web::Data<ApiConfig>) -> HttpResponse {
+async fn index(config: Data<ApiConfig>) -> HttpResponse {
     HttpResponse::Ok().json(config.into_inner())
 }
 
 #[get("/graphiql")]
-async fn graphiql_interface(config: web::Data<ApiConfig>) -> HttpResponse {
+async fn graphiql_interface(config: Data<ApiConfig>) -> HttpResponse {
     let html = graphiql_source(&config.public_url);
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
@@ -74,7 +77,7 @@ async fn graphiql_interface(config: web::Data<ApiConfig>) -> HttpResponse {
 }
 
 #[get("/graphql")]
-async fn graphql_index(config: web::Data<ApiConfig>) -> HttpResponse {
+async fn graphql_index(config: Data<ApiConfig>) -> HttpResponse {
     HttpResponse::MethodNotAllowed().json(format!(
         "GraphQL API must be queried making a POST request to {}",
         config.public_url
@@ -83,10 +86,10 @@ async fn graphql_index(config: web::Data<ApiConfig>) -> HttpResponse {
 
 #[post("/graphql")]
 async fn graphql(
-    st: web::Data<Arc<Schema>>,
-    pool: web::Data<PgPool>,
+    st: Data<Arc<Schema>>,
+    pool: Data<PgPool>,
     token: DecodedToken,
-    data: web::Json<GraphQLRequest>,
+    data: Json<GraphQLRequest>,
 ) -> Result<HttpResponse, Error> {
     let ctx = Context::new(pool.into_inner(), token);
     let result = data.execute(&st, &ctx).await;
@@ -98,9 +101,9 @@ async fn graphql(
 
 #[post("/account/login")]
 async fn login_credentials(
-    payload: web::Json<LoginCredentials>,
-    id: Identity,
-    pool: web::Data<PgPool>,
+    request: HttpRequest,
+    payload: Json<LoginCredentials>,
+    pool: Data<PgPool>,
 ) -> Result<HttpResponse, Error> {
     let r = payload.into_inner();
 
@@ -110,7 +113,8 @@ async fn login_credentials(
             let details = get_account_details(&account.email, &pool).unwrap();
             let user_string = serde_json::to_string(&details)
                 .map_err(|_| ThothError::InternalError("Serder error".into()))?;
-            id.remember(user_string);
+            Identity::login(&request.extensions(), user_string)
+                .map_err(|_| ThothError::InternalError("Failed to store session cookie".into()))?;
             Ok(HttpResponse::Ok().json(details))
         })
         .map_err(error::ErrorUnauthorized)
@@ -118,12 +122,14 @@ async fn login_credentials(
 
 #[post("/account/token/renew")]
 async fn login_session(
+    request: HttpRequest,
     token: DecodedToken,
-    id: Identity,
-    pool: web::Data<PgPool>,
+    identity: Option<Identity>,
+    pool: Data<PgPool>,
 ) -> Result<HttpResponse, Error> {
-    let email = match id.identity() {
-        Some(id) => {
+    let email = match identity {
+        Some(session) => {
+            let id = session.id().map_err(|_| ThothError::Unauthorised)?;
             let details: AccountDetails =
                 serde_json::from_str(&id).map_err(|_| ThothError::Unauthorised)?;
             details.email
@@ -141,7 +147,8 @@ async fn login_session(
             let details = get_account_details(&account.email, &pool).unwrap();
             let user_string = serde_json::to_string(&details)
                 .map_err(|_| ThothError::InternalError("Serder error".into()))?;
-            id.remember(user_string);
+            Identity::login(&request.extensions(), user_string)
+                .map_err(|_| ThothError::InternalError("Failed to store session cookie".into()))?;
             Ok(HttpResponse::Ok().json(details))
         })
         .map_err(error::ErrorUnauthorized)
@@ -150,11 +157,12 @@ async fn login_session(
 #[get("/account")]
 async fn account_details(
     token: DecodedToken,
-    id: Identity,
-    pool: web::Data<PgPool>,
+    identity: Option<Identity>,
+    pool: Data<PgPool>,
 ) -> Result<HttpResponse, Error> {
-    let email = match id.identity() {
-        Some(id) => {
+    let email = match identity {
+        Some(session) => {
+            let id = session.id().map_err(|_| ThothError::Unauthorised)?;
             let details: AccountDetails =
                 serde_json::from_str(&id).map_err(|_| ThothError::Unauthorised)?;
             details.email
@@ -171,9 +179,9 @@ async fn account_details(
         .map_err(error::ErrorUnauthorized)
 }
 
-fn config(cfg: &mut web::ServiceConfig) {
+fn config(cfg: &mut ServiceConfig) {
     let pool = establish_connection();
-    let schema = std::sync::Arc::new(create_schema());
+    let schema = Arc::new(create_schema());
 
     cfg.app_data(Data::new(schema.clone()));
     cfg.app_data(Data::new(pool));
@@ -203,13 +211,22 @@ pub async fn start_server(
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::new(LOG_FORMAT))
-            .wrap(IdentityService::new(
-                CookieIdentityPolicy::new(secret_str.as_bytes())
-                    .name("auth")
-                    .path("/")
-                    .domain(&domain)
-                    .max_age_secs(session_duration),
-            ))
+            .wrap(IdentityMiddleware::default())
+            .wrap(
+                SessionMiddleware::builder(
+                    CookieSessionStore::default(),
+                    Key::from(secret_str.as_bytes()),
+                )
+                .cookie_name("auth".to_string())
+                .cookie_path("/".to_string())
+                .cookie_domain(Some(domain.clone()))
+                .cookie_secure(domain.clone().ne("localhost")) // Authentication requires https unless running on localhost
+                .session_lifecycle(
+                    PersistentSession::default()
+                        .session_ttl(CookieDuration::seconds(session_duration)),
+                )
+                .build(),
+            )
             .wrap(
                 Cors::default()
                     .allowed_methods(vec!["GET", "POST", "OPTIONS"])
