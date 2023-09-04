@@ -1077,21 +1077,9 @@ dependencies = [
 
 [[package]]
 name = "dialoguer"
-version = "0.9.0"
+version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61579ada4ec0c6031cfac3f86fdba0d195a7ebeb5e36693bd53cb5999a25beeb"
-dependencies = [
- "console",
- "lazy_static",
- "tempfile",
- "zeroize",
-]
-
-[[package]]
-name = "dialoguer"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af3c796f3b0b408d9fd581611b47fa850821fcb84aa640b83a3c1a5be2d691f2"
+checksum = "59c6f2989294b9a498d3ad5491a79c6deb604617378e1cdc4bfc1c1361fe2f87"
 dependencies = [
  "console",
  "shell-words",
@@ -3461,7 +3449,7 @@ version = "0.11.4"
 dependencies = [
  "cargo-husky",
  "clap 2.34.0",
- "dialoguer 0.9.0",
+ "dialoguer",
  "dotenv",
  "thoth-api",
  "thoth-api-server",
@@ -4055,7 +4043,7 @@ dependencies = [
  "chrono",
  "clap 4.3.4",
  "console",
- "dialoguer 0.10.3",
+ "dialoguer",
  "env_logger",
  "glob",
  "human-panic",
