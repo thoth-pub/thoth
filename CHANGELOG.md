@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade `diesel_migrations` to v2.1.0
   - Upgrade `rand` to v0.8.5
   - Upgrade `juniper` to v0.15.11
+  - Upgrade `strum` to v0.25.0
 
 ## [[0.11.4]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.4) - 2023-08-28
 ### Security
