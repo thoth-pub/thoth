@@ -1,6 +1,6 @@
 [package]
 name = "thoth-app-server"
-version = "0.11.4"
+version = "0.11.5"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -9,6 +9,6 @@ repository = "https://github.com/thoth-pub/thoth"
 readme = "README.md"
 
 [dependencies]
-actix-web = "4.3.0"
+actix-web = "4.4.0"
 actix-cors = "0.6.4"
 env_logger ="0.10.0"

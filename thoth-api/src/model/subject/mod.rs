@@ -16,7 +16,7 @@ use thoth_errors::ThothResult;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
-    DieselTypePath = "crate::schema::sql_types::SubjectType"
+    ExistingTypePath = "crate::schema::sql_types::SubjectType"
 )]
 #[derive(
     Debug,

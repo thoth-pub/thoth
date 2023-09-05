@@ -61,7 +61,7 @@ pub struct PatchPrice {
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
-    DieselTypePath = "crate::schema::sql_types::CurrencyCode"
+    ExistingTypePath = "crate::schema::sql_types::CurrencyCode"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]

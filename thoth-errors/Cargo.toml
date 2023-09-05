@@ -1,6 +1,6 @@
 [package]
 name = "thoth-errors"
-version = "0.11.4"
+version = "0.11.5"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -17,11 +17,11 @@ uuid = { package = "uuid", version = "0.8.2", features = ["serde", "v4"] }
 yewtil = { version = "0.4.0", features = ["fetch"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-actix-web = "4.3.0"
-diesel = "2.0.2"
-csv = "1.1.6"
-juniper = "0.15.10"
+actix-web = "4.4.0"
+diesel = "2.1.1"
+csv = "1.2.2"
+juniper = "0.15.11"
 marc = { version = "3.1.0", features = ["xml"] }
 phf = { version = "0.11", features = ["macros"] }
-reqwest-middleware = "0.2.0"
-xml-rs = "0.8.0"
+reqwest-middleware = "0.2.3"
+xml-rs = "0.8.17"
