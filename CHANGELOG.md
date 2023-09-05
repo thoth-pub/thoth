@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+  - Upgrade `marc` to v3.1.1
 
 ## [[0.11.5]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.5) - 2023-09-05
 ### Security
@@ -33,7 +34,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade `log` to v0.4.20
   - Upgrade `clap` to v4.4.2
   - Short version of host command is now `-H` instead of `-h` in CLI
-  - Upgrade `marc` to v3.1.1
 
 ## [[0.11.4]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.4) - 2023-08-28
 ### Security
