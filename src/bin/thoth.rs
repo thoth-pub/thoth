@@ -1,4 +1,4 @@
-use clap::{crate_authors, crate_version, value_t, App, AppSettings, Arg};
+use clap::{crate_authors, crate_version, value_parser, Arg, Command};
 use dialoguer::{console::Term, theme::ColorfulTheme, Input, MultiSelect, Password, Select};
 use dotenv::dotenv;
 use std::env;
@@ -62,6 +62,7 @@ fn session_argument() -> Arg<'static> {
         .default_value("3600")
         .help("Authentication cookie session duration (seconds)")
         .takes_value(true)
+        .value_parser(value_parser!(i64))
 }
 
 fn gql_url_argument() -> Arg<'static> {
@@ -106,6 +107,7 @@ fn threads_argument(env_value: &'static str) -> Arg<'static> {
         .default_value("5")
         .help("Number of HTTP workers to start")
         .takes_value(true)
+        .value_parser(value_parser!(usize))
 }
 
 fn keep_alive_argument(env_value: &'static str) -> Arg<'static> {
@@ -117,21 +119,24 @@ fn keep_alive_argument(env_value: &'static str) -> Arg<'static> {
         .default_value("5")
         .help("Number of seconds to wait for subsequent requests")
         .takes_value(true)
+        .value_parser(value_parser!(u64))
 }
 
-fn thoth_commands() -> App<'static> {
-    App::new(env!("CARGO_PKG_NAME"))
+fn thoth_commands() -> Command<'static> {
+    Command::new(env!("CARGO_PKG_NAME"))
         .version(crate_version!())
         .author(crate_authors!("\n"))
         .about(env!("CARGO_PKG_DESCRIPTION"))
-        .setting(AppSettings::SubcommandRequiredElseHelp)
-        .subcommand(App::new("migrate").about("Run the database migrations"))
+        .subcommand_required(true)
+        .arg_required_else_help(true)
+        .subcommand(Command::new("migrate").about("Run the database migrations"))
         .subcommand(
-            App::new("start")
+            Command::new("start")
                 .about("Start an instance of Thoth API or GUI")
-                .setting(AppSettings::SubcommandRequiredElseHelp)
+                .subcommand_required(true)
+                .arg_required_else_help(true)
                 .subcommand(
-                    App::new("graphql-api")
+                    Command::new("graphql-api")
                         .about("Start the thoth GraphQL API server")
                         .arg(host_argument("GRAPHQL_API_HOST"))
                         .arg(port_argument("8000", "GRAPHQL_API_PORT"))
@@ -143,7 +148,7 @@ fn thoth_commands() -> App<'static> {
                         .arg(session_argument()),
                 )
                 .subcommand(
-                    App::new("app")
+                    Command::new("app")
                         .about("Start the thoth client GUI")
                         .arg(host_argument("APP_HOST"))
                         .arg(port_argument("8080", "APP_PORT"))
@@ -151,7 +156,7 @@ fn thoth_commands() -> App<'static> {
                         .arg(keep_alive_argument("APP_KEEP_ALIVE")),
                 )
                 .subcommand(
-                    App::new("export-api")
+                    Command::new("export-api")
                         .about("Start the thoth metadata export API")
                         .arg(host_argument("EXPORT_API_HOST"))
                         .arg(port_argument("8181", "EXPORT_API_PORT"))
@@ -162,7 +167,7 @@ fn thoth_commands() -> App<'static> {
                 ),
         )
         .subcommand(
-            App::new("init")
+            Command::new("init")
                 .about("Run the database migrations and start the thoth API server")
                 .arg(host_argument("GRAPHQL_API_HOST"))
                 .arg(port_argument("8000", "GRAPHQL_API_PORT"))
@@ -174,11 +179,12 @@ fn thoth_commands() -> App<'static> {
                 .arg(session_argument()),
         )
         .subcommand(
-            App::new("account")
+            Command::new("account")
                 .about("Manage user accounts")
-                .setting(AppSettings::SubcommandRequiredElseHelp)
-                .subcommand(App::new("register").about("Create a new user account"))
-                .subcommand(App::new("password").about("Reset a password")),
+                .subcommand_required(true)
+                .arg_required_else_help(true)
+                .subcommand(Command::new("register").about("Create a new user account"))
+                .subcommand(Command::new("password").about("Reset a password")),
         )
 }
 
@@ -189,14 +195,14 @@ fn main() -> ThothResult<()> {
     match thoth_commands().get_matches().subcommand() {
         Some(("start", start_matches)) => match start_matches.subcommand() {
             Some(("graphql-api", api_matches)) => {
-                let host = api_matches.value_of("host").unwrap().to_owned();
-                let port = api_matches.value_of("port").unwrap().to_owned();
-                let threads = value_t!(api_matches.value_of("threads"), usize).unwrap();
-                let keep_alive = value_t!(api_matches.value_of("keep-alive"), u64).unwrap();
-                let url = api_matches.value_of("gql-url").unwrap().to_owned();
-                let domain = api_matches.value_of("domain").unwrap().to_owned();
-                let secret_str = api_matches.value_of("key").unwrap().to_owned();
-                let session_duration = value_t!(api_matches.value_of("duration"), i64).unwrap();
+                let host = api_matches.get_one::<String>("host").unwrap().to_owned();
+                let port = api_matches.get_one::<String>("port").unwrap().to_owned();
+                let threads = *api_matches.get_one::<usize>("threads").unwrap();
+                let keep_alive = *api_matches.get_one::<u64>("keep-alive").unwrap();
+                let url = api_matches.get_one::<String>("gql-url").unwrap().to_owned();
+                let domain = api_matches.get_one::<String>("domain").unwrap().to_owned();
+                let secret_str = api_matches.get_one::<String>("key").unwrap().to_owned();
+                let session_duration = *api_matches.get_one::<i64>("duration").unwrap();
                 api_server(
                     host,
                     port,
@@ -210,19 +216,25 @@ fn main() -> ThothResult<()> {
                 .map_err(|e| e.into())
             }
             Some(("app", client_matches)) => {
-                let host = client_matches.value_of("host").unwrap().to_owned();
-                let port = client_matches.value_of("port").unwrap().to_owned();
-                let threads = value_t!(client_matches.value_of("threads"), usize).unwrap();
-                let keep_alive = value_t!(client_matches.value_of("keep-alive"), u64).unwrap();
+                let host = client_matches.get_one::<String>("host").unwrap().to_owned();
+                let port = client_matches.get_one::<String>("port").unwrap().to_owned();
+                let threads = *client_matches.get_one::<usize>("threads").unwrap();
+                let keep_alive = *client_matches.get_one::<u64>("keep-alive").unwrap();
                 app_server(host, port, threads, keep_alive).map_err(|e| e.into())
             }
             Some(("export-api", client_matches)) => {
-                let host = client_matches.value_of("host").unwrap().to_owned();
-                let port = client_matches.value_of("port").unwrap().to_owned();
-                let threads = value_t!(client_matches.value_of("threads"), usize).unwrap();
-                let keep_alive = value_t!(client_matches.value_of("keep-alive"), u64).unwrap();
-                let url = client_matches.value_of("export-url").unwrap().to_owned();
-                let gql_endpoint = client_matches.value_of("gql-endpoint").unwrap().to_owned();
+                let host = client_matches.get_one::<String>("host").unwrap().to_owned();
+                let port = client_matches.get_one::<String>("port").unwrap().to_owned();
+                let threads = *client_matches.get_one::<usize>("threads").unwrap();
+                let keep_alive = *client_matches.get_one::<u64>("keep-alive").unwrap();
+                let url = client_matches
+                    .get_one::<String>("export-url")
+                    .unwrap()
+                    .to_owned();
+                let gql_endpoint = client_matches
+                    .get_one::<String>("gql-endpoint")
+                    .unwrap()
+                    .to_owned();
                 export_server(host, port, threads, keep_alive, url, gql_endpoint)
                     .map_err(|e| e.into())
             }
@@ -230,14 +242,17 @@ fn main() -> ThothResult<()> {
         },
         Some(("migrate", _)) => run_migrations(),
         Some(("init", init_matches)) => {
-            let host = init_matches.value_of("host").unwrap().to_owned();
-            let port = init_matches.value_of("port").unwrap().to_owned();
-            let threads = value_t!(init_matches.value_of("threads"), usize).unwrap();
-            let keep_alive = value_t!(init_matches.value_of("keep-alive"), u64).unwrap();
-            let url = init_matches.value_of("gql-url").unwrap().to_owned();
-            let domain = init_matches.value_of("domain").unwrap().to_owned();
-            let secret_str = init_matches.value_of("key").unwrap().to_owned();
-            let session_duration = value_t!(init_matches.value_of("duration"), i64).unwrap();
+            let host = init_matches.get_one::<String>("host").unwrap().to_owned();
+            let port = init_matches.get_one::<String>("port").unwrap().to_owned();
+            let threads = *init_matches.get_one::<usize>("threads").unwrap();
+            let keep_alive = *init_matches.get_one::<u64>("keep-alive").unwrap();
+            let url = init_matches
+                .get_one::<String>("gql-url")
+                .unwrap()
+                .to_owned();
+            let domain = init_matches.get_one::<String>("domain").unwrap().to_owned();
+            let secret_str = init_matches.get_one::<String>("key").unwrap().to_owned();
+            let session_duration = *init_matches.get_one::<i64>("duration").unwrap();
             run_migrations()?;
             api_server(
                 host,
@@ -255,13 +270,13 @@ fn main() -> ThothResult<()> {
             Some(("register", _)) => {
                 let pool = establish_connection();
 
-                let name: String = Input::new()
+                let name = Input::new()
                     .with_prompt("Enter given name")
                     .interact_on(&Term::stdout())?;
-                let surname: String = Input::new()
+                let surname = Input::new()
                     .with_prompt("Enter family name")
                     .interact_on(&Term::stdout())?;
-                let email: String = Input::new()
+                let email = Input::new()
                     .with_prompt("Enter email address")
                     .interact_on(&Term::stdout())?;
                 let password = Password::new()
@@ -332,6 +347,6 @@ fn main() -> ThothResult<()> {
 }
 
 #[test]
-fn verify_app() {
+fn test_cli() {
     thoth_commands().debug_assert();
 }
