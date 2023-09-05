@@ -18,7 +18,7 @@ use crate::schema::publication_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
-    DieselTypePath = "crate::schema::sql_types::PublicationType"
+    ExistingTypePath = "crate::schema::sql_types::PublicationType"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]

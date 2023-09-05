@@ -12,7 +12,7 @@ use crate::schema::language_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
-    DieselTypePath = "crate::schema::sql_types::LanguageRelation"
+    ExistingTypePath = "crate::schema::sql_types::LanguageRelation"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -82,7 +82,7 @@ pub struct PatchLanguage {
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
-    DieselTypePath = "crate::schema::sql_types::LanguageCode"
+    ExistingTypePath = "crate::schema::sql_types::LanguageCode"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]

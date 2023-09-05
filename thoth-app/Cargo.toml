@@ -23,7 +23,7 @@ anyhow = "1.0.32"
 chrono = { version = "0.4.26", features = ["serde"] }
 gloo-storage = "0.2.1"
 gloo-timers = "0.2.4"
-log = "0.4.11"
+log = "0.4.20"
 thiserror = "1.0.20"
 yew = "0.19.3"
 yew-agent = "0.1.0"
@@ -34,7 +34,7 @@ wasm-logger = "0.2.0"
 web-sys = { version = "0.3.57", features = ["HtmlInputElement", "HtmlSelectElement", "HtmlTextAreaElement"] }
 reqwest = { version = "0.11", features = ["json"] }
 semver = "0.11.0"
-serde = { version = "1.0.115", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 url = "2.1.1"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }

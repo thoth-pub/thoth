@@ -3,8 +3,9 @@
 
 [print_schema]
 file = "src/schema.rs"
-import_types = [
+custom_type_derives = [
   "diesel::sql_types::*",
+  "diesel::query_builder::QueryId",
   "crate::model::contribution::Contribution_type",
   "crate::model::work::Work_type",
   "crate::model::work::Work_status",

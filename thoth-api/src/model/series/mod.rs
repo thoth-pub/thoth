@@ -15,7 +15,7 @@ use crate::schema::series_history;
 #[cfg_attr(
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
-    DieselTypePath = "crate::schema::sql_types::SeriesType"
+    ExistingTypePath = "crate::schema::sql_types::SeriesType"
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]

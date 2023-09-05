@@ -15,7 +15,7 @@ use crate::schema::contribution_history;
     feature = "backend",
     derive(DbEnum, juniper::GraphQLEnum),
     graphql(description = "Role describing the type of contribution to the work"),
-    DieselTypePath = "crate::schema::sql_types::ContributionType"
+    ExistingTypePath = "crate::schema::sql_types::ContributionType"
 )]
 #[derive(
     Debug, Clone, Default, Copy, PartialEq, Eq, Deserialize, Serialize, EnumString, Display,
