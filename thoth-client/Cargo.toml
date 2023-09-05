@@ -11,11 +11,11 @@ readme = "README.md"
 [dependencies]
 thoth-api = {version = "0.11.4", path = "../thoth-api" }
 thoth-errors = {version = "0.11.4", path = "../thoth-errors" }
-graphql_client = "0.12.0"
+graphql_client = "0.13.0"
 chrono = { version = "0.4.26", features = ["serde"] }
 reqwest = { version = "0.11", features = ["json"] }
-reqwest-middleware = "0.2.0"
-reqwest-retry = "0.2.1"
+reqwest-middleware = "0.2.3"
+reqwest-retry = "0.2.3"
 serde = "1.0"
 serde_json = "1.0"
 uuid = { version = "0.8.2", features = ["serde"] }

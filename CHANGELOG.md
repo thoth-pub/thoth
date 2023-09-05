@@ -5,7 +5,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Security
+  - Upgrade `actix-web` to v4.4.0
+  - Upgrade `tempfile` to v3.8.0
+
 ### Changed
+  - Upgrade `diesel` to v2.1.1
+  - Upgrade `diesel-derive-enum` to v2.1.0
+  - Upgrade `diesel-derive-newtype` to v2.1.0
+  - Upgrade `diesel_migrations` to v2.1.0
+  - Upgrade `rand` to v0.8.5
+  - Upgrade `juniper` to v0.15.11
+  - Upgrade `strum` to v0.25.0
+  - Upgrade `paperclip` to v0.8.1
+  - Upgrade `graphql_client` to v0.13.0
+  - Upgrade `reqwest-middleware` to v0.2.3
+  - Upgrade `reqwest-retry` to v0.2.3
+  - Upgrade `actix-identity` to v0.5.2 and added `actix-session` v0.7.2
+  - Upgrade `dialoguer` to v0.10.4
+  - Upgrade `futures` to v0.3.28
+  - Upgrade `regex` to v1.9.5
+  - Upgrade `jsonwebtoken` to v8.3.0
+  - Upgrade `csv` to v1.2.2
+  - Upgrade `xml-rs` to v0.8.17
+  - Upgrade `log` to v0.4.20
+  - Upgrade `clap` to v4.4.2
+  - Short version of host command is now `-H` instead of `-h` in CLI
   - Upgrade `marc` to v3.1.1
 
 ## [[0.11.4]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.4) - 2023-08-28

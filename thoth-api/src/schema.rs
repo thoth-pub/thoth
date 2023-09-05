@@ -1,49 +1,49 @@
 pub mod sql_types {
-    #[derive(diesel::sql_types::SqlType)]
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "contribution_type"))]
     pub struct ContributionType;
 
-    #[derive(diesel::sql_types::SqlType)]
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "country_code"))]
     pub struct CountryCode;
 
-    #[derive(diesel::sql_types::SqlType)]
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "language_relation"))]
     pub struct LanguageRelation;
 
-    #[derive(diesel::sql_types::SqlType)]
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "language_code"))]
     pub struct LanguageCode;
 
-    #[derive(diesel::sql_types::SqlType)]
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "location_platform"))]
     pub struct LocationPlatform;
 
-    #[derive(diesel::sql_types::SqlType)]
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "currency_code"))]
     pub struct CurrencyCode;
 
-    #[derive(diesel::sql_types::SqlType)]
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "publication_type"))]
     pub struct PublicationType;
 
-    #[derive(diesel::sql_types::SqlType)]
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "series_type"))]
     pub struct SeriesType;
 
-    #[derive(diesel::sql_types::SqlType)]
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "subject_type"))]
     pub struct SubjectType;
 
-    #[derive(diesel::sql_types::SqlType)]
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "work_type"))]
     pub struct WorkType;
 
-    #[derive(diesel::sql_types::SqlType)]
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "work_status"))]
     pub struct WorkStatus;
 
-    #[derive(diesel::sql_types::SqlType)]
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "relation_type"))]
     pub struct RelationType;
 }
