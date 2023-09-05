@@ -23,7 +23,7 @@ anyhow = "1.0.32"
 chrono = { version = "0.4.26", features = ["serde"] }
 gloo-storage = "0.2.1"
 gloo-timers = "0.2.4"
-log = "0.4.11"
+log = "0.4.20"
 thiserror = "1.0.20"
 yew = "0.19.3"
 yew-agent = "0.1.0"

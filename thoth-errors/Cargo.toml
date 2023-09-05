@@ -18,10 +18,10 @@ yewtil = { version = "0.4.0", features = ["fetch"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 actix-web = "4.4.0"
-diesel = "2.1.0"
-csv = "1.1.6"
-juniper = "0.15.10"
+diesel = "2.1.1"
+csv = "1.2.2"
+juniper = "0.15.11"
 marc = { version = "3.1.0", features = ["xml"] }
 phf = { version = "0.11", features = ["macros"] }
-reqwest-middleware = "0.2.0"
-xml-rs = "0.8.0"
+reqwest-middleware = "0.2.3"
+xml-rs = "0.8.17"
