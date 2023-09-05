@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade `reqwest-retry` to v0.2.3
   - Upgrade `actix-identity` to v0.5.2 and added `actix-session` v0.7.2
   - Upgrade `dialoguer` to v0.10.4
+  - Upgrade `futures` to v0.3.28
+  - Upgrade `regex` to v1.9.5
+  - Upgrade `jsonwebtoken` to v8.3.0
+  - Upgrade `csv` to v1.2.2
+  - Upgrade `xml-rs` to v0.8.17
+  - Upgrade `log` to v0.4.20
   - Upgrade `clap` to v4.4.2
   - Short version of host command is now `-H` instead of `-h` in CLI
 
