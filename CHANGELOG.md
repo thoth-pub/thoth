@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Security
   - Upgrade `actix-web` to v4.4.0
+  - Upgrade `tempfile` to v3.8.0
 
 ### Changed
   - Upgrade `diesel` to v2.1.1
