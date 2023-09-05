@@ -10,119 +10,119 @@ use thoth::app_server;
 use thoth::export_server;
 use thoth_errors::ThothResult;
 
-fn host_argument(env_value: &'static str) -> Arg<'static> {
-    Arg::with_name("host")
+fn host_argument(env_value: &'static str) -> Arg {
+    Arg::new("host")
         .short('H')
         .long("host")
         .value_name("HOST")
         .env(env_value)
         .default_value("0.0.0.0")
         .help("host to bind")
-        .takes_value(true)
+        .num_args(1)
 }
 
-fn port_argument(default_value: &'static str, env_value: &'static str) -> Arg<'static> {
-    Arg::with_name("port")
+fn port_argument(default_value: &'static str, env_value: &'static str) -> Arg {
+    Arg::new("port")
         .short('p')
         .long("port")
         .value_name("PORT")
         .env(env_value)
         .default_value(default_value)
         .help("Port to bind")
-        .takes_value(true)
+        .num_args(1)
 }
 
-fn domain_argument() -> Arg<'static> {
-    Arg::with_name("domain")
+fn domain_argument() -> Arg {
+    Arg::new("domain")
         .short('d')
         .long("domain")
         .value_name("THOTH_DOMAIN")
         .env("THOTH_DOMAIN")
         .default_value("localhost")
         .help("Authentication cookie domain")
-        .takes_value(true)
+        .num_args(1)
 }
 
-fn key_argument() -> Arg<'static> {
-    Arg::with_name("key")
+fn key_argument() -> Arg {
+    Arg::new("key")
         .short('k')
         .long("secret-key")
         .value_name("SECRET")
         .env("SECRET_KEY")
         .help("Authentication cookie secret key")
-        .takes_value(true)
+        .num_args(1)
 }
 
-fn session_argument() -> Arg<'static> {
-    Arg::with_name("duration")
+fn session_argument() -> Arg {
+    Arg::new("duration")
         .short('s')
         .long("session-length")
         .value_name("DURATION")
         .env("SESSION_DURATION_SECONDS")
         .default_value("3600")
         .help("Authentication cookie session duration (seconds)")
-        .takes_value(true)
+        .num_args(1)
         .value_parser(value_parser!(i64))
 }
 
-fn gql_url_argument() -> Arg<'static> {
-    Arg::with_name("gql-url")
+fn gql_url_argument() -> Arg {
+    Arg::new("gql-url")
         .short('u')
         .long("gql-url")
         .value_name("THOTH_GRAPHQL_API")
         .env("THOTH_GRAPHQL_API")
         .default_value("http://localhost:8000")
         .help("Thoth GraphQL's, public facing, root URL.")
-        .takes_value(true)
+        .num_args(1)
 }
 
-fn gql_endpoint_argument() -> Arg<'static> {
-    Arg::with_name("gql-endpoint")
+fn gql_endpoint_argument() -> Arg {
+    Arg::new("gql-endpoint")
         .short('g')
         .long("gql-endpoint")
         .value_name("THOTH_GRAPHQL_ENDPOINT")
         .env("THOTH_GRAPHQL_ENDPOINT")
         .default_value("http://localhost:8000/graphql")
         .help("Thoth GraphQL's endpoint")
-        .takes_value(true)
+        .num_args(1)
 }
 
-fn export_url_argument() -> Arg<'static> {
-    Arg::with_name("export-url")
+fn export_url_argument() -> Arg {
+    Arg::new("export-url")
         .short('u')
         .long("export-url")
         .value_name("THOTH_EXPORT_API")
         .env("THOTH_EXPORT_API")
         .default_value("http://localhost:8181")
         .help("Thoth Export API's, public facing, root URL.")
-        .takes_value(true)
+        .num_args(1)
 }
 
-fn threads_argument(env_value: &'static str) -> Arg<'static> {
-    Arg::with_name("threads")
+fn threads_argument(env_value: &'static str) -> Arg {
+    Arg::new("threads")
         .short('t')
         .long("threads")
         .value_name("THREADS")
         .env(env_value)
         .default_value("5")
         .help("Number of HTTP workers to start")
-        .takes_value(true)
+        .num_args(1)
         .value_parser(value_parser!(usize))
 }
 
-fn keep_alive_argument(env_value: &'static str) -> Arg<'static> {
-    Arg::with_name("keep-alive")
+fn keep_alive_argument(env_value: &'static str) -> Arg {
+    Arg::new("keep-alive")
         .short('K')
         .long("keep-alive")
         .value_name("THREADS")
         .env(env_value)
         .default_value("5")
         .help("Number of seconds to wait for subsequent requests")
-        .takes_value(true)
+        .num_args(1)
         .value_parser(value_parser!(u64))
 }
 
-fn thoth_commands() -> Command<'static> {
+fn thoth_commands() -> Command {
     Command::new(env!("CARGO_PKG_NAME"))
         .version(crate_version!())
         .author(crate_authors!("\n"))
