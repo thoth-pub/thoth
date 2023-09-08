@@ -1,6 +1,6 @@
 [package]
 name = "thoth-client"
-version = "0.11.5"
+version = "0.11.6"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -9,10 +9,10 @@ repository = "https://github.com/thoth-pub/thoth"
 readme = "README.md"
 
 [dependencies]
-thoth-api = {version = "0.11.5", path = "../thoth-api" }
-thoth-errors = {version = "0.11.5", path = "../thoth-errors" }
+thoth-api = {version = "0.11.6", path = "../thoth-api" }
+thoth-errors = {version = "0.11.6", path = "../thoth-errors" }
 graphql_client = "0.13.0"
-chrono = { version = "0.4.26", features = ["serde"] }
+chrono = { version = "0.4.30", features = ["serde"] }
 reqwest = { version = "0.11", features = ["json"] }
 reqwest-middleware = "0.2.3"
 reqwest-retry = "0.2.3"

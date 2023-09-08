@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.11.6]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.6) - 2023-09-08
+### Security
+  - Upgrade `chrono` to v0.4.30
+
 ## [[0.11.5]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.5) - 2023-09-05
 ### Security
   - Upgrade `actix-web` to v4.4.0
