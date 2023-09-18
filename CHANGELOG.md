@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+  - Upgrade `actix-identity` to v0.6.0
+  - Upgrade `actix-session` to v0.8.0
+  - Upgrade `chrono` to v0.4.31
 
 ## [[0.11.6]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.6) - 2023-09-08
 ### Security
