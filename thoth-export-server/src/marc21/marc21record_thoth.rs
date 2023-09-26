@@ -191,17 +191,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             true => "1",
             false => "0",
         };
-        let mut nonfiling_char_count = "0";
-        if language == "eng" {
-            // Ideally we would also do this for other languages
-            if self.title.to_lowercase().starts_with("a ") {
-                nonfiling_char_count = "2";
-            } else if self.title.to_lowercase().starts_with("an ") {
-                nonfiling_char_count = "3";
-            } else if self.title.to_lowercase().starts_with("the ") {
-                nonfiling_char_count = "4";
-            }
-        }
+        let nonfiling_char_count = nonfiling_char_count(&self.title, &language);
         let mut title_field =
             FieldRepr::from((b"245", format!("{}{}", added_entry, nonfiling_char_count)));
         if let Some(subtitle) = self.subtitle.clone() {
@@ -672,6 +662,21 @@ fn contributors_string(contributions: &[WorkContributions]) -> String {
     result.push('.');
 
     result
+}
+
+fn nonfiling_char_count(title: &str, language: &str) -> String {
+    let mut nonfiling_char_count = "0".to_string();
+    if language == "eng" {
+        // Ideally we would also do this for other languages
+        if title.to_lowercase().starts_with("a ") {
+            nonfiling_char_count = "2".to_string();
+        } else if title.to_lowercase().starts_with("an ") {
+            nonfiling_char_count = "3".to_string();
+        } else if title.to_lowercase().starts_with("the ") {
+            nonfiling_char_count = "4".to_string();
+        }
+    }
+    nonfiling_char_count
 }
 
 #[cfg(test)]
@@ -1566,6 +1571,22 @@ pub(crate) mod tests {
 
         let expected = "John Doe, Alice Brown; edited by Jane Smith, Billy Bob Johnson.";
         assert_eq!(contributors_string(&contributions), expected);
+    }
+
+    #[test]
+    fn test_nonfiling_char_count() {
+        for (language, title, expected) in [
+            ("eng", "A sample book", "2"),
+            ("eng", "An example book", "3"),
+            ("eng", "The next example book", "4"),
+            ("eng", "a lowercase book", "2"),
+            ("eng", "AAAAAA BOOK", "0"),
+            ("eng", "There's a book", "0"),
+            ("fre", "The et cafe", "0"),
+            ("fre", "A la gare", "0"),
+        ] {
+            assert_eq!(nonfiling_char_count(title, language), expected);
+        }
     }
 
     #[test]
