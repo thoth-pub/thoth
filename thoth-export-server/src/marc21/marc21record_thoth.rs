@@ -208,15 +208,27 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
 
         // 250 - edition statement
         if let Some(edition) = &self.edition {
-            let suffix = match edition % 10 {
-                1 if edition % 100 != 11 => "st",
-                2 if edition % 100 != 12 => "nd",
-                3 if edition % 100 != 13 => "rd",
-                _ => "th",
-            };
-            FieldRepr::from((b"250", "\\\\"))
-                .add_subfield(b"a", format!("{}{} edition.", edition, suffix).as_bytes())
-                .and_then(|f| builder.add_field(f))?;
+            if let Some(edition_statement) = match edition {
+                // Edition statement not required for first edition
+                1 => None,
+                // RDA best practice is to spell out ordinals rather than abbreviate
+                // Implement this for the commonest ones, as a compromise
+                2 => Some("Second edition.".to_string()),
+                3 => Some("Third edition.".to_string()),
+                _ => {
+                    let suffix = match edition % 10 {
+                        1 if edition % 100 != 11 => "st",
+                        2 if edition % 100 != 12 => "nd",
+                        3 if edition % 100 != 13 => "rd",
+                        _ => "th",
+                    };
+                    Some(format!("{}{} edition.", edition, suffix))
+                }
+            } {
+                FieldRepr::from((b"250", "\\\\"))
+                    .add_subfield(b"a", edition_statement)
+                    .and_then(|f| builder.add_field(f))?;
+            }
         }
 
         // 264 - publication
@@ -699,7 +711,7 @@ pub(crate) mod tests {
             subtitle: Some("Book Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
             reference: None,
-            edition: Some(1),
+            edition: Some(2),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: chrono::NaiveDate::from_ymd_opt(2010, 2, 1),
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
@@ -1592,7 +1604,7 @@ pub(crate) mod tests {
     fn test_generate_marc() {
         let work = test_work();
         let current_date = Utc::now().format("%y%m%d").to_string();
-        let expected = format!("02339nam  22005292  4500001003700000006001900037007001500056008004100071010001500112020002500127020002500152020003000177024002800207024002500235040002400260041001300284050000900297072001600306072002300322072001500345100008500360245009700445250001700542264004000559264001100599300002300610336002600633337002600659338003600685490005000721500008300771504005300854505006000907506005000967520003101017536006801048538003601116540022301152588005801375700006601433700003701499710002901536830005001565856005801615856005901673856007701732\u{1e}00000000-0000-0000-aaaa-000000000001\u{1e}m     o  d        \u{1e}cr  n         \u{1e}{current_date}t20102010        ob    001 0 eng d\u{1e}\\\\\u{1f}aLCCN010101\u{1e}\\\\\u{1f}a9783161484100\u{1f}q(PDF)\u{1e}\\\\\u{1f}a9789295055025\u{1f}q(XML)\u{1e}\\\\\u{1f}z9781402894626\u{1f}q(Hardback)\u{1e}7\\\u{1f}a10.00001/BOOK.0001\u{1f}2doi\u{1e}7\\\u{1f}aOCLC010101\u{1f}2worldcat\u{1e}\\\\\u{1f}aUkCbTOM\u{1f}beng\u{1f}elocal\u{1e}1\\\u{1f}aeng\u{1f}hspa\u{1e}00\u{1f}aJA85\u{1e} 7\u{1f}aAAB\u{1f}2bicssc\u{1e} 7\u{1f}aAAA000000\u{1f}2bisacsh\u{1e} 7\u{1f}aJWA\u{1f}2thema\u{1e}1\\\u{1f}aAuthor, Sole,\u{1f}eauthor.\u{1f}uThoth University.\u{1f}1https://orcid.org/0000-0002-0000-0001\u{1e}10\u{1f}aBook Title :\u{1f}bBook Subtitle /\u{1f}cSole Author; edited by Only Editor; translated by Translator.\u{1e}\\\\\u{1f}a1st edition.\u{1e}\\1\u{1f}aLeón, Spain :\u{1f}bOA Editions,\u{1f}c2010.\u{1e}\\4\u{1f}c©2010\u{1e}\\\\\u{1f}a1 online resource.\u{1e}\\\\\u{1f}atext\u{1f}btxt\u{1f}2rdacontent\u{1e}\\\\\u{1f}acomputer\u{1f}bc\u{1f}2rdamedia\u{1e}\\\\\u{1f}aonline resource\u{1f}bcr\u{1f}2rdacarrier\u{1e}1\\\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1f}x1234-5678\u{1e}\\\\\u{1f}aPlease note that in this book the mathematical formulas are encoded in MathML.\u{1e}\\\\\u{1f}aIncludes bibliography (pages 165-170) and index.\u{1e}0\\\u{1f}aIntroduction; Chapter 1; Chapter 2; Bibliography; Index\u{1e}0\\\u{1f}aOpen Access\u{1f}fUnrestricted online access\u{1f}2star\u{1e}\\\\\u{1f}aLorem ipsum dolor sit amet\u{1e}\\\\\u{1f}aFunding Institution\u{1f}cJA0001\u{1f}eFunding Programme\u{1f}fFunding Project\u{1e}\\\\\u{1f}aMode of access: World Wide Web.\u{1e}\\\\\u{1f}aThe text of this book is licensed under a Creative Commons Attribution 4.0 International license (CC BY 4.0). For more detailed information consult the publisher's website.\u{1f}uhttps://creativecommons.org/licenses/by/4.0/\u{1e}0\\\u{1f}aMetadata licensed under CC0 Public Domain Dedication.\u{1e}1\\\u{1f}aEditor, Only,\u{1f}eeditor.\u{1f}1https://orcid.org/0000-0002-0000-0004\u{1e}0\\\u{1f}aTranslator,\u{1f}etranslator.\u{1f}uCOPIM.\u{1e}2\\\u{1f}aOA Editions,\u{1f}epublisher.\u{1e}\\0\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1f}x1234-5678\u{1e}40\u{1f}uhttps://doi.org/10.00001/book.0001\u{1f}zConnect to e-book\u{1e}42\u{1f}uhttps://www.book.com/cover.jpg\u{1f}zConnect to cover image\u{1e}42\u{1f}uhttps://creativecommons.org/publicdomain/zero/1.0/\u{1f}zCC0 Metadata License\u{1e}\u{1d}");
+        let expected = format!("02342nam  22005292  4500001003700000006001900037007001500056008004100071010001500112020002500127020002500152020003000177024002800207024002500235040002400260041001300284050000900297072001600306072002300322072001500345100008500360245009700445250002000542264004000562264001100602300002300613336002600636337002600662338003600688490005000724500008300774504005300857505006000910506005000970520003101020536006801051538003601119540022301155588005801378700006601436700003701502710002901539830005001568856005801618856005901676856007701735\u{1e}00000000-0000-0000-aaaa-000000000001\u{1e}m     o  d        \u{1e}cr  n         \u{1e}{current_date}t20102010        ob    001 0 eng d\u{1e}\\\\\u{1f}aLCCN010101\u{1e}\\\\\u{1f}a9783161484100\u{1f}q(PDF)\u{1e}\\\\\u{1f}a9789295055025\u{1f}q(XML)\u{1e}\\\\\u{1f}z9781402894626\u{1f}q(Hardback)\u{1e}7\\\u{1f}a10.00001/BOOK.0001\u{1f}2doi\u{1e}7\\\u{1f}aOCLC010101\u{1f}2worldcat\u{1e}\\\\\u{1f}aUkCbTOM\u{1f}beng\u{1f}elocal\u{1e}1\\\u{1f}aeng\u{1f}hspa\u{1e}00\u{1f}aJA85\u{1e} 7\u{1f}aAAB\u{1f}2bicssc\u{1e} 7\u{1f}aAAA000000\u{1f}2bisacsh\u{1e} 7\u{1f}aJWA\u{1f}2thema\u{1e}1\\\u{1f}aAuthor, Sole,\u{1f}eauthor.\u{1f}uThoth University.\u{1f}1https://orcid.org/0000-0002-0000-0001\u{1e}10\u{1f}aBook Title :\u{1f}bBook Subtitle /\u{1f}cSole Author; edited by Only Editor; translated by Translator.\u{1e}\\\\\u{1f}aSecond edition.\u{1e}\\1\u{1f}aLeón, Spain :\u{1f}bOA Editions,\u{1f}c2010.\u{1e}\\4\u{1f}c©2010\u{1e}\\\\\u{1f}a1 online resource.\u{1e}\\\\\u{1f}atext\u{1f}btxt\u{1f}2rdacontent\u{1e}\\\\\u{1f}acomputer\u{1f}bc\u{1f}2rdamedia\u{1e}\\\\\u{1f}aonline resource\u{1f}bcr\u{1f}2rdacarrier\u{1e}1\\\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1f}x1234-5678\u{1e}\\\\\u{1f}aPlease note that in this book the mathematical formulas are encoded in MathML.\u{1e}\\\\\u{1f}aIncludes bibliography (pages 165-170) and index.\u{1e}0\\\u{1f}aIntroduction; Chapter 1; Chapter 2; Bibliography; Index\u{1e}0\\\u{1f}aOpen Access\u{1f}fUnrestricted online access\u{1f}2star\u{1e}\\\\\u{1f}aLorem ipsum dolor sit amet\u{1e}\\\\\u{1f}aFunding Institution\u{1f}cJA0001\u{1f}eFunding Programme\u{1f}fFunding Project\u{1e}\\\\\u{1f}aMode of access: World Wide Web.\u{1e}\\\\\u{1f}aThe text of this book is licensed under a Creative Commons Attribution 4.0 International license (CC BY 4.0). For more detailed information consult the publisher's website.\u{1f}uhttps://creativecommons.org/licenses/by/4.0/\u{1e}0\\\u{1f}aMetadata licensed under CC0 Public Domain Dedication.\u{1e}1\\\u{1f}aEditor, Only,\u{1f}eeditor.\u{1f}1https://orcid.org/0000-0002-0000-0004\u{1e}0\\\u{1f}aTranslator,\u{1f}etranslator.\u{1f}uCOPIM.\u{1e}2\\\u{1f}aOA Editions,\u{1f}epublisher.\u{1e}\\0\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1f}x1234-5678\u{1e}40\u{1f}uhttps://doi.org/10.00001/book.0001\u{1f}zConnect to e-book\u{1e}42\u{1f}uhttps://www.book.com/cover.jpg\u{1f}zConnect to cover image\u{1e}42\u{1f}uhttps://creativecommons.org/publicdomain/zero/1.0/\u{1f}zCC0 Metadata License\u{1e}\u{1d}");
 
         assert_eq!(Marc21RecordThoth {}.generate(&[work]), Ok(expected))
     }
