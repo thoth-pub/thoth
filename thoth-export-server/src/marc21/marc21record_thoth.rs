@@ -668,12 +668,11 @@ fn nonfiling_char_count(title: &str, language: &str) -> String {
     let mut nonfiling_char_count = "0".to_string();
     if language == "eng" {
         // Ideally we would also do this for other languages
-        if title.to_lowercase().starts_with("a ") {
-            nonfiling_char_count = "2".to_string();
-        } else if title.to_lowercase().starts_with("an ") {
-            nonfiling_char_count = "3".to_string();
-        } else if title.to_lowercase().starts_with("the ") {
-            nonfiling_char_count = "4".to_string();
+        if let Some(prefix) = ["a ", "an ", "the "]
+            .iter()
+            .find(|p| title.to_lowercase().starts_with(*p))
+        {
+            nonfiling_char_count = prefix.len().to_string()
         }
     }
     nonfiling_char_count
