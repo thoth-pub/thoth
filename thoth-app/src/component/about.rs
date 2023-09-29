@@ -34,6 +34,11 @@ impl Component for AboutComponent {
                         <li>{ "Toby Steiner (COO)" }</li>
                         <li>{ "Javier Arias (CTO)" }</li>
                         <li>{ "Ross Higman (Software Engineer)" }</li>
+                        <li>{ "Hannah Hillen (Metadata & Publisher Outreach Specialist)" }</li>
+                    </ul>
+                    <p class="title is-5">{ "Consultants" }</p>
+                    <ul>
+                        <li>{ "Amanda Ramalho (Thoth Representative, Latin America)" }</li>
                     </ul>
                     <p>{ "Support us through the " }<a href={ "https://www.openbookcollective.org/packages/20/info/" }>{ "Open Book Collective" }</a>{ "." }</p>
                     <p>{ "Contact us at " }<a href={ "mailto:info@thoth.pub" }>{ "info@thoth.pub" }</a>{ "." }</p>
