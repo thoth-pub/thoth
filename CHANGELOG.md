@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade `actix-identity` to v0.6.0
   - Upgrade `actix-session` to v0.8.0
   - Upgrade `chrono` to v0.4.31
+  - Upgrade `marc` to v3.1.1
 
 ### Fixed
   - [#513](https://github.com/thoth-pub/thoth/issues/513) - Expand DOI regex to include angle brackets

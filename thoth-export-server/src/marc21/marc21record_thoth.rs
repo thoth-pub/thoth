@@ -1,7 +1,7 @@
 use crate::marc21::{Marc21Field, MARC_ORGANIZATION_CODE};
 use cc_license::License;
 use chrono::{Datelike, Utc};
-use marc::{FieldRepr, Record, RecordBuilder};
+use marc::{DescriptiveCatalogingForm, EncodingLevel, FieldRepr, Record, RecordBuilder};
 use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::IdentifierWithDomain;
@@ -66,11 +66,15 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
 
         let mut builder = RecordBuilder::new();
 
+        // Leader values - can't guarantee record is complete or formatting is standard
+        builder.set_encoding_level(EncodingLevel::LessThanFullLevelMaterialNotExamined);
+        builder.set_descriptive_cataloging_form(DescriptiveCatalogingForm::NonIsbd);
+
         // 001 - control number
         builder.add_field((b"001", self.work_id.to_string()))?;
 
         // 006 - media type
-        builder.add_field((b"006", "m        d        "))?;
+        builder.add_field((b"006", "m     o  d        "))?;
 
         // 007 - characteristics
         builder.add_field((b"007", "cr  n         "))?;
@@ -92,7 +96,14 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
                 "Missing Main Language".to_string(),
             )
         })?;
-        let data_field = format!("{date}t{pub_year}{pub_year}        sb    000 0 {language} d");
+        let mut has_index = 0;
+        if let Some(bibliography_note) = &self.bibliography_note {
+            if bibliography_note.contains("index") {
+                has_index = 1;
+            }
+        }
+        let data_field =
+            format!("{date}t{pub_year}{pub_year}        ob    00{has_index} 0 {language} d");
         builder.add_field((b"008", data_field.as_bytes()))?;
 
         // 010 - LCCN
@@ -107,18 +118,6 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             Marc21Field::<Marc21RecordThoth>::to_field(publication, &mut builder)?;
         }
 
-        // 022 - ISSN
-        for issue in &self.issues {
-            for issn in [
-                format!("{} (Online)", issue.series.issn_digital.clone()),
-                format!("{} (Print)", issue.series.issn_print.clone()),
-            ] {
-                FieldRepr::from((b"022", "\\\\"))
-                    .add_subfield(b"a", issn.as_bytes())
-                    .and_then(|f| builder.add_field(f))?;
-            }
-        }
-
         // 024 - standard identifiers (DOI, OCLC)
         if let Some(doi) = &self.doi {
             FieldRepr::from((b"024", "7\\"))
@@ -129,7 +128,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         if let Some(oclc) = &self.oclc {
             FieldRepr::from((b"024", "7\\"))
                 .add_subfield(b"a", oclc.clone().as_bytes())
-                .and_then(|f| f.add_subfield(b"2", "oclc"))
+                .and_then(|f| f.add_subfield(b"2", "worldcat"))
                 .and_then(|f| builder.add_field(f))?;
         }
 
@@ -137,7 +136,7 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         FieldRepr::from((b"040", "\\\\"))
             .add_subfield(b"a", MARC_ORGANIZATION_CODE)
             .and_then(|f| f.add_subfield(b"b", "eng"))
-            .and_then(|f| f.add_subfield(b"e", "rda"))
+            .and_then(|f| f.add_subfield(b"e", "local"))
             .and_then(|f| builder.add_field(f))?;
 
         // 041 - language
@@ -182,49 +181,68 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
 
         // 100 and 700 - contributors
-        for contributor_field in contributor_fields(&self.contributions)? {
-            builder.add_field(contributor_field)?;
+        let contributor_fields = contributor_fields(&self.contributions)?;
+        for contributor_field in &contributor_fields {
+            builder.add_field(contributor_field.clone())?;
         }
 
         // 245 – title
-        FieldRepr::from((b"245", "00"))
-            .add_subfield(b"a", self.title.clone().into_bytes())
-            .and_then(|f| f.add_subfield(b"h", b"[electronic resource] :"))
-            .and_then(|f| {
-                if let Some(subtitle) = self.subtitle.clone() {
-                    f.add_subfield(b"b", subtitle.into_bytes())
-                } else {
-                    Ok(f)
-                }
-            })
-            .and_then(|f| f.add_subfield(b"c", contributors_string(&self.contributions).as_bytes()))
+        let added_entry = match contributor_fields.iter().any(|c| c.get_tag() == b"100") {
+            true => "1",
+            false => "0",
+        };
+        let nonfiling_char_count = nonfiling_char_count(&self.title, &language);
+        let mut title_field =
+            FieldRepr::from((b"245", format!("{}{}", added_entry, nonfiling_char_count)));
+        if let Some(subtitle) = self.subtitle.clone() {
+            title_field = title_field
+                .add_subfield(b"a", format!("{} :", self.title.clone()).as_bytes())
+                .and_then(|f| f.add_subfield(b"b", format!("{} /", subtitle).as_bytes()))?;
+        } else {
+            title_field =
+                title_field.add_subfield(b"a", format!("{} /", self.title.clone()).as_bytes())?;
+        }
+        title_field
+            .add_subfield(b"c", contributors_string(&self.contributions).as_bytes())
             .and_then(|f| builder.add_field(f))?;
 
         // 250 - edition statement
         if let Some(edition) = &self.edition {
-            let suffix = match edition % 10 {
-                1 if edition % 100 != 11 => "st",
-                2 if edition % 100 != 12 => "nd",
-                3 if edition % 100 != 13 => "rd",
-                _ => "th",
-            };
-            FieldRepr::from((b"250", "\\\\"))
-                .add_subfield(b"a", format!("{}{} edition", edition, suffix).as_bytes())
-                .and_then(|f| builder.add_field(f))?;
+            if let Some(edition_statement) = match edition {
+                // Edition statement not required for first edition
+                1 => None,
+                // RDA best practice is to spell out ordinals rather than abbreviate
+                // Implement this for the commonest ones, as a compromise
+                2 => Some("Second edition.".to_string()),
+                3 => Some("Third edition.".to_string()),
+                _ => {
+                    let suffix = match edition % 10 {
+                        1 if edition % 100 != 11 => "st",
+                        2 if edition % 100 != 12 => "nd",
+                        3 if edition % 100 != 13 => "rd",
+                        _ => "th",
+                    };
+                    Some(format!("{}{} edition.", edition, suffix))
+                }
+            } {
+                FieldRepr::from((b"250", "\\\\"))
+                    .add_subfield(b"a", edition_statement)
+                    .and_then(|f| builder.add_field(f))?;
+            }
         }
 
         // 264 - publication
         let year = publication_date.year().to_string();
         if let Some(place) = self.place.clone() {
             FieldRepr::from((b"264", "\\1"))
-                .add_subfield(b"a", place.into_bytes())
+                .add_subfield(b"a", format!("{} :", place).into_bytes())
                 .and_then(|f| {
                     f.add_subfield(
                         b"b",
-                        self.imprint.publisher.publisher_name.clone().into_bytes(),
+                        format!("{},", self.imprint.publisher.publisher_name.clone()).into_bytes(),
                     )
                 })
-                .and_then(|f| f.add_subfield(b"c", year.clone().into_bytes()))
+                .and_then(|f| f.add_subfield(b"c", format!("{}.", year.clone()).into_bytes()))
                 .and_then(|f| builder.add_field(f))?;
         }
         FieldRepr::from((b"264", "\\4"))
@@ -298,8 +316,10 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
 
         // 506 - restrictions on access
-        FieldRepr::from((b"506", "\\\\"))
-            .add_subfield(b"a", "Open access resource providing free access.")
+        FieldRepr::from((b"506", "0\\"))
+            .add_subfield(b"a", "Open Access")
+            .and_then(|f| f.add_subfield(b"f", "Unrestricted online access"))
+            .and_then(|f| f.add_subfield(b"2", "star"))
             .and_then(|f| builder.add_field(f))?;
 
         // 520 - abstract
@@ -390,19 +410,24 @@ fn main_language(languages: &[WorkLanguages]) -> Option<String> {
 
 fn contributor_fields(contributions: &[WorkContributions]) -> ThothResult<Vec<FieldRepr>> {
     // 100 and 700 - contributors
-    let mut contributions_by_name: Vec<(String, Vec<&WorkContributions>)> = vec![];
+    let mut contributions_by_name: Vec<(String, Vec<&WorkContributions>, String)> = vec![];
     for c in contributions {
-        let key = c.full_name.clone();
-        match contributions_by_name.iter_mut().find(|(k, _)| *k == key) {
+        let mut key = c.full_name.clone();
+        let mut name_indicator = "0\\".to_string();
+        if let Some(first_name) = &c.first_name {
+            key = format!("{}, {}", &c.last_name, first_name);
+            name_indicator = "1\\".to_string();
+        }
+        match contributions_by_name.iter_mut().find(|(k, _, _)| *k == key) {
             Some(entry) => entry.1.push(c),
-            None => contributions_by_name.push((key, vec![c])),
+            None => contributions_by_name.push((key, vec![c], name_indicator)),
         }
     }
 
     let mut contributor_fields: Vec<FieldRepr> = vec![];
     // only one 100 field is allowed, first-come first-served
     let mut is_main_author_defined = false;
-    for (name, contributions) in contributions_by_name.iter() {
+    for (name, contributions, indicator) in contributions_by_name.iter() {
         let is_main = contributions
             .iter()
             .any(|c| c.contribution_type == thoth_client::ContributionType::AUTHOR);
@@ -413,17 +438,23 @@ fn contributor_fields(contributions: &[WorkContributions]) -> ThothResult<Vec<Fi
         }
         let roles = contributions
             .iter()
-            .map(|c| ContributionType::from(c.contribution_type.clone()).to_string())
+            .map(|c| {
+                ContributionType::from(c.contribution_type.clone())
+                    .to_string()
+                    .to_lowercase()
+            })
             .collect::<Vec<_>>()
             .join(", ");
 
-        let mut contributor_field = FieldRepr::from((field_code, "1\\"));
-        contributor_field = contributor_field.add_subfield(b"a", name)?;
-        contributor_field = contributor_field.add_subfield(b"e", roles)?;
+        let mut contributor_field = FieldRepr::from((field_code, indicator.as_str()));
+        contributor_field =
+            contributor_field.add_subfield(b"a", format!("{},", name).as_bytes())?;
+        contributor_field =
+            contributor_field.add_subfield(b"e", format!("{}.", roles).as_bytes())?;
         if let Some(affiliation) = &contributions.first().unwrap().affiliations.first() {
             contributor_field = contributor_field.add_subfield(
                 b"u",
-                affiliation.institution.institution_name.clone().as_bytes(),
+                format!("{}.", affiliation.institution.institution_name.clone()).as_bytes(),
             )?;
         }
         if let Some(orcid) = &contributions.first().unwrap().contributor.orcid {
@@ -436,6 +467,11 @@ fn contributor_fields(contributions: &[WorkContributions]) -> ThothResult<Vec<Fi
 }
 
 fn language_field(languages: &[WorkLanguages]) -> Option<FieldRepr> {
+    if languages.len() == 1 {
+        // 041 language fields are not needed when there is only one language
+        // (already represented in field 008 positions 35-37)
+        return None;
+    }
     let (original_codes, into_codes, from_codes): (Vec<_>, Vec<_>, Vec<_>) = languages.iter().fold(
         (Vec::new(), Vec::new(), Vec::new()),
         |(mut orig, mut into, mut from), l| {
@@ -500,8 +536,12 @@ impl Marc21Field<Marc21RecordThoth> for WorkPublications {
     fn to_field(&self, builder: &mut RecordBuilder) -> ThothResult<()> {
         if let Some(isbn) = &self.isbn {
             let publication_type: PublicationType = self.publication_type.clone().into();
+            let identifier = match publication_type {
+                PublicationType::Paperback | PublicationType::Hardback => b"z",
+                _ => b"a",
+            };
             FieldRepr::from((b"020", "\\\\"))
-                .add_subfield(b"a", isbn.to_hyphenless_string().as_bytes())
+                .add_subfield(identifier, isbn.to_hyphenless_string().as_bytes())
                 .and_then(|f| f.add_subfield(b"q", format!("({})", publication_type)))
                 .and_then(|f| builder.add_field(f))?;
         }
@@ -514,11 +554,12 @@ impl Marc21Field<Marc21RecordThoth> for WorkIssues {
         let fields = [(b"490", "1\\"), (b"830", "\\0")];
         for (field, indicator) in fields {
             FieldRepr::from((field, indicator))
-                .add_subfield(b"a", self.series.series_name.as_bytes())
+                .add_subfield(b"a", format!("{} ;", self.series.series_name).as_bytes())
                 .and_then(|f| {
-                    f.add_subfield(b"v", format!("vol. {}", self.issue_ordinal).as_bytes())
+                    f.add_subfield(b"v", format!("vol. {}.", self.issue_ordinal).as_bytes())
                 })
                 .and_then(|f| f.add_subfield(b"x", self.series.issn_digital.as_bytes()))
+                .and_then(|f| f.add_subfield(b"x", self.series.issn_print.as_bytes()))
                 .and_then(|f| builder.add_field(f))?;
         }
         Ok(())
@@ -635,6 +676,20 @@ fn contributors_string(contributions: &[WorkContributions]) -> String {
     result
 }
 
+fn nonfiling_char_count(title: &str, language: &str) -> String {
+    let mut nonfiling_char_count = "0".to_string();
+    if language == "eng" {
+        // Ideally we would also do this for other languages
+        if let Some(prefix) = ["a ", "an ", "the "]
+            .iter()
+            .find(|p| title.to_lowercase().starts_with(*p))
+        {
+            nonfiling_char_count = prefix.len().to_string()
+        }
+    }
+    nonfiling_char_count
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -656,7 +711,7 @@ pub(crate) mod tests {
             subtitle: Some("Book Subtitle".to_string()),
             work_type: WorkType::MONOGRAPH,
             reference: None,
-            edition: Some(1),
+            edition: Some(2),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: chrono::NaiveDate::from_ymd_opt(2010, 2, 1),
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
@@ -907,12 +962,14 @@ pub(crate) mod tests {
     #[test]
     fn test_contributor_fields_single_author() {
         let mut contribution = test_contribution();
+        contribution.first_name = Some("Jane".to_string());
+        contribution.last_name = "Doe".to_string();
         contribution.full_name = "Jane Doe".to_string();
         let contributions = [contribution];
 
         let expected = Ok(vec![FieldRepr::from((b"100", "1\\"))
-            .add_subfield(b"a", "Jane Doe".as_bytes())
-            .and_then(|f| f.add_subfield(b"e", "Author".as_bytes()))
+            .add_subfield(b"a", "Doe, Jane,".as_bytes())
+            .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
             .unwrap()]);
         assert_eq!(contributor_fields(&contributions), expected);
     }
@@ -920,21 +977,25 @@ pub(crate) mod tests {
     #[test]
     fn test_contributor_fields_multiple_contributors_no_author() {
         let mut first_contribution = test_contribution();
+        first_contribution.first_name = Some("Jane".to_string());
+        first_contribution.last_name = "Doe".to_string();
         first_contribution.full_name = "Jane Doe".to_string();
         first_contribution.contribution_type = thoth_client::ContributionType::EDITOR;
         let mut second_contribution = test_contribution();
+        second_contribution.first_name = Some("John".to_string());
+        second_contribution.last_name = "Smith".to_string();
         second_contribution.full_name = "John Smith".to_string();
         second_contribution.contribution_type = thoth_client::ContributionType::TRANSLATOR;
         let contributions = [first_contribution, second_contribution];
 
         let expected = Ok(vec![
             FieldRepr::from((b"700", "1\\"))
-                .add_subfield(b"a", "Jane Doe".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "Editor".as_bytes()))
+                .add_subfield(b"a", "Doe, Jane,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "editor.".as_bytes()))
                 .unwrap(),
             FieldRepr::from((b"700", "1\\"))
-                .add_subfield(b"a", "John Smith".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "Translator".as_bytes()))
+                .add_subfield(b"a", "Smith, John,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "translator.".as_bytes()))
                 .unwrap(),
         ]);
         assert_eq!(contributor_fields(&contributions), expected);
@@ -943,23 +1004,29 @@ pub(crate) mod tests {
     #[test]
     fn test_contributor_fields_multiple_contributions_one_author() {
         let mut first_contribution = test_contribution();
+        first_contribution.first_name = Some("John".to_string());
+        first_contribution.last_name = "Smith".to_string();
         first_contribution.full_name = "John Smith".to_string();
         let mut second_contribution = test_contribution();
+        second_contribution.first_name = Some("Jane".to_string());
+        second_contribution.last_name = "Doe".to_string();
         second_contribution.full_name = "Jane Doe".to_string();
         second_contribution.contribution_type = thoth_client::ContributionType::EDITOR;
         let mut third_contribution = test_contribution();
+        third_contribution.first_name = Some("Jane".to_string());
+        third_contribution.last_name = "Doe".to_string();
         third_contribution.full_name = "Jane Doe".to_string();
         third_contribution.contribution_type = thoth_client::ContributionType::TRANSLATOR;
         let contributions = [first_contribution, second_contribution, third_contribution];
 
         let expected = Ok(vec![
             FieldRepr::from((b"100", "1\\"))
-                .add_subfield(b"a", "John Smith".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "Author".as_bytes()))
+                .add_subfield(b"a", "Smith, John,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
                 .unwrap(),
             FieldRepr::from((b"700", "1\\"))
-                .add_subfield(b"a", "Jane Doe".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "Editor, Translator".as_bytes()))
+                .add_subfield(b"a", "Doe, Jane,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "editor, translator.".as_bytes()))
                 .unwrap(),
         ]);
         assert_eq!(contributor_fields(&contributions), expected);
@@ -968,14 +1035,22 @@ pub(crate) mod tests {
     #[test]
     fn test_contributor_fields_multiple_contributors_multiple_authors() {
         let mut first_contribution = test_contribution();
+        first_contribution.first_name = Some("John".to_string());
+        first_contribution.last_name = "Smith".to_string();
         first_contribution.full_name = "John Smith".to_string();
         let mut second_contribution = test_contribution();
+        second_contribution.first_name = Some("Jane".to_string());
+        second_contribution.last_name = "Doe".to_string();
         second_contribution.full_name = "Jane Doe".to_string();
         let mut third_contribution = test_contribution();
-        third_contribution.full_name = "Bob Johnson".to_string();
+        third_contribution.first_name = Some("Billy Bob".to_string());
+        third_contribution.last_name = "Johnson".to_string();
+        third_contribution.full_name = "Billy Bob Johnson".to_string();
         third_contribution.contribution_type = thoth_client::ContributionType::INTRODUCTION_BY;
         let mut fourth_contribution = test_contribution();
-        fourth_contribution.full_name = "Juan García".to_string();
+        fourth_contribution.first_name = Some("Juan".to_string());
+        fourth_contribution.last_name = "García Sánchez".to_string();
+        fourth_contribution.full_name = "Juan García Sánchez".to_string();
         fourth_contribution.contribution_type = thoth_client::ContributionType::TRANSLATOR;
         let contributions = [
             first_contribution,
@@ -986,20 +1061,20 @@ pub(crate) mod tests {
 
         let expected = Ok(vec![
             FieldRepr::from((b"100", "1\\"))
-                .add_subfield(b"a", "John Smith".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "Author".as_bytes()))
+                .add_subfield(b"a", "Smith, John,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
                 .unwrap(),
             FieldRepr::from((b"700", "1\\"))
-                .add_subfield(b"a", "Jane Doe".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "Author".as_bytes()))
+                .add_subfield(b"a", "Doe, Jane,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
                 .unwrap(),
             FieldRepr::from((b"700", "1\\"))
-                .add_subfield(b"a", "Bob Johnson".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "Introduction By".as_bytes()))
+                .add_subfield(b"a", "Johnson, Billy Bob,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "introduction by.".as_bytes()))
                 .unwrap(),
             FieldRepr::from((b"700", "1\\"))
-                .add_subfield(b"a", "Juan García".as_bytes())
-                .and_then(|f| f.add_subfield(b"e", "Translator".as_bytes()))
+                .add_subfield(b"a", "García Sánchez, Juan,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "translator.".as_bytes()))
                 .unwrap(),
         ]);
         assert_eq!(contributor_fields(&contributions), expected);
@@ -1008,6 +1083,8 @@ pub(crate) mod tests {
     #[test]
     fn test_contributor_fields_single_author_single_affiliation() {
         let mut contribution = test_contribution();
+        contribution.first_name = Some("Jane".to_string());
+        contribution.last_name = "Doe".to_string();
         contribution.full_name = "Jane Doe".to_string();
         contribution.affiliations = vec![WorkContributionsAffiliations {
             position: None,
@@ -1022,9 +1099,9 @@ pub(crate) mod tests {
         let contributions = [contribution];
 
         let expected = Ok(vec![FieldRepr::from((b"100", "1\\"))
-            .add_subfield(b"a", "Jane Doe".as_bytes())
-            .and_then(|f| f.add_subfield(b"e", "Author".as_bytes()))
-            .and_then(|f| f.add_subfield(b"u", "Thoth University".as_bytes()))
+            .add_subfield(b"a", "Doe, Jane,".as_bytes())
+            .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
+            .and_then(|f| f.add_subfield(b"u", "Thoth University.".as_bytes()))
             .unwrap()]);
         assert_eq!(contributor_fields(&contributions), expected);
     }
@@ -1032,6 +1109,8 @@ pub(crate) mod tests {
     #[test]
     fn test_contributor_fields_single_author_multiple_affiliations() {
         let mut contribution = test_contribution();
+        contribution.first_name = Some("Jane".to_string());
+        contribution.last_name = "Doe".to_string();
         contribution.full_name = "Jane Doe".to_string();
         contribution.affiliations = vec![
             WorkContributionsAffiliations {
@@ -1058,9 +1137,9 @@ pub(crate) mod tests {
         let contributions = [contribution];
 
         let expected = Ok(vec![FieldRepr::from((b"100", "1\\"))
-            .add_subfield(b"a", "Jane Doe".as_bytes())
-            .and_then(|f| f.add_subfield(b"e", "Author".as_bytes()))
-            .and_then(|f| f.add_subfield(b"u", "Thoth University".as_bytes()))
+            .add_subfield(b"a", "Doe, Jane,".as_bytes())
+            .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
+            .and_then(|f| f.add_subfield(b"u", "Thoth University.".as_bytes()))
             .unwrap()]);
         assert_eq!(contributor_fields(&contributions), expected);
     }
@@ -1068,6 +1147,8 @@ pub(crate) mod tests {
     #[test]
     fn test_contributor_fields_single_author_with_orcid() {
         let mut contribution = test_contribution();
+        contribution.first_name = Some("Jane".to_string());
+        contribution.last_name = "Doe".to_string();
         contribution.full_name = "Jane Doe".to_string();
         contribution.contributor = WorkContributionsContributor {
             orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0011").unwrap()),
@@ -1076,10 +1157,52 @@ pub(crate) mod tests {
         let contributions = [contribution];
 
         let expected = Ok(vec![FieldRepr::from((b"100", "1\\"))
-            .add_subfield(b"a", "Jane Doe".as_bytes())
-            .and_then(|f| f.add_subfield(b"e", "Author".as_bytes()))
+            .add_subfield(b"a", "Doe, Jane,".as_bytes())
+            .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
             .and_then(|f| f.add_subfield(b"1", "https://orcid.org/0000-0002-0000-0011".as_bytes()))
             .unwrap()]);
+        assert_eq!(contributor_fields(&contributions), expected);
+    }
+
+    #[test]
+    fn test_contributor_fields_multiple_contributors_no_first_names() {
+        let mut first_contribution = test_contribution();
+        first_contribution.last_name = "Thoth Collective".to_string();
+        first_contribution.full_name = "Thoth Collective".to_string();
+        first_contribution.contribution_type = thoth_client::ContributionType::EDITOR;
+        let mut second_contribution = test_contribution();
+        second_contribution.last_name = "Anonymous".to_string();
+        second_contribution.full_name = "Anonymous".to_string();
+        let mut third_contribution = test_contribution();
+        third_contribution.last_name = "Thoth Collective".to_string();
+        third_contribution.full_name = "Thoth Collective".to_string();
+        third_contribution.contribution_type = thoth_client::ContributionType::INTRODUCTION_BY;
+        let mut fourth_contribution = test_contribution();
+        fourth_contribution.first_name = Some("Thoth".to_string());
+        fourth_contribution.last_name = "Collective".to_string();
+        fourth_contribution.full_name = "Thoth Collective".to_string();
+        fourth_contribution.contribution_type = thoth_client::ContributionType::RESEARCH_BY;
+        let contributions = [
+            first_contribution,
+            second_contribution,
+            third_contribution,
+            fourth_contribution,
+        ];
+
+        let expected = Ok(vec![
+            FieldRepr::from((b"700", "0\\"))
+                .add_subfield(b"a", "Thoth Collective,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "editor, introduction by.".as_bytes()))
+                .unwrap(),
+            FieldRepr::from((b"100", "0\\"))
+                .add_subfield(b"a", "Anonymous,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
+                .unwrap(),
+            FieldRepr::from((b"700", "1\\"))
+                .add_subfield(b"a", "Collective, Thoth,".as_bytes())
+                .and_then(|f| f.add_subfield(b"e", "research by.".as_bytes()))
+                .unwrap(),
+        ]);
         assert_eq!(contributor_fields(&contributions), expected);
     }
 
@@ -1090,10 +1213,7 @@ pub(crate) mod tests {
             language_relation: LanguageRelation::ORIGINAL,
             main_language: true,
         }];
-        assert_eq!(
-            language_field(&languages).unwrap().get_data(),
-            b"0\\\x1faeng"
-        );
+        assert_eq!(language_field(&languages), None);
     }
 
     #[test]
@@ -1381,11 +1501,11 @@ pub(crate) mod tests {
     #[test]
     fn test_contributors_string_single_translator() {
         let mut contribution = test_contribution();
-        contribution.full_name = "Juan García".to_string();
+        contribution.full_name = "Juan García Sánchez".to_string();
         contribution.contribution_type = thoth_client::ContributionType::TRANSLATOR;
         let contributions = [contribution];
 
-        let expected = "translated by Juan García.";
+        let expected = "translated by Juan García Sánchez.";
         assert_eq!(contributors_string(&contributions), expected);
     }
 
@@ -1396,10 +1516,10 @@ pub(crate) mod tests {
         let mut second_contribution = test_contribution();
         second_contribution.full_name = "Jane Smith".to_string();
         let mut third_contribution = test_contribution();
-        third_contribution.full_name = "Bob Johnson".to_string();
+        third_contribution.full_name = "Billy Bob Johnson".to_string();
         let contributions = [first_contribution, second_contribution, third_contribution];
 
-        let expected = "John Doe, Jane Smith, Bob Johnson.";
+        let expected = "John Doe, Jane Smith, Billy Bob Johnson.";
         assert_eq!(contributors_string(&contributions), expected);
     }
 
@@ -1409,11 +1529,11 @@ pub(crate) mod tests {
         first_contribution.full_name = "Jane Smith".to_string();
         first_contribution.contribution_type = thoth_client::ContributionType::EDITOR;
         let mut second_contribution = test_contribution();
-        second_contribution.full_name = "Bob Johnson".to_string();
+        second_contribution.full_name = "Billy Bob Johnson".to_string();
         second_contribution.contribution_type = thoth_client::ContributionType::EDITOR;
         let contributions = [first_contribution, second_contribution];
 
-        let expected = "edited by Jane Smith, Bob Johnson.";
+        let expected = "edited by Jane Smith, Billy Bob Johnson.";
         assert_eq!(contributors_string(&contributions), expected);
     }
 
@@ -1425,7 +1545,7 @@ pub(crate) mod tests {
         second_contribution.full_name = "Jane Smith".to_string();
         second_contribution.contribution_type = thoth_client::ContributionType::EDITOR;
         let mut third_contribution = test_contribution();
-        third_contribution.full_name = "Bob Johnson".to_string();
+        third_contribution.full_name = "Billy Bob Johnson".to_string();
         third_contribution.contribution_type = thoth_client::ContributionType::TRANSLATOR;
         let mut fourth_contribution = test_contribution();
         fourth_contribution.full_name = "Alice Brown".to_string();
@@ -1437,7 +1557,7 @@ pub(crate) mod tests {
             fourth_contribution,
         ];
 
-        let expected = "John Doe; edited by Jane Smith; translated by Bob Johnson; introduction by Alice Brown.";
+        let expected = "John Doe; edited by Jane Smith; translated by Billy Bob Johnson; introduction by Alice Brown.";
         assert_eq!(contributors_string(&contributions), expected);
     }
 
@@ -1449,7 +1569,7 @@ pub(crate) mod tests {
         second_contribution.full_name = "Jane Smith".to_string();
         second_contribution.contribution_type = thoth_client::ContributionType::EDITOR;
         let mut third_contribution = test_contribution();
-        third_contribution.full_name = "Bob Johnson".to_string();
+        third_contribution.full_name = "Billy Bob Johnson".to_string();
         third_contribution.contribution_type = thoth_client::ContributionType::EDITOR;
         let mut fourth_contribution = test_contribution();
         fourth_contribution.full_name = "Alice Brown".to_string();
@@ -1460,15 +1580,31 @@ pub(crate) mod tests {
             fourth_contribution,
         ];
 
-        let expected = "John Doe, Alice Brown; edited by Jane Smith, Bob Johnson.";
+        let expected = "John Doe, Alice Brown; edited by Jane Smith, Billy Bob Johnson.";
         assert_eq!(contributors_string(&contributions), expected);
+    }
+
+    #[test]
+    fn test_nonfiling_char_count() {
+        for (language, title, expected) in [
+            ("eng", "A sample book", "2"),
+            ("eng", "An example book", "3"),
+            ("eng", "The next example book", "4"),
+            ("eng", "a lowercase book", "2"),
+            ("eng", "AAAAAA BOOK", "0"),
+            ("eng", "There's a book", "0"),
+            ("fre", "The et cafe", "0"),
+            ("fre", "A la gare", "0"),
+        ] {
+            assert_eq!(nonfiling_char_count(title, language), expected);
+        }
     }
 
     #[test]
     fn test_generate_marc() {
         let work = test_work();
         let current_date = Utc::now().format("%y%m%d").to_string();
-        let expected = format!("02384nam  2200553 i 4500001003700000006001900037007001500056008004100071010001500112020002500127020002500152020003000177022002300207022002200230024002800252024002100280040002200301041001300323050000900336072001600345072002300361072001500384100008100399245011800480250001600598264003600614264001100650300002300661336002600684337002600710338003600736490003900772500008300811504005300894505006000947506004801007520003101055536006801086538003601154540022301190588005801413700006301471700003401534710002901568830003901597856005801636856005901694856007701753\u{1e}00000000-0000-0000-aaaa-000000000001\u{1e}m        d        \u{1e}cr  n         \u{1e}{current_date}t20102010        sb    000 0 eng d\u{1e}\\\\\u{1f}aLCCN010101\u{1e}\\\\\u{1f}a9783161484100\u{1f}q(PDF)\u{1e}\\\\\u{1f}a9789295055025\u{1f}q(XML)\u{1e}\\\\\u{1f}a9781402894626\u{1f}q(Hardback)\u{1e}\\\\\u{1f}a8765-4321 (Online)\u{1e}\\\\\u{1f}a1234-5678 (Print)\u{1e}7\\\u{1f}a10.00001/BOOK.0001\u{1f}2doi\u{1e}7\\\u{1f}aOCLC010101\u{1f}2oclc\u{1e}\\\\\u{1f}aUkCbTOM\u{1f}beng\u{1f}erda\u{1e}1\\\u{1f}aeng\u{1f}hspa\u{1e}00\u{1f}aJA85\u{1e} 7\u{1f}aAAB\u{1f}2bicssc\u{1e} 7\u{1f}aAAA000000\u{1f}2bisacsh\u{1e} 7\u{1f}aJWA\u{1f}2thema\u{1e}1\\\u{1f}aSole Author\u{1f}eAuthor\u{1f}uThoth University\u{1f}1https://orcid.org/0000-0002-0000-0001\u{1e}00\u{1f}aBook Title\u{1f}h[electronic resource] :\u{1f}bBook Subtitle\u{1f}cSole Author; edited by Only Editor; translated by Translator.\u{1e}\\\\\u{1f}a1st edition\u{1e}\\1\u{1f}aLeón, Spain\u{1f}bOA Editions\u{1f}c2010\u{1e}\\4\u{1f}c©2010\u{1e}\\\\\u{1f}a1 online resource.\u{1e}\\\\\u{1f}atext\u{1f}btxt\u{1f}2rdacontent\u{1e}\\\\\u{1f}acomputer\u{1f}bc\u{1f}2rdamedia\u{1e}\\\\\u{1f}aonline resource\u{1f}bcr\u{1f}2rdacarrier\u{1e}1\\\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1e}\\\\\u{1f}aPlease note that in this book the mathematical formulas are encoded in MathML.\u{1e}\\\\\u{1f}aIncludes bibliography (pages 165-170) and index.\u{1e}0\\\u{1f}aIntroduction; Chapter 1; Chapter 2; Bibliography; Index\u{1e}\\\\\u{1f}aOpen access resource providing free access.\u{1e}\\\\\u{1f}aLorem ipsum dolor sit amet\u{1e}\\\\\u{1f}aFunding Institution\u{1f}cJA0001\u{1f}eFunding Programme\u{1f}fFunding Project\u{1e}\\\\\u{1f}aMode of access: World Wide Web.\u{1e}\\\\\u{1f}aThe text of this book is licensed under a Creative Commons Attribution 4.0 International license (CC BY 4.0). For more detailed information consult the publisher's website.\u{1f}uhttps://creativecommons.org/licenses/by/4.0/\u{1e}0\\\u{1f}aMetadata licensed under CC0 Public Domain Dedication.\u{1e}1\\\u{1f}aOnly Editor\u{1f}eEditor\u{1f}1https://orcid.org/0000-0002-0000-0004\u{1e}1\\\u{1f}aTranslator\u{1f}eTranslator\u{1f}uCOPIM\u{1e}2\\\u{1f}aOA Editions,\u{1f}epublisher.\u{1e}\\0\u{1f}aName of series\u{1f}vvol. 11\u{1f}x8765-4321\u{1e}40\u{1f}uhttps://doi.org/10.00001/book.0001\u{1f}zConnect to e-book\u{1e}42\u{1f}uhttps://www.book.com/cover.jpg\u{1f}zConnect to cover image\u{1e}42\u{1f}uhttps://creativecommons.org/publicdomain/zero/1.0/\u{1f}zCC0 Metadata License\u{1e}\u{1d}");
+        let expected = format!("02348nam  22005292  4500001003700000006001900037007001500056008004100071010001500112020002500127020002500152020003000177024002800207024002500235040002400260041001300284050000900297072001600306072002300322072001500345100008500360245009700445250002000542264004000562264001100602300002300613336002600636337002600662338003600688490005300724500008300777504005300860505006000913506005000973520003101023536006801054538003601122540022301158588005801381700006601439700003701505710002901542830005301571856005801624856005901682856007701741\u{1e}00000000-0000-0000-aaaa-000000000001\u{1e}m     o  d        \u{1e}cr  n         \u{1e}{current_date}t20102010        ob    001 0 eng d\u{1e}\\\\\u{1f}aLCCN010101\u{1e}\\\\\u{1f}a9783161484100\u{1f}q(PDF)\u{1e}\\\\\u{1f}a9789295055025\u{1f}q(XML)\u{1e}\\\\\u{1f}z9781402894626\u{1f}q(Hardback)\u{1e}7\\\u{1f}a10.00001/BOOK.0001\u{1f}2doi\u{1e}7\\\u{1f}aOCLC010101\u{1f}2worldcat\u{1e}\\\\\u{1f}aUkCbTOM\u{1f}beng\u{1f}elocal\u{1e}1\\\u{1f}aeng\u{1f}hspa\u{1e}00\u{1f}aJA85\u{1e} 7\u{1f}aAAB\u{1f}2bicssc\u{1e} 7\u{1f}aAAA000000\u{1f}2bisacsh\u{1e} 7\u{1f}aJWA\u{1f}2thema\u{1e}1\\\u{1f}aAuthor, Sole,\u{1f}eauthor.\u{1f}uThoth University.\u{1f}1https://orcid.org/0000-0002-0000-0001\u{1e}10\u{1f}aBook Title :\u{1f}bBook Subtitle /\u{1f}cSole Author; edited by Only Editor; translated by Translator.\u{1e}\\\\\u{1f}aSecond edition.\u{1e}\\1\u{1f}aLeón, Spain :\u{1f}bOA Editions,\u{1f}c2010.\u{1e}\\4\u{1f}c©2010\u{1e}\\\\\u{1f}a1 online resource.\u{1e}\\\\\u{1f}atext\u{1f}btxt\u{1f}2rdacontent\u{1e}\\\\\u{1f}acomputer\u{1f}bc\u{1f}2rdamedia\u{1e}\\\\\u{1f}aonline resource\u{1f}bcr\u{1f}2rdacarrier\u{1e}1\\\u{1f}aName of series ;\u{1f}vvol. 11.\u{1f}x8765-4321\u{1f}x1234-5678\u{1e}\\\\\u{1f}aPlease note that in this book the mathematical formulas are encoded in MathML.\u{1e}\\\\\u{1f}aIncludes bibliography (pages 165-170) and index.\u{1e}0\\\u{1f}aIntroduction; Chapter 1; Chapter 2; Bibliography; Index\u{1e}0\\\u{1f}aOpen Access\u{1f}fUnrestricted online access\u{1f}2star\u{1e}\\\\\u{1f}aLorem ipsum dolor sit amet\u{1e}\\\\\u{1f}aFunding Institution\u{1f}cJA0001\u{1f}eFunding Programme\u{1f}fFunding Project\u{1e}\\\\\u{1f}aMode of access: World Wide Web.\u{1e}\\\\\u{1f}aThe text of this book is licensed under a Creative Commons Attribution 4.0 International license (CC BY 4.0). For more detailed information consult the publisher's website.\u{1f}uhttps://creativecommons.org/licenses/by/4.0/\u{1e}0\\\u{1f}aMetadata licensed under CC0 Public Domain Dedication.\u{1e}1\\\u{1f}aEditor, Only,\u{1f}eeditor.\u{1f}1https://orcid.org/0000-0002-0000-0004\u{1e}0\\\u{1f}aTranslator,\u{1f}etranslator.\u{1f}uCOPIM.\u{1e}2\\\u{1f}aOA Editions,\u{1f}epublisher.\u{1e}\\0\u{1f}aName of series ;\u{1f}vvol. 11.\u{1f}x8765-4321\u{1f}x1234-5678\u{1e}40\u{1f}uhttps://doi.org/10.00001/book.0001\u{1f}zConnect to e-book\u{1e}42\u{1f}uhttps://www.book.com/cover.jpg\u{1f}zConnect to cover image\u{1e}42\u{1f}uhttps://creativecommons.org/publicdomain/zero/1.0/\u{1f}zCC0 Metadata License\u{1e}\u{1d}");
 
         assert_eq!(Marc21RecordThoth {}.generate(&[work]), Ok(expected))
     }
