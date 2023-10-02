@@ -75,15 +75,15 @@ dependencies = [
 
 [[package]]
 name = "actix-identity"
-version = "0.5.2"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1224c9f9593dc27c9077b233ce04adedc1d7febcfc35ee9f53ea3c24df180bec"
+checksum = "36e1cc6f95e245b2f3c6995df4e1c0c697704c48c28ec325d135a3ca039d4952"
 dependencies = [
  "actix-service",
  "actix-session",
  "actix-utils",
  "actix-web",
- "anyhow",
+ "derive_more",
  "futures-core",
  "serde",
  "tracing",
@@ -154,9 +154,9 @@ dependencies = [
 
 [[package]]
 name = "actix-session"
-version = "0.7.2"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43da8b818ae1f11049a4d218975345fe8e56ce5a5f92c11f972abcff5ff80e87"
+checksum = "2e6a28f813a6671e1847d005cad0be36ae4d016287690f765c303379837c13d6"
 dependencies = [
  "actix-service",
  "actix-utils",
@@ -731,9 +731,9 @@ checksum = "8100e46ff92eb85bf6dc2930c73f2a4f7176393c84a9446b3d501e1b354e7b34"
 
 [[package]]
 name = "chrono"
-version = "0.4.30"
+version = "0.4.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "defd4e7873dbddba6c7c91e199c7fcb946abc4a6a4ac3195400bcfb01b5de877"
+checksum = "7f2c685bad3eb3d45a01354cedb7d5faa66194d1d58ba6e267a8de788f79db38"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -2087,9 +2087,9 @@ checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
 
 [[package]]
 name = "marc"
-version = "3.1.0"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de4eeed871ae1c896c6a8b3ff59a1fb5a5f20189948ffd730265bdb1b6dcf780"
+checksum = "c7158861fa6320edf04e974b504ad3c3a69e1aa9500d2e4899e6dc41265c0a56"
 dependencies = [
  "xml-rs",
 ]
@@ -3398,7 +3398,7 @@ dependencies = [
 
 [[package]]
 name = "thoth"
-version = "0.11.6"
+version = "0.11.7"
 dependencies = [
  "cargo-husky",
  "clap",
@@ -3413,7 +3413,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api"
-version = "0.11.6"
+version = "0.11.7"
 dependencies = [
  "actix-web",
  "argon2rs",
@@ -3442,7 +3442,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api-server"
-version = "0.11.6"
+version = "0.11.7"
 dependencies = [
  "actix-cors",
  "actix-identity",
@@ -3458,7 +3458,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app"
-version = "0.11.6"
+version = "0.11.7"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3487,7 +3487,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app-server"
-version = "0.11.6"
+version = "0.11.7"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -3496,7 +3496,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-client"
-version = "0.11.6"
+version = "0.11.7"
 dependencies = [
  "chrono",
  "graphql_client",
@@ -3512,7 +3512,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-errors"
-version = "0.11.6"
+version = "0.11.7"
 dependencies = [
  "actix-web",
  "csv",
@@ -3532,7 +3532,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-export-server"
-version = "0.11.6"
+version = "0.11.7"
 dependencies = [
  "actix-cors",
  "actix-web",
