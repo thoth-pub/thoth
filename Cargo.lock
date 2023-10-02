@@ -2087,9 +2087,9 @@ checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
 
 [[package]]
 name = "marc"
-version = "3.1.0"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de4eeed871ae1c896c6a8b3ff59a1fb5a5f20189948ffd730265bdb1b6dcf780"
+checksum = "c7158861fa6320edf04e974b504ad3c3a69e1aa9500d2e4899e6dc41265c0a56"
 dependencies = [
  "xml-rs",
 ]
