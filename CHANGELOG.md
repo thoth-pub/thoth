@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.11.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.8) - 2023-10-31
+### Changed
+  - Upgrade rust to `1.73.0` in production and development `Dockerfile`
+  - Upgrade build dependencies (npm `v10.2.0`, node `v18.18.2`, n `v9.2.0` and rollup `v4.1.4`) in production and development `Dockerfile`
+  - [519](https://github.com/thoth-pub/thoth/issues/519) - Update ProQuest Ebrary (Ebook Central) ONIX output pricing
+
 ## [[0.11.7]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.7) - 2023-10-02
 ### Changed
   - Improve MARC records with recommendations
