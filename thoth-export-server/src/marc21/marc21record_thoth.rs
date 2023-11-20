@@ -6,8 +6,8 @@ use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
-    LanguageRelation, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues,
-    WorkLanguages, WorkPublications, WorkSubjects, WorkType,
+    LanguageRelation, RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues,
+    WorkLanguages, WorkPublications, WorkRelations, WorkSubjects, WorkType,
 };
 use thoth_errors::{ThothError, ThothResult};
 
@@ -309,7 +309,9 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
 
         // 505 - contents note
-        if let Some(mut toc) = self.toc.clone() {
+        if let Ok(toc_field) = toc_field(&self.relations) {
+            builder.add_field(toc_field)?;
+        } else if let Some(mut toc) = self.toc.clone() {
             // Strip out formatting marks as these may stop records loading successfully
             toc.retain(|c| c != '\n' && c != '\r' && c != '\t');
             FieldRepr::from((b"505", "0\\"))
@@ -551,6 +553,56 @@ fn language_field(languages: &[WorkLanguages]) -> Option<FieldRepr> {
     Some(language_field)
 }
 
+fn toc_field(relations: &[WorkRelations]) -> ThothResult<FieldRepr> {
+    let mut chapters = relations
+        .iter()
+        .filter(|r| r.relation_type == RelationType::HAS_CHILD)
+        .collect::<Vec<_>>();
+    if chapters.is_empty() {
+        return Err(ThothError::IncompleteMetadataRecord(
+            MARC_ERROR.to_string(),
+            "No chapter data available for constructing contents note".to_string(),
+        ));
+    }
+    // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
+    chapters.sort_by(|a, b| a.relation_ordinal.cmp(&b.relation_ordinal));
+    let mut toc_field: FieldRepr = FieldRepr::from((b"505", "00"));
+    let mut separator = " --";
+    for (i, chapter) in chapters.iter().enumerate() {
+        let chapter_title = &chapter.related_work.full_title;
+        let chapter_number = chapter.relation_ordinal;
+        let chapter_authors = chapter
+            .related_work
+            .contributions
+            .iter()
+            // Ideally we'd use full_name rather than first_name + last_name
+            // TODO Switch this out (will require updates to existing tests)
+            // .map(|c| c.full_name)
+            .map(|c| {
+                format!(
+                    "{} {}",
+                    c.first_name.clone().unwrap_or_default(),
+                    c.last_name
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        toc_field = toc_field.add_subfield(b"g", format!("{}.", chapter_number))?;
+        if i == chapters.len() - 1 {
+            // End list of chapters with a full stop
+            separator = ".";
+        }
+        if !chapter_authors.is_empty() {
+            toc_field = toc_field.add_subfield(b"t", format!("{} /", chapter_title))?;
+            toc_field =
+                toc_field.add_subfield(b"r", format!("{}{}", chapter_authors, separator))?;
+        } else {
+            toc_field = toc_field.add_subfield(b"t", format!("{}{}", chapter_title, separator))?;
+        }
+    }
+    Ok(toc_field)
+}
+
 impl Marc21Field<Marc21RecordThoth> for WorkPublications {
     fn to_field(&self, builder: &mut RecordBuilder) -> ThothResult<()> {
         if let Some(isbn) = &self.isbn {
@@ -718,7 +770,9 @@ pub(crate) mod tests {
     use thoth_client::{
         FundingInstitution, LanguageCode, SeriesType, WorkContributionsAffiliations,
         WorkContributionsAffiliationsInstitution, WorkContributionsContributor, WorkImprint,
-        WorkImprintPublisher, WorkIssues, WorkIssuesSeries, WorkStatus,
+        WorkImprintPublisher, WorkIssues, WorkIssuesSeries, WorkRelationsRelatedWork,
+        WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkContributionsContributor,
+        WorkRelationsRelatedWorkImprint, WorkRelationsRelatedWorkImprintPublisher, WorkStatus,
     };
     use uuid::Uuid;
 
@@ -983,6 +1037,44 @@ pub(crate) mod tests {
                 website: None,
             },
             affiliations: vec![],
+        }
+    }
+
+    fn test_relation() -> WorkRelations {
+        WorkRelations {
+            relation_type: RelationType::HAS_CHILD,
+            relation_ordinal: 1,
+            related_work: WorkRelationsRelatedWork {
+                full_title: "Chapter One".to_string(),
+                title: "N/A".to_string(),
+                subtitle: None,
+                edition: None,
+                doi: None,
+                publication_date: None,
+                license: None,
+                short_abstract: None,
+                long_abstract: None,
+                place: None,
+                first_page: None,
+                last_page: None,
+                landing_page: None,
+                imprint: WorkRelationsRelatedWorkImprint {
+                    publisher: WorkRelationsRelatedWorkImprintPublisher {
+                        publisher_name: "N/A".to_string(),
+                    },
+                },
+                contributions: vec![WorkRelationsRelatedWorkContributions {
+                    contribution_type: thoth_client::ContributionType::AUTHOR,
+                    first_name: Some("Chapter-One".to_string()),
+                    last_name: "Author".to_string(),
+                    contribution_ordinal: 1,
+                    contributor: WorkRelationsRelatedWorkContributionsContributor { orcid: None },
+                    affiliations: vec![],
+                }],
+                publications: vec![],
+                references: vec![],
+                fundings: vec![],
+            },
         }
     }
 
@@ -1429,6 +1521,111 @@ pub(crate) mod tests {
             language_field(&languages).unwrap().get_data(),
             b"1\\\x1fafre\x1fhger\x1fkeng"
         );
+    }
+
+    #[test]
+    fn test_toc_field_one_chapter_one_author() {
+        let relations = vec![test_relation()];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"g", "1.".as_bytes())
+            .and_then(|f| f.add_subfield(b"t", "Chapter One /".as_bytes()))
+            .and_then(|f| f.add_subfield(b"r", "Chapter-One Author.".as_bytes()))
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_one_chapter_no_author() {
+        let mut relation = test_relation();
+        relation.related_work.contributions.clear();
+        let relations = vec![relation];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"g", "1.".as_bytes())
+            .and_then(|f| f.add_subfield(b"t", "Chapter One.".as_bytes()))
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_one_chapter_two_authors() {
+        let mut relation = test_relation();
+        relation
+            .related_work
+            .contributions
+            .append(&mut vec![relation.related_work.contributions[0].clone()]);
+        relation.related_work.contributions[1].last_name = "Second-Author".to_string();
+        // Not strictly required, but let's keep things tidy
+        relation.related_work.contributions[1].contribution_ordinal = 2;
+        let relations = vec![relation];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"g", "1.".as_bytes())
+            .and_then(|f| f.add_subfield(b"t", "Chapter One /".as_bytes()))
+            .and_then(|f| {
+                f.add_subfield(
+                    b"r",
+                    "Chapter-One Author, Chapter-One Second-Author.".as_bytes(),
+                )
+            })
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_two_chapters_one_author_each() {
+        let mut second_relation = test_relation();
+        second_relation.relation_ordinal = 2;
+        second_relation.related_work.full_title = "Chapter Two".to_string();
+        second_relation.related_work.contributions[0].first_name = Some("Chapter-Two".to_string());
+        // Place in reverse order and test correct re-ordering
+        let relations = vec![second_relation, test_relation()];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"g", "1.".as_bytes())
+            .and_then(|f| f.add_subfield(b"t", "Chapter One /".as_bytes()))
+            .and_then(|f| f.add_subfield(b"r", "Chapter-One Author --".as_bytes()))
+            .and_then(|f| f.add_subfield(b"g", "2.".as_bytes()))
+            .and_then(|f| f.add_subfield(b"t", "Chapter Two /".as_bytes()))
+            .and_then(|f| f.add_subfield(b"r", "Chapter-Two Author.".as_bytes()))
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_two_chapters_no_authors() {
+        let mut first_relation = test_relation();
+        first_relation.related_work.contributions.clear();
+        let mut second_relation = test_relation();
+        second_relation.relation_ordinal = 2;
+        second_relation.related_work.full_title = "Chapter Two".to_string();
+        second_relation.related_work.contributions.clear();
+        let relations = vec![first_relation, second_relation];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"g", "1.".as_bytes())
+            .and_then(|f| f.add_subfield(b"t", "Chapter One --".as_bytes()))
+            .and_then(|f| f.add_subfield(b"g", "2.".as_bytes()))
+            .and_then(|f| f.add_subfield(b"t", "Chapter Two.".as_bytes()))
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_one_relation_is_chapter() {
+        let mut parent_relation = test_relation();
+        parent_relation.relation_type = RelationType::IS_CHILD_OF;
+        let relations = vec![test_relation(), parent_relation];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"g", "1.".as_bytes())
+            .and_then(|f| f.add_subfield(b"t", "Chapter One /".as_bytes()))
+            .and_then(|f| f.add_subfield(b"r", "Chapter-One Author.".as_bytes()))
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_no_relations_are_chapters() {
+        let mut relation = test_relation();
+        relation.relation_type = RelationType::IS_TRANSLATION_OF;
+        let relations = vec![relation];
+        assert!(toc_field(&relations).is_err());
     }
 
     #[test]
