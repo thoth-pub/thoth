@@ -1194,6 +1194,7 @@ pub(crate) mod tests {
         let expected = Ok(vec![FieldRepr::from((b"100", "1\\"))
             .add_subfield(b"a", "Doe, Jane,".as_bytes())
             .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
+            .and_then(|f| f.add_subfield(b"0", "(orcid)0000000200000011".as_bytes()))
             .and_then(|f| f.add_subfield(b"1", "https://orcid.org/0000-0002-0000-0011".as_bytes()))
             .unwrap()]);
         assert_eq!(contributor_fields(&contributions), expected);
