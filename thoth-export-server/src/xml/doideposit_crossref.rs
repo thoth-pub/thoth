@@ -830,6 +830,7 @@ mod tests {
                     contribution_type: ContributionType::AUTHOR,
                     first_name: Some("Chapter One".to_string()),
                     last_name: "Author".to_string(),
+                    full_name: "Chapter One Author".to_string(),
                     contribution_ordinal: 1,
                     contributor: WorkRelationsRelatedWorkContributionsContributor {
                         orcid: Some(

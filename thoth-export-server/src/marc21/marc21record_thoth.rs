@@ -575,16 +575,7 @@ fn toc_field(relations: &[WorkRelations]) -> ThothResult<FieldRepr> {
             .related_work
             .contributions
             .iter()
-            // Ideally we'd use full_name rather than first_name + last_name
-            // TODO Switch this out (will require updates to existing tests)
-            // .map(|c| c.full_name)
-            .map(|c| {
-                format!(
-                    "{} {}",
-                    c.first_name.clone().unwrap_or_default(),
-                    c.last_name
-                )
-            })
+            .map(|c| c.full_name.clone())
             .collect::<Vec<_>>()
             .join(", ");
         toc_field = toc_field.add_subfield(b"g", format!("{}.", chapter_number))?;
@@ -1067,6 +1058,7 @@ pub(crate) mod tests {
                     contribution_type: thoth_client::ContributionType::AUTHOR,
                     first_name: Some("Chapter-One".to_string()),
                     last_name: "Author".to_string(),
+                    full_name: "Chapter-One Author".to_string(),
                     contribution_ordinal: 1,
                     contributor: WorkRelationsRelatedWorkContributionsContributor { orcid: None },
                     affiliations: vec![],
@@ -1553,7 +1545,7 @@ pub(crate) mod tests {
             .related_work
             .contributions
             .append(&mut vec![relation.related_work.contributions[0].clone()]);
-        relation.related_work.contributions[1].last_name = "Second-Author".to_string();
+        relation.related_work.contributions[1].full_name = "Chapter-One Second-Author".to_string();
         // Not strictly required, but let's keep things tidy
         relation.related_work.contributions[1].contribution_ordinal = 2;
         let relations = vec![relation];
@@ -1575,7 +1567,7 @@ pub(crate) mod tests {
         let mut second_relation = test_relation();
         second_relation.relation_ordinal = 2;
         second_relation.related_work.full_title = "Chapter Two".to_string();
-        second_relation.related_work.contributions[0].first_name = Some("Chapter-Two".to_string());
+        second_relation.related_work.contributions[0].full_name = "Chapter-Two Author".to_string();
         // Place in reverse order and test correct re-ordering
         let relations = vec![second_relation, test_relation()];
         let expected = Ok(FieldRepr::from((b"505", "00"))

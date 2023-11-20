@@ -177,6 +177,7 @@ fragment Work on Work {
                 contributionType
                 firstName
                 lastName
+                fullName
                 contributionOrdinal
                 contributor {
                     orcid
