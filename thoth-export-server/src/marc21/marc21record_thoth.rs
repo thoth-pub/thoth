@@ -347,22 +347,23 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
 
         // 540 - license
         if let Some(license_url) = self.license.clone() {
-            let mut license_text = "The text of this book is licensed under a custom license. For more detailed information consult the publisher's website.".to_string();
-            if let Ok(license) = License::from_url(&license_url) {
-                license_text = format!("The text of this book is licensed under a {} For more detailed information consult the publisher's website.", license.to_string());
-                // 588 - source of description note
-                FieldRepr::from((b"588", "0\\"))
-                    .add_subfield(
-                        b"a",
-                        "Metadata licensed under CC0 Public Domain Dedication.",
-                    )
-                    .and_then(|f| builder.add_field(f))?;
-            }
+            let license_text = match License::from_url(&license_url) {
+                Ok(license) => format!("The text of this book is licensed under a {} For more detailed information consult the publisher's website.", license.to_string()),
+                Err(_) => "The text of this book is licensed under a custom license. For more detailed information consult the publisher's website.".to_string(),
+            };
             FieldRepr::from((b"540", "\\\\"))
                 .add_subfield(b"a", license_text.as_bytes())
                 .and_then(|f| f.add_subfield(b"u", license_url.into_bytes()))
                 .and_then(|f| builder.add_field(f))?;
         }
+
+        // 588 - source of description note
+        FieldRepr::from((b"588", "0\\"))
+            .add_subfield(
+                b"a",
+                "Metadata licensed under CC0 Public Domain Dedication.",
+            )
+            .and_then(|f| builder.add_field(f))?;
 
         // 653 - Uncontrolled Subject Heading
         for subject in self
