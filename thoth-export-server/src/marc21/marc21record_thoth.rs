@@ -566,9 +566,10 @@ fn toc_field(relations: &[WorkRelations]) -> ThothResult<FieldRepr> {
     }
     // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
     chapters.sort_by(|a, b| a.relation_ordinal.cmp(&b.relation_ordinal));
+    let mut chapter_list = chapters.iter().peekable();
     let mut toc_field: FieldRepr = FieldRepr::from((b"505", "00"));
     let mut separator = " --";
-    for (i, chapter) in chapters.iter().enumerate() {
+    while let Some(chapter) = chapter_list.next() {
         let chapter_title = &chapter.related_work.full_title;
         let chapter_number = chapter.relation_ordinal;
         let chapter_authors = chapter
@@ -579,7 +580,7 @@ fn toc_field(relations: &[WorkRelations]) -> ThothResult<FieldRepr> {
             .collect::<Vec<_>>()
             .join(", ");
         toc_field = toc_field.add_subfield(b"g", format!("{}.", chapter_number))?;
-        if i == chapters.len() - 1 {
+        if chapter_list.peek().is_none() {
             // End list of chapters with a full stop
             separator = ".";
         }
