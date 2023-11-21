@@ -5,6 +5,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+  - Upgrade rust to `1.74.0` in production and development `Dockerfile`
+  - Upgrade `xml-rs` to v0.8.19
+  - Upgrade `clap` to v4.4.7
+  - Upgrade `dialoguer` to v0.11.0
+  - Upgrade `futures` to v0.3.29
+  - Upgrade `regex` to v1.10.2
+  - Upgrade `diesel` to v2.1.3
+  - Upgrade `csv` to v1.3.0
+  - Upgrade `reqwest-middleware` to v0.2.4
+
+
+
+
 
 ## [[0.11.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.8) - 2023-10-31
 ### Changed
