@@ -1,5 +1,5 @@
-ARG RUST_IMAGE=rust:1.73.0
-ARG MUSL_IMAGE=clux/muslrust:1.73.0
+ARG RUST_IMAGE=rust:1.74.0
+ARG MUSL_IMAGE=clux/muslrust:1.74.0
 
 FROM ${RUST_IMAGE} as wasm
 
