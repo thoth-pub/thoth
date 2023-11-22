@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.11.9]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.9) - 2023-11-22
+### Changed
+  - Upgrade rust to `1.74.0` in production and development `Dockerfile`
+  - Upgrade `xml-rs` to v0.8.19
+  - Upgrade `clap` to v4.4.7
+  - Upgrade `dialoguer` to v0.11.0
+  - Upgrade `futures` to v0.3.29
+  - Upgrade `regex` to v1.10.2
+  - Upgrade `diesel` to v2.1.3
+  - Upgrade `csv` to v1.3.0
+  - Upgrade `reqwest-middleware` to v0.2.4
+  - [522](https://github.com/thoth-pub/thoth/pull/522) - Improve MARC records with further recommendations
+
 ## [[0.11.8]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.8) - 2023-10-31
 ### Changed
   - Upgrade rust to `1.73.0` in production and development `Dockerfile`
@@ -14,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [[0.11.7]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.7) - 2023-10-02
 ### Changed
-  - Improve MARC records with recommendations
+  - [508](https://github.com/thoth-pub/thoth/pull/508) - Improve MARC records with recommendations
   - Upgrade `actix-identity` to v0.6.0
   - Upgrade `actix-session` to v0.8.0
   - Upgrade `chrono` to v0.4.31

@@ -238,6 +238,13 @@ impl From<marc::Error> for ThothError {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+impl From<dialoguer::Error> for ThothError {
+    fn from(e: dialoguer::Error) -> Self {
+        ThothError::InternalError(e.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

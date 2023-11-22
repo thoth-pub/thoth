@@ -167,6 +167,7 @@ fragment Work on Work {
             place
             firstPage
             lastPage
+            pageInterval
             landingPage
             imprint {
                 publisher {
@@ -177,6 +178,7 @@ fragment Work on Work {
                 contributionType
                 firstName
                 lastName
+                fullName
                 contributionOrdinal
                 contributor {
                     orcid

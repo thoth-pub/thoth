@@ -6,8 +6,8 @@ use thoth_api::model::contribution::ContributionType;
 use thoth_api::model::publication::PublicationType;
 use thoth_api::model::IdentifierWithDomain;
 use thoth_client::{
-    LanguageRelation, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues,
-    WorkLanguages, WorkPublications, WorkSubjects, WorkType,
+    LanguageRelation, RelationType, SubjectType, Work, WorkContributions, WorkFundings, WorkIssues,
+    WorkLanguages, WorkPublications, WorkRelations, WorkSubjects, WorkType,
 };
 use thoth_errors::{ThothError, ThothResult};
 
@@ -309,7 +309,11 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
         }
 
         // 505 - contents note
-        if let Some(toc) = self.toc.clone() {
+        if let Ok(toc_field) = toc_field(&self.relations) {
+            builder.add_field(toc_field)?;
+        } else if let Some(mut toc) = self.toc.clone() {
+            // Strip out formatting marks as these may stop records loading successfully
+            toc.retain(|c| c != '\n' && c != '\r' && c != '\t');
             FieldRepr::from((b"505", "0\\"))
                 .add_subfield(b"a", toc.into_bytes())
                 .and_then(|f| builder.add_field(f))?;
@@ -323,7 +327,9 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
             .and_then(|f| builder.add_field(f))?;
 
         // 520 - abstract
-        if let Some(long_abstract) = self.long_abstract.clone() {
+        if let Some(mut long_abstract) = self.long_abstract.clone() {
+            // Strip out formatting marks as these may stop records loading successfully
+            long_abstract.retain(|c| c != '\n' && c != '\r' && c != '\t');
             FieldRepr::from((b"520", "\\\\"))
                 .add_subfield(b"a", long_abstract.into_bytes())
                 .and_then(|f| builder.add_field(f))?;
@@ -358,6 +364,15 @@ impl Marc21Entry<Marc21RecordThoth> for Work {
                 "Metadata licensed under CC0 Public Domain Dedication.",
             )
             .and_then(|f| builder.add_field(f))?;
+
+        // 653 - Uncontrolled Subject Heading
+        for subject in self
+            .subjects
+            .iter()
+            .filter(|s| s.subject_type == SubjectType::KEYWORD)
+        {
+            Marc21Field::<Marc21RecordThoth>::to_field(subject, &mut builder)?;
+        }
 
         // 710 - publisher
         FieldRepr::from((b"710", "2\\"))
@@ -458,6 +473,12 @@ fn contributor_fields(contributions: &[WorkContributions]) -> ThothResult<Vec<Fi
             )?;
         }
         if let Some(orcid) = &contributions.first().unwrap().contributor.orcid {
+            // $0 Authority Record Control Number (ORCID is a permitted source)
+            contributor_field = contributor_field.add_subfield(
+                b"0",
+                format!("(orcid){}", orcid.to_string().replace('-', "")),
+            )?;
+            // $1 Real World Object URI
             contributor_field =
                 contributor_field.add_subfield(b"1", orcid.with_domain().as_bytes())?;
         }
@@ -532,6 +553,61 @@ fn language_field(languages: &[WorkLanguages]) -> Option<FieldRepr> {
     Some(language_field)
 }
 
+fn toc_field(relations: &[WorkRelations]) -> ThothResult<FieldRepr> {
+    let mut chapters = relations
+        .iter()
+        .filter(|r| r.relation_type == RelationType::HAS_CHILD)
+        .collect::<Vec<_>>();
+    if chapters.is_empty() {
+        return Err(ThothError::IncompleteMetadataRecord(
+            MARC_ERROR.to_string(),
+            "No chapter data available for constructing contents note".to_string(),
+        ));
+    }
+    // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
+    chapters.sort_by(|a, b| a.relation_ordinal.cmp(&b.relation_ordinal));
+    let mut chapter_list = chapters.iter().peekable();
+    let mut toc_field: FieldRepr = FieldRepr::from((b"505", "00"));
+    let mut separator = " --";
+    while let Some(chapter) = chapter_list.next() {
+        let chapter_title = &chapter.related_work.full_title;
+        let chapter_pages = &chapter.related_work.page_interval;
+        let chapter_authors = chapter
+            .related_work
+            .contributions
+            .iter()
+            .map(|c| c.full_name.clone())
+            .collect::<Vec<_>>()
+            .join(", ");
+        if chapter_list.peek().is_none() {
+            // End list of chapters with a full stop
+            separator = ".";
+        }
+        if !chapter_authors.is_empty() {
+            toc_field = toc_field.add_subfield(b"t", format!("{} /", chapter_title))?;
+            if chapter_pages.is_some() {
+                toc_field = toc_field.add_subfield(b"r", chapter_authors)?;
+                toc_field = toc_field.add_subfield(
+                    b"g",
+                    format!("(pp{}){}", chapter_pages.as_ref().unwrap(), separator),
+                )?;
+            } else {
+                toc_field =
+                    toc_field.add_subfield(b"r", format!("{}{}", chapter_authors, separator))?;
+            }
+        } else if chapter_pages.is_some() {
+            toc_field = toc_field.add_subfield(b"t", chapter_title)?;
+            toc_field = toc_field.add_subfield(
+                b"g",
+                format!("(pp{}){}", chapter_pages.as_ref().unwrap(), separator),
+            )?;
+        } else {
+            toc_field = toc_field.add_subfield(b"t", format!("{}{}", chapter_title, separator))?;
+        }
+    }
+    Ok(toc_field)
+}
+
 impl Marc21Field<Marc21RecordThoth> for WorkPublications {
     fn to_field(&self, builder: &mut RecordBuilder) -> ThothResult<()> {
         if let Some(isbn) = &self.isbn {
@@ -592,6 +668,7 @@ impl Marc21Field<Marc21RecordThoth> for WorkSubjects {
             SubjectType::BISAC => (b"072", " 7", Some((b"2", "bisacsh"))),
             SubjectType::THEMA => (b"072", " 7", Some((b"2", "thema"))),
             SubjectType::LCC => (b"050", "00", None),
+            SubjectType::KEYWORD => (b"653", "\\\\", None),
             _ => {
                 return Ok(());
             }
@@ -698,7 +775,9 @@ pub(crate) mod tests {
     use thoth_client::{
         FundingInstitution, LanguageCode, SeriesType, WorkContributionsAffiliations,
         WorkContributionsAffiliationsInstitution, WorkContributionsContributor, WorkImprint,
-        WorkImprintPublisher, WorkIssues, WorkIssuesSeries, WorkStatus,
+        WorkImprintPublisher, WorkIssues, WorkIssuesSeries, WorkRelationsRelatedWork,
+        WorkRelationsRelatedWorkContributions, WorkRelationsRelatedWorkContributionsContributor,
+        WorkRelationsRelatedWorkImprint, WorkRelationsRelatedWorkImprintPublisher, WorkStatus,
     };
     use uuid::Uuid;
 
@@ -717,7 +796,7 @@ pub(crate) mod tests {
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: None,
             short_abstract: None,
-            long_abstract: Some("Lorem ipsum dolor sit amet".to_string()),
+            long_abstract: Some("Lorem\tipsum\r\ndolor sit amet".to_string()),
             general_note: Some(
                 "Please note that in this book the mathematical formulas are encoded in MathML."
                     .to_string(),
@@ -734,7 +813,7 @@ pub(crate) mod tests {
             audio_count: None,
             video_count: None,
             landing_page: None,
-            toc: Some("Introduction; Chapter 1; Chapter 2; Bibliography; Index".to_string()),
+            toc: Some("Introduction;\tChapter 1;\rChapter 2;\nBibliography; Index".to_string()),
             lccn: Some("LCCN010101".to_string()),
             oclc: Some("OCLC010101".to_string()),
             cover_url: Some("https://www.book.com/cover.jpg".to_string()),
@@ -915,6 +994,21 @@ pub(crate) mod tests {
                     subject_type: SubjectType::THEMA,
                     subject_ordinal: 4,
                 },
+                WorkSubjects {
+                    subject_code: "custom1".to_string(),
+                    subject_type: SubjectType::CUSTOM,
+                    subject_ordinal: 5,
+                },
+                WorkSubjects {
+                    subject_code: "keyword1".to_string(),
+                    subject_type: SubjectType::KEYWORD,
+                    subject_ordinal: 6,
+                },
+                WorkSubjects {
+                    subject_code: "keyword2".to_string(),
+                    subject_type: SubjectType::KEYWORD,
+                    subject_ordinal: 7,
+                },
             ],
             fundings: vec![WorkFundings {
                 program: Some("Funding Programme".to_string()),
@@ -948,6 +1042,46 @@ pub(crate) mod tests {
                 website: None,
             },
             affiliations: vec![],
+        }
+    }
+
+    fn test_relation() -> WorkRelations {
+        WorkRelations {
+            relation_type: RelationType::HAS_CHILD,
+            relation_ordinal: 1,
+            related_work: WorkRelationsRelatedWork {
+                full_title: "Chapter One".to_string(),
+                title: "N/A".to_string(),
+                subtitle: None,
+                edition: None,
+                doi: None,
+                publication_date: None,
+                license: None,
+                short_abstract: None,
+                long_abstract: None,
+                place: None,
+                first_page: None,
+                last_page: None,
+                page_interval: None,
+                landing_page: None,
+                imprint: WorkRelationsRelatedWorkImprint {
+                    publisher: WorkRelationsRelatedWorkImprintPublisher {
+                        publisher_name: "N/A".to_string(),
+                    },
+                },
+                contributions: vec![WorkRelationsRelatedWorkContributions {
+                    contribution_type: thoth_client::ContributionType::AUTHOR,
+                    first_name: Some("Chapter-One".to_string()),
+                    last_name: "Author".to_string(),
+                    full_name: "Chapter-One Author".to_string(),
+                    contribution_ordinal: 1,
+                    contributor: WorkRelationsRelatedWorkContributionsContributor { orcid: None },
+                    affiliations: vec![],
+                }],
+                publications: vec![],
+                references: vec![],
+                fundings: vec![],
+            },
         }
     }
 
@@ -1159,6 +1293,7 @@ pub(crate) mod tests {
         let expected = Ok(vec![FieldRepr::from((b"100", "1\\"))
             .add_subfield(b"a", "Doe, Jane,".as_bytes())
             .and_then(|f| f.add_subfield(b"e", "author.".as_bytes()))
+            .and_then(|f| f.add_subfield(b"0", "(orcid)0000000200000011".as_bytes()))
             .and_then(|f| f.add_subfield(b"1", "https://orcid.org/0000-0002-0000-0011".as_bytes()))
             .unwrap()]);
         assert_eq!(contributor_fields(&contributions), expected);
@@ -1396,6 +1531,149 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn test_toc_field_one_chapter_one_author() {
+        let relations = vec![test_relation()];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"t", "Chapter One /".as_bytes())
+            .and_then(|f| f.add_subfield(b"r", "Chapter-One Author.".as_bytes()))
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_one_chapter_no_author() {
+        let mut relation = test_relation();
+        relation.related_work.contributions.clear();
+        let relations = vec![relation];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"t", "Chapter One.".as_bytes())
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_one_chapter_one_author_with_pages() {
+        let mut relation = test_relation();
+        relation.related_work.page_interval = Some("10–20".to_string());
+        let relations = vec![relation];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"t", "Chapter One /".as_bytes())
+            .and_then(|f| f.add_subfield(b"r", "Chapter-One Author".as_bytes()))
+            .and_then(|f| f.add_subfield(b"g", "(pp10–20).".as_bytes()))
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_one_chapter_no_author_with_pages() {
+        let mut relation = test_relation();
+        relation.related_work.contributions.clear();
+        relation.related_work.page_interval = Some("10–20".to_string());
+        let relations = vec![relation];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"t", "Chapter One".as_bytes())
+            .and_then(|f| f.add_subfield(b"g", "(pp10–20).".as_bytes()))
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_one_chapter_two_authors() {
+        let mut relation = test_relation();
+        relation
+            .related_work
+            .contributions
+            .append(&mut vec![relation.related_work.contributions[0].clone()]);
+        relation.related_work.contributions[1].full_name = "Chapter-One Second-Author".to_string();
+        // Not strictly required, but let's keep things tidy
+        relation.related_work.contributions[1].contribution_ordinal = 2;
+        let relations = vec![relation];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"t", "Chapter One /".as_bytes())
+            .and_then(|f| {
+                f.add_subfield(
+                    b"r",
+                    "Chapter-One Author, Chapter-One Second-Author.".as_bytes(),
+                )
+            })
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_two_chapters_one_author_each() {
+        let mut second_relation = test_relation();
+        second_relation.relation_ordinal = 2;
+        second_relation.related_work.full_title = "Chapter Two".to_string();
+        second_relation.related_work.contributions[0].full_name = "Chapter-Two Author".to_string();
+        // Place in reverse order and test correct re-ordering
+        let relations = vec![second_relation, test_relation()];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"t", "Chapter One /".as_bytes())
+            .and_then(|f| f.add_subfield(b"r", "Chapter-One Author --".as_bytes()))
+            .and_then(|f| f.add_subfield(b"t", "Chapter Two /".as_bytes()))
+            .and_then(|f| f.add_subfield(b"r", "Chapter-Two Author.".as_bytes()))
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_two_chapters_no_authors() {
+        let mut first_relation = test_relation();
+        first_relation.related_work.contributions.clear();
+        let mut second_relation = test_relation();
+        second_relation.relation_ordinal = 2;
+        second_relation.related_work.full_title = "Chapter Two".to_string();
+        second_relation.related_work.contributions.clear();
+        let relations = vec![first_relation, second_relation];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"t", "Chapter One --".as_bytes())
+            .and_then(|f| f.add_subfield(b"t", "Chapter Two.".as_bytes()))
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_two_chapters_no_authors_with_pages() {
+        let mut first_relation = test_relation();
+        first_relation.related_work.page_interval = Some("10–20".to_string());
+        first_relation.related_work.contributions.clear();
+        let mut second_relation = test_relation();
+        second_relation.relation_ordinal = 2;
+        second_relation.related_work.full_title = "Chapter Two".to_string();
+        second_relation.related_work.page_interval = Some("20–30".to_string());
+        second_relation.related_work.contributions.clear();
+        let relations = vec![first_relation, second_relation];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"t", "Chapter One".as_bytes())
+            .and_then(|f| f.add_subfield(b"g", "(pp10–20) --".as_bytes()))
+            .and_then(|f| f.add_subfield(b"t", "Chapter Two".as_bytes()))
+            .and_then(|f| f.add_subfield(b"g", "(pp20–30).".as_bytes()))
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_one_relation_is_chapter() {
+        let mut parent_relation = test_relation();
+        parent_relation.relation_type = RelationType::IS_CHILD_OF;
+        let relations = vec![test_relation(), parent_relation];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"t", "Chapter One /".as_bytes())
+            .and_then(|f| f.add_subfield(b"r", "Chapter-One Author.".as_bytes()))
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_no_relations_are_chapters() {
+        let mut relation = test_relation();
+        relation.relation_type = RelationType::IS_TRANSLATION_OF;
+        let relations = vec![relation];
+        assert!(toc_field(&relations).is_err());
+    }
+
+    #[test]
     fn test_description_string_no_counts() {
         let work = test_work();
 
@@ -1604,7 +1882,7 @@ pub(crate) mod tests {
     fn test_generate_marc() {
         let work = test_work();
         let current_date = Utc::now().format("%y%m%d").to_string();
-        let expected = format!("02348nam  22005292  4500001003700000006001900037007001500056008004100071010001500112020002500127020002500152020003000177024002800207024002500235040002400260041001300284050000900297072001600306072002300322072001500345100008500360245009700445250002000542264004000562264001100602300002300613336002600636337002600662338003600688490005300724500008300777504005300860505006000913506005000973520003101023536006801054538003601122540022301158588005801381700006601439700003701505710002901542830005301571856005801624856005901682856007701741\u{1e}00000000-0000-0000-aaaa-000000000001\u{1e}m     o  d        \u{1e}cr  n         \u{1e}{current_date}t20102010        ob    001 0 eng d\u{1e}\\\\\u{1f}aLCCN010101\u{1e}\\\\\u{1f}a9783161484100\u{1f}q(PDF)\u{1e}\\\\\u{1f}a9789295055025\u{1f}q(XML)\u{1e}\\\\\u{1f}z9781402894626\u{1f}q(Hardback)\u{1e}7\\\u{1f}a10.00001/BOOK.0001\u{1f}2doi\u{1e}7\\\u{1f}aOCLC010101\u{1f}2worldcat\u{1e}\\\\\u{1f}aUkCbTOM\u{1f}beng\u{1f}elocal\u{1e}1\\\u{1f}aeng\u{1f}hspa\u{1e}00\u{1f}aJA85\u{1e} 7\u{1f}aAAB\u{1f}2bicssc\u{1e} 7\u{1f}aAAA000000\u{1f}2bisacsh\u{1e} 7\u{1f}aJWA\u{1f}2thema\u{1e}1\\\u{1f}aAuthor, Sole,\u{1f}eauthor.\u{1f}uThoth University.\u{1f}1https://orcid.org/0000-0002-0000-0001\u{1e}10\u{1f}aBook Title :\u{1f}bBook Subtitle /\u{1f}cSole Author; edited by Only Editor; translated by Translator.\u{1e}\\\\\u{1f}aSecond edition.\u{1e}\\1\u{1f}aLeón, Spain :\u{1f}bOA Editions,\u{1f}c2010.\u{1e}\\4\u{1f}c©2010\u{1e}\\\\\u{1f}a1 online resource.\u{1e}\\\\\u{1f}atext\u{1f}btxt\u{1f}2rdacontent\u{1e}\\\\\u{1f}acomputer\u{1f}bc\u{1f}2rdamedia\u{1e}\\\\\u{1f}aonline resource\u{1f}bcr\u{1f}2rdacarrier\u{1e}1\\\u{1f}aName of series ;\u{1f}vvol. 11.\u{1f}x8765-4321\u{1f}x1234-5678\u{1e}\\\\\u{1f}aPlease note that in this book the mathematical formulas are encoded in MathML.\u{1e}\\\\\u{1f}aIncludes bibliography (pages 165-170) and index.\u{1e}0\\\u{1f}aIntroduction; Chapter 1; Chapter 2; Bibliography; Index\u{1e}0\\\u{1f}aOpen Access\u{1f}fUnrestricted online access\u{1f}2star\u{1e}\\\\\u{1f}aLorem ipsum dolor sit amet\u{1e}\\\\\u{1f}aFunding Institution\u{1f}cJA0001\u{1f}eFunding Programme\u{1f}fFunding Project\u{1e}\\\\\u{1f}aMode of access: World Wide Web.\u{1e}\\\\\u{1f}aThe text of this book is licensed under a Creative Commons Attribution 4.0 International license (CC BY 4.0). For more detailed information consult the publisher's website.\u{1f}uhttps://creativecommons.org/licenses/by/4.0/\u{1e}0\\\u{1f}aMetadata licensed under CC0 Public Domain Dedication.\u{1e}1\\\u{1f}aEditor, Only,\u{1f}eeditor.\u{1f}1https://orcid.org/0000-0002-0000-0004\u{1e}0\\\u{1f}aTranslator,\u{1f}etranslator.\u{1f}uCOPIM.\u{1e}2\\\u{1f}aOA Editions,\u{1f}epublisher.\u{1e}\\0\u{1f}aName of series ;\u{1f}vvol. 11.\u{1f}x8765-4321\u{1f}x1234-5678\u{1e}40\u{1f}uhttps://doi.org/10.00001/book.0001\u{1f}zConnect to e-book\u{1e}42\u{1f}uhttps://www.book.com/cover.jpg\u{1f}zConnect to cover image\u{1e}42\u{1f}uhttps://creativecommons.org/publicdomain/zero/1.0/\u{1f}zCC0 Metadata License\u{1e}\u{1d}");
+        let expected = format!("02443nam  22005532  4500001003700000006001900037007001500056008004100071010001500112020002500127020002500152020003000177024002800207024002500235040002400260041001300284050000900297072001600306072002300322072001500345100011000360245009700470250002000567264004000587264001100627300002300638336002600661337002600687338003600713490005300749500008300802504005300885505005700938506005000995520002901045536006801074538003601142540022301178588005801401653001301459653001301472700009101485700003701576710002901613830005301642856005801695856005901753856007701812\u{1e}00000000-0000-0000-aaaa-000000000001\u{1e}m     o  d        \u{1e}cr  n         \u{1e}{current_date}t20102010        ob    001 0 eng d\u{1e}\\\\\u{1f}aLCCN010101\u{1e}\\\\\u{1f}a9783161484100\u{1f}q(PDF)\u{1e}\\\\\u{1f}a9789295055025\u{1f}q(XML)\u{1e}\\\\\u{1f}z9781402894626\u{1f}q(Hardback)\u{1e}7\\\u{1f}a10.00001/BOOK.0001\u{1f}2doi\u{1e}7\\\u{1f}aOCLC010101\u{1f}2worldcat\u{1e}\\\\\u{1f}aUkCbTOM\u{1f}beng\u{1f}elocal\u{1e}1\\\u{1f}aeng\u{1f}hspa\u{1e}00\u{1f}aJA85\u{1e} 7\u{1f}aAAB\u{1f}2bicssc\u{1e} 7\u{1f}aAAA000000\u{1f}2bisacsh\u{1e} 7\u{1f}aJWA\u{1f}2thema\u{1e}1\\\u{1f}aAuthor, Sole,\u{1f}eauthor.\u{1f}uThoth University.\u{1f}0(orcid)0000000200000001\u{1f}1https://orcid.org/0000-0002-0000-0001\u{1e}10\u{1f}aBook Title :\u{1f}bBook Subtitle /\u{1f}cSole Author; edited by Only Editor; translated by Translator.\u{1e}\\\\\u{1f}aSecond edition.\u{1e}\\1\u{1f}aLeón, Spain :\u{1f}bOA Editions,\u{1f}c2010.\u{1e}\\4\u{1f}c©2010\u{1e}\\\\\u{1f}a1 online resource.\u{1e}\\\\\u{1f}atext\u{1f}btxt\u{1f}2rdacontent\u{1e}\\\\\u{1f}acomputer\u{1f}bc\u{1f}2rdamedia\u{1e}\\\\\u{1f}aonline resource\u{1f}bcr\u{1f}2rdacarrier\u{1e}1\\\u{1f}aName of series ;\u{1f}vvol. 11.\u{1f}x8765-4321\u{1f}x1234-5678\u{1e}\\\\\u{1f}aPlease note that in this book the mathematical formulas are encoded in MathML.\u{1e}\\\\\u{1f}aIncludes bibliography (pages 165-170) and index.\u{1e}0\\\u{1f}aIntroduction;Chapter 1;Chapter 2;Bibliography; Index\u{1e}0\\\u{1f}aOpen Access\u{1f}fUnrestricted online access\u{1f}2star\u{1e}\\\\\u{1f}aLoremipsumdolor sit amet\u{1e}\\\\\u{1f}aFunding Institution\u{1f}cJA0001\u{1f}eFunding Programme\u{1f}fFunding Project\u{1e}\\\\\u{1f}aMode of access: World Wide Web.\u{1e}\\\\\u{1f}aThe text of this book is licensed under a Creative Commons Attribution 4.0 International license (CC BY 4.0). For more detailed information consult the publisher's website.\u{1f}uhttps://creativecommons.org/licenses/by/4.0/\u{1e}0\\\u{1f}aMetadata licensed under CC0 Public Domain Dedication.\u{1e}\\\\\u{1f}akeyword1\u{1e}\\\\\u{1f}akeyword2\u{1e}1\\\u{1f}aEditor, Only,\u{1f}eeditor.\u{1f}0(orcid)0000000200000004\u{1f}1https://orcid.org/0000-0002-0000-0004\u{1e}0\\\u{1f}aTranslator,\u{1f}etranslator.\u{1f}uCOPIM.\u{1e}2\\\u{1f}aOA Editions,\u{1f}epublisher.\u{1e}\\0\u{1f}aName of series ;\u{1f}vvol. 11.\u{1f}x8765-4321\u{1f}x1234-5678\u{1e}40\u{1f}uhttps://doi.org/10.00001/book.0001\u{1f}zConnect to e-book\u{1e}42\u{1f}uhttps://www.book.com/cover.jpg\u{1f}zConnect to cover image\u{1e}42\u{1f}uhttps://creativecommons.org/publicdomain/zero/1.0/\u{1f}zCC0 Metadata License\u{1e}\u{1d}");
 
         assert_eq!(Marc21RecordThoth {}.generate(&[work]), Ok(expected))
     }
