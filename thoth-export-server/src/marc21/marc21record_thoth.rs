@@ -571,7 +571,7 @@ fn toc_field(relations: &[WorkRelations]) -> ThothResult<FieldRepr> {
     let mut separator = " --";
     while let Some(chapter) = chapter_list.next() {
         let chapter_title = &chapter.related_work.full_title;
-        let chapter_number = chapter.relation_ordinal;
+        let chapter_pages = &chapter.related_work.page_interval;
         let chapter_authors = chapter
             .related_work
             .contributions
@@ -579,15 +579,28 @@ fn toc_field(relations: &[WorkRelations]) -> ThothResult<FieldRepr> {
             .map(|c| c.full_name.clone())
             .collect::<Vec<_>>()
             .join(", ");
-        toc_field = toc_field.add_subfield(b"g", format!("{}.", chapter_number))?;
         if chapter_list.peek().is_none() {
             // End list of chapters with a full stop
             separator = ".";
         }
         if !chapter_authors.is_empty() {
             toc_field = toc_field.add_subfield(b"t", format!("{} /", chapter_title))?;
-            toc_field =
-                toc_field.add_subfield(b"r", format!("{}{}", chapter_authors, separator))?;
+            if chapter_pages.is_some() {
+                toc_field = toc_field.add_subfield(b"r", chapter_authors)?;
+                toc_field = toc_field.add_subfield(
+                    b"g",
+                    format!("(pp{}){}", chapter_pages.as_ref().unwrap(), separator),
+                )?;
+            } else {
+                toc_field =
+                    toc_field.add_subfield(b"r", format!("{}{}", chapter_authors, separator))?;
+            }
+        } else if chapter_pages.is_some() {
+            toc_field = toc_field.add_subfield(b"t", chapter_title)?;
+            toc_field = toc_field.add_subfield(
+                b"g",
+                format!("(pp{}){}", chapter_pages.as_ref().unwrap(), separator),
+            )?;
         } else {
             toc_field = toc_field.add_subfield(b"t", format!("{}{}", chapter_title, separator))?;
         }
@@ -1049,6 +1062,7 @@ pub(crate) mod tests {
                 place: None,
                 first_page: None,
                 last_page: None,
+                page_interval: None,
                 landing_page: None,
                 imprint: WorkRelationsRelatedWorkImprint {
                     publisher: WorkRelationsRelatedWorkImprintPublisher {
@@ -1520,8 +1534,7 @@ pub(crate) mod tests {
     fn test_toc_field_one_chapter_one_author() {
         let relations = vec![test_relation()];
         let expected = Ok(FieldRepr::from((b"505", "00"))
-            .add_subfield(b"g", "1.".as_bytes())
-            .and_then(|f| f.add_subfield(b"t", "Chapter One /".as_bytes()))
+            .add_subfield(b"t", "Chapter One /".as_bytes())
             .and_then(|f| f.add_subfield(b"r", "Chapter-One Author.".as_bytes()))
             .unwrap());
         assert_eq!(toc_field(&relations), expected);
@@ -1533,8 +1546,33 @@ pub(crate) mod tests {
         relation.related_work.contributions.clear();
         let relations = vec![relation];
         let expected = Ok(FieldRepr::from((b"505", "00"))
-            .add_subfield(b"g", "1.".as_bytes())
-            .and_then(|f| f.add_subfield(b"t", "Chapter One.".as_bytes()))
+            .add_subfield(b"t", "Chapter One.".as_bytes())
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_one_chapter_one_author_with_pages() {
+        let mut relation = test_relation();
+        relation.related_work.page_interval = Some("10–20".to_string());
+        let relations = vec![relation];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"t", "Chapter One /".as_bytes())
+            .and_then(|f| f.add_subfield(b"r", "Chapter-One Author".as_bytes()))
+            .and_then(|f| f.add_subfield(b"g", "(pp10–20).".as_bytes()))
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_one_chapter_no_author_with_pages() {
+        let mut relation = test_relation();
+        relation.related_work.contributions.clear();
+        relation.related_work.page_interval = Some("10–20".to_string());
+        let relations = vec![relation];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"t", "Chapter One".as_bytes())
+            .and_then(|f| f.add_subfield(b"g", "(pp10–20).".as_bytes()))
             .unwrap());
         assert_eq!(toc_field(&relations), expected);
     }
@@ -1551,8 +1589,7 @@ pub(crate) mod tests {
         relation.related_work.contributions[1].contribution_ordinal = 2;
         let relations = vec![relation];
         let expected = Ok(FieldRepr::from((b"505", "00"))
-            .add_subfield(b"g", "1.".as_bytes())
-            .and_then(|f| f.add_subfield(b"t", "Chapter One /".as_bytes()))
+            .add_subfield(b"t", "Chapter One /".as_bytes())
             .and_then(|f| {
                 f.add_subfield(
                     b"r",
@@ -1572,10 +1609,8 @@ pub(crate) mod tests {
         // Place in reverse order and test correct re-ordering
         let relations = vec![second_relation, test_relation()];
         let expected = Ok(FieldRepr::from((b"505", "00"))
-            .add_subfield(b"g", "1.".as_bytes())
-            .and_then(|f| f.add_subfield(b"t", "Chapter One /".as_bytes()))
+            .add_subfield(b"t", "Chapter One /".as_bytes())
             .and_then(|f| f.add_subfield(b"r", "Chapter-One Author --".as_bytes()))
-            .and_then(|f| f.add_subfield(b"g", "2.".as_bytes()))
             .and_then(|f| f.add_subfield(b"t", "Chapter Two /".as_bytes()))
             .and_then(|f| f.add_subfield(b"r", "Chapter-Two Author.".as_bytes()))
             .unwrap());
@@ -1592,10 +1627,28 @@ pub(crate) mod tests {
         second_relation.related_work.contributions.clear();
         let relations = vec![first_relation, second_relation];
         let expected = Ok(FieldRepr::from((b"505", "00"))
-            .add_subfield(b"g", "1.".as_bytes())
-            .and_then(|f| f.add_subfield(b"t", "Chapter One --".as_bytes()))
-            .and_then(|f| f.add_subfield(b"g", "2.".as_bytes()))
+            .add_subfield(b"t", "Chapter One --".as_bytes())
             .and_then(|f| f.add_subfield(b"t", "Chapter Two.".as_bytes()))
+            .unwrap());
+        assert_eq!(toc_field(&relations), expected);
+    }
+
+    #[test]
+    fn test_toc_field_two_chapters_no_authors_with_pages() {
+        let mut first_relation = test_relation();
+        first_relation.related_work.page_interval = Some("10–20".to_string());
+        first_relation.related_work.contributions.clear();
+        let mut second_relation = test_relation();
+        second_relation.relation_ordinal = 2;
+        second_relation.related_work.full_title = "Chapter Two".to_string();
+        second_relation.related_work.page_interval = Some("20–30".to_string());
+        second_relation.related_work.contributions.clear();
+        let relations = vec![first_relation, second_relation];
+        let expected = Ok(FieldRepr::from((b"505", "00"))
+            .add_subfield(b"t", "Chapter One".as_bytes())
+            .and_then(|f| f.add_subfield(b"g", "(pp10–20) --".as_bytes()))
+            .and_then(|f| f.add_subfield(b"t", "Chapter Two".as_bytes()))
+            .and_then(|f| f.add_subfield(b"g", "(pp20–30).".as_bytes()))
             .unwrap());
         assert_eq!(toc_field(&relations), expected);
     }
@@ -1606,8 +1659,7 @@ pub(crate) mod tests {
         parent_relation.relation_type = RelationType::IS_CHILD_OF;
         let relations = vec![test_relation(), parent_relation];
         let expected = Ok(FieldRepr::from((b"505", "00"))
-            .add_subfield(b"g", "1.".as_bytes())
-            .and_then(|f| f.add_subfield(b"t", "Chapter One /".as_bytes()))
+            .add_subfield(b"t", "Chapter One /".as_bytes())
             .and_then(|f| f.add_subfield(b"r", "Chapter-One Author.".as_bytes()))
             .unwrap());
         assert_eq!(toc_field(&relations), expected);
