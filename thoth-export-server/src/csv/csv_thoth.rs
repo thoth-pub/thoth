@@ -831,6 +831,7 @@ mod tests {
                     place: None,
                     first_page: None,
                     last_page: None,
+                    page_interval: None,
                     landing_page: None,
                     imprint: WorkRelationsRelatedWorkImprint {
                         publisher: WorkRelationsRelatedWorkImprintPublisher {
@@ -1154,6 +1155,7 @@ mod tests {
                 place: None,
                 first_page: None,
                 last_page: None,
+                page_interval: None,
                 landing_page: None,
                 imprint: WorkRelationsRelatedWorkImprint {
                     publisher: WorkRelationsRelatedWorkImprintPublisher {
