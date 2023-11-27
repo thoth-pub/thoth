@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.11.10]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.10) - 2023-11-27
+### Fixed
+  - [524](https://github.com/thoth-pub/thoth/pull/524) - Bibliography note not being retrieved on work page
+
 ## [[0.11.9]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.9) - 2023-11-22
 ### Changed
   - Upgrade rust to `1.74.0` in production and development `Dockerfile`

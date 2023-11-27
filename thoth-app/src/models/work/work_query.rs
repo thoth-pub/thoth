@@ -35,6 +35,7 @@ pub const WORK_QUERY: &str = "
             shortAbstract
             longAbstract
             generalNote
+            bibliographyNote
             toc
             coverUrl
             coverCaption
