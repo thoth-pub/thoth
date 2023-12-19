@@ -55,7 +55,7 @@ impl SpecificationQuery {
         // get a vector of all page offsets we will need
         let offsets = match total_pages {
             1 => vec![0], // otherwise a range of (1..1) gives us nothing
-            _ => (1..total_pages)
+            _ => (1..=total_pages) // inclusive upper bound
                 .map(|current_page| (current_page - 1) * PAGINATION_LIMIT)
                 .collect::<Vec<i64>>(),
         };
