@@ -51,7 +51,8 @@ impl SpecificationQuery {
             .thoth_client
             .get_work_count(Some(vec![publisher_id]))
             .await?;
-        let total_pages = (work_count / PAGINATION_LIMIT) + 1;
+        // calculate total pages, rounding up to ensure all works are covered
+        let total_pages = (work_count + PAGINATION_LIMIT - 1) / PAGINATION_LIMIT;
         // get a vector of all page offsets we will need
         let offsets = (1..=total_pages) // inclusive upper bound
             .map(|current_page| (current_page - 1) * PAGINATION_LIMIT)
