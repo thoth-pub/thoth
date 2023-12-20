@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Fixed
   - [530](https://github.com/thoth-pub/thoth/pull/530) - Fix pagination offset calculation in export API
+  - [530](https://github.com/thoth-pub/thoth/pull/530) - Do not allow to create more than one price in the same currency for the same publication
 
 ## [[0.11.11]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.11) - 2023-12-19
 ### Changed
