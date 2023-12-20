@@ -62,6 +62,7 @@ static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "location_uniq_platform_idx" => "A location on the selected platform already exists.",
     "location_url_check" => "A location must have a landing page and/or a full text URL.",
     "orcid_uniq_idx" => "A contributor with this ORCID ID already exists.",
+    "price_publication_id_currency_code_uniq" => "A price in this currency already exists for this publication.",
     "price_unit_price_check" => "Price values must be greater than zero. To indicate an unpriced Publication, omit all Prices.",
     "publication_depth_in_check" => "Publication depth must be greater than 0.0.",
     "publication_depth_in_not_missing" => "When specifying Depth, both values (mm and in) must be supplied.",
