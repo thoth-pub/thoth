@@ -51,14 +51,12 @@ impl SpecificationQuery {
             .thoth_client
             .get_work_count(Some(vec![publisher_id]))
             .await?;
-        let total_pages = (work_count / PAGINATION_LIMIT) + 1;
+        // calculate total pages, rounding up to ensure all works are covered
+        let total_pages = (work_count + PAGINATION_LIMIT - 1) / PAGINATION_LIMIT;
         // get a vector of all page offsets we will need
-        let offsets = match total_pages {
-            1 => vec![0], // otherwise a range of (1..1) gives us nothing
-            _ => (1..total_pages)
-                .map(|current_page| (current_page - 1) * PAGINATION_LIMIT)
-                .collect::<Vec<i64>>(),
-        };
+        let offsets = (1..=total_pages) // inclusive upper bound
+            .map(|current_page| (current_page - 1) * PAGINATION_LIMIT)
+            .collect::<Vec<i64>>();
 
         // make concurrent requests iterating the list of offsets to asynchronously obtain all pages
         let mut works_pages = stream::iter(offsets)
