@@ -141,6 +141,10 @@ impl Component for PublicationModalComponent {
                         // Editing existing publication: load its current values.
                         self.publication = publication;
                     }
+                    if ctx.props().work_type == WorkType::BookChapter {
+                        // ISBNs cannot be added for publications whose work type is Book Chapter.
+                        self.publication.isbn = None;
+                    }
                     // Ensure ISBN variable value is kept in sync with publication object.
                     self.isbn = self
                         .publication
