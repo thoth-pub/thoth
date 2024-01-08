@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade `actix-cors` to v0.7.0
   - Increase size of URL columns in locations component
 
+### Fixed
+  - [531](https://github.com/thoth-pub/thoth/pull/531) - Fix bug where New Publication form for Chapter could have an ISBN pre-populated but greyed out
+
 ## [[0.11.12]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.12) - 2023-12-20
 ### Fixed
   - [530](https://github.com/thoth-pub/thoth/pull/530) - Fix pagination offset calculation in export API
