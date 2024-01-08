@@ -1,6 +1,6 @@
 [package]
 name = "thoth-api-server"
-version = "0.11.12"
+version = "0.11.13"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -9,8 +9,8 @@ repository = "https://github.com/thoth-pub/thoth"
 readme = "README.md"
 
 [dependencies]
-thoth-api = { version = "0.11.12", path = "../thoth-api", features = ["backend"] }
-thoth-errors = { version = "0.11.12", path = "../thoth-errors" }
+thoth-api = { version = "0.11.13", path = "../thoth-api", features = ["backend"] }
+thoth-errors = { version = "0.11.13", path = "../thoth-errors" }
 actix-web = "4.4.1"
 actix-cors = "0.7.0"
 actix-identity = "0.6.0"
