@@ -378,25 +378,25 @@ impl LocationsFormComponent {
                     <i class="fas fa-file-invoice-dollar" aria-hidden="true"></i>
                 </span>
                 <div class="field-body">
-                    <div class="field" style="width: 8em;">
+                    <div class="field" style="width: 11em;">
                         <label class="label">{ "Landing Page" }</label>
                         <div class="control is-expanded">
                             {&l.landing_page.clone().unwrap_or_default()}
                         </div>
                     </div>
-                    <div class="field" style="width: 8em;">
+                    <div class="field" style="width: 11em;">
                         <label class="label">{ "Full Text URL" }</label>
                         <div class="control is-expanded">
                             {&l.full_text_url.clone().unwrap_or_default()}
                         </div>
                     </div>
-                    <div class="field" style="width: 8em;">
+                    <div class="field" style="width: 5em;">
                         <label class="label">{ "Platform" }</label>
                         <div class="control is-expanded">
                             {&l.location_platform}
                         </div>
                     </div>
-                    <div class="field" style="width: 8em;">
+                    <div class="field" style="width: 5em;">
                         <label class="label">{ "Canonical" }</label>
                         <div class="control is-expanded">
                             {
