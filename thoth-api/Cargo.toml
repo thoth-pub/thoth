@@ -1,6 +1,6 @@
 [package]
 name = "thoth-api"
-version = "0.11.12"
+version = "0.11.13"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -16,8 +16,8 @@ maintenance = { status = "actively-developed" }
 backend = ["diesel", "diesel-derive-enum", "diesel_migrations", "futures", "actix-web"]
 
 [dependencies]
-thoth-errors = { version = "0.11.12", path = "../thoth-errors" }
-actix-web = { version = "4.4.0", optional = true }
+thoth-errors = { version = "0.11.13", path = "../thoth-errors" }
+actix-web = { version = "4.4.1", optional = true }
 argon2rs = "0.2.5"
 isbn2 = "0.4.0"
 chrono = { version = "0.4.31", features = ["serde"] }
@@ -28,7 +28,7 @@ diesel_migrations = { version = "2.1.0", features = ["postgres"], optional = tru
 dotenv = "0.15.0"
 futures = { version  = "0.3.29", optional = true }
 jsonwebtoken = "8.3.0"
-juniper = "0.15.11"
+juniper = "0.15.12"
 lazy_static = "1.4.0"
 phf = { version = "0.11", features = ["macros"] }
 rand = "0.8.5"
