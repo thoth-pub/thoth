@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade `juniper` to v0.15.12
   - Upgrade `actix-web` to v4.4.1
   - Upgrade `actix-cors` to v0.7.0
+  - Increase size of URL columns in locations component
 
 ## [[0.11.12]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.12) - 2023-12-20
 ### Fixed
