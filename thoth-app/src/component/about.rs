@@ -34,6 +34,7 @@ impl Component for AboutComponent {
                         <li>{ "Toby Steiner (COO)" }</li>
                         <li>{ "Javier Arias (CTO)" }</li>
                         <li>{ "Ross Higman (Software Engineer)" }</li>
+                        <li>{ "Brendan O'Connell (Software Engineer)" }</li>
                         <li>{ "Hannah Hillen (Metadata & Publisher Outreach Specialist)" }</li>
                     </ul>
                     <p class="title is-5">{ "Consultants" }</p>
