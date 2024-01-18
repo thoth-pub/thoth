@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade `actix-web` to v4.4.1
   - Upgrade `actix-cors` to v0.7.0
   - Increase size of URL columns in locations component
+  - Added Brendan to About page
 
 ### Fixed
   - [531](https://github.com/thoth-pub/thoth/pull/531) - Fix bug where New Publication form for Chapter could have an ISBN pre-populated but greyed out
