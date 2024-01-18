@@ -48,6 +48,18 @@ pub enum LocationPlatform {
     #[cfg_attr(feature = "backend", db_rename = "JISC KB")]
     #[strum(serialize = "JISC KB")]
     JiscKb,
+    #[cfg_attr(feature = "backend", db_rename = "Google Books")]
+    #[strum(serialize = "Google Books")]
+    GoogleBooks,
+    #[cfg_attr(feature = "backend", db_rename = "Internet Archive")]
+    #[strum(serialize = "Internet Archive")]
+    InternetArchive,
+    #[cfg_attr(feature = "backend", db_rename = "ScienceOpen")]
+    #[strum(serialize = "ScienceOpen")]
+    ScienceOpen,
+    #[cfg_attr(feature = "backend", db_rename = "SciELO")]
+    #[strum(serialize = "SciELO")]
+    Scielo,
     #[cfg_attr(feature = "backend", db_rename = "Other")]
     #[default]
     Other,
@@ -161,6 +173,13 @@ fn test_locationplatform_display() {
     );
     assert_eq!(format!("{}", LocationPlatform::EbscoKb), "EBSCO KB");
     assert_eq!(format!("{}", LocationPlatform::JiscKb), "JISC KB");
+    assert_eq!(format!("{}", LocationPlatform::GoogleBooks), "Google Books");
+    assert_eq!(
+        format!("{}", LocationPlatform::InternetArchive),
+        "Internet Archive"
+    );
+    assert_eq!(format!("{}", LocationPlatform::ScienceOpen), "ScienceOpen");
+    assert_eq!(format!("{}", LocationPlatform::Scielo), "SciELO");
     assert_eq!(format!("{}", LocationPlatform::Other), "Other");
 }
 
@@ -206,6 +225,22 @@ fn test_locationplatform_fromstr() {
     assert_eq!(
         LocationPlatform::from_str("JISC KB").unwrap(),
         LocationPlatform::JiscKb
+    );
+    assert_eq!(
+        LocationPlatform::from_str("Google Books").unwrap(),
+        LocationPlatform::GoogleBooks
+    );
+    assert_eq!(
+        LocationPlatform::from_str("Internet Archive").unwrap(),
+        LocationPlatform::InternetArchive
+    );
+    assert_eq!(
+        LocationPlatform::from_str("ScienceOpen").unwrap(),
+        LocationPlatform::ScienceOpen
+    );
+    assert_eq!(
+        LocationPlatform::from_str("SciELO").unwrap(),
+        LocationPlatform::Scielo
     );
     assert_eq!(
         LocationPlatform::from_str("Other").unwrap(),
