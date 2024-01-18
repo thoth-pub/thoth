@@ -57,9 +57,9 @@ pub enum LocationPlatform {
     #[cfg_attr(feature = "backend", db_rename = "ScienceOpen")]
     #[strum(serialize = "ScienceOpen")]
     ScienceOpen,
-    #[cfg_attr(feature = "backend", db_rename = "SciELO")]
-    #[strum(serialize = "SciELO")]
-    Scielo,
+    #[cfg_attr(feature = "backend", db_rename = "SciELO Books")]
+    #[strum(serialize = "SciELO Books")]
+    ScieloBooks,
     #[cfg_attr(feature = "backend", db_rename = "Other")]
     #[default]
     Other,
@@ -179,7 +179,7 @@ fn test_locationplatform_display() {
         "Internet Archive"
     );
     assert_eq!(format!("{}", LocationPlatform::ScienceOpen), "ScienceOpen");
-    assert_eq!(format!("{}", LocationPlatform::Scielo), "SciELO");
+    assert_eq!(format!("{}", LocationPlatform::ScieloBooks), "SciELO Books");
     assert_eq!(format!("{}", LocationPlatform::Other), "Other");
 }
 
@@ -239,8 +239,8 @@ fn test_locationplatform_fromstr() {
         LocationPlatform::ScienceOpen
     );
     assert_eq!(
-        LocationPlatform::from_str("SciELO").unwrap(),
-        LocationPlatform::Scielo
+        LocationPlatform::from_str("SciELO Books").unwrap(),
+        LocationPlatform::ScieloBooks
     );
     assert_eq!(
         LocationPlatform::from_str("Other").unwrap(),

@@ -17524,7 +17524,7 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
-              "name": "SCIELO"
+              "name": "SCIELO_BOOKS"
             },
             {
               "deprecationReason": null,
