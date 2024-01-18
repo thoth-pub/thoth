@@ -17506,6 +17506,30 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
+              "name": "GOOGLE_BOOKS"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "INTERNET_ARCHIVE"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "SCIENCE_OPEN"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "SCIELO"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
               "name": "OTHER"
             }
           ],
