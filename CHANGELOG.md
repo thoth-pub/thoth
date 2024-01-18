@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+  - [526](https://github.com/thoth-pub/thoth/issues/526) - Added Brendan to About page
 
 ## [[0.11.13]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.13) - 2024-01-08
 ### Changed
@@ -13,7 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upgrade `actix-web` to v4.4.1
   - Upgrade `actix-cors` to v0.7.0
   - Increase size of URL columns in locations component
-  - Added Brendan to About page
 
 ### Fixed
   - [531](https://github.com/thoth-pub/thoth/pull/531) - Fix bug where New Publication form for Chapter could have an ISBN pre-populated but greyed out
