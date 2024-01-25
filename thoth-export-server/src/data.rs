@@ -35,7 +35,10 @@ lazy_static! {
             id: "onix_3.0::jstor",
             name: "JSTOR ONIX 3.0",
             format: concat!(env!("THOTH_EXPORT_API"), "/formats/onix_3.0"),
-            accepted_by: vec![concat!(env!("THOTH_EXPORT_API"), "/platforms/jstor"),],
+            accepted_by: vec![
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/jstor"),
+                concat!(env!("THOTH_EXPORT_API"), "/platforms/bds_live"),
+            ],
         },
         Specification {
             id: "onix_3.0::google_books",
@@ -190,6 +193,14 @@ lazy_static! {
             accepts: vec![concat!(
                 env!("THOTH_EXPORT_API"),
                 "/specifications/onix_3.0::overdrive"
+            ),],
+        },
+        Platform {
+            id: "bds_live",
+            name: "BDS Live",
+            accepts: vec![concat!(
+                env!("THOTH_EXPORT_API"),
+                "/specifications/onix_3.0::jstor"
             ),],
         },
         Platform {
