@@ -116,6 +116,7 @@ pub trait DisplayWork {
     fn marc21_thoth_endpoint(&self) -> String;
     fn marc21markup_thoth_endpoint(&self) -> String;
     fn marc21xml_thoth_endpoint(&self) -> String;
+    fn onix_thoth_endpoint(&self) -> String;
     fn onix_projectmuse_endpoint(&self) -> String;
     fn onix_oapen_endpoint(&self) -> String;
     fn onix_jstor_endpoint(&self) -> String;
@@ -152,6 +153,13 @@ impl DisplayWork for WorkWithRelations {
     fn marc21xml_thoth_endpoint(&self) -> String {
         format!(
             "{}/specifications/marc21xml::thoth/work/{}",
+            THOTH_EXPORT_API, &self.work_id
+        )
+    }
+
+    fn onix_thoth_endpoint(&self) -> String {
+        format!(
+            "{}/specifications/onix_3.0::thoth/work/{}",
             THOTH_EXPORT_API, &self.work_id
         )
     }
@@ -424,6 +432,12 @@ impl DisplayWork for WorkWithRelations {
                                     </div>
                                     <div class="dropdown-menu" id="dropdown-menu" role="menu">
                                         <div class="dropdown-content">
+                                            <a
+                                                href={self.onix_projectmuse_endpoint()}
+                                                class="dropdown-item"
+                                            >
+                                            {"ONIX 3.0 (Thoth)"}
+                                            </a>
                                             <a
                                                 href={self.onix_projectmuse_endpoint()}
                                                 class="dropdown-item"
