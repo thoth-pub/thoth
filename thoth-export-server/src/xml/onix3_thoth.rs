@@ -2,9 +2,8 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, CurrencyCode, LanguageRelation, PublicationType, SubjectType, Work,
-    WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkStatus,
-    WorkType,
+    ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
+    WorkFundings, WorkIssues, WorkLanguages, WorkStatus, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -61,52 +60,16 @@ impl XmlSpecification for Onix3Thoth {
 
 impl XmlElementBlock<Onix3Thoth> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        // Don't output works with no publication date (mandatory in OverDrive)
-        if self.publication_date.is_none() {
-            Err(ThothError::IncompleteMetadataRecord(
-                ONIX_ERROR.to_string(),
-                "Missing Publication Date".to_string(),
-            ))
-        // Don't output works with no long abstract (Description element mandatory in OverDrive)
-        } else if self.long_abstract.is_none() {
-            Err(ThothError::IncompleteMetadataRecord(
-                ONIX_ERROR.to_string(),
-                "Missing Long Abstract".to_string(),
-            ))
-        // Don't output works with no language codes (mandatory in OverDrive)
-        } else if self.languages.is_empty() {
-            Err(ThothError::IncompleteMetadataRecord(
-                ONIX_ERROR.to_string(),
-                "Missing Language Code(s)".to_string(),
-            ))
-        // We can only generate the document if there's an EPUB or PDF
-        // with a non-zero price (OverDrive only accepts priced items)
-        } else if let Some(main_publication) = self
-            .publications
-            .iter()
-            // For preference, distribute the EPUB only
-            .find(|p| {
-                p.publication_type.eq(&PublicationType::EPUB)
-                    && p.locations
-                        .iter()
-                        .any(|l| l.canonical && l.full_text_url.is_some())
-                    // Thoth database only accepts non-zero prices
-                    && !p.prices.is_empty()
-            })
-            // If no EPUB is found, distribute the PDF only
-            .or_else(|| {
-                self.publications.iter().find(|p| {
-                    p.publication_type.eq(&PublicationType::PDF)
-                        && p.locations
-                            .iter()
-                            .any(|l| l.canonical && l.full_text_url.is_some())
-                        // Thoth database only accepts non-zero prices
-                        && !p.prices.is_empty()
-                })
-            })
-        {
-            let work_id = format!("urn:uuid:{}", self.work_id);
-            let (main_isbn, isbns) = get_publications_data(&self.publications, main_publication);
+        // TODO is there any field that's optional in Thoth but mandatory in ONIX?
+        let work_id = format!("urn:uuid:{}", self.work_id);
+        let mut isbns: Vec<String> = Vec::new();
+        for publication in &self.publications {
+            if let Some(isbn) = &publication.isbn.as_ref() {
+                isbns.push(isbn.to_hyphenless_string());
+            }
+        }
+        for publication in &self.publications {
+            let current_isbn = &publication.isbn.as_ref().map(|p| p.to_hyphenless_string());
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
                     w.write(XmlEvent::Characters(&work_id))
@@ -130,16 +93,17 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             .map_err(|e| e.into())
                     })
                 })?;
-                write_element_block("ProductIdentifier", w, |w| {
-                    // 15 ISBN-13
-                    write_element_block("ProductIDType", w, |w| {
-                        w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
+                if let Some(isbn) = current_isbn {
+                    write_element_block("ProductIdentifier", w, |w| {
+                        // 15 ISBN-13
+                        write_element_block("ProductIDType", w, |w| {
+                            w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("IDValue", w, |w| {
+                            w.write(XmlEvent::Characters(isbn)).map_err(|e| e.into())
+                        })
                     })?;
-                    write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(&main_isbn))
-                            .map_err(|e| e.into())
-                    })
-                })?;
+                }
                 if let Some(doi) = &self.doi {
                     write_element_block("ProductIdentifier", w, |w| {
                         write_element_block("ProductIDType", w, |w| {
@@ -156,19 +120,15 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                     write_element_block("ProductComposition", w, |w| {
                         w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                     })?;
-                    // EB Digital download and online
+                    let (form, form_detail) = get_product_form_codes(&publication.publication_type);
                     write_element_block("ProductForm", w, |w| {
-                        w.write(XmlEvent::Characters("EB")).map_err(|e| e.into())
+                        w.write(XmlEvent::Characters(form)).map_err(|e| e.into())
                     })?;
-                    let digital_type = match main_publication.publication_type {
-                        PublicationType::EPUB => "E101",
-                        PublicationType::PDF => "E107",
-                        _ => unreachable!(),
-                    };
-                    write_element_block("ProductFormDetail", w, |w| {
-                        w.write(XmlEvent::Characters(digital_type))
-                            .map_err(|e| e.into())
-                    })?;
+                    if let Some(code) = form_detail {
+                        write_element_block("ProductFormDetail", w, |w| {
+                            w.write(XmlEvent::Characters(code)).map_err(|e| e.into())
+                        })?;
+                    }
                     // 10 Text (eye-readable)
                     write_element_block("PrimaryContentType", w, |w| {
                         w.write(XmlEvent::Characters("10")).map_err(|e| e.into())
@@ -372,21 +332,25 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                 if !isbns.is_empty() {
                     write_element_block("RelatedMaterial", w, |w| {
                         for isbn in &isbns {
-                            write_element_block("RelatedProduct", w, |w| {
-                                // 06 Alternative format
-                                write_element_block("ProductRelationCode", w, |w| {
-                                    w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
-                                })?;
-                                write_element_block("ProductIdentifier", w, |w| {
-                                    // 15 ISBN-13
-                                    write_element_block("ProductIDType", w, |w| {
-                                        w.write(XmlEvent::Characters("15")).map_err(|e| e.into())
+                            if !current_isbn.eq(&Some(isbn.clone())) {
+                                write_element_block("RelatedProduct", w, |w| {
+                                    // 06 Alternative format
+                                    write_element_block("ProductRelationCode", w, |w| {
+                                        w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
                                     })?;
-                                    write_element_block("IDValue", w, |w| {
-                                        w.write(XmlEvent::Characters(isbn)).map_err(|e| e.into())
+                                    write_element_block("ProductIdentifier", w, |w| {
+                                        // 15 ISBN-13
+                                        write_element_block("ProductIDType", w, |w| {
+                                            w.write(XmlEvent::Characters("15"))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("IDValue", w, |w| {
+                                            w.write(XmlEvent::Characters(isbn))
+                                                .map_err(|e| e.into())
+                                        })
                                     })
-                                })
-                            })?;
+                                })?;
+                            }
                         }
                         Ok(())
                     })?;
@@ -400,19 +364,20 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         })
                     })?;
                     let mut supplies: HashMap<String, (String, String)> = HashMap::new();
-                    supplies.insert(
-                        // Main publication's canonical location is guaranteed to have a full text URL
-                        main_publication
-                            .locations
-                            .iter()
-                            .find(|l| l.canonical)
-                            .and_then(|l| l.full_text_url.clone())
-                            .unwrap(),
-                        (
-                            "29".to_string(),
-                            "Publisher's website: download the title".to_string(),
-                        ),
-                    );
+                    if let Some(full_text_url) = publication
+                        .locations
+                        .iter()
+                        .find(|l| l.canonical)
+                        .and_then(|l| l.full_text_url.clone())
+                    {
+                        supplies.insert(
+                            full_text_url.to_string(),
+                            (
+                                "29".to_string(),
+                                "Publisher's website: download the title".to_string(),
+                            ),
+                        );
+                    }
                     if let Some(landing_page) = &self.landing_page {
                         supplies.insert(
                             landing_page.to_string(),
@@ -477,85 +442,67 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                     },
                                 )
                             })?;
-                            // Price element is required for OverDrive. Assume the USD price is canonical.
-                            if let Some(price) = main_publication
-                                .prices
-                                .iter()
-                                .find(|pr| {
-                                    // Thoth database only accepts non-zero prices
-                                    pr.currency_code.eq(&CurrencyCode::USD)
-                                })
-                                .map(|pr| pr.unit_price)
-                            {
-                                let formatted_price = format!("{price:.2}");
-                                write_element_block("Price", w, |w| {
-                                    // 02 RRP including tax
-                                    write_element_block("PriceType", w, |w| {
-                                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("PriceAmount", w, |w| {
-                                        w.write(XmlEvent::Characters(&formatted_price))
-                                            .map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("CurrencyCode", w, |w| {
-                                        w.write(XmlEvent::Characters("USD")).map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("Territory", w, |w| {
-                                        write_element_block("RegionsIncluded", w, |w| {
-                                            w.write(XmlEvent::Characters("WORLD"))
-                                                .map_err(|e| e.into())
-                                        })
-                                    })
+                            if publication.prices.is_empty() {
+                                // 04 Contact supplier
+                                write_element_block("UnpricedItemType", w, |w| {
+                                    w.write(XmlEvent::Characters("04")).map_err(|e| e.into())
                                 })
                             } else {
-                                Err(ThothError::IncompleteMetadataRecord(
-                                    ONIX_ERROR.to_string(),
-                                    "No USD price found".to_string(),
-                                ))
+                                for price in &publication.prices {
+                                    let unit_price = price.unit_price;
+                                    let formatted_price = format!("{unit_price:.2}");
+                                    write_element_block("Price", w, |w| {
+                                        // 02 RRP including tax
+                                        write_element_block("PriceType", w, |w| {
+                                            w.write(XmlEvent::Characters("02"))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("PriceAmount", w, |w| {
+                                            w.write(XmlEvent::Characters(&formatted_price))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("CurrencyCode", w, |w| {
+                                            w.write(XmlEvent::Characters(
+                                                &price.currency_code.to_string(),
+                                            ))
+                                            .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("Territory", w, |w| {
+                                            write_element_block("RegionsIncluded", w, |w| {
+                                                w.write(XmlEvent::Characters("WORLD"))
+                                                    .map_err(|e| e.into())
+                                            })
+                                        })
+                                    })?;
+                                }
+                                Ok(())
                             }
                         })?;
                     }
                     Ok(())
                 })
-            })
-        } else {
-            Err(ThothError::IncompleteMetadataRecord(
-                ONIX_ERROR.to_string(),
-                "No priced EPUB or PDF URL".to_string(),
-            ))
+            })?;
         }
+        Ok(())
     }
 }
 
-fn get_publications_data(
-    publications: &[WorkPublications],
-    main_publication: &WorkPublications,
-) -> (String, Vec<String>) {
-    let mut main_isbn = "".to_string();
-    let mut isbns: Vec<String> = Vec::new();
-
-    for publication in publications {
-        if let Some(isbn) = &publication.isbn.as_ref() {
-            isbns.push(isbn.to_hyphenless_string());
-            // The default product ISBN is the main publication's (EPUB or PDF)
-            if publication
-                .publication_id
-                .eq(&main_publication.publication_id)
-            {
-                main_isbn = isbn.to_hyphenless_string();
-            }
-            // If the main publication has no ISBN, use either the PDF's or the paperback's
-            // (no guarantee as to which will be chosen)
-            if (publication.publication_type.eq(&PublicationType::PDF)
-                || publication.publication_type.eq(&PublicationType::PAPERBACK))
-                && main_isbn.is_empty()
-            {
-                main_isbn = isbn.to_hyphenless_string();
-            }
-        }
+fn get_product_form_codes(publication_type: &PublicationType) -> (&str, Option<&str>) {
+    match publication_type {
+        PublicationType::PAPERBACK => ("BC", None),
+        PublicationType::HARDBACK => ("BB", None),
+        // EB Digital download and online
+        PublicationType::PDF => ("EB", Some("E107")),
+        PublicationType::HTML => ("EB", Some("E105")),
+        PublicationType::XML => ("EB", Some("E113")),
+        PublicationType::EPUB => ("EB", Some("E101")),
+        PublicationType::MOBI => ("EB", Some("E127")),
+        PublicationType::AZW3 => ("EB", Some("E116")),
+        PublicationType::DOCX => ("EB", Some("E104")),
+        // E100 "not yet allocated" - no codelist entry for .fb2, .fb3, .fbz
+        PublicationType::FICTION_BOOK => ("EB", Some("E100")),
+        PublicationType::Other(_) => unreachable!(),
     }
-
-    (main_isbn, isbns)
 }
 
 impl XmlElement<Onix3Thoth> for WorkStatus {
@@ -789,9 +736,10 @@ mod tests {
     use thoth_api::model::Isbn;
     use thoth_api::model::Orcid;
     use thoth_client::{
-        ContributionType, LanguageCode, LanguageRelation, LocationPlatform, PublicationType,
-        WorkContributionsContributor, WorkImprint, WorkImprintPublisher, WorkIssuesSeries,
-        WorkPublicationsLocations, WorkPublicationsPrices, WorkStatus, WorkSubjects, WorkType,
+        ContributionType, CurrencyCode, LanguageCode, LanguageRelation, LocationPlatform,
+        PublicationType, WorkContributionsContributor, WorkImprint, WorkImprintPublisher,
+        WorkIssuesSeries, WorkPublications, WorkPublicationsLocations, WorkPublicationsPrices,
+        WorkStatus, WorkSubjects, WorkType,
     };
     use uuid::Uuid;
 
