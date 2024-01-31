@@ -210,7 +210,6 @@ impl XmlElementBlock<Onix21ProquestEbrary> for Work {
                 }
                 for (url, description) in websites.iter() {
                     write_element_block("Website", w, |w| {
-                        // 01 Publisher’s corporate website
                         write_element_block("WebsiteRole", w, |w| {
                             w.write(XmlEvent::Characters(&description.0))
                                 .map_err(|e| e.into())

@@ -353,7 +353,6 @@ impl XmlElementBlock<Onix3Jstor> for Work {
                                     .map_err(|e| e.into())
                                 })?;
                                 write_element_block("Website", w, |w| {
-                                    // 01 Publisher’s corporate website
                                     write_element_block("WebsiteRole", w, |w| {
                                         w.write(XmlEvent::Characters(&description.0))
                                             .map_err(|e| e.into())
