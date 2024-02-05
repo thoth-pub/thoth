@@ -88,6 +88,10 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                     write_element_block("ProductIDType", w, |w| {
                         w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
                     })?;
+                    write_element_block("IDTypeName", w, |w| {
+                        w.write(XmlEvent::Characters("thoth-work-id"))
+                            .map_err(|e| e.into())
+                    })?;
                     write_element_block("IDValue", w, |w| {
                         w.write(XmlEvent::Characters(&work_id))
                             .map_err(|e| e.into())
@@ -115,6 +119,43 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         })
                     })?;
                 }
+                if let Some(lccn) = &self.lccn {
+                    write_element_block("ProductIdentifier", w, |w| {
+                        write_element_block("ProductIDType", w, |w| {
+                            w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("IDValue", w, |w| {
+                            w.write(XmlEvent::Characters(&lccn.to_string()))
+                                .map_err(|e| e.into())
+                        })
+                    })?;
+                }
+                if let Some(oclc) = &self.oclc {
+                    write_element_block("ProductIdentifier", w, |w| {
+                        write_element_block("ProductIDType", w, |w| {
+                            w.write(XmlEvent::Characters("23")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("IDValue", w, |w| {
+                            w.write(XmlEvent::Characters(&oclc.to_string()))
+                                .map_err(|e| e.into())
+                        })
+                    })?;
+                }
+                if let Some(reference) = &self.reference {
+                    write_element_block("ProductIdentifier", w, |w| {
+                        write_element_block("ProductIDType", w, |w| {
+                            w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("IDTypeName", w, |w| {
+                            w.write(XmlEvent::Characters("internal-reference"))
+                                .map_err(|e| e.into())
+                        })?;
+                        write_element_block("IDValue", w, |w| {
+                            w.write(XmlEvent::Characters(&reference.to_string()))
+                                .map_err(|e| e.into())
+                        })
+                    })?;
+                }
                 write_element_block("DescriptiveDetail", w, |w| {
                     // 00 Single-component retail product
                     write_element_block("ProductComposition", w, |w| {
@@ -133,6 +174,47 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                     write_element_block("PrimaryContentType", w, |w| {
                         w.write(XmlEvent::Characters("10")).map_err(|e| e.into())
                     })?;
+                    if let Some(height_mm) = &publication.height_mm {
+                        // 01 height
+                        XmlElementBlock::<Onix3Thoth>::xml_element(&("01", height_mm, "mm"), w)
+                            .ok();
+                    }
+                    if let Some(height_cm) = &publication.height_cm {
+                        XmlElementBlock::<Onix3Thoth>::xml_element(&("01", height_cm, "cm"), w)
+                            .ok();
+                    }
+                    if let Some(height_in) = &publication.height_in {
+                        XmlElementBlock::<Onix3Thoth>::xml_element(&("01", height_in, "in"), w)
+                            .ok();
+                    }
+                    if let Some(width_mm) = &publication.width_mm {
+                        // 02 width
+                        XmlElementBlock::<Onix3Thoth>::xml_element(&("02", width_mm, "mm"), w).ok();
+                    }
+                    if let Some(width_cm) = &publication.width_cm {
+                        XmlElementBlock::<Onix3Thoth>::xml_element(&("02", width_cm, "cm"), w).ok();
+                    }
+                    if let Some(width_in) = &publication.width_in {
+                        XmlElementBlock::<Onix3Thoth>::xml_element(&("02", width_in, "in"), w).ok();
+                    }
+                    if let Some(depth_mm) = &publication.depth_mm {
+                        // 03 thickness
+                        XmlElementBlock::<Onix3Thoth>::xml_element(&("03", depth_mm, "mm"), w).ok();
+                    }
+                    if let Some(depth_cm) = &publication.depth_cm {
+                        XmlElementBlock::<Onix3Thoth>::xml_element(&("03", depth_cm, "cm"), w).ok();
+                    }
+                    if let Some(depth_in) = &publication.depth_in {
+                        XmlElementBlock::<Onix3Thoth>::xml_element(&("03", depth_in, "in"), w).ok();
+                    }
+                    if let Some(weight_g) = &publication.weight_g {
+                        // 08 unit weight
+                        XmlElementBlock::<Onix3Thoth>::xml_element(&("08", weight_g, "gr"), w).ok();
+                    }
+                    if let Some(weight_oz) = &publication.weight_oz {
+                        XmlElementBlock::<Onix3Thoth>::xml_element(&("08", weight_oz, "oz"), w)
+                            .ok();
+                    }
                     if let Some(license) = &self.license {
                         write_element_block("EpubLicense", w, |w| {
                             write_element_block("EpubLicenseName", w, |w| {
@@ -178,6 +260,17 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                     for contribution in &self.contributions {
                         XmlElementBlock::<Onix3Thoth>::xml_element(contribution, w).ok();
                     }
+                    if let Some(edition) = &self.edition {
+                        // "Normally sent only for the second and subsequent editions"
+                        if edition > &1 {
+                            write_element_block("Edition", w, |w| {
+                                write_element_block("EditionNumber", w, |w| {
+                                    w.write(XmlEvent::Characters(&edition.to_string()))
+                                        .map_err(|e| e.into())
+                                })
+                            })?;
+                        }
+                    }
                     for language in &self.languages {
                         XmlElementBlock::<Onix3Thoth>::xml_element(language, w).ok();
                     }
@@ -194,6 +287,70 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             // 03 Pages
                             write_element_block("ExtentUnit", w, |w| {
                                 w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
+                            })
+                        })?;
+                    }
+                    if let Some(bibliography_note) = &self.bibliography_note {
+                        // "This data element carries text stating the number and type of
+                        // illustrations. The text may also include other content items,
+                        // eg maps, bibliography, tables, index etc."
+                        write_element_block("IllustrationsNote", w, |w| {
+                            w.write(XmlEvent::Characters(&bibliography_note.to_string()))
+                                .map_err(|e| e.into())
+                        })?;
+                    }
+                    if let Some(image_count) = self.image_count {
+                        write_element_block("AncillaryContent", w, |w| {
+                            // 09 Illustrations, unspecified
+                            // (note that there are separate codes for e.g. "halftones" - we don't distinguish)
+                            write_element_block("AncillaryContentType", w, |w| {
+                                w.write(XmlEvent::Characters("09")).map_err(|e| e.into())
+                            })?;
+                            write_element_block("Number", w, |w| {
+                                w.write(XmlEvent::Characters(&image_count.to_string()))
+                                    .map_err(|e| e.into())
+                            })
+                        })?;
+                    }
+                    if let Some(table_count) = self.table_count {
+                        write_element_block("AncillaryContent", w, |w| {
+                            // 11 Tables, unspecified
+                            write_element_block("AncillaryContentType", w, |w| {
+                                w.write(XmlEvent::Characters("11")).map_err(|e| e.into())
+                            })?;
+                            write_element_block("Number", w, |w| {
+                                w.write(XmlEvent::Characters(&table_count.to_string()))
+                                    .map_err(|e| e.into())
+                            })
+                        })?;
+                    }
+                    if let Some(audio_count) = self.audio_count {
+                        write_element_block("AncillaryContent", w, |w| {
+                            // 19 Recorded music items
+                            // (closest equivalent - audio might not always be music)
+                            write_element_block("AncillaryContentType", w, |w| {
+                                w.write(XmlEvent::Characters("19")).map_err(|e| e.into())
+                            })?;
+                            write_element_block("Number", w, |w| {
+                                w.write(XmlEvent::Characters(&audio_count.to_string()))
+                                    .map_err(|e| e.into())
+                            })
+                        })?;
+                    }
+                    if let Some(video_count) = self.video_count {
+                        write_element_block("AncillaryContent", w, |w| {
+                            // 00 Unspecified, see description
+                            // (there is no code for "videos")
+                            write_element_block("AncillaryContentType", w, |w| {
+                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                            })?;
+                            write_element_block("AncillaryContentDescription", w, |w| {
+                                w.write(XmlEvent::Characters("Videos"))
+                                    .map_err(|e| e.into())
+                            })?;
+                            write_element_block("Number", w, |w| {
+                                w.write(XmlEvent::Characters(&video_count.to_string()))
+                                    .map_err(|e| e.into())
                             })
                         })?;
                     }
@@ -218,20 +375,53 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                     })
                 })?;
                 write_element_block("CollateralDetail", w, |w| {
-                    write_element_block("TextContent", w, |w| {
-                        // 03 Description ("30 Abstract" not implemented in OverDrive)
-                        write_element_block("TextType", w, |w| {
-                            w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
+                    if let Some(mut short_abstract) = self.short_abstract.clone() {
+                        // Short description field may not exceed 350 characters
+                        short_abstract.truncate(350);
+                        write_element_block("TextContent", w, |w| {
+                            // 02 Short description
+                            write_element_block("TextType", w, |w| {
+                                w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                            })?;
+                            // 00 Unrestricted
+                            write_element_block("ContentAudience", w, |w| {
+                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                            })?;
+                            write_full_element_block(
+                                "Text",
+                                Some(vec![("language", "eng")]),
+                                w,
+                                |w| {
+                                    w.write(XmlEvent::Characters(&short_abstract))
+                                        .map_err(|e| e.into())
+                                },
+                            )
                         })?;
-                        // 00 Unrestricted
-                        write_element_block("ContentAudience", w, |w| {
-                            w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
-                        })?;
-                        write_full_element_block("Text", Some(vec![("language", "eng")]), w, |w| {
-                            w.write(XmlEvent::Characters(self.long_abstract.as_ref().unwrap()))
-                                .map_err(|e| e.into())
-                        })
-                    })?;
+                    }
+                    if let Some(long_abstract) = &self.long_abstract {
+                        // 03 Description, 30 Abstract
+                        for text_type in ["03", "30"] {
+                            write_element_block("TextContent", w, |w| {
+                                write_element_block("TextType", w, |w| {
+                                    w.write(XmlEvent::Characters(text_type))
+                                        .map_err(|e| e.into())
+                                })?;
+                                // 00 Unrestricted
+                                write_element_block("ContentAudience", w, |w| {
+                                    w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                                })?;
+                                write_full_element_block(
+                                    "Text",
+                                    Some(vec![("language", "eng")]),
+                                    w,
+                                    |w| {
+                                        w.write(XmlEvent::Characters(long_abstract))
+                                            .map_err(|e| e.into())
+                                    },
+                                )
+                            })?;
+                        }
+                    }
                     if let Some(toc) = &self.toc {
                         write_element_block("TextContent", w, |w| {
                             // 04 Table of contents
@@ -250,6 +440,43 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             )
                         })?;
                     }
+                    write_element_block("TextContent", w, |w| {
+                        // 20 Open access statement
+                        write_element_block("TextType", w, |w| {
+                            w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
+                        })?;
+                        // 00 Unrestricted
+                        write_element_block("ContentAudience", w, |w| {
+                            w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                        })?;
+                        write_full_element_block("Text", Some(vec![("language", "eng")]), w, |w| {
+                            w.write(XmlEvent::Characters("Open Access"))
+                                .map_err(|e| e.into())
+                        })
+                    })?;
+                    if let Some(general_note) = &self.general_note {
+                        write_element_block("TextContent", w, |w| {
+                            // 13 Publisher's notice
+                            // "A statement included by a publisher in fulfillment of contractual obligations"
+                            // Used in many different ways - closest approximation
+                            write_element_block("TextType", w, |w| {
+                                w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
+                            })?;
+                            // 00 Unrestricted
+                            write_element_block("ContentAudience", w, |w| {
+                                w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
+                            })?;
+                            write_full_element_block(
+                                "Text",
+                                Some(vec![("language", "eng")]),
+                                w,
+                                |w| {
+                                    w.write(XmlEvent::Characters(general_note))
+                                        .map_err(|e| e.into())
+                                },
+                            )
+                        })?;
+                    }
                     if let Some(cover_url) = &self.cover_url {
                         write_element_block("SupportingResource", w, |w| {
                             // 01 Front cover
@@ -264,6 +491,18 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             write_element_block("ResourceMode", w, |w| {
                                 w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
                             })?;
+                            if let Some(cover_caption) = &self.cover_caption {
+                                write_element_block("ResourceFeature", w, |w| {
+                                    // 02 Caption
+                                    write_element_block("ResourceFeatureType", w, |w| {
+                                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("ResourceFeatureNote", w, |w| {
+                                        w.write(XmlEvent::Characters(cover_caption))
+                                            .map_err(|e| e.into())
+                                    })
+                                })?;
+                            }
                             write_element_block("ResourceVersion", w, |w| {
                                 // 02 Downloadable file
                                 write_element_block("ResourceForm", w, |w| {
@@ -293,7 +532,23 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         write_element_block("PublisherName", w, |w| {
                             w.write(XmlEvent::Characters(&self.imprint.publisher.publisher_name))
                                 .map_err(|e| e.into())
-                        })
+                        })?;
+                        if let Some(url) = &self.imprint.publisher.publisher_url {
+                            write_element_block("Website", w, |w| {
+                                // 01 Publisher’s corporate website
+                                write_element_block("WebsiteRole", w, |w| {
+                                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("WebsiteDescription", w, |w| {
+                                    w.write(XmlEvent::Characters("Publisher's website: home page"))
+                                        .map_err(|e| e.into())
+                                })?;
+                                write_element_block("WebsiteLink", w, |w| {
+                                    w.write(XmlEvent::Characters(url)).map_err(|e| e.into())
+                                })
+                            })?;
+                        }
+                        Ok(())
                     })?;
                     for funding in &self.fundings {
                         XmlElementBlock::<Onix3Thoth>::xml_element(funding, w).ok();
@@ -317,6 +572,17 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             .map_err(|e| e.into())
                         })
                     })?;
+                    if let Some(copyright_holder) = &self.copyright_holder {
+                        write_element_block("CopyrightStatement", w, |w| {
+                            write_element_block("CopyrightOwner", w, |w| {
+                                // This might be a CorporateName rather than PersonName, but we can't tell
+                                write_element_block("PersonName", w, |w| {
+                                    w.write(XmlEvent::Characters(copyright_holder))
+                                        .map_err(|e| e.into())
+                                })
+                            })
+                        })?;
+                    }
                     write_element_block("SalesRights", w, |w| {
                         // 02 For sale with non-exclusive rights in the specified countries or territories
                         write_element_block("SalesRightsType", w, |w| {
@@ -414,10 +680,9 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                     })
                                 })
                             })?;
-                            // 20 Available from us (form of availability unspecified)
-                            // (99 Contact supplier is not supported by OverDrive)
+                            // 99 Contact supplier
                             write_element_block("ProductAvailability", w, |w| {
-                                w.write(XmlEvent::Characters("20")).map_err(|e| e.into())
+                                w.write(XmlEvent::Characters("99")).map_err(|e| e.into())
                             })?;
                             write_element_block("SupplyDate", w, |w| {
                                 write_element_block("SupplyDateRole", w, |w| {
@@ -605,14 +870,33 @@ impl XmlElementBlock<Onix3Thoth> for WorkContributions {
                     w.write(XmlEvent::Characters(first_name))
                         .map_err(|e| e.into())
                 })?;
-                write_element_block("KeyNames", w, |w| {
-                    w.write(XmlEvent::Characters(&self.last_name))
+            }
+            write_element_block("KeyNames", w, |w| {
+                w.write(XmlEvent::Characters(&self.last_name))
+                    .map_err(|e| e.into())
+            })?;
+            write_element_block("PersonName", w, |w| {
+                w.write(XmlEvent::Characters(&self.full_name))
+                    .map_err(|e| e.into())
+            })?;
+            if let Some(biography) = &self.biography {
+                write_element_block("BiographicalNote", w, |w| {
+                    w.write(XmlEvent::Characters(biography))
                         .map_err(|e| e.into())
                 })?;
-            } else {
-                write_element_block("PersonName", w, |w| {
-                    w.write(XmlEvent::Characters(&self.full_name))
-                        .map_err(|e| e.into())
+            }
+            if let Some(website) = &self.contributor.website {
+                write_element_block("Website", w, |w| {
+                    write_element_block("WebsiteRole", w, |w| {
+                        w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("WebsiteDescription", w, |w| {
+                        w.write(XmlEvent::Characters("Own website"))
+                            .map_err(|e| e.into())
+                    })?;
+                    write_element_block("WebsiteLink", w, |w| {
+                        w.write(XmlEvent::Characters(website)).map_err(|e| e.into())
+                    })
                 })?;
             }
             Ok(())
@@ -690,6 +974,30 @@ impl XmlElementBlock<Onix3Thoth> for WorkFundings {
                 w.write(XmlEvent::Characters(&self.institution.institution_name))
                     .map_err(|e| e.into())
             })?;
+            if let Some(ror) = &self.institution.ror {
+                write_element_block("PublisherIdentifier", w, |w| {
+                    // 40 ROR
+                    write_element_block("PublisherIDType", w, |w| {
+                        w.write(XmlEvent::Characters("40")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(&ror.to_string()))
+                            .map_err(|e| e.into())
+                    })
+                })?;
+            }
+            if let Some(doi) = &self.institution.institution_doi {
+                write_element_block("PublisherIdentifier", w, |w| {
+                    // 32 FundRef DOI
+                    write_element_block("PublisherIDType", w, |w| {
+                        w.write(XmlEvent::Characters("32")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(&doi.to_string()))
+                            .map_err(|e| e.into())
+                    })
+                })?;
+            }
             let mut identifiers: HashMap<String, String> = HashMap::new();
             if let Some(program) = &self.program {
                 identifiers.insert("programname".to_string(), program.to_string());
@@ -721,6 +1029,24 @@ impl XmlElementBlock<Onix3Thoth> for WorkFundings {
                 })?;
             }
             Ok(())
+        })
+    }
+}
+
+impl XmlElementBlock<Onix3Thoth> for (&str, &f64, &str) {
+    // (MeasureType, Measurement, MeasureUnitCode)
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_element_block("Measure", w, |w| {
+            write_element_block("MeasureType", w, |w| {
+                w.write(XmlEvent::Characters(self.0)).map_err(|e| e.into())
+            })?;
+            write_element_block("Measurement", w, |w| {
+                w.write(XmlEvent::Characters(&self.1.to_string()))
+                    .map_err(|e| e.into())
+            })?;
+            write_element_block("MeasureUnitCode", w, |w| {
+                w.write(XmlEvent::Characters(self.2)).map_err(|e| e.into())
+            })
         })
     }
 }
