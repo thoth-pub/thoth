@@ -1,12 +1,11 @@
 name: publish-to-dockerhub
 
 on:
-  pull_request:
-    types: [opened, edited]
-  workflow_dispatch:
+  release:
+    types: [published]
 
 jobs:
-  build_and_push_staging_docker_image:
+  build_and_push_docker_image:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -20,7 +19,9 @@ jobs:
             openbookpublishers/thoth
           # generate Docker tags based on the following events/attributes
           tags: |
-            type=ref,prefix=staging-pr-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx
@@ -37,26 +38,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            THOTH_GRAPHQL_API=https://api.thoth.pub
-            THOTH_EXPORT_API=https://export.thoth.pub
-      - name: Image digest
-        run: echo ${{ steps.docker_build.outputs.digest }}
-
-  build_dev_docker_image:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      - name: Build
-        id: docker_build
-        uses: docker/build-push-action@v3
-        with:
-          push: false
-          tags: openbookpublishers/thoth:latest
-          file: Dockerfile.dev
           build-args: |
             THOTH_GRAPHQL_API=https://api.thoth.pub
             THOTH_EXPORT_API=https://export.thoth.pub
