@@ -2,7 +2,6 @@ name: publish-to-dockerhub
 
 on:
   pull_request:
-    types: [opened, edited]
   workflow_dispatch:
 
 jobs:
