@@ -449,11 +449,9 @@ impl ToElementValue for Option<chrono::NaiveDate> {
     }
 }
 
-pub mod about;
 pub mod admin;
 pub mod affiliations_form;
 pub mod books;
-pub mod catalogue;
 pub mod chapters;
 pub mod contributions_form;
 pub mod contributor;
@@ -461,7 +459,6 @@ pub mod contributors;
 pub mod dashboard;
 pub mod delete_dialogue;
 pub mod fundings_form;
-pub mod hero;
 pub mod imprint;
 pub mod imprints;
 pub mod institution;
