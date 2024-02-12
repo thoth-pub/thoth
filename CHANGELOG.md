@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
+  - [553](https://github.com/thoth-pub/thoth/pull/553) - Upgrade rust to `1.76.0` in production and development `Dockerfile`
   - [549](https://github.com/thoth-pub/thoth/pull/549) - Build and push staging docker images on pull requests
   - [549](https://github.com/thoth-pub/thoth/pull/549) - Upgrade docker GitHub actions dependencies (`docker/setup-qemu-action@v3`, `docker/setup-buildx-action@v3`, `docker/login-action@v3`, `docker/build-push-action@v5`)
 
