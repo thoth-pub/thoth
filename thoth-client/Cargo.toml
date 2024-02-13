@@ -7,6 +7,7 @@ license = "Apache-2.0"
 description = "GraphQL Client for bibliographic data"
 repository = "https://github.com/thoth-pub/thoth"
 readme = "README.md"
+build = "build.rs"
 
 [dependencies]
 thoth-api = {version = "0.11.15", path = "../thoth-api" }
@@ -19,3 +20,6 @@ reqwest-retry = "0.2.3"
 serde = "1.0"
 serde_json = "1.0"
 uuid = { version = "0.8.2", features = ["serde"] }
+
+[build-dependencies]
+thoth-api = { version = "0.11.15", path = "../thoth-api", features = ["backend"] }
