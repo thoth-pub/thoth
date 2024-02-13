@@ -84,6 +84,11 @@ async fn graphql_index(config: Data<ApiConfig>) -> HttpResponse {
     ))
 }
 
+#[get("/schema.graphql")]
+async fn graphql_schema(st: Data<Arc<Schema>>) -> HttpResponse {
+    HttpResponse::Ok().body(st.as_schema_language())
+}
+
 #[post("/graphql")]
 async fn graphql(
     st: Data<Arc<Schema>>,
@@ -192,6 +197,7 @@ fn config(cfg: &mut ServiceConfig) {
     cfg.service(login_credentials);
     cfg.service(login_session);
     cfg.service(account_details);
+    cfg.service(graphql_schema);
 }
 
 #[allow(clippy::too_many_arguments)]
