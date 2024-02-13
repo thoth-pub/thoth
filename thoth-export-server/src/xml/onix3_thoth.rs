@@ -648,7 +648,8 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         supplies.insert(
                             landing_page.to_string(),
                             (
-                                "01".to_string(),
+                                // 02 Publisher's website for a specified work
+                                "02".to_string(),
                                 "Publisher's website: web shop".to_string(),
                             ),
                         );
