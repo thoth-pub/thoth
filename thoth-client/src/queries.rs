@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 #[derive(GraphQLQuery)]
 #[graphql(
-    schema_path = "assets/schema.json",
+    schema_path = "assets/schema.graphql",
     query_path = "assets/queries.graphql",
     response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq",
     variables_derives = "Debug,PartialEq"
@@ -46,7 +46,7 @@ impl fmt::Display for work_query::PublicationType {
 
 #[derive(GraphQLQuery)]
 #[graphql(
-    schema_path = "assets/schema.json",
+    schema_path = "assets/schema.graphql",
     query_path = "assets/queries.graphql",
     response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq",
     variables_derives = "Debug,PartialEq"
@@ -55,7 +55,7 @@ pub struct WorksQuery;
 
 #[derive(GraphQLQuery)]
 #[graphql(
-    schema_path = "assets/schema.json",
+    schema_path = "assets/schema.graphql",
     query_path = "assets/queries.graphql",
     response_derives = "Debug,Clone,Deserialize,Serialize,PartialEq",
     variables_derives = "Debug,PartialEq"

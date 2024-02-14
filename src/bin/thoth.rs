@@ -1,10 +1,10 @@
-use clap::{crate_authors, crate_version, value_parser, Arg, Command};
+use clap::{crate_authors, crate_version, value_parser, Arg, ArgAction, Command};
 use dialoguer::{console::Term, theme::ColorfulTheme, Input, MultiSelect, Password, Select};
 use dotenv::dotenv;
 use std::env;
 use thoth::api::account::model::{AccountData, LinkedPublisher};
 use thoth::api::account::service::{all_emails, all_publishers, register, update_password};
-use thoth::api::db::{establish_connection, run_migrations};
+use thoth::api::db::{establish_connection, revert_migrations, run_migrations};
 use thoth::api_server;
 use thoth::app_server;
 use thoth::export_server;
@@ -129,7 +129,16 @@ fn thoth_commands() -> Command {
         .about(env!("CARGO_PKG_DESCRIPTION"))
         .subcommand_required(true)
         .arg_required_else_help(true)
-        .subcommand(Command::new("migrate").about("Run the database migrations"))
+        .subcommand(
+            Command::new("migrate")
+                .about("Run the database migrations")
+                .arg(
+                    Arg::new("revert")
+                        .long("revert")
+                        .help("Revert all database migrations")
+                        .action(ArgAction::SetTrue),
+                ),
+        )
         .subcommand(
             Command::new("start")
                 .about("Start an instance of Thoth API or GUI")
@@ -240,7 +249,10 @@ fn main() -> ThothResult<()> {
             }
             _ => unreachable!(),
         },
-        Some(("migrate", _)) => run_migrations(),
+        Some(("migrate", migrate_matches)) => match migrate_matches.get_flag("revert") {
+            true => revert_migrations(),
+            false => run_migrations(),
+        },
         Some(("init", init_matches)) => {
             let host = init_matches.get_one::<String>("host").unwrap().to_owned();
             let port = init_matches.get_one::<String>("port").unwrap().to_owned();

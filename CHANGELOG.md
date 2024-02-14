@@ -9,7 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [441](https://github.com/thoth-pub/thoth/issues/441) - Implement ONIX 3.0 "Thoth" specification (i.e. complete record reflecting full data model)
   - [401](https://github.com/thoth-pub/thoth/issues/401) - Add BDS Live to list of supported platforms for JSTOR ONIX output
 ### Changed
-  - Upgrade rust to `1.76.0` in production and development `Dockerfile`
+  - [553](https://github.com/thoth-pub/thoth/pull/553) - Upgrade rust to `1.76.0` in production and development `Dockerfile`
+  - [305](https://github.com/thoth-pub/thoth/issues/305) - Update rust edition to 2021
+  - [555](https://github.com/thoth-pub/thoth/pull/555) - Remove thoth-client's schema.json with auto-generated GraphQL schema language file on compilation
+
+### Added
+  - [244](https://github.com/thoth-pub/thoth/issues/244) - Expose GraphQL schema file in /schema.graphql
+  - [503](https://github.com/thoth-pub/thoth/issues/503) - Allow reverting migrations in the CLI and check that migrations can be reverted in run-migration github action
+  - [557](https://github.com/thoth-pub/thoth/pull/557) - Added github action to chech that the changelog has been updated on PRs
 
 ## [[0.11.15]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.15) - 2024-01-18
 ### Changed
