@@ -39,3 +39,11 @@ pub fn run_migrations() -> ThothResult<()> {
         Err(error) => Err(ThothError::DatabaseError(error.to_string())),
     }
 }
+
+pub fn revert_migrations() -> ThothResult<()> {
+    let mut connection = establish_connection().get().unwrap();
+    match connection.revert_all_migrations(MIGRATIONS) {
+        Ok(_) => Ok(()),
+        Err(error) => Err(ThothError::DatabaseError(error.to_string())),
+    }
+}
