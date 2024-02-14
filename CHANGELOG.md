@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [553](https://github.com/thoth-pub/thoth/pull/553) - Upgrade rust to `1.76.0` in production and development `Dockerfile`
   - [305](https://github.com/thoth-pub/thoth/issues/305) - Update rust edition to 2021
 
+### Added
+  - [557](https://github.com/thoth-pub/thoth/pull/557) - Added github action to chech that the changelog has been updated on PRs
+
 ## [[0.11.15]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.15) - 2024-01-18
 ### Changed
   - [536](https://github.com/thoth-pub/thoth/issues/536) - Rename "SciELO" location platform to "SciELO Books"
