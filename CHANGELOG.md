@@ -5,13 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Removed
+  - [549](https://github.com/thoth-pub/thoth/pull/549) - Deprecate public-facing pages in Thoth APP in favour of a separate, standalone, website
+
 ### Changed
   - [553](https://github.com/thoth-pub/thoth/pull/553) - Upgrade rust to `1.76.0` in production and development `Dockerfile`
   - [549](https://github.com/thoth-pub/thoth/pull/549) - Build and push staging docker images on pull requests
   - [549](https://github.com/thoth-pub/thoth/pull/549) - Upgrade GitHub actions dependencies (`docker/setup-qemu-action@v3`, `docker/setup-buildx-action@v3`, `docker/login-action@v3`, `docker/build-push-action@v5`, `actions/checkout@v4`, `actions/setup-node@v4`)
+  - [305](https://github.com/thoth-pub/thoth/issues/305) - Update rust edition to 2021
+  - [555](https://github.com/thoth-pub/thoth/pull/555) - Remove thoth-client's schema.json with auto-generated GraphQL schema language file on compilation
 
-### Removed
-  - [549](https://github.com/thoth-pub/thoth/pull/549) - Deprecate public-facing pages in Thoth APP in favour of a separate, standalone, website
+### Added
+  - [244](https://github.com/thoth-pub/thoth/issues/244) - Expose GraphQL schema file in /schema.graphql
+  - [503](https://github.com/thoth-pub/thoth/issues/503) - Allow reverting migrations in the CLI and check that migrations can be reverted in run-migration github action
+  - [557](https://github.com/thoth-pub/thoth/pull/557) - Added github action to chech that the changelog has been updated on PRs
 
 ## [[0.11.15]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.15) - 2024-01-18
 ### Changed

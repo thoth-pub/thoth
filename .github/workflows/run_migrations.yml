@@ -66,3 +66,8 @@ jobs:
       with:
         command: run
         args: migrate
+    - name: Revert migrations
+      uses: actions-rs/cargo@v1
+      with:
+        command: run
+        args: migrate --revert
