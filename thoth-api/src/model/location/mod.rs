@@ -249,7 +249,7 @@ fn test_locationplatform_fromstr() {
     assert_eq!(
       LocationPlatform::from_str("Publisher Website").unwrap(),
       LocationPlatform::PublisherWebsite
-  );
+    );
     assert_eq!(
         LocationPlatform::from_str("Other").unwrap(),
         LocationPlatform::Other
