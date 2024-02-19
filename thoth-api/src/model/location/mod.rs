@@ -185,7 +185,7 @@ fn test_locationplatform_display() {
     assert_eq!(format!("{}", LocationPlatform::ScieloBooks), "SciELO Books");
     assert_eq!(
         format!("{}", LocationPlatform::PublisherWebsite),
-         "Publisher Website"
+        "Publisher Website"
     );
     assert_eq!(format!("{}", LocationPlatform::Other), "Other");
 }
