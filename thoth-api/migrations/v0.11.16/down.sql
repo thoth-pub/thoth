@@ -1,5 +1,5 @@
 UPDATE location SET location_platform = 'Other' WHERE location_platform IN (
-    'Publisher Website',
+    'Publisher Website'
 );
 
 -- Drop the default and unique constraint, otherwise it won't be able to cast to text
@@ -22,7 +22,7 @@ CREATE TYPE location_platform AS ENUM (
     'Google Books',
     'Internet Archive',
     'ScienceOpen',
-    'SciELO Books'
+    'SciELO Books',
     'Other'
     );
 ALTER TABLE location ALTER location_platform TYPE location_platform USING location_platform::location_platform;
