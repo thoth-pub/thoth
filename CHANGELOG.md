@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
+  - [499](https://github.com/thoth-pub/thoth/issues/499) - Default main\_contribution to true
   - [561](https://github.com/thoth-pub/thoth/issues/561) - Add "Publisher Website" as a location platform
   - [553](https://github.com/thoth-pub/thoth/pull/553) - Upgrade rust to `1.76.0` in production and development `Dockerfile`
   - [305](https://github.com/thoth-pub/thoth/issues/305) - Update rust edition to 2021
