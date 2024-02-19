@@ -183,7 +183,10 @@ fn test_locationplatform_display() {
     );
     assert_eq!(format!("{}", LocationPlatform::ScienceOpen), "ScienceOpen");
     assert_eq!(format!("{}", LocationPlatform::ScieloBooks), "SciELO Books");
-    assert_eq!(format!("{}", LocationPlatform::PublisherWebsite), "Publisher Website");
+    assert_eq!(
+        format!("{}", LocationPlatform::PublisherWebsite),
+         "Publisher Website"
+    );
     assert_eq!(format!("{}", LocationPlatform::Other), "Other");
 }
 
@@ -247,8 +250,8 @@ fn test_locationplatform_fromstr() {
         LocationPlatform::ScieloBooks
     );
     assert_eq!(
-      LocationPlatform::from_str("Publisher Website").unwrap(),
-      LocationPlatform::PublisherWebsite
+        LocationPlatform::from_str("Publisher Website").unwrap(),
+        LocationPlatform::PublisherWebsite
     );
     assert_eq!(
         LocationPlatform::from_str("Other").unwrap(),
