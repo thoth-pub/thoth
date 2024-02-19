@@ -1,4 +1,4 @@
-ARG RUST_VERSION=1.75.0
+ARG RUST_VERSION=1.76.0
 
 FROM rust:${RUST_VERSION}
 
@@ -48,6 +48,7 @@ RUN mkdir thoth-api/src thoth-api-server/src thoth-app/src \
 RUN touch thoth-api/src/lib.rs thoth-api-server/src/lib.rs \
     thoth-app/src/lib.rs thoth-app-server/src/lib.rs thoth-client/src/lib.rs \
     thoth-errors/src/lib.rs thoth-export-server/src/lib.rs
+RUN echo "fn main() {}" > thoth-client/build.rs
 RUN wasm-pack build thoth-app/ \
   --target web \
   --debug

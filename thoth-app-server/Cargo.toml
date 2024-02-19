@@ -1,8 +1,8 @@
 [package]
 name = "thoth-app-server"
-version = "0.11.15"
+version = "0.11.16"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
 description = "Actix instance serving Thoth's WASM GUI statically"
 repository = "https://github.com/thoth-pub/thoth"
