@@ -2,8 +2,9 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
-    WorkFundings, WorkIssues, WorkLanguages, WorkStatus, WorkType,
+    ContributionType, LanguageRelation, PublicationType, RelationType, SubjectType, Work,
+    WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkRelations, WorkStatus,
+    WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -357,10 +358,18 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                     for subject in &self.subjects {
                         write_element_block("Subject", w, |w| {
                             XmlElement::<Onix3Thoth>::xml_element(&subject.subject_type, w)?;
-                            write_element_block("SubjectCode", w, |w| {
-                                w.write(XmlEvent::Characters(&subject.subject_code))
-                                    .map_err(|e| e.into())
-                            })
+                            match subject.subject_type {
+                                SubjectType::KEYWORD | SubjectType::CUSTOM => {
+                                    write_element_block("SubjectHeadingText", w, |w| {
+                                        w.write(XmlEvent::Characters(&subject.subject_code))
+                                            .map_err(|e| e.into())
+                                    })
+                                }
+                                _ => write_element_block("SubjectCode", w, |w| {
+                                    w.write(XmlEvent::Characters(&subject.subject_code))
+                                        .map_err(|e| e.into())
+                                }),
+                            }
                         })?;
                     }
                     write_element_block("Audience", w, |w| {
@@ -522,7 +531,22 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         write_element_block("ImprintName", w, |w| {
                             w.write(XmlEvent::Characters(&self.imprint.imprint_name))
                                 .map_err(|e| e.into())
-                        })
+                        })?;
+                        if let Some(url) = &self.imprint.imprint_url {
+                            write_element_block("ImprintIdentifier", w, |w| {
+                                // 01 Proprietary
+                                write_element_block("ImprintIDType", w, |w| {
+                                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("IDTypeName", w, |w| {
+                                    w.write(XmlEvent::Characters("URL")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("IDValue", w, |w| {
+                                    w.write(XmlEvent::Characters(url)).map_err(|e| e.into())
+                                })
+                            })?;
+                        }
+                        Ok(())
                     })?;
                     write_element_block("Publisher", w, |w| {
                         // 01 Publisher
@@ -595,7 +619,20 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         })
                     })
                 })?;
-                if !isbns.is_empty() {
+                let non_child_relations: Vec<WorkRelations> = self
+                    .relations
+                    .clone()
+                    .into_iter()
+                    .filter(|r| {
+                        r.relation_type != RelationType::HAS_CHILD
+                            && r.relation_type != RelationType::IS_CHILD_OF
+                            && r.related_work.doi.is_some()
+                    })
+                    .collect();
+                if !isbns.is_empty()
+                    || !non_child_relations.is_empty()
+                    || !self.references.is_empty()
+                {
                     write_element_block("RelatedMaterial", w, |w| {
                         for isbn in &isbns {
                             if !current_isbn.eq(&Some(isbn.clone())) {
@@ -617,6 +654,119 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                     })
                                 })?;
                             }
+                        }
+                        for relation in &non_child_relations {
+                            if relation.relation_type == RelationType::HAS_TRANSLATION
+                                || relation.relation_type == RelationType::IS_TRANSLATION_OF
+                            {
+                                write_element_block("RelatedWork", w, |w| {
+                                    let work_relation_code = match &relation.relation_type {
+                                        // 49 Related work is derived from this via translation
+                                        RelationType::HAS_TRANSLATION => "49",
+                                        // 29 Derived from via translation
+                                        RelationType::IS_TRANSLATION_OF => "29",
+                                        _ => unreachable!(),
+                                    };
+                                    write_element_block("WorkRelationCode", w, |w| {
+                                        w.write(XmlEvent::Characters(work_relation_code))
+                                            .map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("WorkIdentifier", w, |w| {
+                                        // 06 DOI
+                                        write_element_block("WorkIDType", w, |w| {
+                                            w.write(XmlEvent::Characters("06"))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("IDValue", w, |w| {
+                                            w.write(XmlEvent::Characters(
+                                                &relation
+                                                    .related_work
+                                                    .doi
+                                                    .as_ref()
+                                                    .unwrap()
+                                                    .to_string(),
+                                            ))
+                                            .map_err(|e| e.into())
+                                        })
+                                    })
+                                })?;
+                            } else {
+                                write_element_block("RelatedProduct", w, |w| {
+                                    let product_relation_code = match &relation.relation_type {
+                                        // 01 Includes
+                                        RelationType::HAS_PART => "01",
+                                        // 02 Is part of
+                                        RelationType::IS_PART_OF => "02",
+                                        // 03 Replaces
+                                        RelationType::REPLACES => "03",
+                                        // 05 Replaced by
+                                        RelationType::IS_REPLACED_BY => "05",
+                                        _ => unreachable!(),
+                                    };
+                                    write_element_block("ProductRelationCode", w, |w| {
+                                        w.write(XmlEvent::Characters(product_relation_code))
+                                            .map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("ProductIdentifier", w, |w| {
+                                        // 06 DOI
+                                        write_element_block("ProductIDType", w, |w| {
+                                            w.write(XmlEvent::Characters("06"))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("IDValue", w, |w| {
+                                            w.write(XmlEvent::Characters(
+                                                &relation
+                                                    .related_work
+                                                    .doi
+                                                    .as_ref()
+                                                    .unwrap()
+                                                    .to_string(),
+                                            ))
+                                            .map_err(|e| e.into())
+                                        })
+                                    })
+                                })?;
+                            }
+                        }
+                        for reference in &self.references {
+                            write_element_block("RelatedProduct", w, |w| {
+                                // 34 Cites
+                                write_element_block("ProductRelationCode", w, |w| {
+                                    w.write(XmlEvent::Characters("34")).map_err(|e| e.into())
+                                })?;
+                                if let Some(doi) = &reference.doi {
+                                    write_element_block("ProductIdentifier", w, |w| {
+                                        // 06 DOI
+                                        write_element_block("ProductIDType", w, |w| {
+                                            w.write(XmlEvent::Characters("06"))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("IDValue", w, |w| {
+                                            w.write(XmlEvent::Characters(&doi.to_string()))
+                                                .map_err(|e| e.into())
+                                        })
+                                    })
+                                } else {
+                                    // Unstructured citation is mandatory in Thoth if DOI is missing
+                                    write_element_block("ProductIdentifier", w, |w| {
+                                        // 01 Proprietary
+                                        write_element_block("ProductIDType", w, |w| {
+                                            w.write(XmlEvent::Characters("01"))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("IDTypeName", w, |w| {
+                                            w.write(XmlEvent::Characters("Unstructured citation"))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("IDValue", w, |w| {
+                                            w.write(XmlEvent::Characters(
+                                                reference.unstructured_citation.as_ref().unwrap(),
+                                            ))
+                                            .map_err(|e| e.into())
+                                        })
+                                    })
+                                }
+                            })?;
                         }
                         Ok(())
                     })?;
@@ -900,6 +1050,46 @@ impl XmlElementBlock<Onix3Thoth> for WorkContributions {
                     })
                 })?;
             }
+            for affiliation in &self.affiliations {
+                write_element_block("ProfessionalAffiliation", w, |w| {
+                    if let Some(position) = &affiliation.position {
+                        write_element_block("ProfessionalPosition", w, |w| {
+                            w.write(XmlEvent::Characters(position))
+                                .map_err(|e| e.into())
+                        })?;
+                    }
+                    if let Some(ror) = &affiliation.institution.ror {
+                        write_element_block("AffiliationIdentifier", w, |w| {
+                            // 40 ROR
+                            write_element_block("AffiliationIDType", w, |w| {
+                                w.write(XmlEvent::Characters("40")).map_err(|e| e.into())
+                            })?;
+                            write_element_block("IDValue", w, |w| {
+                                w.write(XmlEvent::Characters(&ror.to_string()))
+                                    .map_err(|e| e.into())
+                            })
+                        })?;
+                    }
+                    if let Some(doi) = &affiliation.institution.institution_doi {
+                        write_element_block("AffiliationIdentifier", w, |w| {
+                            // 32 FundRef DOI
+                            write_element_block("AffiliationIDType", w, |w| {
+                                w.write(XmlEvent::Characters("32")).map_err(|e| e.into())
+                            })?;
+                            write_element_block("IDValue", w, |w| {
+                                w.write(XmlEvent::Characters(&doi.to_string()))
+                                    .map_err(|e| e.into())
+                            })
+                        })?;
+                    }
+                    write_element_block("Affiliation", w, |w| {
+                        w.write(XmlEvent::Characters(
+                            &affiliation.institution.institution_name,
+                        ))
+                        .map_err(|e| e.into())
+                    })
+                })?;
+            }
             Ok(())
         })
     }
@@ -940,6 +1130,36 @@ impl XmlElementBlock<Onix3Thoth> for WorkIssues {
                     .map_err(|e| e.into())
                 })
             })?;
+            if let Some(url) = &self.series.series_url {
+                write_element_block("CollectionIdentifier", w, |w| {
+                    // 01 Proprietary
+                    write_element_block("CollectionIDType", w, |w| {
+                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDTypeName", w, |w| {
+                        w.write(XmlEvent::Characters("Series URL"))
+                            .map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(url)).map_err(|e| e.into())
+                    })
+                })?;
+            }
+            if let Some(url) = &self.series.series_cfp_url {
+                write_element_block("CollectionIdentifier", w, |w| {
+                    // 01 Proprietary
+                    write_element_block("CollectionIDType", w, |w| {
+                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDTypeName", w, |w| {
+                        w.write(XmlEvent::Characters("Series Call for Proposals URL"))
+                            .map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(url)).map_err(|e| e.into())
+                    })
+                })?;
+            }
             write_element_block("TitleDetail", w, |w| {
                 // 01 Cover title (serial)
                 write_element_block("TitleType", w, |w| {
@@ -1006,8 +1226,17 @@ impl XmlElementBlock<Onix3Thoth> for WorkFundings {
             if let Some(project_name) = &self.project_name {
                 identifiers.insert("projectname".to_string(), project_name.to_string());
             }
+            if let Some(project_shortname) = &self.project_name {
+                identifiers.insert(
+                    "projectshortname".to_string(),
+                    project_shortname.to_string(),
+                );
+            }
             if let Some(grant_number) = &self.grant_number {
                 identifiers.insert("grantnumber".to_string(), grant_number.to_string());
+            }
+            if let Some(jurisdiction) = &self.jurisdiction {
+                identifiers.insert("jurisdiction".to_string(), jurisdiction.to_string());
             }
             if !identifiers.is_empty() {
                 write_element_block("Funding", w, |w| {
