@@ -212,7 +212,7 @@ impl Default for Contribution {
             work_id: Default::default(),
             contributor_id: Default::default(),
             contribution_type: Default::default(),
-            main_contribution: Default::default(),
+            main_contribution: true,
             biography: Default::default(),
             created_at: Default::default(),
             updated_at: Default::default(),
