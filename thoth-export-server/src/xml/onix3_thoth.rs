@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
     ContributionType, LanguageRelation, PublicationType, RelationType, SubjectType, Work,
-    WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkRelations, WorkStatus,
-    WorkType,
+    WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkReferences, WorkRelations,
+    WorkStatus, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -656,117 +656,10 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             }
                         }
                         for relation in &non_child_relations {
-                            if relation.relation_type == RelationType::HAS_TRANSLATION
-                                || relation.relation_type == RelationType::IS_TRANSLATION_OF
-                            {
-                                write_element_block("RelatedWork", w, |w| {
-                                    let work_relation_code = match &relation.relation_type {
-                                        // 49 Related work is derived from this via translation
-                                        RelationType::HAS_TRANSLATION => "49",
-                                        // 29 Derived from via translation
-                                        RelationType::IS_TRANSLATION_OF => "29",
-                                        _ => unreachable!(),
-                                    };
-                                    write_element_block("WorkRelationCode", w, |w| {
-                                        w.write(XmlEvent::Characters(work_relation_code))
-                                            .map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("WorkIdentifier", w, |w| {
-                                        // 06 DOI
-                                        write_element_block("WorkIDType", w, |w| {
-                                            w.write(XmlEvent::Characters("06"))
-                                                .map_err(|e| e.into())
-                                        })?;
-                                        write_element_block("IDValue", w, |w| {
-                                            w.write(XmlEvent::Characters(
-                                                &relation
-                                                    .related_work
-                                                    .doi
-                                                    .as_ref()
-                                                    .unwrap()
-                                                    .to_string(),
-                                            ))
-                                            .map_err(|e| e.into())
-                                        })
-                                    })
-                                })?;
-                            } else {
-                                write_element_block("RelatedProduct", w, |w| {
-                                    let product_relation_code = match &relation.relation_type {
-                                        // 01 Includes
-                                        RelationType::HAS_PART => "01",
-                                        // 02 Is part of
-                                        RelationType::IS_PART_OF => "02",
-                                        // 03 Replaces
-                                        RelationType::REPLACES => "03",
-                                        // 05 Replaced by
-                                        RelationType::IS_REPLACED_BY => "05",
-                                        _ => unreachable!(),
-                                    };
-                                    write_element_block("ProductRelationCode", w, |w| {
-                                        w.write(XmlEvent::Characters(product_relation_code))
-                                            .map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("ProductIdentifier", w, |w| {
-                                        // 06 DOI
-                                        write_element_block("ProductIDType", w, |w| {
-                                            w.write(XmlEvent::Characters("06"))
-                                                .map_err(|e| e.into())
-                                        })?;
-                                        write_element_block("IDValue", w, |w| {
-                                            w.write(XmlEvent::Characters(
-                                                &relation
-                                                    .related_work
-                                                    .doi
-                                                    .as_ref()
-                                                    .unwrap()
-                                                    .to_string(),
-                                            ))
-                                            .map_err(|e| e.into())
-                                        })
-                                    })
-                                })?;
-                            }
+                            XmlElementBlock::<Onix3Thoth>::xml_element(relation, w).ok();
                         }
                         for reference in &self.references {
-                            write_element_block("RelatedProduct", w, |w| {
-                                // 34 Cites
-                                write_element_block("ProductRelationCode", w, |w| {
-                                    w.write(XmlEvent::Characters("34")).map_err(|e| e.into())
-                                })?;
-                                if let Some(doi) = &reference.doi {
-                                    write_element_block("ProductIdentifier", w, |w| {
-                                        // 06 DOI
-                                        write_element_block("ProductIDType", w, |w| {
-                                            w.write(XmlEvent::Characters("06"))
-                                                .map_err(|e| e.into())
-                                        })?;
-                                        write_element_block("IDValue", w, |w| {
-                                            w.write(XmlEvent::Characters(&doi.to_string()))
-                                                .map_err(|e| e.into())
-                                        })
-                                    })
-                                } else {
-                                    // Unstructured citation is mandatory in Thoth if DOI is missing
-                                    write_element_block("ProductIdentifier", w, |w| {
-                                        // 01 Proprietary
-                                        write_element_block("ProductIDType", w, |w| {
-                                            w.write(XmlEvent::Characters("01"))
-                                                .map_err(|e| e.into())
-                                        })?;
-                                        write_element_block("IDTypeName", w, |w| {
-                                            w.write(XmlEvent::Characters("Unstructured citation"))
-                                                .map_err(|e| e.into())
-                                        })?;
-                                        write_element_block("IDValue", w, |w| {
-                                            w.write(XmlEvent::Characters(
-                                                reference.unstructured_citation.as_ref().unwrap(),
-                                            ))
-                                            .map_err(|e| e.into())
-                                        })
-                                    })
-                                }
-                            })?;
+                            XmlElementBlock::<Onix3Thoth>::xml_element(reference, w).ok();
                         }
                         Ok(())
                     })?;
@@ -1260,6 +1153,115 @@ impl XmlElementBlock<Onix3Thoth> for WorkFundings {
             }
             Ok(())
         })
+    }
+}
+
+impl XmlElementBlock<Onix3Thoth> for WorkReferences {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_element_block("RelatedProduct", w, |w| {
+            // 34 Cites
+            write_element_block("ProductRelationCode", w, |w| {
+                w.write(XmlEvent::Characters("34")).map_err(|e| e.into())
+            })?;
+            if let Some(doi) = &self.doi {
+                write_element_block("ProductIdentifier", w, |w| {
+                    // 06 DOI
+                    write_element_block("ProductIDType", w, |w| {
+                        w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(&doi.to_string()))
+                            .map_err(|e| e.into())
+                    })
+                })
+            } else {
+                // Unstructured citation is mandatory in Thoth if DOI is missing
+                write_element_block("ProductIdentifier", w, |w| {
+                    // 01 Proprietary
+                    write_element_block("ProductIDType", w, |w| {
+                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDTypeName", w, |w| {
+                        w.write(XmlEvent::Characters("Unstructured citation"))
+                            .map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(
+                            self.unstructured_citation.as_ref().unwrap(),
+                        ))
+                        .map_err(|e| e.into())
+                    })
+                })
+            }
+        })
+    }
+}
+
+impl XmlElementBlock<Onix3Thoth> for WorkRelations {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        if self.relation_type == RelationType::HAS_TRANSLATION
+            || self.relation_type == RelationType::IS_TRANSLATION_OF
+        {
+            write_element_block("RelatedWork", w, |w| {
+                let work_relation_code = match &self.relation_type {
+                    // 49 Related work is derived from this via translation
+                    RelationType::HAS_TRANSLATION => "49",
+                    // 29 Derived from via translation
+                    RelationType::IS_TRANSLATION_OF => "29",
+                    _ => unreachable!(),
+                };
+                write_element_block("WorkRelationCode", w, |w| {
+                    w.write(XmlEvent::Characters(work_relation_code))
+                        .map_err(|e| e.into())
+                })?;
+                write_element_block("WorkIdentifier", w, |w| {
+                    // 06 DOI
+                    write_element_block("WorkIDType", w, |w| {
+                        w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(
+                            // Caller must guarantee that DOI is present
+                            &self.related_work.doi.as_ref().unwrap().to_string(),
+                        ))
+                        .map_err(|e| e.into())
+                    })
+                })
+            })
+        } else {
+            write_element_block("RelatedProduct", w, |w| {
+                let product_relation_code = match &self.relation_type {
+                    // 01 Includes
+                    RelationType::HAS_PART => "01",
+                    // 02 Is part of
+                    RelationType::IS_PART_OF => "02",
+                    // 03 Replaces
+                    RelationType::REPLACES => "03",
+                    // 05 Replaced by
+                    RelationType::IS_REPLACED_BY => "05",
+                    // This implementation is only valid for translation/part/replacement
+                    // relationships, not parent/child relationships
+                    _ => unreachable!(),
+                };
+                write_element_block("ProductRelationCode", w, |w| {
+                    w.write(XmlEvent::Characters(product_relation_code))
+                        .map_err(|e| e.into())
+                })?;
+                write_element_block("ProductIdentifier", w, |w| {
+                    // 06 DOI
+                    write_element_block("ProductIDType", w, |w| {
+                        w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(
+                            // Caller must guarantee that DOI is present
+                            &self.related_work.doi.as_ref().unwrap().to_string(),
+                        ))
+                        .map_err(|e| e.into())
+                    })
+                })
+            })
+        }
     }
 }
 
