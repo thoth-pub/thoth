@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+  - [447](https://github.com/thoth-pub/thoth/issues/447) - Google Books output must contain at least one BISAC subject code
   - [404](https://github.com/thoth-pub/thoth/issues/404) - JSTOR output must contain at least one BISAC subject code
   - [499](https://github.com/thoth-pub/thoth/issues/499) - Default main\_contribution to true
 

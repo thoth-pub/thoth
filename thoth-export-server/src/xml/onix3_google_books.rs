@@ -66,8 +66,19 @@ impl XmlSpecification for Onix3GoogleBooks {
 
 impl XmlElementBlock<Onix3GoogleBooks> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        // Google Books can only ingest works which have at least one BIC or BISAC subject code
+        if !self
+            .subjects
+            .iter()
+            .any(|s| s.subject_type.eq(&SubjectType::BISAC) || s.subject_type.eq(&SubjectType::BIC))
+        {
+            Err(ThothError::IncompleteMetadataRecord(
+                ONIX_ERROR.to_string(),
+                "No BIC or BISAC subject code".to_string(),
+            ))
+        }
         // Don't output works with no publication date (mandatory in Google Books)
-        if self.publication_date.is_none() {
+        else if self.publication_date.is_none() {
             Err(ThothError::IncompleteMetadataRecord(
                 ONIX_ERROR.to_string(),
                 "Missing Publication Date".to_string(),

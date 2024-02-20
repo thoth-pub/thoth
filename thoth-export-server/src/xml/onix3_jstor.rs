@@ -60,8 +60,19 @@ impl XmlSpecification for Onix3Jstor {
 
 impl XmlElementBlock<Onix3Jstor> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        // JSTOR can only ingest works which have at least one BIC or BISAC subject code
+        if !self
+            .subjects
+            .iter()
+            .any(|s| s.subject_type.eq(&SubjectType::BISAC) || s.subject_type.eq(&SubjectType::BIC))
+        {
+            Err(ThothError::IncompleteMetadataRecord(
+                ONIX_ERROR.to_string(),
+                "No BIC or BISAC subject code".to_string(),
+            ))
+        }
         // We can only generate the document if there's a PDF
-        if let Some(pdf_url) = self
+        else if let Some(pdf_url) = self
             .publications
             .iter()
             .find(|p| p.publication_type.eq(&PublicationType::PDF) && !p.locations.is_empty())
