@@ -2,9 +2,9 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
-    ContributionType, LanguageRelation, PublicationType, RelationType, SubjectType, Work,
-    WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkReferences, WorkRelations,
-    WorkStatus, WorkType,
+    ContributionType, LanguageRelation, LocationPlatform, PublicationType, RelationType,
+    SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkReferences,
+    WorkRelations, WorkStatus, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -572,6 +572,23 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                 })
                             })?;
                         }
+                        if let Some(url) = &self.landing_page {
+                            write_element_block("Website", w, |w| {
+                                // 02 Publisher's website for a specified work
+                                write_element_block("WebsiteRole", w, |w| {
+                                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("WebsiteDescription", w, |w| {
+                                    w.write(XmlEvent::Characters(
+                                        "Publisher's website: webpage for this title",
+                                    ))
+                                    .map_err(|e| e.into())
+                                })?;
+                                write_element_block("WebsiteLink", w, |w| {
+                                    w.write(XmlEvent::Characters(url)).map_err(|e| e.into())
+                                })
+                            })?;
+                        }
                         Ok(())
                     })?;
                     for funding in &self.fundings {
@@ -672,57 +689,74 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             })
                         })
                     })?;
-                    let mut supplies: HashMap<String, (String, String)> = HashMap::new();
-                    if let Some(full_text_url) = publication
-                        .locations
-                        .iter()
-                        .find(|l| l.canonical)
-                        .and_then(|l| l.full_text_url.clone())
-                    {
-                        supplies.insert(
-                            full_text_url.to_string(),
-                            (
-                                "29".to_string(),
-                                "Publisher's website: download the title".to_string(),
-                            ),
-                        );
-                    }
-                    if let Some(landing_page) = &self.landing_page {
-                        supplies.insert(
-                            landing_page.to_string(),
-                            (
-                                // 02 Publisher's website for a specified work
-                                "02".to_string(),
-                                "Publisher's website: web shop".to_string(),
-                            ),
-                        );
-                    }
-                    for (url, description) in supplies.iter() {
+                    for location in &publication.locations {
+                        let mut supplier_name = location.location_platform.to_string();
+                        let mut description_string = location.location_platform.to_string();
+                        // 11 Non-exclusive distributor to end-customers
+                        let mut supplier_role = "11";
+                        // 36 Supplier’s website for a specified work
+                        let mut landing_page_role = "36";
+
+                        if location.location_platform == LocationPlatform::PUBLISHER_WEBSITE {
+                            supplier_name = self.imprint.publisher.publisher_name.clone();
+                            description_string = "Publisher's website".to_string();
+                            // 09 Publisher to end-customers
+                            supplier_role = "09";
+                            // 02 Publisher's website for a specified work
+                            landing_page_role = "02";
+                        } else if location.location_platform == LocationPlatform::OTHER {
+                            supplier_name = "Unknown".to_string();
+                            description_string = "Unspecified hosting platform".to_string();
+                        }
+
                         write_element_block("SupplyDetail", w, |w| {
                             write_element_block("Supplier", w, |w| {
-                                // 09 Publisher to end-customers
                                 write_element_block("SupplierRole", w, |w| {
-                                    w.write(XmlEvent::Characters("09")).map_err(|e| e.into())
+                                    w.write(XmlEvent::Characters(supplier_role))
+                                        .map_err(|e| e.into())
                                 })?;
                                 write_element_block("SupplierName", w, |w| {
-                                    w.write(XmlEvent::Characters(
-                                        &self.imprint.publisher.publisher_name,
-                                    ))
-                                    .map_err(|e| e.into())
+                                    w.write(XmlEvent::Characters(&supplier_name))
+                                        .map_err(|e| e.into())
                                 })?;
-                                write_element_block("Website", w, |w| {
-                                    write_element_block("WebsiteRole", w, |w| {
-                                        w.write(XmlEvent::Characters(&description.0))
+                                if let Some(url) = &location.landing_page {
+                                    write_element_block("Website", w, |w| {
+                                        write_element_block("WebsiteRole", w, |w| {
+                                            w.write(XmlEvent::Characters(landing_page_role))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("WebsiteDescription", w, |w| {
+                                            w.write(XmlEvent::Characters(&format!(
+                                                "{}: webpage for this product",
+                                                description_string
+                                            )))
                                             .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("WebsiteLink", w, |w| {
+                                            w.write(XmlEvent::Characters(url)).map_err(|e| e.into())
+                                        })
                                     })?;
-                                    write_element_block("WebsiteDescription", w, |w| {
-                                        w.write(XmlEvent::Characters(&description.1))
+                                }
+                                if let Some(url) = &location.full_text_url {
+                                    write_element_block("Website", w, |w| {
+                                        write_element_block("WebsiteRole", w, |w| {
+                                            // 29 Web page for full content
+                                            w.write(XmlEvent::Characters("29"))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("WebsiteDescription", w, |w| {
+                                            w.write(XmlEvent::Characters(&format!(
+                                                "{}: download the title",
+                                                description_string
+                                            )))
                                             .map_err(|e| e.into())
+                                        })?;
+                                        write_element_block("WebsiteLink", w, |w| {
+                                            w.write(XmlEvent::Characters(url)).map_err(|e| e.into())
+                                        })
                                     })?;
-                                    write_element_block("WebsiteLink", w, |w| {
-                                        w.write(XmlEvent::Characters(url)).map_err(|e| e.into())
-                                    })
-                                })
+                                }
+                                Ok(())
                             })?;
                             // 99 Contact supplier
                             write_element_block("ProductAvailability", w, |w| {
