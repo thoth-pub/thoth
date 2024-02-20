@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
     ContributionType, LanguageRelation, LocationPlatform, PublicationType, RelationType,
-    SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages, WorkReferences,
-    WorkRelations, WorkStatus, WorkType,
+    SubjectType, Work, WorkContributions, WorkFundings, WorkIssues, WorkLanguages,
+    WorkPublicationsLocations, WorkReferences, WorkRelations, WorkStatus, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -689,7 +689,20 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             })
                         })
                     })?;
-                    for location in &publication.locations {
+                    let mut locations: Vec<WorkPublicationsLocations> =
+                        publication.locations.clone();
+                    if locations.is_empty() {
+                        // Create single Supplier based on Work Landing Page
+                        // to ensure child elements such as Price are not omitted
+                        // (if Landing Page is None, Supplier will be complete apart from Website)
+                        locations = vec![WorkPublicationsLocations {
+                            landing_page: self.landing_page.clone(),
+                            full_text_url: None,
+                            location_platform: LocationPlatform::PUBLISHER_WEBSITE,
+                            canonical: true,
+                        }];
+                    }
+                    for location in locations {
                         let mut supplier_name = location.location_platform.to_string();
                         let mut description_string = location.location_platform.to_string();
                         // 11 Non-exclusive distributor to end-customers
