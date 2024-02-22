@@ -1042,9 +1042,9 @@ mod tests {
         // Reinstate the BIC subject but remove the only publication, which is the PDF
         // Result: error (can't generate JSTOR ONIX without PDF URL)
         test_work.subjects = vec![WorkSubjects {
-          subject_code: "AAB".to_string(),
-          subject_type: SubjectType::BIC,
-          subject_ordinal: 1,
+            subject_code: "AAB".to_string(),
+            subject_type: SubjectType::BIC,
+            subject_ordinal: 1,
         }];
         test_work.publications.clear();
         let output = generate_test_output(false, &test_work);
