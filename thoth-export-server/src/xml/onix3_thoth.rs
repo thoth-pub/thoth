@@ -71,10 +71,13 @@ impl XmlElementBlock<Onix3Thoth> for Work {
             }
         }
         for publication in &self.publications {
+            let publication_id = format!("urn:uuid:{}", publication.publication_id);
             let current_isbn = &publication.isbn.as_ref().map(|p| p.to_hyphenless_string());
             write_element_block("Product", w, |w| {
                 write_element_block("RecordReference", w, |w| {
-                    w.write(XmlEvent::Characters(&work_id))
+                    // Note that most existing Thoth ONIX outputs use the Work ID, not Publication ID,
+                    // as they output one record per Work rather than one record per Publication
+                    w.write(XmlEvent::Characters(&publication_id))
                         .map_err(|e| e.into())
                 })?;
                 // 03 Notification confirmed on publication
@@ -96,6 +99,20 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                     })?;
                     write_element_block("IDValue", w, |w| {
                         w.write(XmlEvent::Characters(&work_id))
+                            .map_err(|e| e.into())
+                    })
+                })?;
+                write_element_block("ProductIdentifier", w, |w| {
+                    // 01 Proprietary
+                    write_element_block("ProductIDType", w, |w| {
+                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDTypeName", w, |w| {
+                        w.write(XmlEvent::Characters("thoth-publication-id"))
+                            .map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(&publication_id))
                             .map_err(|e| e.into())
                     })
                 })?;
