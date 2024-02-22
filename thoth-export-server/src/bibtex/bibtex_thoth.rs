@@ -76,61 +76,33 @@ impl fmt::Display for BibtexThothEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Cite key must be unique and alphanumeric ("-_:" also permitted)
         // Most records will have an ISBN, but fall back on publication date if not found
-        let mut citekey = self.isbn.clone().unwrap_or_default();
-        if citekey.is_empty() {
-            citekey = format!("{}-{}-{}", self.year, self.month, self.day);
-        }
-        writeln!(f, "@{}{{{},", self.entry_type, citekey)?;
-        write!(f, "\ttitle = {{{}}}", self.title)?;
-        if let Some(shorttitle) = &self.shorttitle {
-            write!(f, ",\n\tshorttitle = {{{shorttitle}}}")?;
-        }
-        if let Some(author) = &self.author {
-            write!(f, ",\n\tauthor = {{{author}}}")?;
-        }
-        if let Some(editor) = &self.editor {
-            write!(f, ",\n\teditor = {{{editor}}}")?;
-        }
-        write!(f, ",\n\tyear = {}", self.year)?;
-        write!(f, ",\n\tmonth = {}", self.month)?;
-        write!(f, ",\n\tday = {}", self.day)?;
-        write!(f, ",\n\tpublisher = {{{}}}", self.publisher)?;
-        if let Some(address) = &self.address {
-            write!(f, ",\n\taddress = {{{address}}}")?;
-        }
-        if let Some(series) = &self.series {
-            write!(f, ",\n\tseries = {{{series}}}")?;
-        }
-        if let Some(volume) = &self.volume {
-            write!(f, ",\n\tvolume = {volume}")?;
-        }
-        if let Some(booktitle) = &self.booktitle {
-            write!(f, ",\n\tbooktitle = {{{booktitle}}}")?;
-        }
-        if let Some(chapter) = &self.chapter {
-            write!(f, ",\n\tchapter = {chapter}")?;
-        }
-        if let Some(pages) = &self.pages {
-            write!(f, ",\n\tpages = {{{pages}}}")?;
-        }
-        if let Some(doi) = &self.doi {
-            write!(f, ",\n\tdoi = {{{doi}}}")?;
-        }
-        if let Some(isbn) = &self.isbn {
-            write!(f, ",\n\tisbn = {{{isbn}}}")?;
-        }
-        if let Some(issn) = &self.issn {
-            write!(f, ",\n\tissn = {{{issn}}}")?;
-        }
-        if let Some(url) = &self.url {
-            write!(f, ",\n\turl = {{{url}}}")?;
-        }
-        if let Some(copyright) = &self.copyright {
-            write!(f, ",\n\tcopyright = {{{copyright}}}")?;
-        }
-        if let Some(long_abstract) = &self.long_abstract {
-            write!(f, ",\n\tabstract = {{{long_abstract}}}")?;
-        }
+        let citekey = self
+            .isbn
+            .clone()
+            .unwrap_or_else(|| format!("{}-{}-{}", self.year, self.month, self.day));
+        write!(f, "@{}{{{}", self.entry_type, citekey)?;
+
+        write_field!(f, self, title);
+        write_optional_field!(f, self, shorttitle);
+        write_optional_field!(f, self, author);
+        write_optional_field!(f, self, editor);
+        write_field!(f, self, year, i64);
+        write_field!(f, self, month, i64);
+        write_field!(f, self, day, i64);
+        write_field!(f, self, publisher);
+        write_optional_field!(f, self, address);
+        write_optional_field!(f, self, series);
+        write_optional_field!(f, self, volume, i64);
+        write_optional_field!(f, self, booktitle);
+        write_optional_field!(f, self, chapter, i64);
+        write_optional_field!(f, self, pages);
+        write_optional_field!(f, self, doi);
+        write_optional_field!(f, self, isbn);
+        write_optional_field!(f, self, issn);
+        write_optional_field!(f, self, url);
+        write_optional_field!(f, self, copyright);
+        write_optional_field!(f, self, long_abstract, "abstract");
+
         writeln!(f, "\n}}")
     }
 }
