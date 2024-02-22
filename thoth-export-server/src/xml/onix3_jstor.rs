@@ -60,19 +60,20 @@ impl XmlSpecification for Onix3Jstor {
 
 impl XmlElementBlock<Onix3Jstor> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        // JSTOR can only ingest works which have at least one BIC or BISAC subject code
+        // Don't output works with no BIC or BISAC subject code
+        // JSTOR can only ingest works which have at least one
         if !self
             .subjects
             .iter()
-            .any(|s| s.subject_type.eq(&SubjectType::BISAC) || s.subject_type.eq(&SubjectType::BIC))
+            .any(|s| matches!(s.subject_type, SubjectType::BISAC | SubjectType::BIC))
         {
-            Err(ThothError::IncompleteMetadataRecord(
+            return Err(ThothError::IncompleteMetadataRecord(
                 ONIX_ERROR.to_string(),
                 "No BIC or BISAC subject code".to_string(),
-            ))
+            ));
         }
         // We can only generate the document if there's a PDF
-        else if let Some(pdf_url) = self
+        if let Some(pdf_url) = self
             .publications
             .iter()
             .find(|p| p.publication_type.eq(&PublicationType::PDF) && !p.locations.is_empty())
@@ -980,7 +981,6 @@ mod tests {
         test_work.place = None;
         test_work.publication_date = None;
         test_work.landing_page = None;
-        test_work.subjects.clear();
         test_work.publications[0].publication_type = PublicationType::XML;
         let output = generate_test_output(true, &test_work);
         // No DOI supplied
@@ -1023,20 +1023,6 @@ mod tests {
             r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
         assert!(!output.contains(r#"          <WebsiteLink>https://www.book.com</WebsiteLink>"#));
-        // No subjects supplied
-        assert!(!output.contains(r#"    <Subject>"#));
-        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>12</SubjectSchemeIdentifier>"#));
-        assert!(!output.contains(r#"      <SubjectCode>AAB</SubjectCode>"#));
-        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>10</SubjectSchemeIdentifier>"#));
-        assert!(!output.contains(r#"      <SubjectCode>AAA000000</SubjectCode>"#));
-        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>04</SubjectSchemeIdentifier>"#));
-        assert!(!output.contains(r#"      <SubjectCode>JA85</SubjectCode>"#));
-        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>93</SubjectSchemeIdentifier>"#));
-        assert!(!output.contains(r#"      <SubjectCode>JWA</SubjectCode>"#));
-        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>"#));
-        assert!(!output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
-        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
-        assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
         // No print ISBN supplied
         assert!(!output.contains(r#"    <RelatedProduct>"#));
         assert!(!output.contains(r#"      <ProductRelationCode>13</ProductRelationCode>"#));
@@ -1044,9 +1030,23 @@ mod tests {
         assert!(!output.contains(r#"        <ProductIDType>15</ProductIDType>"#));
         assert!(!output.contains(r#"    <IDValue>9781402894626</IDValue>"#));
 
-        // Remove the last publication, which is the PDF
-        // Result: error (can't generate OAPEN ONIX without PDF URL)
-        test_work.publications.pop();
+        // Remove all subjects
+        // Result: error (can't generate JSTOR ONIX without either a BIC or BISAC subject)
+        test_work.subjects.clear();
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::jstor: No BIC or BISAC subject code".to_string()
+        );
+
+        // Reinstate the BIC subject but remove the only publication, which is the PDF
+        // Result: error (can't generate JSTOR ONIX without PDF URL)
+        test_work.subjects = vec![WorkSubjects {
+          subject_code: "AAB".to_string(),
+          subject_type: SubjectType::BIC,
+          subject_ordinal: 1,
+        }];
+        test_work.publications.clear();
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,

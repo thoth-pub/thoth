@@ -66,31 +66,34 @@ impl XmlSpecification for Onix3GoogleBooks {
 
 impl XmlElementBlock<Onix3GoogleBooks> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        // Google Books can only ingest works which have at least one BIC or BISAC subject code
+        // Don't output works with no BIC or BISAC subject code
+        // Google Books can only ingest works which have at least one
         if !self
             .subjects
             .iter()
-            .any(|s| s.subject_type.eq(&SubjectType::BISAC) || s.subject_type.eq(&SubjectType::BIC))
+            .any(|s| matches!(s.subject_type, SubjectType::BISAC | SubjectType::BIC))
         {
-            Err(ThothError::IncompleteMetadataRecord(
+            return Err(ThothError::IncompleteMetadataRecord(
                 ONIX_ERROR.to_string(),
                 "No BIC or BISAC subject code".to_string(),
-            ))
+            ));
         }
         // Don't output works with no publication date (mandatory in Google Books)
-        else if self.publication_date.is_none() {
-            Err(ThothError::IncompleteMetadataRecord(
+        if self.publication_date.is_none() {
+            return Err(ThothError::IncompleteMetadataRecord(
                 ONIX_ERROR.to_string(),
                 "Missing Publication Date".to_string(),
-            ))
+            ));
+        }
         // Don't output works with no contributors (at least one required for Google Books)
-        } else if self.contributions.is_empty() {
-            Err(ThothError::IncompleteMetadataRecord(
+        if self.contributions.is_empty() {
+            return Err(ThothError::IncompleteMetadataRecord(
                 ONIX_ERROR.to_string(),
                 "No contributors supplied".to_string(),
-            ))
+            ));
+        }
         // We can only generate the document if there's an EPUB or PDF
-        } else if let Some(main_publication) = self
+        if let Some(main_publication) = self
             .publications
             .iter()
             // For preference, distribute the EPUB only
@@ -1061,7 +1064,6 @@ mod tests {
         test_work.long_abstract = None;
         test_work.publications[0].prices.pop();
         test_work.publications[0].publication_type = PublicationType::EPUB;
-        test_work.subjects.clear();
         let output = generate_test_output(true, &test_work);
         // Ebook type changed
         assert!(!output.contains(r#"    <ProductFormDetail>E107</ProductFormDetail>"#));
@@ -1088,17 +1090,6 @@ mod tests {
         assert!(!output.contains(r#"        <Territory>"#));
         assert!(!output.contains(r#"          <RegionsIncluded>WORLD</RegionsIncluded>"#));
         assert!(output.contains(r#"      <UnpricedItemType>01</UnpricedItemType>"#));
-        // No subjects supplied
-        assert!(!output.contains(r#"    <Subject>"#));
-        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>12</SubjectSchemeIdentifier>"#));
-        assert!(!output.contains(r#"      <SubjectCode>AAB</SubjectCode>"#));
-        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>10</SubjectSchemeIdentifier>"#));
-        assert!(!output.contains(r#"      <SubjectCode>AAA000000</SubjectCode>"#));
-        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>04</SubjectSchemeIdentifier>"#));
-        assert!(!output.contains(r#"      <SubjectCode>JA85</SubjectCode>"#));
-        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>23</SubjectSchemeIdentifier>"#));
-        assert!(!output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
-        assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
 
         // Replace long abstract but remove table of contents
         // Result: CollateralDetail block still present, but now only contains long abstract
@@ -1125,7 +1116,21 @@ mod tests {
         assert!(!output.contains(r#"      <TextType>04</TextType>"#));
         assert!(!output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
 
-        // Remove publication date: result is error
+        // Remove all subjects
+        // Result: error (can't generate Google Books ONIX without either a BIC or BISAC subject)
+        test_work.subjects.clear();
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::google_books: No BIC or BISAC subject code".to_string()
+        );
+
+        // Reinstate the BIC subject but remove publication date: result is error
+        test_work.subjects = vec![WorkSubjects {
+          subject_code: "AAB".to_string(),
+          subject_type: SubjectType::BIC,
+          subject_ordinal: 1,
+        }];
         test_work.publication_date = None;
         let output = generate_test_output(false, &test_work);
         assert_eq!(
