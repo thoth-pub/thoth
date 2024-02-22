@@ -561,6 +561,63 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                     }
                     Ok(())
                 })?;
+                let chapter_relations: Vec<WorkRelations> = self
+                    .relations
+                    .clone()
+                    .into_iter()
+                    .filter(|r| {
+                        r.relation_type == RelationType::HAS_CHILD && r.related_work.doi.is_some()
+                    })
+                    .collect();
+                if !chapter_relations.is_empty() {
+                    write_element_block("ContentDetail", w, |w| {
+                        for relation in &chapter_relations {
+                            let chapter = &relation.related_work;
+                            write_element_block("ContentItem", w, |w| {
+                                write_element_block("LevelSequenceNumber", w, |w| {
+                                    w.write(XmlEvent::Characters(
+                                        &relation.relation_ordinal.to_string(),
+                                    ))
+                                    .map_err(|e| e.into())
+                                })
+                            })?;
+                            write_element_block("TextItem", w, |w| {
+                                // 03 Body matter
+                                write_element_block("TextItemType", w, |w| {
+                                    w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("TextItemIdentifier", w, |w| {
+                                    // 06 DOI
+                                    write_element_block("TextItemIDType", w, |w| {
+                                        w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("IDValue", w, |w| {
+                                        w.write(XmlEvent::Characters(
+                                            &chapter.doi.as_ref().unwrap().to_string(),
+                                        ))
+                                        .map_err(|e| e.into())
+                                    })
+                                })
+                            })?;
+                            if let Some(first_page) = &chapter.first_page {
+                                write_element_block("PageRun", w, |w| {
+                                    write_element_block("FirstPageNumber", w, |w| {
+                                        w.write(XmlEvent::Characters(first_page))
+                                            .map_err(|e| e.into())
+                                    })?;
+                                    if let Some(last_page) = &chapter.last_page {
+                                        write_element_block("LastPageNumber", w, |w| {
+                                            w.write(XmlEvent::Characters(last_page))
+                                                .map_err(|e| e.into())
+                                        })?;
+                                    }
+                                    Ok(())
+                                })?;
+                            }
+                        }
+                        Ok(())
+                    })?;
+                }
                 write_element_block("PublishingDetail", w, |w| {
                     write_element_block("Imprint", w, |w| {
                         write_element_block("ImprintName", w, |w| {
