@@ -1,3 +1,4 @@
+use cc_license::License;
 use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Write;
@@ -216,10 +217,14 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         XmlElementBlock::<Onix3Thoth>::xml_element(&("08", weight_oz, "oz"), w)
                             .ok();
                     }
-                    if let Some(license) = &self.license {
+                    if let Some(license_url) = &self.license {
+                        let license_text = match License::from_url(license_url) {
+                            Ok(license) => license.to_string(),
+                            Err(_) => "Unspecified".to_string(),
+                        };
                         write_element_block("EpubLicense", w, |w| {
                             write_element_block("EpubLicenseName", w, |w| {
-                                w.write(XmlEvent::Characters("Creative Commons License"))
+                                w.write(XmlEvent::Characters(&license_text))
                                     .map_err(|e| e.into())
                             })?;
                             write_element_block("EpubLicenseExpression", w, |w| {
@@ -227,7 +232,8 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                     w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
                                 })?;
                                 write_element_block("EpubLicenseExpressionLink", w, |w| {
-                                    w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
+                                    w.write(XmlEvent::Characters(license_url))
+                                        .map_err(|e| e.into())
                                 })
                             })
                         })?;
@@ -355,8 +361,17 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             })
                         })?;
                     }
+                    let mut main_subject_found = vec![];
                     for subject in &self.subjects {
+                        // One subject within every subject type can/should be marked as Main
+                        // Use first one found with ordinal 1 (there may be multiple)
+                        let is_main_subject = subject.subject_ordinal == 1
+                            && !main_subject_found.contains(&subject.subject_type);
                         write_element_block("Subject", w, |w| {
+                            if is_main_subject {
+                                // MainSubject is an empty element
+                                write_element_block("MainSubject", w, |_w| Ok(()))?;
+                            }
                             XmlElement::<Onix3Thoth>::xml_element(&subject.subject_type, w)?;
                             match subject.subject_type {
                                 SubjectType::KEYWORD | SubjectType::CUSTOM => {
@@ -371,6 +386,9 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                 }),
                             }
                         })?;
+                        if is_main_subject {
+                            main_subject_found.push(subject.subject_type.clone());
+                        }
                     }
                     write_element_block("Audience", w, |w| {
                         // 01 ONIX audience codes
@@ -646,9 +664,8 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             && r.related_work.doi.is_some()
                     })
                     .collect();
-                if !isbns.is_empty()
-                    || !non_child_relations.is_empty()
-                    || !self.references.is_empty()
+                // If only one ISBN is present, it'll be for the current product, not a related product
+                if isbns.len() > 1 || !non_child_relations.is_empty() || !self.references.is_empty()
                 {
                     write_element_block("RelatedMaterial", w, |w| {
                         for isbn in &isbns {
@@ -1100,6 +1117,16 @@ impl XmlElementBlock<Onix3Thoth> for WorkIssues {
                     })
                 })?;
             }
+            write_element_block("CollectionSequence", w, |w| {
+                // 03 Publication order
+                write_element_block("CollectionSequenceType", w, |w| {
+                    w.write(XmlEvent::Characters("03")).map_err(|e| e.into())
+                })?;
+                write_element_block("CollectionSequenceNumber", w, |w| {
+                    w.write(XmlEvent::Characters(&self.issue_ordinal.to_string()))
+                        .map_err(|e| e.into())
+                })
+            })?;
             write_element_block("TitleDetail", w, |w| {
                 // 01 Cover title (serial)
                 write_element_block("TitleType", w, |w| {
