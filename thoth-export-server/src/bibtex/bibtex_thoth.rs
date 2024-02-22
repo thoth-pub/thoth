@@ -81,55 +81,55 @@ impl fmt::Display for BibtexThothEntry {
             citekey = format!("{}-{}-{}", self.year, self.month, self.day);
         }
         writeln!(f, "@{}{{{},", self.entry_type, citekey)?;
-        write!(f, "\ttitle\t\t= {{{}}}", self.title)?;
+        write!(f, "\ttitle = {{{}}}", self.title)?;
         if let Some(shorttitle) = &self.shorttitle {
-            write!(f, ",\n\tshorttitle\t= {{{shorttitle}}}")?;
+            write!(f, ",\n\tshorttitle = {{{shorttitle}}}")?;
         }
         if let Some(author) = &self.author {
-            write!(f, ",\n\tauthor\t\t= {{{author}}}")?;
+            write!(f, ",\n\tauthor = {{{author}}}")?;
         }
         if let Some(editor) = &self.editor {
-            write!(f, ",\n\teditor\t\t= {{{editor}}}")?;
+            write!(f, ",\n\teditor = {{{editor}}}")?;
         }
-        write!(f, ",\n\tyear\t\t= {}", self.year)?;
-        write!(f, ",\n\tmonth\t\t= {}", self.month)?;
-        write!(f, ",\n\tday\t\t\t= {}", self.day)?;
-        write!(f, ",\n\tpublisher\t= {{{}}}", self.publisher)?;
+        write!(f, ",\n\tyear = {}", self.year)?;
+        write!(f, ",\n\tmonth = {}", self.month)?;
+        write!(f, ",\n\tday = {}", self.day)?;
+        write!(f, ",\n\tpublisher = {{{}}}", self.publisher)?;
         if let Some(address) = &self.address {
-            write!(f, ",\n\taddress\t\t= {{{address}}}")?;
+            write!(f, ",\n\taddress = {{{address}}}")?;
         }
         if let Some(series) = &self.series {
-            write!(f, ",\n\tseries\t\t= {{{series}}}")?;
+            write!(f, ",\n\tseries = {{{series}}}")?;
         }
         if let Some(volume) = &self.volume {
-            write!(f, ",\n\tvolume\t\t= {volume}")?;
+            write!(f, ",\n\tvolume = {volume}")?;
         }
         if let Some(booktitle) = &self.booktitle {
-            write!(f, ",\n\tbooktitle\t= {{{booktitle}}}")?;
+            write!(f, ",\n\tbooktitle = {{{booktitle}}}")?;
         }
         if let Some(chapter) = &self.chapter {
-            write!(f, ",\n\tchapter\t\t= {chapter}")?;
+            write!(f, ",\n\tchapter = {chapter}")?;
         }
         if let Some(pages) = &self.pages {
-            write!(f, ",\n\tpages\t\t= {{{pages}}}")?;
+            write!(f, ",\n\tpages = {{{pages}}}")?;
         }
         if let Some(doi) = &self.doi {
-            write!(f, ",\n\tdoi\t\t\t= {{{doi}}}")?;
+            write!(f, ",\n\tdoi = {{{doi}}}")?;
         }
         if let Some(isbn) = &self.isbn {
-            write!(f, ",\n\tisbn\t\t= {{{isbn}}}")?;
+            write!(f, ",\n\tisbn = {{{isbn}}}")?;
         }
         if let Some(issn) = &self.issn {
-            write!(f, ",\n\tissn\t\t= {{{issn}}}")?;
+            write!(f, ",\n\tissn = {{{issn}}}")?;
         }
         if let Some(url) = &self.url {
-            write!(f, ",\n\turl\t\t\t= {{{url}}}")?;
+            write!(f, ",\n\turl = {{{url}}}")?;
         }
         if let Some(copyright) = &self.copyright {
-            write!(f, ",\n\tcopyright\t= {{{copyright}}}")?;
+            write!(f, ",\n\tcopyright = {{{copyright}}}")?;
         }
         if let Some(long_abstract) = &self.long_abstract {
-            write!(f, ",\n\tabstract\t= {{{long_abstract}}}")?;
+            write!(f, ",\n\tabstract = {{{long_abstract}}}")?;
         }
         writeln!(f, "\n}}")
     }
@@ -277,23 +277,23 @@ mod tests {
     use uuid::Uuid;
 
     const TEST_RESULT: &str = "@book{978-1-56619-909-4,
-\ttitle\t\t= {Work Title: Work Subtitle},
-\tshorttitle\t= {Work Title},
-\tauthor\t\t= {Author 1 and Author 2 and Author 3},
-\teditor\t\t= {Editor 1 and Editor 2},
-\tyear\t\t= 1999,
-\tmonth\t\t= 12,
-\tday\t\t\t= 31,
-\tpublisher\t= {OA Editions},
-\taddress\t\t= {León, Spain},
-\tseries\t\t= {Name of series},
-\tvolume\t\t= 5,
-\tdoi\t\t\t= {10.00001/BOOK.0001},
-\tisbn\t\t= {978-1-56619-909-4},
-\tissn\t\t= {8765-4321},
-\turl\t\t\t= {https://www.book.com},
-\tcopyright\t= {http://creativecommons.org/licenses/by/4.0/},
-\tabstract\t= {Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.}
+\ttitle = {Work Title: Work Subtitle},
+\tshorttitle = {Work Title},
+\tauthor = {Author 1 and Author 2 and Author 3},
+\teditor = {Editor 1 and Editor 2},
+\tyear = 1999,
+\tmonth = 12,
+\tday = 31,
+\tpublisher = {OA Editions},
+\taddress = {León, Spain},
+\tseries = {Name of series},
+\tvolume = 5,
+\tdoi = {10.00001/BOOK.0001},
+\tisbn = {978-1-56619-909-4},
+\tissn = {8765-4321},
+\turl = {https://www.book.com},
+\tcopyright = {http://creativecommons.org/licenses/by/4.0/},
+\tabstract = {Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.}
 }
 ";
 
@@ -602,7 +602,7 @@ mod tests {
             Ok(TEST_RESULT
                 .to_string()
                 .replace("@book{978-1-56619-909-4,", "@book{1999-12-31,")
-                .replace("\tisbn\t\t= {978-1-56619-909-4},\n", ""))
+                .replace("\tisbn = {978-1-56619-909-4},\n", ""))
         );
     }
 
@@ -618,8 +618,8 @@ mod tests {
         assert_eq!(
             to_test,
             Ok(TEST_RESULT.to_string().replace(
-                "\ttitle\t\t= {Work Title: Work Subtitle},\n\tshorttitle\t= {Work Title},",
-                "\ttitle\t\t= {Work Title},"
+                "\ttitle = {Work Title: Work Subtitle},\n\tshorttitle = {Work Title},",
+                "\ttitle = {Work Title},"
             ))
         );
     }
@@ -644,15 +644,15 @@ mod tests {
         test_work.page_interval = Some("10–20".to_string());
         let to_test = BibtexThoth.generate(&[test_work.clone()]);
         let test_result = "@inbook{1999-12-31,
-\ttitle\t\t= {Work Title},
-\tauthor\t\t= {Author 1 and Author 2 and Author 3},
-\tyear\t\t= 1999,
-\tmonth\t\t= 12,
-\tday\t\t\t= 31,
-\tpublisher\t= {OA Editions},
-\tbooktitle\t= {Related work title},
-\tchapter\t\t= 7,
-\tpages\t\t= {10--20}
+\ttitle = {Work Title},
+\tauthor = {Author 1 and Author 2 and Author 3},
+\tyear = 1999,
+\tmonth = 12,
+\tday = 31,
+\tpublisher = {OA Editions},
+\tbooktitle = {Related work title},
+\tchapter = 7,
+\tpages = {10--20}
 }
 "
         .to_string();
