@@ -66,16 +66,16 @@ impl XmlSpecification for Onix3GoogleBooks {
 
 impl XmlElementBlock<Onix3GoogleBooks> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        // Don't output works with no BIC or BISAC subject code
+        // Don't output works with no BIC, BISAC or LCC subject code
         // Google Books can only ingest works which have at least one
         if !self
             .subjects
             .iter()
-            .any(|s| matches!(s.subject_type, SubjectType::BISAC | SubjectType::BIC))
+            .any(|s| matches!(s.subject_type, SubjectType::BISAC | SubjectType::BIC | SubjectType::LCC))
         {
             return Err(ThothError::IncompleteMetadataRecord(
                 ONIX_ERROR.to_string(),
-                "No BIC or BISAC subject code".to_string(),
+                "No BIC, BISAC or LCC subject code".to_string(),
             ));
         }
         // Don't output works with no publication date (mandatory in Google Books)
@@ -1117,12 +1117,12 @@ mod tests {
         assert!(!output.contains(r#"      <Text language="eng">1. Chapter 1</Text>"#));
 
         // Remove all subjects
-        // Result: error (can't generate Google Books ONIX without either a BIC or BISAC subject)
+        // Result: error (can't generate Google Books ONIX without a BIC, BISAC, or LCC subject)
         test_work.subjects.clear();
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
-            "Could not generate onix_3.0::google_books: No BIC or BISAC subject code".to_string()
+            "Could not generate onix_3.0::google_books: No BIC, BISAC or LCC subject code".to_string()
         );
 
         // Reinstate the BIC subject but remove publication date: result is error

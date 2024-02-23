@@ -60,16 +60,16 @@ impl XmlSpecification for Onix3Jstor {
 
 impl XmlElementBlock<Onix3Jstor> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        // Don't output works with no BIC or BISAC subject code
+        // Don't output works with no BISAC subject code
         // JSTOR can only ingest works which have at least one
         if !self
             .subjects
             .iter()
-            .any(|s| matches!(s.subject_type, SubjectType::BISAC | SubjectType::BIC))
+            .any(|s| matches!(s.subject_type, SubjectType::BISAC))
         {
             return Err(ThothError::IncompleteMetadataRecord(
                 ONIX_ERROR.to_string(),
-                "No BIC or BISAC subject code".to_string(),
+                "No BISAC subject code".to_string(),
             ));
         }
         // We can only generate the document if there's a PDF
@@ -1031,19 +1031,19 @@ mod tests {
         assert!(!output.contains(r#"    <IDValue>9781402894626</IDValue>"#));
 
         // Remove all subjects
-        // Result: error (can't generate JSTOR ONIX without either a BIC or BISAC subject)
+        // Result: error (can't generate JSTOR ONIX without a BISAC subject)
         test_work.subjects.clear();
         let output = generate_test_output(false, &test_work);
         assert_eq!(
             output,
-            "Could not generate onix_3.0::jstor: No BIC or BISAC subject code".to_string()
+            "Could not generate onix_3.0::jstor: No BISAC subject code".to_string()
         );
 
-        // Reinstate the BIC subject but remove the only publication, which is the PDF
+        // Reinstate the BISAC subject but remove the only publication, which is the PDF
         // Result: error (can't generate JSTOR ONIX without PDF URL)
         test_work.subjects = vec![WorkSubjects {
-            subject_code: "AAB".to_string(),
-            subject_type: SubjectType::BIC,
+            subject_code: "AAA000000".to_string(),
+            subject_type: SubjectType::BISAC,
             subject_ordinal: 1,
         }];
         test_work.publications.clear();
