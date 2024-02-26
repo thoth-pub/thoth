@@ -1,6 +1,6 @@
-use std::env;
-use std::process::{Command, exit, Stdio};
 use dotenv::dotenv;
+use std::env;
+use std::process::{exit, Command, Stdio};
 
 const TRUNK_VERSION: &'static str = "0.18.8";
 
@@ -101,9 +101,7 @@ fn main() {
         trunk_command.arg("--release");
     }
 
-    let trunk_output = trunk_command
-        .output()
-        .expect("Failed to execute trunk");
+    let trunk_output = trunk_command.output().expect("Failed to execute trunk");
 
     if !trunk_output.status.success() {
         eprintln!("{}", String::from_utf8_lossy(&trunk_output.stderr));
