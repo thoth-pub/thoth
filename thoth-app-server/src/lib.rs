@@ -26,12 +26,10 @@ macro_rules! static_files {
 }
 
 static_files! {
-    (JS, js_file) => ("../static/pkg/thoth_app.js", "/thoth_app.js", "application/javascript"),
-    (WASM, wasm_file) => ("../static/pkg/thoth_app_bg.wasm", "/thoth_app_bg.wasm", "application/wasm"),
-    (PKG, pkg_file) => ("../static/pkg/package.json", "/package.json", "application/json"),
-    (TS1, ts1_file) => ("../static/pkg/thoth_app.d.ts", "/thoth_app.d.ts", "application/typescript"),
-    (BULMA, bulma_file) => ("../static/css/bulma-pageloader.min.css", "/css/bulma-pageloader.min.css", "text/css; charset=utf-8"),
-    (CSS, css_file) => ("../static/css/thoth.css", "/css/thoth.css", "text/css; charset=utf-8"),
+    (JS, js_file) => ("../static/pkg/thoth-app.js", "/thoth-app.js", "application/javascript"),
+    (WASM, wasm_file) => ("../static/pkg/thoth-app_bg.wasm", "/thoth-app_bg.wasm", "application/wasm"),
+    (BULMA, bulma_file) => ("../static/pkg/bulma-pageloader.min.css", "/bulma-pageloader.min.css", "text/css; charset=utf-8"),
+    (CSS, css_file) => ("../static/pkg/thoth.css", "/thoth.css", "text/css; charset=utf-8"),
     (LOGO, logo_file) => ("../static/img/thoth-logo.png", "/img/thoth-logo.png", "image/png"),
     (BANNER, banner_file) => ("../static/img/thoth-banner.png", "/img/thoth-banner.png", "image/png"),
     (COVER, cover_file) => ("../static/img/cover-placeholder.jpg", "/img/cover-placeholder.jpg", "image/jpg"),
@@ -64,7 +62,7 @@ static_files! {
     (ICON24, icon_file24) => ("../static/img/ms-icon-70x70.png", "/ms-icon-70x70.png", "image/png"),
 }
 
-const INDEX_FILE: &[u8] = include_bytes!("../static/index.html");
+const INDEX_FILE: &[u8] = include_bytes!("../static/pkg/index.html");
 
 async fn index() -> HttpResponse {
     HttpResponse::Ok()
