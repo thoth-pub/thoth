@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
   - [568](https://github.com/thoth-pub/thoth/issues/568) - Allow building `thoth-app` directly from cargo, using a build script in `thoth-app-server`
   - Build `thoth-app` with `trunk, instead of `wasm-pack`
+  - Optionally load `thoth-export-server` env variables from `.env` at build time
   - Upgrade `jsonwebtoken` to v9.2.0
   - Mark `jsonwebtoken` as an optional dependency, built with the `backend` feature
 
