@@ -1089,30 +1089,6 @@ impl XmlElementBlock<Onix3Thoth> for WorkContributions {
                                 .map_err(|e| e.into())
                         })?;
                     }
-                    if let Some(ror) = &affiliation.institution.ror {
-                        write_element_block("AffiliationIdentifier", w, |w| {
-                            // 40 ROR
-                            write_element_block("AffiliationIDType", w, |w| {
-                                w.write(XmlEvent::Characters("40")).map_err(|e| e.into())
-                            })?;
-                            write_element_block("IDValue", w, |w| {
-                                w.write(XmlEvent::Characters(&ror.to_string()))
-                                    .map_err(|e| e.into())
-                            })
-                        })?;
-                    }
-                    if let Some(doi) = &affiliation.institution.institution_doi {
-                        write_element_block("AffiliationIdentifier", w, |w| {
-                            // 32 FundRef DOI
-                            write_element_block("AffiliationIDType", w, |w| {
-                                w.write(XmlEvent::Characters("32")).map_err(|e| e.into())
-                            })?;
-                            write_element_block("IDValue", w, |w| {
-                                w.write(XmlEvent::Characters(&doi.to_string()))
-                                    .map_err(|e| e.into())
-                            })
-                        })?;
-                    }
                     write_element_block("Affiliation", w, |w| {
                         w.write(XmlEvent::Characters(
                             &affiliation.institution.institution_name,
