@@ -886,8 +886,8 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             })?;
                             write_element_block("SupplyDate", w, |w| {
                                 write_element_block("SupplyDateRole", w, |w| {
-                                    // 02 Embargo Date
-                                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                                    // 02 Expected availability date
+                                    w.write(XmlEvent::Characters("08")).map_err(|e| e.into())
                                 })?;
                                 // dateformat="00" YYYYMMDD
                                 write_full_element_block(
