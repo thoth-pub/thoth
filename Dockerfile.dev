@@ -2,12 +2,6 @@ ARG RUST_VERSION=1.76.0
 
 FROM rust:${RUST_VERSION}
 
-ENV NPM_VERSION=10.2.5
-ENV N_VERSION=9.2.0
-ENV NODE_VERSION=20.10.0
-ENV ROLLUP_VERSION=4.9.1
-ENV WASM_PACK_VERSION=0.12.1
-
 ARG THOTH_GRAPHQL_API=http://localhost:8000
 ARG THOTH_EXPORT_API=http://localhost:8181
 ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
@@ -19,14 +13,6 @@ WORKDIR /usr/src/thoth
 EXPOSE 8080
 EXPOSE 8000
 EXPOSE 8181
-
-# Install build dependencies
-RUN apt-get update && apt-get -y install pkg-config npm
-RUN npm install -g n@${N_VERSION}
-RUN n ${NODE_VERSION}
-RUN npm install -g npm@${NPM_VERSION}
-RUN npm install -g rollup@${ROLLUP_VERSION}
-RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
 
 # Use dummy file to force cargo to install dependencies without compiling code.
 # We need to get dummy lib files for all members of the workspace, and their cargo files,
@@ -49,9 +35,7 @@ RUN touch thoth-api/src/lib.rs thoth-api-server/src/lib.rs \
     thoth-app/src/lib.rs thoth-app-server/src/lib.rs thoth-client/src/lib.rs \
     thoth-errors/src/lib.rs thoth-export-server/src/lib.rs
 RUN echo "fn main() {}" > thoth-client/build.rs
-RUN wasm-pack build thoth-app/ \
-  --target web \
-  --debug
+RUN echo "fn main() {}" > thoth-app-server/build.rs
 RUN cargo build
 RUN rm -rf src thoth-api thoth-api-server thoth-app thoth-app-server thoth-client \
     thoth-errors thoth-export-server Cargo.toml Cargo.lock
@@ -63,15 +47,7 @@ COPY . .
 # it needs to (re)compile these modules
 RUN touch -a -m thoth-api/src/lib.rs thoth-api-server/src/lib.rs \
     thoth-app/src/lib.rs thoth-app-server/src/lib.rs thoth-client/src/lib.rs \
-    thoth-errors/src/lib.rs thoth-export-server/src/lib.rs
-
-# Compile WASM for debug
-RUN wasm-pack build thoth-app/ \
-  --target web \
-  --debug
-RUN rollup thoth-app/main.js \
-  --format iife \
-  --file thoth-app/pkg/thoth_app.js
+    thoth-errors/src/lib.rs thoth-export-server/src/lib.rs thoth-app-server/build.rs
 
 # Build Thoth for debug
 RUN cargo build

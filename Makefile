@@ -11,6 +11,7 @@ THOTH_EXPORT_API ?= http://localhost:8181
 	docker-dev \
 	docker-dev-build \
 	docker-dev-run \
+	docker-dev-db \
 	test \
 	clippy \
 	format \
@@ -38,6 +39,9 @@ docker-dev-build:
 docker-dev-run:
 	docker-compose -f docker-compose.dev.yml up
 
+docker-dev-db:
+	docker-compose -f docker-compose.dev.yml up db
+
 cargo-build:
 	cargo build
 
@@ -45,13 +49,7 @@ build-graphql-api: cargo-build
 
 build-export-api: cargo-build
 
-build-app: build-wasm cargo-build
-
-build-wasm:
-	THOTH_GRAPHQL_API=$(THOTH_GRAPHQL_API) \
-	THOTH_EXPORT_API=$(THOTH_EXPORT_API) \
-	wasm-pack build --debug thoth-app/ --target web && \
-		rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js
+build-app: cargo-build
 
 test:
 	THOTH_GRAPHQL_API=$(THOTH_GRAPHQL_API) \
