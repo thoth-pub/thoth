@@ -18,6 +18,9 @@ pub struct Onix3Thoth {}
 
 const ONIX_ERROR: &str = "onix_3.0::thoth";
 
+// Based on ONIX for Books Release 3.0.8 Specification
+// Download link: https://www.editeur.org/files/ONIX%203/ONIX_for_Books_Release_3-0_pdf_docs+codes_Issue_64.zip
+// Retrieved from: https://www.editeur.org/93/Release-3.0-Downloads/#Specifications
 impl XmlSpecification for Onix3Thoth {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
         write_full_element_block("ONIXMessage", Some(ONIX3_NS.to_vec()), w, |w| {
@@ -62,7 +65,6 @@ impl XmlSpecification for Onix3Thoth {
 
 impl XmlElementBlock<Onix3Thoth> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        // TODO is there any field that's optional in Thoth but mandatory in ONIX?
         let work_id = format!("urn:uuid:{}", self.work_id);
         let mut isbns: Vec<String> = Vec::new();
         for publication in &self.publications {
@@ -541,7 +543,7 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                     write_element_block("ResourceFeatureType", w, |w| {
                                         w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
                                     })?;
-                                    write_element_block("ResourceFeatureNote", w, |w| {
+                                    write_element_block("FeatureNote", w, |w| {
                                         w.write(XmlEvent::Characters(cover_caption))
                                             .map_err(|e| e.into())
                                     })
@@ -1065,6 +1067,10 @@ impl XmlElementBlock<Onix3Thoth> for WorkContributions {
                     })
                 })?;
             }
+            write_element_block("PersonName", w, |w| {
+                w.write(XmlEvent::Characters(&self.full_name))
+                    .map_err(|e| e.into())
+            })?;
             if let Some(first_name) = &self.first_name {
                 write_element_block("NamesBeforeKey", w, |w| {
                     w.write(XmlEvent::Characters(first_name))
@@ -1075,10 +1081,22 @@ impl XmlElementBlock<Onix3Thoth> for WorkContributions {
                 w.write(XmlEvent::Characters(&self.last_name))
                     .map_err(|e| e.into())
             })?;
-            write_element_block("PersonName", w, |w| {
-                w.write(XmlEvent::Characters(&self.full_name))
-                    .map_err(|e| e.into())
-            })?;
+            for affiliation in &self.affiliations {
+                write_element_block("ProfessionalAffiliation", w, |w| {
+                    if let Some(position) = &affiliation.position {
+                        write_element_block("ProfessionalPosition", w, |w| {
+                            w.write(XmlEvent::Characters(position))
+                                .map_err(|e| e.into())
+                        })?;
+                    }
+                    write_element_block("Affiliation", w, |w| {
+                        w.write(XmlEvent::Characters(
+                            &affiliation.institution.institution_name,
+                        ))
+                        .map_err(|e| e.into())
+                    })
+                })?;
+            }
             if let Some(biography) = &self.biography {
                 write_element_block("BiographicalNote", w, |w| {
                     w.write(XmlEvent::Characters(biography))
@@ -1096,22 +1114,6 @@ impl XmlElementBlock<Onix3Thoth> for WorkContributions {
                     })?;
                     write_element_block("WebsiteLink", w, |w| {
                         w.write(XmlEvent::Characters(website)).map_err(|e| e.into())
-                    })
-                })?;
-            }
-            for affiliation in &self.affiliations {
-                write_element_block("ProfessionalAffiliation", w, |w| {
-                    if let Some(position) = &affiliation.position {
-                        write_element_block("ProfessionalPosition", w, |w| {
-                            w.write(XmlEvent::Characters(position))
-                                .map_err(|e| e.into())
-                        })?;
-                    }
-                    write_element_block("Affiliation", w, |w| {
-                        w.write(XmlEvent::Characters(
-                            &affiliation.institution.institution_name,
-                        ))
-                        .map_err(|e| e.into())
                     })
                 })?;
             }
@@ -1226,10 +1228,6 @@ impl XmlElementBlock<Onix3Thoth> for WorkFundings {
             write_element_block("PublishingRole", w, |w| {
                 w.write(XmlEvent::Characters("16")).map_err(|e| e.into())
             })?;
-            write_element_block("PublisherName", w, |w| {
-                w.write(XmlEvent::Characters(&self.institution.institution_name))
-                    .map_err(|e| e.into())
-            })?;
             if let Some(ror) = &self.institution.ror {
                 write_element_block("PublisherIdentifier", w, |w| {
                     // 40 ROR
@@ -1254,6 +1252,10 @@ impl XmlElementBlock<Onix3Thoth> for WorkFundings {
                     })
                 })?;
             }
+            write_element_block("PublisherName", w, |w| {
+                w.write(XmlEvent::Characters(&self.institution.institution_name))
+                    .map_err(|e| e.into())
+            })?;
             let mut identifiers: HashMap<String, String> = HashMap::new();
             if let Some(program) = &self.program {
                 identifiers.insert("programname".to_string(), program.to_string());
