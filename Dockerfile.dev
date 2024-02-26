@@ -2,6 +2,8 @@ ARG RUST_VERSION=1.76.0
 
 FROM rust:${RUST_VERSION}
 
+ENV TRUNK_VERSION=0.18.8
+
 ARG THOTH_GRAPHQL_API=http://localhost:8000
 ARG THOTH_EXPORT_API=http://localhost:8181
 ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
@@ -13,6 +15,10 @@ WORKDIR /usr/src/thoth
 EXPOSE 8080
 EXPOSE 8000
 EXPOSE 8181
+
+# Install build dependencies for thoth-app
+RUN rustup target add wasm32-unknown-unknown
+RUN cargo install trunk --version ${TRUNK_VERSION}
 
 # Use dummy file to force cargo to install dependencies without compiling code.
 # We need to get dummy lib files for all members of the workspace, and their cargo files,
