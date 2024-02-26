@@ -1,12 +1,12 @@
 use dotenv::dotenv;
 use std::env;
-use std::process::{exit, Command, Stdio};
+use std::process::{exit, Command};
 
-const TRUNK_VERSION: &'static str = "0.18.8";
+const TRUNK_VERSION: &str = "0.18.8";
 
 fn is_wasm_target_installed() -> bool {
     let output = Command::new("rustup")
-        .args(&["target", "list", "--installed"])
+        .args(["target", "list", "--installed"])
         .output()
         .expect("Failed to execute rustup");
 
@@ -17,7 +17,7 @@ fn is_wasm_target_installed() -> bool {
 fn install_wasm_target() {
     println!("Adding wasm32-unknown-unknown target...");
     let output = Command::new("rustup")
-        .args(&["target", "add", "wasm32-unknown-unknown"])
+        .args(["target", "add", "wasm32-unknown-unknown"])
         .output()
         .expect("Failed to execute rustup");
 
@@ -28,18 +28,12 @@ fn install_wasm_target() {
 }
 
 fn get_trunk_version() -> Option<String> {
-    let output = Command::new("trunk")
+    Command::new("trunk")
         .arg("--version")
-        .stdout(Stdio::piped())
-        .spawn()
-        .ok()?
-        .wait_with_output()
-        .ok()?;
-
-    let version_string = String::from_utf8(output.stdout).ok()?;
-    let version = version_string.trim().split_whitespace().last()?.to_string();
-
-    Some(version)
+        .output()
+        .ok()
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .and_then(|version_string| version_string.split_whitespace().last().map(String::from))
 }
 
 fn install_trunk() -> Result<(), Box<dyn std::error::Error>> {
@@ -89,7 +83,7 @@ fn main() {
     // need to change target directory to avoid deadlocking
     env::set_var("CARGO_TARGET_DIR", "../thoth-app/target");
     let mut trunk_command = Command::new("trunk");
-    trunk_command.args(&[
+    trunk_command.args([
         "build",
         "--config",
         "../thoth-app/Trunk.toml",
