@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+  - [568](https://github.com/thoth-pub/thoth/issues/568) - Allow building `thoth-app` directly from cargo, using a build script in `thoth-app-server`
+  - Build `thoth-app` with `trunk, instead of `wasm-pack`
+  - Upgrade `jsonwebtoken` to v9.2.0
+  - Mark `jsonwebtoken` as an optional dependency, built with the `backend` feature
 
 ## [[0.11.16]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.16) - 2024-02-19
 ### Changed
