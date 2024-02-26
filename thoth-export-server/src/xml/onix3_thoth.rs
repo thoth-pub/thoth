@@ -748,6 +748,21 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                 if isbns.len() > 1 || !non_child_relations.is_empty() || !self.references.is_empty()
                 {
                     write_element_block("RelatedMaterial", w, |w| {
+                        // RelatedWorks should be listed before RelatedProducts
+                        for relation in &non_child_relations {
+                            if relation.relation_type == RelationType::HAS_TRANSLATION
+                                || relation.relation_type == RelationType::IS_TRANSLATION_OF
+                            {
+                                XmlElementBlock::<Onix3Thoth>::xml_element(relation, w).ok();
+                            }
+                        }
+                        for relation in &non_child_relations {
+                            if relation.relation_type != RelationType::HAS_TRANSLATION
+                                && relation.relation_type != RelationType::IS_TRANSLATION_OF
+                            {
+                                XmlElementBlock::<Onix3Thoth>::xml_element(relation, w).ok();
+                            }
+                        }
                         for isbn in &isbns {
                             if !current_isbn.eq(&Some(isbn.clone())) {
                                 write_element_block("RelatedProduct", w, |w| {
@@ -768,9 +783,6 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                     })
                                 })?;
                             }
-                        }
-                        for relation in &non_child_relations {
-                            XmlElementBlock::<Onix3Thoth>::xml_element(relation, w).ok();
                         }
                         for reference in &self.references {
                             XmlElementBlock::<Onix3Thoth>::xml_element(reference, w).ok();
