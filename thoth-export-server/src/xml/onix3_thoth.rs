@@ -614,6 +614,12 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                     Ok(())
                                 })?;
                             }
+                            if let Some(page_count) = &chapter.page_count {
+                                write_element_block("NumberOfPages", w, |w| {
+                                    w.write(XmlEvent::Characters(&page_count.to_string()))
+                                        .map_err(|e| e.into())
+                                })?;
+                            }
                         }
                         Ok(())
                     })?;

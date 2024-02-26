@@ -820,6 +820,7 @@ mod tests {
                 place: Some("Other Place".to_string()),
                 first_page: Some("10".to_string()),
                 last_page: Some("20".to_string()),
+                page_count: Some(11),
                 page_interval: Some("10–20".to_string()),
                 landing_page: Some("https://www.book.com/chapter_one".to_string()),
                 imprint: WorkRelationsRelatedWorkImprint {
@@ -1268,6 +1269,7 @@ mod tests {
                     place: Some("Other Place".to_string()),
                     first_page: Some("10".to_string()),
                     last_page: Some("20".to_string()),
+                    page_count: Some(11),
                     page_interval: Some("10–20".to_string()),
                     landing_page: Some("https://www.book.com/part_one".to_string()),
                     imprint: WorkRelationsRelatedWorkImprint {
