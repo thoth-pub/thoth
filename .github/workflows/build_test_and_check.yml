@@ -42,11 +42,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - name: Build binary
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --verbose
     - name: Run tests
       uses: actions-rs/cargo@v1
       with:
@@ -56,11 +51,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - name: Build binary
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --verbose
     - name: Run linting
       uses: actions-rs/cargo@v1
       with:
