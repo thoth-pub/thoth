@@ -3140,6 +3140,7 @@ version = "0.11.16"
 dependencies = [
  "anyhow",
  "chrono",
+ "dotenv",
  "getrandom 0.2.10",
  "gloo-storage",
  "gloo-timers",

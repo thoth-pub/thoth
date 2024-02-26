@@ -1,6 +1,3 @@
-THOTH_GRAPHQL_API ?= http://localhost:8000
-THOTH_EXPORT_API ?= http://localhost:8181
-
 .PHONY: \
 	build-graphql-api \
 	build-export-api \
@@ -12,6 +9,7 @@ THOTH_EXPORT_API ?= http://localhost:8181
 	docker-dev-build \
 	docker-dev-run \
 	docker-dev-db \
+	build \
 	test \
 	clippy \
 	format \
@@ -42,23 +40,19 @@ docker-dev-run:
 docker-dev-db:
 	docker-compose -f docker-compose.dev.yml up db
 
-cargo-build:
+build:
 	cargo build
 
-build-graphql-api: cargo-build
+build-graphql-api: build
 
-build-export-api: cargo-build
+build-export-api: build
 
-build-app: cargo-build
+build-app: build
 
 test:
-	THOTH_GRAPHQL_API=$(THOTH_GRAPHQL_API) \
-	THOTH_EXPORT_API=$(THOTH_EXPORT_API) \
 	cargo test --workspace
 
 clippy:
-	THOTH_GRAPHQL_API=$(THOTH_GRAPHQL_API) \
-	THOTH_EXPORT_API=$(THOTH_EXPORT_API) \
 	cargo clippy --all --all-targets --all-features -- -D warnings
 
 format:
@@ -68,6 +62,4 @@ check-format:
 	cargo fmt --all -- --check
 
 check:
-	THOTH_GRAPHQL_API=$(THOTH_GRAPHQL_API) \
-	THOTH_EXPORT_API=$(THOTH_EXPORT_API) \
 	cargo check --workspace
