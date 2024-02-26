@@ -7,16 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
   - [568](https://github.com/thoth-pub/thoth/issues/568) - Allow building `thoth-app` directly from cargo, using a build script in `thoth-app-server`
-  - Build `thoth-app` with `trunk, instead of `wasm-pack`
-  - Optionally load `thoth-export-server` env variables from `.env` at build time
-  - Optionally load `thoth-app` env variables from `.env` at build time
-  - Upgrade `jsonwebtoken` to v9.2.0
-  - Mark `jsonwebtoken` as an optional dependency, built with the `backend` feature
-  - Upgrade `env\_logger` to v0.11.2
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Build `thoth-app` with `trunk, instead of `wasm-pack`
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Optionally load `thoth-export-server` env variables from `.env` at build time
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Optionally load `thoth-app` env variables from `.env` at build time
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `jsonwebtoken` to v9.2.0
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Mark `jsonwebtoken` as an optional dependency, built with the `backend` feature
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `env\_logger` to v0.11.2
+  - [499](https://github.com/thoth-pub/thoth/issues/499) - Default main\_contribution to true
+
+### Fixed
+  - [447](https://github.com/thoth-pub/thoth/issues/447) - Prevents Google Books Onix3 format output from Export API if Thoth record doesn't contain at least one BIC, BISAC or LCC subject code
+  - [404](https://github.com/thoth-pub/thoth/issues/404) - Prevents JSTOR Onix3 format output from Export API if Thoth record doesn't contain at least one BISAC subject code
 
 ## [[0.11.16]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.16) - 2024-02-19
 ### Changed
-  - [499](https://github.com/thoth-pub/thoth/issues/499) - Default main\_contribution to true
   - [561](https://github.com/thoth-pub/thoth/issues/561) - Add "Publisher Website" as a location platform
   - [553](https://github.com/thoth-pub/thoth/pull/553) - Upgrade rust to `1.76.0` in production and development `Dockerfile`
   - [305](https://github.com/thoth-pub/thoth/issues/305) - Update rust edition to 2021
