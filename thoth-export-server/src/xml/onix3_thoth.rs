@@ -1263,7 +1263,7 @@ impl XmlElementBlock<Onix3Thoth> for WorkFundings {
             if let Some(project_name) = &self.project_name {
                 identifiers.insert("projectname".to_string(), project_name.to_string());
             }
-            if let Some(project_shortname) = &self.project_name {
+            if let Some(project_shortname) = &self.project_shortname {
                 identifiers.insert(
                     "projectshortname".to_string(),
                     project_shortname.to_string(),
@@ -1429,18 +1429,22 @@ impl XmlElementBlock<Onix3Thoth> for (&str, &f64, &str) {
 
 #[cfg(test)]
 mod tests {
-    // Testing note: XML nodes cannot be guaranteed to be output in the same order every time
-    // We therefore rely on `assert!(contains)` rather than `assert_eq!`
+    // Testing note: Repeated XML nodes cannot be guaranteed to be output in the same order every time
+    // We therefore rely on `assert!(contains)` rather than `assert_eq!` in these cases
+    // println!s throughout will only be printed if test fails - this assists debugging
     use super::*;
     use std::str::FromStr;
     use thoth_api::model::Doi;
     use thoth_api::model::Isbn;
     use thoth_api::model::Orcid;
+    use thoth_api::model::Ror;
     use thoth_client::{
-        ContributionType, CurrencyCode, LanguageCode, LanguageRelation, LocationPlatform,
-        PublicationType, WorkContributionsContributor, WorkImprint, WorkImprintPublisher,
-        WorkIssuesSeries, WorkPublications, WorkPublicationsLocations, WorkPublicationsPrices,
-        WorkStatus, WorkSubjects, WorkType,
+        ContributionType, CurrencyCode, FundingInstitution, LanguageCode, LanguageRelation,
+        LocationPlatform, PublicationType, WorkContributionsAffiliations,
+        WorkContributionsAffiliationsInstitution, WorkContributionsContributor, WorkImprint,
+        WorkImprintPublisher, WorkIssuesSeries, WorkPublications, WorkPublicationsLocations,
+        WorkPublicationsPrices, WorkRelationsRelatedWork, WorkRelationsRelatedWorkImprint,
+        WorkRelationsRelatedWorkImprintPublisher, WorkStatus, WorkSubjects, WorkType,
     };
     use uuid::Uuid;
 
@@ -1471,48 +1475,105 @@ mod tests {
             contribution_type: ContributionType::AUTHOR,
             first_name: Some("Author".to_string()),
             last_name: "1".to_string(),
-            full_name: "Author 1".to_string(),
+            full_name: "Author N. 1".to_string(),
             main_contribution: true,
-            biography: None,
+            biography: Some("Author N. 1 is a made-up author".to_string()),
             contribution_ordinal: 1,
             contributor: WorkContributionsContributor {
                 orcid: Some(Orcid::from_str("https://orcid.org/0000-0002-0000-0001").unwrap()),
-                website: None,
+                website: Some("https://contributor.site".to_string()),
             },
-            affiliations: vec![],
+            affiliations: vec![WorkContributionsAffiliations {
+                position: Some("Manager".to_string()),
+                affiliation_ordinal: 1,
+                institution: WorkContributionsAffiliationsInstitution {
+                    institution_name: "University of Life".to_string(),
+                    institution_doi: None,
+                    ror: None,
+                    country_code: None,
+                },
+            }],
         };
 
         // Test standard output
         let output = generate_test_output(true, &test_contribution);
-        assert!(output.contains(r#"  <SequenceNumber>1</SequenceNumber>"#));
-        assert!(output.contains(r#"  <ContributorRole>A01</ContributorRole>"#));
-        assert!(output.contains(r#"  <NameIdentifier>"#));
-        assert!(output.contains(r#"    <NameIDType>21</NameIDType>"#));
-        assert!(output.contains(r#"    <IDValue>0000-0002-0000-0001</IDValue>"#));
-        assert!(output.contains(r#"  </NameIdentifier>"#));
-        // Given name is output as NamesBeforeKey and family name as KeyNames
-        assert!(output.contains(r#"  <NamesBeforeKey>Author</NamesBeforeKey>"#));
-        assert!(output.contains(r#"  <KeyNames>1</KeyNames>"#));
-        // PersonName is not output when given name is supplied
-        assert!(!output.contains(r#"  <PersonName>Author 1</PersonName>"#));
+        println!("{output}");
+        assert_eq!(
+            output,
+            r#"<?xml version="1.0" encoding="utf-8"?>
+<Contributor>
+  <SequenceNumber>1</SequenceNumber>
+  <ContributorRole>A01</ContributorRole>
+  <NameIdentifier>
+    <NameIDType>21</NameIDType>
+    <IDValue>0000-0002-0000-0001</IDValue>
+  </NameIdentifier>
+  <PersonName>Author N. 1</PersonName>
+  <NamesBeforeKey>Author</NamesBeforeKey>
+  <KeyNames>1</KeyNames>
+  <ProfessionalAffiliation>
+    <ProfessionalPosition>Manager</ProfessionalPosition>
+    <Affiliation>University of Life</Affiliation>
+  </ProfessionalAffiliation>
+  <BiographicalNote>Author N. 1 is a made-up author</BiographicalNote>
+  <Website>
+    <WebsiteRole>06</WebsiteRole>
+    <WebsiteDescription>Own website</WebsiteDescription>
+    <WebsiteLink>https://contributor.site</WebsiteLink>
+  </Website>
+</Contributor>"#
+        );
 
         // Change all possible values to test that output is updated
         test_contribution.contribution_type = ContributionType::EDITOR;
         test_contribution.contribution_ordinal = 2;
         test_contribution.contributor.orcid = None;
+        test_contribution.contributor.website = None;
         test_contribution.first_name = None;
+        test_contribution.biography = None;
+        test_contribution.affiliations[0].position = None;
         let output = generate_test_output(true, &test_contribution);
-        assert!(output.contains(r#"  <SequenceNumber>2</SequenceNumber>"#));
-        assert!(output.contains(r#"  <ContributorRole>B01</ContributorRole>"#));
-        // No ORCID supplied
-        assert!(!output.contains(r#"  <NameIdentifier>"#));
-        assert!(!output.contains(r#"    <NameIDType>21</NameIDType>"#));
-        assert!(!output.contains(r#"    <IDValue>0000-0002-0000-0001</IDValue>"#));
-        assert!(!output.contains(r#"  </NameIdentifier>"#));
-        // No given name supplied, so PersonName is output instead of KeyNames and NamesBeforeKey
-        assert!(!output.contains(r#"  <NamesBeforeKey>Author</NamesBeforeKey>"#));
-        assert!(!output.contains(r#"  <KeyNames>1</KeyNames>"#));
-        assert!(output.contains(r#"  <PersonName>Author 1</PersonName>"#));
+        println!("{output}");
+        assert_eq!(
+            output,
+            r#"<?xml version="1.0" encoding="utf-8"?>
+<Contributor>
+  <SequenceNumber>2</SequenceNumber>
+  <ContributorRole>B01</ContributorRole>
+  <PersonName>Author N. 1</PersonName>
+  <KeyNames>1</KeyNames>
+  <ProfessionalAffiliation>
+    <Affiliation>University of Life</Affiliation>
+  </ProfessionalAffiliation>
+</Contributor>"#
+        );
+
+        // Test multiple affiliations
+        test_contribution
+            .affiliations
+            .push(WorkContributionsAffiliations {
+                position: Some("Janitor".to_string()),
+                affiliation_ordinal: 2,
+                institution: WorkContributionsAffiliationsInstitution {
+                    institution_name: "Institute of Mopping".to_string(),
+                    institution_doi: None,
+                    ror: None,
+                    country_code: None,
+                },
+            });
+        let output = generate_test_output(true, &test_contribution);
+        println!("{output}");
+        assert!(output.contains(
+            r#"  <ProfessionalAffiliation>
+    <Affiliation>University of Life</Affiliation>
+  </ProfessionalAffiliation>"#
+        ));
+        assert!(output.contains(
+            r#"  <ProfessionalAffiliation>
+    <ProfessionalPosition>Janitor</ProfessionalPosition>
+    <Affiliation>Institute of Mopping</Affiliation>
+  </ProfessionalAffiliation>"#
+        ));
 
         // Test all remaining contributor roles
         test_contribution.contribution_type = ContributionType::TRANSLATOR;
@@ -1578,42 +1639,86 @@ mod tests {
                 series_name: "Name of series".to_string(),
                 issn_print: "1234-5678".to_string(),
                 issn_digital: "8765-4321".to_string(),
-                series_url: None,
+                series_url: Some("https://series.url".to_string()),
                 series_description: None,
-                series_cfp_url: None,
+                series_cfp_url: Some("https://series.cfp.url".to_string()),
             },
         };
 
         // Test standard output
         let output = generate_test_output(true, &test_issue);
-        assert!(output.contains(r#"<Collection>"#));
-        assert!(output.contains(r#"  <CollectionType>10</CollectionType>"#));
-        assert!(output.contains(r#"  <CollectionIdentifier>"#));
-        assert!(output.contains(r#"    <CollectionIDType>02</CollectionIDType>"#));
-        assert!(output.contains(r#"    <IDValue>87654321</IDValue>"#));
-        assert!(output.contains(r#"  <TitleDetail>"#));
-        assert!(output.contains(r#"    <TitleType>01</TitleType>"#));
-        assert!(output.contains(r#"    <TitleElement>"#));
-        assert!(output.contains(r#"      <TitleElementLevel>02</TitleElementLevel>"#));
-        assert!(output.contains(r#"      <PartNumber>1</PartNumber>"#));
-        assert!(output.contains(r#"      <TitleText>Name of series</TitleText>"#));
+        println!("{output}");
+        assert!(output.contains(
+            r#"<Collection>
+  <CollectionType>10</CollectionType>"#
+        ));
+        assert!(output.contains(
+            r#"  <CollectionIdentifier>
+    <CollectionIDType>02</CollectionIDType>
+    <IDValue>87654321</IDValue>
+  </CollectionIdentifier>"#
+        ));
+        assert!(output.contains(
+            r#"  <CollectionIdentifier>
+    <CollectionIDType>01</CollectionIDType>
+    <IDTypeName>Series URL</IDTypeName>
+    <IDValue>https://series.url</IDValue>
+  </CollectionIdentifier>"#
+        ));
+        assert!(output.contains(
+            r#"  <CollectionIdentifier>
+    <CollectionIDType>01</CollectionIDType>
+    <IDTypeName>Series Call for Proposals URL</IDTypeName>
+    <IDValue>https://series.cfp.url</IDValue>
+  </CollectionIdentifier>"#
+        ));
+        assert!(output.contains(
+            r#"  <CollectionSequence>
+    <CollectionSequenceType>03</CollectionSequenceType>
+    <CollectionSequenceNumber>1</CollectionSequenceNumber>
+  </CollectionSequence>
+  <TitleDetail>
+    <TitleType>01</TitleType>
+    <TitleElement>
+      <TitleElementLevel>02</TitleElementLevel>
+      <PartNumber>1</PartNumber>
+      <TitleText>Name of series</TitleText>
+    </TitleElement>
+  </TitleDetail>
+</Collection>"#
+        ));
 
         // Change all possible values to test that output is updated
         test_issue.issue_ordinal = 2;
         test_issue.series.series_name = "Different series".to_string();
         test_issue.series.issn_digital = "1111-2222".to_string();
+        test_issue.series.series_url = None;
+        test_issue.series.series_cfp_url = None;
         let output = generate_test_output(true, &test_issue);
-        assert!(output.contains(r#"<Collection>"#));
-        assert!(output.contains(r#"  <CollectionType>10</CollectionType>"#));
-        assert!(output.contains(r#"  <CollectionIdentifier>"#));
-        assert!(output.contains(r#"    <CollectionIDType>02</CollectionIDType>"#));
-        assert!(output.contains(r#"    <IDValue>11112222</IDValue>"#));
-        assert!(output.contains(r#"  <TitleDetail>"#));
-        assert!(output.contains(r#"    <TitleType>01</TitleType>"#));
-        assert!(output.contains(r#"    <TitleElement>"#));
-        assert!(output.contains(r#"      <TitleElementLevel>02</TitleElementLevel>"#));
-        assert!(output.contains(r#"      <PartNumber>2</PartNumber>"#));
-        assert!(output.contains(r#"      <TitleText>Different series</TitleText>"#));
+        println!("{output}");
+        assert_eq!(
+            output,
+            r#"<?xml version="1.0" encoding="utf-8"?>
+<Collection>
+  <CollectionType>10</CollectionType>
+  <CollectionIdentifier>
+    <CollectionIDType>02</CollectionIDType>
+    <IDValue>11112222</IDValue>
+  </CollectionIdentifier>
+  <CollectionSequence>
+    <CollectionSequenceType>03</CollectionSequenceType>
+    <CollectionSequenceNumber>2</CollectionSequenceNumber>
+  </CollectionSequence>
+  <TitleDetail>
+    <TitleType>01</TitleType>
+    <TitleElement>
+      <TitleElementLevel>02</TitleElementLevel>
+      <PartNumber>2</PartNumber>
+      <TitleText>Different series</TitleText>
+    </TitleElement>
+  </TitleDetail>
+</Collection>"#
+        );
     }
 
     #[test]
@@ -1621,21 +1726,29 @@ mod tests {
         let mut test_funding = WorkFundings {
             program: Some("Name of program".to_string()),
             project_name: Some("Name of project".to_string()),
-            project_shortname: None,
+            project_shortname: Some("Nop".to_string()),
             grant_number: Some("Number of grant".to_string()),
-            jurisdiction: None,
-            institution: thoth_client::FundingInstitution {
+            jurisdiction: Some("Republic of Moldova".to_string()),
+            institution: FundingInstitution {
                 institution_name: "Name of institution".to_string(),
-                institution_doi: None,
-                ror: None,
+                institution_doi: Some(
+                    Doi::from_str("https://doi.org/10.00001/INSTITUTION.0001").unwrap(),
+                ),
+                ror: Some(Ror::from_str("https://ror.org/0aaaaaa00").unwrap()),
                 country_code: None,
             },
         };
 
         // Test standard output
         let output = generate_test_output(true, &test_funding);
+        println!("{output}");
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
+        assert!(output.contains(r#"  <PublisherIdentifier>"#));
+        assert!(output.contains(r#"    <PublisherIDType>40</PublisherIDType>"#));
+        assert!(output.contains(r#"    <IDValue>0aaaaaa00</IDValue>"#));
+        assert!(output.contains(r#"    <PublisherIDType>32</PublisherIDType>"#));
+        assert!(output.contains(r#"    <IDValue>10.00001/INSTITUTION.0001</IDValue>"#));
         assert!(output.contains(r#"  <PublisherName>Name of institution</PublisherName>"#));
         assert!(output.contains(r#"  <Funding>"#));
         assert!(output.contains(r#"    <FundingIdentifier>"#));
@@ -1644,16 +1757,26 @@ mod tests {
         assert!(output.contains(r#"      <IDValue>Name of program</IDValue>"#));
         assert!(output.contains(r#"      <IDTypeName>projectname</IDTypeName>"#));
         assert!(output.contains(r#"      <IDValue>Name of project</IDValue>"#));
+        assert!(output.contains(r#"      <IDTypeName>projectshortname</IDTypeName>"#));
+        assert!(output.contains(r#"      <IDValue>Nop</IDValue>"#));
         assert!(output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
         assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
+        assert!(output.contains(r#"      <IDTypeName>jurisdiction</IDTypeName>"#));
+        assert!(output.contains(r#"      <IDValue>Republic of Moldova</IDValue>"#));
 
         // Change all possible values to test that output is updated
-
         test_funding.institution.institution_name = "Different institution".to_string();
         test_funding.program = None;
+        test_funding.institution.institution_doi = None;
         let output = generate_test_output(true, &test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
+        assert!(output.contains(r#"  <PublisherIdentifier>"#));
+        assert!(output.contains(r#"    <PublisherIDType>40</PublisherIDType>"#));
+        assert!(output.contains(r#"    <IDValue>0aaaaaa00</IDValue>"#));
+        // No DOI supplied
+        assert!(!output.contains(r#"    <PublisherIDType>32</PublisherIDType>"#));
+        assert!(!output.contains(r#"    <IDValue>10.00001/INSTITUTION.0001</IDValue>"#));
         assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
         assert!(output.contains(r#"  <Funding>"#));
         assert!(output.contains(r#"    <FundingIdentifier>"#));
@@ -1663,13 +1786,50 @@ mod tests {
         assert!(!output.contains(r#"      <IDValue>Name of program</IDValue>"#));
         assert!(output.contains(r#"      <IDTypeName>projectname</IDTypeName>"#));
         assert!(output.contains(r#"      <IDValue>Name of project</IDValue>"#));
+        assert!(output.contains(r#"      <IDTypeName>projectshortname</IDTypeName>"#));
+        assert!(output.contains(r#"      <IDValue>Nop</IDValue>"#));
         assert!(output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
         assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
+        assert!(output.contains(r#"      <IDTypeName>jurisdiction</IDTypeName>"#));
+        assert!(output.contains(r#"      <IDValue>Republic of Moldova</IDValue>"#));
 
         test_funding.project_name = None;
+        test_funding.institution.ror = None;
         let output = generate_test_output(true, &test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
+        assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
+        // No DOI or ROR supplied, so PublisherIdentifier block is omitted completely
+        assert!(!output.contains(r#"  <PublisherIdentifier>"#));
+        assert!(!output.contains(r#"    <PublisherIDType>40</PublisherIDType>"#));
+        assert!(!output.contains(r#"    <IDValue>0aaaaaa00</IDValue>"#));
+        assert!(!output.contains(r#"    <PublisherIDType>32</PublisherIDType>"#));
+        assert!(!output.contains(r#"    <IDValue>10.00001/INSTITUTION.0001</IDValue>"#));
+        assert!(output.contains(r#"  <Funding>"#));
+        assert!(output.contains(r#"    <FundingIdentifier>"#));
+        assert!(output.contains(r#"      <FundingIDType>01</FundingIDType>"#));
+        // No program supplied
+        assert!(!output.contains(r#"      <IDTypeName>programname</IDTypeName>"#));
+        assert!(!output.contains(r#"      <IDValue>Name of program</IDValue>"#));
+        // No project supplied
+        assert!(!output.contains(r#"      <IDTypeName>projectname</IDTypeName>"#));
+        assert!(!output.contains(r#"      <IDValue>Name of project</IDValue>"#));
+        assert!(output.contains(r#"      <IDTypeName>projectshortname</IDTypeName>"#));
+        assert!(output.contains(r#"      <IDValue>Nop</IDValue>"#));
+        assert!(output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
+        assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
+        assert!(output.contains(r#"      <IDTypeName>jurisdiction</IDTypeName>"#));
+        assert!(output.contains(r#"      <IDValue>Republic of Moldova</IDValue>"#));
+
+        test_funding.project_shortname = None;
+        let output = generate_test_output(true, &test_funding);
+        assert!(output.contains(r#"<Publisher>"#));
+        assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
+        assert!(!output.contains(r#"  <PublisherIdentifier>"#));
+        assert!(!output.contains(r#"    <PublisherIDType>40</PublisherIDType>"#));
+        assert!(!output.contains(r#"    <IDValue>0aaaaaa00</IDValue>"#));
+        assert!(!output.contains(r#"    <PublisherIDType>32</PublisherIDType>"#));
+        assert!(!output.contains(r#"    <IDValue>10.00001/INSTITUTION.0001</IDValue>"#));
         assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
         assert!(output.contains(r#"  <Funding>"#));
         assert!(output.contains(r#"    <FundingIdentifier>"#));
@@ -1680,15 +1840,54 @@ mod tests {
         // No project supplied
         assert!(!output.contains(r#"      <IDTypeName>projectname</IDTypeName>"#));
         assert!(!output.contains(r#"      <IDValue>Name of project</IDValue>"#));
+        // No short name supplied
+        assert!(!output.contains(r#"      <IDTypeName>projectshortname</IDTypeName>"#));
+        assert!(!output.contains(r#"      <IDValue>Nop</IDValue>"#));
         assert!(output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
         assert!(output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
+        assert!(output.contains(r#"      <IDTypeName>jurisdiction</IDTypeName>"#));
+        assert!(output.contains(r#"      <IDValue>Republic of Moldova</IDValue>"#));
 
         test_funding.grant_number = None;
         let output = generate_test_output(true, &test_funding);
         assert!(output.contains(r#"<Publisher>"#));
         assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
+        assert!(!output.contains(r#"  <PublisherIdentifier>"#));
+        assert!(!output.contains(r#"    <PublisherIDType>40</PublisherIDType>"#));
+        assert!(!output.contains(r#"    <IDValue>0aaaaaa00</IDValue>"#));
+        assert!(!output.contains(r#"    <PublisherIDType>32</PublisherIDType>"#));
+        assert!(!output.contains(r#"    <IDValue>10.00001/INSTITUTION.0001</IDValue>"#));
         assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
-        // No program, project or grant supplied, so Funding block is omitted completely
+        assert!(output.contains(r#"  <Funding>"#));
+        assert!(output.contains(r#"    <FundingIdentifier>"#));
+        assert!(output.contains(r#"      <FundingIDType>01</FundingIDType>"#));
+        // No program supplied
+        assert!(!output.contains(r#"      <IDTypeName>programname</IDTypeName>"#));
+        assert!(!output.contains(r#"      <IDValue>Name of program</IDValue>"#));
+        // No project supplied
+        assert!(!output.contains(r#"      <IDTypeName>projectname</IDTypeName>"#));
+        assert!(!output.contains(r#"      <IDValue>Name of project</IDValue>"#));
+        // No short name supplied
+        assert!(!output.contains(r#"      <IDTypeName>projectshortname</IDTypeName>"#));
+        assert!(!output.contains(r#"      <IDValue>Nop</IDValue>"#));
+        // No grant supplied
+        assert!(!output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
+        assert!(!output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
+        assert!(output.contains(r#"      <IDTypeName>jurisdiction</IDTypeName>"#));
+        assert!(output.contains(r#"      <IDValue>Republic of Moldova</IDValue>"#));
+
+        test_funding.jurisdiction = None;
+        let output = generate_test_output(true, &test_funding);
+        assert!(output.contains(r#"<Publisher>"#));
+        assert!(output.contains(r#"  <PublishingRole>16</PublishingRole>"#));
+        assert!(!output.contains(r#"  <PublisherIdentifier>"#));
+        assert!(!output.contains(r#"    <PublisherIDType>40</PublisherIDType>"#));
+        assert!(!output.contains(r#"    <IDValue>0aaaaaa00</IDValue>"#));
+        assert!(!output.contains(r#"    <PublisherIDType>32</PublisherIDType>"#));
+        assert!(!output.contains(r#"    <IDValue>10.00001/INSTITUTION.0001</IDValue>"#));
+        assert!(output.contains(r#"  <PublisherName>Different institution</PublisherName>"#));
+        // No program, project, short name, grant or jurisdiction supplied,
+        // so Funding block is omitted completely
         assert!(!output.contains(r#"  <Funding>"#));
         assert!(!output.contains(r#"    <FundingIdentifier>"#));
         assert!(!output.contains(r#"      <FundingIDType>01</FundingIDType>"#));
@@ -1696,8 +1895,151 @@ mod tests {
         assert!(!output.contains(r#"      <IDValue>Name of program</IDValue>"#));
         assert!(!output.contains(r#"      <IDTypeName>projectname</IDTypeName>"#));
         assert!(!output.contains(r#"      <IDValue>Name of project</IDValue>"#));
+        assert!(!output.contains(r#"      <IDTypeName>projectshortname</IDTypeName>"#));
+        assert!(!output.contains(r#"      <IDValue>Nop</IDValue>"#));
         assert!(!output.contains(r#"      <IDTypeName>grantnumber</IDTypeName>"#));
         assert!(!output.contains(r#"      <IDValue>Number of grant</IDValue>"#));
+        assert!(!output.contains(r#"      <IDTypeName>jurisdiction</IDTypeName>"#));
+        assert!(!output.contains(r#"      <IDValue>Republic of Moldova</IDValue>"#));
+    }
+
+    #[test]
+    fn test_onix3_thoth_references() {
+        let mut test_reference = WorkReferences {
+            reference_ordinal: 1,
+            doi: Some(Doi::from_str("https://doi.org/10.00001/reference").unwrap()),
+            unstructured_citation: Some("Author, A. (2022) Article, Journal.".to_string()),
+            issn: None,
+            isbn: None,
+            journal_title: None,
+            article_title: None,
+            series_title: None,
+            volume_title: None,
+            edition: None,
+            author: None,
+            volume: None,
+            issue: None,
+            first_page: None,
+            component_number: None,
+            standard_designator: None,
+            standards_body_name: None,
+            standards_body_acronym: None,
+            publication_date: None,
+            retrieval_date: None,
+        };
+
+        // Test standard output
+        let output = generate_test_output(true, &test_reference);
+        println!("{output}");
+        assert_eq!(
+            output,
+            r#"<?xml version="1.0" encoding="utf-8"?>
+<RelatedProduct>
+  <ProductRelationCode>34</ProductRelationCode>
+  <ProductIdentifier>
+    <ProductIDType>06</ProductIDType>
+    <IDValue>10.00001/reference</IDValue>
+  </ProductIdentifier>
+</RelatedProduct>"#
+        );
+
+        // Remove DOI
+        test_reference.doi = None;
+        let output = generate_test_output(true, &test_reference);
+        println!("{output}");
+        assert_eq!(
+            output,
+            r#"<?xml version="1.0" encoding="utf-8"?>
+<RelatedProduct>
+  <ProductRelationCode>34</ProductRelationCode>
+  <ProductIdentifier>
+    <ProductIDType>01</ProductIDType>
+    <IDTypeName>Unstructured citation</IDTypeName>
+    <IDValue>Author, A. (2022) Article, Journal.</IDValue>
+  </ProductIdentifier>
+</RelatedProduct>"#
+        );
+    }
+
+    #[test]
+    fn test_onix3_thoth_relations() {
+        let mut test_relation = WorkRelations {
+            relation_type: RelationType::HAS_TRANSLATION,
+            relation_ordinal: 1,
+            related_work: WorkRelationsRelatedWork {
+                full_title: "N/A".to_string(),
+                title: "N/A".to_string(),
+                subtitle: None,
+                edition: None,
+                doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
+                publication_date: None,
+                license: None,
+                short_abstract: None,
+                long_abstract: None,
+                place: None,
+                first_page: None,
+                last_page: None,
+                page_count: None,
+                page_interval: None,
+                landing_page: None,
+                imprint: WorkRelationsRelatedWorkImprint {
+                    publisher: WorkRelationsRelatedWorkImprintPublisher {
+                        publisher_name: "N/A".to_string(),
+                    },
+                },
+                contributions: vec![],
+                publications: vec![],
+                references: vec![],
+                fundings: vec![],
+            },
+        };
+
+        // Test RelatedWork type
+        let output = generate_test_output(true, &test_relation);
+        println!("{output}");
+        assert_eq!(
+            output,
+            r#"<?xml version="1.0" encoding="utf-8"?>
+<RelatedWork>
+  <WorkRelationCode>49</WorkRelationCode>
+  <WorkIdentifier>
+    <WorkIDType>06</WorkIDType>
+    <IDValue>10.00001/RELATION.0001</IDValue>
+  </WorkIdentifier>
+</RelatedWork>"#
+        );
+
+        // Test RelatedProduct type, change DOI
+        test_relation.relation_type = RelationType::HAS_PART;
+        test_relation.related_work.doi =
+            Some(Doi::from_str("https://doi.org/10.00002/RELATION.0002").unwrap());
+        let output = generate_test_output(true, &test_relation);
+        println!("{output}");
+        assert_eq!(
+            output,
+            r#"<?xml version="1.0" encoding="utf-8"?>
+<RelatedProduct>
+  <ProductRelationCode>01</ProductRelationCode>
+  <ProductIdentifier>
+    <ProductIDType>06</ProductIDType>
+    <IDValue>10.00002/RELATION.0002</IDValue>
+  </ProductIdentifier>
+</RelatedProduct>"#
+        );
+
+        // Test all other relation codes
+        test_relation.relation_type = RelationType::IS_TRANSLATION_OF;
+        let output = generate_test_output(true, &test_relation);
+        assert!(output.contains(r#"  <WorkRelationCode>29</WorkRelationCode>"#));
+        test_relation.relation_type = RelationType::IS_PART_OF;
+        let output = generate_test_output(true, &test_relation);
+        assert!(output.contains(r#"  <ProductRelationCode>02</ProductRelationCode>"#));
+        test_relation.relation_type = RelationType::REPLACES;
+        let output = generate_test_output(true, &test_relation);
+        assert!(output.contains(r#"  <ProductRelationCode>03</ProductRelationCode>"#));
+        test_relation.relation_type = RelationType::IS_REPLACED_BY;
+        let output = generate_test_output(true, &test_relation);
+        assert!(output.contains(r#"  <ProductRelationCode>05</ProductRelationCode>"#));
     }
 
     #[test]
