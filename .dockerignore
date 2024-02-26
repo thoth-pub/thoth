@@ -5,6 +5,7 @@
 .gitignore
 db/
 target/
+pkg/
 LICENSE
 README.md
 Dockerfile
