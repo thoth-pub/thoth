@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Optionally load `thoth-export-server` env variables from `.env` at build time
   - Upgrade `jsonwebtoken` to v9.2.0
   - Mark `jsonwebtoken` as an optional dependency, built with the `backend` feature
+  - Upgrade `env_logger` to v0.11.2
 
 ## [[0.11.16]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.16) - 2024-02-19
 ### Changed
