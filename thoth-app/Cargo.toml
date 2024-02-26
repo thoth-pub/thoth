@@ -12,12 +12,6 @@ readme = "README.md"
 travis-ci = { repository = "openbookpublishers/thoth" }
 maintenance = { status = "actively-developed" }
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
-[build-dependencies]
-wasm-pack = "0.12.1"
-
 [dependencies]
 anyhow = "1.0.32"
 chrono = { version = "0.4.31", features = ["serde"] }
@@ -29,7 +23,7 @@ yew = "0.19.3"
 yew-agent = "0.1.0"
 yew-router = "0.16.0"
 yewtil = { version = "0.4.0", features = ["fetch"] }
-wasm-bindgen = "0.2.80"
+wasm-bindgen = "0.2.89"
 wasm-logger = "0.2.0"
 web-sys = { version = "0.3.57", features = ["HtmlInputElement", "HtmlSelectElement", "HtmlTextAreaElement"] }
 reqwest = { version = "0.11", features = ["json"] }
