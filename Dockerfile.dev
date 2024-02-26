@@ -42,6 +42,7 @@ RUN touch thoth-api/src/lib.rs thoth-api-server/src/lib.rs \
     thoth-errors/src/lib.rs thoth-export-server/src/lib.rs
 RUN echo "fn main() {}" > thoth-client/build.rs
 RUN echo "fn main() {}" > thoth-app-server/build.rs
+RUN echo "fn main() {}" > thoth-export-server/build.rs
 RUN cargo build
 RUN rm -rf src thoth-api thoth-api-server thoth-app thoth-app-server thoth-client \
     thoth-errors thoth-export-server Cargo.toml Cargo.lock
@@ -53,7 +54,8 @@ COPY . .
 # it needs to (re)compile these modules
 RUN touch -a -m thoth-api/src/lib.rs thoth-api-server/src/lib.rs \
     thoth-app/src/lib.rs thoth-app-server/src/lib.rs thoth-client/src/lib.rs \
-    thoth-errors/src/lib.rs thoth-export-server/src/lib.rs thoth-app-server/build.rs
+    thoth-errors/src/lib.rs thoth-export-server/src/lib.rs thoth-app-server/build.rs \
+    thoth-export-server/build.rs
 
 # Build Thoth for debug
 RUN cargo build

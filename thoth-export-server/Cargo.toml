@@ -7,6 +7,7 @@ license = "Apache-2.0"
 description = "Actix instance serving Thoth's metadata export endpoints"
 repository = "https://github.com/thoth-pub/thoth"
 readme = "README.md"
+build = "build.rs"
 
 [dependencies]
 thoth-api = { version = "0.11.16", path = "../thoth-api" }
@@ -30,3 +31,6 @@ xml-rs = "0.8.19"
 
 [dev-dependencies]
 regex = "1.10.2"
+
+[build-dependencies]
+dotenv = "0.15.0"

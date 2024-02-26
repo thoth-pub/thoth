@@ -3225,6 +3225,7 @@ dependencies = [
  "cc_license",
  "chrono",
  "csv",
+ "dotenv",
  "env_logger",
  "futures",
  "lazy_static",
