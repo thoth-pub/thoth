@@ -892,6 +892,18 @@ mod tests {
         test_contribution.contribution_type = ContributionType::PREFACE_BY;
         let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A15</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::SOFTWARE_BY;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A30</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::RESEARCH_BY;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A51</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::CONTRIBUTIONS_BY;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A32</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::INDEXER;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A34</ContributorRole>"#));
     }
 
     #[test]
