@@ -1564,12 +1564,14 @@ mod tests {
         let output = generate_test_output(true, &test_contribution);
         println!("{output}");
         assert!(output.contains(
-            r#"  <ProfessionalAffiliation>
+            r#"
+  <ProfessionalAffiliation>
     <Affiliation>University of Life</Affiliation>
   </ProfessionalAffiliation>"#
         ));
         assert!(output.contains(
-            r#"  <ProfessionalAffiliation>
+            r#"
+  <ProfessionalAffiliation>
     <ProfessionalPosition>Janitor</ProfessionalPosition>
     <Affiliation>Institute of Mopping</Affiliation>
   </ProfessionalAffiliation>"#
@@ -1661,31 +1663,36 @@ mod tests {
         let output = generate_test_output(true, &test_issue);
         println!("{output}");
         assert!(output.contains(
-            r#"<Collection>
+            r#"
+<Collection>
   <CollectionType>10</CollectionType>"#
         ));
         assert!(output.contains(
-            r#"  <CollectionIdentifier>
+            r#"
+  <CollectionIdentifier>
     <CollectionIDType>02</CollectionIDType>
     <IDValue>87654321</IDValue>
   </CollectionIdentifier>"#
         ));
         assert!(output.contains(
-            r#"  <CollectionIdentifier>
+            r#"
+  <CollectionIdentifier>
     <CollectionIDType>01</CollectionIDType>
     <IDTypeName>Series URL</IDTypeName>
     <IDValue>https://series.url</IDValue>
   </CollectionIdentifier>"#
         ));
         assert!(output.contains(
-            r#"  <CollectionIdentifier>
+            r#"
+  <CollectionIdentifier>
     <CollectionIDType>01</CollectionIDType>
     <IDTypeName>Series Call for Proposals URL</IDTypeName>
     <IDValue>https://series.cfp.url</IDValue>
   </CollectionIdentifier>"#
         ));
         assert!(output.contains(
-            r#"  <CollectionSequence>
+            r#"
+  <CollectionSequence>
     <CollectionSequenceType>03</CollectionSequenceType>
     <CollectionSequenceNumber>1</CollectionSequenceNumber>
   </CollectionSequence>
