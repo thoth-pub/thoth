@@ -5,6 +5,7 @@
 	run-app \
 	run-graphql-api \
 	run-export-api \
+	watch-app \
 	docker-dev \
 	docker-dev-build \
 	docker-dev-run \
@@ -28,6 +29,9 @@ run-graphql-api: build-graphql-api
 
 run-export-api: build-export-api
 	RUST_BACKTRACE=1 cargo run start export-api
+
+watch-app:
+	trunk serve thoth-app/index.html
 
 docker-dev: docker-dev-build docker-dev-run
 
