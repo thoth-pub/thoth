@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
   - Upgrade `actix-web` to v4.5.1
+  - Upgrade `tempfile` to v3.10.1
 
 ## [[0.11.16]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.16) - 2024-02-19
 ### Changed
