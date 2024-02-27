@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `jsonwebtoken` to v9.2.0
   - [569](https://github.com/thoth-pub/thoth/pull/569) - Mark `jsonwebtoken` as an optional dependency, built with the `backend` feature
   - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `env\_logger` to v0.11.2
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `semver` to v1.0.22
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `gloo-storage` to v0.3.0
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `gloo-timers` to v0.3.0
   - [499](https://github.com/thoth-pub/thoth/issues/499) - Default main\_contribution to true
 
 ### Fixed
