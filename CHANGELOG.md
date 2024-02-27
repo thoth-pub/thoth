@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `gloo-storage` to v0.3.0
   - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `gloo-timers` to v0.3.0
   - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `strum` to v0.26.1
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade`reqwest-retry` to v0.3.0
   - [499](https://github.com/thoth-pub/thoth/issues/499) - Default main\_contribution to true
 
 ### Fixed
