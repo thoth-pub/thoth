@@ -814,7 +814,7 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         publication.locations.clone();
                     if locations.is_empty() {
                         // Create single Supplier based on Work Landing Page
-                        // to ensure child elements such as Price are not omitted
+                        // so that we can output a SupplyDetail block (inc. Price info)
                         // (if Landing Page is None, Supplier will be complete apart from Website)
                         locations = vec![WorkPublicationsLocations {
                             landing_page: self.landing_page.clone(),
@@ -2147,12 +2147,21 @@ mod tests {
                         unit_price: 8.0,
                     },
                 ],
-                locations: vec![WorkPublicationsLocations {
-                    landing_page: Some("https://www.book.com/pb_landing".to_string()),
-                    full_text_url: None,
-                    location_platform: LocationPlatform::PUBLISHER_WEBSITE,
-                    canonical: true,
-                }],
+                locations: vec![
+                    WorkPublicationsLocations {
+                        landing_page: Some("https://www.book.com/pb_landing".to_string()),
+                        full_text_url: None,
+                        location_platform: LocationPlatform::PUBLISHER_WEBSITE,
+                        canonical: true,
+                    },
+                    WorkPublicationsLocations {
+                        landing_page: Some("https://www.jstor.com/pb_landing".to_string()),
+                        // Note a paperback can't technically have a Full Text URL - test purposes only
+                        full_text_url: Some("https://www.jstor.com/pb_fulltext".to_string()),
+                        location_platform: LocationPlatform::JSTOR,
+                        canonical: false,
+                    },
+                ],
             }],
             subjects: vec![
                 WorkSubjects {
@@ -2749,7 +2758,10 @@ mod tests {
       <Territory>
         <RegionsIncluded>WORLD</RegionsIncluded>
       </Territory>
-    </Market>
+    </Market>"#
+        ));
+        assert!(output.contains(
+            r#"
     <SupplyDetail>
       <Supplier>
         <SupplierRole>09</SupplierRole>
@@ -2765,6 +2777,29 @@ mod tests {
         <SupplyDateRole>08</SupplyDateRole>
         <Date dateformat="00">19991231</Date>
       </SupplyDate>"#
+        ));
+        assert!(output.contains(
+            r#"
+    <SupplyDetail>
+      <Supplier>
+        <SupplierRole>11</SupplierRole>
+        <SupplierName>JSTOR</SupplierName>"#
+        ));
+        assert!(output.contains(
+            r#"
+        <Website>
+          <WebsiteRole>36</WebsiteRole>
+          <WebsiteDescription>JSTOR: webpage for this product</WebsiteDescription>
+          <WebsiteLink>https://www.jstor.com/pb_landing</WebsiteLink>
+        </Website>"#
+        ));
+        assert!(output.contains(
+            r#"
+        <Website>
+          <WebsiteRole>29</WebsiteRole>
+          <WebsiteDescription>JSTOR: download the title</WebsiteDescription>
+          <WebsiteLink>https://www.jstor.com/pb_fulltext</WebsiteLink>
+        </Website>"#
         ));
         assert!(output.contains(
             r#"
@@ -2886,7 +2921,7 @@ mod tests {
         test_work.copyright_holder = None;
         test_work.publications[0].isbn = None;
         test_work.publications[0].height_mm = None;
-        test_work.publications[0].locations.clear();
+        test_work.publications[0].locations.pop();
         test_work.publications[0].prices.pop();
         test_work.relations[0].related_work.last_page = None;
         test_work.relations[0].related_work.page_count = None;
@@ -3106,20 +3141,27 @@ mod tests {
       </ProductIdentifier>
     </RelatedProduct>"#
         ));
-        // Supplier block still present but Website absent
-        assert!(output.contains(
+        assert!(!output.contains(
             r#"
+    <SupplyDetail>
       <Supplier>
-        <SupplierRole>09</SupplierRole>
-        <SupplierName>OA Editions</SupplierName>
-      </Supplier>"#
+        <SupplierRole>11</SupplierRole>
+        <SupplierName>JSTOR</SupplierName>"#
         ));
         assert!(!output.contains(
             r#"
         <Website>
-          <WebsiteRole>02</WebsiteRole>
-          <WebsiteDescription>Publisher's website: webpage for this product</WebsiteDescription>
-          <WebsiteLink>https://www.book.com/pb_landing</WebsiteLink>
+          <WebsiteRole>36</WebsiteRole>
+          <WebsiteDescription>JSTOR: webpage for this product</WebsiteDescription>
+          <WebsiteLink>https://www.jstor.com/pb_landing</WebsiteLink>
+        </Website>"#
+        ));
+        assert!(!output.contains(
+            r#"
+        <Website>
+          <WebsiteRole>29</WebsiteRole>
+          <WebsiteDescription>JSTOR: download the title</WebsiteDescription>
+          <WebsiteLink>https://www.jstor.com/pb_fulltext</WebsiteLink>
         </Website>"#
         ));
         assert!(!output.contains(
@@ -3156,6 +3198,7 @@ mod tests {
         test_work.publications[0].weight_g = None;
         test_work.publications[0].weight_oz = None;
         test_work.publications[0].prices.clear();
+        test_work.publications[0].locations.clear();
         let output = generate_test_output(true, &test_work);
         println!("{output}");
         // Still no Edition, same as when value was 1
@@ -3197,6 +3240,22 @@ mod tests {
   </RelatedMaterial>"#
         ));
         assert!(!output.contains(r#"    <RelatedWork>"#));
+        // Supplier block for publisher still present but Website absent
+        assert!(output.contains(
+            r#"
+      <Supplier>
+        <SupplierRole>09</SupplierRole>
+        <SupplierName>OA Editions</SupplierName>
+      </Supplier>"#
+        ));
+        assert!(!output.contains(
+            r#"
+        <Website>
+          <WebsiteRole>02</WebsiteRole>
+          <WebsiteDescription>Publisher's website: webpage for this product</WebsiteDescription>
+          <WebsiteLink>https://www.book.com/pb_landing</WebsiteLink>
+        </Website>"#
+        ));
         // UnpricedItemType block instead of any Prices
         assert!(output.contains(r#"      <UnpricedItemType>04</UnpricedItemType>"#));
         assert!(!output.contains(r#"      <Price>"#));
@@ -3207,6 +3266,8 @@ mod tests {
         test_work.relations[1].related_work.doi = None;
         // Test truncation of short abstract
         test_work.short_abstract = Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.".to_string());
+        // Reinstate landing page: supplier block for publisher now contains it
+        test_work.landing_page = Some("https://www.book.com".to_string());
         let output = generate_test_output(true, &test_work);
         println!("{output}");
         assert!(!output.contains(r#"  <ContentDetail>"#));
@@ -3220,7 +3281,20 @@ mod tests {
       <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementu</Text>
     </TextContent>"#
         ));
-        test_work.short_abstract = None;
+        assert!(output.contains(
+            r#"
+      <Supplier>
+        <SupplierRole>09</SupplierRole>
+        <SupplierName>OA Editions</SupplierName>
+        <Website>
+          <WebsiteRole>02</WebsiteRole>
+          <WebsiteDescription>Publisher's website: webpage for this product</WebsiteDescription>
+          <WebsiteLink>https://www.book.com</WebsiteLink>
+        </Website>
+      </Supplier>"#
+        ));
+        assert!(!output
+            .contains(r#"          <WebsiteLink>https://www.book.com/pb_landing</WebsiteLink>"#));
 
         // Add second publication, and test that two records are produced
         test_work.publications.push(WorkPublications {
