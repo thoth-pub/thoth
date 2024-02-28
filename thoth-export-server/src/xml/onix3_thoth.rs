@@ -65,6 +65,13 @@ impl XmlSpecification for Onix3Thoth {
 
 impl XmlElementBlock<Onix3Thoth> for Work {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        // Format is one record per Publication
+        if self.publications.is_empty() {
+            return Err(ThothError::IncompleteMetadataRecord(
+                ONIX_ERROR.to_string(),
+                "No publications supplied".to_string(),
+            ));
+        }
         let work_id = format!("urn:uuid:{}", self.work_id);
         let mut isbns: Vec<String> = Vec::new();
         for publication in &self.publications {
@@ -3349,5 +3356,13 @@ mod tests {
   </PublishingDetail>
   <ProductSupply>"#
         ));
+
+        // Remove all publications and test that result is error
+        test_work.publications.clear();
+        let output = generate_test_output(false, &test_work);
+        assert_eq!(
+            output,
+            "Could not generate onix_3.0::thoth: No publications supplied".to_string()
+        );
     }
 }
