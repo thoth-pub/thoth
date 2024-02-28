@@ -26,8 +26,8 @@ pub(crate) trait BibtexEntry<T: BibtexSpecification> {
 /// the stringified version of the field name will be used.
 ///
 /// By default, the value will be enclosed in braces `{}`, which is intended to be used
-/// with `String` or `Option<String>`. By passing a type onto the macro we instruct it
-/// not to enclose the value, which is intended to be used with `i64` and `Option<i64>`.
+/// with `String`. By passing a type onto the macro we instruct it  not to enclose
+/// the value, which is intended to be used with `i64`.
 ///
 /// # Examples
 ///
@@ -82,8 +82,8 @@ macro_rules! write_field {
 /// name will be used.
 ///
 /// By default, the value will be enclosed in braces `{}`, which is intended to be used
-/// with `String` or `Option<String>`. By passing a type onto the macro we instruct it
-/// not to enclose the value, which is intended to be used with `i64` and `Option<i64>`.
+/// with `Option<String>`. By passing a type onto the macro we instruct it
+/// not to enclose the value, which is intended to be used with `Option<i64>`.
 ///
 /// # Examples
 ///
