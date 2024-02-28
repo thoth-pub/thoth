@@ -415,7 +415,7 @@ mod tests {
                     contribution_type: ContributionType::TRANSLATOR,
                     first_name: Some("Translator".to_string()),
                     last_name: "1".to_string(),
-                    full_name: "Translator 2".to_string(),
+                    full_name: "Translator 1".to_string(),
                     main_contribution: true,
                     biography: None,
                     contribution_ordinal: 7,
