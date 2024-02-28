@@ -122,33 +122,35 @@ impl TryFrom<Work> for BibtexThothEntry {
         let mut contributions = work.contributions;
         // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
         contributions.sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
-        let (author, mut editor) = extract_authors_and_editors(contributions)?;
+        let (author, editor) = extract_authors_and_editors(contributions)?;
 
         let shorttitle = work.subtitle.as_ref().map(|_| work.title.clone());
-        let mut booktitle = None;
-        let mut chapter = None;
-        let mut pages = None;
-        let mut entry_type = "book".to_string();
-        if work.work_type == WorkType::BOOK_CHAPTER {
-            entry_type = "inbook".to_string();
-            // Inbook type does not allow both author and editor – unset editor if both are present
-            if author.is_some() && editor.is_some() {
-                editor = None;
+        let (entry_type, booktitle, chapter, pages) = match work.work_type {
+            WorkType::BOOK_CHAPTER => {
+                let (booktitle, chapter, pages) = work
+                    .relations
+                    .iter()
+                    .filter_map(|r| {
+                        if r.relation_type == RelationType::IS_CHILD_OF {
+                            Some((
+                                r.related_work.full_title.clone(),
+                                r.relation_ordinal,
+                                // BibTeX page ranges require a double dash between the page numbers
+                                work.page_interval.as_ref().map(|p| p.replace('–', "--")),
+                            ))
+                        } else {
+                            None
+                        }
+                    })
+                    .next()
+                    .unwrap_or_default();
+                ("inbook".to_string(), Some(booktitle), Some(chapter), pages)
             }
-            if let Some(parent_relation) = work
-                .relations
-                .iter()
-                .find(|r| r.relation_type == RelationType::IS_CHILD_OF)
-            {
-                booktitle = Some(parent_relation.related_work.full_title.clone());
-                chapter = Some(parent_relation.relation_ordinal);
-            }
-            // BibTeX page ranges require a double dash between the page numbers
-            pages = work.page_interval.map(|p| p.replace('–', "--"));
-        } else if work.work_type == WorkType::BOOK_SET {
             // None of the standard BibTeX entry types are suitable for Book Sets
-            entry_type = "misc".to_string();
-        }
+            WorkType::BOOK_SET => ("misc".to_string(), None, None, None),
+            _ => ("book".to_string(), None, None, None),
+        };
+
         Ok(BibtexThothEntry {
             entry_type,
             title: work.full_title,
@@ -618,6 +620,7 @@ mod tests {
         let test_result = "@inbook{1999-12-31,
 \ttitle = {Work Title},
 \tauthor = {Author 1 and Author 2 and Author 3},
+\teditor = {Editor 1 and Editor 2},
 \tyear = 1999,
 \tmonth = 12,
 \tday = 31,
