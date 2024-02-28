@@ -398,7 +398,7 @@ mod tests {
                 WorkContributions {
                     contribution_type: ContributionType::EDITOR,
                     first_name: Some("Editor".to_string()),
-                    last_name: "2".to_string(),
+                    last_name: "3".to_string(),
                     full_name: "Editor 3".to_string(),
                     main_contribution: false,
                     biography: None,
