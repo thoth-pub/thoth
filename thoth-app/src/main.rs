@@ -1,7 +1,6 @@
 #![recursion_limit = "2048"]
 
 use std::env;
-use wasm_bindgen::prelude::*;
 
 #[macro_use]
 mod agent;
@@ -20,10 +19,8 @@ const SESSION_KEY: &str = "thoth.token";
 /// Default number of milliseconds to wait before sending a search query
 const DEFAULT_DEBOUNCING_TIMEOUT: u32 = 500;
 
-#[wasm_bindgen]
-pub fn run_app() -> Result<(), JsValue> {
+pub fn main() {
     wasm_logger::init(wasm_logger::Config::default());
 
     yew::start_app::<RootComponent>();
-    Ok(())
 }

@@ -40,34 +40,19 @@ jobs:
         ports:
           - 5432:5432
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: '20.10.0'
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-    - uses: jetli/wasm-pack-action@v0.3.0
-      with:
-        version: 'v0.12.1'
-    - name: Install rollup
-      run: sudo npm install -g rollup@4.9.1
-    - name: Compile WASM
-      run: wasm-pack build thoth-app/ --target web --release
-    - name: Pack APP
-      run: rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js
-    - name: Build binary
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --verbose
-    - name: Run migrations
-      uses: actions-rs/cargo@v1
-      with:
-        command: run
-        args: migrate
-    - name: Revert migrations
-      uses: actions-rs/cargo@v1
-      with:
-        command: run
-        args: migrate --revert
+      - uses: actions/checkout@v4
+      - name: Build binary
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --verbose
+      - name: Run migrations
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: migrate
+      - name: Revert migrations
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: migrate --revert

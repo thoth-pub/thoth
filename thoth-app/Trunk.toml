@@ -1,0 +1,16 @@
+[build]
+# The output dir for all final assets.
+dist = "pkg"
+# The public URL from which assets are to be served.
+public_url = "/"
+# Whether to include hash values in the output file names.
+filehash = false
+
+[clean]
+# The output dir for all final assets.
+dist = "pkg"
+
+[tools]
+# Default wasm-bindgen version to download.
+wasm_bindgen = "0.2.89"
+

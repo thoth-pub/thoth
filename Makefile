@@ -1,6 +1,3 @@
-THOTH_GRAPHQL_API ?= http://localhost:8000
-THOTH_EXPORT_API ?= http://localhost:8181
-
 .PHONY: \
 	build-graphql-api \
 	build-export-api \
@@ -8,9 +5,12 @@ THOTH_EXPORT_API ?= http://localhost:8181
 	run-app \
 	run-graphql-api \
 	run-export-api \
+	watch-app \
 	docker-dev \
 	docker-dev-build \
 	docker-dev-run \
+	docker-dev-db \
+	build \
 	test \
 	clippy \
 	format \
@@ -30,6 +30,9 @@ run-graphql-api: build-graphql-api
 run-export-api: build-export-api
 	RUST_BACKTRACE=1 cargo run start export-api
 
+watch-app:
+	trunk serve thoth-app/index.html
+
 docker-dev: docker-dev-build docker-dev-run
 
 docker-dev-build:
@@ -38,29 +41,22 @@ docker-dev-build:
 docker-dev-run:
 	docker-compose -f docker-compose.dev.yml up
 
-cargo-build:
+docker-dev-db:
+	docker-compose -f docker-compose.dev.yml up db
+
+build:
 	cargo build
 
-build-graphql-api: cargo-build
+build-graphql-api: build
 
-build-export-api: cargo-build
+build-export-api: build
 
-build-app: build-wasm cargo-build
-
-build-wasm:
-	THOTH_GRAPHQL_API=$(THOTH_GRAPHQL_API) \
-	THOTH_EXPORT_API=$(THOTH_EXPORT_API) \
-	wasm-pack build --debug thoth-app/ --target web && \
-		rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js
+build-app: build
 
 test:
-	THOTH_GRAPHQL_API=$(THOTH_GRAPHQL_API) \
-	THOTH_EXPORT_API=$(THOTH_EXPORT_API) \
 	cargo test --workspace
 
 clippy:
-	THOTH_GRAPHQL_API=$(THOTH_GRAPHQL_API) \
-	THOTH_EXPORT_API=$(THOTH_EXPORT_API) \
 	cargo clippy --all --all-targets --all-features -- -D warnings
 
 format:
@@ -70,6 +66,4 @@ check-format:
 	cargo fmt --all -- --check
 
 check:
-	THOTH_GRAPHQL_API=$(THOTH_GRAPHQL_API) \
-	THOTH_EXPORT_API=$(THOTH_EXPORT_API) \
 	cargo check --workspace

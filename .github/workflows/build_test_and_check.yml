@@ -32,94 +32,39 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: '20.10.0'
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-    - uses: jetli/wasm-pack-action@v0.3.0
-      with:
-        version: 'v0.12.1'
-    - name: Install rollup
-      run: sudo npm install -g rollup@4.9.1
-    - name: Compile WASM
-      run: wasm-pack build thoth-app/ --target web --release
-    - name: Pack APP
-      run: rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js
-    - name: Build binary
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --verbose
+      - uses: actions/checkout@v4
+      - name: Build binary
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --verbose
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: '20.10.0'
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-    - uses: jetli/wasm-pack-action@v0.3.0
-      with:
-        version: 'v0.12.1'
-    - name: Install rollup
-      run: sudo npm install -g rollup@4.9.1
-    - name: Compile WASM
-      run: wasm-pack build thoth-app/ --target web --release
-    - name: Pack APP
-      run: rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js
-    - name: Build binary
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --verbose
-    - name: Run tests
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --workspace --verbose
+      - uses: actions/checkout@v4
+      - name: Run tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace --verbose
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: '20.10.0'
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-    - uses: jetli/wasm-pack-action@v0.3.0
-      with:
-        version: 'v0.12.1'
-    - name: Install rollup
-      run: sudo npm install -g rollup@4.9.1
-    - name: Compile WASM
-      run: wasm-pack build thoth-app/ --target web --release
-    - name: Pack APP
-      run: rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js
-    - name: Build binary
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --verbose
-    - name: Run linting
-      uses: actions-rs/cargo@v1
-      with:
-        command: clippy
-        args: --all --all-targets --all-features -- -D warnings
+      - uses: actions/checkout@v4
+      - name: Run linting
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all --all-targets --all-features -- -D warnings
   format_check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
         with:
-            toolchain: stable
-            components: rustfmt
-            override: true
+          toolchain: stable
+          components: rustfmt
+          override: true
       - name: Run format
         uses: actions-rs/cargo@v1
         with:
