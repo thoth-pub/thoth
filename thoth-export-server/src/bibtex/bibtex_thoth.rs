@@ -1,7 +1,9 @@
 use std::convert::TryFrom;
 use std::fmt;
 use std::io::Write;
-use thoth_client::{ContributionType, PublicationType, RelationType, Work, WorkType};
+use thoth_client::{
+    ContributionType, PublicationType, RelationType, Work, WorkContributions, WorkType,
+};
 use thoth_errors::{ThothError, ThothResult};
 
 use super::{BibtexEntry, BibtexSpecification};
@@ -74,61 +76,33 @@ impl fmt::Display for BibtexThothEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Cite key must be unique and alphanumeric ("-_:" also permitted)
         // Most records will have an ISBN, but fall back on publication date if not found
-        let mut citekey = self.isbn.clone().unwrap_or_default();
-        if citekey.is_empty() {
-            citekey = format!("{}-{}-{}", self.year, self.month, self.day);
-        }
-        writeln!(f, "@{}{{{},", self.entry_type, citekey)?;
-        write!(f, "\ttitle\t\t= {{{}}}", self.title)?;
-        if let Some(shorttitle) = &self.shorttitle {
-            write!(f, ",\n\tshorttitle\t= {{{shorttitle}}}")?;
-        }
-        if let Some(author) = &self.author {
-            write!(f, ",\n\tauthor\t\t= {{{author}}}")?;
-        }
-        if let Some(editor) = &self.editor {
-            write!(f, ",\n\teditor\t\t= {{{editor}}}")?;
-        }
-        write!(f, ",\n\tyear\t\t= {}", self.year)?;
-        write!(f, ",\n\tmonth\t\t= {}", self.month)?;
-        write!(f, ",\n\tday\t\t\t= {}", self.day)?;
-        write!(f, ",\n\tpublisher\t= {{{}}}", self.publisher)?;
-        if let Some(address) = &self.address {
-            write!(f, ",\n\taddress\t\t= {{{address}}}")?;
-        }
-        if let Some(series) = &self.series {
-            write!(f, ",\n\tseries\t\t= {{{series}}}")?;
-        }
-        if let Some(volume) = &self.volume {
-            write!(f, ",\n\tvolume\t\t= {volume}")?;
-        }
-        if let Some(booktitle) = &self.booktitle {
-            write!(f, ",\n\tbooktitle\t= {{{booktitle}}}")?;
-        }
-        if let Some(chapter) = &self.chapter {
-            write!(f, ",\n\tchapter\t\t= {chapter}")?;
-        }
-        if let Some(pages) = &self.pages {
-            write!(f, ",\n\tpages\t\t= {{{pages}}}")?;
-        }
-        if let Some(doi) = &self.doi {
-            write!(f, ",\n\tdoi\t\t\t= {{{doi}}}")?;
-        }
-        if let Some(isbn) = &self.isbn {
-            write!(f, ",\n\tisbn\t\t= {{{isbn}}}")?;
-        }
-        if let Some(issn) = &self.issn {
-            write!(f, ",\n\tissn\t\t= {{{issn}}}")?;
-        }
-        if let Some(url) = &self.url {
-            write!(f, ",\n\turl\t\t\t= {{{url}}}")?;
-        }
-        if let Some(copyright) = &self.copyright {
-            write!(f, ",\n\tcopyright\t= {{{copyright}}}")?;
-        }
-        if let Some(long_abstract) = &self.long_abstract {
-            write!(f, ",\n\tabstract\t= {{{long_abstract}}}")?;
-        }
+        let citekey = self
+            .isbn
+            .clone()
+            .unwrap_or_else(|| format!("{}-{}-{}", self.year, self.month, self.day));
+        write!(f, "@{}{{{}", self.entry_type, citekey)?;
+
+        write_field!(f, self, title);
+        write_optional_field!(f, self, shorttitle);
+        write_optional_field!(f, self, author);
+        write_optional_field!(f, self, editor);
+        write_field!(f, self, year, i64);
+        write_field!(f, self, month, i64);
+        write_field!(f, self, day, i64);
+        write_field!(f, self, publisher);
+        write_optional_field!(f, self, address);
+        write_optional_field!(f, self, series);
+        write_optional_field!(f, self, volume, i64);
+        write_optional_field!(f, self, booktitle);
+        write_optional_field!(f, self, chapter, i64);
+        write_optional_field!(f, self, pages);
+        write_optional_field!(f, self, doi);
+        write_optional_field!(f, self, isbn);
+        write_optional_field!(f, self, issn);
+        write_optional_field!(f, self, url);
+        write_optional_field!(f, self, copyright);
+        write_optional_field!(f, self, long_abstract, "abstract");
+
         writeln!(f, "\n}}")
     }
 }
@@ -144,106 +118,120 @@ impl TryFrom<Work> for BibtexThothEntry {
                 "Missing Publication Date".to_string(),
             ));
         }
-        let mut author_list = vec![];
-        let mut editor_list = vec![];
+
         let mut contributions = work.contributions;
         // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
         contributions.sort_by(|a, b| a.contribution_ordinal.cmp(&b.contribution_ordinal));
-        for contribution in contributions {
-            if contribution.main_contribution {
-                if work.work_type == WorkType::EDITED_BOOK {
-                    if contribution.contribution_type == ContributionType::EDITOR {
-                        editor_list.push(contribution.full_name);
-                    }
-                } else if contribution.contribution_type == ContributionType::AUTHOR {
-                    author_list.push(contribution.full_name);
-                }
-            }
-        }
-        // BibTeX book/chapter records must contain either author or editor
-        if author_list.is_empty() && editor_list.is_empty() {
-            Err(ThothError::IncompleteMetadataRecord(
-                BIBTEX_ERROR.to_string(),
-                "Missing Author/Editor Details".to_string(),
-            ))
-        } else {
-            let author = match author_list.is_empty() {
-                true => None,
-                false => Some(author_list.join(" and ")),
-            };
-            let editor = match editor_list.is_empty() {
-                true => None,
-                false => Some(editor_list.join(" and ")),
-            };
-            let mut shorttitle = None;
-            if work.subtitle.is_some() {
-                shorttitle = Some(work.title);
-            }
-            let mut booktitle = None;
-            let mut chapter = None;
-            let mut pages = None;
-            let mut entry_type = "book".to_string();
-            if work.work_type == WorkType::BOOK_CHAPTER {
-                entry_type = "inbook".to_string();
-                if let Some(parent_relation) = work
+        let (author, editor) = extract_authors_and_editors(contributions)?;
+
+        let shorttitle = work.subtitle.as_ref().map(|_| work.title.clone());
+        let (entry_type, booktitle, chapter, pages) = match work.work_type {
+            WorkType::BOOK_CHAPTER => {
+                let (booktitle, chapter, pages) = work
                     .relations
                     .iter()
-                    .find(|r| r.relation_type == RelationType::IS_CHILD_OF)
-                {
-                    booktitle = Some(parent_relation.related_work.full_title.clone());
-                    chapter = Some(parent_relation.relation_ordinal);
-                }
-                // BibTeX page ranges require a double dash between the page numbers
-                pages = work.page_interval.map(|p| p.replace('–', "--"));
-            } else if work.work_type == WorkType::BOOK_SET {
-                // None of the standard BibTeX entry types are suitable for Book Sets
-                entry_type = "misc".to_string();
+                    .filter_map(|r| {
+                        if r.relation_type == RelationType::IS_CHILD_OF {
+                            Some((
+                                r.related_work.full_title.clone(),
+                                r.relation_ordinal,
+                                // BibTeX page ranges require a double dash between the page numbers
+                                work.page_interval.as_ref().map(|p| p.replace('–', "--")),
+                            ))
+                        } else {
+                            None
+                        }
+                    })
+                    .next()
+                    .unwrap_or_default();
+                ("inbook".to_string(), Some(booktitle), Some(chapter), pages)
             }
-            Ok(BibtexThothEntry {
-                entry_type,
-                title: work.full_title,
-                shorttitle,
-                author,
-                editor,
-                year: work
-                    .publication_date
-                    .map(|date| chrono::Datelike::year(&date).into())
-                    .unwrap(),
-                month: work
-                    .publication_date
-                    .map(|date| chrono::Datelike::month(&date).into())
-                    .unwrap(),
-                day: work
-                    .publication_date
-                    .map(|date| chrono::Datelike::day(&date).into())
-                    .unwrap(),
-                publisher: work.imprint.publisher.publisher_name,
-                address: work.place,
-                series: work
-                    .issues
-                    .first()
-                    .map(|i| i.series.series_name.to_string()),
-                volume: work.issues.first().map(|i| i.issue_ordinal),
-                booktitle,
-                chapter,
-                pages,
-                doi: work.doi.map(|d| d.to_string()),
-                // Take digital ISBN/ISSN as canonical
-                isbn: work
-                    .publications
-                    .iter()
-                    .find(|p| p.publication_type.eq(&PublicationType::PDF))
-                    .and_then(|p| p.isbn.as_ref().map(|i| i.to_string())),
-                issn: work
-                    .issues
-                    .first()
-                    .map(|i| i.series.issn_digital.to_string()),
-                url: work.landing_page,
-                copyright: work.license,
-                long_abstract: work.long_abstract,
-            })
-        }
+            // None of the standard BibTeX entry types are suitable for Book Sets
+            WorkType::BOOK_SET => ("misc".to_string(), None, None, None),
+            _ => ("book".to_string(), None, None, None),
+        };
+
+        Ok(BibtexThothEntry {
+            entry_type,
+            title: work.full_title,
+            shorttitle,
+            author,
+            editor,
+            year: work
+                .publication_date
+                .map(|date| chrono::Datelike::year(&date).into())
+                .unwrap(),
+            month: work
+                .publication_date
+                .map(|date| chrono::Datelike::month(&date).into())
+                .unwrap(),
+            day: work
+                .publication_date
+                .map(|date| chrono::Datelike::day(&date).into())
+                .unwrap(),
+            publisher: work.imprint.publisher.publisher_name,
+            address: work.place,
+            series: work
+                .issues
+                .first()
+                .map(|i| i.series.series_name.to_string()),
+            volume: work.issues.first().map(|i| i.issue_ordinal),
+            booktitle,
+            chapter,
+            pages,
+            doi: work.doi.map(|d| d.to_string()),
+            // Take digital ISBN/ISSN as canonical
+            isbn: work
+                .publications
+                .iter()
+                .find(|p| p.publication_type.eq(&PublicationType::PDF))
+                .and_then(|p| p.isbn.as_ref().map(|i| i.to_string())),
+            issn: work
+                .issues
+                .first()
+                .map(|i| i.series.issn_digital.to_string()),
+            url: work.landing_page,
+            copyright: work.license,
+            long_abstract: work.long_abstract,
+        })
     }
+}
+
+/// Returns a list of authors and a list of editors concatenated by " and "
+///
+/// BibTeX book/chapter records must contain either author or editor
+fn extract_authors_and_editors(
+    contributions: Vec<WorkContributions>,
+) -> ThothResult<(Option<String>, Option<String>)> {
+    let (authors, editors): (Vec<String>, Vec<String>) = contributions.into_iter().fold(
+        (Vec::new(), Vec::new()),
+        |(mut authors, mut editors), contribution| {
+            if contribution.main_contribution {
+                match contribution.contribution_type {
+                    ContributionType::AUTHOR => authors.push(contribution.full_name),
+                    ContributionType::EDITOR => editors.push(contribution.full_name),
+                    _ => (),
+                }
+            }
+            (authors, editors)
+        },
+    );
+
+    if authors.is_empty() && editors.is_empty() {
+        return Err(ThothError::IncompleteMetadataRecord(
+            BIBTEX_ERROR.to_string(),
+            "Missing Author/Editor Details".to_string(),
+        ));
+    }
+
+    let format = |v: Vec<String>| {
+        if !v.is_empty() {
+            Some(v.join(" and "))
+        } else {
+            None
+        }
+    };
+    Ok((format(authors), format(editors)))
 }
 
 #[cfg(test)]
@@ -263,28 +251,28 @@ mod tests {
     use uuid::Uuid;
 
     const TEST_RESULT: &str = "@book{978-1-56619-909-4,
-\ttitle\t\t= {Work Title: Work Subtitle},
-\tshorttitle\t= {Work Title},
-\tauthor\t\t= {Author 1 and Author 2 and Author 3},
-\tyear\t\t= 1999,
-\tmonth\t\t= 12,
-\tday\t\t\t= 31,
-\tpublisher\t= {OA Editions},
-\taddress\t\t= {León, Spain},
-\tseries\t\t= {Name of series},
-\tvolume\t\t= 5,
-\tdoi\t\t\t= {10.00001/BOOK.0001},
-\tisbn\t\t= {978-1-56619-909-4},
-\tissn\t\t= {8765-4321},
-\turl\t\t\t= {https://www.book.com},
-\tcopyright\t= {http://creativecommons.org/licenses/by/4.0/},
-\tabstract\t= {Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.}
+\ttitle = {Work Title: Work Subtitle},
+\tshorttitle = {Work Title},
+\tauthor = {Author 1 and Author 2 and Author 3},
+\teditor = {Editor 1 and Editor 2},
+\tyear = 1999,
+\tmonth = 12,
+\tday = 31,
+\tpublisher = {OA Editions},
+\taddress = {León, Spain},
+\tseries = {Name of series},
+\tvolume = 5,
+\tdoi = {10.00001/BOOK.0001},
+\tisbn = {978-1-56619-909-4},
+\tissn = {8765-4321},
+\turl = {https://www.book.com},
+\tcopyright = {http://creativecommons.org/licenses/by/4.0/},
+\tabstract = {Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementum odio feugiat tempus. Etiam eu felis ac metus viverra ornare. In consectetur neque sed feugiat ornare. Mauris at purus fringilla orci tincidunt pulvinar sed a massa. Nullam vestibulum posuere augue, sit amet tincidunt nisl pulvinar ac.}
 }
 ";
 
-    #[test]
-    fn test_bibtex_thoth() {
-        let mut test_work: Work = Work {
+    fn test_work() -> Work {
+        Work {
             work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
             work_status: WorkStatus::ACTIVE,
             full_title: "Work Title: Work Subtitle".to_string(),
@@ -398,11 +386,39 @@ mod tests {
                 WorkContributions {
                     contribution_type: ContributionType::EDITOR,
                     first_name: Some("Editor".to_string()),
-                    last_name: "1".to_string(),
+                    last_name: "2".to_string(),
                     full_name: "Editor 2".to_string(),
-                    main_contribution: false,
+                    main_contribution: true,
                     biography: None,
                     contribution_ordinal: 5,
+                    contributor: WorkContributionsContributor {
+                        orcid: None,
+                        website: None,
+                    },
+                    affiliations: vec![],
+                },
+                WorkContributions {
+                    contribution_type: ContributionType::EDITOR,
+                    first_name: Some("Editor".to_string()),
+                    last_name: "3".to_string(),
+                    full_name: "Editor 3".to_string(),
+                    main_contribution: false,
+                    biography: None,
+                    contribution_ordinal: 6,
+                    contributor: WorkContributionsContributor {
+                        orcid: None,
+                        website: None,
+                    },
+                    affiliations: vec![],
+                },
+                WorkContributions {
+                    contribution_type: ContributionType::TRANSLATOR,
+                    first_name: Some("Translator".to_string()),
+                    last_name: "1".to_string(),
+                    full_name: "Translator 1".to_string(),
+                    main_contribution: true,
+                    biography: None,
+                    contribution_ordinal: 7,
                     contributor: WorkContributionsContributor {
                         orcid: None,
                         website: None,
@@ -510,11 +526,18 @@ mod tests {
                 },
             }],
             references: vec![]
-        };
+        }
+    }
 
-        let to_test = BibtexThoth.generate(&[test_work.clone()]);
+    #[test]
+    fn test_generate_record() {
+        let to_test = BibtexThoth.generate(&[test_work().clone()]);
         assert_eq!(to_test, Ok(TEST_RESULT.to_string()));
+    }
 
+    #[test]
+    fn test_generate_record_book_set() {
+        let mut test_work = test_work();
         // Change work type to Book Set: entry type becomes "misc"
         test_work.work_type = WorkType::BOOK_SET;
         let to_test = BibtexThoth.generate(&[test_work.clone()]);
@@ -522,21 +545,44 @@ mod tests {
             to_test,
             Ok(TEST_RESULT.to_string().replace("@book", "@misc"))
         );
+    }
 
-        // Change work type to Edited Book: author field replaced by editor field
+    #[test]
+    fn test_generate_record_edited_book() {
+        let mut test_work = test_work();
+        // Change work type to Edited Book: should have no effect
         test_work.work_type = WorkType::EDITED_BOOK;
+        let to_test = BibtexThoth.generate(&[test_work.clone()]);
+        assert_eq!(to_test, Ok(TEST_RESULT.to_string()));
+    }
+
+    #[test]
+    fn test_bibtex_thoth_textbook() {
+        let mut test_work = test_work();
+        // Change work type to textbook: should have no effect
+        test_work.work_type = WorkType::TEXTBOOK;
+        let to_test = BibtexThoth.generate(&[test_work.clone()]);
+        assert_eq!(to_test, Ok(TEST_RESULT.to_string()));
+    }
+
+    #[test]
+    fn test_publication_date_as_cite_key() {
+        let mut test_work = test_work();
+        // Remove PDF ISBN field: isbn is removed, cite key becomes publication date
+        test_work.publications[1].isbn = None;
         let to_test = BibtexThoth.generate(&[test_work.clone()]);
         assert_eq!(
             to_test,
-            Ok(TEST_RESULT.to_string().replace(
-                "\tauthor\t\t= {Author 1 and Author 2 and Author 3},",
-                "\teditor\t\t= {Editor 1},"
-            ))
+            Ok(TEST_RESULT
+                .to_string()
+                .replace("@book{978-1-56619-909-4,", "@book{1999-12-31,")
+                .replace("\tisbn = {978-1-56619-909-4},\n", ""))
         );
+    }
 
-        test_work.work_type = WorkType::MONOGRAPH;
-        // Remove PDF ISBN field: isbn is removed, cite key becomes publication date
-        test_work.publications[1].isbn = None;
+    #[test]
+    fn test_work_without_subtitle() {
+        let mut test_work = test_work();
         // Remove subtitle field: shorttitle is removed (as it would duplicate title)
         test_work.subtitle = None;
         // We need to manually update the full title to remove the subtitle
@@ -545,17 +591,19 @@ mod tests {
         let to_test = BibtexThoth.generate(&[test_work.clone()]);
         assert_eq!(
             to_test,
-            Ok(TEST_RESULT
-                .to_string()
-                .replace("@book{978-1-56619-909-4,", "@book{1999-12-31,")
-                .replace("\tisbn\t\t= {978-1-56619-909-4},\n", "")
-                .replace(
-                    "\ttitle\t\t= {Work Title: Work Subtitle},\n\tshorttitle\t= {Work Title},",
-                    "\ttitle\t\t= {Work Title},"
-                ))
+            Ok(TEST_RESULT.to_string().replace(
+                "\ttitle = {Work Title: Work Subtitle},\n\tshorttitle = {Work Title},",
+                "\ttitle = {Work Title},"
+            ))
         );
+    }
 
-        // Remove all other optional fields: corresponding fields will be removed
+    #[test]
+    fn test_bibtex_thoth_chapter() {
+        let mut test_work = test_work();
+        test_work.subtitle = None;
+        test_work.full_title = "Work Title".to_string();
+        test_work.publications[1].isbn = None;
         test_work.place = None;
         test_work.doi = None;
         test_work.landing_page = None;
@@ -570,41 +618,99 @@ mod tests {
         test_work.page_interval = Some("10–20".to_string());
         let to_test = BibtexThoth.generate(&[test_work.clone()]);
         let test_result = "@inbook{1999-12-31,
-\ttitle\t\t= {Work Title},
-\tauthor\t\t= {Author 1 and Author 2 and Author 3},
-\tyear\t\t= 1999,
-\tmonth\t\t= 12,
-\tday\t\t\t= 31,
-\tpublisher\t= {OA Editions},
-\tbooktitle\t= {Related work title},
-\tchapter\t\t= 7,
-\tpages\t\t= {10--20}
+\ttitle = {Work Title},
+\tauthor = {Author 1 and Author 2 and Author 3},
+\teditor = {Editor 1 and Editor 2},
+\tyear = 1999,
+\tmonth = 12,
+\tday = 31,
+\tpublisher = {OA Editions},
+\tbooktitle = {Related work title},
+\tchapter = 7,
+\tpages = {10--20}
 }
 "
         .to_string();
         assert_eq!(to_test, Ok(test_result));
+    }
 
-        // Remove publication date: BibTeX fails to generate
+    #[test]
+    fn test_missing_publication_date_error() {
+        let mut test_work = test_work();
         test_work.publication_date = None;
         let to_test = BibtexThoth.generate(&[test_work.clone()]);
         assert_eq!(
-            to_test,
-            Err(ThothError::IncompleteMetadataRecord(
+            to_test.unwrap_err(),
+            ThothError::IncompleteMetadataRecord(
                 BIBTEX_ERROR.to_string(),
                 "Missing Publication Date".to_string(),
-            ))
+            )
         );
+    }
 
-        // Reinstate publication date but remove author/editor details: ditto
-        test_work.publication_date = chrono::NaiveDate::from_ymd_opt(1999, 12, 31);
+    #[test]
+    fn test_missing_author_details_error() {
+        let mut test_work = test_work();
         test_work.contributions.clear();
         let to_test = BibtexThoth.generate(&[test_work.clone()]);
         assert_eq!(
-            to_test,
-            Err(ThothError::IncompleteMetadataRecord(
+            to_test.unwrap_err(),
+            ThothError::IncompleteMetadataRecord(
                 BIBTEX_ERROR.to_string(),
-                "Missing Author/Editor Details".to_string(),
-            ))
+                "Missing Author/Editor Details".to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn test_extract_authors_and_editors_both_present() {
+        let test_work = test_work();
+        let to_test = extract_authors_and_editors(test_work.contributions);
+        assert_eq!(
+            to_test.unwrap(),
+            (
+                Some("Author 1 and Author 2 and Author 3".to_string()),
+                Some("Editor 1 and Editor 2".to_string())
+            )
+        );
+    }
+
+    #[test]
+    fn test_extract_authors_and_editors_only_authors() {
+        let test_work = test_work();
+        let to_test = extract_authors_and_editors(vec![
+            test_work.contributions[0].clone(),
+            test_work.contributions[1].clone(),
+        ]);
+        assert_eq!(
+            to_test.unwrap(),
+            (Some("Author 1 and Author 2".to_string()), None)
+        );
+    }
+
+    #[test]
+    fn test_extract_authors_and_editors_only_editors() {
+        let test_work = test_work();
+        let to_test = extract_authors_and_editors(vec![
+            test_work.contributions[3].clone(),
+            test_work.contributions[4].clone(),
+        ]);
+        assert_eq!(
+            to_test.unwrap(),
+            (None, Some("Editor 1 and Editor 2".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_extract_authors_and_editors_missing_details() {
+        let test_work = test_work();
+        let to_test = extract_authors_and_editors(vec![test_work.contributions[5].clone()]);
+        assert_eq!(
+            to_test.unwrap_err(),
+            ThothError::IncompleteMetadataRecord(
+                BIBTEX_ERROR.to_string(),
+                "Missing Author/Editor Details".to_string()
+            )
         );
     }
 }
