@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [499](https://github.com/thoth-pub/thoth/issues/499) - Default main\_contribution to true
 
 ### Fixed
+  - [564](https://github.com/thoth-pub/thoth/issues/564) - Fix error in BibTeX not outputting editors in work types other than edited volume
   - [447](https://github.com/thoth-pub/thoth/issues/447) - Prevents Google Books Onix3 format output from Export API if Thoth record doesn't contain at least one BIC, BISAC or LCC subject code
   - [404](https://github.com/thoth-pub/thoth/issues/404) - Prevents JSTOR Onix3 format output from Export API if Thoth record doesn't contain at least one BISAC subject code
 
