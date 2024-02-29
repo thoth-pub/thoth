@@ -1,52 +1,15 @@
-ARG RUST_IMAGE=rust:1.76.0
 ARG MUSL_IMAGE=clux/muslrust:1.76.0
 
-FROM ${RUST_IMAGE} as wasm
-
-ENV NPM_VERSION=10.2.5
-ENV N_VERSION=9.2.0
-ENV NODE_VERSION=20.10.0
-ENV ROLLUP_VERSION=4.9.1
-ENV WASM_PACK_VERSION=0.12.1
+FROM ${MUSL_IMAGE} as build
 
 ARG THOTH_GRAPHQL_API=https://api.thoth.pub
 ARG THOTH_EXPORT_API=https://export.thoth.pub
 ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
 ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
-
-WORKDIR /wasm
-
-# Install build dependencies
-RUN apt-get update && apt-get -y install pkg-config npm
-RUN npm install -g n@${N_VERSION}
-RUN n ${NODE_VERSION}
-RUN npm install -g npm@${NPM_VERSION}
-RUN npm install -g rollup@${ROLLUP_VERSION}
-RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
 
 # Get source
 COPY . .
 
-# Compile WASM for release
-RUN wasm-pack build thoth-app/ \
-  --target web \
-  --release
-RUN rollup thoth-app/main.js \
-  --format iife \
-  --file thoth-app/pkg/thoth_app.js
-
-# Switch to musl for static compiling
-FROM ${MUSL_IMAGE} as build
-
-# "An ARG instruction goes out of scope at the end of the build stage where it was defined.
-# To use an arg in multiple stages, each stage must include the ARG instruction."
-# https://docs.docker.com/engine/reference/builder/#scope
-ARG THOTH_GRAPHQL_API=https://api.thoth.pub
-ARG THOTH_EXPORT_API=https://export.thoth.pub
-ENV THOTH_GRAPHQL_API=${THOTH_GRAPHQL_API}
-ENV THOTH_EXPORT_API=${THOTH_EXPORT_API}
-
-COPY --from=wasm /wasm/ /volume/
 # Build Thoth for release
 RUN cargo build --release
 
