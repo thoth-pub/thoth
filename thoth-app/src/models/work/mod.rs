@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use serde::Serialize;
-use std::str::FromStr;
 use thoth_api::model::work::Work;
 use thoth_api::model::work::WorkStatus;
 use thoth_api::model::work::WorkType;
