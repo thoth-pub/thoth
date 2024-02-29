@@ -50,7 +50,7 @@ make docker-dev
 or
 ```sh
 docker-compose -f docker-compose.dev.yml build
-docker-compose -f docker-compose.dev.yml up 
+docker-compose -f docker-compose.dev.yml up
 ```
 
 ### Running with docker (production)
@@ -78,7 +78,7 @@ cp .env.example .env  # Edit the credentials in .env
 psql
 psql -U postgres
 CREATE ROLE thoth SUPERUSER LOGIN PASSWORD 'thoth';
-CREATE DATABASE thoth WITH OWNER thoth; 
+CREATE DATABASE thoth WITH OWNER thoth;
 ```
 
 Exit the psql command line with:
@@ -100,34 +100,23 @@ SECRET_KEY=we_like_s%_books_255
 # Logging level
 RUST_LOG=info
 ```
-Proceed to install **Wasm**
-```
-cargo install wasm-pack
-```
-Install **rollup**:
 
-```
-sudo npm install --global rollup
-```
-
-Export the ENV variables, **THOTH_GRAPHQL_API** and **THOTH_EXPORT_API**:
-```
-export THOTH_GRAPHQL_API=http://localhost:8000
-export THOTH_EXPORT_API=http://localhost:8181
-```
-
-#### API
+#### GraphQL API
 
 ```sh
 cargo run init
 ```
 
-#### Wasm GUI
+#### Export API
 
 ```sh
-wasm-pack build thoth-app/ --target web \
-  && rollup thoth-app/main.js --format iife --file thoth-app/pkg/thoth_app.js \
-  && cargo run start app
+cargo run start export-api
+```
+
+#### GUI
+
+```sh
+cargo run start app
 ```
 
 ### Building with docker

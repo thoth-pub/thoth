@@ -4,6 +4,8 @@ services:
   db:
     image: postgres:12
     container_name: "thoth_db"
+    ports:
+      - "5432:5432"
     volumes:
       - ./db/_data:/var/lib/postgresql/data
     env_file:

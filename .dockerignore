@@ -4,7 +4,8 @@
 .github
 .gitignore
 db/
-target/
+**/target/
+**/pkg/
 LICENSE
 README.md
 Dockerfile
@@ -13,3 +14,4 @@ Makefile
 docker-compose.yml
 docker-compose.dev.yml
 CHANGELOG.md
+
