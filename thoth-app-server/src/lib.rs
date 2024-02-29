@@ -31,7 +31,6 @@ static_files! {
     (BULMA, bulma_file) => ("../static/pkg/bulma-pageloader.min.css", "/admin/bulma-pageloader.min.css", "text/css; charset=utf-8"),
     (CSS, css_file) => ("../static/pkg/thoth.css", "/admin/thoth.css", "text/css; charset=utf-8"),
     (LOGO, logo_file) => ("../static/img/thoth-logo.png", "/admin/img/thoth-logo.png", "image/png"),
-    (BANNER, banner_file) => ("../static/img/thoth-banner.png", "/admin/img/thoth-banner.png", "image/png"),
     (COVER, cover_file) => ("../static/img/cover-placeholder.jpg", "/admin/img/cover-placeholder.jpg", "image/jpg"),
     (XML, xml_file) => ("../static/browserconfig.xml", "/admin/browserconfig.xml", "application/xml"),
     (JSON, json_file) => ("../static/manifest.json", "/admin/manifest.json", "application/json"),
