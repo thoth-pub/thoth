@@ -6,12 +6,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
+  - [568](https://github.com/thoth-pub/thoth/issues/568) - Allow building `thoth-app` directly from cargo, using a build script in `thoth-app-server`
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Build `thoth-app` with `trunk, instead of `wasm-pack`
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Optionally load `thoth-export-server` env variables from `.env` at build time
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Optionally load `thoth-app` env variables from `.env` at build time
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `jsonwebtoken` to v9.2.0
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Mark `jsonwebtoken` as an optional dependency, built with the `backend` feature
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `env\_logger` to v0.11.2
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `semver` to v1.0.22
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `gloo-storage` to v0.3.0
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `gloo-timers` to v0.3.0
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `strum` to v0.26.1
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade`reqwest-retry` to v0.3.0
   - [499](https://github.com/thoth-pub/thoth/issues/499) - Default main\_contribution to true
 
 ### Fixed
   - [564](https://github.com/thoth-pub/thoth/issues/564) - Fix error in BibTeX not outputting editors in work types other than edited volume
   - [447](https://github.com/thoth-pub/thoth/issues/447) - Prevents Google Books Onix3 format output from Export API if Thoth record doesn't contain at least one BIC, BISAC or LCC subject code
   - [404](https://github.com/thoth-pub/thoth/issues/404) - Prevents JSTOR Onix3 format output from Export API if Thoth record doesn't contain at least one BISAC subject code
+
+### Security
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `actix-web` to v4.5.1
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `tempfile` to v3.10.1
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `openssl` to v0.10.64
+  - [569](https://github.com/thoth-pub/thoth/pull/569) - Upgrade `serde\_yaml` to v0.9.25
 
 ## [[0.11.16]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.16) - 2024-02-19
 ### Changed

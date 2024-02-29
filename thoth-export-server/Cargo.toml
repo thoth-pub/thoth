@@ -7,17 +7,18 @@ license = "Apache-2.0"
 description = "Actix instance serving Thoth's metadata export endpoints"
 repository = "https://github.com/thoth-pub/thoth"
 readme = "README.md"
+build = "build.rs"
 
 [dependencies]
 thoth-api = { version = "0.11.16", path = "../thoth-api" }
 thoth-errors = { version = "0.11.16", path = "../thoth-errors" }
 thoth-client = { version = "0.11.16", path = "../thoth-client" }
-actix-web = "4.4.1"
+actix-web = "4.5.1"
 actix-cors = "0.7.0"
 cc_license = "0.1.0"
 chrono = { version = "0.4.31", features = ["serde"] }
 csv = "1.3.0"
-env_logger = "0.10.0"
+env_logger = "0.11.2"
 futures = "0.3.29"
 lazy_static = "1.4.0"
 log = "0.4.20"
@@ -30,3 +31,6 @@ xml-rs = "0.8.19"
 
 [dev-dependencies]
 regex = "1.10.2"
+
+[build-dependencies]
+dotenv = "0.15.0"

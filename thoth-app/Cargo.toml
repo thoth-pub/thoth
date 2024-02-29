@@ -7,33 +7,28 @@ license = "Apache-2.0"
 description = "WASM APP for bibliographic data"
 repository = "https://github.com/thoth-pub/thoth"
 readme = "README.md"
+build = "build.rs"
 
 [badges]
 travis-ci = { repository = "openbookpublishers/thoth" }
 maintenance = { status = "actively-developed" }
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
-[build-dependencies]
-wasm-pack = "0.12.1"
-
 [dependencies]
 anyhow = "1.0.32"
 chrono = { version = "0.4.31", features = ["serde"] }
-gloo-storage = "0.2.1"
-gloo-timers = "0.2.4"
+gloo-storage = "0.3.0"
+gloo-timers = "0.3.0"
 log = "0.4.20"
 thiserror = "1.0.20"
 yew = "0.19.3"
 yew-agent = "0.1.0"
 yew-router = "0.16.0"
 yewtil = { version = "0.4.0", features = ["fetch"] }
-wasm-bindgen = "0.2.80"
+wasm-bindgen = "0.2.91"
 wasm-logger = "0.2.0"
 web-sys = { version = "0.3.57", features = ["HtmlInputElement", "HtmlSelectElement", "HtmlTextAreaElement"] }
 reqwest = { version = "0.11", features = ["json"] }
-semver = "0.11.0"
+semver = "1.0.22"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 url = "2.1.1"
@@ -43,3 +38,6 @@ uuid = { version = "0.8.2", features = ["serde", "v4"] }
 getrandom = { version = "0.2", features = ["js"] }
 thoth-api = { version = "0.11.16", path = "../thoth-api"  }
 thoth-errors = { version = "0.11.16", path = "../thoth-errors" }
+
+[build-dependencies]
+dotenv = "0.15.0"
