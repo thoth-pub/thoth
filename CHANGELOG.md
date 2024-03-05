@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+  - [571](https://github.com/thoth-pub/thoth/issues/571) - Fix overlapping URL text for Locations in Thoth Admin panel on website in Safari and Chromium browsers
 
 ## [[0.11.17]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.17) - 2024-02-29
 ### Changed
@@ -23,7 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [499](https://github.com/thoth-pub/thoth/issues/499) - Default main\_contribution to true
 
 ### Fixed
-  - [571](https://github.com/thoth-pub/thoth/issues/571) - Fix overlapping URL text for Locations in Thoth Admin panel on website in Safari and Chromium browsers
   - [564](https://github.com/thoth-pub/thoth/issues/564) - Fix error in BibTeX not outputting editors in work types other than edited volume
   - [447](https://github.com/thoth-pub/thoth/issues/447) - Prevents Google Books Onix3 format output from Export API if Thoth record doesn't contain at least one BIC, BISAC or LCC subject code
   - [404](https://github.com/thoth-pub/thoth/issues/404) - Prevents JSTOR Onix3 format output from Export API if Thoth record doesn't contain at least one BISAC subject code
