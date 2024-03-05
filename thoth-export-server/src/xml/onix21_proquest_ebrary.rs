@@ -17,7 +17,7 @@ pub struct Onix21ProquestEbrary {}
 const ONIX_ERROR: &str = "onix_2.1::proquest_ebrary";
 
 // This specification is exactly the same as EBSCO Host's except for the price point:
-// 0.00 (ProQuest Ebrary) instead of 0.01 (EBSCO Host)
+// UnpricedItemType (ProQuest Ebrary) instead of 0.01 (EBSCO Host)
 impl XmlSpecification for Onix21ProquestEbrary {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
         write_full_element_block("ONIXMessage", None, w, |w| {
