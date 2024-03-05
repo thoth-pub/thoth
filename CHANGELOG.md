@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Fixed
-  - [573](https://github.com/thoth-pub/thoth/pull/573) - Add seconds to timestamp for Crossref metadata output
+  - [475](https://github.com/thoth-pub/thoth/issues/475) - Add seconds to timestamp for Crossref metadata output
 
 ## [[0.11.17]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.17) - 2024-02-29
 ### Changed
