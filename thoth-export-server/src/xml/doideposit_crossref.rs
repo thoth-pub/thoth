@@ -42,7 +42,7 @@ impl XmlSpecification for DoiDepositCrossref {
                 "Not enough data".to_string(),
             )),
             [work] => {
-                let timestamp = Utc::now().format("%Y%m%d%H%M").to_string();
+                let timestamp = Utc::now().format("%Y%m%d%H%M%S").to_string();
                 let work_id = format!("{}_{}", work.work_id, timestamp);
 
                 write_full_element_block("doi_batch", Some(CROSSREF_NS.to_vec()), w, |w| {
