@@ -394,6 +394,7 @@ mod tests {
                     place: None,
                     first_page: None,
                     last_page: None,
+                    page_count: None,
                     page_interval: None,
                     landing_page: None,
                     imprint: WorkRelationsRelatedWorkImprint {
@@ -760,6 +761,7 @@ mod tests {
         "place": null,
         "firstPage": null,
         "lastPage": null,
+        "pageCount": null,
         "pageInterval": null,
         "landingPage": null,
         "imprint": {

@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+  - [441](https://github.com/thoth-pub/thoth/issues/441) - Implement ONIX 3.0 "Thoth" specification (i.e. complete record reflecting full data model)
+  - [401](https://github.com/thoth-pub/thoth/issues/401) - Add BDS Live to list of supported platforms for JSTOR ONIX output
+
 ### Fixed
   - [475](https://github.com/thoth-pub/thoth/issues/475) - Add seconds to timestamp for Crossref metadata output
   - [571](https://github.com/thoth-pub/thoth/issues/571) - Fix overlapping URL text for Locations in Thoth Admin panel on website in Safari and Chromium browsers
