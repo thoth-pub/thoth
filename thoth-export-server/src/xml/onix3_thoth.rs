@@ -16,6 +16,12 @@ use thoth_errors::{ThothError, ThothResult};
 #[derive(Copy, Clone)]
 pub struct Onix3Thoth {}
 
+struct Measure {
+    measure_type: &'static str,
+    measurement: f64,
+    measure_unit_code: &'static str,
+}
+
 const ONIX_ERROR: &str = "onix_3.0::thoth";
 
 // Based on ONIX for Books Release 3.0.8 Specification
@@ -73,12 +79,12 @@ impl XmlElementBlock<Onix3Thoth> for Work {
             ));
         }
         let work_id = format!("urn:uuid:{}", self.work_id);
-        let mut isbns: Vec<String> = Vec::new();
-        for publication in &self.publications {
-            if let Some(isbn) = &publication.isbn.as_ref() {
-                isbns.push(isbn.to_hyphenless_string());
-            }
-        }
+        let isbns: Vec<String> = self
+            .publications
+            .iter()
+            .filter_map(|p| p.isbn.as_ref())
+            .map(|i| i.to_hyphenless_string())
+            .collect();
         for publication in &self.publications {
             let publication_id = format!("urn:uuid:{}", publication.publication_id);
             let current_isbn = &publication.isbn.as_ref().map(|p| p.to_hyphenless_string());
@@ -202,46 +208,34 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                     write_element_block("PrimaryContentType", w, |w| {
                         w.write(XmlEvent::Characters("10")).map_err(|e| e.into())
                     })?;
-                    if let Some(height_mm) = &publication.height_mm {
+                    for &(measurement_opt, measure_type, measure_unit_code) in &[
                         // 01 height
-                        XmlElementBlock::<Onix3Thoth>::xml_element(&("01", height_mm, "mm"), w)
-                            .ok();
-                    }
-                    if let Some(height_cm) = &publication.height_cm {
-                        XmlElementBlock::<Onix3Thoth>::xml_element(&("01", height_cm, "cm"), w)
-                            .ok();
-                    }
-                    if let Some(height_in) = &publication.height_in {
-                        XmlElementBlock::<Onix3Thoth>::xml_element(&("01", height_in, "in"), w)
-                            .ok();
-                    }
-                    if let Some(width_mm) = &publication.width_mm {
+                        (publication.height_mm, "01", "mm"),
+                        (publication.height_cm, "01", "cm"),
+                        (publication.height_in, "01", "in"),
                         // 02 width
-                        XmlElementBlock::<Onix3Thoth>::xml_element(&("02", width_mm, "mm"), w).ok();
-                    }
-                    if let Some(width_cm) = &publication.width_cm {
-                        XmlElementBlock::<Onix3Thoth>::xml_element(&("02", width_cm, "cm"), w).ok();
-                    }
-                    if let Some(width_in) = &publication.width_in {
-                        XmlElementBlock::<Onix3Thoth>::xml_element(&("02", width_in, "in"), w).ok();
-                    }
-                    if let Some(depth_mm) = &publication.depth_mm {
+                        (publication.width_mm, "02", "mm"),
+                        (publication.width_cm, "02", "cm"),
+                        (publication.width_in, "02", "in"),
                         // 03 thickness
-                        XmlElementBlock::<Onix3Thoth>::xml_element(&("03", depth_mm, "mm"), w).ok();
-                    }
-                    if let Some(depth_cm) = &publication.depth_cm {
-                        XmlElementBlock::<Onix3Thoth>::xml_element(&("03", depth_cm, "cm"), w).ok();
-                    }
-                    if let Some(depth_in) = &publication.depth_in {
-                        XmlElementBlock::<Onix3Thoth>::xml_element(&("03", depth_in, "in"), w).ok();
-                    }
-                    if let Some(weight_g) = &publication.weight_g {
+                        (publication.depth_mm, "03", "mm"),
+                        (publication.depth_cm, "03", "cm"),
+                        (publication.depth_in, "03", "in"),
                         // 08 unit weight
-                        XmlElementBlock::<Onix3Thoth>::xml_element(&("08", weight_g, "gr"), w).ok();
-                    }
-                    if let Some(weight_oz) = &publication.weight_oz {
-                        XmlElementBlock::<Onix3Thoth>::xml_element(&("08", weight_oz, "oz"), w)
+                        (publication.weight_g, "08", "gr"),
+                        (publication.weight_oz, "08", "oz"),
+                    ] {
+                        if let Some(measurement) = measurement_opt {
+                            XmlElementBlock::<Onix3Thoth>::xml_element(
+                                &Measure {
+                                    measure_type,
+                                    measurement,
+                                    measure_unit_code,
+                                },
+                                w,
+                            )
                             .ok();
+                        }
                     }
                     if let Some(license_url) = &self.license {
                         let license_text = match License::from_url(license_url) {
@@ -752,13 +746,13 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                 })?;
                 let non_child_relations: Vec<WorkRelations> = self
                     .relations
-                    .clone()
-                    .into_iter()
+                    .iter()
                     .filter(|r| {
                         r.relation_type != RelationType::HAS_CHILD
                             && r.relation_type != RelationType::IS_CHILD_OF
                             && r.related_work.doi.is_some()
                     })
+                    .cloned()
                     .collect();
                 // Only output ISBNs in RelatedMaterial if at least one is present which
                 // doesn't relate to the current publication
@@ -831,25 +825,33 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         }];
                     }
                     for location in locations {
-                        let mut supplier_name = location.location_platform.to_string();
-                        let mut description_string = location.location_platform.to_string();
-                        // 11 Non-exclusive distributor to end-customers
-                        let mut supplier_role = "11";
-                        // 36 Supplier’s website for a specified work
-                        let mut landing_page_role = "36";
-
-                        if location.location_platform == LocationPlatform::PUBLISHER_WEBSITE {
-                            supplier_name = self.imprint.publisher.publisher_name.clone();
-                            description_string = "Publisher's website".to_string();
-                            // 09 Publisher to end-customers
-                            supplier_role = "09";
-                            // 02 Publisher's website for a specified work
-                            landing_page_role = "02";
-                        } else if location.location_platform == LocationPlatform::OTHER {
-                            supplier_name = "Unknown".to_string();
-                            description_string = "Unspecified hosting platform".to_string();
-                        }
-
+                        let (supplier_name, description_string, supplier_role, landing_page_role) =
+                            match location.location_platform {
+                                LocationPlatform::PUBLISHER_WEBSITE => (
+                                    self.imprint.publisher.publisher_name.clone(),
+                                    "Publisher's website".to_string(),
+                                    // 09 Publisher to end-customers
+                                    "09",
+                                    // 02 Publisher's website for a specified work
+                                    "02",
+                                ),
+                                LocationPlatform::OTHER => (
+                                    "Unknown".to_string(),
+                                    "Unspecified hosting platform".to_string(),
+                                    // 11 Non-exclusive distributor to end-customers
+                                    "11",
+                                    // 36 Supplier’s website for a specified work
+                                    "36",
+                                ),
+                                _ => (
+                                    location.location_platform.to_string(),
+                                    location.location_platform.to_string(),
+                                    // 11 Non-exclusive distributor to end-customers
+                                    "11",
+                                    // 36 Supplier’s website for a specified work
+                                    "36",
+                                ),
+                            };
                         write_element_block("SupplyDetail", w, |w| {
                             write_element_block("Supplier", w, |w| {
                                 write_element_block("SupplierRole", w, |w| {
@@ -1322,36 +1324,34 @@ impl XmlElementBlock<Onix3Thoth> for WorkReferences {
             write_element_block("ProductRelationCode", w, |w| {
                 w.write(XmlEvent::Characters("34")).map_err(|e| e.into())
             })?;
-            if let Some(doi) = &self.doi {
-                write_element_block("ProductIdentifier", w, |w| {
-                    // 06 DOI
-                    write_element_block("ProductIDType", w, |w| {
-                        w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
-                    })?;
-                    write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(&doi.to_string()))
-                            .map_err(|e| e.into())
-                    })
-                })
-            } else {
-                // Unstructured citation is mandatory in Thoth if DOI is missing
-                write_element_block("ProductIdentifier", w, |w| {
-                    // 01 Proprietary
-                    write_element_block("ProductIDType", w, |w| {
-                        w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
-                    })?;
+            let (product_id_type, id_value) = self.doi.as_ref().map_or_else(
+                || {
+                    (
+                        // 01 Proprietary
+                        "01",
+                        // Unstructured citation is mandatory in Thoth if DOI is missing
+                        self.unstructured_citation.as_ref().unwrap().to_owned(),
+                    )
+                },
+                // 06 DOI
+                |doi| ("06", doi.to_string()),
+            );
+            write_element_block("ProductIdentifier", w, |w| {
+                write_element_block("ProductIDType", w, |w| {
+                    w.write(XmlEvent::Characters(product_id_type))
+                        .map_err(|e| e.into())
+                })?;
+                if product_id_type == "01" {
                     write_element_block("IDTypeName", w, |w| {
                         w.write(XmlEvent::Characters("Unstructured citation"))
                             .map_err(|e| e.into())
                     })?;
-                    write_element_block("IDValue", w, |w| {
-                        w.write(XmlEvent::Characters(
-                            self.unstructured_citation.as_ref().unwrap(),
-                        ))
+                }
+                write_element_block("IDValue", w, |w| {
+                    w.write(XmlEvent::Characters(&id_value))
                         .map_err(|e| e.into())
-                    })
                 })
-            }
+            })
         })
     }
 }
@@ -1424,19 +1424,20 @@ impl XmlElementBlock<Onix3Thoth> for WorkRelations {
     }
 }
 
-impl XmlElementBlock<Onix3Thoth> for (&str, &f64, &str) {
-    // (MeasureType, Measurement, MeasureUnitCode)
+impl XmlElementBlock<Onix3Thoth> for Measure {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Measure", w, |w| {
             write_element_block("MeasureType", w, |w| {
-                w.write(XmlEvent::Characters(self.0)).map_err(|e| e.into())
+                w.write(XmlEvent::Characters(self.measure_type))
+                    .map_err(|e| e.into())
             })?;
             write_element_block("Measurement", w, |w| {
-                w.write(XmlEvent::Characters(&self.1.to_string()))
+                w.write(XmlEvent::Characters(&self.measurement.to_string()))
                     .map_err(|e| e.into())
             })?;
             write_element_block("MeasureUnitCode", w, |w| {
-                w.write(XmlEvent::Characters(self.2)).map_err(|e| e.into())
+                w.write(XmlEvent::Characters(self.measure_unit_code))
+                    .map_err(|e| e.into())
             })
         })
     }

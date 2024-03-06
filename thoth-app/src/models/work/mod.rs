@@ -433,7 +433,7 @@ impl DisplayWork for WorkWithRelations {
                                     <div class="dropdown-menu" id="dropdown-menu" role="menu">
                                         <div class="dropdown-content">
                                             <a
-                                                href={self.onix_projectmuse_endpoint()}
+                                                href={self.onix_thoth_endpoint()}
                                                 class="dropdown-item"
                                             >
                                             {"ONIX 3.0 (Thoth)"}
