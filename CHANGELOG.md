@@ -10,8 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [571](https://github.com/thoth-pub/thoth/issues/571) - Fix overlapping URL text for Locations in Thoth Admin panel on website in Safari and Chromium browsers
 
 ### Changed
- - Upgrade `actix-identity` to v0.7.1
- - Upgrade `actix-session` to v0.9.0
+ - [578](https://github.com/thoth-pub/thoth/pull/578) - Upgrade `actix-identity` to v0.7.1
+ - [578](https://github.com/thoth-pub/thoth/pull/578) - Upgrade `actix-session` to v0.9.0
 
 ### Security
   - [572](https://github.com/thoth-pub/thoth/pull/572) - Upgrade `mio` to v0.8.11
