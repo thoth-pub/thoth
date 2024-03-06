@@ -434,15 +434,10 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             write_element_block("ContentAudience", w, |w| {
                                 w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                             })?;
-                            write_full_element_block(
-                                "Text",
-                                Some(vec![("language", "eng")]),
-                                w,
-                                |w| {
-                                    w.write(XmlEvent::Characters(&short_abstract))
-                                        .map_err(|e| e.into())
-                                },
-                            )
+                            write_element_block("Text", w, |w| {
+                                w.write(XmlEvent::Characters(&short_abstract))
+                                    .map_err(|e| e.into())
+                            })
                         })?;
                     }
                     if let Some(long_abstract) = &self.long_abstract {
@@ -457,15 +452,10 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                                 write_element_block("ContentAudience", w, |w| {
                                     w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                                 })?;
-                                write_full_element_block(
-                                    "Text",
-                                    Some(vec![("language", "eng")]),
-                                    w,
-                                    |w| {
-                                        w.write(XmlEvent::Characters(long_abstract))
-                                            .map_err(|e| e.into())
-                                    },
-                                )
+                                write_element_block("Text", w, |w| {
+                                    w.write(XmlEvent::Characters(long_abstract))
+                                        .map_err(|e| e.into())
+                                })
                             })?;
                         }
                     }
@@ -479,12 +469,9 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             write_element_block("ContentAudience", w, |w| {
                                 w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                             })?;
-                            write_full_element_block(
-                                "Text",
-                                Some(vec![("language", "eng")]),
-                                w,
-                                |w| w.write(XmlEvent::Characters(toc)).map_err(|e| e.into()),
-                            )
+                            write_element_block("Text", w, |w| {
+                                w.write(XmlEvent::Characters(toc)).map_err(|e| e.into())
+                            })
                         })?;
                     }
                     write_element_block("TextContent", w, |w| {
@@ -513,15 +500,10 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             write_element_block("ContentAudience", w, |w| {
                                 w.write(XmlEvent::Characters("00")).map_err(|e| e.into())
                             })?;
-                            write_full_element_block(
-                                "Text",
-                                Some(vec![("language", "eng")]),
-                                w,
-                                |w| {
-                                    w.write(XmlEvent::Characters(general_note))
-                                        .map_err(|e| e.into())
-                                },
-                            )
+                            write_element_block("Text", w, |w| {
+                                w.write(XmlEvent::Characters(general_note))
+                                    .map_err(|e| e.into())
+                            })
                         })?;
                     }
                     if let Some(cover_url) = &self.cover_url {
@@ -2603,7 +2585,7 @@ mod tests {
     <TextContent>
       <TextType>02</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text language="eng">Lorem ipsum dolor sit amet.</Text>
+      <Text>Lorem ipsum dolor sit amet.</Text>
     </TextContent>"#
         ));
         assert!(output.contains(
@@ -2611,7 +2593,7 @@ mod tests {
     <TextContent>
       <TextType>03</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
+      <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
     </TextContent>"#
         ));
         assert!(output.contains(
@@ -2619,7 +2601,7 @@ mod tests {
     <TextContent>
       <TextType>30</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
+      <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
     </TextContent>"#
         ));
         assert!(output.contains(
@@ -2627,7 +2609,7 @@ mod tests {
     <TextContent>
       <TextType>04</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text language="eng">1. Chapter 1</Text>
+      <Text>1. Chapter 1</Text>
     </TextContent>"#
         ));
         assert!(output.contains(
@@ -2643,7 +2625,7 @@ mod tests {
     <TextContent>
       <TextType>13</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text language="eng">This is a general note</Text>
+      <Text>This is a general note</Text>
     </TextContent>"#
         ));
         assert!(output.contains(
@@ -3028,7 +3010,7 @@ mod tests {
     <TextContent>
       <TextType>02</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text language="eng">Lorem ipsum dolor sit amet.</Text>
+      <Text>Lorem ipsum dolor sit amet.</Text>
     </TextContent>"#
         ));
         assert!(!output.contains(
@@ -3036,7 +3018,7 @@ mod tests {
     <TextContent>
       <TextType>03</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
+      <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
     </TextContent>"#
         ));
         assert!(!output.contains(
@@ -3044,7 +3026,7 @@ mod tests {
     <TextContent>
       <TextType>30</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
+      <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</Text>
     </TextContent>"#
         ));
         assert!(!output.contains(
@@ -3052,7 +3034,7 @@ mod tests {
     <TextContent>
       <TextType>04</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text language="eng">1. Chapter 1</Text>
+      <Text>1. Chapter 1</Text>
     </TextContent>"#
         ));
         assert!(!output.contains(
@@ -3060,7 +3042,7 @@ mod tests {
     <TextContent>
       <TextType>13</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text language="eng">This is a general note</Text>
+      <Text>This is a general note</Text>
     </TextContent>"#
         ));
         // SupportingResource block still present but ResourceFeature absent
@@ -3286,7 +3268,7 @@ mod tests {
     <TextContent>
       <TextType>02</TextType>
       <ContentAudience>00</ContentAudience>
-      <Text language="eng">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementu</Text>
+      <Text>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nullam ornare bibendum ex nec dapibus. Proin porta risus elementu</Text>
     </TextContent>"#
         ));
         assert!(output.contains(
