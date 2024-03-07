@@ -42,7 +42,7 @@ impl XmlSpecification for DoiDepositCrossref {
                 "Not enough data".to_string(),
             )),
             [work] => {
-                let timestamp = Utc::now().format("%Y%m%d%H%M").to_string();
+                let timestamp = Utc::now().format("%Y%m%d%H%M%S").to_string();
                 let work_id = format!("{}_{}", work.work_id, timestamp);
 
                 write_full_element_block("doi_batch", Some(CROSSREF_NS.to_vec()), w, |w| {
@@ -820,6 +820,7 @@ mod tests {
                 place: Some("Other Place".to_string()),
                 first_page: Some("10".to_string()),
                 last_page: Some("20".to_string()),
+                page_count: Some(11),
                 page_interval: Some("10–20".to_string()),
                 landing_page: Some("https://www.book.com/chapter_one".to_string()),
                 imprint: WorkRelationsRelatedWorkImprint {
@@ -1268,6 +1269,7 @@ mod tests {
                     place: Some("Other Place".to_string()),
                     first_page: Some("10".to_string()),
                     last_page: Some("20".to_string()),
+                    page_count: Some(11),
                     page_interval: Some("10–20".to_string()),
                     landing_page: Some("https://www.book.com/part_one".to_string()),
                     imprint: WorkRelationsRelatedWorkImprint {
