@@ -1,6 +1,6 @@
 [package]
 name = "thoth-app-server"
-version = "0.11.18"
+version = "0.11.19"
 authors = ["Javier Arias <javi@openbookpublishers.com>", "Ross Higman <ross@openbookpublishers.com>"]
 edition = "2021"
 license = "Apache-2.0"
