@@ -53,8 +53,8 @@ impl MetadataTable for SeriesWithImprint {
                 <td>{&self.series_id}</td>
                 <td>{&self.series_name}</td>
                 <td>{&self.series_type}</td>
-                <td>{&self.issn_print}</td>
-                <td>{&self.issn_digital}</td>
+                <td>{&self.issn_print.clone().unwrap_or_default()}</td>
+                <td>{&self.issn_digital.clone().unwrap_or_default()}</td>
                 <td>{&self.updated_at}</td>
             </tr>
         }

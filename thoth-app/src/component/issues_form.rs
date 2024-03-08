@@ -477,14 +477,14 @@ impl IssuesFormComponent {
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "ISSN Print" }</label>
                         <div class="control is-expanded">
-                            {&i.series.issn_print}
+                            {&i.series.issn_print.clone().unwrap_or_default()}
                         </div>
                     </div>
 
                     <div class="field" style="width: 8em;">
                         <label class="label">{ "ISSN Digital" }</label>
                         <div class="control is-expanded">
-                            {&i.series.issn_digital}
+                            {&i.series.issn_digital.clone().unwrap_or_default()}
                         </div>
                     </div>
 

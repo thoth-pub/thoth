@@ -61,8 +61,8 @@ pub struct Series {
     pub series_id: Uuid,
     pub series_type: SeriesType,
     pub series_name: String,
-    pub issn_print: String,
-    pub issn_digital: String,
+    pub issn_print: Option<String>,
+    pub issn_digital: Option<String>,
     pub series_url: Option<String>,
     pub imprint_id: Uuid,
     pub created_at: Timestamp,
@@ -77,8 +77,8 @@ pub struct SeriesWithImprint {
     pub series_id: Uuid,
     pub series_type: SeriesType,
     pub series_name: String,
-    pub issn_print: String,
-    pub issn_digital: String,
+    pub issn_print: Option<String>,
+    pub issn_digital: Option<String>,
     pub series_url: Option<String>,
     pub series_description: Option<String>,
     pub series_cfp_url: Option<String>,
@@ -94,8 +94,8 @@ pub struct SeriesWithImprint {
 pub struct NewSeries {
     pub series_type: SeriesType,
     pub series_name: String,
-    pub issn_print: String,
-    pub issn_digital: String,
+    pub issn_print: Option<String>,
+    pub issn_digital: Option<String>,
     pub series_url: Option<String>,
     pub series_description: Option<String>,
     pub series_cfp_url: Option<String>,
@@ -111,8 +111,8 @@ pub struct PatchSeries {
     pub series_id: Uuid,
     pub series_type: SeriesType,
     pub series_name: String,
-    pub issn_print: String,
-    pub issn_digital: String,
+    pub issn_print: Option<String>,
+    pub issn_digital: Option<String>,
     pub series_url: Option<String>,
     pub series_description: Option<String>,
     pub series_cfp_url: Option<String>,
@@ -151,7 +151,9 @@ impl fmt::Display for SeriesWithImprint {
         write!(
             f,
             "{} ({}, {})",
-            self.series_name, self.issn_print, self.issn_digital
+            self.series_name,
+            self.issn_print.clone().unwrap_or_default(),
+            self.issn_digital.clone().unwrap_or_default()
         )
     }
 }

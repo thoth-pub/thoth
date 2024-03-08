@@ -167,7 +167,7 @@ impl TryFrom<Work> for KbartOclcRow {
                 parent_publication_title_id: work
                     .issues
                     .first()
-                    .map(|i| i.series.issn_digital.to_string()),
+                    .map(|i| i.series.issn_digital.clone().unwrap_or_default()),
                 preceding_publication_title_id: None,
                 access_type: "F".to_string(),
             })
@@ -287,8 +287,8 @@ mod tests {
                     series: WorkIssuesSeries {
                         series_type: thoth_client::SeriesType::BOOK_SERIES,
                         series_name: "Name of series".to_string(),
-                        issn_print: "1234-5678".to_string(),
-                        issn_digital: "8765-4321".to_string(),
+                        issn_print: Some("1234-5678".to_string()),
+                        issn_digital: Some("8765-4321".to_string()),
                         series_url: None,
                         series_description: None,
                         series_cfp_url: None,
@@ -299,8 +299,8 @@ mod tests {
                     series: WorkIssuesSeries {
                         series_type: thoth_client::SeriesType::BOOK_SERIES,
                         series_name: "Name of second series".to_string(),
-                        issn_print: "1111-2222".to_string(),
-                        issn_digital: "3333-4444".to_string(),
+                        issn_print: Some("1111-2222".to_string()),
+                        issn_digital: Some("3333-4444".to_string()),
                         series_url: None,
                         series_description: None,
                         series_cfp_url: None,

@@ -465,11 +465,11 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkIssuesSeries {
                 })
             })?;
             write_full_element_block("issn", Some(vec![("media_type", "print")]), w, |w| {
-                w.write(XmlEvent::Characters(&self.issn_print))
+                w.write(XmlEvent::Characters(self.issn_print.as_deref().unwrap_or_default()))
                     .map_err(|e| e.into())
             })?;
             write_full_element_block("issn", Some(vec![("media_type", "electronic")]), w, |w| {
-                w.write(XmlEvent::Characters(&self.issn_digital))
+                w.write(XmlEvent::Characters(self.issn_digital.as_deref().unwrap_or_default()))
                     .map_err(|e| e.into())
             })
         })
@@ -1052,8 +1052,8 @@ mod tests {
                     series: WorkIssuesSeries {
                         series_type: SeriesType::BOOK_SERIES,
                         series_name: "Name of series".to_string(),
-                        issn_print: "1234-5678".to_string(),
-                        issn_digital: "8765-4321".to_string(),
+                        issn_print: Some("1234-5678".to_string()),
+                        issn_digital: Some("8765-4321".to_string()),
                         series_url: None,
                         series_description: None,
                         series_cfp_url: None,
@@ -1064,8 +1064,8 @@ mod tests {
                     series: WorkIssuesSeries {
                         series_type: SeriesType::BOOK_SERIES,
                         series_name: "Irrelevant series".to_string(),
-                        issn_print: "1111-2222".to_string(),
-                        issn_digital: "3333-4444".to_string(),
+                        issn_print: Some("1111-2222".to_string()),
+                        issn_digital: Some("3333-4444".to_string()),
                         series_url: None,
                         series_description: None,
                         series_cfp_url: None,

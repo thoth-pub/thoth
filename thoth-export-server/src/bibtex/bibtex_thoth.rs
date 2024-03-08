@@ -189,7 +189,7 @@ impl TryFrom<Work> for BibtexThothEntry {
             issn: work
                 .issues
                 .first()
-                .map(|i| i.series.issn_digital.to_string()),
+                .map(|i| i.series.issn_digital.clone().unwrap_or_default()),
             url: work.landing_page,
             copyright: work.license,
             long_abstract: work.long_abstract,
@@ -319,8 +319,8 @@ mod tests {
                 series: WorkIssuesSeries {
                     series_type: SeriesType::JOURNAL,
                     series_name: "Name of series".to_string(),
-                    issn_print: "1234-5678".to_string(),
-                    issn_digital: "8765-4321".to_string(),
+                    issn_print: Some("1234-5678".to_string()),
+                    issn_digital: Some("8765-4321".to_string()),
                     series_url: Some("https://www.series.com".to_string()),
                     series_description: Some("Description of series".to_string()),
                     series_cfp_url: Some("https://www.series.com/cfp".to_string()),
