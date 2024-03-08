@@ -76,6 +76,8 @@ pub(crate) trait XmlElementBlock<T: XmlSpecification> {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()>;
 }
 
+mod onix3_thoth;
+pub(crate) use onix3_thoth::Onix3Thoth;
 mod onix3_project_muse;
 pub(crate) use onix3_project_muse::Onix3ProjectMuse;
 mod onix3_oapen;

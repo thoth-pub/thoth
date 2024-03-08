@@ -436,7 +436,6 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                                     .map_err(|e| e.into())
                                 })?;
                                 write_element_block("Website", w, |w| {
-                                    // 01 Publisher’s corporate website
                                     write_element_block("WebsiteRole", w, |w| {
                                         w.write(XmlEvent::Characters(&description.0))
                                             .map_err(|e| e.into())
@@ -744,32 +743,29 @@ impl XmlElementBlock<Onix3Overdrive> for WorkFundings {
                 w.write(XmlEvent::Characters(&self.institution.institution_name))
                     .map_err(|e| e.into())
             })?;
-            let mut identifiers: HashMap<String, String> = HashMap::new();
-            if let Some(program) = &self.program {
-                identifiers.insert("programname".to_string(), program.to_string());
-            }
-            if let Some(project_name) = &self.project_name {
-                identifiers.insert("projectname".to_string(), project_name.to_string());
-            }
-            if let Some(grant_number) = &self.grant_number {
-                identifiers.insert("grantnumber".to_string(), grant_number.to_string());
-            }
-            if !identifiers.is_empty() {
+            let identifiers: Vec<(&str, Option<&str>)> = vec![
+                ("programname", self.program.as_deref().to_owned()),
+                ("projectname", self.project_name.as_deref().to_owned()),
+                ("grantnumber", self.grant_number.as_deref().to_owned()),
+            ];
+            if identifiers.iter().any(|(_, i)| i.is_some()) {
                 write_element_block("Funding", w, |w| {
-                    for (typename, value) in &identifiers {
-                        write_element_block("FundingIdentifier", w, |w| {
-                            // 01 Proprietary
-                            write_element_block("FundingIDType", w, |w| {
-                                w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                    for (typename, value_opt) in &identifiers {
+                        if let Some(value) = *value_opt {
+                            write_element_block("FundingIdentifier", w, |w| {
+                                // 01 Proprietary
+                                write_element_block("FundingIDType", w, |w| {
+                                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                                })?;
+                                write_element_block("IDTypeName", w, |w| {
+                                    w.write(XmlEvent::Characters(typename))
+                                        .map_err(|e| e.into())
+                                })?;
+                                write_element_block("IDValue", w, |w| {
+                                    w.write(XmlEvent::Characters(value)).map_err(|e| e.into())
+                                })
                             })?;
-                            write_element_block("IDTypeName", w, |w| {
-                                w.write(XmlEvent::Characters(typename))
-                                    .map_err(|e| e.into())
-                            })?;
-                            write_element_block("IDValue", w, |w| {
-                                w.write(XmlEvent::Characters(value)).map_err(|e| e.into())
-                            })
-                        })?;
+                        }
                     }
                     Ok(())
                 })?;
@@ -893,6 +889,18 @@ mod tests {
         test_contribution.contribution_type = ContributionType::PREFACE_BY;
         let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A15</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::SOFTWARE_BY;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A30</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::RESEARCH_BY;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A51</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::CONTRIBUTIONS_BY;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A32</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::INDEXER;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A34</ContributorRole>"#));
     }
 
     #[test]

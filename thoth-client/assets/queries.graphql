@@ -167,6 +167,7 @@ fragment Work on Work {
             place
             firstPage
             lastPage
+            pageCount
             pageInterval
             landingPage
             imprint {

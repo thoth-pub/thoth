@@ -14,7 +14,7 @@ use crate::json::{JsonSpecification, JsonThoth};
 use crate::marc21::{Marc21MarkupThoth, Marc21RecordThoth, Marc21Specification};
 use crate::xml::{
     DoiDepositCrossref, Marc21XmlThoth, Onix21EbscoHost, Onix21ProquestEbrary, Onix3GoogleBooks,
-    Onix3Jstor, Onix3Oapen, Onix3Overdrive, Onix3ProjectMuse, XmlSpecification,
+    Onix3Jstor, Onix3Oapen, Onix3Overdrive, Onix3ProjectMuse, Onix3Thoth, XmlSpecification,
 };
 
 pub(crate) trait AsRecord {}
@@ -27,6 +27,7 @@ pub const DOCTYPE_ONIX21_REF: &str = "<!DOCTYPE ONIXMessage SYSTEM \"http://www.
 
 #[derive(Copy, Clone)]
 pub(crate) enum MetadataSpecification {
+    Onix3Thoth(Onix3Thoth),
     Onix3ProjectMuse(Onix3ProjectMuse),
     Onix3Oapen(Onix3Oapen),
     Onix3Jstor(Onix3Jstor),
@@ -78,6 +79,7 @@ where
 
     fn content_type(&self) -> &'static str {
         match &self.specification {
+            MetadataSpecification::Onix3Thoth(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Onix3ProjectMuse(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Onix3Oapen(_) => Self::XML_MIME_TYPE,
             MetadataSpecification::Onix3Jstor(_) => Self::XML_MIME_TYPE,
@@ -98,6 +100,7 @@ where
 
     fn file_name(&self) -> String {
         match &self.specification {
+            MetadataSpecification::Onix3Thoth(_) => self.xml_file_name(),
             MetadataSpecification::Onix3ProjectMuse(_) => self.xml_file_name(),
             MetadataSpecification::Onix3Oapen(_) => self.xml_file_name(),
             MetadataSpecification::Onix3Jstor(_) => self.xml_file_name(),
@@ -161,6 +164,9 @@ where
 impl MetadataRecord<Vec<Work>> {
     fn generate(&self) -> ThothResult<String> {
         match &self.specification {
+            MetadataSpecification::Onix3Thoth(onix3_thoth) => {
+                onix3_thoth.generate(&self.data, None)
+            }
             MetadataSpecification::Onix3ProjectMuse(onix3_project_muse) => {
                 onix3_project_muse.generate(&self.data, None)
             }
@@ -244,6 +250,7 @@ impl FromStr for MetadataSpecification {
 
     fn from_str(input: &str) -> ThothResult<Self> {
         match input {
+            "onix_3.0::thoth" => Ok(MetadataSpecification::Onix3Thoth(Onix3Thoth {})),
             "onix_3.0::project_muse" => {
                 Ok(MetadataSpecification::Onix3ProjectMuse(Onix3ProjectMuse {}))
             }
@@ -281,6 +288,7 @@ impl FromStr for MetadataSpecification {
 impl ToString for MetadataSpecification {
     fn to_string(&self) -> String {
         match self {
+            MetadataSpecification::Onix3Thoth(_) => "onix_3.0::thoth".to_string(),
             MetadataSpecification::Onix3ProjectMuse(_) => "onix_3.0::project_muse".to_string(),
             MetadataSpecification::Onix3Oapen(_) => "onix_3.0::oapen".to_string(),
             MetadataSpecification::Onix3Jstor(_) => "onix_3.0::jstor".to_string(),
@@ -332,6 +340,15 @@ mod tests {
             vec![],
         );
         assert_eq!(to_test.file_name(), "json__thoth__some_id.json".to_string());
+        let to_test = MetadataRecord::new(
+            "some_id".to_string(),
+            MetadataSpecification::Onix3Thoth(Onix3Thoth {}),
+            vec![],
+        );
+        assert_eq!(
+            to_test.file_name(),
+            "onix_3.0__thoth__some_id.xml".to_string()
+        );
         let to_test = MetadataRecord::new(
             "some_id".to_string(),
             MetadataSpecification::Onix3ProjectMuse(Onix3ProjectMuse {}),

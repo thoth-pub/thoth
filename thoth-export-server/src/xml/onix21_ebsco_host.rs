@@ -208,7 +208,6 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
                 }
                 for (url, description) in websites.iter() {
                     write_element_block("Website", w, |w| {
-                        // 01 Publisher’s corporate website
                         write_element_block("WebsiteRole", w, |w| {
                             w.write(XmlEvent::Characters(&description.0))
                                 .map_err(|e| e.into())
@@ -737,6 +736,15 @@ mod tests {
         test_contribution.contribution_type = ContributionType::PREFACE_BY;
         let output = generate_test_output(true, &test_contribution);
         assert!(output.contains(r#"  <ContributorRole>A15</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::SOFTWARE_BY;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A30</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::CONTRIBUTIONS_BY;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A32</ContributorRole>"#));
+        test_contribution.contribution_type = ContributionType::INDEXER;
+        let output = generate_test_output(true, &test_contribution);
+        assert!(output.contains(r#"  <ContributorRole>A34</ContributorRole>"#));
     }
 
     #[test]
