@@ -655,8 +655,8 @@ impl Marc21Field<Marc21RecordThoth> for WorkIssues {
                     )
                 })
                 .and_then(|f| builder.add_field(f))?;
-          }
-          Ok(())
+        }
+        Ok(())
     }
 }
 

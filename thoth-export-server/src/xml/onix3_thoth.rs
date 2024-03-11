@@ -1150,7 +1150,12 @@ impl XmlElementBlock<Onix3Thoth> for WorkIssues {
                 })?;
                 write_element_block("IDValue", w, |w| {
                     w.write(XmlEvent::Characters(
-                        &self.series.issn_digital.as_deref().unwrap_or_default().replace('-', ""),
+                        &self
+                            .series
+                            .issn_digital
+                            .as_deref()
+                            .unwrap_or_default()
+                            .replace('-', ""),
                     ))
                     .map_err(|e| e.into())
                 })
