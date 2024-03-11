@@ -1150,7 +1150,7 @@ impl XmlElementBlock<Onix3Thoth> for WorkIssues {
                 })?;
                 write_element_block("IDValue", w, |w| {
                     w.write(XmlEvent::Characters(
-                        &self.series.issn_digital.replace('-', ""),
+                        &self.series.issn_digital.as_deref().unwrap_or_default().replace('-', ""),
                     ))
                     .map_err(|e| e.into())
                 })
@@ -1641,8 +1641,8 @@ mod tests {
             series: WorkIssuesSeries {
                 series_type: thoth_client::SeriesType::JOURNAL,
                 series_name: "Name of series".to_string(),
-                issn_print: "1234-5678".to_string(),
-                issn_digital: "8765-4321".to_string(),
+                issn_print: Some("1234-5678".to_string()),
+                issn_digital: Some("8765-4321".to_string()),
                 series_url: Some("https://series.url".to_string()),
                 series_description: None,
                 series_cfp_url: Some("https://series.cfp.url".to_string()),
@@ -1700,7 +1700,7 @@ mod tests {
         // Change all possible values to test that output is updated
         test_issue.issue_ordinal = 2;
         test_issue.series.series_name = "Different series".to_string();
-        test_issue.series.issn_digital = "1111-2222".to_string();
+        test_issue.series.issn_digital = Some("1111-2222".to_string());
         test_issue.series.series_url = None;
         test_issue.series.series_cfp_url = None;
         let output = generate_test_output(true, &test_issue);
