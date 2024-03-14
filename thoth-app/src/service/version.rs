@@ -26,7 +26,7 @@ pub async fn get_version() -> Result<Version, ThothError> {
 async fn get_request() -> impl Future<Output = HttpFuture> {
     let base_url = web_sys::window().unwrap().origin();
     reqwest::Client::new()
-        .get(format!("{base_url}/manifest.json"))
+        .get(format!("{base_url}/admin/manifest.json"))
         .header("Content-Type", "application/json")
         .send()
 }
