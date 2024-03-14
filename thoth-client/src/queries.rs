@@ -26,6 +26,12 @@ impl fmt::Display for work_query::LanguageCode {
     }
 }
 
+impl fmt::Display for work_query::CurrencyCode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
 impl fmt::Display for work_query::SubjectType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{self:?}")
@@ -33,6 +39,12 @@ impl fmt::Display for work_query::SubjectType {
 }
 
 impl fmt::Display for work_query::PublicationType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+impl fmt::Display for work_query::LocationPlatform {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{self:?}")
     }
