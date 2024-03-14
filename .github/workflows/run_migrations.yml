@@ -42,17 +42,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build binary
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --verbose
+        run: cargo build --verbose
       - name: Run migrations
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: migrate
+        run: cargo run migrate
       - name: Revert migrations
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: migrate --revert
+        run: cargo run migrate --revert
