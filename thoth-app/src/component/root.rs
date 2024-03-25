@@ -18,10 +18,7 @@ use crate::agent::session_timer::SessionTimerRequest;
 use crate::agent::version_timer::VersionTimerAgent;
 use crate::agent::version_timer::VersionTimerDispatcher;
 use crate::agent::version_timer::VersionTimerRequest;
-use crate::component::about::AboutComponent;
 use crate::component::admin::AdminComponent;
-use crate::component::catalogue::CatalogueComponent;
-use crate::component::hero::HeroComponent;
 use crate::component::login::LoginComponent;
 use crate::component::navbar::NavbarComponent;
 use crate::component::notification::NotificationComponent;
@@ -174,19 +171,6 @@ fn switch_app(
     callback_login: Callback<AccountDetails>,
 ) -> Html {
     match route {
-        AppRoute::Home => html! {
-            <>
-                <HeroComponent />
-                <div class="section">
-                    <CatalogueComponent />
-                </div>
-            </>
-        },
-        AppRoute::About => html! {
-            <div class="section">
-                <AboutComponent />
-            </div>
-        },
         AppRoute::Login => html! {
             <div class="section">
                 <LoginComponent current_user={ current_user.clone() } callback={ callback_login }/>
@@ -197,7 +181,7 @@ fn switch_app(
                 <AdminComponent current_user={ current_user.clone() }/>
             </div>
         },
-        AppRoute::AdminHome => html! {
+        AppRoute::AdminHome | AppRoute::Home => html! {
             <Redirect<AdminRoute> to={ AdminRoute::Dashboard }/>
         },
         AppRoute::Error => html! {
