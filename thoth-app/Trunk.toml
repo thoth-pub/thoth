@@ -2,7 +2,7 @@
 # The output dir for all final assets.
 dist = "pkg"
 # The public URL from which assets are to be served.
-public_url = "/"
+public_url = "/admin/"
 # Whether to include hash values in the output file names.
 filehash = false
 

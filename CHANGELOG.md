@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
  - [218](https://github.com/thoth-pub/thoth/issues/218) - Make series ISSN optional
 
+## [[0.12.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.0) - 2024-03-14
+### Removed
+  - [549](https://github.com/thoth-pub/thoth/pull/549) - Deprecate public-facing pages in Thoth APP in favour of a separate, standalone, website
+
+### Added
+  - [549](https://github.com/thoth-pub/thoth/pull/549) - Build and push staging docker images on pull requests
+
+### Changed
+ - [549](https://github.com/thoth-pub/thoth/pull/549) - Upgrade GitHub actions dependencies (`docker/setup-qemu-action@v3`, `docker/setup-buildx-action@v3`, `docker/login-action@v3`, `docker/build-push-action@v5`, `actions/checkout@v4`, `actions/setup-node@v4`)
+
 ## [[0.11.18]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.18) - 2024-03-07
 ### Added
   - [441](https://github.com/thoth-pub/thoth/issues/441) - Implement ONIX 3.0 "Thoth" specification (i.e. complete record reflecting full data model)

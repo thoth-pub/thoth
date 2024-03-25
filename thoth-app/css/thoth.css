@@ -95,3 +95,26 @@
     white-space: nowrap;
     display: block;
 }
+
+.button.primary {
+    color: #ffffff;
+    background-color: #8c3f8d;
+    border-width: 2px;
+    border-radius: .375rem;
+    border-color: #8c3f8d;
+    font-weight: bold;
+}
+.button.primary:hover {
+    background-color: #af4fb0;
+}
+.version {
+    color: #f14668;
+    padding-left: 1em;
+    padding-right: 1em;
+    padding-bottom: calc(.5em - 1px);
+    font-weight: bold;
+}
+.version:hover {
+    text-decoration: underline;
+    color: #f14668;
+}

@@ -8,8 +8,6 @@ pub enum AppRoute {
     #[not_found]
     #[at("/error")]
     Error,
-    #[at("/about")]
-    About,
     #[at("/admin/*")]
     Admin,
     #[at("/admin")]
