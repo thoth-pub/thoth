@@ -704,9 +704,7 @@ impl XmlElementBlock<Onix3Overdrive> for WorkIssues {
                     })?;
                     write_element_block("IDValue", w, |w| {
                         w.write(XmlEvent::Characters(
-                            &issn_digital
-                            .as_str()
-                            .replace('-', ""),
+                            &issn_digital.as_str().replace('-', ""),
                         ))
                         .map_err(|e| e.into())
                     })

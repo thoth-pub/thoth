@@ -1153,7 +1153,8 @@ impl XmlElementBlock<Onix3Thoth> for WorkIssues {
                         .map_err(|e| e.into())
                 })?;
                 write_element_block("IDValue", w, |w| {
-                    w.write(XmlEvent::Characters(&self.series.series_id.to_string())).map_err(|e| e.into())
+                    w.write(XmlEvent::Characters(&self.series.series_id.to_string()))
+                        .map_err(|e| e.into())
                 })
             })?;
             if let Some(issn_digital) = &self.series.issn_digital {
@@ -1164,9 +1165,7 @@ impl XmlElementBlock<Onix3Thoth> for WorkIssues {
                     })?;
                     write_element_block("IDValue", w, |w| {
                         w.write(XmlEvent::Characters(
-                            &issn_digital
-                                .as_str()
-                                .replace('-', ""),
+                            &issn_digital.as_str().replace('-', ""),
                         ))
                         .map_err(|e| e.into())
                     })

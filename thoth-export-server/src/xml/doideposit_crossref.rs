@@ -466,21 +466,30 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkIssuesSeries {
                     })
                 })?;
                 if let Some(issn_print) = &self.issn_print {
-                    write_full_element_block("issn", Some(vec![("media_type", "print")]), w, |w| {
-                        w.write(XmlEvent::Characters(issn_print))
-                            .map_err(|e| e.into())
-                    })?;
+                    write_full_element_block(
+                        "issn",
+                        Some(vec![("media_type", "print")]),
+                        w,
+                        |w| {
+                            w.write(XmlEvent::Characters(issn_print))
+                                .map_err(|e| e.into())
+                        },
+                    )?;
                 }
                 if let Some(issn_digital) = &self.issn_digital {
-                    write_full_element_block("issn", Some(vec![("media_type", "electronic")]), w, |w| {
-                        w.write(XmlEvent::Characters(issn_digital))
-                            .map_err(|e| e.into())
-                    })?;
+                    write_full_element_block(
+                        "issn",
+                        Some(vec![("media_type", "electronic")]),
+                        w,
+                        |w| {
+                            w.write(XmlEvent::Characters(issn_digital))
+                                .map_err(|e| e.into())
+                        },
+                    )?;
                 }
                 Ok(())
             })
-        }
-        else {
+        } else {
             Ok(())
         }
     }

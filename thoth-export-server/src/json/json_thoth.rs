@@ -480,6 +480,7 @@ mod tests {
     {
       "issueOrdinal": 1,
       "series": {
+        "seriesId": "00000000-0000-0000-bbbb-000000000002",
         "seriesType": "JOURNAL",
         "seriesName": "Name of series",
         "issnPrint": "1234-5678",
