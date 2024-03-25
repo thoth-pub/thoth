@@ -147,23 +147,23 @@ pub struct SeriesOrderBy {
 }
 
 impl fmt::Display for SeriesWithImprint {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-      write!(f, "{}", self.series_name)?;
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.series_name)?;
 
-      let issns: Vec<String> = vec![
-          self.issn_print.as_ref().cloned(),
-          self.issn_digital.as_ref().cloned(),
-      ]
-      .into_iter()
-      .flatten()
-      .collect();
+        let issns: Vec<String> = vec![
+            self.issn_print.as_ref().cloned(),
+            self.issn_digital.as_ref().cloned(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
 
-      if !issns.is_empty() {
-          write!(f, " ({})", issns.join(", "))?;
-      }
+        if !issns.is_empty() {
+            write!(f, " ({})", issns.join(", "))?;
+        }
 
-      Ok(())
-  }
+        Ok(())
+    }
 }
 
 #[test]
@@ -297,7 +297,6 @@ fn test_display_without_issns() {
     let formatted = format!("{}", series);
     assert_eq!(formatted, "Test Series");
 }
-
 
 #[cfg(feature = "backend")]
 pub mod crud;

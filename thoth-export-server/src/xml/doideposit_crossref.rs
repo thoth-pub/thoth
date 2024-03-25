@@ -456,34 +456,34 @@ fn work_metadata<W: Write>(
 }
 
 impl XmlElementBlock<DoiDepositCrossref> for WorkIssuesSeries {
-  fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-    if self.issn_digital.is_some() || self.issn_print.is_some() {
-      write_element_block("series_metadata", w, |w| {
-        write_element_block("titles", w, |w| {
-          write_element_block("title", w, |w| {
-            w.write(XmlEvent::Characters(&self.series_name))
-              .map_err(|e| e.into())
-          })
-        })?;
-        if let Some(issn_print) = &self.issn_print {
-          write_full_element_block("issn", Some(vec![("media_type", "print")]), w, |w| {
-            w.write(XmlEvent::Characters(issn_print))
-              .map_err(|e| e.into())
-          })?;
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        if self.issn_digital.is_some() || self.issn_print.is_some() {
+            write_element_block("series_metadata", w, |w| {
+                write_element_block("titles", w, |w| {
+                    write_element_block("title", w, |w| {
+                        w.write(XmlEvent::Characters(&self.series_name))
+                            .map_err(|e| e.into())
+                    })
+                })?;
+                if let Some(issn_print) = &self.issn_print {
+                    write_full_element_block("issn", Some(vec![("media_type", "print")]), w, |w| {
+                        w.write(XmlEvent::Characters(issn_print))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                if let Some(issn_digital) = &self.issn_digital {
+                    write_full_element_block("issn", Some(vec![("media_type", "electronic")]), w, |w| {
+                        w.write(XmlEvent::Characters(issn_digital))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                Ok(())
+            })
         }
-        if let Some(issn_digital) = &self.issn_digital {
-          write_full_element_block("issn", Some(vec![("media_type", "electronic")]), w, |w| {
-            w.write(XmlEvent::Characters(issn_digital))
-              .map_err(|e| e.into())
-          })?;
+        else {
+            Ok(())
         }
-        Ok(())
-      })
     }
-    else {
-      Ok(())
-    }
-  }
 }
 
 impl XmlElementBlock<DoiDepositCrossref> for WorkRelations {
