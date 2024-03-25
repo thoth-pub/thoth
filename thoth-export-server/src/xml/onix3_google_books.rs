@@ -602,23 +602,22 @@ impl XmlElementBlock<Onix3GoogleBooks> for WorkIssues {
             write_element_block("CollectionType", w, |w| {
                 w.write(XmlEvent::Characters("10")).map_err(|e| e.into())
             })?;
-            write_element_block("CollectionIdentifier", w, |w| {
-                // 02 ISSN
-                write_element_block("CollectionIDType", w, |w| {
-                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
-                })?;
-                write_element_block("IDValue", w, |w| {
-                    w.write(XmlEvent::Characters(
-                        &self
-                            .series
-                            .issn_digital
-                            .as_deref()
-                            .unwrap_or_default()
+            if let Some(issn_digital) = &self.series.issn_digital {
+                write_element_block("CollectionIdentifier", w, |w| {
+                    // 02 ISSN
+                    write_element_block("CollectionIDType", w, |w| {
+                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(
+                            &issn_digital
+                            .as_str()
                             .replace('-', ""),
-                    ))
-                    .map_err(|e| e.into())
-                })
-            })?;
+                        ))
+                        .map_err(|e| e.into())
+                    })
+                })?;
+            }
             write_element_block("TitleDetail", w, |w| {
                 // 01 Cover title (serial)
                 write_element_block("TitleType", w, |w| {
@@ -781,6 +780,7 @@ mod tests {
         let mut test_issue = WorkIssues {
             issue_ordinal: 1,
             series: WorkIssuesSeries {
+                series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                 series_type: thoth_client::SeriesType::JOURNAL,
                 series_name: "Name of series".to_string(),
                 issn_print: Some("1234-5678".to_string()),

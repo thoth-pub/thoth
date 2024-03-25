@@ -120,6 +120,7 @@ mod tests {
             issues: vec![WorkIssues {
                 issue_ordinal: 1,
                 series: WorkIssuesSeries {
+                    series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     series_type: SeriesType::JOURNAL,
                     series_name: "Name of series".to_string(),
                     issn_print: Some("1234-5678".to_string()),

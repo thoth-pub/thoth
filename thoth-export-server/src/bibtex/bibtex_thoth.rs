@@ -189,7 +189,7 @@ impl TryFrom<Work> for BibtexThothEntry {
             issn: work
                 .issues
                 .first()
-                .map(|i| i.series.issn_digital.clone().unwrap_or_default()),
+                .and_then(|i| i.series.issn_digital.as_ref().map(|s| s.to_string())),
             url: work.landing_page,
             copyright: work.license,
             long_abstract: work.long_abstract,
@@ -317,6 +317,7 @@ mod tests {
             issues: vec![WorkIssues {
                 issue_ordinal: 5,
                 series: WorkIssuesSeries {
+                    series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     series_type: SeriesType::JOURNAL,
                     series_name: "Name of series".to_string(),
                     issn_print: Some("1234-5678".to_string()),

@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+ - [218](https://github.com/thoth-pub/thoth/issues/218) - Make series ISSN optional
 
 ## [[0.11.18]](https://github.com/thoth-pub/thoth/releases/tag/v0.11.18) - 2024-03-07
 ### Added
@@ -16,7 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [571](https://github.com/thoth-pub/thoth/issues/571) - Fix overlapping URL text for Locations in Thoth Admin panel on website in Safari and Chromium browsers
 
 ### Changed
- - [218](https://github.com/thoth-pub/thoth/issues/218) - Make series ISSN optional
  - [578](https://github.com/thoth-pub/thoth/pull/578) - Upgrade `actix-identity` to v0.7.1
  - [578](https://github.com/thoth-pub/thoth/pull/578) - Upgrade `actix-session` to v0.9.0
 
