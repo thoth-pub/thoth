@@ -1675,13 +1675,13 @@ mod tests {
   <CollectionType>10</CollectionType>"#
         ));
         assert!(output.contains(
-          r#"
+            r#"
   <CollectionIdentifier>
     <CollectionIDType>01</CollectionIDType>
     <IDTypeName>Series ID</IDTypeName>
     <IDValue>00000000-0000-0000-bbbb-000000000002</IDValue>
   </CollectionIdentifier>"#
-      ));
+        ));
         assert!(output.contains(
             r#"
   <CollectionIdentifier>
