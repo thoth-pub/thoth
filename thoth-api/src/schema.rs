@@ -189,6 +189,7 @@ table! {
         publisher_id -> Uuid,
         imprint_name -> Text,
         imprint_url -> Nullable<Text>,
+        crossmark_doi -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
