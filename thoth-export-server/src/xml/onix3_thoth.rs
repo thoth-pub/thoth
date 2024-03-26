@@ -1675,6 +1675,14 @@ mod tests {
   <CollectionType>10</CollectionType>"#
         ));
         assert!(output.contains(
+          r#"
+  <CollectionIdentifier>
+    <CollectionIDType>01</CollectionIDType>
+    <IDTypeName>Series ID</IDTypeName>
+    <IDValue>00000000-0000-0000-bbbb-000000000002</IDValue>
+  </CollectionIdentifier>"#
+      ));
+        assert!(output.contains(
             r#"
   <CollectionIdentifier>
     <CollectionIDType>02</CollectionIDType>
@@ -1727,6 +1735,11 @@ mod tests {
             r#"<?xml version="1.0" encoding="utf-8"?>
 <Collection>
   <CollectionType>10</CollectionType>
+  <CollectionIdentifier>
+    <CollectionIDType>01</CollectionIDType>
+    <IDTypeName>Series ID</IDTypeName>
+    <IDValue>00000000-0000-0000-bbbb-000000000002</IDValue>
+  </CollectionIdentifier>
   <CollectionIdentifier>
     <CollectionIDType>02</CollectionIDType>
     <IDValue>11112222</IDValue>
