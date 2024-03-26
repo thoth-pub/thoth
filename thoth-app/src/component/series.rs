@@ -330,11 +330,11 @@ impl Component for SeriesComponent {
             Msg::ChangeIssnPrint(issn_print) => self
                 .series
                 .issn_print
-                .neq_assign(issn_print.trim().to_owned()),
+                .neq_assign(issn_print.to_opt_string()),
             Msg::ChangeIssnDigital(issn_digital) => self
                 .series
                 .issn_digital
-                .neq_assign(issn_digital.trim().to_owned()),
+                .neq_assign(issn_digital.to_opt_string()),
             Msg::ChangeSeriesUrl(value) => self.series.series_url.neq_assign(value.to_opt_string()),
             Msg::ChangeSeriesDescription(value) => self
                 .series
@@ -411,13 +411,11 @@ impl Component for SeriesComponent {
                                 label = "ISSN Print"
                                 value={ self.series.issn_print.clone() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIssnPrint(e.to_value())) }
-                                required = true
                             />
                             <FormTextInput
                                 label = "ISSN Digital"
                                 value={ self.series.issn_digital.clone() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeIssnDigital(e.to_value())) }
-                                required = true
                             />
                             <FormUrlInput
                                 label = "Series URL"

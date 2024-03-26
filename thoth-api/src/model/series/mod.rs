@@ -61,8 +61,8 @@ pub struct Series {
     pub series_id: Uuid,
     pub series_type: SeriesType,
     pub series_name: String,
-    pub issn_print: String,
-    pub issn_digital: String,
+    pub issn_print: Option<String>,
+    pub issn_digital: Option<String>,
     pub series_url: Option<String>,
     pub imprint_id: Uuid,
     pub created_at: Timestamp,
@@ -77,8 +77,8 @@ pub struct SeriesWithImprint {
     pub series_id: Uuid,
     pub series_type: SeriesType,
     pub series_name: String,
-    pub issn_print: String,
-    pub issn_digital: String,
+    pub issn_print: Option<String>,
+    pub issn_digital: Option<String>,
     pub series_url: Option<String>,
     pub series_description: Option<String>,
     pub series_cfp_url: Option<String>,
@@ -94,8 +94,8 @@ pub struct SeriesWithImprint {
 pub struct NewSeries {
     pub series_type: SeriesType,
     pub series_name: String,
-    pub issn_print: String,
-    pub issn_digital: String,
+    pub issn_print: Option<String>,
+    pub issn_digital: Option<String>,
     pub series_url: Option<String>,
     pub series_description: Option<String>,
     pub series_cfp_url: Option<String>,
@@ -111,8 +111,8 @@ pub struct PatchSeries {
     pub series_id: Uuid,
     pub series_type: SeriesType,
     pub series_name: String,
-    pub issn_print: String,
-    pub issn_digital: String,
+    pub issn_print: Option<String>,
+    pub issn_digital: Option<String>,
     pub series_url: Option<String>,
     pub series_description: Option<String>,
     pub series_cfp_url: Option<String>,
@@ -148,11 +148,21 @@ pub struct SeriesOrderBy {
 
 impl fmt::Display for SeriesWithImprint {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{} ({}, {})",
-            self.series_name, self.issn_print, self.issn_digital
-        )
+        write!(f, "{}", self.series_name)?;
+
+        let issns: Vec<String> = vec![
+            self.issn_print.as_ref().cloned(),
+            self.issn_digital.as_ref().cloned(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+
+        if !issns.is_empty() {
+            write!(f, " ({})", issns.join(", "))?;
+        }
+
+        Ok(())
     }
 }
 
@@ -250,6 +260,42 @@ fn test_seriesfield_fromstr() {
     assert!(SeriesField::from_str("SeriesID").is_err());
     assert!(SeriesField::from_str("Publisher").is_err());
     assert!(SeriesField::from_str("Issues").is_err());
+}
+
+#[test]
+fn test_display_with_issns() {
+    let series = SeriesWithImprint {
+        series_name: String::from("Test Series"),
+        issn_print: Some(String::from("1234-5678")),
+        issn_digital: Some(String::from("8765-4321")),
+        ..Default::default()
+    };
+
+    let formatted = format!("{}", series);
+    assert_eq!(formatted, "Test Series (1234-5678, 8765-4321)");
+}
+
+#[test]
+fn test_display_with_single_issn() {
+    let series = SeriesWithImprint {
+        series_name: String::from("Test Series"),
+        issn_print: Some(String::from("1234-5678")),
+        ..Default::default()
+    };
+
+    let formatted = format!("{}", series);
+    assert_eq!(formatted, "Test Series (1234-5678)");
+}
+
+#[test]
+fn test_display_without_issns() {
+    let series = SeriesWithImprint {
+        series_name: String::from("Test Series"),
+        ..Default::default()
+    };
+
+    let formatted = format!("{}", series);
+    assert_eq!(formatted, "Test Series");
 }
 
 #[cfg(feature = "backend")]
