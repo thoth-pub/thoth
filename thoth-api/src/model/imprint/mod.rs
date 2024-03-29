@@ -1,9 +1,9 @@
+use crate::model::Doi;
 use serde::Deserialize;
 use serde::Serialize;
 use strum::Display;
 use strum::EnumString;
 use uuid::Uuid;
-use crate::model::Doi;
 
 use crate::graphql::utils::Direction;
 use crate::model::publisher::Publisher;
@@ -146,8 +146,8 @@ fn test_imprintfield_fromstr() {
         ImprintField::ImprintUrl
     );
     assert_eq!(
-      ImprintField::from_str("CrossmarkDOI").unwrap(),
-      ImprintField::CrossmarkDoi
+        ImprintField::from_str("CrossmarkDOI").unwrap(),
+        ImprintField::CrossmarkDoi
     );
     assert_eq!(
         ImprintField::from_str("CreatedAt").unwrap(),
