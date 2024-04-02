@@ -470,6 +470,7 @@ mod tests {
   "imprint": {
     "imprintName": "OA Editions Imprint",
     "imprintUrl": null,
+    "crossmarkDoi": null,
     "publisher": {
       "publisherName": "OA Editions",
       "publisherShortname": "OAE",
