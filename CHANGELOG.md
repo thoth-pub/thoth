@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.12.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.1) - 2024-04-8
+### Fixed
+  - [589](https://github.com/thoth-pub/thoth/issues/589) - Truncation of `short_abstract` in Thoth ONIX results in Invalid UTF-8 sequences
+
 ## [[0.12.0]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.0) - 2024-03-14
 ### Removed
   - [549](https://github.com/thoth-pub/thoth/pull/549) - Deprecate public-facing pages in Thoth APP in favour of a separate, standalone, website
