@@ -28,7 +28,6 @@ macro_rules! static_files {
 static_files! {
     (JS, js_file) => ("../static/pkg/thoth-app.js", "/admin/thoth-app.js", "application/javascript"),
     (WASM, wasm_file) => ("../static/pkg/thoth-app_bg.wasm", "/admin/thoth-app_bg.wasm", "application/wasm"),
-    (BULMA, bulma_file) => ("../static/pkg/bulma-pageloader.min.css", "/admin/bulma-pageloader.min.css", "text/css; charset=utf-8"),
     (CSS, css_file) => ("../static/pkg/thoth.css", "/admin/thoth.css", "text/css; charset=utf-8"),
     (JSON, json_file) => ("../static/manifest.json", "/admin/manifest.json", "application/json"),
 }
