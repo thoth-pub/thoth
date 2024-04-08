@@ -1,14 +1,21 @@
+:root {
+    --hue: 223;
+    --primary: #8c3f8d;
+    --primary-light: #af4fb0;
+    --primary-dark: #692f6a;
+    --secondary: #00AC61;
+    --ternary: #FFDD57;
+    --white: hsl(var(--hue),10%,100%);
+    --white-d: hsl(var(--hue),10%,45%);
+}
+
+body {
+    margin: 0;
+    padding: 0;
+}
+
 .contributor:last-child > span {
     display: none;
-}
-
-.license {
-    width: 100% !important;
-    margin-top: 0.5em;
-}
-
-.license > svg {
-    margin-left: 0.2em;
 }
 
 .row {
@@ -26,67 +33,8 @@
     cursor: pointer;
 }
 
-
 .field.is-horizontal > .field:not(:last-child) {
     margin-right: .75em;
-}
-
-.home-banner {
-    max-height: 350px;
-}
-
-.home-icons {
-    margin: 6rem auto 0;
-    max-width: 1080px;
-}
-
-.home-icons-item .item {
-    transition-duration: 172ms;
-    transition-property: color;
-}
-
-.home-icons-item .subtitle {
-    color: #000000B0;
-}
-
-.home-icons-item:nth-child(1):hover .title {
-    color: #53C2E6;
-}
-
-.home-icons-item:nth-child(2):hover .title {
-    color: #FF8D41;
-}
-
-.home-icons-item:nth-child(3):hover .title {
-    color: #00A15B;
-}
-
-.home-icons-item:nth-child(4):hover .title {
-    color: #D04F54;
-}
-
-.home-icons-item:nth-child(5):hover .title {
-    color: #7E308E;
-}
-
-.home-icons-item:nth-child(1) figure {
-    color: #53C2E6;
-}
-
-.home-icons-item:nth-child(2) figure {
-    color: #FF8D41;
-}
-
-.home-icons-item:nth-child(3) figure {
-    color: #00A15B;
-}
-
-.home-icons-item:nth-child(4) figure {
-    color: #D04F54;
-}
-
-.home-icons-item:nth-child(5) figure {
-    color: #7E308E;
 }
 
 .truncate {
@@ -98,14 +46,14 @@
 
 .button.primary {
     color: #ffffff;
-    background-color: #8c3f8d;
+    background-color: var(--primary);
     border-width: 2px;
     border-radius: .375rem;
-    border-color: #8c3f8d;
+    border-color: var(--primary);
     font-weight: bold;
 }
 .button.primary:hover {
-    background-color: #af4fb0;
+    background-color: var(--primary-dark);
 }
 .version {
     color: #f14668;
@@ -117,4 +65,255 @@
 .version:hover {
     text-decoration: underline;
     color: #f14668;
+}
+
+.page-loader {
+    background-color: var(--ternary);
+    height: 100vh;
+    display: grid;
+    place-items: center;
+}
+.loader-title {
+    color: var(--secondary);
+    font-size: xxx-large;
+}
+.book,
+.book__pg-shadow,
+.book__pg {
+    animation: cover 7s ease-in-out infinite;
+}
+.book {
+    background-color: var(--primary-light);
+    border-radius: 0.25em;
+    box-shadow:
+            0 0.25em 0.5em hsla(0,0%,0%,0.3),
+            0 0 0 0.25em var(--primary) inset;
+    padding: 0.25em;
+    perspective: 37.5em;
+    position: relative;
+    width: 8em;
+    height: 6em;
+    transform: translate3d(0,0,0);
+    transform-style: preserve-3d;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 3em;
+}
+.book__pg-shadow,
+.book__pg {
+    position: absolute;
+    left: 0.25em;
+    width: calc(50% - 0.25em);
+}
+.book__pg-shadow {
+    animation-name: shadow;
+    background-image: linear-gradient(-45deg,hsla(0,0%,0%,0) 50%,hsla(0,0%,0%,0.3) 50%);
+    filter: blur(0.25em);
+    top: calc(100% - 0.25em);
+    height: 3.75em;
+    transform: scaleY(0);
+    transform-origin: 100% 0%;
+}
+.book__pg {
+    animation-name: pg1;
+    background-color: var(--white);
+    background-image: linear-gradient(90deg,hsla(var(--hue),10%,90%,0) 87.5%,hsl(var(--hue),10%,90%));
+    height: calc(100% - 0.5em);
+    transform-origin: 100% 50%;
+}
+.book__pg--2,
+.book__pg--3,
+.book__pg--4 {
+    background-image:
+            repeating-linear-gradient(hsl(var(--hue),10%,10%) 0 0.125em,hsla(var(--hue),10%,10%,0) 0.125em 0.5em),
+            linear-gradient(90deg,hsla(var(--hue),10%,90%,0) 87.5%,hsl(var(--hue),10%,90%));
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 2.5em 4.125em, 100% 100%;
+}
+.book__pg--2 {
+    animation-name: pg2;
+}
+.book__pg--3 {
+    animation-name: pg3;
+}
+.book__pg--4 {
+    animation-name: pg4;
+}
+.book__pg--5 {
+    animation-name: pg5;
+}
+
+/* Animations */
+@keyframes cover {
+    from, 5%, 45%, 55%, 95%, to {
+        animation-timing-function: ease-out;
+        background-color: var(--primary-light);
+    }
+    10%, 40%, 60%, 90% {
+        animation-timing-function: ease-in;
+        background-color: var(--primary-dark);
+    }
+}
+@keyframes shadow {
+    from, 10.01%, 20.01%, 30.01%, 40.01% {
+        animation-timing-function: ease-in;
+        transform: translate3d(0,0,1px) scaleY(0) rotateY(0);
+    }
+    5%, 15%, 25%, 35%, 45%, 55%, 65%, 75%, 85%, 95% {
+        animation-timing-function: ease-out;
+        transform: translate3d(0,0,1px) scaleY(0.2) rotateY(90deg);
+    }
+    10%, 20%, 30%, 40%, 50%, to {
+        animation-timing-function: ease-out;
+        transform: translate3d(0,0,1px) scaleY(0) rotateY(180deg);
+    }
+    50.01%, 60.01%, 70.01%, 80.01%, 90.01% {
+        animation-timing-function: ease-in;
+        transform: translate3d(0,0,1px) scaleY(0) rotateY(180deg);
+    }
+    60%, 70%, 80%, 90%, to {
+        animation-timing-function: ease-out;
+        transform: translate3d(0,0,1px) scaleY(0) rotateY(0);
+    }
+}
+@keyframes pg1 {
+    from, to {
+        animation-timing-function: ease-in-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(0.4deg);
+    }
+    10%, 15% {
+        animation-timing-function: ease-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(180deg);
+    }
+    20%, 80% {
+        animation-timing-function: ease-in;
+        background-color: var(--white-d);
+        transform: translate3d(0,0,1px) rotateY(180deg);
+    }
+    85%, 90% {
+        animation-timing-function: ease-in-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(180deg);
+    }
+}
+@keyframes pg2 {
+    from, to {
+        animation-timing-function: ease-in;
+        background-color: var(--white-d);
+        transform: translate3d(0,0,1px) rotateY(0.3deg);
+    }
+    5%, 10% {
+        animation-timing-function: ease-in-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(0.3deg);
+    }
+    20%, 25% {
+        animation-timing-function: ease-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(179.9deg);
+    }
+    30%, 70% {
+        animation-timing-function: ease-in;
+        background-color: var(--white-d);
+        transform: translate3d(0,0,1px) rotateY(179.9deg);
+    }
+    75%, 80% {
+        animation-timing-function: ease-in-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(179.9deg);
+    }
+    90%, 95% {
+        animation-timing-function: ease-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(0.3deg);
+    }
+}
+@keyframes pg3 {
+    from, 10%, 90%, to {
+        animation-timing-function: ease-in;
+        background-color: var(--white-d);
+        transform: translate3d(0,0,1px) rotateY(0.2deg);
+    }
+    15%, 20% {
+        animation-timing-function: ease-in-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(0.2deg);
+    }
+    30%, 35% {
+        animation-timing-function: ease-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(179.8deg);
+    }
+    40%, 60% {
+        animation-timing-function: ease-in;
+        background-color: var(--white-d);
+        transform: translate3d(0,0,1px) rotateY(179.8deg);
+    }
+    65%, 70% {
+        animation-timing-function: ease-in-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(179.8deg);
+    }
+    80%, 85% {
+        animation-timing-function: ease-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(0.2deg);
+    }
+}
+@keyframes pg4 {
+    from, 20%, 80%, to {
+        animation-timing-function: ease-in;
+        background-color: var(--white-d);
+        transform: translate3d(0,0,1px) rotateY(0.1deg);
+    }
+    25%, 30% {
+        animation-timing-function: ease-in-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(0.1deg);
+    }
+    40%, 45% {
+        animation-timing-function: ease-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(179.7deg);
+    }
+    50% {
+        animation-timing-function: ease-in;
+        background-color: var(--white-d);
+        transform: translate3d(0,0,1px) rotateY(179.7deg);
+    }
+    55%, 60% {
+        animation-timing-function: ease-in-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(179.7deg);
+    }
+    70%, 75% {
+        animation-timing-function: ease-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(0.1deg);
+    }
+}
+@keyframes pg5 {
+    from, 30%, 70%, to {
+        animation-timing-function: ease-in;
+        background-color: var(--white-d);
+        transform: translate3d(0,0,1px) rotateY(0);
+    }
+    35%, 40% {
+        animation-timing-function: ease-in-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(0deg);
+    }
+    50% {
+        animation-timing-function: ease-in-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(179.6deg);
+    }
+    60%, 65% {
+        animation-timing-function: ease-out;
+        background-color: var(--white);
+        transform: translate3d(0,0,1px) rotateY(0);
+    }
 }
