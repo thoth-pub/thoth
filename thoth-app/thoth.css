@@ -3,8 +3,6 @@
     --primary: #8c3f8d;
     --primary-light: #af4fb0;
     --primary-dark: #692f6a;
-    --secondary: #00AC61;
-    --ternary: #FFDD57;
     --white: hsl(var(--hue),10%,100%);
     --white-d: hsl(var(--hue),10%,45%);
 }
@@ -67,16 +65,6 @@ body {
     color: #f14668;
 }
 
-.page-loader {
-    background-color: var(--ternary);
-    height: 100vh;
-    display: grid;
-    place-items: center;
-}
-.loader-title {
-    color: var(--secondary);
-    font-size: xxx-large;
-}
 .book,
 .book__pg-shadow,
 .book__pg {
