@@ -1544,9 +1544,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.3.24"
+version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb2c4422095b67ee78da96fbb51a4cc413b3b25883c7717ff7ca1ab31022c9c9"
+checksum = "81fe527a889e1532da5c525686d96d4c2e74cdd345badf8dfef9f6b39dd5f5e8"
 dependencies = [
  "bytes",
  "fnv",
@@ -3087,7 +3087,7 @@ dependencies = [
 
 [[package]]
 name = "thoth"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "cargo-husky",
  "clap",
@@ -3102,7 +3102,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "actix-web",
  "argon2rs",
@@ -3131,7 +3131,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-api-server"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "actix-cors",
  "actix-identity",
@@ -3147,7 +3147,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3176,7 +3176,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-app-server"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -3186,7 +3186,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-client"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "chrono",
  "graphql_client",
@@ -3202,7 +3202,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-errors"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "actix-web",
  "csv",
@@ -3223,7 +3223,7 @@ dependencies = [
 
 [[package]]
 name = "thoth-export-server"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "actix-cors",
  "actix-web",
