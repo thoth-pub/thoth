@@ -3,7 +3,7 @@
 /// Generate the HTML source to show a RapiDoc interface
 pub fn rapidoc_source(openapi_spec: &str) -> String {
     format!(
-        r#"
+        r##"
 <!DOCTYPE html>
 <html>
     <head>
@@ -24,9 +24,9 @@ pub fn rapidoc_source(openapi_spec: &str) -> String {
         <link rel="icon" type="image/png" sizes="96x96" href="https://cdn.thoth.pub/favicon-96x96.png">
         <link rel="icon" type="image/png" sizes="16x16" href="https://cdn.thoth.pub/favicon-16x16.png">
         <link rel="manifest" href="https://cdn.thoth.pub/manifest.json">
-        <meta name="msapplication-TileColor" content="\#FFDD57">
+        <meta name="msapplication-TileColor" content="#FFDD57">
         <meta name="msapplication-TileImage" content="https://cdn.thoth.pub/ms-icon-144x144.png">
-        <meta name="theme-color" content="\#FFDD57">
+        <meta name="theme-color" content="#FFDD57">
         <script type="module" src="https://unpkg.com/rapidoc/dist/rapidoc-min.js"></script>
     </head>
     <body>
@@ -46,6 +46,6 @@ pub fn rapidoc_source(openapi_spec: &str) -> String {
       </rapi-doc>
     </body>
 </html>
-"#
+"##
     )
 }

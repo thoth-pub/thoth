@@ -4,7 +4,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn manifest_source() -> String {
     format!(
-        r#"
+        r##"
 {{
   "name": "Thoth",
   "version": "{VERSION}",
@@ -12,8 +12,8 @@ pub fn manifest_source() -> String {
   "display": "standalone",
   "scope": "/admin",
   "start_url": ".",
-  "background_color": "rgb(255,221,87)",
-  "theme_color": "rgb(255,221,87)",
+  "background_color": "#FFDD57",
+  "theme_color": "#FFDD57",
   "icons": [
       {{
         "src": "https://cdn.thoth.pub/android-icon-36x36.png",
@@ -53,6 +53,6 @@ pub fn manifest_source() -> String {
       }}
   ]
 }}
-"#
+"##
     )
 }
