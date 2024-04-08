@@ -1,4 +1,4 @@
-ARG MUSL_IMAGE=clux/muslrust:1.76.0
+ARG MUSL_IMAGE=clux/muslrust:1.77.1-stable
 
 FROM ${MUSL_IMAGE} as build
 
