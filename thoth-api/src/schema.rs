@@ -530,6 +530,7 @@ table! {
         imprint_id -> Uuid,
         doi -> Nullable<Text>,
         publication_date -> Nullable<Date>,
+        withdrawn_date -> Nullable<Date>,
         place -> Nullable<Text>,
         page_count -> Nullable<Int4>,
         page_breakdown -> Nullable<Text>,

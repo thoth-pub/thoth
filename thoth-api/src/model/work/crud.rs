@@ -1,6 +1,5 @@
 use super::{
-    NewWork, NewWorkHistory, PatchWork, Work, WorkField, WorkHistory, WorkOrderBy, WorkStatus,
-    WorkType,
+    NewWork, NewWorkHistory, PatchWork, WorkProperties, Work, WorkField, WorkHistory, WorkOrderBy, WorkStatus, WorkType
 };
 use crate::graphql::model::TimeExpression;
 use crate::graphql::utils::{Direction, Expression};
@@ -175,6 +174,10 @@ impl Crud for Work {
             WorkField::PublicationDate => match order.direction {
                 Direction::Asc => query.order(dsl::publication_date.asc()),
                 Direction::Desc => query.order(dsl::publication_date.desc()),
+            },
+            WorkField::WithdrawnDate => match order.direction {
+                Direction::Asc => query.order(dsl::withdrawn_date.asc()),
+                Direction::Desc => query.order(dsl::withdrawn_date.desc()),
             },
             WorkField::Place => match order.direction {
                 Direction::Asc => query.order(dsl::place.asc()),
@@ -398,6 +401,19 @@ impl DbInsert for NewWorkHistory {
 
     db_insert!(work_history::table);
 }
+
+pub trait WorkValidation
+where
+    Self: WorkProperties,
+{
+    fn validate(&self) -> ThothResult<()> {
+        self.withdrawn_date_error()
+    }
+}
+
+impl WorkValidation for NewWork {}
+
+impl WorkValidation for PatchWork {}
 
 #[cfg(test)]
 mod tests {

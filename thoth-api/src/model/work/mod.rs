@@ -1,5 +1,6 @@
 use chrono::naive::NaiveDate;
 use serde::{Deserialize, Serialize};
+use thoth_errors::{ThothError, ThothResult};
 use std::fmt;
 use strum::Display;
 use strum::EnumString;
@@ -98,6 +99,7 @@ pub enum WorkField {
     #[strum(serialize = "DOI")]
     Doi,
     PublicationDate,
+    WithdrawnDate,
     Place,
     PageCount,
     PageBreakdown,
@@ -144,6 +146,7 @@ pub struct Work {
     pub imprint_id: Uuid,
     pub doi: Option<Doi>,
     pub publication_date: Option<NaiveDate>,
+    pub withdrawn_date: Option<NaiveDate>,
     pub place: Option<String>,
     pub page_count: Option<i32>,
     pub page_breakdown: Option<String>,
@@ -184,6 +187,7 @@ pub struct WorkWithRelations {
     pub edition: Option<i32>,
     pub doi: Option<Doi>,
     pub publication_date: Option<String>,
+    pub withdrawn_date: Option<String>,
     pub place: Option<String>,
     pub page_count: Option<i32>,
     pub page_breakdown: Option<String>,
@@ -234,6 +238,7 @@ pub struct NewWork {
     pub imprint_id: Uuid,
     pub doi: Option<Doi>,
     pub publication_date: Option<NaiveDate>,
+    pub withdrawn_date: Option<NaiveDate>,
     pub place: Option<String>,
     pub page_count: Option<i32>,
     pub page_breakdown: Option<String>,
@@ -275,6 +280,7 @@ pub struct PatchWork {
     pub imprint_id: Uuid,
     pub doi: Option<Doi>,
     pub publication_date: Option<NaiveDate>,
+    pub withdrawn_date: Option<NaiveDate>,
     pub place: Option<String>,
     pub page_count: Option<i32>,
     pub page_breakdown: Option<String>,
@@ -324,6 +330,67 @@ pub struct NewWorkHistory {
 pub struct WorkOrderBy {
     pub field: WorkField,
     pub direction: Direction,
+}
+
+impl WorkStatus {
+    fn is_withdrawn_out_of_print(&self) -> bool {
+        matches!(self, WorkStatus::OutOfPrint | WorkStatus::WithdrawnFromSale)
+    }
+
+    fn is_not_withdrawn_out_of_print(&self) -> bool {
+        !self.is_withdrawn_out_of_print()
+    }
+}
+
+pub trait WorkProperties {
+    fn work_status(&self) -> &WorkStatus;
+    fn withdrawn_date(&self) -> &Option<NaiveDate>;
+
+    fn is_not_withdrawn_out_of_print(&self) -> bool {
+        self.work_status().is_not_withdrawn_out_of_print()
+    }
+
+    fn has_withdrawn_date(&self) -> bool {
+        self.withdrawn_date().is_some()
+    }
+
+    fn withdrawn_date_error(&self) -> ThothResult<()> {
+        if self.is_not_withdrawn_out_of_print() {
+            if self.has_withdrawn_date() {
+                return Err(ThothError::WithdrawnDateError)
+            }
+        }
+        Ok(())
+    }
+}
+
+impl WorkProperties for Work {
+    fn work_status(&self) -> &WorkStatus {
+        &self.work_status
+    }
+
+    fn withdrawn_date(&self) -> &Option<NaiveDate> {
+        &self.withdrawn_date
+    }
+}
+impl WorkProperties for NewWork {
+    fn work_status(&self) -> &WorkStatus {
+        &self.work_status
+    }
+
+    fn withdrawn_date(&self) -> &Option<NaiveDate> {
+        &self.withdrawn_date
+    }
+}
+
+impl WorkProperties for PatchWork {
+    fn work_status(&self) -> &WorkStatus {
+        &self.work_status
+    }
+
+    fn withdrawn_date(&self) -> &Option<NaiveDate> {
+        &self.withdrawn_date
+    }
 }
 
 impl Work {
@@ -376,6 +443,7 @@ impl From<Work> for PatchWork {
             imprint_id: w.imprint_id,
             doi: w.doi,
             publication_date: w.publication_date,
+            withdrawn_date: w.withdrawn_date,
             place: w.place,
             page_count: w.page_count,
             page_breakdown: w.page_breakdown,
@@ -727,6 +795,7 @@ fn test_work_into_patchwork() {
         imprint_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
         doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
         publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
+        withdrawn_date: chrono::NaiveDate::from_ymd_opt(2000, 12, 31),
         place: Some("León, Spain".to_string()),
         page_count: Some(123),
         page_breakdown: None,
@@ -766,6 +835,7 @@ fn test_work_into_patchwork() {
     assert_eq!(work.imprint_id, patch_work.imprint_id);
     assert_eq!(work.doi, patch_work.doi);
     assert_eq!(work.publication_date, patch_work.publication_date);
+    assert_eq!(work.withdrawn_date, patch_work.withdrawn_date);
     assert_eq!(work.place, patch_work.place);
     assert_eq!(work.page_count, patch_work.page_count);
     assert_eq!(work.page_breakdown, patch_work.page_breakdown);

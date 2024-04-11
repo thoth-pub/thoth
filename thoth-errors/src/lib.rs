@@ -84,6 +84,10 @@ pub enum ThothError {
     #[error(
         "Price values must be greater than zero. To indicate an unpriced Publication, omit all Prices."
     )]
+    WithdrawnDateError,
+    #[error(
+        "Withdrawn Date can only be added to out of print or withdrawn from sale Works."
+    )]
     PriceZeroError,
     #[error("{0}")]
     RequestError(String),

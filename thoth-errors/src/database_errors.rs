@@ -160,6 +160,7 @@ static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "work_title_check" => "Title must not be an empty string.",
     "work_toc_check" => "Table of content must not be an empty string.",
     "work_video_count_check" => "A video count must be greater than 0.",
+    "work_withdrawn_date_check" => "Withdrawn Date can only be added to out of print or withdrawn from sale Works.",
 };
 
 impl From<diesel::result::Error> for ThothError {

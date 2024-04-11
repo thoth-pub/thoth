@@ -2279,6 +2279,13 @@ impl Work {
         self.publication_date
     }
 
+    #[graphql(
+        description = "Date a work was withdrawn from publication. Only applies to out of print and withdrawn from sale works."
+    )]
+    pub fn withdrawn_date(&self) -> Option<NaiveDate> {
+        self.withdrawn_date
+    }
+
     pub fn place(&self) -> Option<&String> {
         self.place.as_ref()
     }
