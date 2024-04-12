@@ -117,6 +117,7 @@ pub enum Msg {
     ChangeEdition(String),
     ChangeDoi(String),
     ChangeDate(String),
+    ChangeWithdrawnDate(String),
     ChangePlace(String),
     ChangePageCount(String),
     ChangePageBreakdown(String),
@@ -311,6 +312,7 @@ impl Component for WorkComponent {
                         imprint_id: self.work.imprint.imprint_id,
                         doi: self.work.doi.clone(),
                         publication_date: self.work.publication_date.clone(),
+                        withdrawn_date: self.work.withdrawn_date.clone(),
                         place: self.work.place.clone(),
                         page_count: self.work.page_count,
                         page_breakdown: self.work.page_breakdown.clone(),
@@ -452,6 +454,7 @@ impl Component for WorkComponent {
                 }
             }
             Msg::ChangeDate(value) => self.work.publication_date.neq_assign(value.to_opt_string()),
+            Msg::ChangeWithdrawnDate(value) => self.work.withdrawn_date.neq_assign(value.to_opt_string()),
             Msg::ChangePlace(value) => self.work.place.neq_assign(value.to_opt_string()),
             Msg::ChangePageCount(value) => self.work.page_count.neq_assign(value.to_opt_int()),
             Msg::ChangePageBreakdown(value) => {
@@ -637,6 +640,22 @@ impl Component for WorkComponent {
                                 value={ self.work.publication_date.clone() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDate(e.to_value())) }
                             />
+                            {
+                                if self.work.work_status == WorkStatus::WithdrawnFromSale || self.work.work_status == WorkStatus::OutOfPrint {
+                                    html! {
+                                        <>
+                                        <FormDateInput
+                                        label = "Withdrawn Date"
+                                        value={ self.work.withdrawn_date.clone() }
+                                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWithdrawnDate(e.to_value())) }
+                                        />
+                                        </>
+                                    }
+                                } else {
+                                    html!{}
+                                }
+                            }
+                            
                             <FormTextInput
                                 label = "Place of Publication"
                                 value={ self.work.place.clone() }

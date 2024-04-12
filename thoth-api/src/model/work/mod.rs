@@ -373,6 +373,7 @@ impl WorkProperties for Work {
         &self.withdrawn_date
     }
 }
+
 impl WorkProperties for NewWork {
     fn work_status(&self) -> &WorkStatus {
         &self.work_status
@@ -548,6 +549,7 @@ fn test_workfield_display() {
     assert_eq!(format!("{}", WorkField::Edition), "Edition");
     assert_eq!(format!("{}", WorkField::Doi), "DOI");
     assert_eq!(format!("{}", WorkField::PublicationDate), "PublicationDate");
+    assert_eq!(format!("{}", WorkField::WithdrawnDate), "WithdrawnDate");
     assert_eq!(format!("{}", WorkField::Place), "Place");
     assert_eq!(format!("{}", WorkField::PageCount), "PageCount");
     assert_eq!(format!("{}", WorkField::PageBreakdown), "PageBreakdown");
@@ -689,6 +691,10 @@ fn test_workfield_fromstr() {
         WorkField::from_str("PublicationDate").unwrap(),
         WorkField::PublicationDate
     );
+    assert_eq!(
+        WorkField::from_str("WithdrawnDate").unwrap(),
+        WorkField::WithdrawnDate
+    );
     assert_eq!(WorkField::from_str("Place").unwrap(), WorkField::Place);
     assert_eq!(
         WorkField::from_str("PageCount").unwrap(),
@@ -795,7 +801,7 @@ fn test_work_into_patchwork() {
         imprint_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
         doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
         publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
-        withdrawn_date: chrono::NaiveDate::from_ymd_opt(2000, 12, 31),
+        withdrawn_date: None,
         place: Some("León, Spain".to_string()),
         page_count: Some(123),
         page_breakdown: None,
