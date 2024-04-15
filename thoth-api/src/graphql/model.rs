@@ -1713,9 +1713,11 @@ impl MutationRoot {
                 for child in work.children(&context.db)? {
                     if child.publication_date != w.publication_date
                         || child.work_status != w.work_status
+                        || child.withdrawn_date != w.withdrawn_date
                     {
                         let mut data: PatchWork = child.clone().into();
                         data.publication_date = w.publication_date;
+                        data.withdrawn_date = w.withdrawn_date;
                         data.work_status = w.work_status.clone();
                         child.update(&context.db, &data, &account_id)?;
                     }

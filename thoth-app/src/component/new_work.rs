@@ -289,6 +289,9 @@ impl Component for NewWorkComponent {
                     self.work.last_page = None;
                     self.work.page_interval = None;
                 }
+                if self.work.work_status == WorkStatus::OutOfPrint {
+                    self.work.withdrawn_date = None;
+                }
                 let body = CreateWorkRequestBody {
                     variables: Variables {
                         work_type: self.work.work_type.clone(),
@@ -451,6 +454,7 @@ impl Component for NewWorkComponent {
         // Grey out chapter-specific or "book"-specific fields
         // based on currently selected work type.
         let is_chapter = self.work.work_type == WorkType::BookChapter;
+        let is_not_withdrawn_or_out_of_print = self.work.work_status != WorkStatus::WithdrawnFromSale && self.work.work_status != WorkStatus::OutOfPrint;
         html! {
             <>
                 <nav class="level">
@@ -518,21 +522,12 @@ impl Component for NewWorkComponent {
                         value={ self.work.publication_date.clone() }
                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDate(e.to_value())) }
                     />
-                    {
-                        if self.work.work_status == WorkStatus::WithdrawnFromSale || self.work.work_status == WorkStatus::OutOfPrint {
-                            html! {
-                                <>
-                                <FormDateInput
-                                label = "Withdrawn Date"
-                                value={ self.work.withdrawn_date.clone() }
-                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWithdrawnDate(e.to_value())) }
-                                />
-                                </>
-                            }
-                        } else {
-                            html!{}
-                        }
-                    }
+                    <FormDateInput
+                        label = "Withdrawn Date"
+                        value={ self.work.withdrawn_date.clone() }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWithdrawnDate(e.to_value())) }
+                        deactivated={ is_not_withdrawn_or_out_of_print }
+                    />
                     <FormTextInput
                         label = "Place of Publication"
                         value={ self.work.place.clone() }
