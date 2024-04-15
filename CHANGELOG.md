@@ -6,7 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-  - Upgrade rust to `1.76.0` in production and development `Dockerfile`
+  - Upgrade rust to `1.77.2` in production and development `Dockerfile`
+  - Added favicons to export API and GraphQL API docs
+  - Replaced static logo files with CDN paths
+  - Moved thoth CSS to root directory in thoth-app
+  - Replace unnecessary pageloader CSS with an actual loader
+  - Apply Thoth theming to rapidocs
+  - Upgrade `graphiql` to v3.2
+
+### Fixed
+  - Replaced broken logo URL in export API docs
 
 ## [[0.12.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.1) - 2024-04-8
 ### Fixed
