@@ -146,6 +146,7 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
           query: String.raw`{default_query}`,
           defaultEditorToolsVisibility: false,
           plugins: [explorerPlugin],
+          children: React.createElement(GraphiQL.Logo, null, "Thoth GraphQL API"),
         }}),
       );
     </script>
