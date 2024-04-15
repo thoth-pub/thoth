@@ -2,20 +2,23 @@
 
 /// Generate the HTML source to show a GraphiQL interface
 pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
+    let version = env!("CARGO_PKG_VERSION");
     let default_query = r##"# Welcome to Thoth's GraphQL API explorer (GraphiQL).
 #
 # GraphiQL is an in-browser tool for writing, validating, and
 # testing GraphQL queries.
 #
-# Type queries into this side of the screen, and you will see intelligent
-# typeaheads aware of the current GraphQL type schema and live syntax and
-# validation errors highlighted within the text.
+# Type queries into this side of the screen, and you will see
+# intelligent typeaheads aware of the current GraphQL type
+# schema and live syntax and validation errors highlighted
+# within the text.
 #
-# Click on the QueryRoot in the Documentation Explorer (first icon) on
-# the top left of the screen to navigate the API schema.
+# Click on the QueryRoot in the Documentation Explorer
+# (first icon) on the top left of the screen to navigate
+# the API schema.
 #
-# GraphQL queries typically start with a "{" character. Lines that starts
-# with a "#" are ignored.
+# GraphQL queries typically start with a "{" character.
+# Lines that starts with a "#" are ignored.
 #
 # Run the following example Thoth GraphQL query:
 #
@@ -160,8 +163,9 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
         ),
         React.createElement(GraphiQL.Footer, null,
           React.createElement('div', {{ style: {{ display: 'flex', justifyContent: 'space-between' }}}},
-            React.createElement('a', {{ href: 'https://thoth.pub/policies/privacy' }}, 'Privacy policy'),
-            React.createElement('span', null, 'Thoth Open Metadata'),
+            React.createElement('a', {{ href: 'https://github.com/thoth-pub/thoth/blob/master/CHANGELOG.md', style: {{ textDecoration: 'none' }} }}, 'v{version}'),
+            React.createElement('span', {{ style: {{ color: 'hsla(var(--color-neutral), var(--alpha-secondary))' }} }}, 'Thoth Open Metadata'),
+            React.createElement('a', {{ href: 'https://thoth.pub/policies/privacy', style: {{ textDecoration: 'none' }} }}, 'Privacy policy'),
           )
         ),
        ),
