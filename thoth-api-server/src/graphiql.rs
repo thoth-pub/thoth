@@ -84,6 +84,36 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
         --color-warning: 24, 100%, 63%;
         --color-base: 46, 100%, 97%;
       }}
+      @media (prefers-color-scheme: dark) {{
+          body:not(.graphiql-light) .graphiql-container,
+          body:not(.graphiql-light) .CodeMirror-info,
+          body:not(.graphiql-light) .CodeMirror-lint-tooltip,
+          body:not(.graphiql-light) .graphiql-dialog,
+          body:not(.graphiql-light) .graphiql-dialog-overlay,
+          body:not(.graphiql-light) .graphiql-tooltip,
+          body:not(.graphiql-light) [data-radix-popper-content-wrapper] {{
+            --color-primary: 298, 38%, 40%;
+            --color-secondary: 154, 58%, 47%;
+            --color-tertiary: 338, 100%, 67%;
+            --color-info: 188, 100%, 36%;
+            --color-warning: 24, 100%, 63%;
+            --color-base: 221, 39%, 11%;
+          }}
+      }}
+      body.graphiql-dark .graphiql-container,
+      body.graphiql-dark .CodeMirror-info,
+      body.graphiql-dark .CodeMirror-lint-tooltip,
+      body.graphiql-dark .graphiql-dialog,
+      body.graphiql-dark .graphiql-dialog-overlay,
+      body.graphiql-dark .graphiql-tooltip,
+      body.graphiql-dark [data-radix-popper-content-wrapper] {{
+        --color-primary: 298, 38%, 40%;
+        --color-secondary: 154, 58%, 47%;
+        --color-tertiary: 338, 100%, 67%;
+        --color-info: 188, 100%, 36%;
+        --color-warning: 24, 100%, 63%;
+        --color-base: 221, 39%, 11%;
+      }}
       body {{
         height: 100%;
         margin: 0;
