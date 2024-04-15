@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [591](https://github.com/thoth-pub/thoth/pull/591) - Replace unnecessary pageloader CSS with an actual loader
   - [591](https://github.com/thoth-pub/thoth/pull/591) - Apply Thoth theming to rapidocs
   - [591](https://github.com/thoth-pub/thoth/pull/591) - Upgrade `graphiql` to v3.2
+  - [591](https://github.com/thoth-pub/thoth/pull/591) - Upgrade `trunk` to v0.19.2
+  - [591](https://github.com/thoth-pub/thoth/pull/591) - Upgrade `wasm-bindgen` to v0.2.92
 
 ### Fixed
   - [591](https://github.com/thoth-pub/thoth/pull/591) - Replaced broken logo URL in export API docs
