@@ -45,6 +45,7 @@ impl Component for NavbarComponent {
                 <div class="navbar-brand">
                     <a class="navbar-item" href="/">
                         <img src="https://cdn.thoth.pub/thoth_logo.png" width="50" height="58" style="max-height: none" />
+                        <img src="https://cdn.thoth.pub/thoth_name.png" style="margin-left: 0.5em; margin-top: 0.5em" />
                     </a>
 
                     <a role="button" class="navbar-burger burger" aria-label="menu" aria-expanded="false" data-target="thothNavbar">
