@@ -84,7 +84,7 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
         --color-secondary: 154, 100%, 24%;
         --color-tertiary: 320, 95%, 43%;
         --color-info: 188, 100%, 36%;
-        --color-warning: 24, 100%, 63%;
+        --color-warning: 24, 80%, 50%;
         --color-base: 46, 100%, 97%;
       }}
       @media (prefers-color-scheme: dark) {{
