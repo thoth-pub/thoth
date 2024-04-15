@@ -4,7 +4,7 @@
     --primary-light: #af4fb0;
     --primary-dark: #692f6a;
     --white: hsl(var(--hue),10%,100%);
-    --white-d: hsl(var(--hue),10%,45%);
+    --grey: hsl(var(--hue),10%,45%);
 }
 
 body {
@@ -43,7 +43,7 @@ body {
 }
 
 .button.primary {
-    color: #ffffff;
+    color: var(--white);
     background-color: var(--primary);
     border-width: 2px;
     border-radius: .375rem;
@@ -51,10 +51,12 @@ body {
     font-weight: bold;
 }
 .button.primary:hover {
-    background-color: var(--primary-dark);
+    color: var(--white);
+    background-color: var(--primary-light);
+    border-color: var(--primary);
 }
 .version {
-    color: #f14668;
+    color: var(--primary);
     padding-left: 1em;
     padding-right: 1em;
     padding-bottom: calc(.5em - 1px);
@@ -62,7 +64,7 @@ body {
 }
 .version:hover {
     text-decoration: underline;
-    color: #f14668;
+    color: var(--primary-light);
 }
 
 .book,
@@ -178,7 +180,7 @@ body {
     }
     20%, 80% {
         animation-timing-function: ease-in;
-        background-color: var(--white-d);
+        background-color: var(--grey);
         transform: translate3d(0,0,1px) rotateY(180deg);
     }
     85%, 90% {
@@ -190,7 +192,7 @@ body {
 @keyframes pg2 {
     from, to {
         animation-timing-function: ease-in;
-        background-color: var(--white-d);
+        background-color: var(--grey);
         transform: translate3d(0,0,1px) rotateY(0.3deg);
     }
     5%, 10% {
@@ -205,7 +207,7 @@ body {
     }
     30%, 70% {
         animation-timing-function: ease-in;
-        background-color: var(--white-d);
+        background-color: var(--grey);
         transform: translate3d(0,0,1px) rotateY(179.9deg);
     }
     75%, 80% {
@@ -222,7 +224,7 @@ body {
 @keyframes pg3 {
     from, 10%, 90%, to {
         animation-timing-function: ease-in;
-        background-color: var(--white-d);
+        background-color: var(--grey);
         transform: translate3d(0,0,1px) rotateY(0.2deg);
     }
     15%, 20% {
@@ -237,7 +239,7 @@ body {
     }
     40%, 60% {
         animation-timing-function: ease-in;
-        background-color: var(--white-d);
+        background-color: var(--grey);
         transform: translate3d(0,0,1px) rotateY(179.8deg);
     }
     65%, 70% {
@@ -254,7 +256,7 @@ body {
 @keyframes pg4 {
     from, 20%, 80%, to {
         animation-timing-function: ease-in;
-        background-color: var(--white-d);
+        background-color: var(--grey);
         transform: translate3d(0,0,1px) rotateY(0.1deg);
     }
     25%, 30% {
@@ -269,7 +271,7 @@ body {
     }
     50% {
         animation-timing-function: ease-in;
-        background-color: var(--white-d);
+        background-color: var(--grey);
         transform: translate3d(0,0,1px) rotateY(179.7deg);
     }
     55%, 60% {
@@ -286,7 +288,7 @@ body {
 @keyframes pg5 {
     from, 30%, 70%, to {
         animation-timing-function: ease-in;
-        background-color: var(--white-d);
+        background-color: var(--grey);
         transform: translate3d(0,0,1px) rotateY(0);
     }
     35%, 40% {
