@@ -146,7 +146,17 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
           query: String.raw`{default_query}`,
           defaultEditorToolsVisibility: false,
           plugins: [explorerPlugin],
-          children: React.createElement(GraphiQL.Logo, null, "Thoth GraphQL API"),
+          children: React.createElement(GraphiQL.Logo, null,
+              React.createElement('div', {{ style: {{ display: 'flex', alignItems: 'center' }}}},
+                React.createElement('span', null, 'GraphQL API'),
+                React.createElement('img', {{
+                  src: 'https://cdn.thoth.pub/favicon-96x96.png',
+                  height: 38,
+                  alt: 'Thoth Logo',
+                  style: {{ marginLeft: '10px', marginTop: '-5px' }}
+                }}),
+              )
+          ),
         }}),
       );
     </script>
