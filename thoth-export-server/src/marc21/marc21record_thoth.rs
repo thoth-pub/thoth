@@ -638,17 +638,15 @@ impl Marc21Field<Marc21RecordThoth> for WorkIssues {
                     self.series
                         .issn_digital
                         .as_ref()
-                        .map_or(Ok(f.clone()), |issn_digital| {
-                            f.add_subfield(b"x", issn_digital.as_bytes())
-                        })
+                        .map(|issn_digital| f.add_subfield(b"x", issn_digital.as_bytes()))
+                        .unwrap_or(Ok(f))
                 })
                 .and_then(|f| {
                     self.series
                         .issn_print
                         .as_ref()
-                        .map_or(Ok(f.clone()), |issn_print| {
-                            f.add_subfield(b"x", issn_print.as_bytes())
-                        })
+                        .map(|issn_print| f.add_subfield(b"x", issn_print.as_bytes()))
+                        .unwrap_or(Ok(f))
                 })
                 .and_then(|f| builder.add_field(f))?;
         }
