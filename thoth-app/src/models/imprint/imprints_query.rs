@@ -9,7 +9,6 @@ const IMPRINTS_QUERY: &str = "
             imprintId
             imprintName
             imprintUrl
-            crossmarkDoi
             updatedAt
             publisher {
                 publisherId

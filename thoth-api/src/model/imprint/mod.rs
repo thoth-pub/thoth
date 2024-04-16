@@ -1,4 +1,3 @@
-use crate::model::Doi;
 use serde::Deserialize;
 use serde::Serialize;
 use strum::Display;
@@ -28,8 +27,6 @@ pub enum ImprintField {
     ImprintName,
     #[strum(serialize = "ImprintURL")]
     ImprintUrl,
-    #[strum(serialize = "CrossmarkDOI")]
-    CrossmarkDoi,
     CreatedAt,
     UpdatedAt,
 }
@@ -42,7 +39,6 @@ pub struct Imprint {
     pub publisher_id: Uuid,
     pub imprint_name: String,
     pub imprint_url: Option<String>,
-    pub crossmark_doi: Option<Doi>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
 }
@@ -53,7 +49,6 @@ pub struct ImprintWithPublisher {
     pub imprint_id: Uuid,
     pub imprint_name: String,
     pub imprint_url: Option<String>,
-    pub crossmark_doi: Option<Doi>,
     pub updated_at: Timestamp,
     pub publisher: Publisher,
 }
@@ -67,7 +62,6 @@ pub struct NewImprint {
     pub publisher_id: Uuid,
     pub imprint_name: String,
     pub imprint_url: Option<String>,
-    pub crossmark_doi: Option<Doi>,
 }
 
 #[cfg_attr(
@@ -80,7 +74,6 @@ pub struct PatchImprint {
     pub publisher_id: Uuid,
     pub imprint_name: String,
     pub imprint_url: Option<String>,
-    pub crossmark_doi: Option<Doi>,
 }
 
 #[cfg_attr(feature = "backend", derive(Queryable))]
@@ -125,7 +118,6 @@ fn test_imprintfield_display() {
     assert_eq!(format!("{}", ImprintField::ImprintId), "ID");
     assert_eq!(format!("{}", ImprintField::ImprintName), "Imprint");
     assert_eq!(format!("{}", ImprintField::ImprintUrl), "ImprintURL");
-    assert_eq!(format!("{}", ImprintField::CrossmarkDoi), "CrossmarkDOI");
     assert_eq!(format!("{}", ImprintField::CreatedAt), "CreatedAt");
     assert_eq!(format!("{}", ImprintField::UpdatedAt), "UpdatedAt");
 }
@@ -144,10 +136,6 @@ fn test_imprintfield_fromstr() {
     assert_eq!(
         ImprintField::from_str("ImprintURL").unwrap(),
         ImprintField::ImprintUrl
-    );
-    assert_eq!(
-        ImprintField::from_str("CrossmarkDOI").unwrap(),
-        ImprintField::CrossmarkDoi
     );
     assert_eq!(
         ImprintField::from_str("CreatedAt").unwrap(),

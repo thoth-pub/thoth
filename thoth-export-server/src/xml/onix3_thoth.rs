@@ -2096,7 +2096,6 @@ mod tests {
             imprint: WorkImprint {
                 imprint_name: "OA Editions Imprint".to_string(),
                 imprint_url: Some("https://imprint.oa".to_string()),
-                crossmark_doi: None,
                 publisher: WorkImprintPublisher {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: None,

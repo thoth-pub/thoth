@@ -1,7 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
 use thoth_api::model::imprint::Imprint;
-use thoth_api::model::Doi;
 use uuid::Uuid;
 
 const UPDATE_IMPRINT_MUTATION: &str = "
@@ -9,14 +8,12 @@ const UPDATE_IMPRINT_MUTATION: &str = "
         $imprintId: Uuid!,
         $imprintName: String!,
         $imprintUrl: String,
-        $crossmarkDoi: Doi,
         $publisherId: Uuid!
     ) {
         updateImprint(data: {
             imprintId: $imprintId
             imprintName: $imprintName
             imprintUrl: $imprintUrl
-            crossmarkDoi: $crossmarkDoi
             publisherId: $publisherId
         }){
             imprintId
@@ -45,7 +42,6 @@ pub struct Variables {
     pub imprint_id: Uuid,
     pub imprint_name: String,
     pub imprint_url: Option<String>,
-    pub crossmark_doi: Option<Doi>,
     pub publisher_id: Uuid,
 }
 

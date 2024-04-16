@@ -71,7 +71,6 @@ fragment Work on Work {
     imprint {
         imprintName
         imprintUrl
-        crossmarkDoi
         publisher {
             publisherName
             publisherShortname

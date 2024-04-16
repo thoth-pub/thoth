@@ -3035,17 +3035,8 @@ impl Imprint {
         &self.imprint_name
     }
 
-    #[graphql(description = "URL of the imprint's landing page")]
     pub fn imprint_url(&self) -> Option<&String> {
         self.imprint_url.as_ref()
-    }
-
-    #[graphql(
-        description = "DOI of the imprint's Crossmark policy page, if publisher participates. Crossmark 'gives readers quick and easy access to the
-    current status of an item of content, including any corrections, retractions, or updates'. More: https://www.crossref.org/services/crossmark/"
-    )]
-    pub fn crossmark_doi(&self) -> Option<&Doi> {
-        self.crossmark_doi.as_ref()
     }
 
     pub fn created_at(&self) -> Timestamp {

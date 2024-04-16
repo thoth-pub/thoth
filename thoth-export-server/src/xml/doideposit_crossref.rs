@@ -1041,7 +1041,6 @@ mod tests {
             imprint: WorkImprint {
                 imprint_name: "OA Editions Imprint".to_string(),
                 imprint_url: None,
-                crossmark_doi: None,
                 publisher: WorkImprintPublisher {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: Some("OAE".to_string()),
@@ -1610,7 +1609,6 @@ mod tests {
             imprint: WorkImprint {
                 imprint_name: "OA Editions Imprint".to_string(),
                 imprint_url: None,
-                crossmark_doi: None,
                 publisher: WorkImprintPublisher {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: Some("OAE".to_string()),
