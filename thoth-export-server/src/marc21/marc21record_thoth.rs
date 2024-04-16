@@ -634,26 +634,12 @@ impl Marc21Field<Marc21RecordThoth> for WorkIssues {
                 .and_then(|f| {
                     f.add_subfield(b"v", format!("vol. {}.", self.issue_ordinal).as_bytes())
                 })
-                .and_then(|f| {
-                    f.add_subfield(
-                        b"x",
-                        self.series
-                            .issn_digital
-                            .as_deref()
-                            .unwrap_or_default()
-                            .as_bytes(),
-                    )
-                })
-                .and_then(|f| {
-                    f.add_subfield(
-                        b"x",
-                        self.series
-                            .issn_print
-                            .as_deref()
-                            .unwrap_or_default()
-                            .as_bytes(),
-                    )
-                })
+                .and_then(|f| 
+                    self.series.issn_digital.as_ref()
+                    .map_or(Ok(f), |issn_digital| f.add_subfield(b"x", issn_digital.as_bytes())))
+                .and_then(|f| 
+                    self.series.issn_print.as_ref()
+                    .map_or(Ok(f), |issn_print| f.add_subfield(b"x", issn_print.as_bytes())))
                 .and_then(|f| builder.add_field(f))?;
         }
         Ok(())
