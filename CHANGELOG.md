@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[0.12.2]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.2) - 2024-04-16
+### Added
+  - [581](https://github.com/thoth-pub/thoth/issues/581) - Add crossmark policy DOI to imprint record
+
+### Changed
+  - [591](https://github.com/thoth-pub/thoth/pull/591) - Upgrade rust to `1.77.2` in production and development `Dockerfile`
+  - [591](https://github.com/thoth-pub/thoth/pull/591) - Added favicons to export API and GraphQL API docs
+  - [591](https://github.com/thoth-pub/thoth/pull/591) - Replaced static logo files with CDN paths
+  - [591](https://github.com/thoth-pub/thoth/pull/591) - Moved thoth CSS to root directory in thoth-app
+  - [591](https://github.com/thoth-pub/thoth/pull/591) - Replace unnecessary pageloader CSS with an actual loader
+  - [591](https://github.com/thoth-pub/thoth/pull/591) - Apply Thoth theming to rapidocs
+  - [591](https://github.com/thoth-pub/thoth/pull/591) - Upgrade `graphiql` to v3.2
+  - [591](https://github.com/thoth-pub/thoth/pull/591) - Upgrade `trunk` to v0.19.2
+  - [591](https://github.com/thoth-pub/thoth/pull/591) - Upgrade `wasm-bindgen` to v0.2.92
+
+### Fixed
+  - [591](https://github.com/thoth-pub/thoth/pull/591) - Replaced broken logo URL in export API docs
+
 ## [[0.12.1]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.1) - 2024-04-8
 ### Fixed
   - [589](https://github.com/thoth-pub/thoth/issues/589) - Truncation of `short_abstract` in Thoth ONIX results in Invalid UTF-8 sequences
