@@ -2,6 +2,7 @@ use thoth_api::account::model::AccountAccess;
 use thoth_api::account::model::AccountDetails;
 use thoth_api::model::imprint::ImprintWithPublisher;
 use thoth_api::model::publisher::Publisher;
+use thoth_api::model::{Doi, DOI_DOMAIN};
 use thoth_errors::ThothError;
 use uuid::Uuid;
 use yew::html;
@@ -21,6 +22,7 @@ use crate::agent::notification_bus::Request;
 use crate::component::delete_dialogue::ConfirmDeleteComponent;
 use crate::component::utils::FormPublisherSelect;
 use crate::component::utils::FormTextInput;
+use crate::component::utils::FormTextInputExtended;
 use crate::component::utils::FormUrlInput;
 use crate::component::utils::Loader;
 use crate::models::imprint::delete_imprint_mutation::DeleteImprintRequest;
@@ -59,6 +61,9 @@ pub struct ImprintComponent {
     notification_bus: NotificationDispatcher,
     // Store props value locally in order to test whether it has been updated on props change
     resource_access: AccountAccess,
+    // Track the user-entered DOI string, which may not be validly formatted
+    crossmark_doi: String,
+    crossmark_doi_warning: String,
 }
 
 #[derive(Default)]
@@ -78,6 +83,7 @@ pub enum Msg {
     ChangePublisher(Uuid),
     ChangeImprintName(String),
     ChangeImprintUrl(String),
+    ChangeCrossmarkDoi(String),
 }
 
 #[derive(PartialEq, Eq, Properties)]
@@ -99,6 +105,8 @@ impl Component for ImprintComponent {
         let notification_bus = NotificationBus::dispatcher();
         let imprint: ImprintWithPublisher = Default::default();
         let resource_access = ctx.props().current_user.resource_access.clone();
+        let crossmark_doi = Default::default();
+        let crossmark_doi_warning = Default::default();
 
         ctx.link().send_message(Msg::GetImprint);
         ctx.link().send_message(Msg::GetPublishers);
@@ -112,6 +120,8 @@ impl Component for ImprintComponent {
             fetch_publishers,
             notification_bus,
             resource_access,
+            crossmark_doi,
+            crossmark_doi_warning,
         }
     }
 
@@ -154,6 +164,13 @@ impl Component for ImprintComponent {
                             Some(c) => c.to_owned(),
                             None => Default::default(),
                         };
+                        // Initialise user-entered DOI variable to match DOI in database
+                        self.crossmark_doi = self
+                            .imprint
+                            .crossmark_doi
+                            .clone()
+                            .unwrap_or_default()
+                            .to_string();
                         // If user doesn't have permission to edit this object, redirect to dashboard
                         if let Some(publishers) =
                             ctx.props().current_user.resource_access.restricted_to()
@@ -192,6 +209,13 @@ impl Component for ImprintComponent {
                     FetchState::Fetching(_) => false,
                     FetchState::Fetched(body) => match &body.data.update_imprint {
                         Some(i) => {
+                            self.crossmark_doi = self
+                                .imprint
+                                .crossmark_doi
+                                .clone()
+                                .unwrap_or_default()
+                                .to_string();
+                            self.crossmark_doi_warning.clear();
                             self.notification_bus.send(Request::NotificationBusMsg((
                                 format!("Saved {}", i.imprint_name),
                                 NotificationStatus::Success,
@@ -216,11 +240,20 @@ impl Component for ImprintComponent {
                 }
             }
             Msg::UpdateImprint => {
+                // Only update the DOI value with the current user-entered string
+                // if it is validly formatted - otherwise keep the default.
+                // If no DOI was provided, no format check is required.
+                if self.crossmark_doi.is_empty() {
+                    self.imprint.crossmark_doi.neq_assign(None);
+                } else if let Ok(result) = self.crossmark_doi.parse::<Doi>() {
+                    self.imprint.crossmark_doi.neq_assign(Some(result));
+                }
                 let body = UpdateImprintRequestBody {
                     variables: UpdateVariables {
                         imprint_id: self.imprint.imprint_id,
                         imprint_name: self.imprint.imprint_name.clone(),
                         imprint_url: self.imprint.imprint_url.clone(),
+                        crossmark_doi: self.imprint.crossmark_doi.clone(),
                         publisher_id: self.imprint.publisher.publisher_id,
                     },
                     ..Default::default()
@@ -299,6 +332,27 @@ impl Component for ImprintComponent {
             Msg::ChangeImprintUrl(value) => {
                 self.imprint.imprint_url.neq_assign(value.to_opt_string())
             }
+            Msg::ChangeCrossmarkDoi(value) => {
+                if self.crossmark_doi.neq_assign(value.trim().to_owned()) {
+                    // If DOI is not correctly formatted, display a warning.
+                    // Don't update self.imprint.crossmark_doi yet, as user may later
+                    // overwrite a new valid value with an invalid one.
+                    self.crossmark_doi_warning.clear();
+                    match self.crossmark_doi.parse::<Doi>() {
+                        Err(e) => {
+                            match e {
+                                // If no DOI was provided, no warning is required.
+                                ThothError::DoiEmptyError => {}
+                                _ => self.crossmark_doi_warning = e.to_string(),
+                            }
+                        }
+                        Ok(value) => self.crossmark_doi = value.to_string(),
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
         }
     }
 
@@ -359,6 +413,13 @@ impl Component for ImprintComponent {
                                 label = "Imprint URL"
                                 value={ self.imprint.imprint_url.clone() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeImprintUrl(e.to_value())) }
+                            />
+                            <FormTextInputExtended
+                                label = "Crossmark DOI"
+                                statictext={ DOI_DOMAIN }
+                                value={ self.crossmark_doi.clone() }
+                                tooltip={ self.crossmark_doi_warning.clone() }
+                                oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeCrossmarkDoi(e.to_value())) }
                             />
 
                             <div class="field">

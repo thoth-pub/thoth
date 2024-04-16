@@ -422,8 +422,13 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                 })?;
                 write_element_block("CollateralDetail", w, |w| {
                     if let Some(mut short_abstract) = self.short_abstract.clone() {
-                        // Short description field may not exceed 350 characters
-                        short_abstract.truncate(350);
+                        // Short description field may not exceed 350 characters.
+                        // Ensure that the string is truncated at a valid UTF-8 boundary
+                        // by finding the byte index of the 350th character and then truncating
+                        // the string at that index, to avoid creating invalid UTF-8 sequences.
+                        if let Some((byte_index, _)) = short_abstract.char_indices().nth(350) {
+                            short_abstract.truncate(byte_index);
+                        }
                         write_element_block("TextContent", w, |w| {
                             // 02 Short description
                             write_element_block("TextType", w, |w| {
@@ -2121,6 +2126,7 @@ mod tests {
             imprint: WorkImprint {
                 imprint_name: "OA Editions Imprint".to_string(),
                 imprint_url: Some("https://imprint.oa".to_string()),
+                crossmark_doi: None,
                 publisher: WorkImprintPublisher {
                     publisher_name: "OA Editions".to_string(),
                     publisher_shortname: None,
