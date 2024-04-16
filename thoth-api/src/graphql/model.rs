@@ -3321,12 +3321,12 @@ impl Series {
         &self.series_name
     }
 
-    pub fn issn_print(&self) -> &String {
-        &self.issn_print
+    pub fn issn_print(&self) -> Option<&String> {
+        self.issn_print.as_ref()
     }
 
-    pub fn issn_digital(&self) -> &String {
-        &self.issn_digital
+    pub fn issn_digital(&self) -> Option<&String> {
+        self.issn_digital.as_ref()
     }
 
     #[graphql(description = "URL of the series' landing page")]

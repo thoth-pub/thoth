@@ -394,8 +394,8 @@ impl CsvCell<CsvThoth> for WorkIssues {
             "(\"{:?}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\", \"{}\")",
             self.series.series_type,
             self.series.series_name,
-            self.series.issn_print,
-            self.series.issn_digital,
+            self.series.issn_print.clone().unwrap_or_default(),
+            self.series.issn_digital.clone().unwrap_or_default(),
             self.series.series_url.clone().unwrap_or_default(),
             self.series.series_cfp_url.clone().unwrap_or_default(),
             self.series.series_description.clone().unwrap_or_default(),
@@ -558,10 +558,11 @@ mod tests {
             issues: vec![WorkIssues {
                 issue_ordinal: 1,
                 series: WorkIssuesSeries {
+                    series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     series_type: SeriesType::JOURNAL,
                     series_name: "Name of series".to_string(),
-                    issn_print: "1234-5678".to_string(),
-                    issn_digital: "8765-4321".to_string(),
+                    issn_print: Some("1234-5678".to_string()),
+                    issn_digital: Some("8765-4321".to_string()),
                     series_url: Some("https://www.series.com".to_string()),
                     series_description: Some("Description of series".to_string()),
                     series_cfp_url: Some("https://www.series.com/cfp".to_string()),
@@ -1052,10 +1053,11 @@ mod tests {
         let mut issue = WorkIssues {
             issue_ordinal: 1,
             series: WorkIssuesSeries {
+                series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                 series_type: SeriesType::JOURNAL,
                 series_name: "Name of series".to_string(),
-                issn_print: "1234-5678".to_string(),
-                issn_digital: "8765-4321".to_string(),
+                issn_print: Some("1234-5678".to_string()),
+                issn_digital: Some("8765-4321".to_string()),
                 series_url: Some("https://www.series.com".to_string()),
                 series_description: Some("Description of series".to_string()),
                 series_cfp_url: Some("https://www.series.com/cfp".to_string()),

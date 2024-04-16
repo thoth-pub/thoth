@@ -13,8 +13,6 @@ const DELETE_SERIES_MUTATION: &str = "
             seriesId
             seriesType
             seriesName
-            issnPrint
-            issnDigital
             imprintId
             createdAt
             updatedAt

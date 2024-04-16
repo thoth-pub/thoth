@@ -634,8 +634,20 @@ impl Marc21Field<Marc21RecordThoth> for WorkIssues {
                 .and_then(|f| {
                     f.add_subfield(b"v", format!("vol. {}.", self.issue_ordinal).as_bytes())
                 })
-                .and_then(|f| f.add_subfield(b"x", self.series.issn_digital.as_bytes()))
-                .and_then(|f| f.add_subfield(b"x", self.series.issn_print.as_bytes()))
+                .and_then(|f| {
+                    self.series
+                        .issn_digital
+                        .as_ref()
+                        .map(|issn_digital| f.add_subfield(b"x", issn_digital.as_bytes()))
+                        .unwrap_or(Ok(f))
+                })
+                .and_then(|f| {
+                    self.series
+                        .issn_print
+                        .as_ref()
+                        .map(|issn_print| f.add_subfield(b"x", issn_print.as_bytes()))
+                        .unwrap_or(Ok(f))
+                })
                 .and_then(|f| builder.add_field(f))?;
         }
         Ok(())
@@ -831,10 +843,11 @@ pub(crate) mod tests {
             issues: vec![WorkIssues {
                 issue_ordinal: 11,
                 series: WorkIssuesSeries {
+                    series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     series_type: SeriesType::BOOK_SERIES,
                     series_name: "Name of series".to_string(),
-                    issn_print: "1234-5678".to_string(),
-                    issn_digital: "8765-4321".to_string(),
+                    issn_print: Some("1234-5678".to_string()),
+                    issn_digital: Some("8765-4321".to_string()),
                     series_url: None,
                     series_description: None,
                     series_cfp_url: None,
