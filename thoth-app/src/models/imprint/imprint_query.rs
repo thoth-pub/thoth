@@ -9,6 +9,7 @@ pub const IMPRINT_QUERY: &str = "
             imprintId
             imprintName
             imprintUrl
+            crossmarkDoi
             updatedAt
             publisher {
                 publisherId
