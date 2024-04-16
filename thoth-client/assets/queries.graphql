@@ -82,6 +82,7 @@ fragment Work on Work {
     issues(limit: $issuesLimit, order: {field: ISSUE_ORDINAL, direction: ASC}) {
         issueOrdinal
         series {
+            seriesId
             seriesType
             seriesName
             issnPrint

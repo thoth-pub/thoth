@@ -9,8 +9,8 @@ const UPDATE_SERIES_MUTATION: &str = "
             $seriesId: Uuid!,
             $seriesType: SeriesType!,
             $seriesName: String!,
-            $issnPrint: String!,
-            $issnDigital: String!,
+            $issnPrint: String,
+            $issnDigital: String,
             $seriesUrl: String,
             $seriesDescription: String,
             $seriesCfpUrl: String,
@@ -30,8 +30,6 @@ const UPDATE_SERIES_MUTATION: &str = "
             seriesId
             seriesType
             seriesName
-            issnPrint
-            issnDigital
             imprintId
             createdAt
             updatedAt
@@ -56,8 +54,8 @@ pub struct Variables {
     pub series_id: Uuid,
     pub series_type: SeriesType,
     pub series_name: String,
-    pub issn_print: String,
-    pub issn_digital: String,
+    pub issn_print: Option<String>,
+    pub issn_digital: Option<String>,
     pub series_url: Option<String>,
     pub series_description: Option<String>,
     pub series_cfp_url: Option<String>,

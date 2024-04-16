@@ -1149,17 +1149,33 @@ impl XmlElementBlock<Onix3Thoth> for WorkIssues {
                 w.write(XmlEvent::Characters("10")).map_err(|e| e.into())
             })?;
             write_element_block("CollectionIdentifier", w, |w| {
-                // 02 ISSN
+                // 01 Proprietary
                 write_element_block("CollectionIDType", w, |w| {
-                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                })?;
+                write_element_block("IDTypeName", w, |w| {
+                    w.write(XmlEvent::Characters("Series ID"))
+                        .map_err(|e| e.into())
                 })?;
                 write_element_block("IDValue", w, |w| {
-                    w.write(XmlEvent::Characters(
-                        &self.series.issn_digital.replace('-', ""),
-                    ))
-                    .map_err(|e| e.into())
+                    w.write(XmlEvent::Characters(&self.series.series_id.to_string()))
+                        .map_err(|e| e.into())
                 })
             })?;
+            if let Some(issn_digital) = &self.series.issn_digital {
+                write_element_block("CollectionIdentifier", w, |w| {
+                    // 02 ISSN
+                    write_element_block("CollectionIDType", w, |w| {
+                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(
+                            &issn_digital.as_str().replace('-', ""),
+                        ))
+                        .map_err(|e| e.into())
+                    })
+                })?;
+            }
             if let Some(url) = &self.series.series_url {
                 write_element_block("CollectionIdentifier", w, |w| {
                     // 01 Proprietary
@@ -1644,10 +1660,11 @@ mod tests {
         let mut test_issue = WorkIssues {
             issue_ordinal: 1,
             series: WorkIssuesSeries {
+                series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                 series_type: thoth_client::SeriesType::JOURNAL,
                 series_name: "Name of series".to_string(),
-                issn_print: "1234-5678".to_string(),
-                issn_digital: "8765-4321".to_string(),
+                issn_print: Some("1234-5678".to_string()),
+                issn_digital: Some("8765-4321".to_string()),
                 series_url: Some("https://series.url".to_string()),
                 series_description: None,
                 series_cfp_url: Some("https://series.cfp.url".to_string()),
@@ -1661,6 +1678,14 @@ mod tests {
             r#"
 <Collection>
   <CollectionType>10</CollectionType>"#
+        ));
+        assert!(output.contains(
+            r#"
+  <CollectionIdentifier>
+    <CollectionIDType>01</CollectionIDType>
+    <IDTypeName>Series ID</IDTypeName>
+    <IDValue>00000000-0000-0000-bbbb-000000000002</IDValue>
+  </CollectionIdentifier>"#
         ));
         assert!(output.contains(
             r#"
@@ -1705,7 +1730,7 @@ mod tests {
         // Change all possible values to test that output is updated
         test_issue.issue_ordinal = 2;
         test_issue.series.series_name = "Different series".to_string();
-        test_issue.series.issn_digital = "1111-2222".to_string();
+        test_issue.series.issn_digital = Some("1111-2222".to_string());
         test_issue.series.series_url = None;
         test_issue.series.series_cfp_url = None;
         let output = generate_test_output(true, &test_issue);
@@ -1715,6 +1740,11 @@ mod tests {
             r#"<?xml version="1.0" encoding="utf-8"?>
 <Collection>
   <CollectionType>10</CollectionType>
+  <CollectionIdentifier>
+    <CollectionIDType>01</CollectionIDType>
+    <IDTypeName>Series ID</IDTypeName>
+    <IDValue>00000000-0000-0000-bbbb-000000000002</IDValue>
+  </CollectionIdentifier>
   <CollectionIdentifier>
     <CollectionIDType>02</CollectionIDType>
     <IDValue>11112222</IDValue>
