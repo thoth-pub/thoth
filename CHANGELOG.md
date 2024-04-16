@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+  - [581](https://github.com/thoth-pub/thoth/issues/581) - Add crossmark policy DOI to imprint record
+
 ### Changed
   - [591](https://github.com/thoth-pub/thoth/pull/591) - Upgrade rust to `1.77.2` in production and development `Dockerfile`
   - [591](https://github.com/thoth-pub/thoth/pull/591) - Added favicons to export API and GraphQL API docs

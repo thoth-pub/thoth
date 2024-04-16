@@ -54,6 +54,10 @@ impl Crud for Imprint {
                 Direction::Asc => query.order(imprint_url.asc()),
                 Direction::Desc => query.order(imprint_url.desc()),
             },
+            ImprintField::CrossmarkDoi => match order.direction {
+                Direction::Asc => query.order(crossmark_doi.asc()),
+                Direction::Desc => query.order(crossmark_doi.desc()),
+            },
             ImprintField::CreatedAt => match order.direction {
                 Direction::Asc => query.order(created_at.asc()),
                 Direction::Desc => query.order(created_at.desc()),
