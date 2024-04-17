@@ -3,3 +3,7 @@ ALTER TABLE series
 
 ALTER TABLE series
     ALTER COLUMN issn_digital SET NOT NULL;
+
+ALTER TABLE work
+    DROP CONSTRAINT work_withdrawn_date_check,
+    DROP COLUMN withdrawn_date;
