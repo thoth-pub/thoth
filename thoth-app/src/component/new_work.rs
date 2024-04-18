@@ -277,7 +277,7 @@ impl Component for NewWorkComponent {
                 } else if let Ok(result) = self.doi.parse::<Doi>() {
                     self.work.doi.neq_assign(Some(result));
                 }
-                // Clear any fields which are not applicable to the currently selected work type.
+                // Clear any fields which are not applicable to the currently selected work type or work status.
                 // (Do not clear them before the save point as the user may change the type again.)
                 if self.work.work_type == WorkType::BookChapter {
                     self.work.edition = None;
@@ -289,7 +289,7 @@ impl Component for NewWorkComponent {
                     self.work.last_page = None;
                     self.work.page_interval = None;
                 }
-                if self.work.work_status == WorkStatus::OutOfPrint {
+                if self.work.work_status != WorkStatus::WithdrawnFromSale && self.work.work_status != WorkStatus::OutOfPrint {
                     self.work.withdrawn_date = None;
                 }
                 let body = CreateWorkRequestBody {
