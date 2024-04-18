@@ -357,6 +357,26 @@ impl XmlElementBlock<Onix3Overdrive> for Work {
                             .map_err(|e| e.into())
                         })
                     })?;
+                    if let Some(date) = &self.withdrawn_date {
+                        write_element_block("PublishingDate", w, |w| {
+                            write_element_block("PublishingDateRole", w, |w| {
+                                // 13 Out-of-print / permanently withdrawn date
+                                w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
+                            })?;
+                            // dateformat="00" YYYYMMDD
+                            write_full_element_block(
+                                "Date",
+                                Some(vec![("dateformat", "00")]),
+                                w,
+                                |w| {
+                                    w.write(XmlEvent::Characters(
+                                        &date.format("%Y%m%d").to_string(),
+                                    ))
+                                    .map_err(|e| e.into())
+                                },
+                            )
+                        })?;
+                    }
                     write_element_block("SalesRights", w, |w| {
                         // 02 For sale with non-exclusive rights in the specified countries or territories
                         write_element_block("SalesRightsType", w, |w| {
@@ -1385,6 +1405,17 @@ mod tests {
         assert!(!output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
         assert!(!output.contains(r#"      <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
         assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
+
+        // Add withdrawn_date
+        test_work.withdrawn_date = chrono::NaiveDate::from_ymd_opt(2020, 12, 31);
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(
+            r#"
+    <PublishingDate>
+      <PublishingDateRole>13</PublishingDateRole>
+      <Date dateformat="00">20201231</Date>
+    </PublishingDate>"#
+        ));
 
         // Remove the only language: result is error
         test_work.languages.clear();

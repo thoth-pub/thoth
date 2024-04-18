@@ -315,6 +315,26 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                             )
                         })?;
                     }
+                    if let Some(date) = &self.withdrawn_date {
+                        write_element_block("PublishingDate", w, |w| {
+                            write_element_block("PublishingDateRole", w, |w| {
+                                // 13 Out-of-print / permanently withdrawn date
+                                w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
+                            })?;
+                            // dateformat="00" YYYYMMDD
+                            write_full_element_block(
+                                "Date",
+                                Some(vec![("dateformat", "00")]),
+                                w,
+                                |w| {
+                                    w.write(XmlEvent::Characters(
+                                        &date.format("%Y%m%d").to_string(),
+                                    ))
+                                    .map_err(|e| e.into())
+                                },
+                            )
+                        })?;
+                    }
                     Ok(())
                 })?;
                 if !isbns.is_empty() {
@@ -969,6 +989,20 @@ mod tests {
         assert!(!output.contains(r#"          <TitleElementLevel>02</TitleElementLevel>"#));
         assert!(!output.contains(r#"          <PartNumber>1</PartNumber>"#));
         assert!(!output.contains(r#"          <TitleText>Name of series</TitleText>"#));
+
+        // Add withdrawn_date
+        test_work.withdrawn_date = chrono::NaiveDate::from_ymd_opt(2020, 12, 31);
+        let output = generate_test_output(true, &test_work);
+        println!("output is {output}");
+        assert!(output.contains(
+            r#"
+    <PublishingDate>
+      <PublishingDateRole>13</PublishingDateRole>
+      <Date dateformat="00">20201231</Date>
+    </PublishingDate>"#
+        ));
+        // Remove withdrawn date so publication date test below doesn't fail
+        test_work.withdrawn_date = None;
 
         // Remove some values to test non-output of optional blocks
         test_work.doi = None;

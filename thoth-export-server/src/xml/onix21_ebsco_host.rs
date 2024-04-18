@@ -383,6 +383,12 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
                         })?;
                     }
                 }
+                if let Some(date) = self.withdrawn_date {
+                    write_element_block("OutofPrintDate", w, |w| {
+                        w.write(XmlEvent::Characters(&date.format("%Y%m%d").to_string()))
+                            .map_err(|e| e.into())
+                    })?;
+                }
                 write_element_block("SupplyDetail", w, |w| {
                     write_element_block("SupplierName", w, |w| {
                         w.write(XmlEvent::Characters(&self.imprint.publisher.publisher_name))
@@ -1086,6 +1092,11 @@ mod tests {
         assert!(output.contains(r#"      <PriceTypeCode>01</PriceTypeCode>"#));
         assert!(output.contains(r#"      <PriceAmount>0.01</PriceAmount>"#));
         assert!(output.contains(r#"      <CurrencyCode>USD</CurrencyCode>"#));
+
+        // Add withdrawn date
+        test_work.withdrawn_date = chrono::NaiveDate::from_ymd_opt(2020, 12, 31);
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(r#"  <OutofPrintDate>20201231</OutofPrintDate>"#));
 
         // Remove some values to test non-output of optional blocks
         test_work.doi = None;
