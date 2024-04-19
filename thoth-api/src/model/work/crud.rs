@@ -1,5 +1,6 @@
 use super::{
-    NewWork, NewWorkHistory, PatchWork, WorkProperties, Work, WorkField, WorkHistory, WorkOrderBy, WorkStatus, WorkType
+    NewWork, NewWorkHistory, PatchWork, Work, WorkField, WorkHistory, WorkOrderBy, WorkProperties,
+    WorkStatus, WorkType,
 };
 use crate::graphql::model::TimeExpression;
 use crate::graphql::utils::{Direction, Expression};

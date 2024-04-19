@@ -299,7 +299,9 @@ impl Component for WorkComponent {
                     self.work.last_page = None;
                     self.work.page_interval = None;
                 }
-                if self.work.work_status != WorkStatus::WithdrawnFromSale && self.work.work_status != WorkStatus::OutOfPrint {
+                if self.work.work_status != WorkStatus::WithdrawnFromSale
+                    && self.work.work_status != WorkStatus::OutOfPrint
+                {
                     self.work.withdrawn_date = None;
                 }
                 let body = UpdateWorkRequestBody {
@@ -457,7 +459,9 @@ impl Component for WorkComponent {
                 }
             }
             Msg::ChangeDate(value) => self.work.publication_date.neq_assign(value.to_opt_string()),
-            Msg::ChangeWithdrawnDate(value) => self.work.withdrawn_date.neq_assign(value.to_opt_string()),
+            Msg::ChangeWithdrawnDate(value) => {
+                self.work.withdrawn_date.neq_assign(value.to_opt_string())
+            }
             Msg::ChangePlace(value) => self.work.place.neq_assign(value.to_opt_string()),
             Msg::ChangePageCount(value) => self.work.page_count.neq_assign(value.to_opt_int()),
             Msg::ChangePageBreakdown(value) => {
@@ -568,7 +572,9 @@ impl Component for WorkComponent {
                 // Grey out chapter-specific or "book"-specific fields
                 // based on currently selected work type.
                 let is_chapter = self.work.work_type == WorkType::BookChapter;
-                let is_not_withdrawn_or_out_of_print = self.work.work_status != WorkStatus::WithdrawnFromSale && self.work.work_status != WorkStatus::OutOfPrint;
+                let is_not_withdrawn_or_out_of_print = self.work.work_status
+                    != WorkStatus::WithdrawnFromSale
+                    && self.work.work_status != WorkStatus::OutOfPrint;
                 html! {
                     <>
                         <nav class="level">

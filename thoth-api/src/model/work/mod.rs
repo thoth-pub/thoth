@@ -1,9 +1,9 @@
 use chrono::naive::NaiveDate;
 use serde::{Deserialize, Serialize};
-use thoth_errors::{ThothError, ThothResult};
 use std::fmt;
 use strum::Display;
 use strum::EnumString;
+use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 use crate::graphql::utils::Direction;
@@ -355,10 +355,8 @@ pub trait WorkProperties {
     }
 
     fn withdrawn_date_error(&self) -> ThothResult<()> {
-        if self.is_not_withdrawn_out_of_print() {
-            if self.has_withdrawn_date() {
-                return Err(ThothError::WithdrawnDateError)
-            }
+        if self.is_not_withdrawn_out_of_print() && self.has_withdrawn_date() {
+            return Err(ThothError::WithdrawnDateError);
         }
         Ok(())
     }

@@ -1709,7 +1709,7 @@ impl MutationRoot {
         // update the work and, if it succeeds, synchronise its children statuses and pub. date
         match work.update(&context.db, &data, &account_id) {
             Ok(w) => {
-                // update chapters if their pub. data or work_status doesn't match the parent's
+                // update chapters if their pub. data, withdrawn_date or work_status doesn't match the parent's
                 for child in work.children(&context.db)? {
                     if child.publication_date != w.publication_date
                         || child.work_status != w.work_status
