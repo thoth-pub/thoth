@@ -654,6 +654,7 @@ impl Component for WorkComponent {
                                 label = "Withdrawn Date"
                                 value={ self.work.withdrawn_date.clone() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWithdrawnDate(e.to_value())) }
+                                required = true
                                 deactivated={ is_not_withdrawn_or_out_of_print }
                                 />
                             <FormTextInput

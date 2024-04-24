@@ -336,18 +336,15 @@ impl WorkStatus {
     fn is_withdrawn_out_of_print(&self) -> bool {
         matches!(self, WorkStatus::OutOfPrint | WorkStatus::WithdrawnFromSale)
     }
-
-    fn is_not_withdrawn_out_of_print(&self) -> bool {
-        !self.is_withdrawn_out_of_print()
-    }
 }
 
 pub trait WorkProperties {
     fn work_status(&self) -> &WorkStatus;
+    fn publication_date(&self) -> &Option<NaiveDate>;
     fn withdrawn_date(&self) -> &Option<NaiveDate>;
 
-    fn is_not_withdrawn_out_of_print(&self) -> bool {
-        self.work_status().is_not_withdrawn_out_of_print()
+    fn is_withdrawn_out_of_print(&self) -> bool {
+        self.work_status().is_withdrawn_out_of_print()
     }
 
     fn has_withdrawn_date(&self) -> bool {
@@ -355,8 +352,27 @@ pub trait WorkProperties {
     }
 
     fn withdrawn_date_error(&self) -> ThothResult<()> {
-        if self.is_not_withdrawn_out_of_print() && self.has_withdrawn_date() {
+        if !self.is_withdrawn_out_of_print() && self.has_withdrawn_date() {
             return Err(ThothError::WithdrawnDateError);
+        }
+        Ok(())
+    }
+
+    fn no_withdrawn_date_error(&self) -> ThothResult<()> {
+        if self.is_withdrawn_out_of_print() && !self.has_withdrawn_date() {
+            return Err(ThothError::NoWithdrawnDateError);
+        }
+        Ok(())
+    }
+
+    fn withdrawn_date_before_publication_date_error(&self) -> ThothResult<()> {
+        match (self.withdrawn_date(), self.publication_date()) {
+            (Some(withdrawn_date), Some(publication_date)) if withdrawn_date < publication_date => {
+                println!("withdrawn_date: {:?}", self.withdrawn_date());
+                println!("publication_date: {:?}", self.publication_date());
+                return Err(ThothError::WithdrawnDateBeforePublicationDateError);
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -370,6 +386,10 @@ impl WorkProperties for Work {
     fn withdrawn_date(&self) -> &Option<NaiveDate> {
         &self.withdrawn_date
     }
+
+    fn publication_date(&self) -> &Option<NaiveDate> {
+        &self.publication_date
+    }
 }
 
 impl WorkProperties for NewWork {
@@ -380,6 +400,10 @@ impl WorkProperties for NewWork {
     fn withdrawn_date(&self) -> &Option<NaiveDate> {
         &self.withdrawn_date
     }
+
+    fn publication_date(&self) -> &Option<NaiveDate> {
+        &self.publication_date
+    }
 }
 
 impl WorkProperties for PatchWork {
@@ -389,6 +413,10 @@ impl WorkProperties for PatchWork {
 
     fn withdrawn_date(&self) -> &Option<NaiveDate> {
         &self.withdrawn_date
+    }
+
+    fn publication_date(&self) -> &Option<NaiveDate> {
+        &self.publication_date
     }
 }
 

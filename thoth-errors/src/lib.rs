@@ -84,13 +84,17 @@ pub enum ThothError {
     #[error(
         "Price values must be greater than zero. To indicate an unpriced Publication, omit all Prices."
     )]
-    WithdrawnDateError,
-    #[error("Withdrawn Date can only be added to out of print or withdrawn from sale Works.")]
     PriceZeroError,
     #[error("{0}")]
     RequestError(String),
     #[error("{0}")]
     GraphqlError(String),
+    #[error("Withdrawn Date must be later than Publication Date.")]
+    WithdrawnDateBeforePublicationDateError,
+    #[error("Withdrawn Date can only be added to an Out of Print or Withdrawn From Sale Work.")]
+    WithdrawnDateError,
+    #[error("An Out of Print or Withdrawn From Sale Work must have a Withdrawn Date.")]
+    NoWithdrawnDateError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]

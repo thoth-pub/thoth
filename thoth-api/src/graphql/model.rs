@@ -23,6 +23,7 @@ use crate::model::publisher::*;
 use crate::model::reference::*;
 use crate::model::series::*;
 use crate::model::subject::*;
+use crate::model::work::crud::WorkValidation;
 use crate::model::work::*;
 use crate::model::work_relation::*;
 use crate::model::Convert;
@@ -1516,6 +1517,8 @@ impl MutationRoot {
             .account_access
             .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
 
+        data.validate()?;
+
         Work::create(&context.db, &data).map_err(|e| e.into())
     }
 
@@ -1705,6 +1708,7 @@ impl MutationRoot {
             work.can_be_chapter(&context.db)?;
         }
 
+        data.validate()?;
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         // update the work and, if it succeeds, synchronise its children statuses and pub. date
         match work.update(&context.db, &data, &account_id) {
