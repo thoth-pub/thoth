@@ -310,6 +310,26 @@ impl XmlElementBlock<Onix3Jstor> for Work {
                             )
                         })?;
                     }
+                    if let Some(date) = &self.withdrawn_date {
+                        write_element_block("PublishingDate", w, |w| {
+                            write_element_block("PublishingDateRole", w, |w| {
+                                // 13 Out-of-print / permanently withdrawn date
+                                w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
+                            })?;
+                            // dateformat="00" YYYYMMDD
+                            write_full_element_block(
+                                "Date",
+                                Some(vec![("dateformat", "00")]),
+                                w,
+                                |w| {
+                                    w.write(XmlEvent::Characters(
+                                        &date.format("%Y%m%d").to_string(),
+                                    ))
+                                    .map_err(|e| e.into())
+                                },
+                            )
+                        })?;
+                    }
                     Ok(())
                 })?;
                 if !print_isbn.is_empty() {
@@ -712,6 +732,7 @@ mod tests {
             edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
+            withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
             short_abstract: None,
@@ -1030,6 +1051,17 @@ mod tests {
         assert!(!output.contains(r#"      <ProductIdentifier>"#));
         assert!(!output.contains(r#"        <ProductIDType>15</ProductIDType>"#));
         assert!(!output.contains(r#"    <IDValue>9781402894626</IDValue>"#));
+
+        // Add withdrawn date
+        test_work.withdrawn_date = chrono::NaiveDate::from_ymd_opt(2020, 12, 31);
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(
+            r#"
+    <PublishingDate>
+      <PublishingDateRole>13</PublishingDateRole>
+      <Date dateformat="00">20201231</Date>
+    </PublishingDate>"#
+        ));
 
         // Remove all subjects
         // Result: error (can't generate JSTOR ONIX without a BISAC subject)

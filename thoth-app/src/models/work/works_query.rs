@@ -21,6 +21,7 @@ pub const WORKS_QUERY_BODY: &str = "
             license
             place
             publicationDate
+            withdrawnDate
             updatedAt
             contributions {
                 contributionId

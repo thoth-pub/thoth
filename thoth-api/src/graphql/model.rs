@@ -23,6 +23,7 @@ use crate::model::publisher::*;
 use crate::model::reference::*;
 use crate::model::series::*;
 use crate::model::subject::*;
+use crate::model::work::crud::WorkValidation;
 use crate::model::work::*;
 use crate::model::work_relation::*;
 use crate::model::Convert;
@@ -1516,6 +1517,8 @@ impl MutationRoot {
             .account_access
             .can_edit(publisher_id_from_imprint_id(&context.db, data.imprint_id)?)?;
 
+        data.validate()?;
+
         Work::create(&context.db, &data).map_err(|e| e.into())
     }
 
@@ -1705,17 +1708,20 @@ impl MutationRoot {
             work.can_be_chapter(&context.db)?;
         }
 
+        data.validate()?;
         let account_id = context.token.jwt.as_ref().unwrap().account_id(&context.db);
         // update the work and, if it succeeds, synchronise its children statuses and pub. date
         match work.update(&context.db, &data, &account_id) {
             Ok(w) => {
-                // update chapters if their pub. data or work_status doesn't match the parent's
+                // update chapters if their pub. data, withdrawn_date or work_status doesn't match the parent's
                 for child in work.children(&context.db)? {
                     if child.publication_date != w.publication_date
                         || child.work_status != w.work_status
+                        || child.withdrawn_date != w.withdrawn_date
                     {
                         let mut data: PatchWork = child.clone().into();
                         data.publication_date = w.publication_date;
+                        data.withdrawn_date = w.withdrawn_date;
                         data.work_status = w.work_status.clone();
                         child.update(&context.db, &data, &account_id)?;
                     }
@@ -2277,6 +2283,13 @@ impl Work {
 
     pub fn publication_date(&self) -> Option<NaiveDate> {
         self.publication_date
+    }
+
+    #[graphql(
+        description = "Date a work was withdrawn from publication. Only applies to out of print and withdrawn from sale works."
+    )]
+    pub fn withdrawn_date(&self) -> Option<NaiveDate> {
+        self.withdrawn_date
     }
 
     pub fn place(&self) -> Option<&String> {

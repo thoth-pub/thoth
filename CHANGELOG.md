@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+  - [583](https://github.com/thoth-pub/thoth/issues/583) - Add new field, Permanently Withdrawn Date, to Work for Out-of-print or Withdrawn from Sale Works.
+
 ### Changed
  - [218](https://github.com/thoth-pub/thoth/issues/218) - Make series ISSN optional
 

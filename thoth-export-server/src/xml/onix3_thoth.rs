@@ -707,6 +707,26 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             )
                         })?;
                     }
+                    if let Some(date) = &self.withdrawn_date {
+                        write_element_block("PublishingDate", w, |w| {
+                            write_element_block("PublishingDateRole", w, |w| {
+                                // 13 Out-of-print / permanently withdrawn date
+                                w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
+                            })?;
+                            // dateformat="00" YYYYMMDD
+                            write_full_element_block(
+                                "Date",
+                                Some(vec![("dateformat", "00")]),
+                                w,
+                                |w| {
+                                    w.write(XmlEvent::Characters(
+                                        &date.format("%Y%m%d").to_string(),
+                                    ))
+                                    .map_err(|e| e.into())
+                                },
+                            )
+                        })?;
+                    }
                     if let Some(copyright_holder) = &self.copyright_holder {
                         write_element_block("CopyrightStatement", w, |w| {
                             write_element_block("CopyrightOwner", w, |w| {
@@ -2017,6 +2037,7 @@ mod tests {
                 edition: None,
                 doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
                 publication_date: None,
+                withdrawn_date: None,
                 license: None,
                 short_abstract: None,
                 long_abstract: None,
@@ -2099,6 +2120,7 @@ mod tests {
             edition: Some(2),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
+            withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
             short_abstract: Some("Lorem ipsum dolor sit amet.".to_string()),
@@ -2230,6 +2252,7 @@ mod tests {
                         edition: None,
                         doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0001").unwrap()),
                         publication_date: None,
+                        withdrawn_date: None,
                         license: None,
                         short_abstract: None,
                         long_abstract: None,
@@ -2260,6 +2283,7 @@ mod tests {
                         edition: None,
                         doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0002").unwrap()),
                         publication_date: None,
+                        withdrawn_date: None,
                         license: None,
                         short_abstract: None,
                         long_abstract: None,
@@ -2290,6 +2314,7 @@ mod tests {
                         edition: None,
                         doi: Some(Doi::from_str("https://doi.org/10.00001/RELATION.0003").unwrap()),
                         publication_date: None,
+                        withdrawn_date: None,
                         license: None,
                         short_abstract: None,
                         long_abstract: None,
@@ -2851,6 +2876,17 @@ mod tests {
           <RegionsIncluded>WORLD</RegionsIncluded>
         </Territory>
       </Price>"#
+        ));
+
+        // Add withdrawn_date
+        test_work.withdrawn_date = chrono::NaiveDate::from_ymd_opt(2020, 12, 31);
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(
+            r#"
+    <PublishingDate>
+      <PublishingDateRole>13</PublishingDateRole>
+      <Date dateformat="00">20201231</Date>
+    </PublishingDate>"#
         ));
 
         // Test ProductForm[Detail] with different publication types

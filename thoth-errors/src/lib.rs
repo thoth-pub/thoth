@@ -89,6 +89,12 @@ pub enum ThothError {
     RequestError(String),
     #[error("{0}")]
     GraphqlError(String),
+    #[error("Withdrawn Date must be later than Publication Date.")]
+    WithdrawnDateBeforePublicationDateError,
+    #[error("Withdrawn Date can only be added to an Out of Print or Withdrawn From Sale Work.")]
+    WithdrawnDateError,
+    #[error("An Out of Print or Withdrawn From Sale Work must have a Withdrawn Date.")]
+    NoWithdrawnDateError,
 }
 
 #[cfg(not(target_arch = "wasm32"))]

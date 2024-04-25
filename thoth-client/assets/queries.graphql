@@ -46,6 +46,7 @@ fragment Work on Work {
     edition
     doi
     publicationDate
+    withdrawnDate
     license
     copyrightHolder
     shortAbstract
@@ -163,6 +164,7 @@ fragment Work on Work {
             edition
             doi
             publicationDate
+            withdrawnDate
             license
             shortAbstract
             longAbstract
