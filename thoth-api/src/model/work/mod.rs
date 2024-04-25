@@ -366,13 +366,12 @@ pub trait WorkProperties {
     }
 
     fn withdrawn_date_before_publication_date_error(&self) -> ThothResult<()> {
-        match (self.withdrawn_date(), self.publication_date()) {
-            (Some(withdrawn_date), Some(publication_date)) if withdrawn_date < publication_date => {
-                println!("withdrawn_date: {:?}", self.withdrawn_date());
-                println!("publication_date: {:?}", self.publication_date());
+        if let (Some(withdrawn_date), Some(publication_date)) =
+            (self.withdrawn_date(), self.publication_date())
+        {
+            if withdrawn_date < publication_date {
                 return Err(ThothError::WithdrawnDateBeforePublicationDateError);
             }
-            _ => {}
         }
         Ok(())
     }
