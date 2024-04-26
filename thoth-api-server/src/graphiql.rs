@@ -137,10 +137,6 @@ pub fn graphiql_source(graphql_endpoint_url: &str) -> String {
       const fetcher = GraphiQL.createFetcher({{
         url: '{graphql_endpoint_url}',
         method: 'post',
-        headers: {{
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-        }},
       }});
       const explorerPlugin = GraphiQLPluginExplorer.explorerPlugin();
       root.render(
