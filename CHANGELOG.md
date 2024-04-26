@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [583](https://github.com/thoth-pub/thoth/issues/583) - Add new field, Permanently Withdrawn Date, to Work for Out-of-print or Withdrawn from Sale Works.
 
+### Fixed
+  - [597](https://github.com/thoth-pub/thoth/issues/597) - Graphiql not working in chrome and safari
+
 ### Changed
  - [218](https://github.com/thoth-pub/thoth/issues/218) - Make series ISSN optional
 
