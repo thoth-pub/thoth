@@ -7,9 +7,9 @@ ALTER TABLE series
 ALTER TABLE work
     ADD COLUMN withdrawn_date DATE;
 
-UPDATE work                              
-    SET withdrawn_date = updated_at    
-    WHERE (work_status = 'withdrawn-from-sale' 
+UPDATE work
+    SET withdrawn_date = updated_at
+    WHERE (work_status = 'withdrawn-from-sale'
     OR work_status = 'out-of-print');
 
 ALTER TABLE work
