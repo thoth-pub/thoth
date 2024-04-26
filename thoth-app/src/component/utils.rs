@@ -140,6 +140,8 @@ pub struct FormDateInputProps {
     pub onblur: Callback<FocusEvent>,
     #[prop_or(false)]
     pub required: bool,
+    #[prop_or(false)]
+    pub deactivated: bool,
     #[prop_or_default]
     pub help_text: String,
 }
@@ -501,6 +503,7 @@ pub fn form_date_input(props: &FormDateInputProps) -> VNode {
             oninput={ props.oninput.clone() }
             onblur={ props.onblur.clone() }
             required={ props.required }
+            deactivated={ props.deactivated }
             help_text={ props.help_text.clone() }
         />
     }

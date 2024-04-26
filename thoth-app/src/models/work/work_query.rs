@@ -20,6 +20,7 @@ pub const WORK_QUERY: &str = "
             edition
             doi
             publicationDate
+            withdrawnDate
             place
             pageCount
             pageBreakdown

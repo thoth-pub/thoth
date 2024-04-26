@@ -457,22 +457,41 @@ fn work_metadata<W: Write>(
 
 impl XmlElementBlock<DoiDepositCrossref> for WorkIssuesSeries {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        write_element_block("series_metadata", w, |w| {
-            write_element_block("titles", w, |w| {
-                write_element_block("title", w, |w| {
-                    w.write(XmlEvent::Characters(&self.series_name))
-                        .map_err(|e| e.into())
-                })
-            })?;
-            write_full_element_block("issn", Some(vec![("media_type", "print")]), w, |w| {
-                w.write(XmlEvent::Characters(&self.issn_print))
-                    .map_err(|e| e.into())
-            })?;
-            write_full_element_block("issn", Some(vec![("media_type", "electronic")]), w, |w| {
-                w.write(XmlEvent::Characters(&self.issn_digital))
-                    .map_err(|e| e.into())
+        if self.issn_digital.is_some() || self.issn_print.is_some() {
+            write_element_block("series_metadata", w, |w| {
+                write_element_block("titles", w, |w| {
+                    write_element_block("title", w, |w| {
+                        w.write(XmlEvent::Characters(&self.series_name))
+                            .map_err(|e| e.into())
+                    })
+                })?;
+                if let Some(issn_print) = &self.issn_print {
+                    write_full_element_block(
+                        "issn",
+                        Some(vec![("media_type", "print")]),
+                        w,
+                        |w| {
+                            w.write(XmlEvent::Characters(issn_print))
+                                .map_err(|e| e.into())
+                        },
+                    )?;
+                }
+                if let Some(issn_digital) = &self.issn_digital {
+                    write_full_element_block(
+                        "issn",
+                        Some(vec![("media_type", "electronic")]),
+                        w,
+                        |w| {
+                            w.write(XmlEvent::Characters(issn_digital))
+                                .map_err(|e| e.into())
+                        },
+                    )?;
+                }
+                Ok(())
             })
-        })
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -814,6 +833,7 @@ mod tests {
                 edition: None,
                 doi: Some(Doi::from_str("https://doi.org/10.00001/CHAPTER.0001").unwrap()),
                 publication_date: chrono::NaiveDate::from_ymd_opt(2000, 2, 28),
+                withdrawn_date: None,
                 license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
                 short_abstract: Some("A shorter abstract".to_string()),
                 long_abstract: Some("First paragraph.\n\nSecond paragraph.".to_string()),
@@ -1016,6 +1036,7 @@ mod tests {
             edition: Some(100),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
+            withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
             short_abstract: None,
@@ -1052,10 +1073,11 @@ mod tests {
                 WorkIssues {
                     issue_ordinal: 11,
                     series: WorkIssuesSeries {
+                        series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                         series_type: SeriesType::BOOK_SERIES,
                         series_name: "Name of series".to_string(),
-                        issn_print: "1234-5678".to_string(),
-                        issn_digital: "8765-4321".to_string(),
+                        issn_print: Some("1234-5678".to_string()),
+                        issn_digital: Some("8765-4321".to_string()),
                         series_url: None,
                         series_description: None,
                         series_cfp_url: None,
@@ -1064,10 +1086,11 @@ mod tests {
                 WorkIssues {
                     issue_ordinal: 22,
                     series: WorkIssuesSeries {
+                        series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                         series_type: SeriesType::BOOK_SERIES,
                         series_name: "Irrelevant series".to_string(),
-                        issn_print: "1111-2222".to_string(),
-                        issn_digital: "3333-4444".to_string(),
+                        issn_print: Some("1111-2222".to_string()),
+                        issn_digital: Some("3333-4444".to_string()),
                         series_url: None,
                         series_description: None,
                         series_cfp_url: None,
@@ -1264,6 +1287,7 @@ mod tests {
                     edition: None,
                     doi: Some(Doi::from_str("https://doi.org/10.00001/PART.0001").unwrap()),
                     publication_date: chrono::NaiveDate::from_ymd_opt(2000, 2, 28),
+                    withdrawn_date: None,
                     license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
                     short_abstract: None,
                     long_abstract: None,
@@ -1585,6 +1609,7 @@ mod tests {
             edition: Some(100),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
+            withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
             short_abstract: None,

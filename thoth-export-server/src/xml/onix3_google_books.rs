@@ -339,6 +339,26 @@ impl XmlElementBlock<Onix3GoogleBooks> for Work {
                             .map_err(|e| e.into())
                         })
                     })?;
+                    if let Some(date) = &self.withdrawn_date {
+                        write_element_block("PublishingDate", w, |w| {
+                            write_element_block("PublishingDateRole", w, |w| {
+                                // 13 Out-of-print / permanently withdrawn date
+                                w.write(XmlEvent::Characters("13")).map_err(|e| e.into())
+                            })?;
+                            // dateformat="00" YYYYMMDD
+                            write_full_element_block(
+                                "Date",
+                                Some(vec![("dateformat", "00")]),
+                                w,
+                                |w| {
+                                    w.write(XmlEvent::Characters(
+                                        &date.format("%Y%m%d").to_string(),
+                                    ))
+                                    .map_err(|e| e.into())
+                                },
+                            )
+                        })?;
+                    }
                     write_element_block("SalesRights", w, |w| {
                         // 02 For sale with non-exclusive rights in the specified countries or territories
                         write_element_block("SalesRightsType", w, |w| {
@@ -602,18 +622,20 @@ impl XmlElementBlock<Onix3GoogleBooks> for WorkIssues {
             write_element_block("CollectionType", w, |w| {
                 w.write(XmlEvent::Characters("10")).map_err(|e| e.into())
             })?;
-            write_element_block("CollectionIdentifier", w, |w| {
-                // 02 ISSN
-                write_element_block("CollectionIDType", w, |w| {
-                    w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+            if let Some(issn_digital) = &self.series.issn_digital {
+                write_element_block("CollectionIdentifier", w, |w| {
+                    // 02 ISSN
+                    write_element_block("CollectionIDType", w, |w| {
+                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("IDValue", w, |w| {
+                        w.write(XmlEvent::Characters(
+                            &issn_digital.as_str().replace('-', ""),
+                        ))
+                        .map_err(|e| e.into())
+                    })
                 })?;
-                write_element_block("IDValue", w, |w| {
-                    w.write(XmlEvent::Characters(
-                        &self.series.issn_digital.replace('-', ""),
-                    ))
-                    .map_err(|e| e.into())
-                })
-            })?;
+            }
             write_element_block("TitleDetail", w, |w| {
                 // 01 Cover title (serial)
                 write_element_block("TitleType", w, |w| {
@@ -776,10 +798,11 @@ mod tests {
         let mut test_issue = WorkIssues {
             issue_ordinal: 1,
             series: WorkIssuesSeries {
+                series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                 series_type: thoth_client::SeriesType::JOURNAL,
                 series_name: "Name of series".to_string(),
-                issn_print: "1234-5678".to_string(),
-                issn_digital: "8765-4321".to_string(),
+                issn_print: Some("1234-5678".to_string()),
+                issn_digital: Some("8765-4321".to_string()),
                 series_url: None,
                 series_description: None,
                 series_cfp_url: None,
@@ -803,7 +826,7 @@ mod tests {
         // Change all possible values to test that output is updated
         test_issue.issue_ordinal = 2;
         test_issue.series.series_name = "Different series".to_string();
-        test_issue.series.issn_digital = "1111-2222".to_string();
+        test_issue.series.issn_digital = Some("1111-2222".to_string());
         let output = generate_test_output(true, &test_issue);
         assert!(output.contains(r#"<Collection>"#));
         assert!(output.contains(r#"  <CollectionType>10</CollectionType>"#));
@@ -831,6 +854,7 @@ mod tests {
             edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
+            withdrawn_date: None,
             license: Some("https://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
             short_abstract: None,
@@ -1142,9 +1166,20 @@ mod tests {
             "Could not generate onix_3.0::google_books: Missing Publication Date".to_string()
         );
 
-        // Replace publication date but remove the only (PDF) publication's only location
-        // Result: error (can't generate Google Books ONIX without EPUB or PDF URL)
+        // Replace publication date, add withdrawn date
         test_work.publication_date = chrono::NaiveDate::from_ymd_opt(1999, 12, 31);
+        test_work.withdrawn_date = chrono::NaiveDate::from_ymd_opt(2020, 12, 31);
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(
+            r#"
+    <PublishingDate>
+      <PublishingDateRole>13</PublishingDateRole>
+      <Date dateformat="00">20201231</Date>
+    </PublishingDate>"#
+        ));
+
+        // Remove the only (PDF) publication's only location
+        // Result: error (can't generate Google Books ONIX without EPUB or PDF URL)
         test_work.publications[0].locations.clear();
         let output = generate_test_output(false, &test_work);
         assert_eq!(

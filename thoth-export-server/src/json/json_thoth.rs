@@ -86,6 +86,7 @@ mod tests {
             edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
+            withdrawn_date: None,
             license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
             short_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.".to_string()),
@@ -121,10 +122,11 @@ mod tests {
             issues: vec![WorkIssues {
                 issue_ordinal: 1,
                 series: WorkIssuesSeries {
+                    series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     series_type: SeriesType::JOURNAL,
                     series_name: "Name of series".to_string(),
-                    issn_print: "1234-5678".to_string(),
-                    issn_digital: "8765-4321".to_string(),
+                    issn_print: Some("1234-5678".to_string()),
+                    issn_digital: Some("8765-4321".to_string()),
                     series_url: Some("https://www.series.com".to_string()),
                     series_description: Some("Description of series".to_string()),
                     series_cfp_url: Some("https://www.series.com/cfp".to_string()),
@@ -389,6 +391,7 @@ mod tests {
                     edition: None,
                     doi: None,
                     publication_date: None,
+                    withdrawn_date: None,
                     license: None,
                     short_abstract: None,
                     long_abstract: None,
@@ -445,6 +448,7 @@ mod tests {
   "edition": 1,
   "doi": "https://doi.org/10.00001/BOOK.0001",
   "publicationDate": "1999-12-31",
+  "withdrawnDate": null,
   "license": "http://creativecommons.org/licenses/by/4.0/",
   "copyrightHolder": "Author 1; Author 2",
   "shortAbstract": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.",
@@ -481,6 +485,7 @@ mod tests {
     {
       "issueOrdinal": 1,
       "series": {
+        "seriesId": "00000000-0000-0000-bbbb-000000000002",
         "seriesType": "JOURNAL",
         "seriesName": "Name of series",
         "issnPrint": "1234-5678",
@@ -757,6 +762,7 @@ mod tests {
         "edition": null,
         "doi": null,
         "publicationDate": null,
+        "withdrawnDate": null,
         "license": null,
         "shortAbstract": null,
         "longAbstract": null,

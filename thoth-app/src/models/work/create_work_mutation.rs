@@ -18,6 +18,7 @@ const CREATE_WORK_MUTATION: &str = "
         $imprintId: Uuid!,
         $doi: Doi,
         $publicationDate: NaiveDate,
+        $withdrawnDate: NaiveDate,
         $place: String,
         $pageCount: Int,
         $pageBreakdown: String,
@@ -53,6 +54,7 @@ const CREATE_WORK_MUTATION: &str = "
             imprintId: $imprintId
             doi: $doi
             publicationDate: $publicationDate
+            withdrawnDate: $withdrawnDate
             place: $place
             pageCount: $pageCount
             pageBreakdown: $pageBreakdown
@@ -112,6 +114,7 @@ pub struct Variables {
     pub edition: Option<i32>,
     pub doi: Option<Doi>,
     pub publication_date: Option<String>,
+    pub withdrawn_date: Option<String>,
     pub place: Option<String>,
     pub page_count: Option<i32>,
     pub page_breakdown: Option<String>,

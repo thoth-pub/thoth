@@ -97,6 +97,7 @@ pub enum Msg {
     ChangeEdition(String),
     ChangeDoi(String),
     ChangeDate(String),
+    ChangeWithdrawnDate(String),
     ChangePlace(String),
     ChangePageCount(String),
     ChangePageBreakdown(String),
@@ -276,7 +277,7 @@ impl Component for NewWorkComponent {
                 } else if let Ok(result) = self.doi.parse::<Doi>() {
                     self.work.doi.neq_assign(Some(result));
                 }
-                // Clear any fields which are not applicable to the currently selected work type.
+                // Clear any fields which are not applicable to the currently selected work type or work status.
                 // (Do not clear them before the save point as the user may change the type again.)
                 if self.work.work_type == WorkType::BookChapter {
                     self.work.edition = None;
@@ -287,6 +288,11 @@ impl Component for NewWorkComponent {
                     self.work.first_page = None;
                     self.work.last_page = None;
                     self.work.page_interval = None;
+                }
+                if self.work.work_status != WorkStatus::WithdrawnFromSale
+                    && self.work.work_status != WorkStatus::OutOfPrint
+                {
+                    self.work.withdrawn_date = None;
                 }
                 let body = CreateWorkRequestBody {
                     variables: Variables {
@@ -299,6 +305,7 @@ impl Component for NewWorkComponent {
                         edition: self.work.edition,
                         doi: self.work.doi.clone(),
                         publication_date: self.work.publication_date.clone(),
+                        withdrawn_date: self.work.withdrawn_date.clone(),
                         place: self.work.place.clone(),
                         page_count: self.work.page_count,
                         page_breakdown: self.work.page_breakdown.clone(),
@@ -376,6 +383,9 @@ impl Component for NewWorkComponent {
                 }
             }
             Msg::ChangeDate(value) => self.work.publication_date.neq_assign(value.to_opt_string()),
+            Msg::ChangeWithdrawnDate(value) => {
+                self.work.withdrawn_date.neq_assign(value.to_opt_string())
+            }
             Msg::ChangePlace(value) => self.work.place.neq_assign(value.to_opt_string()),
             Msg::ChangePageCount(value) => self.work.page_count.neq_assign(value.to_opt_int()),
             Msg::ChangePageBreakdown(value) => {
@@ -448,6 +458,9 @@ impl Component for NewWorkComponent {
         // Grey out chapter-specific or "book"-specific fields
         // based on currently selected work type.
         let is_chapter = self.work.work_type == WorkType::BookChapter;
+        let is_not_withdrawn_or_out_of_print = self.work.work_status
+            != WorkStatus::WithdrawnFromSale
+            && self.work.work_status != WorkStatus::OutOfPrint;
         html! {
             <>
                 <nav class="level">
@@ -514,6 +527,13 @@ impl Component for NewWorkComponent {
                         label = "Publication Date"
                         value={ self.work.publication_date.clone() }
                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDate(e.to_value())) }
+                    />
+                    <FormDateInput
+                        label = "Withdrawn Date"
+                        value={ self.work.withdrawn_date.clone() }
+                        oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWithdrawnDate(e.to_value())) }
+                        required = true
+                        deactivated={ is_not_withdrawn_or_out_of_print }
                     />
                     <FormTextInput
                         label = "Place of Publication"

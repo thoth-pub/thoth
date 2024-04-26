@@ -189,7 +189,7 @@ impl TryFrom<Work> for BibtexThothEntry {
             issn: work
                 .issues
                 .first()
-                .map(|i| i.series.issn_digital.to_string()),
+                .and_then(|i| i.series.issn_digital.as_ref().map(|s| s.to_string())),
             url: work.landing_page,
             copyright: work.license,
             long_abstract: work.long_abstract,
@@ -283,6 +283,7 @@ mod tests {
             edition: Some(1),
             doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
             publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
+            withdrawn_date: None,
             license: Some("http://creativecommons.org/licenses/by/4.0/".to_string()),
             copyright_holder: Some("Author 1; Author 2".to_string()),
             short_abstract: Some("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum vel libero eleifend, ultrices purus vitae, suscipit ligula. Aliquam ornare quam et nulla vestibulum, id euismod tellus malesuada. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.".to_string()),
@@ -318,10 +319,11 @@ mod tests {
             issues: vec![WorkIssues {
                 issue_ordinal: 5,
                 series: WorkIssuesSeries {
+                    series_id: Uuid::parse_str("00000000-0000-0000-BBBB-000000000002").unwrap(),
                     series_type: SeriesType::JOURNAL,
                     series_name: "Name of series".to_string(),
-                    issn_print: "1234-5678".to_string(),
-                    issn_digital: "8765-4321".to_string(),
+                    issn_print: Some("1234-5678".to_string()),
+                    issn_digital: Some("8765-4321".to_string()),
                     series_url: Some("https://www.series.com".to_string()),
                     series_description: Some("Description of series".to_string()),
                     series_cfp_url: Some("https://www.series.com/cfp".to_string()),
@@ -478,6 +480,7 @@ mod tests {
                     edition: None,
                     doi: None,
                     publication_date: None,
+                    withdrawn_date: None,
                     license: None,
                     short_abstract: None,
                     long_abstract: None,
@@ -508,6 +511,7 @@ mod tests {
                     edition: None,
                     doi: None,
                     publication_date: None,
+                    withdrawn_date: None,
                     license: None,
                     short_abstract: None,
                     long_abstract: None,

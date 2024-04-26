@@ -8,8 +8,8 @@ const CREATE_SERIES_MUTATION: &str = "
     mutation CreateSeries(
             $seriesType: SeriesType!,
             $seriesName: String!,
-            $issnPrint: String!,
-            $issnDigital: String!,
+            $issnPrint: String,
+            $issnDigital: String,
             $seriesUrl: String,
             $seriesDescription: String,
             $seriesCfpUrl: String,
@@ -28,8 +28,6 @@ const CREATE_SERIES_MUTATION: &str = "
             seriesId
             seriesType
             seriesName
-            issnPrint
-            issnDigital
             imprintId
             createdAt
             updatedAt
@@ -53,8 +51,8 @@ graphql_query_builder! {
 pub struct Variables {
     pub series_type: SeriesType,
     pub series_name: String,
-    pub issn_print: String,
-    pub issn_digital: String,
+    pub issn_print: Option<String>,
+    pub issn_digital: Option<String>,
     pub series_url: Option<String>,
     pub series_description: Option<String>,
     pub series_cfp_url: Option<String>,
