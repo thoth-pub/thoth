@@ -6,9 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-  - Upgrade rust to `1.78.0` in production and development `Dockerfile`
-  - Upgrade `trunk` to v0.20.0
-  - Added `-vv` option to build command in Makefile
+  - [601](https://github.com/thoth-pub/thoth/pull/601) - Upgrade rust to `1.78.0` in production and development `Dockerfile`
+  - [601](https://github.com/thoth-pub/thoth/pull/601) - Upgrade `trunk` to v0.20.0
+  - [601](https://github.com/thoth-pub/thoth/pull/601) - Added `-vv` option to build command in Makefile
 
 ## [[0.12.4]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.4) - 2024-04-30
 ### Changed
