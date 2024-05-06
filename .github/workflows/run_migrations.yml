@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build binary
-        run: cargo build --verbose
+        run: cargo build -vv
       - name: Run migrations
         run: cargo run migrate
       - name: Revert migrations
