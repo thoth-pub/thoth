@@ -45,7 +45,7 @@ docker-dev-db:
 	docker-compose -f docker-compose.dev.yml up db
 
 build:
-	cargo build
+	cargo build -vv
 
 build-graphql-api: build
 
