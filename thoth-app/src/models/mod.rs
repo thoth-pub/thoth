@@ -121,10 +121,6 @@ pub trait ListString {
     const BULLET_SEPARATOR: &'static str = " • ";
     const COMMA_SEPARATOR: &'static str = ", ";
 
-    fn separated_list_item_bullet_small(&self) -> Html {
-        self.separated_list_item(true, Self::BULLET_SEPARATOR)
-    }
-
     fn separated_list_item_comma(&self) -> Html {
         self.separated_list_item(false, Self::COMMA_SEPARATOR)
     }
