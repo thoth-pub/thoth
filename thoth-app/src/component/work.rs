@@ -207,9 +207,15 @@ impl Component for WorkComponent {
                         self.doi = self.work.doi.clone().unwrap_or_default().to_string();
                         self.imprint_id = self.work.imprint.imprint_id;
                         self.work_type = self.work.work_type.clone();
-                        self.data.imprints = body.data.imprints.to_owned();
-                        self.data.work_types = body.data.work_types.enum_values.to_owned();
-                        self.data.work_statuses = body.data.work_statuses.enum_values.to_owned();
+                        body.data.imprints.clone_into(&mut self.data.imprints);
+                        body.data
+                            .work_types
+                            .enum_values
+                            .clone_into(&mut self.data.work_types);
+                        body.data
+                            .work_statuses
+                            .enum_values
+                            .clone_into(&mut self.data.work_statuses);
 
                         // If user doesn't have permission to edit this object, redirect to dashboard
                         if let Some(publishers) =

@@ -5,6 +5,8 @@ dist = "pkg"
 public_url = "/admin/"
 # Whether to include hash values in the output file names.
 filehash = false
+# Control minification
+minify = "on_release" # can be one of: never, on_release, always
 
 [clean]
 # The output dir for all final assets.

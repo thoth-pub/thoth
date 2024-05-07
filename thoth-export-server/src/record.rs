@@ -4,6 +4,7 @@ use paperclip::actix::web::HttpResponse;
 use paperclip::actix::OperationModifier;
 use paperclip::v2::models::{DefaultOperationRaw, Either, Response};
 use paperclip::v2::schema::Apiv2Schema;
+use std::fmt::Display;
 use std::str::FromStr;
 use thoth_client::Work;
 use thoth_errors::{ThothError, ThothResult};
@@ -285,28 +286,27 @@ impl FromStr for MetadataSpecification {
     }
 }
 
-impl ToString for MetadataSpecification {
-    fn to_string(&self) -> String {
-        match self {
-            MetadataSpecification::Onix3Thoth(_) => "onix_3.0::thoth".to_string(),
-            MetadataSpecification::Onix3ProjectMuse(_) => "onix_3.0::project_muse".to_string(),
-            MetadataSpecification::Onix3Oapen(_) => "onix_3.0::oapen".to_string(),
-            MetadataSpecification::Onix3Jstor(_) => "onix_3.0::jstor".to_string(),
-            MetadataSpecification::Onix3GoogleBooks(_) => "onix_3.0::google_books".to_string(),
-            MetadataSpecification::Onix3Overdrive(_) => "onix_3.0::overdrive".to_string(),
-            MetadataSpecification::Onix21EbscoHost(_) => "onix_2.1::ebsco_host".to_string(),
-            MetadataSpecification::Onix21ProquestEbrary(_) => {
-                "onix_2.1::proquest_ebrary".to_string()
-            }
-            MetadataSpecification::CsvThoth(_) => "csv::thoth".to_string(),
-            MetadataSpecification::JsonThoth(_) => "json::thoth".to_string(),
-            MetadataSpecification::KbartOclc(_) => "kbart::oclc".to_string(),
-            MetadataSpecification::BibtexThoth(_) => "bibtex::thoth".to_string(),
-            MetadataSpecification::DoiDepositCrossref(_) => "doideposit::crossref".to_string(),
-            MetadataSpecification::Marc21RecordThoth(_) => "marc21record::thoth".to_string(),
-            MetadataSpecification::Marc21MarkupThoth(_) => "marc21markup::thoth".to_string(),
-            MetadataSpecification::Marc21XmlThoth(_) => "marc21xml::thoth".to_string(),
-        }
+impl Display for MetadataSpecification {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
+            MetadataSpecification::Onix3Thoth(_) => "onix_3.0::thoth",
+            MetadataSpecification::Onix3ProjectMuse(_) => "onix_3.0::project_muse",
+            MetadataSpecification::Onix3Oapen(_) => "onix_3.0::oapen",
+            MetadataSpecification::Onix3Jstor(_) => "onix_3.0::jstor",
+            MetadataSpecification::Onix3GoogleBooks(_) => "onix_3.0::google_books",
+            MetadataSpecification::Onix3Overdrive(_) => "onix_3.0::overdrive",
+            MetadataSpecification::Onix21EbscoHost(_) => "onix_2.1::ebsco_host",
+            MetadataSpecification::Onix21ProquestEbrary(_) => "onix_2.1::proquest_ebrary",
+            MetadataSpecification::CsvThoth(_) => "csv::thoth",
+            MetadataSpecification::JsonThoth(_) => "json::thoth",
+            MetadataSpecification::KbartOclc(_) => "kbart::oclc",
+            MetadataSpecification::BibtexThoth(_) => "bibtex::thoth",
+            MetadataSpecification::DoiDepositCrossref(_) => "doideposit::crossref",
+            MetadataSpecification::Marc21RecordThoth(_) => "marc21record::thoth",
+            MetadataSpecification::Marc21MarkupThoth(_) => "marc21markup::thoth",
+            MetadataSpecification::Marc21XmlThoth(_) => "marc21xml::thoth",
+        };
+        write!(f, "{}", str)
     }
 }
 

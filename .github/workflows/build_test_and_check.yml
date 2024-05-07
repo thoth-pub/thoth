@@ -34,13 +34,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build binary
-        run: cargo build --verbose
+        run: cargo build -vv
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Run tests
-        run: cargo test --workspace --verbose
+        run: cargo test --workspace -vv
   lint:
     runs-on: ubuntu-latest
     steps:
