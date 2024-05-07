@@ -2,7 +2,7 @@ use dotenv::dotenv;
 use std::env;
 use std::process::{exit, Command};
 
-const TRUNK_VERSION: &str = "0.19.2";
+const TRUNK_VERSION: &str = "0.20.0";
 
 fn is_wasm_target_installed() -> bool {
     let output = Command::new("rustup")
