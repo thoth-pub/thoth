@@ -334,6 +334,9 @@ fn work_metadata<W: Write>(
             Ok(())
         })?;
     }
+
+    // crossmark logic goes here
+
     if !work.fundings.is_empty() {
         write_full_element_block("fr:program", Some(vec![("name", "fundref")]), w, |w| {
             for funding in &work.fundings {
