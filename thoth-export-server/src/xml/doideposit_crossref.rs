@@ -336,6 +336,23 @@ fn work_metadata<W: Write>(
     }
 
     // crossmark logic goes here
+    // if an imprint has a crossmark_doi, put it here
+    // 
+//     <crossmark xmlns="http://www.crossref.org/schema/5.3.1">
+//       <crossmark_version>not sure what goes here yet</crossmark_version>
+//       <crossmark_policy>imprint.crossmark_doi</crossmark_policy>
+//       <crossmark_domains xmlns="http://www.crossref.org/schema/5.3.1">
+//          <crossmark_domain xmlns="http://www.crossref.org/schema/5.3.1">
+//              <domain>{1,1}</domain>
+//              <filter>{0,1}</filter>
+//          </crossmark_domain>
+//       </crossmark_domains>
+//       <crossmark_domain_exclusive>{0,1}</crossmark_domain_exclusive>
+//       <updates xmlns="http://www.crossref.org/schema/5.3.1">
+//          <update date="" type="">{1,unbounded}</update>
+//       </updates>
+    //   <custom_metadata>{0,1}</custom_metadata>
+//   </crossmark>
 
     if !work.fundings.is_empty() {
         write_full_element_block("fr:program", Some(vec![("name", "fundref")]), w, |w| {
