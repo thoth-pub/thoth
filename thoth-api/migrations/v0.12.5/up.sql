@@ -8,20 +8,27 @@ ALTER TABLE work
 ALTER TABLE work ALTER COLUMN work_status TYPE text;
 
 -- assign works new work_status if theirs is going to be deleted
--- out of print, 17 works--> superseded
+-- current counts in production db as of 17-05-2024:
+-- out of print, 17 works
+-- inactive, 9 works
+-- out of stock indefinitely, 0 works
+-- !!! superseded is a placeholder for these works. 
+-- works will need to be manually reassigned correct work_status from the new 
+-- options, and withdrawn_date removed as necessary. This step in the migration is irreversible.
 UPDATE work 
-    SET work_status = 'superseded' 
-    WHERE work_status = 'out_of_print';
--- inactive, 9 works --> cancelled
-UPDATE work 
-    SET work_status = 'cancelled' 
-    WHERE work_status = 'inactive';
-
+    SET 
+        work_status = 'superseded', 
+        withdrawn_date = updated_at
+    WHERE 
+        work_status = 'out-of-print' 
+        OR work_status = 'out-of-stock-indefinitely' 
+        OR work_status = 'inactive';
 -- these work_status currently have no works with this status in production db;
 -- nonetheless, reassign in case works get assigned these work_status
 -- before migration is run in production
-
--- 'unspecified', 'unknown', 0 works —> Forthcoming
+-- current counts in production db as of 17-05-2024:
+-- unspecified, 0 works
+-- unknown, 0 works
 -- !!! This step of the migration is irreversible, because of merging two
 -- different work_status into a single one, and there are lots of 
 -- real works with forthcoming work_status that we don't want to 
@@ -32,14 +39,22 @@ UPDATE work
     SET work_status = 'forthcoming' 
     WHERE work_status = 'unspecified' OR work_status = 'unknown';
 
--- 'no-longer-our-product’,'out-of-stock-indefinitely’, 'remaindered', 'recalled', 0 works —> withdrawn
+-- current counts in production db as of 17-05-2024:
+-- no-longer-our-product, 0 works
+-- remaindered, 0 works
+-- recalled, 0 works
 -- !!! see above: this step of the migration is irreversible.
 UPDATE work 
-    SET work_status = 'withdrawn-from-sale' 
-    WHERE work_status = 'no-longer-our-product' OR work_status = 'out-of-stock-indefinitely' OR work_status = 'remaindered' OR work_status = 'recalled';
+    SET work_status = 'withdrawn-from-sale',
+    withdrawn_date = updated_at
+    WHERE 
+        work_status = 'no-longer-our-product'
+        OR work_status = 'remaindered'
+        OR work_status = 'recalled';
 
--- delete unused work_status enum values by creating new enum and add superseded
+-- delete unused work_status enum 
 DROP TYPE work_status;
+-- add new values by creating new enum and add superseded
 CREATE TYPE work_status AS ENUM (
     'cancelled',
     'forthcoming',
@@ -50,14 +65,16 @@ CREATE TYPE work_status AS ENUM (
 );
 ALTER TABLE work ALTER COLUMN work_status TYPE work_status USING work_status::work_status;
 
--- add constraints back to work table
+-- add new constraints (with same names as in v0.12.3) to work table
 ALTER TABLE work
-    ADD CONSTRAINT work_active_withdrawn_date_check CHECK
-        ((work_status = 'withdrawn-from-sale' OR work_status = 'out-of-print')
-        OR (work_status NOT IN ('withdrawn-from-sale', 'out-of-print') AND withdrawn_date IS NULL)),
-
+    -- withdrawn and superseded works must have withdrawn_date
     ADD CONSTRAINT work_inactive_no_withdrawn_date_check CHECK
-        (((work_status = 'withdrawn-from-sale' OR work_status = 'out-of-print') AND withdrawn_date IS NOT NULL)
-        OR (work_status NOT IN ('withdrawn-from-sale', 'out-of-print')));
+        (((work_status = 'withdrawn-from-sale' OR work_status = 'superseded') AND withdrawn_date IS NOT NULL)
+        OR (work_status NOT IN ('withdrawn-from-sale', 'superseded')));
+    -- all other work statuses must not have withdrawn_date
+    ADD CONSTRAINT work_active_withdrawn_date_check CHECK
+        ((work_status = 'withdrawn-from-sale' OR work_status = 'superseded')
+        OR (work_status NOT IN ('withdrawn-from-sale', 'superseded') AND withdrawn_date IS NULL)),
+
 
 

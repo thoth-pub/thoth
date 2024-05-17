@@ -4,16 +4,16 @@
 ALTER TABLE work
     DROP CONSTRAINT work_active_withdrawn_date_check,
     DROP CONSTRAINT work_inactive_no_withdrawn_date_check;
+-- TODO: drop new constraints in up migration
 
 ALTER TABLE work ALTER COLUMN work_status TYPE text;
 
+-- !!! if this down migration is run, 'out-of-print' should
+-- be treated as a placeholder work_status. 
+-- Works will need to be manually reassigned correct work_status.
 UPDATE work 
-    SET work_status = 'out_of_print' 
+    SET work_status = 'out-of-print' 
     WHERE work_status = 'superseded';
-
-UPDATE work 
-    SET work_status = 'inactive'
-    WHERE work_status = 'cancelled';
 
 DROP TYPE work_status;
 CREATE TYPE work_status AS ENUM (
