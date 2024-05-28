@@ -103,4 +103,3 @@ ALTER TABLE work
     ADD CONSTRAINT work_active_publication_date_check CHECK
         ((work_status = 'active' AND publication_date IS NOT NULL)
         OR (work_status != 'active'));
-        

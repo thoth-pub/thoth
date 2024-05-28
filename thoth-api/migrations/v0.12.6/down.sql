@@ -38,7 +38,7 @@ CREATE TYPE work_status AS ENUM (
 
 ALTER TABLE work ALTER COLUMN work_status TYPE work_status USING work_status::work_status;
 
--- add constraints back to work table
+-- add constraints back to work table 
 ALTER TABLE work
     ADD CONSTRAINT work_active_withdrawn_date_check CHECK
         ((work_status = 'withdrawn-from-sale' OR work_status = 'out-of-print')
@@ -47,4 +47,3 @@ ALTER TABLE work
     ADD CONSTRAINT work_inactive_no_withdrawn_date_check CHECK
         (((work_status = 'withdrawn-from-sale' OR work_status = 'out-of-print') AND withdrawn_date IS NOT NULL)
         OR (work_status NOT IN ('withdrawn-from-sale', 'out-of-print')));
-        
