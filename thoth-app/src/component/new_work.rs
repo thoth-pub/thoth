@@ -290,7 +290,6 @@ impl Component for NewWorkComponent {
                     self.work.page_interval = None;
                 }
                 if self.work.work_status != WorkStatus::WithdrawnFromSale
-                    && self.work.work_status != WorkStatus::OutOfPrint
                 {
                     self.work.withdrawn_date = None;
                 }
@@ -458,9 +457,8 @@ impl Component for NewWorkComponent {
         // Grey out chapter-specific or "book"-specific fields
         // based on currently selected work type.
         let is_chapter = self.work.work_type == WorkType::BookChapter;
-        let is_not_withdrawn_or_out_of_print = self.work.work_status
-            != WorkStatus::WithdrawnFromSale
-            && self.work.work_status != WorkStatus::OutOfPrint;
+        let is_not_withdrawn = self.work.work_status
+            != WorkStatus::WithdrawnFromSale;
         html! {
             <>
                 <nav class="level">
@@ -533,7 +531,7 @@ impl Component for NewWorkComponent {
                         value={ self.work.withdrawn_date.clone() }
                         oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeWithdrawnDate(e.to_value())) }
                         required = true
-                        deactivated={ is_not_withdrawn_or_out_of_print }
+                        deactivated={ is_not_withdrawn }
                     />
                     <FormTextInput
                         label = "Place of Publication"

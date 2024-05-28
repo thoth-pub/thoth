@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+  - [595](https://github.com/thoth-pub/thoth/issues/595) - Remove infrequently and unused work statuses, require a publication date for active works in Thoth
+
+### Added
+  - [595](https://github.com/thoth-pub/thoth/issues/595) - Add a new `Superseded` work status
 
 ## [[0.12.5]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.5) - 2024-05-07
 ### Changed

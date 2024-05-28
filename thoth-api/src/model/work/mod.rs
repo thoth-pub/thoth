@@ -54,25 +54,15 @@ pub enum WorkType {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum WorkStatus {
-    Unspecified,
     Cancelled,
+    #[default]
     Forthcoming,
     #[cfg_attr(feature = "backend", db_rename = "postponed-indefinitely")]
     PostponedIndefinitely,
     Active,
-    #[cfg_attr(feature = "backend", db_rename = "no-longer-our-product")]
-    NoLongerOurProduct,
-    #[cfg_attr(feature = "backend", db_rename = "out-of-stock-indefinitely")]
-    OutOfStockIndefinitely,
-    #[cfg_attr(feature = "backend", db_rename = "out-of-print")]
-    OutOfPrint,
-    #[default]
-    Inactive,
-    Unknown,
-    Remaindered,
     #[cfg_attr(feature = "backend", db_rename = "withdrawn-from-sale")]
     WithdrawnFromSale,
-    Recalled,
+    Superseded,
 }
 
 #[cfg_attr(
@@ -333,8 +323,8 @@ pub struct WorkOrderBy {
 }
 
 impl WorkStatus {
-    fn is_withdrawn_out_of_print(&self) -> bool {
-        matches!(self, WorkStatus::OutOfPrint | WorkStatus::WithdrawnFromSale)
+    fn is_withdrawn(&self) -> bool {
+        matches!(self, WorkStatus::WithdrawnFromSale)
     }
 }
 
@@ -343,8 +333,8 @@ pub trait WorkProperties {
     fn publication_date(&self) -> &Option<NaiveDate>;
     fn withdrawn_date(&self) -> &Option<NaiveDate>;
 
-    fn is_withdrawn_out_of_print(&self) -> bool {
-        self.work_status().is_withdrawn_out_of_print()
+    fn is_withdrawn(&self) -> bool {
+        self.work_status().is_withdrawn()
     }
 
     fn has_withdrawn_date(&self) -> bool {
@@ -352,14 +342,14 @@ pub trait WorkProperties {
     }
 
     fn withdrawn_date_error(&self) -> ThothResult<()> {
-        if !self.is_withdrawn_out_of_print() && self.has_withdrawn_date() {
+        if !self.is_withdrawn() && self.has_withdrawn_date() {
             return Err(ThothError::WithdrawnDateError);
         }
         Ok(())
     }
 
     fn no_withdrawn_date_error(&self) -> ThothResult<()> {
-        if self.is_withdrawn_out_of_print() && !self.has_withdrawn_date() {
+        if self.is_withdrawn() && !self.has_withdrawn_date() {
             return Err(ThothError::NoWithdrawnDateError);
         }
         Ok(())
@@ -515,7 +505,7 @@ fn test_worktype_default() {
 #[test]
 fn test_workstatus_default() {
     let workstatus: WorkStatus = Default::default();
-    assert_eq!(workstatus, WorkStatus::Inactive);
+    assert_eq!(workstatus, WorkStatus::Forthcoming);
 }
 
 #[test]
@@ -544,22 +534,10 @@ fn test_workstatus_display() {
     );
     assert_eq!(format!("{}", WorkStatus::Active), "Active");
     assert_eq!(
-        format!("{}", WorkStatus::NoLongerOurProduct),
-        "No Longer Our Product"
-    );
-    assert_eq!(
-        format!("{}", WorkStatus::OutOfStockIndefinitely),
-        "Out Of Stock Indefinitely"
-    );
-    assert_eq!(format!("{}", WorkStatus::OutOfPrint), "Out Of Print");
-    assert_eq!(format!("{}", WorkStatus::Inactive), "Inactive");
-    assert_eq!(format!("{}", WorkStatus::Unknown), "Unknown");
-    assert_eq!(format!("{}", WorkStatus::Remaindered), "Remaindered");
-    assert_eq!(
         format!("{}", WorkStatus::WithdrawnFromSale),
         "Withdrawn From Sale"
     );
-    assert_eq!(format!("{}", WorkStatus::Recalled), "Recalled");
+    assert_eq!(format!("{}", WorkStatus::Superseded), "Superseded");
 }
 
 #[test]
@@ -638,10 +616,6 @@ fn test_worktype_fromstr() {
 fn test_workstatus_fromstr() {
     use std::str::FromStr;
     assert_eq!(
-        WorkStatus::from_str("Unspecified").unwrap(),
-        WorkStatus::Unspecified
-    );
-    assert_eq!(
         WorkStatus::from_str("Cancelled").unwrap(),
         WorkStatus::Cancelled
     );
@@ -655,36 +629,12 @@ fn test_workstatus_fromstr() {
     );
     assert_eq!(WorkStatus::from_str("Active").unwrap(), WorkStatus::Active);
     assert_eq!(
-        WorkStatus::from_str("No Longer Our Product").unwrap(),
-        WorkStatus::NoLongerOurProduct
-    );
-    assert_eq!(
-        WorkStatus::from_str("Out Of Stock Indefinitely").unwrap(),
-        WorkStatus::OutOfStockIndefinitely
-    );
-    assert_eq!(
-        WorkStatus::from_str("Out Of Print").unwrap(),
-        WorkStatus::OutOfPrint
-    );
-    assert_eq!(
-        WorkStatus::from_str("Inactive").unwrap(),
-        WorkStatus::Inactive
-    );
-    assert_eq!(
-        WorkStatus::from_str("Unknown").unwrap(),
-        WorkStatus::Unknown
-    );
-    assert_eq!(
-        WorkStatus::from_str("Remaindered").unwrap(),
-        WorkStatus::Remaindered
-    );
-    assert_eq!(
         WorkStatus::from_str("Withdrawn From Sale").unwrap(),
         WorkStatus::WithdrawnFromSale
     );
     assert_eq!(
-        WorkStatus::from_str("Recalled").unwrap(),
-        WorkStatus::Recalled
+        WorkStatus::from_str("Superseded").unwrap(),
+        WorkStatus::Superseded
     );
 
     assert!(WorkStatus::from_str("Published").is_err());
