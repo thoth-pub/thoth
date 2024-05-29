@@ -579,6 +579,8 @@ impl Component for WorkComponent {
                 let is_chapter = self.work.work_type == WorkType::BookChapter;
                 let is_not_withdrawn = self.work.work_status
                     != WorkStatus::WithdrawnFromSale;
+                let is_active = self.work.work_status
+                    == WorkStatus::Active;
                 html! {
                     <>
                         <nav class="level">
@@ -653,6 +655,7 @@ impl Component for WorkComponent {
                                 label = "Publication Date"
                                 value={ self.work.publication_date.clone() }
                                 oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeDate(e.to_value())) }
+                                required = { is_active }
                             />
                             <FormDateInput
                                 label = "Withdrawn Date"

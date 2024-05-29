@@ -326,6 +326,9 @@ impl WorkStatus {
     fn is_withdrawn(&self) -> bool {
         matches!(self, WorkStatus::WithdrawnFromSale)
     }
+    fn is_active(&self) -> bool {
+        matches!(self, WorkStatus::Active)
+    }
 }
 
 pub trait WorkProperties {
@@ -337,8 +340,23 @@ pub trait WorkProperties {
         self.work_status().is_withdrawn()
     }
 
+    fn is_active(&self) -> bool {
+        self.work_status().is_active()
+    }
+
     fn has_withdrawn_date(&self) -> bool {
         self.withdrawn_date().is_some()
+    }
+
+    fn has_publication_date(&self) -> bool {
+        self.publication_date().is_some()
+    }
+
+    fn active_no_publication_date_error(&self) -> ThothResult<()> {
+        if self.is_active() && self.has_publication_date() {
+            return Err(ThothError::PublicationDateError);
+        }
+        Ok(())
     }
 
     fn withdrawn_date_error(&self) -> ThothResult<()> {

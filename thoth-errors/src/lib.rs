@@ -85,6 +85,8 @@ pub enum ThothError {
         "Price values must be greater than zero. To indicate an unpriced Publication, omit all Prices."
     )]
     PriceZeroError,
+    #[error("Publication Date is required for an Active Work.")]
+    PublicationDateError,
     #[error("{0}")]
     RequestError(String),
     #[error("{0}")]
