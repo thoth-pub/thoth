@@ -323,11 +323,13 @@ pub struct WorkOrderBy {
 }
 
 impl WorkStatus {
-    fn is_withdrawn(&self) -> bool {
-        matches!(self, WorkStatus::WithdrawnFromSale)
+    fn is_withdrawn_superseded(&self) -> bool {
+        matches!(self, WorkStatus::WithdrawnFromSale |
+        WorkStatus::Superseded)
     }
-    fn is_active(&self) -> bool {
-        matches!(self, WorkStatus::Active)
+    fn is_active_withdrawn_superseded(&self) -> bool {
+        matches!(self, WorkStatus::Active | 
+        WorkStatus::Superseded | WorkStatus::WithdrawnFromSale)
     }
 }
 
@@ -336,12 +338,12 @@ pub trait WorkProperties {
     fn publication_date(&self) -> &Option<NaiveDate>;
     fn withdrawn_date(&self) -> &Option<NaiveDate>;
 
-    fn is_withdrawn(&self) -> bool {
-        self.work_status().is_withdrawn()
+    fn is_withdrawn_superseded(&self) -> bool {
+        self.work_status().is_withdrawn_superseded()
     }
 
-    fn is_active(&self) -> bool {
-        self.work_status().is_active()
+    fn is_active_withdrawn_superseded(&self) -> bool {
+        self.work_status().is_active_withdrawn_superseded()
     }
 
     fn has_withdrawn_date(&self) -> bool {
@@ -353,21 +355,21 @@ pub trait WorkProperties {
     }
 
     fn active_no_publication_date_error(&self) -> ThothResult<()> {
-        if self.is_active() && self.has_publication_date() {
+        if self.is_active_withdrawn_superseded() && !self.has_publication_date() {
             return Err(ThothError::PublicationDateError);
         }
         Ok(())
     }
 
     fn withdrawn_date_error(&self) -> ThothResult<()> {
-        if !self.is_withdrawn() && self.has_withdrawn_date() {
+        if !self.is_withdrawn_superseded() && self.has_withdrawn_date() {
             return Err(ThothError::WithdrawnDateError);
         }
         Ok(())
     }
 
     fn no_withdrawn_date_error(&self) -> ThothResult<()> {
-        if self.is_withdrawn() && !self.has_withdrawn_date() {
+        if self.is_withdrawn_superseded() && !self.has_withdrawn_date() {
             return Err(ThothError::NoWithdrawnDateError);
         }
         Ok(())

@@ -289,7 +289,8 @@ impl Component for NewWorkComponent {
                     self.work.last_page = None;
                     self.work.page_interval = None;
                 }
-                if self.work.work_status != WorkStatus::WithdrawnFromSale
+                if self.work.work_status != WorkStatus::WithdrawnFromSale &&
+                self.work.work_status != WorkStatus::WithdrawnFromSale
                 {
                     self.work.withdrawn_date = None;
                 }
