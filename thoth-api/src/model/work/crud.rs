@@ -408,7 +408,7 @@ where
     Self: WorkProperties,
 {
     fn validate(&self) -> ThothResult<()> {
-        self.active_no_publication_date_error()?;
+        self.active_withdrawn_superseded_no_publication_date_error()?;
         self.withdrawn_date_error()?;
         self.no_withdrawn_date_error()?;
         self.withdrawn_date_before_publication_date_error()

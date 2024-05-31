@@ -6,10 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-  - [595](https://github.com/thoth-pub/thoth/issues/595) - Remove infrequently and unused work statuses, require a publication date for active works in Thoth
+  - [595](https://github.com/thoth-pub/thoth/issues/595) - Remove infrequently used and unused work statuses (unspecified, no longer our product, out of stock indefinitely, out of print, inactive, unknown, remaindered, recalled). Require a publication date for active, withdrawn from sale, and superseded works in Thoth.
 
 ### Added
-  - [595](https://github.com/thoth-pub/thoth/issues/595) - Add a new `Superseded` work status
+  - [595](https://github.com/thoth-pub/thoth/issues/595) - Add a new `Superseded` work status to replace Out of Print for older editions of Works. Require a withdrawn from sale date for Superseded works.
 
 ## [[0.12.5]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.5) - 2024-05-07
 ### Changed

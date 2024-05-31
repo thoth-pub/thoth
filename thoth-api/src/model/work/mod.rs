@@ -329,7 +329,7 @@ impl WorkStatus {
     fn is_active_withdrawn_superseded(&self) -> bool {
         matches!(
             self,
-            WorkStatus::Active | WorkStatus::Superseded | WorkStatus::WithdrawnFromSale
+            WorkStatus::Active | WorkStatus::WithdrawnFromSale | WorkStatus::Superseded
         )
     }
 }
@@ -355,7 +355,7 @@ pub trait WorkProperties {
         self.publication_date().is_some()
     }
 
-    fn active_no_publication_date_error(&self) -> ThothResult<()> {
+    fn active_withdrawn_superseded_no_publication_date_error(&self) -> ThothResult<()> {
         if self.is_active_withdrawn_superseded() && !self.has_publication_date() {
             return Err(ThothError::PublicationDateError);
         }
