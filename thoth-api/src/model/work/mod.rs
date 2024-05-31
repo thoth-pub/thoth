@@ -54,15 +54,15 @@ pub enum WorkType {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "title_case")]
 pub enum WorkStatus {
-    Cancelled,
     #[default]
     Forthcoming,
-    #[cfg_attr(feature = "backend", db_rename = "postponed-indefinitely")]
-    PostponedIndefinitely,
     Active,
     #[cfg_attr(feature = "backend", db_rename = "withdrawn-from-sale")]
     WithdrawnFromSale,
     Superseded,
+    #[cfg_attr(feature = "backend", db_rename = "postponed-indefinitely")]
+    PostponedIndefinitely,
+    Cancelled,
 }
 
 #[cfg_attr(
