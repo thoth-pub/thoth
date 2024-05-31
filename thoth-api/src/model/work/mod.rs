@@ -324,12 +324,13 @@ pub struct WorkOrderBy {
 
 impl WorkStatus {
     fn is_withdrawn_superseded(&self) -> bool {
-        matches!(self, WorkStatus::WithdrawnFromSale |
-        WorkStatus::Superseded)
+        matches!(self, WorkStatus::WithdrawnFromSale | WorkStatus::Superseded)
     }
     fn is_active_withdrawn_superseded(&self) -> bool {
-        matches!(self, WorkStatus::Active | 
-        WorkStatus::Superseded | WorkStatus::WithdrawnFromSale)
+        matches!(
+            self,
+            WorkStatus::Active | WorkStatus::Superseded | WorkStatus::WithdrawnFromSale
+        )
     }
 }
 
