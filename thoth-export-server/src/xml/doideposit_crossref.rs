@@ -334,28 +334,116 @@ fn work_metadata<W: Write>(
             Ok(())
         })?;
     }
-    if !work.fundings.is_empty() {
-        write_full_element_block("fr:program", Some(vec![("name", "fundref")]), w, |w| {
-            for funding in &work.fundings {
-                XmlElementBlock::<DoiDepositCrossref>::xml_element(funding, w)?;
-            }
-            Ok(())
+
+    if let Some(crossmark_doi) = &work.imprint.crossmark_doi {
+
+        let update_type = match &work.work_status {
+            thoth_client::WorkStatus::WITHDRAWN_FROM_SALE => "withdrawal",
+            thoth_client::WorkStatus::SUPERSEDED => "new_edition",
+            // Only the above work_status count as an "update" in crossmark.
+            thoth_client::WorkStatus::FORTHCOMING
+            | thoth_client::WorkStatus::ACTIVE
+            | thoth_client::WorkStatus::POSTPONED_INDEFINITELY
+            | thoth_client::WorkStatus::CANCELLED
+            | thoth_client::WorkStatus::Other(_) => "no_update",
+        };
+
+        let new_edition_with_doi: Vec<WorkRelations> = work
+            .relations
+            .filter(|r| {
+                r.relation_type == RelationType::IS_REPLACED_BY && r.related_work.doi.is_some()
+            });
+
+        write_element_block("crossmark", w, |w| {
+            write_element_block("crossmark_version", w, |w| {
+                w.write(XmlEvent::Characters("2"))
+                    .map_err(|e| e.into())
+            })?;
+            write_element_block("crossmark_policy", w, |w| {
+                w.write(XmlEvent::Characters(&crossmark_doi.to_string()))
+                    .map_err(|e| e.into())
+            })?;
+            if update_type != "no_update" {
+                write_element_block("updates", w, |w| {
+                    if let Some(withdrawn_date) = &work.withdrawn_date {    
+                        if let Some(new_edition_doi) = new_edition_with_doi.doi {
+                            write_full_element_block("update", 
+                            Some(vec![("type", update_type), ("date", &withdrawn_date.to_string())]),
+                            w, |w| {
+                                w.write(XmlEvent::Characters(&new_edition_doi.to_string()))
+                                    .map_err(|e| e.into())
+                            })
+                        } else {
+                            if let Some(doi) = &work.doi {
+                                write_full_element_block("update", 
+                                Some(vec![("type", update_type), ("date", &withdrawn_date.to_string())]),
+                                w, |w| {
+                                    w.write(XmlEvent::Characters(&doi.to_string()))
+                                        .map_err(|e| e.into())
+                                })
+                            } else {
+                                Ok(())
+                            }
+                        }
+                    } else {
+                        Ok(())
+                    }
+                })
+            } else {
+                Ok(())
+            }?;
+            // If crossmark metadata is included, funding and access data must be inside the <crossmark> element
+            // within <custom_metadata> tag
+            write_element_block("custom_metadata", w, |w| {
+                if !work.fundings.is_empty() {
+                    write_full_element_block("fr:program", Some(vec![("name", "fundref")]), w, |w| {
+                        for funding in &work.fundings {
+                            XmlElementBlock::<DoiDepositCrossref>::xml_element(funding, w)?;
+                        }
+                        Ok(())
+                    })?;
+                }
+                write_full_element_block(
+                    "ai:program",
+                    Some(vec![("name", "AccessIndicators")]),
+                    w,
+                    |w| {
+                        write_element_block("ai:free_to_read", w, |_w| Ok(()))?;
+                        if let Some(license) = &work.license {
+                            write_element_block("ai:license_ref", w, |w| {
+                                w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
+                            })?;
+                        }
+                        Ok(())
+                    },
+                )
+            })
         })?;
+    } else {
+        if !work.fundings.is_empty() {
+            write_full_element_block("fr:program", Some(vec![("name", "fundref")]), w, |w| {
+                for funding in &work.fundings {
+                    XmlElementBlock::<DoiDepositCrossref>::xml_element(funding, w)?;
+                }
+                Ok(())
+            })?;
+        }
+        write_full_element_block(
+            "ai:program",
+            Some(vec![("name", "AccessIndicators")]),
+            w,
+            |w| {
+                write_element_block("ai:free_to_read", w, |_w| Ok(()))?;
+                if let Some(license) = &work.license {
+                    write_element_block("ai:license_ref", w, |w| {
+                        w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
+                    })?;
+                }
+                Ok(())
+            },
+        )?;
     }
-    write_full_element_block(
-        "ai:program",
-        Some(vec![("name", "AccessIndicators")]),
-        w,
-        |w| {
-            write_element_block("ai:free_to_read", w, |_w| Ok(()))?;
-            if let Some(license) = &work.license {
-                write_element_block("ai:license_ref", w, |w| {
-                    w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
-                })?;
-            }
-            Ok(())
-        },
-    )?;
+
     if let Some(doi) = &work.doi {
         if let Some(landing_page) = &work.landing_page {
             write_element_block("doi_data", w, |w| {
@@ -827,6 +915,7 @@ mod tests {
             relation_type: RelationType::HAS_CHILD,
             relation_ordinal: 1,
             related_work: WorkRelationsRelatedWork {
+                work_status: WorkStatus::ACTIVE,
                 full_title: "Chapter: One".to_string(),
                 title: "Chapter".to_string(),
                 subtitle: Some("One".to_string()),
@@ -844,6 +933,7 @@ mod tests {
                 page_interval: Some("10–20".to_string()),
                 landing_page: Some("https://www.book.com/chapter_one".to_string()),
                 imprint: WorkRelationsRelatedWorkImprint {
+                    crossmark_doi: None,
                     publisher: WorkRelationsRelatedWorkImprintPublisher {
                         publisher_name: "Chapter One Publisher".to_string(),
                     },
@@ -1281,6 +1371,7 @@ mod tests {
                 relation_type: RelationType::HAS_PART,
                 relation_ordinal: 1,
                 related_work: WorkRelationsRelatedWork {
+                    work_status: WorkStatus::ACTIVE,
                     full_title: "Part: One".to_string(),
                     title: "Part".to_string(),
                     subtitle: Some("One".to_string()),
@@ -1298,6 +1389,7 @@ mod tests {
                     page_interval: Some("10–20".to_string()),
                     landing_page: Some("https://www.book.com/part_one".to_string()),
                     imprint: WorkRelationsRelatedWorkImprint {
+                        crossmark_doi: None,
                         publisher: WorkRelationsRelatedWorkImprintPublisher {
                             publisher_name: "Part One Publisher".to_string(),
                         },

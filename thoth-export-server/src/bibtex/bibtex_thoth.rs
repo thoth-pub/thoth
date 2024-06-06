@@ -474,6 +474,7 @@ mod tests {
                 relation_type: RelationType::IS_CHILD_OF,
                 relation_ordinal: 7,
                 related_work: WorkRelationsRelatedWork {
+                    work_status: WorkStatus::ACTIVE,
                     full_title: "Related work title".to_string(),
                     title: "N/A".to_string(),
                     subtitle: None,
@@ -491,6 +492,7 @@ mod tests {
                     page_interval: None,
                     landing_page: None,
                     imprint: WorkRelationsRelatedWorkImprint {
+                        crossmark_doi: None,
                         publisher: WorkRelationsRelatedWorkImprintPublisher {
                             publisher_name: "N/A".to_string(),
                         },
@@ -505,6 +507,7 @@ mod tests {
                 relation_type: RelationType::HAS_TRANSLATION,
                 relation_ordinal: 4,
                 related_work: WorkRelationsRelatedWork {
+                    work_status: WorkStatus::ACTIVE,
                     full_title: "Irrelevant related work".to_string(),
                     title: "N/A".to_string(),
                     subtitle: None,
@@ -522,6 +525,7 @@ mod tests {
                     page_interval: None,
                     landing_page: None,
                     imprint: WorkRelationsRelatedWorkImprint {
+                        crossmark_doi: None,
                         publisher: WorkRelationsRelatedWorkImprintPublisher {
                             publisher_name: "N/A".to_string(),
                         },
