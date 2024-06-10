@@ -265,6 +265,8 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                         
                                 let new_edition_with_doi = work
                                     .relations
+                                    .clone()
+                                    .into_iter()
                                     .filter(|r| {
                                         r.relation_type == RelationType::IS_REPLACED_BY && r.related_work.doi.is_some()
                                     });
@@ -278,35 +280,38 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                         w.write(XmlEvent::Characters(&crossmark_doi.to_string()))
                                             .map_err(|e| e.into())
                                     })?;
-                                    if update_type != "no_update" {
-                                        write_element_block("updates", w, |w| {
-                                            if let Some(withdrawn_date) = &work.withdrawn_date {    
-                                                if let Some(new_edition_doi) = new_edition_with_doi.doi {
-                                                    write_full_element_block("update", 
-                                                    Some(vec![("type", update_type), ("date", &withdrawn_date.to_string())]),
-                                                    w, |w| {
-                                                        w.write(XmlEvent::Characters(&new_edition_doi.to_string()))
-                                                            .map_err(|e| e.into())
-                                                    })
-                                                } else {
-                                                    if let Some(doi) = &work.doi {
-                                                        write_full_element_block("update", 
-                                                        Some(vec![("type", update_type), ("date", &withdrawn_date.to_string())]),
-                                                        w, |w| {
-                                                            w.write(XmlEvent::Characters(&doi.to_string()))
-                                                                .map_err(|e| e.into())
-                                                        })
-                                                    } else {
-                                                        Ok(())
+                                    if update_type == "new_edition" {
+                                        if let Some(withdrawn_date) = &work.withdrawn_date {
+                                                write_element_block("updates", w, |w| {
+                                                    for relation in work.relations
+                                                        .iter()
+                                                        .filter(|r| (r.relation_type == RelationType::IS_REPLACED_BY && r.related_work.doi.is_some()))
+                                                    {
+                                                        if let Some(doi) = relation.related_work.doi {
+                                                            write_full_element_block("update", 
+                                                            Some(vec![("type", update_type), ("date", &withdrawn_date.to_string())]),
+                                                            w, |w| {
+                                                                w.write(XmlEvent::Characters(&relation.related_work.doi.as_ref().map_or(&"No DOI".to_string(), |doi| &doi.to_string())))
+                                                                    .map_err(|e| e.into())
+                                                            });
+                                                        }
                                                     }
+                                                    Ok(())
+                                                    })?;
                                                 }
-                                            } else {
-                                                Ok(())
+                                    } else if update_type == "withdrawal" {
+                                        if let Some(withdrawn_date) = &work.withdrawn_date {
+                                            if let Some(doi) = &work.doi {
+                                                write_full_element_block("update", 
+                                                Some(vec![("type", update_type), ("date", &withdrawn_date.to_string())]),
+                                                w, |w| {
+                                                    w.write(XmlEvent::Characters(&doi.to_string()))
+                                                        .map_err(|e| e.into())
+                                                });
                                             }
-                                        })
-                                    } else {
-                                        Ok(())
-                                    }?;
+                                        }
+                                    }
+
                                     // If crossmark metadata is included, funding and access data must be inside the <crossmark> element
                                     // within <custom_metadata> tag
                                     write_element_block("custom_metadata", w, |w| {
@@ -334,6 +339,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                         )
                                     })
                                 })?;
+                            // If no crossmark metadata, funding and access data go here
                             } else {
                                 if !work.fundings.is_empty() {
                                     write_full_element_block("fr:program", Some(vec![("name", "fundref")]), w, |w| {
@@ -358,16 +364,8 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                     },
                                 )?;
                             }
-                        }
-                        
-                            // work_metadata(
-                            //     w,
-                            //     &WorkRelationsRelatedWork::from(self.clone()),
-                            //     None,
-                            //     Some(ordinal),
-                            // )
-                        
-                    )?;
+                            Ok(())
+                        });
                 } else {
                     write_full_element_block(
                         "book_metadata",
@@ -860,7 +858,7 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelations {
     }
 }
 
-impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkPublications {
+impl XmlElementBlock<DoiDepositCrossref> for WorkPublications {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         if let Some(isbn) = self.isbn.as_ref().map(|i| i.to_string()) {
             let isbn_type = match self.publication_type.eq(&PublicationType::PAPERBACK)
