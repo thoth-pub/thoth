@@ -5,7 +5,8 @@ use thoth_client::{
     ContributionType, PublicationType, RelationType, Work, WorkContributions, 
     WorkContributionsAffiliationsInstitution, WorkFundings, WorkIssuesSeries, 
     WorkPublications, WorkReferences,
-    WorkType
+    WorkRelationsRelatedWorkContributions,
+    WorkRelationsRelatedWorkContributionsAffiliationsInstitution, WorkType
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -313,7 +314,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                                         w, |w| {
                                                             w.write(XmlEvent::Characters(&doi.to_string()))
                                                                 .map_err(|e| e.into())
-                                                        });
+                                                        })?;
                                                     }
                                                 }
                                                 Ok(())
@@ -327,7 +328,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                                 w, |w| {
                                                     w.write(XmlEvent::Characters(&doi.to_string()))
                                                         .map_err(|e| e.into())
-                                                });
+                                                })?;
                                             }
                                         }
                                     }
@@ -466,7 +467,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                             }
                             Ok(())
                         }
-                    );
+                    )?;
                     
                 } else {
                     write_full_element_block(
@@ -667,7 +668,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                                         w, |w| {
                                                             w.write(XmlEvent::Characters(&doi.to_string()))
                                                                 .map_err(|e| e.into())
-                                                        });
+                                                        })?;
                                                     }
                                                 }
                                                 Ok(())
@@ -681,7 +682,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                                 w, |w| {
                                                     w.write(XmlEvent::Characters(&doi.to_string()))
                                                         .map_err(|e| e.into())
-                                                });
+                                                })?;
                                             }
                                         }
                                     }
@@ -839,7 +840,8 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                         // work: &self.related_work, 
                         // chapter_number: Some(self.relation_ordinal), 
                         // volume_number: None)
-                        let contributions: Vec<WorkContributions> = work
+                        let contributions: Vec<WorkRelationsRelatedWorkContributions> = chapter
+                            .related_work
                             .contributions
                             .clone()
                             .into_iter()
@@ -859,10 +861,10 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                         }
                         write_element_block("titles", w, |w| {
                             write_element_block("title", w, |w| {
-                                w.write(XmlEvent::Characters(&work.title))
+                                w.write(XmlEvent::Characters(&chapter.related_work.title))
                                     .map_err(|e| e.into())
                             })?;
-                            if let Some(subtitle) = &work.subtitle {
+                            if let Some(subtitle) = &chapter.related_work.subtitle {
                                 write_element_block("subtitle", w, |w| {
                                     w.write(XmlEvent::Characters(subtitle))
                                         .map_err(|e| e.into())
@@ -875,7 +877,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                         // which can be set to any value. In our case we use "long" or "short".
                         // Abstracts must be output in JATS, we simply convert them into JATS by extracting its
                         // paragraphs and tagging them with <jats:p>
-                        if let Some(long_abstract) = &work.long_abstract {
+                        if let Some(long_abstract) = &chapter.related_work.long_abstract {
                             write_full_element_block(
                                 "jats:abstract",
                                 Some(vec![("abstract-type", "long")]),
@@ -893,7 +895,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                 },
                             )?;
                         }
-                        if let Some(short_abstract) = &work.short_abstract {
+                        if let Some(short_abstract) = &chapter.related_work.short_abstract {
                             write_full_element_block(
                                 "jats:abstract",
                                 Some(vec![("abstract-type", "short")]),
@@ -920,14 +922,14 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                             })?;
                         }
 
-                        if let Some(edition) = work.edition {
+                        if chapter.related_work.edition.is_some() {
                             return Err(ThothError::IncompleteMetadataRecord(
                                 DEPOSIT_ERROR.to_string(),
                                 "Chapters cannot have Edition numbers".to_string(),
                             ));
                         }
-
-                        if let Some(date) = work.publication_date {
+                        // TODO: find out if chapters can have their own publication_date
+                        if let Some(date) = chapter.related_work.publication_date {
                             write_element_block("publication_date", w, |w| {
                                 write_element_block("month", w, |w| {
                                     w.write(XmlEvent::Characters(&date.format("%m").to_string()))
@@ -959,6 +961,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                 Ok(())
                             })?;
                         }
+                        // TODO: can chapters have their own work_status?
                         if let Some(crossmark_doi) = &work.imprint.crossmark_doi {
 
                             let update_type = match &work.work_status {
@@ -972,13 +975,13 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                 | thoth_client::WorkStatus::Other(_) => "no_update",
                             };
                     
-                            let new_edition_with_doi = work
-                                .relations
-                                .clone()
-                                .into_iter()
-                                .filter(|r| {
-                                    r.relation_type == RelationType::IS_REPLACED_BY && r.related_work.doi.is_some()
-                                });
+                            // let new_edition_with_doi = work
+                            //     .relations
+                            //     .clone()
+                            //     .into_iter()
+                            //     .filter(|r| {
+                            //         r.relation_type == RelationType::IS_REPLACED_BY && r.related_work.doi.is_some()
+                            //     });
                     
                             write_element_block("crossmark", w, |w| {
                                 write_element_block("crossmark_version", w, |w| {
@@ -996,18 +999,19 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                                 .iter()
                                                 .filter(|r| (r.relation_type == RelationType::IS_REPLACED_BY && r.related_work.doi.is_some()))
                                             {
-                                                if let Some(doi) = relation.related_work.doi {
+                                                if let Some(doi) = &relation.related_work.doi {
                                                     write_full_element_block("update", 
                                                     Some(vec![("type", update_type), ("date", &withdrawn_date.to_string())]),
                                                     w, |w| {
-                                                        w.write(XmlEvent::Characters(&relation.related_work.doi.as_ref().map_or(&"No DOI".to_string(), |doi| &doi.to_string())))
+                                                        w.write(XmlEvent::Characters(&doi.to_string()))
                                                             .map_err(|e| e.into())
-                                                    });
+                                                    })?;
                                                 }
                                             }
                                             Ok(())
                                         })?;
                                     }
+                                // TODO: is this right, or should a withdrawal not have a DOI at all?
                                 } else if update_type == "withdrawal" {
                                     if let Some(withdrawn_date) = &work.withdrawn_date {
                                         if let Some(doi) = &work.doi {
@@ -1016,7 +1020,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                             w, |w| {
                                                 w.write(XmlEvent::Characters(&doi.to_string()))
                                                     .map_err(|e| e.into())
-                                            });
+                                            })?;
                                         }
                                     }
                                 }
@@ -1073,8 +1077,8 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                 },
                             )?;
                         }
-                        if let Some(doi) = &work.doi {
-                            if let Some(landing_page) = &work.landing_page {
+                        if let Some(doi) = &chapter.related_work.doi {
+                            if let Some(landing_page) = &chapter.related_work.landing_page {
                                 write_element_block("doi_data", w, |w| {
                                     write_element_block("doi", w, |w| {
                                         w.write(XmlEvent::Characters(&doi.to_string()))
@@ -1084,7 +1088,8 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                                         w.write(XmlEvent::Characters(landing_page))
                                             .map_err(|e| e.into())
                                     })?;
-                                    if let Some(pdf_url) = work
+                                    if let Some(pdf_url) = chapter
+                                        .related_work
                                         .publications
                                         .iter()
                                         .find(|p| {
@@ -1160,9 +1165,9 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                             ));
                         }
 
-                        if !work.references.is_empty() {
+                        if !chapter.related_work.references.is_empty() {
                             write_element_block("citation_list", w, |w| {
-                                for reference in &work.references {
+                                for reference in &chapter.related_work.references {
                                     XmlElementBlock::<DoiDepositCrossref>::xml_element(reference, w)?;
                                 }
                                 Ok(())
@@ -1722,8 +1727,91 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkContributions {
     }
 }
 
+impl XmlElementBlock<DoiDepositCrossref> for WorkRelationsRelatedWorkContributions {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        let role = match &self.contribution_type {
+            ContributionType::AUTHOR => "author",
+            ContributionType::EDITOR => "editor",
+            ContributionType::TRANSLATOR => "translator",
+            // Only the above roles are supported by this format.
+            ContributionType::PHOTOGRAPHER
+            | ContributionType::ILLUSTRATOR
+            | ContributionType::MUSIC_EDITOR
+            | ContributionType::FOREWORD_BY
+            | ContributionType::INTRODUCTION_BY
+            | ContributionType::AFTERWORD_BY
+            | ContributionType::PREFACE_BY
+            | ContributionType::SOFTWARE_BY
+            | ContributionType::RESEARCH_BY
+            | ContributionType::CONTRIBUTIONS_BY
+            | ContributionType::INDEXER
+            | ContributionType::Other(_) => unreachable!(),
+        };
+        let ordinal = match &self.contribution_ordinal {
+            1 => "first",
+            _ => "additional",
+        };
+        write_full_element_block(
+            "person_name",
+            Some(vec![("sequence", ordinal), ("contributor_role", role)]),
+            w,
+            |w| {
+                if let Some(first_name) = &self.first_name {
+                    write_element_block("given_name", w, |w| {
+                        w.write(XmlEvent::Characters(first_name))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                write_element_block("surname", w, |w| {
+                    w.write(XmlEvent::Characters(&self.last_name))
+                        .map_err(|e| e.into())
+                })?;
+                if !self.affiliations.is_empty() {
+                    write_element_block("affiliations", w, |w| {
+                        for affiliation in &self.affiliations {
+                            XmlElementBlock::<DoiDepositCrossref>::xml_element(
+                                &affiliation.institution,
+                                w,
+                            )?;
+                        }
+                        Ok(())
+                    })?;
+                }
+                if let Some(orcid) = &self.contributor.orcid {
+                    write_element_block("ORCID", w, |w| {
+                        // Leading `https://orcid.org` is required, and omitted by orcid.to_string()
+                        w.write(XmlEvent::Characters(&orcid.with_domain()))
+                            .map_err(|e| e.into())
+                    })?;
+                }
+                Ok(())
+            },
+        )
+    }
+}
+
 impl XmlElementBlock<DoiDepositCrossref>
     for WorkContributionsAffiliationsInstitution
+{
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_element_block("institution", w, |w| {
+            write_element_block("institution_name", w, |w| {
+                w.write(XmlEvent::Characters(&self.institution_name))
+                    .map_err(|e| e.into())
+            })?;
+            if let Some(ror) = &self.ror {
+                write_full_element_block("institution_id", Some(vec![("type", "ror")]), w, |w| {
+                    w.write(XmlEvent::Characters(&ror.with_domain()))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            Ok(())
+        })
+    }
+}
+
+impl XmlElementBlock<DoiDepositCrossref>
+    for WorkRelationsRelatedWorkContributionsAffiliationsInstitution
 {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("institution", w, |w| {
@@ -1914,11 +2002,12 @@ mod tests {
         WorkContributions, WorkContributionsAffiliations, WorkContributionsAffiliationsInstitution,
         WorkContributionsContributor, WorkFundings, WorkImprint, WorkImprintPublisher, WorkIssues,
         WorkIssuesSeries, WorkPublications, WorkPublicationsLocations, WorkReferences,
-        WorkRelations, WorkRelationsRelatedWorkContributions,
+        WorkRelations, WorkRelationsRelatedWork, WorkRelationsRelatedWorkContributions,
         WorkRelationsRelatedWorkContributionsAffiliations,
         WorkRelationsRelatedWorkContributionsAffiliationsInstitution,
         WorkRelationsRelatedWorkContributionsContributor, WorkRelationsRelatedWorkImprint,
-        WorkRelationsRelatedWorkImprintPublisher, WorkRelationsRelatedWorkPublicationsLocations,
+        WorkRelationsRelatedWorkImprintPublisher, WorkRelationsRelatedWorkPublications, 
+        WorkRelationsRelatedWorkPublicationsLocations,
         WorkStatus, WorkType,
     };
     use uuid::Uuid;
