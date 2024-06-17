@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Fixed
-  - [#513](https://github.com/thoth-pub/thoth/issues/513) - Expand DOI regex to include `+`, `[]`, and `]`
+  - [#513](https://github.com/thoth-pub/thoth/issues/513) - Expand DOI regex to include `+`, `[`, and `]`
 
 ### Changed
   - [607](https://github.com/thoth-pub/thoth/pull/607) - Upgrade rust to `1.79.0` in production and development `Dockerfile`
