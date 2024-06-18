@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [595](https://github.com/thoth-pub/thoth/issues/595) - Add a new `Superseded` work status to replace Out of Print for older editions of Works. Require a withdrawn from sale date for Superseded works.
 
+## [[0.12.6]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.6) - 2024-06-17
+### Fixed
+  - [#513](https://github.com/thoth-pub/thoth/issues/513) - Expand DOI regex to include `+`, `[`, and `]`
+
+### Changed
+  - [607](https://github.com/thoth-pub/thoth/pull/607) - Upgrade rust to `1.79.0` in production and development `Dockerfile`
+
+### Added
+  - [607](https://github.com/thoth-pub/thoth/pull/607) - Add caching steps to Github actions
+
 ## [[0.12.5]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.5) - 2024-05-07
 ### Changed
   - [601](https://github.com/thoth-pub/thoth/pull/601) - Upgrade rust to `1.78.0` in production and development `Dockerfile`
