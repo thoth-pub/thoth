@@ -71,7 +71,7 @@ impl XmlSpecification for DoiDepositCrossref {
                             w.write(XmlEvent::Characters("Thoth")).map_err(|e| e.into())
                         })
                     })?;
-                    // struct, trait, and function to actually write the body XML
+                    // write body XML
                     XmlElementBlock::<DoiDepositCrossref>::xml_element(work, w)
                 })
             }
@@ -81,6 +81,295 @@ impl XmlSpecification for DoiDepositCrossref {
     }
 }
 
+impl XmlElementBlock<DoiDepositCrossref> for Work {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        let work_type = match &self.work_type {
+            WorkType::MONOGRAPH => "monograph",
+            WorkType::EDITED_BOOK => "edited_book",
+            WorkType::TEXTBOOK => "reference",
+            WorkType::JOURNAL_ISSUE | WorkType::BOOK_SET | WorkType::BOOK_CHAPTER => "other",
+            WorkType::Other(_) => unreachable!(),
+        };
+        let work = self;
+        // As an alternative to `book_metadata` and `book_series_metadata` above,
+        // `book_set_metadata` can be used for works which are part of a set.
+        // Omitted at present but could be considered as a future enhancement.
+        let element_name = if self.issues.is_empty() {
+            "book_metadata"
+        } else {
+            "book_series_metadata"
+        };
+        write_element_block("body", w, |w| {
+            write_full_element_block("book",
+                Some(vec![("book_type", work_type)]),
+                w,
+                |w| {
+                    write_full_element_block(
+                        element_name,
+                        Some(vec![("language", "en")]),
+                        w,
+                        |w| {
+                            // Only one series can be listed, so we select the first one found (if any).
+                            if let Some(series) =
+                            self.issues.first().map(|i| (&i.series))
+                            {   
+                                XmlElementBlock::<DoiDepositCrossref>::xml_element(series, w)?;
+                            }
+                            write_contributions(&work, w)?;
+                            write_title(&work, w)?;
+                            write_abstract(&work, w)?;
+
+                            if let Some(ordinal) =
+                            self.issues.first().map(|i| (i.issue_ordinal)) {   
+                                // If the work is part of a series, caller should have passed in its issue number
+                                write_volume(ordinal, w)?;
+                            }
+                            write_edition(&work, w)?;
+                            write_publication_date(&work, w)?;
+                            write_publications(&work, w)?;
+                            write_publisher(&work, w)?;
+                            write_crossmark_funding_access(&work, w)?;
+                            write_doi_collection(&work, w)?;
+                            write_references(&work, w)?;
+                            Ok(())
+                        }
+                    )?;  
+
+                let mut chapters = self.relations.clone();
+                // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
+                chapters.sort_by(|a, b| a.relation_ordinal.cmp(&b.relation_ordinal));
+                for chapter in chapters
+                    .iter()
+                    .filter(|r| r.relation_type == RelationType::HAS_CHILD)
+                {
+                    write_full_element_block("content_item", Some(vec![("component_type", "chapter")]), w, |w| {
+                        write_chapter_contributions(&chapter, w)?;
+                        write_chapter_title(&chapter, w)?;
+                        write_chapter_abstract(&chapter, w)?;
+                        write_chapter_component_number(&chapter, w)?;
+                        check_chapter_has_no_edition(&chapter)?;
+                        write_chapter_publication_date(&chapter, w)?;
+                        write_chapter_pages(&chapter, w)?;
+
+
+                        // TODO: can chapters have their own work_status? yes. 
+                        // can a single chapter be withdrawn and replaced, or does this apply
+                        // to the whole work?
+                        // find out: can you add crossmark metadata for a single chapter?
+                        // leave this out for chapters
+                        // create an issue for this. 
+                        if let Some(crossmark_doi) = &work.imprint.crossmark_doi {
+
+                            let update_type = match &work.work_status {
+                                thoth_client::WorkStatus::WITHDRAWN_FROM_SALE => "withdrawal",
+                                thoth_client::WorkStatus::SUPERSEDED => "new_edition",
+                                // Only the above work_status count as an "update" in crossmark.
+                                thoth_client::WorkStatus::FORTHCOMING
+                                | thoth_client::WorkStatus::ACTIVE
+                                | thoth_client::WorkStatus::POSTPONED_INDEFINITELY
+                                | thoth_client::WorkStatus::CANCELLED
+                                | thoth_client::WorkStatus::Other(_) => "no_update",
+                            };
+                    
+                            write_element_block("crossmark", w, |w| {
+                                write_element_block("crossmark_version", w, |w| {
+                                    w.write(XmlEvent::Characters("2"))
+                                        .map_err(|e| e.into())
+                                })?;
+                                write_element_block("crossmark_policy", w, |w| {
+                                    w.write(XmlEvent::Characters(&crossmark_doi.to_string()))
+                                        .map_err(|e| e.into())
+                                })?;
+                                if update_type == "new_edition" {
+                                    if let Some(withdrawn_date) = &work.withdrawn_date {
+                                        write_element_block("updates", w, |w| {
+                                            // TODO: is this right for chapters? Or should it be relations of the chapter?
+                                            for relation in work.relations
+                                                .iter()
+                                                .filter(|r| (r.relation_type == RelationType::IS_REPLACED_BY && r.related_work.doi.is_some()))
+                                            {
+                                                if let Some(doi) = &relation.related_work.doi {
+                                                    write_full_element_block("update", 
+                                                    Some(vec![("type", update_type), ("date", &withdrawn_date.to_string())]),
+                                                    w, |w| {
+                                                        w.write(XmlEvent::Characters(&doi.to_string()))
+                                                            .map_err(|e| e.into())
+                                                    })?;
+                                                }
+                                            }
+                                            Ok(())
+                                        })?;
+                                    }
+                                // TODO: is this right, or should a withdrawal not have a DOI at all?
+                                } else if update_type == "withdrawal" {
+                                    if let Some(withdrawn_date) = &work.withdrawn_date {
+                                        if let Some(doi) = &work.doi {
+                                            write_full_element_block("update", 
+                                            Some(vec![("type", update_type), ("date", &withdrawn_date.to_string())]),
+                                            w, |w| {
+                                                w.write(XmlEvent::Characters(&doi.to_string()))
+                                                    .map_err(|e| e.into())
+                                            })?;
+                                        }
+                                    }
+                                }
+
+                                // If crossmark metadata is included, funding and access data must be inside the <crossmark> element
+                                // within <custom_metadata> tag
+                                write_element_block("custom_metadata", w, |w| {
+                                    if !work.fundings.is_empty() {
+                                        write_full_element_block("fr:program", Some(vec![("name", "fundref")]), w, |w| {
+                                            for funding in &work.fundings {
+                                                XmlElementBlock::<DoiDepositCrossref>::xml_element(funding, w)?;
+                                            }
+                                            Ok(())
+                                        })?;
+                                    }
+                                    write_full_element_block(
+                                        "ai:program",
+                                        Some(vec![("name", "AccessIndicators")]),
+                                        w,
+                                        |w| {
+                                            write_element_block("ai:free_to_read", w, |_w| Ok(()))?;
+                                            if let Some(license) = &work.license {
+                                                write_element_block("ai:license_ref", w, |w| {
+                                                    w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
+                                                })?;
+                                            }
+                                            Ok(())
+                                        },
+                                    )
+                                })
+                            })?;
+                        // If no crossmark metadata, funding and access data go here
+                        } else {
+                            if !work.fundings.is_empty() {
+                                write_full_element_block("fr:program", Some(vec![("name", "fundref")]), w, |w| {
+                                    for funding in &work.fundings {
+                                        XmlElementBlock::<DoiDepositCrossref>::xml_element(funding, w)?;
+                                    }
+                                    Ok(())
+                                })?;
+                            }
+                            write_full_element_block(
+                                "ai:program",
+                                Some(vec![("name", "AccessIndicators")]),
+                                w,
+                                |w| {
+                                    write_element_block("ai:free_to_read", w, |_w| Ok(()))?;
+                                    if let Some(license) = &work.license {
+                                        write_element_block("ai:license_ref", w, |w| {
+                                            w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
+                                        })?;
+                                    }
+                                    Ok(())
+                                },
+                            )?;
+                        }
+                        if let Some(doi) = &chapter.related_work.doi {
+                            if let Some(landing_page) = &chapter.related_work.landing_page {
+                                write_element_block("doi_data", w, |w| {
+                                    write_element_block("doi", w, |w| {
+                                        w.write(XmlEvent::Characters(&doi.to_string()))
+                                            .map_err(|e| e.into())
+                                    })?;
+                                    write_element_block("resource", w, |w| {
+                                        w.write(XmlEvent::Characters(landing_page))
+                                            .map_err(|e| e.into())
+                                    })?;
+                                    if let Some(pdf_url) = chapter
+                                        .related_work
+                                        .publications
+                                        .iter()
+                                        .find(|p| {
+                                            p.publication_type.eq(&PublicationType::PDF) && !p.locations.is_empty()
+                                        })
+                                        .and_then(|p| p.locations.iter().find(|l| l.canonical))
+                                        .and_then(|l| l.full_text_url.as_ref())
+                                    {
+                                        // Used for CrossRef Similarity Check. URL must point directly to full-text PDF.
+                                        // Alternatively, a direct link to full-text HTML can be used (not implemented here).
+                                        write_full_element_block(
+                                            "collection",
+                                            Some(vec![("property", "crawler-based")]),
+                                            w,
+                                            |w| {
+                                                for crawler in ["iParadigms", "google", "msn", "yahoo", "scirus"] {
+                                                    write_full_element_block(
+                                                        "item",
+                                                        Some(vec![("crawler", crawler)]),
+                                                        w,
+                                                        |w| {
+                                                            write_full_element_block(
+                                                                "resource",
+                                                                Some(vec![("mime_type", "application/pdf")]),
+                                                                w,
+                                                                |w| {
+                                                                    w.write(XmlEvent::Characters(pdf_url))
+                                                                        .map_err(|e| e.into())
+                                                                },
+                                                            )
+                                                        },
+                                                    )?;
+                                                }
+                                                Ok(())
+                                            },
+                                        )?;
+                                        // Used for CrossRef Text and Data Mining. URL must point directly to full-text PDF.
+                                        // Alternatively, a direct link to full-text XML can be used (not implemented here).
+                                        write_full_element_block(
+                                            "collection",
+                                            Some(vec![("property", "text-mining")]),
+                                            w,
+                                            |w| {
+                                                write_element_block("item", w, |w| {
+                                                    write_full_element_block(
+                                                        "resource",
+                                                        Some(vec![("mime_type", "application/pdf")]),
+                                                        w,
+                                                        |w| {
+                                                            w.write(XmlEvent::Characters(pdf_url)).map_err(|e| e.into())
+                                                        },
+                                                    )
+                                                })
+                                            },
+                                        )?;
+                                    }
+                                    Ok(())
+                                })?;
+                            } else {
+                                // `doi_data` element is mandatory for `content_item`, and must contain
+                                // both `doi` element and `resource` (landing page) element
+                                return Err(ThothError::IncompleteMetadataRecord(
+                                DEPOSIT_ERROR.to_string(),
+                                "Missing chapter Landing Page".to_string(),
+                                ));
+                            }
+                        } else {
+                            // `doi_data` element is mandatory for `content_item`, and must contain
+                            // both `doi` element and `resource` (landing page) element
+                            return Err(ThothError::IncompleteMetadataRecord(
+                            DEPOSIT_ERROR.to_string(),
+                            "Missing chapter DOI".to_string(),
+                            ));
+                        }
+
+                        if !chapter.related_work.references.is_empty() {
+                            write_element_block("citation_list", w, |w| {
+                                for reference in &chapter.related_work.references {
+                                    XmlElementBlock::<DoiDepositCrossref>::xml_element(reference, w)?;
+                                }
+                                Ok(())
+                            })?;
+                        }
+                        Ok(())
+                    })?;
+                }
+                Ok(())
+            }
+        )})
+    }
+}
 
 fn write_contributions<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
     let contributions: Vec<WorkContributions> = work
@@ -288,6 +577,9 @@ fn write_crossmark_funding_access<W: Write>(work: &Work, w: &mut EventWriter<W>)
                 w.write(XmlEvent::Characters(&crossmark_doi.to_string()))
                     .map_err(|e| e.into())
             })?;
+            // TODO: Not all Superseded (e.g. New Edition) works will have a correct link to related work in Thoth. 
+            // So in those cases, should we leave the DOI field blank, or put in the old work?
+            // skip crossmark metadata if there's no new DOI.
             if update_type == "new_edition" {
                 if let Some(withdrawn_date) = &work.withdrawn_date {
                     write_element_block("updates", w, |w| {
@@ -297,6 +589,7 @@ fn write_crossmark_funding_access<W: Write>(work: &Work, w: &mut EventWriter<W>)
                         {
                             if let Some(doi) = &relation.related_work.doi {
                                 write_full_element_block("update", 
+                                // TODO: should this date be the withdrawn_date of the old work, or the publication date of the new work?
                                 Some(vec![("type", update_type), ("date", &withdrawn_date.to_string())]),
                                 w, |w| {
                                     w.write(XmlEvent::Characters(&doi.to_string()))
@@ -307,6 +600,7 @@ fn write_crossmark_funding_access<W: Write>(work: &Work, w: &mut EventWriter<W>)
                         Ok(())
                     })?;
                 }
+            // TODO: fix. update tag should be enclosed by updates tag - see above.
             } else if update_type == "withdrawal" {
                 if let Some(withdrawn_date) = &work.withdrawn_date {
                     if let Some(doi) = &work.doi {
@@ -374,7 +668,6 @@ fn write_crossmark_funding_access<W: Write>(work: &Work, w: &mut EventWriter<W>)
     }
     Ok(())
 }
-
 
 fn write_doi_collection<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
     if let Some(doi) = &work.doi {
@@ -464,429 +757,152 @@ fn write_references<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResul
     Ok(())
 }
 
+fn write_chapter_contributions<W: Write>(chapter: &WorkRelations, w: &mut EventWriter<W>) -> ThothResult<()> {
+    // Only Author, Editor and Translator are supported by this format. Omit any other contributors.
+    let contributions: Vec<WorkRelationsRelatedWorkContributions> = chapter
+    .related_work
+    .contributions
+    .clone()
+    .into_iter()
+    .filter(|c| {
+        c.contribution_type == ContributionType::AUTHOR
+            || c.contribution_type == ContributionType::EDITOR
+            || c.contribution_type == ContributionType::TRANSLATOR
+    })
+    .collect();
+if !contributions.is_empty() {
+    write_element_block("contributors", w, |w| {
+        for contribution in &contributions {
+            XmlElementBlock::<DoiDepositCrossref>::xml_element(contribution, w)?;
+        }
+        Ok(())
+    })?;
+}
+    Ok(())
+}
 
+fn write_chapter_title<W: Write>(chapter: &WorkRelations, w: &mut EventWriter<W>) -> ThothResult<()> {
+    write_element_block("titles", w, |w| {
+        write_element_block("title", w, |w| {
+            w.write(XmlEvent::Characters(&chapter.related_work.title))
+                .map_err(|e| e.into())
+        })?;
+        if let Some(subtitle) = &chapter.related_work.subtitle {
+            write_element_block("subtitle", w, |w| {
+                w.write(XmlEvent::Characters(subtitle))
+                    .map_err(|e| e.into())
+            })?;
+        }
+        Ok(())
+    })?;
+    Ok(())
+}
 
-
-
-// struct and trait to write XML for work
-impl XmlElementBlock<DoiDepositCrossref> for Work {
-    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
-        let work_type = match &self.work_type {
-            WorkType::MONOGRAPH => "monograph",
-            WorkType::EDITED_BOOK => "edited_book",
-            WorkType::TEXTBOOK => "reference",
-            WorkType::JOURNAL_ISSUE | WorkType::BOOK_SET | WorkType::BOOK_CHAPTER => "other",
-            WorkType::Other(_) => unreachable!(),
-        };
-        let work = self;
-        let element_name = if self.issues.is_empty() {
-            "book_metadata"
-        } else {
-            "book_series_metadata"
-        };
-        write_element_block("body", w, |w| {
-            write_full_element_block("book",
-                Some(vec![("book_type", work_type)]),
-                w,
-                |w| {
-                    write_full_element_block(
-                        // element_name = either "book_series_metadata" || "book_metadata";
-                        element_name,
-                        Some(vec![("language", "en")]),
-                        w,
-                        |w| {
-
-                            // Only one series can be listed, so we select the first one found (if any).
-                            if let Some(series) =
-                            self.issues.first().map(|i| (&i.series))
-                            {   
-                                // here, it knows to run the impl for WorkIssuesSeries because that's
-                                // what it's passed as an argument.
-                                XmlElementBlock::<DoiDepositCrossref>::xml_element(series, w)?;
-                                // end (I think) of what is unique to Series
-                            }
-
-                            write_contributions(&work, w)?;
-                            write_title(&work, w)?;
-                            write_abstract(&work, w)?;
-
-
-                            if let Some(ordinal) =
-                            self.issues.first().map(|i| (i.issue_ordinal))
-                            {   
-                                // If the work is part of a series, caller should have passed in its issue number
-                                write_volume(ordinal, w)?;
-                            }
-
-                            write_edition(&work, w)?;
-                            write_publication_date(&work, w)?;
-                            write_publications(&work, w)?;
-                            write_publisher(&work, w)?;
-                            write_crossmark_funding_access(&work, w)?;
-                            write_doi_collection(&work, w)?;
-                            write_references(&work, w)?;
-                            Ok(())
-                        }
-                    )?;
-                    
-                
-                // As an alternative to `book_metadata` and `book_series_metadata` above,
-                // `book_set_metadata` can be used for works which are part of a set.
-                // Omitted at present but could be considered as a future enhancement.
-                let mut chapters = self.relations.clone();
-                // WorkQuery should already have retrieved these sorted by ordinal, but sort again for safety
-                chapters.sort_by(|a, b| a.relation_ordinal.cmp(&b.relation_ordinal));
-                for chapter in chapters
-                    .iter()
-                    .filter(|r| r.relation_type == RelationType::HAS_CHILD)
-                {
-                    write_full_element_block("content_item", Some(vec![("component_type", "chapter")]), w, |w| {
-                        // Only Author, Editor and Translator are supported by this format. Omit any other contributors.
-                        // work_metadata(
-                        // w: w, 
-                        // work: &self.related_work, 
-                        // chapter_number: Some(self.relation_ordinal), 
-                        // volume_number: None)
-                        let contributions: Vec<WorkRelationsRelatedWorkContributions> = chapter
-                            .related_work
-                            .contributions
-                            .clone()
-                            .into_iter()
-                            .filter(|c| {
-                                c.contribution_type == ContributionType::AUTHOR
-                                    || c.contribution_type == ContributionType::EDITOR
-                                    || c.contribution_type == ContributionType::TRANSLATOR
-                            })
-                            .collect();
-                        if !contributions.is_empty() {
-                            write_element_block("contributors", w, |w| {
-                                for contribution in &contributions {
-                                    XmlElementBlock::<DoiDepositCrossref>::xml_element(contribution, w)?;
-                                }
-                                Ok(())
-                            })?;
-                        }
-                        write_element_block("titles", w, |w| {
-                            write_element_block("title", w, |w| {
-                                w.write(XmlEvent::Characters(&chapter.related_work.title))
-                                    .map_err(|e| e.into())
-                            })?;
-                            if let Some(subtitle) = &chapter.related_work.subtitle {
-                                write_element_block("subtitle", w, |w| {
-                                    w.write(XmlEvent::Characters(subtitle))
-                                        .map_err(|e| e.into())
-                                })?;
-                            }
-                            Ok(())
+fn write_chapter_abstract<W: Write>(chapter: &WorkRelations, w: &mut EventWriter<W>) -> ThothResult<()> {
+    // Crossref supports multiple abstracts when tagged with the "abstract-type" attribute,
+    // which can be set to any value. In our case we use "long" or "short".
+    // Abstracts must be output in JATS, we simply convert them into JATS by extracting its
+    // paragraphs and tagging them with <jats:p>
+    if let Some(long_abstract) = &chapter.related_work.long_abstract {
+        write_full_element_block(
+            "jats:abstract",
+            Some(vec![("abstract-type", "long")]),
+            w,
+            |w| {
+                for paragraph in long_abstract.lines() {
+                    if !paragraph.is_empty() {
+                        write_element_block("jats:p", w, |w| {
+                            w.write(XmlEvent::Characters(paragraph))
+                                .map_err(|e| e.into())
                         })?;
-
-                        // Crossref supports multiple abstracts when tagged with the "abstract-type" attribute,
-                        // which can be set to any value. In our case we use "long" or "short".
-                        // Abstracts must be output in JATS, we simply convert them into JATS by extracting its
-                        // paragraphs and tagging them with <jats:p>
-                        if let Some(long_abstract) = &chapter.related_work.long_abstract {
-                            write_full_element_block(
-                                "jats:abstract",
-                                Some(vec![("abstract-type", "long")]),
-                                w,
-                                |w| {
-                                    for paragraph in long_abstract.lines() {
-                                        if !paragraph.is_empty() {
-                                            write_element_block("jats:p", w, |w| {
-                                                w.write(XmlEvent::Characters(paragraph))
-                                                    .map_err(|e| e.into())
-                                            })?;
-                                        }
-                                    }
-                                    Ok(())
-                                },
-                            )?;
-                        }
-                        if let Some(short_abstract) = &chapter.related_work.short_abstract {
-                            write_full_element_block(
-                                "jats:abstract",
-                                Some(vec![("abstract-type", "short")]),
-                                w,
-                                |w| {
-                                    for paragraph in short_abstract.lines() {
-                                        if !paragraph.is_empty() {
-                                            write_element_block("jats:p", w, |w| {
-                                                w.write(XmlEvent::Characters(paragraph))
-                                                    .map_err(|e| e.into())
-                                            })?;
-                                        }
-                                    }
-                                    Ok(())
-                                },
-                            )?;
-                        }
-
-                        if let Some(chapter) = Some(chapter.relation_ordinal) {
-                            // If the work is a chapter of another work, caller should have passed in its chapter number
-                            write_element_block("component_number", w, |w| {
-                                w.write(XmlEvent::Characters(&chapter.to_string()))
-                                    .map_err(|e| e.into())
-                            })?;
-                        }
-
-                        if chapter.related_work.edition.is_some() {
-                            return Err(ThothError::IncompleteMetadataRecord(
-                                DEPOSIT_ERROR.to_string(),
-                                "Chapters cannot have Edition numbers".to_string(),
-                            ));
-                        }
-                        // TODO: find out if chapters can have their own publication_date
-                        if let Some(date) = chapter.related_work.publication_date {
-                            write_element_block("publication_date", w, |w| {
-                                write_element_block("month", w, |w| {
-                                    w.write(XmlEvent::Characters(&date.format("%m").to_string()))
-                                        .map_err(|e| e.into())
-                                })?;
-                                write_element_block("day", w, |w| {
-                                    w.write(XmlEvent::Characters(&date.format("%d").to_string()))
-                                        .map_err(|e| e.into())
-                                })?;
-                                write_element_block("year", w, |w| {
-                                    w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
-                                        .map_err(|e| e.into())
-                                })
-                            })?;
-                        }
-
-                        if let Some(first_page) = &chapter.related_work.first_page {
-                            write_element_block("pages", w, |w| {
-                                write_element_block("first_page", w, |w| {
-                                    w.write(XmlEvent::Characters(first_page))
-                                        .map_err(|e| e.into())
-                                })?;
-                                if let Some(last_page) = &chapter.related_work.last_page {
-                                    write_element_block("last_page", w, |w| {
-                                        w.write(XmlEvent::Characters(last_page))
-                                            .map_err(|e| e.into())
-                                    })?;
-                                }
-                                Ok(())
-                            })?;
-                        }
-                        // TODO: can chapters have their own work_status?
-                        if let Some(crossmark_doi) = &work.imprint.crossmark_doi {
-
-                            let update_type = match &work.work_status {
-                                thoth_client::WorkStatus::WITHDRAWN_FROM_SALE => "withdrawal",
-                                thoth_client::WorkStatus::SUPERSEDED => "new_edition",
-                                // Only the above work_status count as an "update" in crossmark.
-                                thoth_client::WorkStatus::FORTHCOMING
-                                | thoth_client::WorkStatus::ACTIVE
-                                | thoth_client::WorkStatus::POSTPONED_INDEFINITELY
-                                | thoth_client::WorkStatus::CANCELLED
-                                | thoth_client::WorkStatus::Other(_) => "no_update",
-                            };
-                    
-                            // let new_edition_with_doi = work
-                            //     .relations
-                            //     .clone()
-                            //     .into_iter()
-                            //     .filter(|r| {
-                            //         r.relation_type == RelationType::IS_REPLACED_BY && r.related_work.doi.is_some()
-                            //     });
-                    
-                            write_element_block("crossmark", w, |w| {
-                                write_element_block("crossmark_version", w, |w| {
-                                    w.write(XmlEvent::Characters("2"))
-                                        .map_err(|e| e.into())
-                                })?;
-                                write_element_block("crossmark_policy", w, |w| {
-                                    w.write(XmlEvent::Characters(&crossmark_doi.to_string()))
-                                        .map_err(|e| e.into())
-                                })?;
-                                if update_type == "new_edition" {
-                                    if let Some(withdrawn_date) = &work.withdrawn_date {
-                                        write_element_block("updates", w, |w| {
-                                            for relation in work.relations
-                                                .iter()
-                                                .filter(|r| (r.relation_type == RelationType::IS_REPLACED_BY && r.related_work.doi.is_some()))
-                                            {
-                                                if let Some(doi) = &relation.related_work.doi {
-                                                    write_full_element_block("update", 
-                                                    Some(vec![("type", update_type), ("date", &withdrawn_date.to_string())]),
-                                                    w, |w| {
-                                                        w.write(XmlEvent::Characters(&doi.to_string()))
-                                                            .map_err(|e| e.into())
-                                                    })?;
-                                                }
-                                            }
-                                            Ok(())
-                                        })?;
-                                    }
-                                // TODO: is this right, or should a withdrawal not have a DOI at all?
-                                } else if update_type == "withdrawal" {
-                                    if let Some(withdrawn_date) = &work.withdrawn_date {
-                                        if let Some(doi) = &work.doi {
-                                            write_full_element_block("update", 
-                                            Some(vec![("type", update_type), ("date", &withdrawn_date.to_string())]),
-                                            w, |w| {
-                                                w.write(XmlEvent::Characters(&doi.to_string()))
-                                                    .map_err(|e| e.into())
-                                            })?;
-                                        }
-                                    }
-                                }
-
-                                // If crossmark metadata is included, funding and access data must be inside the <crossmark> element
-                                // within <custom_metadata> tag
-                                write_element_block("custom_metadata", w, |w| {
-                                    if !work.fundings.is_empty() {
-                                        write_full_element_block("fr:program", Some(vec![("name", "fundref")]), w, |w| {
-                                            for funding in &work.fundings {
-                                                XmlElementBlock::<DoiDepositCrossref>::xml_element(funding, w)?;
-                                            }
-                                            Ok(())
-                                        })?;
-                                    }
-                                    write_full_element_block(
-                                        "ai:program",
-                                        Some(vec![("name", "AccessIndicators")]),
-                                        w,
-                                        |w| {
-                                            write_element_block("ai:free_to_read", w, |_w| Ok(()))?;
-                                            if let Some(license) = &work.license {
-                                                write_element_block("ai:license_ref", w, |w| {
-                                                    w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
-                                                })?;
-                                            }
-                                            Ok(())
-                                        },
-                                    )
-                                })
-                            })?;
-                        // If no crossmark metadata, funding and access data go here
-                        } else {
-                            if !work.fundings.is_empty() {
-                                write_full_element_block("fr:program", Some(vec![("name", "fundref")]), w, |w| {
-                                    for funding in &work.fundings {
-                                        XmlElementBlock::<DoiDepositCrossref>::xml_element(funding, w)?;
-                                    }
-                                    Ok(())
-                                })?;
-                            }
-                            write_full_element_block(
-                                "ai:program",
-                                Some(vec![("name", "AccessIndicators")]),
-                                w,
-                                |w| {
-                                    write_element_block("ai:free_to_read", w, |_w| Ok(()))?;
-                                    if let Some(license) = &work.license {
-                                        write_element_block("ai:license_ref", w, |w| {
-                                            w.write(XmlEvent::Characters(license)).map_err(|e| e.into())
-                                        })?;
-                                    }
-                                    Ok(())
-                                },
-                            )?;
-                        }
-                        if let Some(doi) = &chapter.related_work.doi {
-                            if let Some(landing_page) = &chapter.related_work.landing_page {
-                                write_element_block("doi_data", w, |w| {
-                                    write_element_block("doi", w, |w| {
-                                        w.write(XmlEvent::Characters(&doi.to_string()))
-                                            .map_err(|e| e.into())
-                                    })?;
-                                    write_element_block("resource", w, |w| {
-                                        w.write(XmlEvent::Characters(landing_page))
-                                            .map_err(|e| e.into())
-                                    })?;
-                                    if let Some(pdf_url) = chapter
-                                        .related_work
-                                        .publications
-                                        .iter()
-                                        .find(|p| {
-                                            p.publication_type.eq(&PublicationType::PDF) && !p.locations.is_empty()
-                                        })
-                                        .and_then(|p| p.locations.iter().find(|l| l.canonical))
-                                        .and_then(|l| l.full_text_url.as_ref())
-                                    {
-                                        // Used for CrossRef Similarity Check. URL must point directly to full-text PDF.
-                                        // Alternatively, a direct link to full-text HTML can be used (not implemented here).
-                                        write_full_element_block(
-                                            "collection",
-                                            Some(vec![("property", "crawler-based")]),
-                                            w,
-                                            |w| {
-                                                for crawler in ["iParadigms", "google", "msn", "yahoo", "scirus"] {
-                                                    write_full_element_block(
-                                                        "item",
-                                                        Some(vec![("crawler", crawler)]),
-                                                        w,
-                                                        |w| {
-                                                            write_full_element_block(
-                                                                "resource",
-                                                                Some(vec![("mime_type", "application/pdf")]),
-                                                                w,
-                                                                |w| {
-                                                                    w.write(XmlEvent::Characters(pdf_url))
-                                                                        .map_err(|e| e.into())
-                                                                },
-                                                            )
-                                                        },
-                                                    )?;
-                                                }
-                                                Ok(())
-                                            },
-                                        )?;
-                                        // Used for CrossRef Text and Data Mining. URL must point directly to full-text PDF.
-                                        // Alternatively, a direct link to full-text XML can be used (not implemented here).
-                                        write_full_element_block(
-                                            "collection",
-                                            Some(vec![("property", "text-mining")]),
-                                            w,
-                                            |w| {
-                                                write_element_block("item", w, |w| {
-                                                    write_full_element_block(
-                                                        "resource",
-                                                        Some(vec![("mime_type", "application/pdf")]),
-                                                        w,
-                                                        |w| {
-                                                            w.write(XmlEvent::Characters(pdf_url)).map_err(|e| e.into())
-                                                        },
-                                                    )
-                                                })
-                                            },
-                                        )?;
-                                    }
-                                    Ok(())
-                                })?;
-                            } else {
-                                // `doi_data` element is mandatory for `content_item`, and must contain
-                                // both `doi` element and `resource` (landing page) element
-                                return Err(ThothError::IncompleteMetadataRecord(
-                                DEPOSIT_ERROR.to_string(),
-                                "Missing chapter Landing Page".to_string(),
-                                ));
-                            }
-                        } else {
-                            // `doi_data` element is mandatory for `content_item`, and must contain
-                            // both `doi` element and `resource` (landing page) element
-                            return Err(ThothError::IncompleteMetadataRecord(
-                            DEPOSIT_ERROR.to_string(),
-                            "Missing chapter DOI".to_string(),
-                            ));
-                        }
-
-                        if !chapter.related_work.references.is_empty() {
-                            write_element_block("citation_list", w, |w| {
-                                for reference in &chapter.related_work.references {
-                                    XmlElementBlock::<DoiDepositCrossref>::xml_element(reference, w)?;
-                                }
-                                Ok(())
-                            })?;
-                        }
-                        Ok(())
-                    })?;
+                    }
                 }
                 Ok(())
-            }
-        )})
+            },
+        )?;
     }
+    if let Some(short_abstract) = &chapter.related_work.short_abstract {
+        write_full_element_block(
+            "jats:abstract",
+            Some(vec![("abstract-type", "short")]),
+            w,
+            |w| {
+                for paragraph in short_abstract.lines() {
+                    if !paragraph.is_empty() {
+                        write_element_block("jats:p", w, |w| {
+                            w.write(XmlEvent::Characters(paragraph))
+                                .map_err(|e| e.into())
+                        })?;
+                    }
+                }
+                Ok(())
+            },
+        )?;
+    }
+    Ok(())
+}
+
+fn write_chapter_component_number<W: Write>(chapter: &WorkRelations, w: &mut EventWriter<W>) -> ThothResult<()> {
+    if let Some(chapter) = Some(chapter.relation_ordinal) {
+        // If the work is a chapter of another work, caller should have passed in its chapter number
+        write_element_block("component_number", w, |w| {
+            w.write(XmlEvent::Characters(&chapter.to_string()))
+                .map_err(|e| e.into())
+        })?;
+    }
+    Ok(())
+}
+
+fn check_chapter_has_no_edition(chapter: &WorkRelations) -> ThothResult<()> {
+    if chapter.related_work.edition.is_some() {
+        return Err(ThothError::IncompleteMetadataRecord(
+            DEPOSIT_ERROR.to_string(),
+            "Chapters cannot have Edition numbers".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn write_chapter_publication_date<W: Write>(chapter: &WorkRelations, w: &mut EventWriter<W>) -> ThothResult<()> {
+    // TODO: find out if chapters can have their own publication_date
+    // if not, this function could be deleted and we could 
+    // reuse write_publication_date for work
+    if let Some(date) = chapter.related_work.publication_date {
+        write_element_block("publication_date", w, |w| {
+            write_element_block("month", w, |w| {
+                w.write(XmlEvent::Characters(&date.format("%m").to_string()))
+                    .map_err(|e| e.into())
+            })?;
+            write_element_block("day", w, |w| {
+                w.write(XmlEvent::Characters(&date.format("%d").to_string()))
+                    .map_err(|e| e.into())
+            })?;
+            write_element_block("year", w, |w| {
+                w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
+                    .map_err(|e| e.into())
+            })
+        })?;
+    }
+    Ok(())
+}
+
+fn write_chapter_pages<W: Write>(chapter: &WorkRelations, w: &mut EventWriter<W>) -> ThothResult<()> {
+    if let Some(first_page) = &chapter.related_work.first_page {
+        write_element_block("pages", w, |w| {
+            write_element_block("first_page", w, |w| {
+                w.write(XmlEvent::Characters(first_page))
+                    .map_err(|e| e.into())
+            })?;
+            if let Some(last_page) = &chapter.related_work.last_page {
+                write_element_block("last_page", w, |w| {
+                    w.write(XmlEvent::Characters(last_page))
+                        .map_err(|e| e.into())
+                })?;
+            }
+            Ok(())
+        })?;
+    }
+    Ok(())
 }
 
 impl XmlElementBlock<DoiDepositCrossref> for WorkIssuesSeries {
