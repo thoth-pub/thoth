@@ -765,6 +765,7 @@ mod tests {
         "doi": null,
         "publicationDate": null,
         "withdrawnDate": null,
+        "workStatus": "ACTIVE",
         "license": null,
         "shortAbstract": null,
         "longAbstract": null,
@@ -775,6 +776,7 @@ mod tests {
         "pageInterval": null,
         "landingPage": null,
         "imprint": {
+          "crossmarkDoi": null,
           "publisher": {
             "publisherName": "N/A"
           }

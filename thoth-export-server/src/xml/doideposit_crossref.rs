@@ -336,7 +336,7 @@ fn write_crossmark_funding_access<W: Write>(work: &Work, w: &mut EventWriter<W>)
         let update_type = match &work.work_status {
             thoth_client::WorkStatus::WITHDRAWN_FROM_SALE => "withdrawal",
             thoth_client::WorkStatus::SUPERSEDED => "new_edition",
-            // Only the above work_status count as an "update" in crossmark.
+            // Only withdrawn from sale and superseded works are relevant for crossmark.
             thoth_client::WorkStatus::FORTHCOMING
             | thoth_client::WorkStatus::ACTIVE
             | thoth_client::WorkStatus::POSTPONED_INDEFINITELY
@@ -354,18 +354,19 @@ fn write_crossmark_funding_access<W: Write>(work: &Work, w: &mut EventWriter<W>)
                     .map_err(|e| e.into())
             })?;
             if update_type == "new_edition" {
-                if let Some(withdrawn_date) = &work.withdrawn_date {
-                    for relation in work.relations
-                        .iter()
-                        .filter(|r| (r.relation_type == RelationType::IS_REPLACED_BY && r.related_work.doi.is_some()))
-                    {
-                        // don't output crossmark metadata unless there's a DOI for the new edition
-                        if let Some(doi) = &relation.related_work.doi {
+                // if let Some(withdrawn_date) = &work.withdrawn_date {
+                for relation in work.relations
+                    .iter()
+                    .filter(|r| (r.relation_type == RelationType::IS_REPLACED_BY && r.related_work.doi.is_some()))
+                {
+                    // only output crossmark update if there's a DOI and publication date for the new edition
+                    if let Some(doi) = &relation.related_work.doi {
+                        if let Some(publication_date) = &relation.related_work.publication_date {
                             write_element_block("updates", w, |w| {
                                 write_full_element_block("update", 
-                                // TODO: ask on forum: should this date be the withdrawn_date of the old work, or the publication date of the new work?
-                                Some(vec![("type", update_type), ("date", &withdrawn_date.to_string())]),
+                                Some(vec![("type", update_type), ("date", &publication_date.to_string())]),
                                 w, |w| {
+                                    // TODO: asked on forum which doi this should be
                                     w.write(XmlEvent::Characters(&doi.to_string()))
                                         .map_err(|e| e.into())
                                 })
@@ -373,7 +374,8 @@ fn write_crossmark_funding_access<W: Write>(work: &Work, w: &mut EventWriter<W>)
                         }
                     }
                 }
-            // TODO: ask on forum: should a withdrawal have a doi?
+                // }
+            // TODO: asked on forum: should a withdrawal have a doi? since it's not required, probably don't include.
             } else if update_type == "withdrawal" {
                 if let Some(withdrawn_date) = &work.withdrawn_date {
                     if let Some(doi) = &work.doi {
@@ -687,7 +689,7 @@ fn write_chapter_funding_access<W: Write>(chapter: &WorkRelations, w: &mut Event
     Ok(())
 }
 
-fn write_chapter_doi<W: Write>(chapter: &WorkRelations, w: &mut EventWriter<W>) -> ThothResult<()> {
+fn write_chapter_doi_collection<W: Write>(chapter: &WorkRelations, w: &mut EventWriter<W>) -> ThothResult<()> {
     if let Some(doi) = &chapter.related_work.doi {
         if let Some(landing_page) = &chapter.related_work.landing_page {
             write_element_block("doi_data", w, |w| {
@@ -830,8 +832,6 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkIssuesSeries {
     }
 }
 
-// this impl and fn is now only used for testing after refactoring; consider refactoring test
-// to remove this function
 impl XmlElementBlock<DoiDepositCrossref> for WorkRelations {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         if !self.relation_type.eq(&RelationType::HAS_CHILD) {
@@ -847,7 +847,7 @@ impl XmlElementBlock<DoiDepositCrossref> for WorkRelations {
             write_chapter_publication_date(&self, w)?;
             write_chapter_pages(&self, w)?;
             write_chapter_funding_access(&self, w)?;
-            write_chapter_doi(&self, w)?;
+            write_chapter_doi_collection(&self, w)?;
             write_chapter_references(&self, w)?;
             Ok(())
         })?;
@@ -1274,7 +1274,7 @@ mod tests {
                 page_interval: Some("10–20".to_string()),
                 landing_page: Some("https://www.book.com/chapter_one".to_string()),
                 imprint: WorkRelationsRelatedWorkImprint {
-                    crossmark_doi: None,
+                    crossmark_doi: Some(Doi::from_str("https://doi.org/10.00001/crossmark_policy").unwrap()),
                     publisher: WorkRelationsRelatedWorkImprintPublisher {
                         publisher_name: "Chapter One Publisher".to_string(),
                     },
@@ -1355,6 +1355,15 @@ mod tests {
         assert!(output.contains(r#"  <pages>"#));
         assert!(output.contains(r#"    <first_page>10</first_page>"#));
         assert!(output.contains(r#"    <last_page>20</last_page>"#));
+        // Crossmark data is not output for chapters
+        assert!(!output.contains(r#"  <crossmark>"#));
+        assert!(!output.contains(r#"    <crossmark_version>2</crossmark_version>"#));
+        assert!(!output.contains(r#"    <crossmark_policy>10.00001/crossmark_policy</crossmark_policy>"#));
+        assert!(!output.contains(r#"    <updates>"#));
+        assert!(!output.contains(r#"    </updates>"#));
+        assert!(!output.contains(r#"    <custom_metadata>"#));
+        assert!(!output.contains(r#"    </custom_metadata>"#));
+        assert!(!output.contains(r#"  </crossmark>"#));
         assert!(output.contains(r#"  <ai:program name="AccessIndicators">"#));
         assert!(output.contains(r#"    <ai:free_to_read />"#));
         assert!(output.contains(r#"    <ai:license_ref>https://creativecommons.org/licenses/by-nd/4.0/</ai:license_ref>"#));
@@ -1891,6 +1900,64 @@ mod tests {
         assert!(!output.contains(r#"        <last_page>20</last_page>"#));
         assert!(!output.contains(r#"        <doi>10.00001/PART.0001</doi>"#));
         assert!(!output.contains(r#"        <resource>https://www.book.com/part_one</resource>"#));
+
+        // Test basic Crossmark output for Active work
+        test_work.imprint.crossmark_doi = Some(Doi::from_str("https://doi.org/10.00001/crossmark_policy").unwrap());
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(r#"  <crossmark>"#));
+        assert!(output.contains(r#"    <crossmark_version>2</crossmark_version>"#));
+        assert!(output.contains(r#"    <crossmark_policy>10.00001/crossmark_policy</crossmark_policy>"#));
+        assert!(output.contains(r#"    <custom_metadata>"#));
+        assert!(output.contains(r#"    </custom_metadata>"#));
+        assert!(output.contains(r#"  </crossmark>"#));
+
+        // Test Crossmark output for Superseded work
+        test_work.work_status = WorkStatus::SUPERSEDED;
+        test_work.withdrawn_date = chrono::NaiveDate::from_ymd_opt(2001, 2, 28);
+        // add relations/relation_type::IS_REPLACED_BY, test output
+        test_work.relations = vec![WorkRelations {
+            relation_type: RelationType::IS_REPLACED_BY,
+            relation_ordinal: 2,
+            related_work: WorkRelationsRelatedWork {
+                work_status: WorkStatus::ACTIVE,
+                full_title: "Book Title: Book Subtitle: 2nd Edition".to_string(),
+                title: "Part".to_string(),
+                subtitle: Some("One".to_string()),
+                edition: None,
+                doi: Some(Doi::from_str("https://doi.org/10.00002/new_edition").unwrap()),
+                publication_date: chrono::NaiveDate::from_ymd_opt(2002, 2, 28),
+                withdrawn_date: None,
+                license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
+                short_abstract: None,
+                long_abstract: None,
+                place: Some("Other Place".to_string()),
+                first_page: Some("10".to_string()),
+                last_page: Some("20".to_string()),
+                page_count: Some(11),
+                page_interval: Some("10–20".to_string()),
+                landing_page: Some("https://www.book.com/part_one".to_string()),
+                imprint: WorkRelationsRelatedWorkImprint {
+                    crossmark_doi: None,
+                    publisher: WorkRelationsRelatedWorkImprintPublisher {
+                        publisher_name: "Part One Publisher".to_string(),
+                    },
+                },
+                contributions: vec![],
+                publications: vec![],
+                references: vec![],
+                fundings: vec![],
+            },
+        }];
+        let output = generate_test_output(true, &test_work);
+        assert!(output.contains(r#"  <crossmark>"#));
+        assert!(output.contains(r#"    <crossmark_version>2</crossmark_version>"#));
+        assert!(output.contains(r#"    <crossmark_policy>10.00001/crossmark_policy</crossmark_policy>"#));
+        assert!(output.contains(r#"    <updates>"#));
+        assert!(output.contains(r#"      <update type="new_edition" date="2002-02-28">10.00002/new_edition</update>"#));
+        assert!(output.contains(r#"    <updates>"#));
+        assert!(output.contains(r#"    <custom_metadata>"#));
+        assert!(output.contains(r#"    </custom_metadata>"#));
+        assert!(output.contains(r#"  </crossmark>"#));
 
         // Remove/change some values to test variations/non-output of optional blocks
         test_work.work_type = WorkType::EDITED_BOOK;
