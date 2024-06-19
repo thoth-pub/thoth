@@ -15,8 +15,6 @@ use crate::xml::{write_full_element_block, XmlElementBlock};
 use thoth_errors::{ThothError, ThothResult};
 
 #[derive(Copy, Clone)]
-// an empty struct that will contain XmlSpecification (like the header),
-// XmlElementBlock (the body), which has other stuff for books and chapters.
 pub struct DoiDepositCrossref {}
 
 const DEPOSIT_ERROR: &str = "doideposit::crossref";
@@ -71,7 +69,6 @@ impl XmlSpecification for DoiDepositCrossref {
                             w.write(XmlEvent::Characters("Thoth")).map_err(|e| e.into())
                         })
                     })?;
-                    // write body XML
                     XmlElementBlock::<DoiDepositCrossref>::xml_element(work, w)
                 })
             }
@@ -91,7 +88,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
             WorkType::Other(_) => unreachable!(),
         };
         let work = self;
-        // As an alternative to `book_metadata` and `book_series_metadata` above,
+        // As an alternative to `book_metadata` and `book_series_metadata` below,
         // `book_set_metadata` can be used for works which are part of a set.
         // Omitted at present but could be considered as a future enhancement.
         let element_name = if self.issues.is_empty() {
