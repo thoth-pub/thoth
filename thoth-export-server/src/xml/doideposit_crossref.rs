@@ -369,7 +369,7 @@ fn write_crossmark_funding_access<W: Write>(
                     }
                 }
             } else if update_type == "withdrawal" {
-                // for a withdrawal, only output crossmark update 
+                // for a withdrawal, only output crossmark update
                 // if there's a withdrawn date and DOI for the Withdrawn work.
                 if let Some(withdrawn_date) = &work.withdrawn_date {
                     if let Some(doi) = &work.doi {
@@ -1943,22 +1943,19 @@ mod tests {
         assert!(output.contains(r#"    </custom_metadata>"#));
         assert!(output.contains(r#"  </crossmark>"#));
 
-        // Test Crossmark output for Superseded work
-        test_work.work_status = WorkStatus::SUPERSEDED;
-        test_work.withdrawn_date = chrono::NaiveDate::from_ymd_opt(2001, 2, 28);
-        // add relations/relation_type::IS_REPLACED_BY, test output
+        // Test Crossmark output for Active work that replaces a Superseded work
         test_work.relations = vec![WorkRelations {
-            relation_type: RelationType::IS_REPLACED_BY,
+            relation_type: RelationType::REPLACES,
             relation_ordinal: 2,
             related_work: WorkRelationsRelatedWork {
-                work_status: WorkStatus::ACTIVE,
-                full_title: "Book Title: Book Subtitle: 2nd Edition".to_string(),
+                work_status: WorkStatus::SUPERSEDED,
+                full_title: "Book Title: Book Subtitle: 1st Edition".to_string(),
                 title: "Part".to_string(),
                 subtitle: Some("One".to_string()),
                 edition: None,
-                doi: Some(Doi::from_str("https://doi.org/10.00002/new_edition").unwrap()),
-                publication_date: chrono::NaiveDate::from_ymd_opt(2002, 2, 28),
-                withdrawn_date: None,
+                doi: Some(Doi::from_str("https://doi.org/10.00002/old_edition").unwrap()),
+                publication_date: chrono::NaiveDate::from_ymd_opt(1997, 2, 28),
+                withdrawn_date: chrono::NaiveDate::from_ymd_opt(1998, 2, 28),
                 license: Some("https://creativecommons.org/licenses/by-nd/4.0/".to_string()),
                 short_abstract: None,
                 long_abstract: None,
@@ -1987,9 +1984,9 @@ mod tests {
             .contains(r#"    <crossmark_policy>10.00001/crossmark_policy</crossmark_policy>"#));
         assert!(output.contains(r#"    <updates>"#));
         assert!(output.contains(
-            r#"      <update type="new_edition" date="2002-02-28">10.00002/new_edition</update>"#
+            r#"      <update type="new_edition" date="1999-12-31">10.00002/old_edition</update>"#
         ));
-        assert!(output.contains(r#"    <updates>"#));
+        assert!(output.contains(r#"    </updates>"#));
         assert!(output.contains(r#"    <custom_metadata>"#));
         assert!(output.contains(r#"    </custom_metadata>"#));
         assert!(output.contains(r#"  </crossmark>"#));
