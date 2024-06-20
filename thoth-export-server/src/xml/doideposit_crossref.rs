@@ -325,10 +325,10 @@ fn write_crossmark_funding_access<W: Write>(
     if let Some(crossmark_doi) = &work.imprint.crossmark_doi {
         let update_type = match &work.work_status {
             thoth_client::WorkStatus::WITHDRAWN_FROM_SALE => "withdrawal",
-            thoth_client::WorkStatus::SUPERSEDED => "new_edition",
-            // Only withdrawn from sale and superseded works are relevant for crossmark.
+            thoth_client::WorkStatus::ACTIVE => "new_edition",
+            // Only withdrawn from sale and active works are relevant for crossmark.
             thoth_client::WorkStatus::FORTHCOMING
-            | thoth_client::WorkStatus::ACTIVE
+            | thoth_client::WorkStatus::SUPERSEDED
             | thoth_client::WorkStatus::POSTPONED_INDEFINITELY
             | thoth_client::WorkStatus::CANCELLED
             | thoth_client::WorkStatus::Other(_) => "no_update",
@@ -344,11 +344,13 @@ fn write_crossmark_funding_access<W: Write>(
             })?;
             if update_type == "new_edition" {
                 for relation in work.relations.iter().filter(|r| {
-                    r.relation_type == RelationType::IS_REPLACED_BY && r.related_work.doi.is_some()
+                    r.relation_type == RelationType::REPLACES && r.related_work.doi.is_some()
                 }) {
-                    // only output crossmark update if there's a DOI and publication date for the new edition
+                    // only output crossmark update if there's a DOI for the Superseded Work and publication date for the Active Work
+                    // metadata is output on the Active Work, rather than the Superseded one, see
+                    // https://community.crossref.org/t/appropriate-doi-to-use-in-crossmark-new-edition-and-withdrawal-update-types/6189/2
                     if let Some(doi) = &relation.related_work.doi {
-                        if let Some(publication_date) = &relation.related_work.publication_date {
+                        if let Some(publication_date) = &work.publication_date {
                             write_element_block("updates", w, |w| {
                                 write_full_element_block(
                                     "update",
@@ -358,7 +360,6 @@ fn write_crossmark_funding_access<W: Write>(
                                     ]),
                                     w,
                                     |w| {
-                                        // TODO: asked on forum which doi this should be
                                         w.write(XmlEvent::Characters(&doi.to_string()))
                                             .map_err(|e| e.into())
                                     },
@@ -368,6 +369,8 @@ fn write_crossmark_funding_access<W: Write>(
                     }
                 }
             } else if update_type == "withdrawal" {
+                // for a withdrawal, only output crossmark update 
+                // if there's a withdrawn date and DOI for the Withdrawn work.
                 if let Some(withdrawn_date) = &work.withdrawn_date {
                     if let Some(doi) = &work.doi {
                         write_element_block("updates", w, |w| {
@@ -379,7 +382,6 @@ fn write_crossmark_funding_access<W: Write>(
                                 ]),
                                 w,
                                 |w| {
-                                    // TODO: asked on forum: should a withdrawal have a doi? since it's not required, probably don't include.
                                     w.write(XmlEvent::Characters(&doi.to_string()))
                                         .map_err(|e| e.into())
                                 },
