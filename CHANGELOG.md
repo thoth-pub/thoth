@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+  - [595](https://github.com/thoth-pub/thoth/issues/595) - Remove infrequently used and unused work statuses (unspecified, no longer our product, out of stock indefinitely, out of print, inactive, unknown, remaindered, recalled). Require a publication date for active, withdrawn from sale, and superseded works in Thoth.
+
+### Added
+  - [595](https://github.com/thoth-pub/thoth/issues/595) - Add a new `Superseded` work status to replace Out of Print for older editions of Works. Require a withdrawn from sale date for Superseded works.
+  - [582](https://github.com/thoth-pub/thoth/issues/582) - Add Crossmark metadata in Crossref DOI deposit when a Crossmark policy is present in the publisher record. Add Crossmark update new_edition metadata when a book is replaced by a new edition, and withdrawal metadata when a book is withdrawn from sale.
 
 ## [[0.12.6]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.6) - 2024-06-17
 ### Fixed
