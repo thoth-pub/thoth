@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
     ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
-    WorkLanguages, WorkPublications, WorkStatus, WorkType,
+    WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -157,6 +157,9 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                                 })
                             })
                         })?;
+                    }
+                    for issue in &self.issues {
+                        XmlElementBlock::<Onix3ProjectMuse>::xml_element(issue, w).ok();
                     }
                     write_element_block("TitleDetail", w, |w| {
                         // 01 Distinctive title (book)
@@ -497,6 +500,42 @@ impl XmlElement<Onix3ProjectMuse> for LanguageRelation {
             LanguageRelation::TRANSLATED_INTO => "01",
             LanguageRelation::Other(_) => unreachable!(),
         }
+    }
+}
+
+impl XmlElementBlock<Onix3ProjectMuse> for WorkIssues {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_element_block("Collection", w, |w| {
+            // 10 Publisher collection (e.g. series)
+            write_element_block("CollectionType", w, |w| {
+                w.write(XmlEvent::Characters("10")).map_err(|e| e.into())
+            })?;
+            write_element_block("TitleDetail", w, |w| {
+                // 01 Cover title (serial)
+                write_element_block("TitleType", w, |w| {
+                    w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                })?;
+                write_element_block("TitleElement", w, |w| {
+                    // 02 Collection level
+                    write_element_block("TitleElementLevel", w, |w| {
+                        w.write(XmlEvent::Characters("02")).map_err(|e| e.into())
+                    })?;
+                    write_element_block("SequenceNumber", w, |w| {
+                        w.write(XmlEvent::Characters(&self.issue_ordinal.to_string()))
+                            .map_err(|e| e.into())
+                    })?;
+                    // TODO: find out if this should be included or not.
+                    // write_element_block("PartNumber", w, |w| {
+                    //     w.write(XmlEvent::Characters(&self.issue_ordinal.to_string()))
+                    //         .map_err(|e| e.into())
+                    // })?;
+                    write_element_block("TitleText", w, |w| {
+                        w.write(XmlEvent::Characters(&self.series.series_name))
+                            .map_err(|e| e.into())
+                    })
+                })
+            })
+        })
     }
 }
 
@@ -966,7 +1005,7 @@ mod tests {
         assert!(output.contains(r#"          <WebsiteDescription>Publisher's website: download the title</WebsiteDescription>"#));
         assert!(output
             .contains(r#"          <WebsiteLink>https://www.book.com/pdf_fulltext</WebsiteLink>"#));
-
+        // TODO: Fix test for Series data
         // Test that OAPEN-only blocks are not output in Project MUSE format
         assert!(!output.contains(r#"      <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>"#));
         assert!(!output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
