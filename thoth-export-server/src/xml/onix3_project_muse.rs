@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use thoth_client::{
     ContributionType, LanguageRelation, PublicationType, SubjectType, Work, WorkContributions,
-    WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkType,
+    WorkFundings, WorkIssues, WorkLanguages, WorkPublications, WorkStatus, WorkType,
 };
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -207,8 +207,10 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                         })?;
                     }
                     for subject in &self.subjects {
-                        // Project MUSE can't process records containing keywords
-                        if subject.subject_type != SubjectType::KEYWORD {
+                        // According to spec, Project MUSE only accepts BIC and BISAC subject codes
+                        if subject.subject_type == SubjectType::BIC
+                            || subject.subject_type == SubjectType::BISAC
+                        {
                             write_element_block("Subject", w, |w| {
                                 XmlElement::<Onix3ProjectMuse>::xml_element(
                                     &subject.subject_type,
@@ -221,6 +223,16 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                             })?;
                         }
                     }
+                    write_element_block("Audience", w, |w| {
+                        // 01 ONIX audience codes
+                        write_element_block("AudienceCodeType", w, |w| {
+                            w.write(XmlEvent::Characters("01")).map_err(|e| e.into())
+                        })?;
+                        // 06 Professional and scholarly
+                        write_element_block("AudienceCodeValue", w, |w| {
+                            w.write(XmlEvent::Characters("06")).map_err(|e| e.into())
+                        })
+                    })?;
                     Ok(())
                 })?;
                 write_element_block("CollateralDetail", w, |w| {
@@ -292,6 +304,9 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                                 .map_err(|e| e.into())
                         })
                     })?;
+                    for funding in &self.fundings {
+                        XmlElementBlock::<Onix3ProjectMuse>::xml_element(funding, w).ok();
+                    }
                     if let Some(place) = &self.place {
                         write_element_block("CityOfPublication", w, |w| {
                             w.write(XmlEvent::Characters(place)).map_err(|e| e.into())
@@ -316,6 +331,12 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                                     .map_err(|e| e.into())
                                 },
                             )
+                        })?;
+                        write_element_block("CopyrightStatement", w, |w| {
+                            write_element_block("CopyrightYear", w, |w| {
+                                w.write(XmlEvent::Characters(&date.format("%Y").to_string()))
+                                    .map_err(|e| e.into())
+                            })
                         })?;
                     }
                     if let Some(date) = &self.withdrawn_date {
@@ -375,7 +396,7 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                         supplies.insert(
                             landing_page.to_string(),
                             (
-                                "01".to_string(),
+                                "02".to_string(),
                                 "Publisher's website: web shop".to_string(),
                             ),
                         );
@@ -503,6 +524,22 @@ impl XmlElement<Onix3ProjectMuse> for LanguageRelation {
     }
 }
 
+impl XmlElementBlock<Onix3ProjectMuse> for WorkFundings {
+    fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
+        write_element_block("Publisher", w, |w| {
+            // 16 Funding body
+            write_element_block("PublishingRole", w, |w| {
+                w.write(XmlEvent::Characters("16")).map_err(|e| e.into())
+            })?;
+            write_element_block("PublisherName", w, |w| {
+                w.write(XmlEvent::Characters(&self.institution.institution_name))
+                    .map_err(|e| e.into())
+            })?;
+            Ok(())
+        })
+    }
+}
+
 impl XmlElementBlock<Onix3ProjectMuse> for WorkIssues {
     fn xml_element<W: Write>(&self, w: &mut EventWriter<W>) -> ThothResult<()> {
         write_element_block("Collection", w, |w| {
@@ -524,11 +561,6 @@ impl XmlElementBlock<Onix3ProjectMuse> for WorkIssues {
                         w.write(XmlEvent::Characters(&self.issue_ordinal.to_string()))
                             .map_err(|e| e.into())
                     })?;
-                    // TODO: find out if this should be included or not.
-                    // write_element_block("PartNumber", w, |w| {
-                    //     w.write(XmlEvent::Characters(&self.issue_ordinal.to_string()))
-                    //         .map_err(|e| e.into())
-                    // })?;
                     write_element_block("TitleText", w, |w| {
                         w.write(XmlEvent::Characters(&self.series.series_name))
                             .map_err(|e| e.into())
@@ -953,12 +985,11 @@ mod tests {
         assert!(output.contains(r#"      <SubjectCode>AAB</SubjectCode>"#));
         assert!(output.contains(r#"      <SubjectSchemeIdentifier>10</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"      <SubjectCode>AAA000000</SubjectCode>"#));
-        assert!(output.contains(r#"      <SubjectSchemeIdentifier>04</SubjectSchemeIdentifier>"#));
-        assert!(output.contains(r#"      <SubjectCode>JA85</SubjectCode>"#));
-        assert!(output.contains(r#"      <SubjectSchemeIdentifier>93</SubjectSchemeIdentifier>"#));
-        assert!(output.contains(r#"      <SubjectCode>JWA</SubjectCode>"#));
-        assert!(output.contains(r#"      <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
-        assert!(output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
+        assert!(output.contains(r#"      <PublishingRole>16</PublishingRole>"#));
+        assert!(output.contains(r#"      <PublisherName>Name of institution</PublisherName>"#));
+        assert!(output.contains(r#"    <Audience>"#));
+        assert!(output.contains(r#"      <AudienceCodeType>01</AudienceCodeType>"#));
+        assert!(output.contains(r#"      <AudienceCodeValue>06</AudienceCodeValue>"#));
         assert!(output.contains(r#"  <CollateralDetail>"#));
         assert!(output.contains(r#"    <TextContent>"#));
         assert!(output.contains(r#"      <TextType>03</TextType>"#));
@@ -981,6 +1012,8 @@ mod tests {
         assert!(output.contains(r#"    <PublishingDate>"#));
         assert!(output.contains(r#"      <PublishingDateRole>01</PublishingDateRole>"#));
         assert!(output.contains(r#"      <Date dateformat="00">19991231</Date>"#));
+        assert!(output.contains(r#"    <CopyrightStatement>"#));
+        assert!(output.contains(r#"      <CopyrightYear>1999</CopyrightYear>"#));
         assert!(output.contains(r#"    <RelatedProduct>"#));
         assert!(output.contains(r#"      <ProductRelationCode>06</ProductRelationCode>"#));
         assert!(output.contains(r#"      <ProductIdentifier>"#));
@@ -992,7 +1025,7 @@ mod tests {
         assert!(output.contains(r#"        <SupplierRole>09</SupplierRole>"#));
         assert!(output.contains(r#"        <SupplierName>OA Editions</SupplierName>"#));
         assert!(output.contains(r#"        <Website>"#));
-        assert!(output.contains(r#"          <WebsiteRole>01</WebsiteRole>"#));
+        assert!(output.contains(r#"          <WebsiteRole>02</WebsiteRole>"#));
         assert!(output.contains(
             r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
@@ -1005,15 +1038,21 @@ mod tests {
         assert!(output.contains(r#"          <WebsiteDescription>Publisher's website: download the title</WebsiteDescription>"#));
         assert!(output
             .contains(r#"          <WebsiteLink>https://www.book.com/pdf_fulltext</WebsiteLink>"#));
-        // TODO: Fix test for Series data
+        assert!(output.contains(r#"    <Collection>"#));
+        assert!(output.contains(r#"      <CollectionType>10</CollectionType>"#));
+        assert!(output.contains(r#"          <TitleElementLevel>02</TitleElementLevel>"#));
+        assert!(output.contains(r#"          <SequenceNumber>1</SequenceNumber>"#));
+        assert!(output.contains(r#"          <TitleText>Name of series</TitleText>"#));
+
         // Test that OAPEN-only blocks are not output in Project MUSE format
         assert!(!output.contains(r#"      <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>"#));
         assert!(!output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
-        assert!(!output.contains(r#"    <Audience>"#));
-        assert!(!output.contains(r#"      <AudienceCodeType>01</AudienceCodeType>"#));
-        assert!(!output.contains(r#"      <AudienceCodeValue>06</AudienceCodeValue>"#));
-        assert!(!output.contains(r#"      <PublishingRole>16</PublishingRole>"#));
-        assert!(!output.contains(r#"      <PublisherName>Name of institution</PublisherName>"#));
+        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>04</SubjectSchemeIdentifier>"#));
+        assert!(!output.contains(r#"      <SubjectCode>JA85</SubjectCode>"#));
+        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>93</SubjectSchemeIdentifier>"#));
+        assert!(!output.contains(r#"      <SubjectCode>JWA</SubjectCode>"#));
+        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
+        assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
         assert!(!output.contains(r#"      <Funding>"#));
         assert!(!output.contains(r#"        <FundingIdentifier>"#));
         assert!(!output.contains(r#"          <FundingIDType>01</FundingIDType>"#));
@@ -1023,11 +1062,6 @@ mod tests {
         assert!(!output.contains(r#"          <IDValue>Name of project</IDValue>"#));
         assert!(!output.contains(r#"          <IDTypeName>grantnumber</IDTypeName>"#));
         assert!(!output.contains(r#"          <IDValue>Number of grant</IDValue>"#));
-        assert!(!output.contains(r#"    <Collection>"#));
-        assert!(!output.contains(r#"      <CollectionType>10</CollectionType>"#));
-        assert!(!output.contains(r#"          <TitleElementLevel>02</TitleElementLevel>"#));
-        assert!(!output.contains(r#"          <PartNumber>1</PartNumber>"#));
-        assert!(!output.contains(r#"          <TitleText>Name of series</TitleText>"#));
 
         // Add withdrawn_date
         test_work.withdrawn_date = chrono::NaiveDate::from_ymd_opt(2020, 12, 31);
@@ -1090,7 +1124,7 @@ mod tests {
         assert!(!output.contains(r#"      <PublishingDateRole>01</PublishingDateRole>"#));
         assert!(!output.contains(r#"      <Date dateformat="00">19991231</Date>"#));
         // No landing page supplied: only one SupplyDetail block, linking to PDF download
-        assert!(!output.contains(r#"          <WebsiteRole>01</WebsiteRole>"#));
+        assert!(!output.contains(r#"          <WebsiteRole>02</WebsiteRole>"#));
         assert!(!output.contains(
             r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
