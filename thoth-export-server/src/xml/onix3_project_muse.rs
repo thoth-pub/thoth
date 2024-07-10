@@ -187,6 +187,29 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                     for contribution in &self.contributions {
                         XmlElementBlock::<Onix3ProjectMuse>::xml_element(contribution, w).ok();
                     }
+                    if let Some(edition) = &self.edition {
+                        if let Some(edition_statement) = match edition {
+                            // Spell out commonest ordinals
+                            1 => Some("First edition.".to_string()),
+                            2 => Some("Second edition.".to_string()),
+                            3 => Some("Third edition.".to_string()),
+                            _ => {
+                                let suffix = match edition % 10 {
+                                    1 if edition % 100 != 11 => "st",
+                                    2 if edition % 100 != 12 => "nd",
+                                    3 if edition % 100 != 13 => "rd",
+                                    _ => "th",
+                                };
+                                Some(format!("{}{} edition.", edition, suffix))
+                            }
+                        } {
+                            write_element_block("EditionStatement", w, |w| {
+                                w.write(XmlEvent::Characters(&edition_statement))
+                                    .map_err(|e| e.into())
+                            })?;
+                        }
+                    }
+
                     for language in &self.languages {
                         XmlElementBlock::<Onix3ProjectMuse>::xml_element(language, w).ok();
                     }
@@ -207,10 +230,8 @@ impl XmlElementBlock<Onix3ProjectMuse> for Work {
                         })?;
                     }
                     for subject in &self.subjects {
-                        // According to spec, Project MUSE only accepts BIC and BISAC subject codes
-                        if subject.subject_type == SubjectType::BIC
-                            || subject.subject_type == SubjectType::BISAC
-                        {
+                        // Project MUSE can't process records containing keywords
+                        if subject.subject_type != SubjectType::KEYWORD {
                             write_element_block("Subject", w, |w| {
                                 XmlElement::<Onix3ProjectMuse>::xml_element(
                                     &subject.subject_type,
