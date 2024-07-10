@@ -997,6 +997,7 @@ mod tests {
         assert!(output.contains(r#"        <TitleElementLevel>01</TitleElementLevel>"#));
         assert!(output.contains(r#"        <TitleText>Book Title</TitleText>"#));
         assert!(output.contains(r#"        <Subtitle>Book Subtitle</Subtitle>"#));
+        assert!(output.contains(r#"    <EditionStatement>First edition.</EditionStatement>"#));
         assert!(output.contains(r#"    <Extent>"#));
         assert!(output.contains(r#"      <ExtentType>00</ExtentType>"#));
         assert!(output.contains(r#"      <ExtentValue>334</ExtentValue>"#));
@@ -1006,6 +1007,12 @@ mod tests {
         assert!(output.contains(r#"      <SubjectCode>AAB</SubjectCode>"#));
         assert!(output.contains(r#"      <SubjectSchemeIdentifier>10</SubjectSchemeIdentifier>"#));
         assert!(output.contains(r#"      <SubjectCode>AAA000000</SubjectCode>"#));
+        assert!(output.contains(r#"      <SubjectSchemeIdentifier>04</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"      <SubjectCode>JA85</SubjectCode>"#));
+        assert!(output.contains(r#"      <SubjectSchemeIdentifier>93</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"      <SubjectCode>JWA</SubjectCode>"#));
+        assert!(output.contains(r#"      <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
+        assert!(output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
         assert!(output.contains(r#"      <PublishingRole>16</PublishingRole>"#));
         assert!(output.contains(r#"      <PublisherName>Name of institution</PublisherName>"#));
         assert!(output.contains(r#"    <Audience>"#));
@@ -1068,12 +1075,6 @@ mod tests {
         // Test that OAPEN-only blocks are not output in Project MUSE format
         assert!(!output.contains(r#"      <SubjectSchemeIdentifier>20</SubjectSchemeIdentifier>"#));
         assert!(!output.contains(r#"      <SubjectCode>keyword1</SubjectCode>"#));
-        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>04</SubjectSchemeIdentifier>"#));
-        assert!(!output.contains(r#"      <SubjectCode>JA85</SubjectCode>"#));
-        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>93</SubjectSchemeIdentifier>"#));
-        assert!(!output.contains(r#"      <SubjectCode>JWA</SubjectCode>"#));
-        assert!(!output.contains(r#"      <SubjectSchemeIdentifier>B2</SubjectSchemeIdentifier>"#));
-        assert!(!output.contains(r#"      <SubjectCode>custom1</SubjectCode>"#));
         assert!(!output.contains(r#"      <Funding>"#));
         assert!(!output.contains(r#"        <FundingIdentifier>"#));
         assert!(!output.contains(r#"          <FundingIDType>01</FundingIDType>"#));
