@@ -165,6 +165,7 @@ fn institution_linked_publisher_ids(
         ))
         .select(crate::schema::publisher::publisher_id)
         .filter(crate::schema::affiliation::institution_id.eq(institution_id))
+        .distinct()
         .load::<Uuid>(&mut connection)
         .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
     let publishers_via_funding = crate::schema::publisher::table
@@ -174,6 +175,7 @@ fn institution_linked_publisher_ids(
         )
         .select(crate::schema::publisher::publisher_id)
         .filter(crate::schema::funding::institution_id.eq(institution_id))
+        .distinct()
         .load::<Uuid>(&mut connection)
         .map_err(|_| ThothError::InternalError("Unable to load records".into()))?;
     Ok([publishers_via_affiliation, publishers_via_funding].concat())

@@ -161,16 +161,17 @@ fn contributor_linked_publisher_ids(
     db: &crate::db::PgPool,
 ) -> ThothResult<Vec<Uuid>> {
     let mut connection = db.get().unwrap();
-    let publishers_via_contribution =
-        crate::schema::publisher::table
-            .inner_join(crate::schema::imprint::table.inner_join(
+    crate::schema::publisher::table
+        .inner_join(
+            crate::schema::imprint::table.inner_join(
                 crate::schema::work::table.inner_join(crate::schema::contribution::table),
-            ))
-            .select(crate::schema::publisher::publisher_id)
-            .filter(crate::schema::contribution::contributor_id.eq(contributor_id))
-            .load::<Uuid>(&mut connection)
-            .map_err(|e| e.into());
-    publishers_via_contribution
+            ),
+        )
+        .select(crate::schema::publisher::publisher_id)
+        .filter(crate::schema::contribution::contributor_id.eq(contributor_id))
+        .distinct()
+        .load::<Uuid>(&mut connection)
+        .map_err(|e| e.into())
 }
 
 #[cfg(test)]
