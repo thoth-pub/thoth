@@ -362,7 +362,7 @@ impl XmlElementBlock<Onix3Oapen> for Work {
                         supplies.insert(
                             landing_page.to_string(),
                             (
-                                "01".to_string(),
+                                "02".to_string(),
                                 "Publisher's website: web shop".to_string(),
                             ),
                         );
@@ -1132,7 +1132,7 @@ mod tests {
         assert!(output.contains(r#"        <SupplierRole>09</SupplierRole>"#));
         assert!(output.contains(r#"        <SupplierName>OA Editions</SupplierName>"#));
         assert!(output.contains(r#"        <Website>"#));
-        assert!(output.contains(r#"          <WebsiteRole>01</WebsiteRole>"#));
+        assert!(output.contains(r#"          <WebsiteRole>02</WebsiteRole>"#));
         assert!(output.contains(
             r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
@@ -1195,7 +1195,7 @@ mod tests {
         assert!(!output.contains(r#"      <PublishingDateRole>19</PublishingDateRole>"#));
         assert!(!output.contains(r#"      <Date dateformat="05">1999</Date>"#));
         // No landing page supplied: only one SupplyDetail block, linking to PDF download
-        assert!(!output.contains(r#"          <WebsiteRole>01</WebsiteRole>"#));
+        assert!(!output.contains(r#"          <WebsiteRole>02</WebsiteRole>"#));
         assert!(!output.contains(
             r#"          <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));

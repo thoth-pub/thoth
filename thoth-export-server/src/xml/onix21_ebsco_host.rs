@@ -201,7 +201,7 @@ impl XmlElementBlock<Onix21EbscoHost> for Work {
                     websites.insert(
                         landing_page.to_string(),
                         (
-                            "01".to_string(),
+                            "02".to_string(),
                             "Publisher's website: web shop".to_string(),
                         ),
                     );
@@ -1028,7 +1028,7 @@ mod tests {
         assert!(output
             .contains(r#"    <IDValue>urn:uuid:00000000-0000-0000-aaaa-000000000001</IDValue>"#));
         assert!(output.contains(r#"  <Website>"#));
-        assert!(output.contains(r#"    <WebsiteRole>01</WebsiteRole>"#));
+        assert!(output.contains(r#"    <WebsiteRole>02</WebsiteRole>"#));
         assert!(output.contains(
             r#"    <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
@@ -1129,7 +1129,7 @@ mod tests {
         // No subtitle supplied (within Thoth UI this would automatically update full_title)
         assert!(!output.contains(r#"    <Subtitle>Book Subtitle</Subtitle>"#));
         // No landing page supplied
-        assert!(!output.contains(r#"    <WebsiteRole>01</WebsiteRole>"#));
+        assert!(!output.contains(r#"    <WebsiteRole>02</WebsiteRole>"#));
         assert!(!output.contains(
             r#"    <WebsiteDescription>Publisher's website: web shop</WebsiteDescription>"#
         ));
