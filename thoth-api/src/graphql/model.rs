@@ -2086,10 +2086,12 @@ impl MutationRoot {
 
     fn delete_contributor(context: &Context, contributor_id: Uuid) -> FieldResult<Contributor> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        Contributor::from_id(&context.db, &contributor_id)
-            .unwrap()
-            .delete(&context.db)
-            .map_err(|e| e.into())
+        let contributor = Contributor::from_id(&context.db, &contributor_id).unwrap();
+        for linked_publisher_id in contributor.linked_publisher_ids(&context.db)? {
+            context.account_access.can_edit(linked_publisher_id)?;
+        }
+
+        contributor.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_contribution(context: &Context, contribution_id: Uuid) -> FieldResult<Contribution> {
@@ -2144,10 +2146,12 @@ impl MutationRoot {
 
     fn delete_institution(context: &Context, institution_id: Uuid) -> FieldResult<Institution> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
-        Institution::from_id(&context.db, &institution_id)
-            .unwrap()
-            .delete(&context.db)
-            .map_err(|e| e.into())
+        let institution = Institution::from_id(&context.db, &institution_id).unwrap();
+        for linked_publisher_id in institution.linked_publisher_ids(&context.db)? {
+            context.account_access.can_edit(linked_publisher_id)?;
+        }
+
+        institution.delete(&context.db).map_err(|e| e.into())
     }
 
     fn delete_funding(context: &Context, funding_id: Uuid) -> FieldResult<Funding> {

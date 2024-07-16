@@ -150,6 +150,29 @@ impl DbInsert for NewContributorHistory {
     db_insert!(contributor_history::table);
 }
 
+impl Contributor {
+    pub fn linked_publisher_ids(&self, db: &crate::db::PgPool) -> ThothResult<Vec<Uuid>> {
+        contributor_linked_publisher_ids(self.contributor_id, db)
+    }
+}
+
+fn contributor_linked_publisher_ids(
+    contributor_id: Uuid,
+    db: &crate::db::PgPool,
+) -> ThothResult<Vec<Uuid>> {
+    let mut connection = db.get().unwrap();
+    let publishers_via_contribution =
+        crate::schema::publisher::table
+            .inner_join(crate::schema::imprint::table.inner_join(
+                crate::schema::work::table.inner_join(crate::schema::contribution::table),
+            ))
+            .select(crate::schema::publisher::publisher_id)
+            .filter(crate::schema::contribution::contributor_id.eq(contributor_id))
+            .load::<Uuid>(&mut connection)
+            .map_err(|e| e.into());
+    publishers_via_contribution
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
