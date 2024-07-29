@@ -13,7 +13,7 @@ build = "build.rs"
 thoth-api = { version = "=0.12.6", path = "../thoth-api" }
 thoth-errors = { version = "=0.12.6", path = "../thoth-errors" }
 thoth-client = { version = "=0.12.6", path = "../thoth-client" }
-actix-web = "4.5.1"
+actix-web = "4.8"
 actix-cors = "0.7.0"
 cc_license = "0.1.0"
 chrono = { version = "0.4.31", features = ["serde"] }
