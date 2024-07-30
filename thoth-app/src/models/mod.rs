@@ -118,7 +118,6 @@ pub trait Dropdown {
 }
 
 pub trait ListString {
-    const BULLET_SEPARATOR: &'static str = " • ";
     const COMMA_SEPARATOR: &'static str = ", ";
 
     fn separated_list_item_comma(&self) -> Html {
