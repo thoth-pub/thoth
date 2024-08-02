@@ -17,7 +17,7 @@ backend = ["diesel", "diesel-derive-enum", "diesel_migrations", "futures", "acti
 
 [dependencies]
 thoth-errors = { version = "=0.12.6", path = "../thoth-errors" }
-actix-web = { version = "4.5.1", optional = true }
+actix-web = { version = "4.8", optional = true }
 argon2rs = "0.2.5"
 isbn2 = "0.4.0"
 chrono = { version = "0.4.31", features = ["serde"] }

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
   - [538](https://github.com/thoth-pub/thoth/issues/538) - Update Project MUSE ONIX 3.0 export to reflect new specifications provided by Project MUSE.
+  - [616](https://github.com/thoth-pub/thoth/pull/616) - Removed unused constant to comply with [`rustc 1.80.0`](https://github.com/rust-lang/rust/releases/tag/1.80.0)
+  - [616](https://github.com/thoth-pub/thoth/pull/616) - Upgrade `time` to v0.3.36
+  - [616](https://github.com/thoth-pub/thoth/pull/616) - Upgrade `actix-web` to v4.8
+  - [616](https://github.com/thoth-pub/thoth/pull/616) - Upgrade `openssl` to v0.10.66
 
 ### Fixed
   - [324](https://github.com/thoth-pub/thoth/issues/324) - Make Locations updatable.
