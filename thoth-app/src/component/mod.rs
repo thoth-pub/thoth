@@ -466,7 +466,7 @@ pub mod institution_select;
 pub mod institutions;
 pub mod issues_form;
 pub mod languages_form;
-pub mod location;
+// pub mod location;
 pub mod login;
 pub mod menu;
 pub mod navbar;
