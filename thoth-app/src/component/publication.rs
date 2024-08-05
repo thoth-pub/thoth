@@ -22,7 +22,7 @@ use crate::agent::notification_bus::NotificationDispatcher;
 use crate::agent::notification_bus::NotificationStatus;
 use crate::agent::notification_bus::Request;
 use crate::component::delete_dialogue::ConfirmDeleteComponent;
-use crate::component::new_location::LocationsFormComponent;
+use crate::component::locations_form::LocationsFormComponent;
 use crate::component::prices_form::PricesFormComponent;
 use crate::component::publication_modal::PublicationModalComponent;
 use crate::component::utils::Loader;

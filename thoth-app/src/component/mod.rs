@@ -474,7 +474,7 @@ pub mod new_chapter;
 pub mod new_contributor;
 pub mod new_imprint;
 pub mod new_institution;
-pub mod new_location;
+pub mod locations_form;
 pub mod new_publisher;
 pub mod new_series;
 pub mod new_work;
