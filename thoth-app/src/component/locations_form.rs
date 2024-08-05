@@ -276,6 +276,7 @@ impl Component for LocationsFormComponent {
                 );
                 ctx.link()
                     .send_message(Msg::SetLocationUpdateState(FetchAction::Fetching));
+
                 false
             }
             Msg::SetLocationDeleteState(fetch_state) => {
@@ -364,11 +365,11 @@ impl Component for LocationsFormComponent {
                         { "Add Location" }
                     </button>
                 </div>
-                <div class={ self.add_form_status() }>
+                <div class={ self.modal_form_status() }>
                     <div class="modal-background" onclick={ &close_modal }></div>
                     <div class="modal-card">
                         <header class="modal-card-head">
-                            <p class="modal-card-title">{ "New Location" }</p>
+                            <p class="modal-card-title">{ self.modal_form_title() }</p>
                             <button
                                 class="delete"
                                 aria-label="close"
@@ -376,11 +377,7 @@ impl Component for LocationsFormComponent {
                             ></button>
                         </header>
                         <section class="modal-card-body">
-                            <form id="locations-form" onsubmit={ ctx.link().callback(|e: FocusEvent| {
-                                e.prevent_default();
-                                Msg::CreateLocation
-                            }) }
-                            >
+                            <form id="locations-form" onsubmit={ self.modal_form_action(ctx) }>
                                 <FormUrlInput
                                     label="Landing Page"
                                     value={ self.location.landing_page.clone() }
@@ -416,7 +413,7 @@ impl Component for LocationsFormComponent {
                                 type="submit"
                                 form="locations-form"
                             >
-                                { "Add Location" }
+                                { self.modal_form_button() }
                             </button>
                             <button
                                 class="button"
@@ -444,10 +441,37 @@ impl Component for LocationsFormComponent {
 }
 
 impl LocationsFormComponent {
-    fn add_form_status(&self) -> String {
+    fn modal_form_status(&self) -> String {
         match self.show_modal_form {
             true => "modal is-active".to_string(),
             false => "modal".to_string(),
+        }
+    }
+
+    fn modal_form_title(&self) -> String {
+        match self.in_edit_mode {
+            true => "Edit Location".to_string(),
+            false => "New Location".to_string(),
+        }
+    }
+
+    fn modal_form_button(&self) -> String {
+        match self.in_edit_mode {
+            true => "Save Location".to_string(),
+            false => "Add Location".to_string(),
+        }
+    }
+
+    fn modal_form_action(&self, ctx: &Context<Self>) -> Callback<FocusEvent> {
+        match self.in_edit_mode {
+            true => ctx.link().callback(|e: FocusEvent| {
+                e.prevent_default();
+                Msg::UpdateLocation
+            }),
+            false => ctx.link().callback(|e: FocusEvent| {
+                e.prevent_default();
+                Msg::CreateLocation
+            }),
         }
     }
 
