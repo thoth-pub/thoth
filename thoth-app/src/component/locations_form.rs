@@ -525,7 +525,7 @@ impl LocationsFormComponent {
                         </div>
                     </div>
 
-                    <div class="field">
+                    <div class="field is-grouped is-grouped-right">
                         <div class="control">
                             <a
                                 class="button is-success"
