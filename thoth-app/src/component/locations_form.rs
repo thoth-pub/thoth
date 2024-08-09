@@ -126,7 +126,7 @@ impl Component for LocationsFormComponent {
             Msg::ToggleModalFormDisplay(show_form, l) => {
                 self.show_modal_form = show_form;
                 self.in_edit_mode = l.is_some();
-                if show_form {
+                if self.in_edit_mode {
                     if let Some(location) = l {
                         // Editing existing location: load its current values.
                         self.location = location;
@@ -380,17 +380,17 @@ impl Component for LocationsFormComponent {
                             <form id="locations-form" onsubmit={ self.modal_form_action(ctx) }>
                                 <FormUrlInput
                                     label="Landing Page"
-                                    value={ self.location.landing_page.clone() }
+                                    value={ if self.in_edit_mode { self.location.landing_page.clone() } else { None } }
                                     oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeLandingPage(e.to_value())) }
                                 />
                                 <FormUrlInput
                                     label="Full Text URL"
-                                    value={ self.location.full_text_url.clone().unwrap_or_default() }
+                                    value={ if self.in_edit_mode { self.location.full_text_url.clone() } else { None } }
                                     oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeFullTextUrl(e.to_value())) }
                                 />
                                 <FormLocationPlatformSelect
                                     label = "Location Platform"
-                                    value={ self.location.location_platform.clone() }
+                                    value={ if self.in_edit_mode { self.location.location_platform.clone() } else { LocationPlatform::Other } }
                                     data={ self.data.location_platforms.clone() }
                                     onchange={ ctx.link().callback(|e: Event|
                                         Msg::ChangeLocationPlatform(LocationPlatform::from_str(&e.to_value()).unwrap())

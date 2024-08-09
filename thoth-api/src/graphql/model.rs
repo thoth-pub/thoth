@@ -1914,12 +1914,12 @@ impl MutationRoot {
                 )?)?;
         }
 
-        if data.canonical != location.canonical {
-            // Each publication must have exactly one canonical location.
-            // Updating an existing location would always violate this,
-            // as it should always result in either zero or two canonical locations.
-            return Err(ThothError::CanonicalLocationError.into());
-        }
+        // if data.canonical != location.canonical {
+        //     // Each publication must have exactly one canonical location.
+        //     // Updating an existing location would always violate this,
+        //     // as it should always result in either zero or two canonical locations.
+        //     return Err(ThothError::CanonicalLocationError.into());
+        // }
 
         if data.canonical {
             data.canonical_record_complete(&context.db)?;
