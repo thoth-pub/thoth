@@ -49,6 +49,12 @@ pub enum PublicationType {
     Docx,
     #[cfg_attr(feature = "backend", db_rename = "FictionBook")]
     FictionBook,
+    #[cfg_attr(feature = "backend", db_rename = "MP3")]
+    #[strum(serialize = "MP3")]
+    Mp3,
+    #[cfg_attr(feature = "backend", db_rename = "WAV")]
+    #[strum(serialize = "WAV")]
+    Wav,
 }
 
 #[cfg_attr(
@@ -636,6 +642,8 @@ fn test_publicationtype_display() {
     assert_eq!(format!("{}", PublicationType::Azw3), "AZW3");
     assert_eq!(format!("{}", PublicationType::Docx), "DOCX");
     assert_eq!(format!("{}", PublicationType::FictionBook), "FictionBook");
+    assert_eq!(format!("{}", PublicationType::Mp3), "MP3");
+    assert_eq!(format!("{}", PublicationType::Wav), "WAV");
 }
 
 #[test]
@@ -698,6 +706,15 @@ fn test_publicationtype_fromstr() {
     assert_eq!(
         PublicationType::from_str("FictionBook").unwrap(),
         PublicationType::FictionBook
+    );
+
+    assert_eq!(
+        PublicationType::from_str("MP3").unwrap(),
+        PublicationType::Mp3
+    );
+    assert_eq!(
+        PublicationType::from_str("WAV").unwrap(),
+        PublicationType::Wav
     );
 
     assert!(PublicationType::from_str("PNG").is_err());
