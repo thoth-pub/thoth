@@ -471,8 +471,10 @@ fn test_publicationproperties_type() {
         PublicationType::FictionBook,
         PublicationType::Html,
         PublicationType::Mobi,
+        PublicationType::Mp3,
         PublicationType::Pdf,
         PublicationType::Xml,
+        PublicationType::Wav,
     ] {
         publication.publication_type = pub_type;
         assert!(!publication.publication_type.is_physical());
