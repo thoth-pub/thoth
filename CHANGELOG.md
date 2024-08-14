@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [616](https://github.com/thoth-pub/thoth/pull/616) - Upgrade `actix-web` to v4.8
   - [616](https://github.com/thoth-pub/thoth/pull/616) - Upgrade `openssl` to v0.10.66
   - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade juniper to v0.16.1
+  - [586](https://github.com/thoth-pub/thoth/issues/586) - Upgrade uuid to v1.10.0
 
 ### Fixed
   - [610](https://github.com/thoth-pub/thoth/issues/610) - Update <WebsiteRole> code for Work Landing Page in all ONIX exports from "01" (Publisher’s corporate website) to "02" (Publisher’s website for a specified work).

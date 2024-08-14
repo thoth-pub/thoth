@@ -114,52 +114,52 @@ pub struct QueryRoot;
 #[juniper::graphql_object(Context = Context)]
 impl QueryRoot {
     #[graphql(
-    description="Query the full list of works",
-    arguments(
-        limit(
-            default = 100,
-            description = "The number of items to return"
-        ),
-        offset(
-            default = 0,
-            description = "The number of items to skip"
-        ),
-        filter(
-            default = "".to_string(),
-            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
-        ),
-        order(
-            default = WorkOrderBy::default(),
-            description = "The order in which to sort the results",
-        ),
-        publishers(
-            default = vec![],
-            description = "If set, only shows results connected to publishers with these IDs",
-        ),
-        work_types(
-            default = vec![],
-            description = "Specific types to filter by",
-        ),
-        work_status(description = "(deprecated) A specific status to filter by"),
-        work_statuses(
-            default = vec![],
-            description = "Specific statuses to filter by"
-        ),
-        updated_at_with_relations(
-            description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
-        ),
-    )
+    description="Query the full list of works"
   )]
     fn works(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
+        )]
         filter: String,
+        #[graphql(
+            default = WorkOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
         order: WorkOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
         work_types: Vec<WorkType>,
+        #[graphql(
+            description = "(deprecated) A specific status to filter by"
+        )]
         work_status: Option<WorkStatus>,
+        #[graphql(
+            default = vec![],
+            description = "Specific statuses to filter by"
+        )]
         work_statuses: Vec<WorkStatus>,
+        #[graphql(
+            description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+        )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
         let mut statuses = work_statuses;
@@ -194,36 +194,36 @@ impl QueryRoot {
 
     #[graphql(
         description = "Get the total number of works",
-        arguments(
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-            work_types(
-                default = vec![],
-                description = "Specific types to filter by",
-            ),
-            work_status(description = "(deprecated) A specific status to filter by"),
-            work_statuses(
-                default = vec![],
-                description = "Specific statuses to filter by"
-            ),
-            updated_at_with_relations(
-                description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
-            ),
-        )
     )]
     fn work_count(
         context: &Context,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page",
+        )]
         filter: String,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs",
+        )]
         publishers: Vec<Uuid>,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
         work_types: Vec<WorkType>,
+        #[graphql(
+            description = "(deprecated) A specific status to filter by"
+        )]
         work_status: Option<WorkStatus>,
+        #[graphql(
+            default = vec![],
+            description = "Specific statuses to filter by"
+        )]
         work_statuses: Vec<WorkStatus>,
+        #[graphql(
+            description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+        )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<i32> {
         let mut statuses = work_statuses;
@@ -243,46 +243,46 @@ impl QueryRoot {
 
     #[graphql(
         description="Query the full list of books (a subset of the full list of works)",
-        arguments(
-            limit(
-                default = 100,
-                description = "The number of items to return"
-            ),
-            offset(
-                default = 0,
-                description = "The number of items to skip"
-            ),
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
-            ),
-            order(
-                default = WorkOrderBy::default(),
-                description = "The order in which to sort the results",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-            work_status(description = "(deprecated) A specific status to filter by"),
-            work_statuses(
-                default = vec![],
-                description = "Specific statuses to filter by"
-            ),
-            updated_at_with_relations(
-                description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
-            ),
-        )
     )]
     fn books(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
+        )]
         filter: String,
+        #[graphql(
+            default = WorkOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
         order: WorkOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
+        #[graphql(
+            description = "(deprecated) A specific status to filter by"
+        )]
         work_status: Option<WorkStatus>,
+        #[graphql(
+            default = vec![],
+            description = "Specific statuses to filter by"
+        )]
         work_statuses: Vec<WorkStatus>,
+        #[graphql(
+            description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+        )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
         let mut statuses = work_statuses;
@@ -327,31 +327,31 @@ impl QueryRoot {
 
     #[graphql(
         description = "Get the total number of books (a subset of the total number of works)",
-        arguments(
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-            work_status(description = "(deprecated) A specific status to filter by"),
-            work_statuses(
-                default = vec![],
-                description = "Specific statuses to filter by"
-            ),
-            updated_at_with_relations(
-                description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
-            ),
-        )
     )]
     fn book_count(
         context: &Context,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
+        )]
         filter: String,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
+        #[graphql(
+            description = "(deprecated) A specific status to filter by"
+        )]
         work_status: Option<WorkStatus>,
+        #[graphql(
+            default = vec![],
+            description = "Specific statuses to filter by"
+        )]
         work_statuses: Vec<WorkStatus>,
+        #[graphql(
+            description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+        )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<i32> {
         let mut statuses = work_statuses;
@@ -376,46 +376,46 @@ impl QueryRoot {
 
     #[graphql(
         description="Query the full list of chapters (a subset of the full list of works)",
-        arguments(
-            limit(
-                default = 100,
-                description = "The number of items to return"
-            ),
-            offset(
-                default = 0,
-                description = "The number of items to skip"
-            ),
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
-            ),
-            order(
-                default = WorkOrderBy::default(),
-                description = "The order in which to sort the results",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-            work_status(description = "(deprecated) A specific status to filter by"),
-            work_statuses(
-                default = vec![],
-                description = "Specific statuses to filter by"
-            ),
-            updated_at_with_relations(
-                description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
-            ),
-        )
     )]
     fn chapters(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
+        )]
         filter: String,
+        #[graphql(
+            default = WorkOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
         order: WorkOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
+        #[graphql(
+            description = "(deprecated) A specific status to filter by"
+        )]
         work_status: Option<WorkStatus>,
+        #[graphql(
+            default = vec![],
+            description = "Specific statuses to filter by"
+        )]
         work_statuses: Vec<WorkStatus>,
+        #[graphql(
+            description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+        )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
         let mut statuses = work_statuses;
@@ -445,31 +445,31 @@ impl QueryRoot {
 
     #[graphql(
         description = "Get the total number of chapters (a subset of the total number of works)",
-        arguments(
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-            work_status(description = "(deprecated) A specific status to filter by"),
-            work_statuses(
-                default = vec![],
-                description = "Specific statuses to filter by"
-            ),
-            updated_at_with_relations(
-                description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
-            ),
-        )
     )]
     fn chapter_count(
         context: &Context,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
+        )]
         filter: String,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
+        #[graphql(
+            description = "(deprecated) A specific status to filter by"
+        )]
         work_status: Option<WorkStatus>,
+        #[graphql(
+            default = vec![],
+            description = "Specific statuses to filter by"
+        )]
         work_statuses: Vec<WorkStatus>,
+        #[graphql(
+            description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+        )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<i32> {
         let mut statuses = work_statuses;
@@ -489,34 +489,38 @@ impl QueryRoot {
 
     #[graphql(
         description = "Query the full list of publications",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn"
-            ),
-            order(
-                default = PublicationOrderBy::default(),
-                description = "The order in which to sort the results",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-            publication_types(
-                default = vec![],
-                description = "Specific types to filter by",
-            ),
-        )
     )]
     fn publications(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn"
+        )]
         filter: String,
+        #[graphql(
+            default = PublicationOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
         order: PublicationOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
         publication_types: Vec<PublicationType>,
     ) -> FieldResult<Vec<Publication>> {
         Publication::all(
@@ -542,25 +546,23 @@ impl QueryRoot {
 
     #[graphql(
         description = "Get the total number of publications",
-        arguments(
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-            publication_types(
-                default = vec![],
-                description = "Specific types to filter by",
-            ),
-        )
     )]
     fn publication_count(
         context: &Context,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn"
+        )]
         filter: String,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
         publication_types: Vec<PublicationType>,
     ) -> FieldResult<i32> {
         Publication::count(
@@ -575,37 +577,34 @@ impl QueryRoot {
     }
 
     #[graphql(
-    description="Query the full list of publishers",
-    arguments(
-        limit(
-            default = 100,
-            description = "The number of items to return"
-        ),
-        offset(
-            default = 0,
-            description = "The number of items to skip"
-        ),
-        filter(
-            default = "".to_string(),
-            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on publisher_name and publisher_shortname"
-
-        ),
-        order(
-            default = PublisherOrderBy::default(),
-            description = "The order in which to sort the results",
-        ),
-        publishers(
-            default = vec![],
-            description = "If set, only shows results connected to publishers with these IDs",
-        ),
-    )
-  )]
+        description="Query the full list of publishers",
+    )]
     fn publishers(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on publisher_name and publisher_shortname"
+        )]
         filter: String,
+        #[graphql(
+            default = PublisherOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
         order: PublisherOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
     ) -> FieldResult<Vec<Publisher>> {
         Publisher::all(
@@ -631,20 +630,18 @@ impl QueryRoot {
 
     #[graphql(
         description = "Get the total number of publishers",
-        arguments(
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on publisher_name and publisher_shortname",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-        )
     )]
     fn publisher_count(
         context: &Context,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on publisher_name and publisher_shortname"
+        )]
         filter: String,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
     ) -> FieldResult<i32> {
         Publisher::count(&context.db, Some(filter), publishers, vec![], vec![], None)
@@ -653,29 +650,33 @@ impl QueryRoot {
 
     #[graphql(
         description = "Query the full list of imprints",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url"
-            ),
-            order(
-                default = ImprintOrderBy::default(),
-                description = "The order in which to sort the results",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-        )
     )]
     fn imprints(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url"
+        )]
         filter: String,
+        #[graphql(
+            default = ImprintOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
         order: ImprintOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
     ) -> FieldResult<Vec<Imprint>> {
         Imprint::all(
@@ -701,42 +702,48 @@ impl QueryRoot {
 
     #[graphql(
         description = "Get the total number of imprints",
-        arguments(
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-        )
     )]
-    fn imprint_count(context: &Context, filter: String, publishers: Vec<Uuid>) -> FieldResult<i32> {
+    fn imprint_count(
+        context: &Context,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url"
+        )]
+        filter: String,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
+        publishers: Vec<Uuid>
+    ) -> FieldResult<i32> {
         Imprint::count(&context.db, Some(filter), publishers, vec![], vec![], None)
             .map_err(|e| e.into())
     }
 
     #[graphql(
         description = "Query the full list of contributors",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_name, last_name and orcid"
-            ),
-            order(
-                default = ContributorOrderBy::default(),
-                description = "The order in which to sort the results",
-            ),
-        )
     )]
     fn contributors(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_name, last_name and orcid"
+        )]
         filter: String,
+        #[graphql(
+            default = ContributorOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
         order: ContributorOrderBy,
     ) -> FieldResult<Vec<Contributor>> {
         Contributor::all(
@@ -762,48 +769,53 @@ impl QueryRoot {
 
     #[graphql(
         description = "Get the total number of contributors",
-        arguments(
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_name, last_name and orcid",
-            ),
-        )
     )]
-    fn contributor_count(context: &Context, filter: String) -> FieldResult<i32> {
+    fn contributor_count(
+        context: &Context,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_name, last_name and orcid"
+        )]
+        filter: String
+    ) -> FieldResult<i32> {
         Contributor::count(&context.db, Some(filter), vec![], vec![], vec![], None)
             .map_err(|e| e.into())
     }
 
     #[graphql(
         description = "Query the full list of contributions",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    ContributionOrderBy {
-                        field: ContributionField::ContributionType,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-            contribution_types(
-                default = vec![],
-                description = "Specific types to filter by",
-            ),
-        )
     )]
     fn contributions(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                ContributionOrderBy {
+                    field: ContributionField::ContributionType,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: ContributionOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
         contribution_types: Vec<ContributionType>,
     ) -> FieldResult<Vec<Contribution>> {
         Contribution::all(
@@ -827,16 +839,13 @@ impl QueryRoot {
         Contribution::from_id(&context.db, &contribution_id).map_err(|e| e.into())
     }
 
-    #[graphql(description = "Get the total number of contributions",
-        arguments(
-            contribution_types(
-                default = vec![],
-                description = "Specific types to filter by",
-            ),
-        )
-    )]
+    #[graphql(description = "Get the total number of contributions")]
     fn contribution_count(
         context: &Context,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
         contribution_types: Vec<ContributionType>,
     ) -> FieldResult<i32> {
         Contribution::count(&context.db, None, vec![], contribution_types, vec![], None)
@@ -845,34 +854,38 @@ impl QueryRoot {
 
     #[graphql(
         description = "Query the full list of series",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital, series_url and series_description"
-            ),
-            order(
-                default = SeriesOrderBy::default(),
-                description = "The order in which to sort the results",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-            series_types(
-                default = vec![],
-                description = "Specific types to filter by",
-            ),
-        ),
     )]
     fn serieses(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital, series_url and series_description"
+        )]
         filter: String,
+        #[graphql(
+            default = SeriesOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
         order: SeriesOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
         series_types: Vec<SeriesType>,
     ) -> FieldResult<Vec<Series>> {
         Series::all(
@@ -898,25 +911,23 @@ impl QueryRoot {
 
     #[graphql(
         description = "Get the total number of series",
-        arguments(
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital, series_url and series_description",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-            series_types(
-                default = vec![],
-                description = "Specific types to filter by",
-            ),
-        )
     )]
     fn series_count(
         context: &Context,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital, series_url and series_description"
+        )]
         filter: String,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
         series_types: Vec<SeriesType>,
     ) -> FieldResult<i32> {
         Series::count(
@@ -932,29 +943,33 @@ impl QueryRoot {
 
     #[graphql(
         description = "Query the full list of issues",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    IssueOrderBy {
-                        field: IssueField::IssueOrdinal,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-        )
     )]
     fn issues(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                IssueOrderBy {
+                    field: IssueField::IssueOrdinal,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: IssueOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
     ) -> FieldResult<Vec<Issue>> {
         Issue::all(
@@ -985,41 +1000,47 @@ impl QueryRoot {
 
     #[graphql(
         description = "Query the full list of languages",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    LanguageOrderBy {
-                        field: LanguageField::LanguageCode,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-            language_codes(
-                default = vec![],
-                description = "Specific languages to filter by",
-            ),
-            language_relation(description = "(deprecated) A specific relation to filter by"),
-            language_relations(
-                default = vec![],
-                description = "Specific relations to filter by",
-            ),
-        )
     )]
     fn languages(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                LanguageOrderBy {
+                    field: LanguageField::LanguageCode,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: LanguageOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
+        #[graphql(
+            default = vec![],
+            description = "Specific languages to filter by"
+        )]
         language_codes: Vec<LanguageCode>,
+        #[graphql(
+            description = "(deprecated) A specific relation to filter by"
+        )]
         language_relation: Option<LanguageRelation>,
+        #[graphql(
+            default = vec![],
+            description = "Specific relations to filter by"
+        )]
         language_relations: Vec<LanguageRelation>,
     ) -> FieldResult<Vec<Language>> {
         let mut relations = language_relations;
@@ -1049,22 +1070,22 @@ impl QueryRoot {
 
     #[graphql(
         description = "Get the total number of languages associated to works",
-        arguments(
-            language_codes(
-                default = vec![],
-                description = "Specific languages to filter by",
-            ),
-            language_relation(description = "(deprecated) A specific relation to filter by"),
-            language_relations(
-                default = vec![],
-                description = "Specific relations to filter by",
-            ),
-        )
     )]
     fn language_count(
         context: &Context,
+        #[graphql(
+            default = vec![],
+            description = "Specific languages to filter by"
+        )]
         language_codes: Vec<LanguageCode>,
+        #[graphql(
+            description = "(deprecated) A specific relation to filter by"
+        )]
         language_relation: Option<LanguageRelation>,
+        #[graphql(
+            default = vec![],
+            description = "Specific relations to filter by"
+        )]
         language_relations: Vec<LanguageRelation>,
     ) -> FieldResult<i32> {
         let mut relations = language_relations;
@@ -1077,34 +1098,38 @@ impl QueryRoot {
 
     #[graphql(
         description = "Query the full list of locations",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    LocationOrderBy {
-                        field: LocationField::LocationPlatform,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-            location_platform(
-                default = vec![],
-                description = "Specific platforms to filter by"
-            ),
-        )
     )]
     fn locations(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                LocationOrderBy {
+                    field: LocationField::LocationPlatform,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: LocationOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
+        #[graphql(
+            default = vec![],
+            description = "Specific platforms to filter by"
+        )]
         location_platforms: Vec<LocationPlatform>,
     ) -> FieldResult<Vec<Location>> {
         Location::all(
@@ -1131,6 +1156,10 @@ impl QueryRoot {
     #[graphql(description = "Get the total number of locations associated to works")]
     fn location_count(
         context: &Context,
+        #[graphql(
+            default = vec![],
+            description = "Specific platforms to filter by"
+        )]
         location_platforms: Vec<LocationPlatform>,
     ) -> FieldResult<i32> {
         Location::count(&context.db, None, vec![], location_platforms, vec![], None)
@@ -1139,34 +1168,38 @@ impl QueryRoot {
 
     #[graphql(
         description = "Query the full list of prices",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    PriceOrderBy {
-                        field: PriceField::CurrencyCode,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-            currency_codes(
-                default = vec![],
-                description = "Specific currencies to filter by",
-            ),
-        )
     )]
     fn prices(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                PriceOrderBy {
+                    field: PriceField::CurrencyCode,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: PriceOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
+        #[graphql(
+            default = vec![],
+            description = "Specific currencies to filter by"
+        )]
         currency_codes: Vec<CurrencyCode>,
     ) -> FieldResult<Vec<Price>> {
         Price::all(
@@ -1192,52 +1225,57 @@ impl QueryRoot {
 
     #[graphql(
         description = "Get the total number of prices associated to works",
-        arguments(
-            currency_codes(
-                default = vec![],
-                description = "Specific currencies to filter by",
-            ),
-        )
     )]
-    fn price_count(context: &Context, currency_codes: Vec<CurrencyCode>) -> FieldResult<i32> {
+    fn price_count(
+        context: &Context,
+        #[graphql(
+            default = vec![],
+            description = "Specific currencies to filter by"
+        )]
+        currency_codes: Vec<CurrencyCode>
+    ) -> FieldResult<i32> {
         Price::count(&context.db, None, vec![], currency_codes, vec![], None).map_err(|e| e.into())
     }
 
     #[graphql(
         description = "Query the full list of subjects",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code",
-            ),
-            order(
-                default = {
-                    SubjectOrderBy {
-                        field: SubjectField::SubjectType,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-            subject_types(
-                default = vec![],
-                description = "Specific types to filter by",
-            ),
-        )
     )]
     fn subjects(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code"
+        )]
         filter: String,
+        #[graphql(
+            default = {
+                SubjectOrderBy {
+                    field: SubjectField::SubjectType,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: SubjectOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
         subject_types: Vec<SubjectType>,
     ) -> FieldResult<Vec<Subject>> {
         Subject::all(
@@ -1263,20 +1301,18 @@ impl QueryRoot {
 
     #[graphql(
         description = "Get the total number of subjects associated to works",
-        arguments(
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code",
-            ),
-            subject_types(
-                default = vec![],
-                description = "Specific types to filter by",
-            ),
-        )
     )]
     fn subject_count(
         context: &Context,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code"
+        )]
         filter: String,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
         subject_types: Vec<SubjectType>,
     ) -> FieldResult<i32> {
         Subject::count(
@@ -1292,24 +1328,28 @@ impl QueryRoot {
 
     #[graphql(
         description = "Query the full list of institutions",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on institution_name, ror and institution_doi",
-            ),
-            order(
-                default = InstitutionOrderBy::default(),
-                description = "The order in which to sort the results",
-            ),
-        )
     )]
     fn institutions(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on institution_name, ror and institution_doi"
+        )]
         filter: String,
+        #[graphql(
+            default = InstitutionOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
         order: InstitutionOrderBy,
     ) -> FieldResult<Vec<Institution>> {
         Institution::all(
@@ -1335,43 +1375,48 @@ impl QueryRoot {
 
     #[graphql(
         description = "Get the total number of institutions",
-        arguments(
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on institution_name, ror and institution_doi",
-            ),
-        )
     )]
-    fn institution_count(context: &Context, filter: String) -> FieldResult<i32> {
+    fn institution_count(
+        context: &Context,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on institution_name, ror and institution_doi"
+        )]
+        filter: String
+    ) -> FieldResult<i32> {
         Institution::count(&context.db, Some(filter), vec![], vec![], vec![], None)
             .map_err(|e| e.into())
     }
 
     #[graphql(
         description = "Query the full list of fundings",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    FundingOrderBy {
-                        field: FundingField::Program,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-        )
     )]
     fn fundings(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                FundingOrderBy {
+                    field: FundingField::Program,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: FundingOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
     ) -> FieldResult<Vec<Funding>> {
         Funding::all(
@@ -1402,29 +1447,33 @@ impl QueryRoot {
 
     #[graphql(
         description = "Query the full list of affiliations",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    AffiliationOrderBy {
-                        field: AffiliationField::AffiliationOrdinal,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-        )
     )]
     fn affiliations(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                AffiliationOrderBy {
+                    field: AffiliationField::AffiliationOrdinal,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: AffiliationOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
     ) -> FieldResult<Vec<Affiliation>> {
         Affiliation::all(
@@ -1455,29 +1504,33 @@ impl QueryRoot {
 
     #[graphql(
         description = "Query the full list of references",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    ReferenceOrderBy {
-                        field: ReferenceField::ReferenceOrdinal,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            publishers(
-                default = vec![],
-                description = "If set, only shows results connected to publishers with these IDs",
-            ),
-        )
     )]
     fn references(
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                ReferenceOrderBy {
+                    field: ReferenceField::ReferenceOrdinal,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: ReferenceOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows results connected to publishers with these IDs"
+        )]
         publishers: Vec<Uuid>,
     ) -> FieldResult<Vec<Reference>> {
         Reference::all(
@@ -1751,7 +1804,7 @@ impl MutationRoot {
         let imprint = Imprint::from_id(&context.db, &data.imprint_id).unwrap();
         context
             .account_access
-            .can_edit(imprint.publisher_id(&context.db)?)?;
+            .can_edit(imprint.publisher_id())?;
 
         if data.publisher_id != imprint.publisher_id {
             context.account_access.can_edit(data.publisher_id)?;
@@ -2079,7 +2132,7 @@ impl MutationRoot {
         let imprint = Imprint::from_id(&context.db, &imprint_id).unwrap();
         context
             .account_access
-            .can_edit(imprint.publisher_id(&context.db)?)?;
+            .can_edit(imprint.publisher_id())?;
 
         imprint.delete(&context.db).map_err(|e| e.into())
     }
@@ -2421,30 +2474,34 @@ impl Work {
 
     #[graphql(
         description = "Get contributions linked to this work",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    ContributionOrderBy {
-                        field: ContributionField::ContributionType,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            contribution_types(
-                default = vec![],
-                description = "Specific types to filter by",
-            ),
-        )
     )]
     pub fn contributions(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                ContributionOrderBy {
+                    field: ContributionField::ContributionType,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: ContributionOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
         contribution_types: Vec<ContributionType>,
     ) -> FieldResult<Vec<Contribution>> {
         Contribution::all(
@@ -2465,37 +2522,43 @@ impl Work {
 
     #[graphql(
         description = "Get languages linked to this work",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    LanguageOrderBy {
-                        field: LanguageField::LanguageCode,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            language_codes(
-                default = vec![],
-                description = "Specific languages to filter by",
-            ),
-            language_relation(description = "(deprecated) A specific relation to filter by"),
-            language_relations(
-                default = vec![],
-                description = "Specific relations to filter by",
-            ),
-        )
     )]
     pub fn languages(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                LanguageOrderBy {
+                    field: LanguageField::LanguageCode,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: LanguageOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "Specific languages to filter by"
+        )]
         language_codes: Vec<LanguageCode>,
+        #[graphql(
+            description = "(deprecated) A specific relation to filter by"
+        )]
         language_relation: Option<LanguageRelation>,
+        #[graphql(
+            default = vec![],
+            description = "Specific relations to filter by"
+        )]
         language_relations: Vec<LanguageRelation>,
     ) -> FieldResult<Vec<Language>> {
         let mut relations = language_relations;
@@ -2520,35 +2583,39 @@ impl Work {
 
     #[graphql(
         description = "Get publications linked to this work",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn"
-            ),
-            order(
-                default = {
-                    PublicationOrderBy {
-                        field: PublicationField::PublicationType,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            publication_types(
-                default = vec![],
-                description = "Specific types to filter by",
-            ),
-        )
     )]
     pub fn publications(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn"
+        )]
         filter: String,
+        #[graphql(
+            default = {
+                PublicationOrderBy {
+                    field: PublicationField::PublicationType,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: PublicationOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
         publication_types: Vec<PublicationType>,
     ) -> FieldResult<Vec<Publication>> {
         Publication::all(
@@ -2569,35 +2636,39 @@ impl Work {
 
     #[graphql(
         description = "Get subjects linked to this work",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code",
-            ),
-            order(
-                default = {
-                    SubjectOrderBy {
-                        field: SubjectField::SubjectType,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            subject_types(
-                default = vec![],
-                description = "Specific types to filter by",
-            ),
-        )
     )]
     pub fn subjects(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code"
+        )]
         filter: String,
+        #[graphql(
+            default = {
+                SubjectOrderBy {
+                    field: SubjectField::SubjectType,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: SubjectOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
         subject_types: Vec<SubjectType>,
     ) -> FieldResult<Vec<Subject>> {
         Subject::all(
@@ -2618,25 +2689,29 @@ impl Work {
 
     #[graphql(
         description = "Get fundings linked to this work",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    FundingOrderBy {
-                        field: FundingField::Program,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-        )
     )]
     pub fn fundings(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                FundingOrderBy {
+                    field: FundingField::Program,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: FundingOrderBy,
     ) -> FieldResult<Vec<Funding>> {
         Funding::all(
@@ -2657,25 +2732,29 @@ impl Work {
 
     #[graphql(
         description = "Get issues linked to this work",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    IssueOrderBy {
-                        field: IssueField::IssueOrdinal,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-        )
     )]
     pub fn issues(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                IssueOrderBy {
+                    field: IssueField::IssueOrdinal,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: IssueOrderBy,
     ) -> FieldResult<Vec<Issue>> {
         Issue::all(
@@ -2695,25 +2774,29 @@ impl Work {
     }
     #[graphql(
         description = "Get other works related to this work",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = WorkRelationOrderBy::default(),
-                description = "The order in which to sort the results",
-            ),
-            relation_types(
-                default = vec![],
-                description = "Specific types to filter by",
-            ),
-        )
     )]
     pub fn relations(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = WorkRelationOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
         order: WorkRelationOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
         relation_types: Vec<RelationType>,
     ) -> FieldResult<Vec<WorkRelation>> {
         WorkRelation::all(
@@ -2733,25 +2816,29 @@ impl Work {
     }
     #[graphql(
         description = "Get references cited by this work",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on doi, unstructured_citation, issn, isbn, journal_title, article_title, series_title, volume_title, author, standard_designator, standards_body_name, and standards_body_acronym",
-            ),
-            order(
-                default = ReferenceOrderBy::default(),
-                description = "The order in which to sort the results",
-            ),
-        )
     )]
     pub fn references(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on doi, unstructured_citation, issn, isbn, journal_title, article_title, series_title, volume_title, author, standard_designator, standards_body_name, and standards_body_acronym"
+        )]
         filter: String,
+        #[graphql(
+            default = ReferenceOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
         order: ReferenceOrderBy,
     ) -> FieldResult<Vec<Reference>> {
         Reference::all(
@@ -2799,14 +2886,15 @@ impl Publication {
 
     #[graphql(
         description = "Width of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)",
-        arguments(
-            units(
-                default = LengthUnit::default(),
-                description = "Unit of measurement in which to represent the width (mm, cm or in)",
-            ),
-        )
     )]
-    pub fn width(&self, units: LengthUnit) -> Option<f64> {
+    pub fn width(
+        &self,
+        #[graphql(
+            default = LengthUnit::default(),
+            description = "Unit of measurement in which to represent the width (mm, cm or in)",
+        )]
+        units: LengthUnit
+    ) -> Option<f64> {
         match units {
             LengthUnit::Mm => self.width_mm,
             LengthUnit::Cm => self
@@ -2818,14 +2906,15 @@ impl Publication {
 
     #[graphql(
         description = "Height of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)",
-        arguments(
-            units(
-                default = LengthUnit::default(),
-                description = "Unit of measurement in which to represent the height (mm, cm or in)",
-            ),
-        )
     )]
-    pub fn height(&self, units: LengthUnit) -> Option<f64> {
+    pub fn height(
+        &self,
+        #[graphql(
+            default = LengthUnit::default(),
+            description = "Unit of measurement in which to represent the height (mm, cm or in)",
+        )]
+        units: LengthUnit
+    ) -> Option<f64> {
         match units {
             LengthUnit::Mm => self.height_mm,
             LengthUnit::Cm => self
@@ -2837,14 +2926,15 @@ impl Publication {
 
     #[graphql(
         description = "Depth of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)",
-        arguments(
-            units(
-                default = LengthUnit::default(),
-                description = "Unit of measurement in which to represent the depth (mm, cm or in)",
-            ),
-        )
     )]
-    pub fn depth(&self, units: LengthUnit) -> Option<f64> {
+    pub fn depth(
+        &self,
+        #[graphql(
+            default = LengthUnit::default(),
+            description = "Unit of measurement in which to represent the depth (mm, cm or in)",
+        )]
+        units: LengthUnit
+    ) -> Option<f64> {
         match units {
             LengthUnit::Mm => self.depth_mm,
             LengthUnit::Cm => self
@@ -2856,14 +2946,15 @@ impl Publication {
 
     #[graphql(
         description = "Weight of the physical Publication (in g or oz) (only applicable to non-Chapter Paperbacks and Hardbacks)",
-        arguments(
-            units(
-                default = WeightUnit::default(),
-                description = "Unit of measurement in which to represent the weight (grams or ounces)",
-            ),
-        )
     )]
-    pub fn weight(&self, units: WeightUnit) -> Option<f64> {
+    pub fn weight(
+        &self,
+        #[graphql(
+            default = WeightUnit::default(),
+            description = "Unit of measurement in which to represent the weight (grams or ounces)",
+        )]
+        units: WeightUnit
+    ) -> Option<f64> {
         match units {
             WeightUnit::G => self.weight_g,
             WeightUnit::Oz => self.weight_oz,
@@ -2872,30 +2963,34 @@ impl Publication {
 
     #[graphql(
         description = "Get prices linked to this publication",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    PriceOrderBy {
-                        field: PriceField::CurrencyCode,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            currency_codes(
-                default = vec![],
-                description = "Specific currencies to filter by",
-            ),
-        )
     )]
     pub fn prices(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                PriceOrderBy {
+                    field: PriceField::CurrencyCode,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: PriceOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "Specific currencies to filter by"
+        )]
         currency_codes: Vec<CurrencyCode>,
     ) -> FieldResult<Vec<Price>> {
         Price::all(
@@ -2916,30 +3011,34 @@ impl Publication {
 
     #[graphql(
         description = "Get locations linked to this publication",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    LocationOrderBy {
-                        field: LocationField::LocationPlatform,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            location_platforms(
-                default = vec![],
-                description = "Specific platforms to filter by",
-            ),
-        )
     )]
     pub fn locations(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                LocationOrderBy {
+                    field: LocationField::LocationPlatform,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: LocationOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "Specific platforms to filter by"
+        )]
         location_platforms: Vec<LocationPlatform>,
     ) -> FieldResult<Vec<Location>> {
         Location::all(
@@ -2991,30 +3090,34 @@ impl Publisher {
 
     #[graphql(
         description = "Get imprints linked to this publisher",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            filter(
-                default = "".to_string(),
-                description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url"
-            ),
-            order(
-                default = {
-                    ImprintOrderBy {
-                        field: ImprintField::ImprintName,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-        )
     )]
     pub fn imprints(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = "".to_string(),
+            description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url"
+        )]
         filter: String,
+        #[graphql(
+           default = {
+                ImprintOrderBy {
+                    field: ImprintField::ImprintName,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: ImprintOrderBy,
     ) -> FieldResult<Vec<Imprint>> {
         Imprint::all(
@@ -3074,52 +3177,48 @@ impl Imprint {
     }
 
     #[graphql(
-    description="Get works linked to this imprint",
-    arguments(
-        limit(
+        description="Get works linked to this imprint",
+    )]
+    pub fn works(
+        &self,
+        context: &Context,
+        #[graphql(
             default = 100,
             description = "The number of items to return"
-        ),
-        offset(
+        )]
+        limit: i32,
+        #[graphql(
             default = 0,
             description = "The number of items to skip"
-        ),
-        filter(
+        )]
+        offset: i32,
+        #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
-        ),
-        order(
-            default = {
-                WorkOrderBy {
-                    field: WorkField::FullTitle,
-                    direction: Direction::Asc,
-                }
-            },
-            description = "The order in which to sort the results",
-        ),
-        work_types(
+        )]
+        filter: String,
+        #[graphql(
+            default = WorkOrderBy::default(),
+            description = "The order in which to sort the results"
+        )]
+        order: WorkOrderBy,
+        #[graphql(
             default = vec![],
             description = "Specific types to filter by",
-        ),
-        work_status(description = "(deprecated) A specific status to filter by"),
-        work_statuses(
+        )]
+        work_types: Vec<WorkType>,
+        #[graphql(
+            description = "(deprecated) A specific status to filter by"
+        )]
+        work_status: Option<WorkStatus>,
+        #[graphql(
             default = vec![],
             description = "Specific statuses to filter by"
-        ),
-        updated_at_with_relations(
-            description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
-        ),
-    )
-  )]
-    pub fn works(
-        context: &Context,
-        limit: i32,
-        offset: i32,
-        filter: String,
-        order: WorkOrderBy,
-        work_types: Vec<WorkType>,
-        work_status: Option<WorkStatus>,
+        )]
         work_statuses: Vec<WorkStatus>,
+        #[graphql(
+            description = "Only show results updated either before (less than) or after (greater than) the specified timestamp"
+        )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
         let mut statuses = work_statuses;
@@ -3179,30 +3278,34 @@ impl Contributor {
 
     #[graphql(
         description = "Get contributions linked to this contributor",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    ContributionOrderBy {
-                        field: ContributionField::ContributionType,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-            contribution_types(
-                default = vec![],
-                description = "Specific types to filter by",
-            ),
-        )
     )]
     pub fn contributions(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                ContributionOrderBy {
+                    field: ContributionField::ContributionType,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: ContributionOrderBy,
+        #[graphql(
+            default = vec![],
+            description = "Specific types to filter by",
+        )]
         contribution_types: Vec<ContributionType>,
     ) -> FieldResult<Vec<Contribution>> {
         Contribution::all(
@@ -3282,25 +3385,29 @@ impl Contribution {
 
     #[graphql(
         description = "Get affiliations linked to this contribution",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    AffiliationOrderBy {
-                        field: AffiliationField::AffiliationOrdinal,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-        )
     )]
     pub fn affiliations(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                AffiliationOrderBy {
+                    field: AffiliationField::AffiliationOrdinal,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: AffiliationOrderBy,
     ) -> FieldResult<Vec<Affiliation>> {
         Affiliation::all(
@@ -3374,25 +3481,29 @@ impl Series {
 
     #[graphql(
         description = "Get issues linked to this series",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    IssueOrderBy {
-                        field: IssueField::IssueOrdinal,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-        )
     )]
     pub fn issues(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                IssueOrderBy {
+                    field: IssueField::IssueOrdinal,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: IssueOrderBy,
     ) -> FieldResult<Vec<Issue>> {
         Issue::all(
@@ -3625,25 +3736,29 @@ impl Institution {
 
     #[graphql(
         description = "Get fundings linked to this institution",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    FundingOrderBy {
-                        field: FundingField::Program,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-        )
     )]
     pub fn fundings(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                FundingOrderBy {
+                    field: FundingField::Program,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: FundingOrderBy,
     ) -> FieldResult<Vec<Funding>> {
         Funding::all(
@@ -3664,25 +3779,29 @@ impl Institution {
 
     #[graphql(
         description = "Get affiliations linked to this institution",
-        arguments(
-            limit(default = 100, description = "The number of items to return"),
-            offset(default = 0, description = "The number of items to skip"),
-            order(
-                default = {
-                    AffiliationOrderBy {
-                        field: AffiliationField::AffiliationOrdinal,
-                        direction: Direction::Asc,
-                    }
-                },
-                description = "The order in which to sort the results",
-            ),
-        )
     )]
     pub fn affiliations(
         &self,
         context: &Context,
+        #[graphql(
+            default = 100,
+            description = "The number of items to return"
+        )]
         limit: i32,
+        #[graphql(
+            default = 0,
+            description = "The number of items to skip"
+        )]
         offset: i32,
+        #[graphql(
+            default = {
+                AffiliationOrderBy {
+                    field: AffiliationField::AffiliationOrdinal,
+                    direction: Direction::Asc,
+                }
+            },
+            description = "The order in which to sort the results"
+        )]
         order: AffiliationOrderBy,
     ) -> FieldResult<Vec<Affiliation>> {
         Affiliation::all(
