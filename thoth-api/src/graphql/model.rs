@@ -113,9 +113,10 @@ pub struct QueryRoot;
 
 #[juniper::graphql_object(Context = Context)]
 impl QueryRoot {
+    #[allow(clippy::too_many_arguments)]
     #[graphql(
-    description="Query the full list of works"
-  )]
+        description="Query the full list of works"
+    )]
     fn works(
         context: &Context,
         #[graphql(
@@ -241,6 +242,7 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[graphql(
         description="Query the full list of books (a subset of the full list of works)",
     )]
@@ -374,6 +376,7 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[graphql(
         description="Query the full list of chapters (a subset of the full list of works)",
     )]
@@ -998,6 +1001,7 @@ impl QueryRoot {
         Issue::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[graphql(
         description = "Query the full list of languages",
     )]
@@ -2520,6 +2524,7 @@ impl Work {
         .map_err(|e| e.into())
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[graphql(
         description = "Get languages linked to this work",
     )]
@@ -3176,6 +3181,7 @@ impl Imprint {
         Publisher::from_id(&context.db, &self.publisher_id).map_err(|e| e.into())
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[graphql(
         description="Get works linked to this imprint",
     )]
