@@ -65,11 +65,29 @@ pub struct ContributionOrderBy {
     pub direction: Direction,
 }
 
+impl Default for ContributionOrderBy {
+    fn default() -> ContributionOrderBy {
+        ContributionOrderBy {
+            field: ContributionField::ContributionType,
+            direction: Default::default(),
+        }
+    }
+}
+
 #[derive(juniper::GraphQLInputObject)]
 #[graphql(description = "Field and order to use when sorting issues list")]
 pub struct IssueOrderBy {
     pub field: IssueField,
     pub direction: Direction,
+}
+
+impl Default for IssueOrderBy {
+    fn default() -> IssueOrderBy {
+        IssueOrderBy {
+            field: IssueField::IssueOrdinal,
+            direction: Default::default(),
+        }
+    }
 }
 
 #[derive(juniper::GraphQLInputObject)]
@@ -79,11 +97,29 @@ pub struct LanguageOrderBy {
     pub direction: Direction,
 }
 
+impl Default for LanguageOrderBy {
+    fn default() -> LanguageOrderBy {
+        LanguageOrderBy {
+            field: LanguageField::LanguageCode,
+            direction: Default::default(),
+        }
+    }
+}
+
 #[derive(juniper::GraphQLInputObject)]
 #[graphql(description = "Field and order to use when sorting prices list")]
 pub struct PriceOrderBy {
     pub field: PriceField,
     pub direction: Direction,
+}
+
+impl Default for PriceOrderBy {
+    fn default() -> PriceOrderBy {
+        PriceOrderBy {
+            field: PriceField::CurrencyCode,
+            direction: Default::default(),
+        }
+    }
 }
 
 #[derive(juniper::GraphQLInputObject)]
@@ -93,11 +129,29 @@ pub struct SubjectOrderBy {
     pub direction: Direction,
 }
 
+impl Default for SubjectOrderBy {
+    fn default() -> SubjectOrderBy {
+        SubjectOrderBy {
+            field: SubjectField::SubjectType,
+            direction: Default::default(),
+        }
+    }
+}
+
 #[derive(juniper::GraphQLInputObject)]
 #[graphql(description = "Field and order to use when sorting fundings list")]
 pub struct FundingOrderBy {
     pub field: FundingField,
     pub direction: Direction,
+}
+
+impl Default for FundingOrderBy {
+    fn default() -> FundingOrderBy {
+        FundingOrderBy {
+            field: FundingField::Program,
+            direction: Default::default(),
+        }
+    }
 }
 
 #[derive(juniper::GraphQLInputObject)]
@@ -163,20 +217,20 @@ impl QueryRoot {
         )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
-        let mut statuses = work_statuses.unwrap();
+        let mut statuses = work_statuses.unwrap_or_default();
         if let Some(status) = work_status {
             statuses.push(status);
         }
         Work::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             filter,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
-            work_types.unwrap(),
+            work_types.unwrap_or_default(),
             statuses,
             updated_at_with_relations,
         )
@@ -227,15 +281,15 @@ impl QueryRoot {
         )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<i32> {
-        let mut statuses = work_statuses.unwrap();
+        let mut statuses = work_statuses.unwrap_or_default();
         if let Some(status) = work_status {
             statuses.push(status);
         }
         Work::count(
             &context.db,
             filter,
-            publishers.unwrap(),
-            work_types.unwrap(),
+            publishers.unwrap_or_default(),
+            work_types.unwrap_or_default(),
             statuses,
             updated_at_with_relations,
         )
@@ -287,17 +341,17 @@ impl QueryRoot {
         )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
-        let mut statuses = work_statuses.unwrap();
+        let mut statuses = work_statuses.unwrap_or_default();
         if let Some(status) = work_status {
             statuses.push(status);
         }
         Work::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             filter,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
             vec![
@@ -356,14 +410,14 @@ impl QueryRoot {
         )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<i32> {
-        let mut statuses = work_statuses.unwrap();
+        let mut statuses = work_statuses.unwrap_or_default();
         if let Some(status) = work_status {
             statuses.push(status);
         }
         Work::count(
             &context.db,
             filter,
-            publishers.unwrap(),
+            publishers.unwrap_or_default(),
             vec![
                 WorkType::Monograph,
                 WorkType::EditedBook,
@@ -421,17 +475,17 @@ impl QueryRoot {
         )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
-        let mut statuses = work_statuses.unwrap();
+        let mut statuses = work_statuses.unwrap_or_default();
         if let Some(status) = work_status {
             statuses.push(status);
         }
         Work::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             filter,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
             vec![WorkType::BookChapter],
@@ -475,14 +529,14 @@ impl QueryRoot {
         )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<i32> {
-        let mut statuses = work_statuses.unwrap();
+        let mut statuses = work_statuses.unwrap_or_default();
         if let Some(status) = work_status {
             statuses.push(status);
         }
         Work::count(
             &context.db,
             filter,
-            publishers.unwrap(),
+            publishers.unwrap_or_default(),
             vec![WorkType::BookChapter],
             statuses,
             updated_at_with_relations,
@@ -528,14 +582,14 @@ impl QueryRoot {
     ) -> FieldResult<Vec<Publication>> {
         Publication::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             filter,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
-            publication_types.unwrap(),
+            publication_types.unwrap_or_default(),
             vec![],
             None,
         )
@@ -571,8 +625,8 @@ impl QueryRoot {
         Publication::count(
             &context.db,
             filter,
-            publishers.unwrap(),
-            publication_types.unwrap(),
+            publishers.unwrap_or_default(),
+            publication_types.unwrap_or_default(),
             vec![],
             None,
         )
@@ -612,11 +666,11 @@ impl QueryRoot {
     ) -> FieldResult<Vec<Publisher>> {
         Publisher::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             filter,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
             vec![],
@@ -647,7 +701,7 @@ impl QueryRoot {
         )]
         publishers: Option<Vec<Uuid>>,
     ) -> FieldResult<i32> {
-        Publisher::count(&context.db, filter, publishers.unwrap(), vec![], vec![], None)
+        Publisher::count(&context.db, filter, publishers.unwrap_or_default(), vec![], vec![], None)
             .map_err(|e| e.into())
     }
 
@@ -684,11 +738,11 @@ impl QueryRoot {
     ) -> FieldResult<Vec<Imprint>> {
         Imprint::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             filter,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
             vec![],
@@ -719,7 +773,7 @@ impl QueryRoot {
         )]
         publishers: Option<Vec<Uuid>>,
     ) -> FieldResult<i32> {
-        Imprint::count(&context.db, filter, publishers.unwrap(), vec![], vec![], None)
+        Imprint::count(&context.db, filter, publishers.unwrap_or_default(), vec![], vec![], None)
             .map_err(|e| e.into())
     }
 
@@ -751,10 +805,10 @@ impl QueryRoot {
     ) -> FieldResult<Vec<Contributor>> {
         Contributor::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             filter,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             None,
             None,
@@ -801,12 +855,7 @@ impl QueryRoot {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                ContributionOrderBy {
-                    field: ContributionField::ContributionType,
-                    direction: Direction::Asc,
-                }
-            },
+            default = ContributionOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<ContributionOrderBy>,
@@ -823,14 +872,14 @@ impl QueryRoot {
     ) -> FieldResult<Vec<Contribution>> {
         Contribution::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
-            contribution_types.unwrap(),
+            contribution_types.unwrap_or_default(),
             vec![],
             None,
         )
@@ -851,7 +900,7 @@ impl QueryRoot {
         )]
         contribution_types: Option<Vec<ContributionType>>,
     ) -> FieldResult<i32> {
-        Contribution::count(&context.db, None, vec![], contribution_types.unwrap(), vec![], None)
+        Contribution::count(&context.db, None, vec![], contribution_types.unwrap_or_default(), vec![], None)
             .map_err(|e| e.into())
     }
 
@@ -893,14 +942,14 @@ impl QueryRoot {
     ) -> FieldResult<Vec<Series>> {
         Series::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             filter,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
-            series_types.unwrap(),
+            series_types.unwrap_or_default(),
             vec![],
             None,
         )
@@ -936,8 +985,8 @@ impl QueryRoot {
         Series::count(
             &context.db,
             filter,
-            publishers.unwrap(),
-            series_types.unwrap(),
+            publishers.unwrap_or_default(),
+            series_types.unwrap_or_default(),
             vec![],
             None,
         )
@@ -960,12 +1009,7 @@ impl QueryRoot {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                IssueOrderBy {
-                    field: IssueField::IssueOrdinal,
-                    direction: Direction::Asc,
-                }
-            },
+            default = IssueOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<IssueOrderBy>,
@@ -977,11 +1021,11 @@ impl QueryRoot {
     ) -> FieldResult<Vec<Issue>> {
         Issue::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
             vec![],
@@ -1018,12 +1062,7 @@ impl QueryRoot {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                LanguageOrderBy {
-                    field: LanguageField::LanguageCode,
-                    direction: Direction::Asc,
-                }
-            },
+            default = LanguageOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<LanguageOrderBy>,
@@ -1047,20 +1086,20 @@ impl QueryRoot {
         )]
         language_relations: Option<Vec<LanguageRelation>>,
     ) -> FieldResult<Vec<Language>> {
-        let mut relations = language_relations.unwrap();
+        let mut relations = language_relations.unwrap_or_default();
         if let Some(relation) = language_relation {
             relations.push(relation);
         }
         Language::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
-            language_codes.unwrap(),
+            language_codes.unwrap_or_default(),
             relations,
             None,
         )
@@ -1092,11 +1131,11 @@ impl QueryRoot {
         )]
         language_relations: Option<Vec<LanguageRelation>>,
     ) -> FieldResult<i32> {
-        let mut relations = language_relations.unwrap();
+        let mut relations = language_relations.unwrap_or_default();
         if let Some(relation) = language_relation {
             relations.push(relation);
         }
-        Language::count(&context.db, None, vec![], language_codes.unwrap(), relations, None)
+        Language::count(&context.db, None, vec![], language_codes.unwrap_or_default(), relations, None)
             .map_err(|e| e.into())
     }
 
@@ -1116,12 +1155,7 @@ impl QueryRoot {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                LocationOrderBy {
-                    field: LocationField::LocationPlatform,
-                    direction: Direction::Asc,
-                }
-            },
+            default = LocationOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<LocationOrderBy>,
@@ -1138,14 +1172,14 @@ impl QueryRoot {
     ) -> FieldResult<Vec<Location>> {
         Location::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
-            location_platforms.unwrap(),
+            location_platforms.unwrap_or_default(),
             vec![],
             None,
         )
@@ -1166,7 +1200,7 @@ impl QueryRoot {
         )]
         location_platforms: Option<Vec<LocationPlatform>>,
     ) -> FieldResult<i32> {
-        Location::count(&context.db, None, vec![], location_platforms.unwrap(), vec![], None)
+        Location::count(&context.db, None, vec![], location_platforms.unwrap_or_default(), vec![], None)
             .map_err(|e| e.into())
     }
 
@@ -1186,12 +1220,7 @@ impl QueryRoot {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                PriceOrderBy {
-                    field: PriceField::CurrencyCode,
-                    direction: Direction::Asc,
-                }
-            },
+            default = PriceOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<PriceOrderBy>,
@@ -1208,14 +1237,14 @@ impl QueryRoot {
     ) -> FieldResult<Vec<Price>> {
         Price::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
-            currency_codes.unwrap(),
+            currency_codes.unwrap_or_default(),
             vec![],
             None,
         )
@@ -1238,7 +1267,7 @@ impl QueryRoot {
         )]
         currency_codes: Option<Vec<CurrencyCode>>,
     ) -> FieldResult<i32> {
-        Price::count(&context.db, None, vec![], currency_codes.unwrap(), vec![], None).map_err(|e| e.into())
+        Price::count(&context.db, None, vec![], currency_codes.unwrap_or_default(), vec![], None).map_err(|e| e.into())
     }
 
     #[graphql(
@@ -1262,12 +1291,7 @@ impl QueryRoot {
         )]
         filter: Option<String>,
         #[graphql(
-            default = {
-                SubjectOrderBy {
-                    field: SubjectField::SubjectType,
-                    direction: Direction::Asc,
-                }
-            },
+            default = SubjectOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<SubjectOrderBy>,
@@ -1284,14 +1308,14 @@ impl QueryRoot {
     ) -> FieldResult<Vec<Subject>> {
         Subject::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             filter,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
-            subject_types.unwrap(),
+            subject_types.unwrap_or_default(),
             vec![],
             None,
         )
@@ -1323,7 +1347,7 @@ impl QueryRoot {
             &context.db,
             filter,
             vec![],
-            subject_types.unwrap(),
+            subject_types.unwrap_or_default(),
             vec![],
             None,
         )
@@ -1358,10 +1382,10 @@ impl QueryRoot {
     ) -> FieldResult<Vec<Institution>> {
         Institution::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             filter,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             None,
             None,
@@ -1408,12 +1432,7 @@ impl QueryRoot {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                FundingOrderBy {
-                    field: FundingField::Program,
-                    direction: Direction::Asc,
-                }
-            },
+            default = FundingOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<FundingOrderBy>,
@@ -1425,11 +1444,11 @@ impl QueryRoot {
     ) -> FieldResult<Vec<Funding>> {
         Funding::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
             vec![],
@@ -1465,12 +1484,7 @@ impl QueryRoot {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                AffiliationOrderBy {
-                    field: AffiliationField::AffiliationOrdinal,
-                    direction: Direction::Asc,
-                }
-            },
+            default = AffiliationOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<AffiliationOrderBy>,
@@ -1482,11 +1496,11 @@ impl QueryRoot {
     ) -> FieldResult<Vec<Affiliation>> {
         Affiliation::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
             vec![],
@@ -1522,12 +1536,7 @@ impl QueryRoot {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                ReferenceOrderBy {
-                    field: ReferenceField::ReferenceOrdinal,
-                    direction: Direction::Asc,
-                }
-            },
+            default = ReferenceOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<ReferenceOrderBy>,
@@ -1539,11 +1548,11 @@ impl QueryRoot {
     ) -> FieldResult<Vec<Reference>> {
         Reference::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
-            publishers.unwrap(),
+            order.unwrap_or_default(),
+            publishers.unwrap_or_default(),
             None,
             None,
             vec![],
@@ -2493,12 +2502,7 @@ impl Work {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                ContributionOrderBy {
-                    field: ContributionField::ContributionType,
-                    direction: Direction::Asc,
-                }
-            },
+            default = ContributionOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<ContributionOrderBy>,
@@ -2510,14 +2514,14 @@ impl Work {
     ) -> FieldResult<Vec<Contribution>> {
         Contribution::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             Some(self.work_id),
             None,
-            contribution_types.unwrap(),
+            contribution_types.unwrap_or_default(),
             vec![],
             None,
         )
@@ -2542,12 +2546,7 @@ impl Work {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                LanguageOrderBy {
-                    field: LanguageField::LanguageCode,
-                    direction: Direction::Asc,
-                }
-            },
+            default = LanguageOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<LanguageOrderBy>,
@@ -2566,20 +2565,20 @@ impl Work {
         )]
         language_relations: Option<Vec<LanguageRelation>>,
     ) -> FieldResult<Vec<Language>> {
-        let mut relations = language_relations.unwrap();
+        let mut relations = language_relations.unwrap_or_default();
         if let Some(relation) = language_relation {
             relations.push(relation);
         }
         Language::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             Some(self.work_id),
             None,
-            language_codes.unwrap(),
+            language_codes.unwrap_or_default(),
             relations,
             None,
         )
@@ -2608,12 +2607,7 @@ impl Work {
         )]
         filter: Option<String>,
         #[graphql(
-            default = {
-                PublicationOrderBy {
-                    field: PublicationField::PublicationType,
-                    direction: Direction::Asc,
-                }
-            },
+            default = PublicationOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<PublicationOrderBy>,
@@ -2625,14 +2619,14 @@ impl Work {
     ) -> FieldResult<Vec<Publication>> {
         Publication::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             filter,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             Some(self.work_id),
             None,
-            publication_types.unwrap(),
+            publication_types.unwrap_or_default(),
             vec![],
             None,
         )
@@ -2661,12 +2655,7 @@ impl Work {
         )]
         filter: Option<String>,
         #[graphql(
-            default = {
-                SubjectOrderBy {
-                    field: SubjectField::SubjectType,
-                    direction: Direction::Asc,
-                }
-            },
+            default = SubjectOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<SubjectOrderBy>,
@@ -2678,14 +2667,14 @@ impl Work {
     ) -> FieldResult<Vec<Subject>> {
         Subject::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             filter,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             Some(self.work_id),
             None,
-            subject_types.unwrap(),
+            subject_types.unwrap_or_default(),
             vec![],
             None,
         )
@@ -2709,22 +2698,17 @@ impl Work {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                FundingOrderBy {
-                    field: FundingField::Program,
-                    direction: Direction::Asc,
-                }
-            },
+            default = FundingOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<FundingOrderBy>,
     ) -> FieldResult<Vec<Funding>> {
         Funding::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             Some(self.work_id),
             None,
@@ -2752,22 +2736,17 @@ impl Work {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                IssueOrderBy {
-                    field: IssueField::IssueOrdinal,
-                    direction: Direction::Asc,
-                }
-            },
+            default = IssueOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<IssueOrderBy>,
     ) -> FieldResult<Vec<Issue>> {
         Issue::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             Some(self.work_id),
             None,
@@ -2806,14 +2785,14 @@ impl Work {
     ) -> FieldResult<Vec<WorkRelation>> {
         WorkRelation::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             Some(self.work_id),
             None,
-            relation_types.unwrap(),
+            relation_types.unwrap_or_default(),
             vec![],
             None,
         )
@@ -2848,10 +2827,10 @@ impl Work {
     ) -> FieldResult<Vec<Reference>> {
         Reference::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             filter,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             Some(self.work_id),
             None,
@@ -2983,12 +2962,7 @@ impl Publication {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                PriceOrderBy {
-                    field: PriceField::CurrencyCode,
-                    direction: Direction::Asc,
-                }
-            },
+            default = PriceOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<PriceOrderBy>,
@@ -3000,14 +2974,14 @@ impl Publication {
     ) -> FieldResult<Vec<Price>> {
         Price::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             Some(self.publication_id),
             None,
-            currency_codes.unwrap(),
+            currency_codes.unwrap_or_default(),
             vec![],
             None,
         )
@@ -3031,12 +3005,7 @@ impl Publication {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                LocationOrderBy {
-                    field: LocationField::LocationPlatform,
-                    direction: Direction::Asc,
-                }
-            },
+            default = LocationOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<LocationOrderBy>,
@@ -3048,14 +3017,14 @@ impl Publication {
     ) -> FieldResult<Vec<Location>> {
         Location::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             Some(self.publication_id),
             None,
-            location_platforms.unwrap(),
+            location_platforms.unwrap_or_default(),
             vec![],
             None,
         )
@@ -3127,10 +3096,10 @@ impl Publisher {
     ) -> FieldResult<Vec<Imprint>> {
         Imprint::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             filter,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             Some(self.publisher_id),
             None,
@@ -3227,20 +3196,20 @@ impl Imprint {
         )]
         updated_at_with_relations: Option<TimeExpression>,
     ) -> FieldResult<Vec<Work>> {
-        let mut statuses = work_statuses.unwrap();
+        let mut statuses = work_statuses.unwrap_or_default();
         if let Some(status) = work_status {
             statuses.push(status);
         }
         Work::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             filter,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             Some(self.imprint_id),
             None,
-            work_types.unwrap(),
+            work_types.unwrap_or_default(),
             statuses,
             updated_at_with_relations,
         )
@@ -3299,12 +3268,7 @@ impl Contributor {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                ContributionOrderBy {
-                    field: ContributionField::ContributionType,
-                    direction: Direction::Asc,
-                }
-            },
+            default = ContributionOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<ContributionOrderBy>,
@@ -3316,14 +3280,14 @@ impl Contributor {
     ) -> FieldResult<Vec<Contribution>> {
         Contribution::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             None,
             Some(self.contributor_id),
-            contribution_types.unwrap(),
+            contribution_types.unwrap_or_default(),
             vec![],
             None,
         )
@@ -3406,22 +3370,17 @@ impl Contribution {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                AffiliationOrderBy {
-                    field: AffiliationField::AffiliationOrdinal,
-                    direction: Direction::Asc,
-                }
-            },
+            default = AffiliationOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<AffiliationOrderBy>,
     ) -> FieldResult<Vec<Affiliation>> {
         Affiliation::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             None,
             Some(self.contribution_id),
@@ -3502,22 +3461,17 @@ impl Series {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                IssueOrderBy {
-                    field: IssueField::IssueOrdinal,
-                    direction: Direction::Asc,
-                }
-            },
+            default = IssueOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<IssueOrderBy>,
     ) -> FieldResult<Vec<Issue>> {
         Issue::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             None,
             Some(self.series_id),
@@ -3757,22 +3711,17 @@ impl Institution {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                FundingOrderBy {
-                    field: FundingField::Program,
-                    direction: Direction::Asc,
-                }
-            },
+            default = FundingOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<FundingOrderBy>,
     ) -> FieldResult<Vec<Funding>> {
         Funding::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             None,
             Some(self.institution_id),
@@ -3800,22 +3749,17 @@ impl Institution {
         )]
         offset: Option<i32>,
         #[graphql(
-            default = {
-                AffiliationOrderBy {
-                    field: AffiliationField::AffiliationOrdinal,
-                    direction: Direction::Asc,
-                }
-            },
+            default = AffiliationOrderBy::default(),
             description = "The order in which to sort the results"
         )]
         order: Option<AffiliationOrderBy>,
     ) -> FieldResult<Vec<Affiliation>> {
         Affiliation::all(
             &context.db,
-            limit.unwrap(),
-            offset.unwrap(),
+            limit.unwrap_or_default(),
+            offset.unwrap_or_default(),
             None,
-            order.unwrap(),
+            order.unwrap_or_default(),
             vec![],
             Some(self.institution_id),
             None,
