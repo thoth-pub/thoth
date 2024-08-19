@@ -103,7 +103,7 @@ impl XmlElementBlock<DoiDepositCrossref> for Work {
                         XmlElementBlock::<DoiDepositCrossref>::xml_element(series, w)?;
                     }
                     write_contributions(work, w)?;
-                    write_title(work, w)?;
+                    write_work_title(work, w)?;
                     write_abstract(work, w)?;
 
                     if let Some(ordinal) = self.issues.first().map(|i| (i.issue_ordinal)) {
@@ -158,13 +158,31 @@ fn write_contributions<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothRe
     Ok(())
 }
 
-fn write_title<W: Write>(work: &Work, w: &mut EventWriter<W>) -> ThothResult<()> {
+fn write_work_title<W: Write>(
+    work: &Work,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    write_title(&work.title, work.subtitle.as_deref(), w)
+}
+
+fn write_chapter_title<W: Write>(
+    chapter: &WorkRelations,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
+    write_title(&chapter.related_work.title, chapter.related_work.subtitle.as_deref(), w)
+}
+
+fn write_title<W: Write>(
+    title: &str,
+    subtitle: Option<&str>,
+    w: &mut EventWriter<W>,
+) -> ThothResult<()> {
     write_element_block("titles", w, |w| {
         write_element_block("title", w, |w| {
-            w.write(XmlEvent::Characters(&work.title))
+            w.write(XmlEvent::Characters(title))
                 .map_err(|e| e.into())
         })?;
-        if let Some(subtitle) = &work.subtitle {
+        if let Some(subtitle) = subtitle {
             write_element_block("subtitle", w, |w| {
                 w.write(XmlEvent::Characters(subtitle))
                     .map_err(|e| e.into())
@@ -543,25 +561,7 @@ fn write_chapter_contributions<W: Write>(
     Ok(())
 }
 
-fn write_chapter_title<W: Write>(
-    chapter: &WorkRelations,
-    w: &mut EventWriter<W>,
-) -> ThothResult<()> {
-    write_element_block("titles", w, |w| {
-        write_element_block("title", w, |w| {
-            w.write(XmlEvent::Characters(&chapter.related_work.title))
-                .map_err(|e| e.into())
-        })?;
-        if let Some(subtitle) = &chapter.related_work.subtitle {
-            write_element_block("subtitle", w, |w| {
-                w.write(XmlEvent::Characters(subtitle))
-                    .map_err(|e| e.into())
-            })?;
-        }
-        Ok(())
-    })?;
-    Ok(())
-}
+
 
 fn write_chapter_abstract<W: Write>(
     chapter: &WorkRelations,
