@@ -59,6 +59,8 @@ impl Component for InstitutionSelectComponent {
         let debounce_timeout: Option<Timeout> = None;
         let show_results = false;
 
+        ctx.link().send_message(Msg::GetInstitutions);
+
         InstitutionSelectComponent {
             institutions,
             fetch_institutions,
