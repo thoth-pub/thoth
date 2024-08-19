@@ -3,7 +3,7 @@ ALTER TABLE work
     -- otherwise it won't be able to cast to text
     DROP CONSTRAINT IF EXISTS work_inactive_no_withdrawn_date_check,
     DROP CONSTRAINT IF EXISTS work_active_withdrawn_date_check,
-    -- Drop new constraint from v.0.12.6
+    -- Drop new constraint from v.0.12.7
     DROP CONSTRAINT IF EXISTS work_active_publication_date_check;
 
 ALTER TABLE work ALTER COLUMN work_status TYPE text;
