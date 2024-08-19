@@ -5,12 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-### Changed
-  - [595](https://github.com/thoth-pub/thoth/issues/595) - Remove infrequently used and unused work statuses (unspecified, no longer our product, out of stock indefinitely, out of print, inactive, unknown, remaindered, recalled). Require a publication date for active, withdrawn from sale, and superseded works in Thoth.
-
 ### Added
   - [595](https://github.com/thoth-pub/thoth/issues/595) - Add a new `Superseded` work status to replace Out of Print for older editions of Works. Require a withdrawn from sale date for Superseded works.
   - [582](https://github.com/thoth-pub/thoth/issues/582) - Add Crossmark metadata in Crossref DOI deposit when a Crossmark policy is present in the publisher record. Add Crossmark update new_edition metadata when a book is replaced by a new edition, and withdrawal metadata when a book is withdrawn from sale.
+
+### Changed
+  - [595](https://github.com/thoth-pub/thoth/issues/595) - Remove infrequently used and unused work statuses (unspecified, no longer our product, out of stock indefinitely, out of print, inactive, unknown, remaindered, recalled). Require a publication date for active, withdrawn from sale, and superseded works in Thoth.
+  - [538](https://github.com/thoth-pub/thoth/issues/538) - Update Project MUSE ONIX 3.0 export to reflect new specifications provided by Project MUSE.
+  - [616](https://github.com/thoth-pub/thoth/pull/616) - Removed unused constant to comply with [`rustc 1.80.0`](https://github.com/rust-lang/rust/releases/tag/1.80.0)
+  - [616](https://github.com/thoth-pub/thoth/pull/616) - Upgrade `time` to v0.3.36
+  - [616](https://github.com/thoth-pub/thoth/pull/616) - Upgrade `actix-web` to v4.8
+  - [616](https://github.com/thoth-pub/thoth/pull/616) - Upgrade `openssl` to v0.10.66
+
+### Fixed
+  - [610](https://github.com/thoth-pub/thoth/issues/610) - Update <WebsiteRole> code for Work Landing Page in all ONIX exports from "01" (Publisher’s corporate website) to "02" (Publisher’s website for a specified work).
 
 ## [[0.12.6]](https://github.com/thoth-pub/thoth/releases/tag/v0.12.6) - 2024-06-17
 ### Fixed
