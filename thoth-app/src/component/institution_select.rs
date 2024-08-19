@@ -45,7 +45,15 @@ impl Component for InstitutionSelectComponent {
 
     fn create(ctx: &Context<Self>) -> Self {
         let institutions: Vec<Institution> = Default::default();
-        let fetch_institutions = Default::default();
+        let body = InstitutionsRequestBody {
+            variables: Variables {
+                limit: Some(100),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let request = InstitutionsRequest { body };
+        let fetch_institutions = Fetch::new(request);
         let search_callback = ctx.link().callback(|_| Msg::SearchInstitution);
         let search_query: String = Default::default();
         let debounce_timeout: Option<Timeout> = None;

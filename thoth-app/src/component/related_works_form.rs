@@ -125,6 +125,7 @@ impl Component for RelatedWorksFormComponent {
         let show_results = false;
         let body = SlimWorksRequestBody {
             variables: Variables {
+                limit: Some(100),
                 publishers: ctx.props().current_user.resource_access.restricted_to(),
                 ..Default::default()
             },
@@ -446,6 +447,7 @@ impl Component for RelatedWorksFormComponent {
             // This will override any search box filtering, but should only occur rarely.
             let body = SlimWorksRequestBody {
                 variables: Variables {
+                    limit: Some(100),
                     publishers: ctx.props().current_user.resource_access.restricted_to(),
                     ..Default::default()
                 },

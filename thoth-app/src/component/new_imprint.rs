@@ -118,6 +118,7 @@ impl Component for NewImprintComponent {
             Msg::GetPublishers => {
                 let body = PublishersRequestBody {
                     variables: PublishersVariables {
+                        limit: Some(100),
                         publishers: ctx.props().current_user.resource_access.restricted_to(),
                         ..Default::default()
                     },
