@@ -168,21 +168,11 @@ pub struct QueryRoot;
 #[juniper::graphql_object(Context = Context)]
 impl QueryRoot {
     #[allow(clippy::too_many_arguments)]
-    #[graphql(
-        description="Query the full list of works"
-    )]
+    #[graphql(description = "Query the full list of works")]
     fn works(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
@@ -203,10 +193,9 @@ impl QueryRoot {
             description = "Specific types to filter by",
         )]
         work_types: Option<Vec<WorkType>>,
-        #[graphql(
-            description = "(deprecated) A specific status to filter by"
-        )]
-        work_status: Option<WorkStatus>,
+        #[graphql(description = "(deprecated) A specific status to filter by")] work_status: Option<
+            WorkStatus,
+        >,
         #[graphql(
             default = vec![],
             description = "Specific statuses to filter by"
@@ -247,9 +236,7 @@ impl QueryRoot {
         Work::from_doi(&context.db, doi, vec![]).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get the total number of works",
-    )]
+    #[graphql(description = "Get the total number of works")]
     fn work_count(
         context: &Context,
         #[graphql(
@@ -267,10 +254,9 @@ impl QueryRoot {
             description = "Specific types to filter by",
         )]
         work_types: Option<Vec<WorkType>>,
-        #[graphql(
-            description = "(deprecated) A specific status to filter by"
-        )]
-        work_status: Option<WorkStatus>,
+        #[graphql(description = "(deprecated) A specific status to filter by")] work_status: Option<
+            WorkStatus,
+        >,
         #[graphql(
             default = vec![],
             description = "Specific statuses to filter by"
@@ -297,21 +283,11 @@ impl QueryRoot {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[graphql(
-        description="Query the full list of books (a subset of the full list of works)",
-    )]
+    #[graphql(description = "Query the full list of books (a subset of the full list of works)")]
     fn books(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
@@ -327,10 +303,9 @@ impl QueryRoot {
             description = "If set, only shows results connected to publishers with these IDs"
         )]
         publishers: Option<Vec<Uuid>>,
-        #[graphql(
-            description = "(deprecated) A specific status to filter by"
-        )]
-        work_status: Option<WorkStatus>,
+        #[graphql(description = "(deprecated) A specific status to filter by")] work_status: Option<
+            WorkStatus,
+        >,
         #[graphql(
             default = vec![],
             description = "Specific statuses to filter by"
@@ -382,7 +357,7 @@ impl QueryRoot {
     }
 
     #[graphql(
-        description = "Get the total number of books (a subset of the total number of works)",
+        description = "Get the total number of books (a subset of the total number of works)"
     )]
     fn book_count(
         context: &Context,
@@ -396,10 +371,9 @@ impl QueryRoot {
             description = "If set, only shows results connected to publishers with these IDs"
         )]
         publishers: Option<Vec<Uuid>>,
-        #[graphql(
-            description = "(deprecated) A specific status to filter by"
-        )]
-        work_status: Option<WorkStatus>,
+        #[graphql(description = "(deprecated) A specific status to filter by")] work_status: Option<
+            WorkStatus,
+        >,
         #[graphql(
             default = vec![],
             description = "Specific statuses to filter by"
@@ -431,21 +405,11 @@ impl QueryRoot {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[graphql(
-        description="Query the full list of chapters (a subset of the full list of works)",
-    )]
+    #[graphql(description = "Query the full list of chapters (a subset of the full list of works)")]
     fn chapters(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
@@ -461,10 +425,9 @@ impl QueryRoot {
             description = "If set, only shows results connected to publishers with these IDs"
         )]
         publishers: Option<Vec<Uuid>>,
-        #[graphql(
-            description = "(deprecated) A specific status to filter by"
-        )]
-        work_status: Option<WorkStatus>,
+        #[graphql(description = "(deprecated) A specific status to filter by")] work_status: Option<
+            WorkStatus,
+        >,
         #[graphql(
             default = vec![],
             description = "Specific statuses to filter by"
@@ -501,7 +464,7 @@ impl QueryRoot {
     }
 
     #[graphql(
-        description = "Get the total number of chapters (a subset of the total number of works)",
+        description = "Get the total number of chapters (a subset of the total number of works)"
     )]
     fn chapter_count(
         context: &Context,
@@ -515,10 +478,9 @@ impl QueryRoot {
             description = "If set, only shows results connected to publishers with these IDs"
         )]
         publishers: Option<Vec<Uuid>>,
-        #[graphql(
-            description = "(deprecated) A specific status to filter by"
-        )]
-        work_status: Option<WorkStatus>,
+        #[graphql(description = "(deprecated) A specific status to filter by")] work_status: Option<
+            WorkStatus,
+        >,
         #[graphql(
             default = vec![],
             description = "Specific statuses to filter by"
@@ -544,21 +506,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Query the full list of publications",
-    )]
+    #[graphql(description = "Query the full list of publications")]
     fn publications(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn"
@@ -601,9 +553,7 @@ impl QueryRoot {
         Publication::from_id(&context.db, &publication_id).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get the total number of publications",
-    )]
+    #[graphql(description = "Get the total number of publications")]
     fn publication_count(
         context: &Context,
         #[graphql(
@@ -633,21 +583,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description="Query the full list of publishers",
-    )]
+    #[graphql(description = "Query the full list of publishers")]
     fn publishers(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on publisher_name and publisher_shortname"
@@ -685,9 +625,7 @@ impl QueryRoot {
         Publisher::from_id(&context.db, &publisher_id).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get the total number of publishers",
-    )]
+    #[graphql(description = "Get the total number of publishers")]
     fn publisher_count(
         context: &Context,
         #[graphql(
@@ -701,25 +639,22 @@ impl QueryRoot {
         )]
         publishers: Option<Vec<Uuid>>,
     ) -> FieldResult<i32> {
-        Publisher::count(&context.db, filter, publishers.unwrap_or_default(), vec![], vec![], None)
-            .map_err(|e| e.into())
+        Publisher::count(
+            &context.db,
+            filter,
+            publishers.unwrap_or_default(),
+            vec![],
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Query the full list of imprints",
-    )]
+    #[graphql(description = "Query the full list of imprints")]
     fn imprints(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url"
@@ -757,9 +692,7 @@ impl QueryRoot {
         Imprint::from_id(&context.db, &imprint_id).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get the total number of imprints",
-    )]
+    #[graphql(description = "Get the total number of imprints")]
     fn imprint_count(
         context: &Context,
         #[graphql(
@@ -773,25 +706,22 @@ impl QueryRoot {
         )]
         publishers: Option<Vec<Uuid>>,
     ) -> FieldResult<i32> {
-        Imprint::count(&context.db, filter, publishers.unwrap_or_default(), vec![], vec![], None)
-            .map_err(|e| e.into())
+        Imprint::count(
+            &context.db,
+            filter,
+            publishers.unwrap_or_default(),
+            vec![],
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Query the full list of contributors",
-    )]
+    #[graphql(description = "Query the full list of contributors")]
     fn contributors(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_name, last_name and orcid"
@@ -824,9 +754,7 @@ impl QueryRoot {
         Contributor::from_id(&context.db, &contributor_id).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get the total number of contributors",
-    )]
+    #[graphql(description = "Get the total number of contributors")]
     fn contributor_count(
         context: &Context,
         #[graphql(
@@ -835,25 +763,14 @@ impl QueryRoot {
         )]
         filter: Option<String>,
     ) -> FieldResult<i32> {
-        Contributor::count(&context.db, filter, vec![], vec![], vec![], None)
-            .map_err(|e| e.into())
+        Contributor::count(&context.db, filter, vec![], vec![], vec![], None).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Query the full list of contributions",
-    )]
+    #[graphql(description = "Query the full list of contributions")]
     fn contributions(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = ContributionOrderBy::default(),
             description = "The order in which to sort the results"
@@ -900,25 +817,22 @@ impl QueryRoot {
         )]
         contribution_types: Option<Vec<ContributionType>>,
     ) -> FieldResult<i32> {
-        Contribution::count(&context.db, None, vec![], contribution_types.unwrap_or_default(), vec![], None)
-            .map_err(|e| e.into())
+        Contribution::count(
+            &context.db,
+            None,
+            vec![],
+            contribution_types.unwrap_or_default(),
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Query the full list of series",
-    )]
+    #[graphql(description = "Query the full list of series")]
     fn serieses(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on series_name, issn_print, issn_digital, series_url and series_description"
@@ -961,9 +875,7 @@ impl QueryRoot {
         Series::from_id(&context.db, &series_id).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get the total number of series",
-    )]
+    #[graphql(description = "Get the total number of series")]
     fn series_count(
         context: &Context,
         #[graphql(
@@ -993,21 +905,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Query the full list of issues",
-    )]
+    #[graphql(description = "Query the full list of issues")]
     fn issues(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = IssueOrderBy::default(),
             description = "The order in which to sort the results"
@@ -1046,21 +948,11 @@ impl QueryRoot {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[graphql(
-        description = "Query the full list of languages",
-    )]
+    #[graphql(description = "Query the full list of languages")]
     fn languages(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = LanguageOrderBy::default(),
             description = "The order in which to sort the results"
@@ -1111,9 +1003,7 @@ impl QueryRoot {
         Language::from_id(&context.db, &language_id).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get the total number of languages associated to works",
-    )]
+    #[graphql(description = "Get the total number of languages associated to works")]
     fn language_count(
         context: &Context,
         #[graphql(
@@ -1135,25 +1025,22 @@ impl QueryRoot {
         if let Some(relation) = language_relation {
             relations.push(relation);
         }
-        Language::count(&context.db, None, vec![], language_codes.unwrap_or_default(), relations, None)
-            .map_err(|e| e.into())
+        Language::count(
+            &context.db,
+            None,
+            vec![],
+            language_codes.unwrap_or_default(),
+            relations,
+            None,
+        )
+        .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Query the full list of locations",
-    )]
+    #[graphql(description = "Query the full list of locations")]
     fn locations(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = LocationOrderBy::default(),
             description = "The order in which to sort the results"
@@ -1200,25 +1087,22 @@ impl QueryRoot {
         )]
         location_platforms: Option<Vec<LocationPlatform>>,
     ) -> FieldResult<i32> {
-        Location::count(&context.db, None, vec![], location_platforms.unwrap_or_default(), vec![], None)
-            .map_err(|e| e.into())
+        Location::count(
+            &context.db,
+            None,
+            vec![],
+            location_platforms.unwrap_or_default(),
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Query the full list of prices",
-    )]
+    #[graphql(description = "Query the full list of prices")]
     fn prices(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = PriceOrderBy::default(),
             description = "The order in which to sort the results"
@@ -1256,9 +1140,7 @@ impl QueryRoot {
         Price::from_id(&context.db, &price_id).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get the total number of prices associated to works",
-    )]
+    #[graphql(description = "Get the total number of prices associated to works")]
     fn price_count(
         context: &Context,
         #[graphql(
@@ -1267,24 +1149,22 @@ impl QueryRoot {
         )]
         currency_codes: Option<Vec<CurrencyCode>>,
     ) -> FieldResult<i32> {
-        Price::count(&context.db, None, vec![], currency_codes.unwrap_or_default(), vec![], None).map_err(|e| e.into())
+        Price::count(
+            &context.db,
+            None,
+            vec![],
+            currency_codes.unwrap_or_default(),
+            vec![],
+            None,
+        )
+        .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Query the full list of subjects",
-    )]
+    #[graphql(description = "Query the full list of subjects")]
     fn subjects(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code"
@@ -1327,9 +1207,7 @@ impl QueryRoot {
         Subject::from_id(&context.db, &subject_id).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get the total number of subjects associated to works",
-    )]
+    #[graphql(description = "Get the total number of subjects associated to works")]
     fn subject_count(
         context: &Context,
         #[graphql(
@@ -1354,21 +1232,11 @@ impl QueryRoot {
         .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Query the full list of institutions",
-    )]
+    #[graphql(description = "Query the full list of institutions")]
     fn institutions(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on institution_name, ror and institution_doi"
@@ -1401,9 +1269,7 @@ impl QueryRoot {
         Institution::from_id(&context.db, &institution_id).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get the total number of institutions",
-    )]
+    #[graphql(description = "Get the total number of institutions")]
     fn institution_count(
         context: &Context,
         #[graphql(
@@ -1412,25 +1278,14 @@ impl QueryRoot {
         )]
         filter: Option<String>,
     ) -> FieldResult<i32> {
-        Institution::count(&context.db, filter, vec![], vec![], vec![], None)
-            .map_err(|e| e.into())
+        Institution::count(&context.db, filter, vec![], vec![], vec![], None).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Query the full list of fundings",
-    )]
+    #[graphql(description = "Query the full list of fundings")]
     fn fundings(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = FundingOrderBy::default(),
             description = "The order in which to sort the results"
@@ -1468,21 +1323,11 @@ impl QueryRoot {
         Funding::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Query the full list of affiliations",
-    )]
+    #[graphql(description = "Query the full list of affiliations")]
     fn affiliations(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = AffiliationOrderBy::default(),
             description = "The order in which to sort the results"
@@ -1520,21 +1365,11 @@ impl QueryRoot {
         Affiliation::count(&context.db, None, vec![], vec![], vec![], None).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Query the full list of references",
-    )]
+    #[graphql(description = "Query the full list of references")]
     fn references(
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = ReferenceOrderBy::default(),
             description = "The order in which to sort the results"
@@ -1815,9 +1650,7 @@ impl MutationRoot {
     fn update_imprint(context: &Context, data: PatchImprint) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let imprint = Imprint::from_id(&context.db, &data.imprint_id).unwrap();
-        context
-            .account_access
-            .can_edit(imprint.publisher_id())?;
+        context.account_access.can_edit(imprint.publisher_id())?;
 
         if data.publisher_id != imprint.publisher_id {
             context.account_access.can_edit(data.publisher_id)?;
@@ -2143,9 +1976,7 @@ impl MutationRoot {
     fn delete_imprint(context: &Context, imprint_id: Uuid) -> FieldResult<Imprint> {
         context.token.jwt.as_ref().ok_or(ThothError::Unauthorised)?;
         let imprint = Imprint::from_id(&context.db, &imprint_id).unwrap();
-        context
-            .account_access
-            .can_edit(imprint.publisher_id())?;
+        context.account_access.can_edit(imprint.publisher_id())?;
 
         imprint.delete(&context.db).map_err(|e| e.into())
     }
@@ -2485,22 +2316,12 @@ impl Work {
         Imprint::from_id(&context.db, &self.imprint_id).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get contributions linked to this work",
-    )]
+    #[graphql(description = "Get contributions linked to this work")]
     pub fn contributions(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = ContributionOrderBy::default(),
             description = "The order in which to sort the results"
@@ -2529,22 +2350,12 @@ impl Work {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[graphql(
-        description = "Get languages linked to this work",
-    )]
+    #[graphql(description = "Get languages linked to this work")]
     pub fn languages(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = LanguageOrderBy::default(),
             description = "The order in which to sort the results"
@@ -2585,22 +2396,12 @@ impl Work {
         .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get publications linked to this work",
-    )]
+    #[graphql(description = "Get publications linked to this work")]
     pub fn publications(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on isbn"
@@ -2633,22 +2434,12 @@ impl Work {
         .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get subjects linked to this work",
-    )]
+    #[graphql(description = "Get subjects linked to this work")]
     pub fn subjects(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on subject_code"
@@ -2681,22 +2472,12 @@ impl Work {
         .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get fundings linked to this work",
-    )]
+    #[graphql(description = "Get fundings linked to this work")]
     pub fn fundings(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = FundingOrderBy::default(),
             description = "The order in which to sort the results"
@@ -2719,22 +2500,12 @@ impl Work {
         .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get issues linked to this work",
-    )]
+    #[graphql(description = "Get issues linked to this work")]
     pub fn issues(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = IssueOrderBy::default(),
             description = "The order in which to sort the results"
@@ -2756,22 +2527,12 @@ impl Work {
         )
         .map_err(|e| e.into())
     }
-    #[graphql(
-        description = "Get other works related to this work",
-    )]
+    #[graphql(description = "Get other works related to this work")]
     pub fn relations(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = WorkRelationOrderBy::default(),
             description = "The order in which to sort the results"
@@ -2798,22 +2559,12 @@ impl Work {
         )
         .map_err(|e| e.into())
     }
-    #[graphql(
-        description = "Get references cited by this work",
-    )]
+    #[graphql(description = "Get references cited by this work")]
     pub fn references(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on doi, unstructured_citation, issn, isbn, journal_title, article_title, series_title, volume_title, author, standard_designator, standards_body_name, and standards_body_acronym"
@@ -2869,7 +2620,7 @@ impl Publication {
     }
 
     #[graphql(
-        description = "Width of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)",
+        description = "Width of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)"
     )]
     pub fn width(
         &self,
@@ -2877,7 +2628,7 @@ impl Publication {
             default = LengthUnit::default(),
             description = "Unit of measurement in which to represent the width (mm, cm or in)",
         )]
-        units: LengthUnit
+        units: LengthUnit,
     ) -> Option<f64> {
         match units {
             LengthUnit::Mm => self.width_mm,
@@ -2889,7 +2640,7 @@ impl Publication {
     }
 
     #[graphql(
-        description = "Height of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)",
+        description = "Height of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)"
     )]
     pub fn height(
         &self,
@@ -2897,7 +2648,7 @@ impl Publication {
             default = LengthUnit::default(),
             description = "Unit of measurement in which to represent the height (mm, cm or in)",
         )]
-        units: LengthUnit
+        units: LengthUnit,
     ) -> Option<f64> {
         match units {
             LengthUnit::Mm => self.height_mm,
@@ -2909,7 +2660,7 @@ impl Publication {
     }
 
     #[graphql(
-        description = "Depth of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)",
+        description = "Depth of the physical Publication (in mm, cm or in) (only applicable to non-Chapter Paperbacks and Hardbacks)"
     )]
     pub fn depth(
         &self,
@@ -2917,7 +2668,7 @@ impl Publication {
             default = LengthUnit::default(),
             description = "Unit of measurement in which to represent the depth (mm, cm or in)",
         )]
-        units: LengthUnit
+        units: LengthUnit,
     ) -> Option<f64> {
         match units {
             LengthUnit::Mm => self.depth_mm,
@@ -2929,7 +2680,7 @@ impl Publication {
     }
 
     #[graphql(
-        description = "Weight of the physical Publication (in g or oz) (only applicable to non-Chapter Paperbacks and Hardbacks)",
+        description = "Weight of the physical Publication (in g or oz) (only applicable to non-Chapter Paperbacks and Hardbacks)"
     )]
     pub fn weight(
         &self,
@@ -2937,7 +2688,7 @@ impl Publication {
             default = WeightUnit::default(),
             description = "Unit of measurement in which to represent the weight (grams or ounces)",
         )]
-        units: WeightUnit
+        units: WeightUnit,
     ) -> Option<f64> {
         match units {
             WeightUnit::G => self.weight_g,
@@ -2945,22 +2696,12 @@ impl Publication {
         }
     }
 
-    #[graphql(
-        description = "Get prices linked to this publication",
-    )]
+    #[graphql(description = "Get prices linked to this publication")]
     pub fn prices(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = PriceOrderBy::default(),
             description = "The order in which to sort the results"
@@ -2988,22 +2729,12 @@ impl Publication {
         .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get locations linked to this publication",
-    )]
+    #[graphql(description = "Get locations linked to this publication")]
     pub fn locations(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = LocationOrderBy::default(),
             description = "The order in which to sort the results"
@@ -3062,22 +2793,12 @@ impl Publisher {
         self.updated_at.clone()
     }
 
-    #[graphql(
-        description = "Get imprints linked to this publisher",
-    )]
+    #[graphql(description = "Get imprints linked to this publisher")]
     pub fn imprints(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on imprint_name and imprint_url"
@@ -3151,22 +2872,12 @@ impl Imprint {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[graphql(
-        description="Get works linked to this imprint",
-    )]
+    #[graphql(description = "Get works linked to this imprint")]
     pub fn works(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = "".to_string(),
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on full_title, doi, reference, short_abstract, long_abstract, and landing_page"
@@ -3182,10 +2893,9 @@ impl Imprint {
             description = "Specific types to filter by",
         )]
         work_types: Option<Vec<WorkType>>,
-        #[graphql(
-            description = "(deprecated) A specific status to filter by"
-        )]
-        work_status: Option<WorkStatus>,
+        #[graphql(description = "(deprecated) A specific status to filter by")] work_status: Option<
+            WorkStatus,
+        >,
         #[graphql(
             default = vec![],
             description = "Specific statuses to filter by"
@@ -3251,22 +2961,12 @@ impl Contributor {
         self.updated_at.clone()
     }
 
-    #[graphql(
-        description = "Get contributions linked to this contributor",
-    )]
+    #[graphql(description = "Get contributions linked to this contributor")]
     pub fn contributions(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = ContributionOrderBy::default(),
             description = "The order in which to sort the results"
@@ -3353,22 +3053,12 @@ impl Contribution {
         Contributor::from_id(&context.db, &self.contributor_id).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get affiliations linked to this contribution",
-    )]
+    #[graphql(description = "Get affiliations linked to this contribution")]
     pub fn affiliations(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = AffiliationOrderBy::default(),
             description = "The order in which to sort the results"
@@ -3444,22 +3134,12 @@ impl Series {
         Imprint::from_id(&context.db, &self.imprint_id).map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get issues linked to this series",
-    )]
+    #[graphql(description = "Get issues linked to this series")]
     pub fn issues(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = IssueOrderBy::default(),
             description = "The order in which to sort the results"
@@ -3694,22 +3374,12 @@ impl Institution {
         self.updated_at.clone()
     }
 
-    #[graphql(
-        description = "Get fundings linked to this institution",
-    )]
+    #[graphql(description = "Get fundings linked to this institution")]
     pub fn fundings(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = FundingOrderBy::default(),
             description = "The order in which to sort the results"
@@ -3732,22 +3402,12 @@ impl Institution {
         .map_err(|e| e.into())
     }
 
-    #[graphql(
-        description = "Get affiliations linked to this institution",
-    )]
+    #[graphql(description = "Get affiliations linked to this institution")]
     pub fn affiliations(
         &self,
         context: &Context,
-        #[graphql(
-            default = 100,
-            description = "The number of items to return"
-        )]
-        limit: Option<i32>,
-        #[graphql(
-            default = 0,
-            description = "The number of items to skip"
-        )]
-        offset: Option<i32>,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
         #[graphql(
             default = AffiliationOrderBy::default(),
             description = "The order in which to sort the results"
