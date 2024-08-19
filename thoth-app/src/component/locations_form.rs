@@ -131,6 +131,9 @@ impl Component for LocationsFormComponent {
                         // Editing existing location: load its current values.
                         self.location = location;
                     }
+                } else {
+                    self.location = Default::default();
+                    self.location.location_platform = LocationPlatform::Other;
                 }
                 true
             }
@@ -380,17 +383,17 @@ impl Component for LocationsFormComponent {
                             <form id="locations-form" onsubmit={ self.modal_form_action(ctx) }>
                                 <FormUrlInput
                                     label="Landing Page"
-                                    value={ if self.in_edit_mode { self.location.landing_page.clone() } else { None } }
+                                    value={ self.location.landing_page.clone() }
                                     oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeLandingPage(e.to_value())) }
                                 />
                                 <FormUrlInput
                                     label="Full Text URL"
-                                    value={ if self.in_edit_mode { self.location.full_text_url.clone() } else { None } }
+                                    value={ self.location.full_text_url.clone() }
                                     oninput={ ctx.link().callback(|e: InputEvent| Msg::ChangeFullTextUrl(e.to_value())) }
                                 />
                                 <FormLocationPlatformSelect
                                     label = "Location Platform"
-                                    value={ if self.in_edit_mode { self.location.location_platform.clone() } else { LocationPlatform::Other } }
+                                    value={ self.location.location_platform.clone() }
                                     data={ self.data.location_platforms.clone() }
                                     onchange={ ctx.link().callback(|e: Event|
                                         Msg::ChangeLocationPlatform(LocationPlatform::from_str(&e.to_value()).unwrap())
