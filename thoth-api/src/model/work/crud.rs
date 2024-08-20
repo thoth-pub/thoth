@@ -379,7 +379,8 @@ impl Crud for Work {
     }
 
     fn publisher_id(&self, db: &crate::db::PgPool) -> ThothResult<Uuid> {
-        Ok(crate::model::imprint::Imprint::from_id(db, &self.imprint_id)?.publisher_id)
+        let imprint = crate::model::imprint::Imprint::from_id(db, &self.imprint_id)?;
+        <crate::model::imprint::Imprint as Crud>::publisher_id(&imprint, db)
     }
 
     crud_methods!(work::table, work::dsl::work);
